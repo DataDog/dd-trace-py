@@ -1345,9 +1345,20 @@ class Contrib_TestClass_For_Threats:
                         user_id_hash if user_id else username
                     )
                     assert get_tag("appsec.events.users.login.failure.usr.exists") == str(user == "testuuid").lower()
+                    # check for manual instrumentation tag in manual instrumented frameworks
+                    if interface.name in ["flask", "fastapi"]:
+                        assert get_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
+                    else:
+                        assert get_tag("_dd.appsec.events.users.login.success.sdk") is None
                 else:
                     assert get_tag("appsec.events.users.login.success.track") == "true"
                     assert get_tag("usr.id") == user_id_hash
+                    # check for manual instrumentation tag in manual instrumented frameworks
+                    if interface.name in ["flask", "fastapi"]:
+                        assert get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
+                    else:
+                        assert get_tag("_dd.appsec.events.users.login.success.sdk") is None
+
             else:
                 assert get_tag("usr.id") is None
                 assert not any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
