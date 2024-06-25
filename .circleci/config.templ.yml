@@ -484,13 +484,17 @@ jobs:
           pattern: 'appsec_iast_memcheck'
           snapshot: true
 
-  appsec_iast_packages:
-    <<: *machine_executor
-    parallelism: 5
-    steps:
-      - run_test:
-          pattern: 'appsec_iast_packages'
-          snapshot: true
+appsec_iast_packages:
+  <<: *machine_executor
+  parallelism: 5
+  steps:
+    - when:
+        condition:
+          equal: ["main", "<<pipeline.git.branch>>"]
+        steps:
+          - run_test:
+              pattern: 'appsec_iast_packages'
+              snapshot: true
 
   appsec_integrations:
     <<: *machine_executor

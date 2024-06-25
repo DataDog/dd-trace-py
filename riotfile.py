@@ -316,8 +316,8 @@ venv = Venv(
                     pys=MAX_PYTHON_VERSION,
                 ),
                 Venv(
-                    name="tracer-legacy-atrrs",
-                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
+                    name="tracer-legacy-attrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==22.1.0"},
                     # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
                     pys=MIN_PYTHON_VERSION,
                 ),
@@ -2480,6 +2480,7 @@ venv = Venv(
                 "psutil": latest,
                 "pytest-randomly": latest,
                 "numexpr": latest,
+                "greenlet": "==3.0.3",
             },
             venvs=[
                 Venv(
