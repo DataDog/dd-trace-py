@@ -9,7 +9,6 @@ from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace.contrib.aiomysql import patch
 from ddtrace.contrib.aiomysql import unpatch
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
@@ -281,7 +280,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc"
-
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
