@@ -610,6 +610,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
 try:
     from pip._vendor.distlib.resources import register_finder, ResourceFinder
+
     register_finder(_ImportHookChainedLoader, ResourceFinder)
 except ImportError:
     pass
