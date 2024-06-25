@@ -59,7 +59,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def __init__(self) -> None:
         super().__init__()
         self.seen: t.Set = set()
-        self._collect_module_dependencies = True
+        self._collect_module_dependencies: bool = False
         self._coverage_enabled: bool = False
         self.lines: t.DefaultDict[str, t.Set] = defaultdict(set)
         self.covered: t.DefaultDict[str, t.Set] = defaultdict(set)
@@ -91,14 +91,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             include_paths = [Path(os.getcwd())]
 
         cls._instance._include_paths = include_paths
+        cls._instance._collect_module_dependencies = collect_module_dependencies
 
-    def hook(self, arg):
-        path, line, is_module_level = arg
-
-        if is_module_level and self._collect_module_dependencies:
-            module_level_lines = self._module_level_covered[path]
-            if line not in module_level_lines:
-                module_level_lines.add(line)
+    def line_coverage_hook(self, arg):
+        path, line = arg
 
         if self._coverage_enabled:
             lines = self.covered[path]
@@ -111,11 +107,24 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             if line not in ctx_lines:
                 ctx_lines.add(line)
 
-    def record_module_dependency_hook(self, arg):
-        # Capturing dependencies is not context-specific
-        if self._collect_module_dependencies:
-            module_name, imported_module_name = arg
-            self._module_dependencies[module_name].add(imported_module_name)
+    def module_coverage_hook(self, arg):
+        """Wraps the regular coverage hook to add module-level coverage tracking."""
+        # Module-level coverage collection is not context-specific
+        # We assume that the hook would only be installed if self._collect_module_dependencies
+        # is true, so we don't re-check it here
+        path, line = arg
+        module_level_lines = self._module_level_covered[path]
+        if line not in module_level_lines:
+            module_level_lines.add(line)
+
+        # Call the regular hook to record regular line coverage
+        self.line_coverage_hook(arg)
+
+    def module_dependency_hook(self, arg):
+        """Wraps the module coverage hook to include module-level dependencies collection"""
+        path, line, imported_module_name = arg
+        self._module_dependencies[path].add(imported_module_name)
+        self.module_coverage_hook((path, line))
 
     @classmethod
     def absorb_data_json(cls, data_json: str):
@@ -323,14 +332,16 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return code
         self.seen.add(code)
 
-        collect_hook = None
+        module_coverage_hook = None
+        module_dependency_hook = None
         # _module is None for frozen modules, but frozen modules are never covered
         if _module is not None and self._collect_module_dependencies:
-            collect_hook = self.record_module_dependency_hook
+            module_coverage_hook = self.module_coverage_hook
+            module_dependency_hook = self.module_dependency_hook
             if _module.__name__ not in self._module_names_to_files:
                 self._module_names_to_files[_module.__name__] = code.co_filename
 
-        new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, collect_hook)
+        new_code, lines = instrument_all_lines(code, self.line_coverage_hook, code.co_filename, module_coverage_hook, module_dependency_hook)
         # Don't re-instrument the code that was just instrumented
         self.seen.add(new_code)
 

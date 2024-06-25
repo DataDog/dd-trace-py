@@ -1,7 +1,7 @@
-"""Variables / functions in this file are used to test coverage of items at import time, rather than execution time"""
+# """Variables / functions in this file are used to test coverage of items at import time, rather than execution time"""
 
 from tests.coverage.included_path.nested_import_time_lib import USED_NESTED_CONSTANT
-
+from tests.coverage.included_path.nested_import_time_lib import NESTED_CONSTANT, NESTED_COMPUTED_CONSTANT
 
 CONSTANT = "some constant"
 UNUSED_CONSTANT = "unused constant"

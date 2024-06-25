@@ -50,7 +50,7 @@ def test_coverage_at_import_time():
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
 
-    install(include_paths=[Path(os.getcwd() + "/tests/coverage/included_path/")])
+    install(include_paths=[Path(os.getcwd() + "/tests/coverage/included_path/")], collect_module_dependencies=True)
 
     # Import modules prior to starting coverage so they are not re-imported at runtime
     from tests.coverage.included_path.callee import called_in_session_import_time
