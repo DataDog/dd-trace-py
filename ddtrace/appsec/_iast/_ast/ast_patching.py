@@ -84,9 +84,9 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "certifi",
     "idna",
     "py",
-    "pyasn1",
-    "pygments",
-    "pylsqpack",
+    # "pyasn1",
+    # "pygments",
+    # "pylsqpack",
 )
 
 
