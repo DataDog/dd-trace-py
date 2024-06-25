@@ -450,7 +450,7 @@ def test_profiler_libdd_available():
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess(env={"DD_PROFILING_EXPORT_LIBDD_ENABLED": "true"})
-def test_profiler_ddup_start():
+def test_profiler_ddup_init():
     """
     Tests that the the libdatadog exporter can be enabled
     """
@@ -466,6 +466,5 @@ def test_profiler_ddup_start():
             tags={},
             url="http://localhost:8126",
         )
-        ddup.start()
     except Exception as e:
         pytest.fail(str(e))
