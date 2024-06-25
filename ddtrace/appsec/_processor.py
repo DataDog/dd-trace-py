@@ -18,7 +18,6 @@ from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
@@ -66,7 +65,7 @@ def _transform_headers(data: Union[Dict[str, str], List[Tuple[str, str]]]) -> Di
 
 
 def get_rules() -> str:
-    return os.getenv("DD_APPSEC_RULES", default=DEFAULT.RULES)
+    return asm_config._asm_static_rule_file or DEFAULT.RULES
 
 
 def get_appsec_obfuscation_parameter_key_regexp() -> bytes:
@@ -204,7 +203,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
         result = False
-        if not _appsec_rc_file_is_not_static():
+        if asm_config._asm_static_rule_file is not None:
             return result
         try:
             result = self._ddwaf.update_rules(new_rules)
@@ -374,7 +373,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if waf_results.data or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
-            allowed = self._rate_limiter.is_allowed(span.start_ns)
+            allowed = self._rate_limiter.is_allowed()
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return waf_results
