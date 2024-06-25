@@ -496,6 +496,9 @@ jobs:
             - run_test:
                 pattern: 'appsec_iast_packages'
                 snapshot: true
+      - run:
+        name: "Information"
+        command: "echo this test is skipped if not on main branch"
 
   appsec_integrations:
     <<: *machine_executor
