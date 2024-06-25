@@ -94,7 +94,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         cls._instance._collect_module_dependencies = collect_module_dependencies
 
     def line_coverage_hook(self, arg):
-        path, line = arg
+        path, line, is_module_level, import_module_name = arg
 
         if self._coverage_enabled:
             lines = self.covered[path]
@@ -107,24 +107,27 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             if line not in ctx_lines:
                 ctx_lines.add(line)
 
-    def module_coverage_hook(self, arg):
-        """Wraps the regular coverage hook to add module-level coverage tracking."""
-        # Module-level coverage collection is not context-specific
-        # We assume that the hook would only be installed if self._collect_module_dependencies
-        # is true, so we don't re-check it here
-        path, line = arg
-        module_level_lines = self._module_level_covered[path]
-        if line not in module_level_lines:
-            module_level_lines.add(line)
+        if is_module_level:
+            self._module_level_covered[path].add(line)
 
-        # Call the regular hook to record regular line coverage
-        self.line_coverage_hook(arg)
+        if import_module_name is not None:
+            self._module_dependencies[path].add(import_module_name)
 
-    def module_dependency_hook(self, arg):
-        """Wraps the module coverage hook to include module-level dependencies collection"""
-        path, line, imported_module_name = arg
-        self._module_dependencies[path].add(imported_module_name)
-        self.module_coverage_hook((path, line))
+    # def module_coverage_hook(self, arg):
+    #     """Wraps the regular coverage hook to add module-level coverage tracking."""
+    #     # Module-level coverage collection is not context-specific
+    #     # We assume that the hook would only be installed if self._collect_module_dependencies
+    #     # is true, so we don't re-check it here
+    #     path, line, imported_module_name = arg
+    #     module_level_lines = self._module_level_covered[path]
+    #     if line not in module_level_lines:
+    #         module_level_lines.add(line)
+    #
+    #     if imported_module_name is not None:
+    #         self._module_dependencies[path].add(imported_module_name)
+    #
+    #     # Call the regular hook to record regular line coverage
+    #     self.line_coverage_hook((path, line))
 
     @classmethod
     def absorb_data_json(cls, data_json: str):
@@ -293,6 +296,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             )
 
             sorted_lines = sorted(lines)
+
             collapsed_ranges = collapse_ranges(sorted_lines)
             file_segments = []
             for file_segment in collapsed_ranges:
@@ -302,6 +306,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         return files
 
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
+        # Never instrument frozen modules
+        if _module is None:
+            return code
+
         code_path = Path(code.co_filename)
 
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
@@ -332,16 +340,13 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return code
         self.seen.add(code)
 
-        module_coverage_hook = None
-        module_dependency_hook = None
         # _module is None for frozen modules, but frozen modules are never covered
-        if _module is not None and self._collect_module_dependencies:
-            module_coverage_hook = self.module_coverage_hook
-            module_dependency_hook = self.module_dependency_hook
-            if _module.__name__ not in self._module_names_to_files:
-                self._module_names_to_files[_module.__name__] = code.co_filename
+        # if _module is not None and self._collect_module_dependencies:
+        #     module_coverage_hook = self.module_coverage_hook
+        #     if _module.__name__ not in self._module_names_to_files:
+        #         self._module_names_to_files[_module.__name__] = code.co_filename
 
-        new_code, lines = instrument_all_lines(code, self.line_coverage_hook, code.co_filename, module_coverage_hook, module_dependency_hook)
+        new_code, lines = instrument_all_lines(code, self.line_coverage_hook, code.co_filename, self._collect_module_dependencies)
         # Don't re-instrument the code that was just instrumented
         self.seen.add(new_code)
 

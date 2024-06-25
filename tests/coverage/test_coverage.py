@@ -80,12 +80,18 @@ def test_coverage_at_import_time():
     pass_test = True
 
     if lines != expected_lines:
-        print(f"Lines mismatch: {lines=} vs {expected_lines=}")
+        # print(f"Lines mismatch: {lines=} vs {expected_lines=}")
         pass_test = False
 
     if covered != expected_covered:
-        print(f"Covered lines mismatch: {expected_covered=} vs {covered=}")
-        print(f"Covered lines with imports mismatch: {expected_covered=} vs {covered_with_imports=}")
+        # print(f"Covered lines mismatch: {expected_covered=} vs {covered=}")
+        # print(f"Covered lines with imports mismatch: {expected_covered=} vs {covered_with_imports=}")
         pass_test = False
+
+    import pprint
+    print(f"Covered lines vs covered with imports:")
+    pprint.pprint(covered)
+    print(f"\n\nvs\n\n")
+    pprint.pprint(covered_with_imports)
 
     assert pass_test
