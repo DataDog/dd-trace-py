@@ -81,8 +81,8 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "_asyncio",
     "multidict",
     ## Debug
-    "certifi",
-    "idna",
+    # "certifi",
+    # "idna",
     "py",
     # "pyasn1",
     # "pygments",
