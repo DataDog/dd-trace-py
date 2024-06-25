@@ -661,7 +661,7 @@ venv = Venv(
                     pkgs={
                         "pytest": "~=4.0",
                         "celery": [
-                            "~=4.4",  # most recent 4.x
+                            latest,  # most recent 4.x
                         ],
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
@@ -680,7 +680,7 @@ venv = Venv(
                     pkgs={
                         "pytest": "~=4.0",
                         "celery": [
-                            "~=4.4",  # most recent 4.x
+                            latest,  # most recent 4.x
                         ],
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
@@ -902,7 +902,7 @@ venv = Venv(
                 # that we currently have no reasons for expanding this matrix.
                 "django": "==2.2.1",
                 "sqlalchemy": "~=1.2.18",
-                "celery": "~=5.0.5",
+                "celery": latest,
                 "gevent": latest,
                 "requests": latest,
                 "typing-extensions": latest,

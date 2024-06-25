@@ -79,7 +79,6 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install -U "pip<24.1"
       - run: pip3 install riot==0.19.0
 
   setup_rust:
