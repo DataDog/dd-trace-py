@@ -399,7 +399,6 @@ PACKAGES = [
         "",
         import_module_to_validate="platformdirs.unix",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "pluggy",
@@ -710,7 +709,6 @@ PACKAGES = [
         "Parsed INI data: {'section': [('key', 'test1234')]}",
         "",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting("psutil", "5.9.8", "cpu", "CPU Usage: replaced_usage", ""),
     PackageForTesting(
@@ -857,10 +855,10 @@ def _assert_propagation_results(response, package):
     result_ok = content["result1"] == "OK"
     if package.fixme_propagation_fails:
         if result_ok:
-            print("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+            pytest.fail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
         else:
-            print("FIXME: propagation test (expectedly) failed for package %s" % package.name)
-        return
+            # Add pytest xfail marker to skip the test
+            pytest.xfail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
 
     if not result_ok:
         print(f"Error: incorrect result from propagation endpoint for package {package.name}: {content}")
