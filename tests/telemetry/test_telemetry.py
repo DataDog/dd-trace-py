@@ -41,7 +41,7 @@ span.finish()
     events = test_agent_session.get_events()
 
     assert len(events) == 5
-    # Generate metrics is sent after app-closed event. This is because the span aggregator is shutdown after the
+    # app-closed is sent after the generate-metrics event. This is because the span aggregator is shutdown after the
     # the telemetry writer. This is a known limitation of the current implementation. Ideally the app-closed event
     # would be sent last.
     assert events[0]["request_type"] == "generate-metrics"
