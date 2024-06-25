@@ -158,17 +158,14 @@ def login_user(request):
     ]:
         try:
             CustomUser = get_user_model()
-            print(f"Creating user {username} with {CustomUser}, {type(CustomUser)}")
             if not CustomUser.objects.filter(id=user_id).exists():
                 user = CustomUser.objects.create_user(username, email, passwd, last_name=last_name, id=user_id)
-                print(f"Created user {user}")
                 user.save()
         except Exception:
             pass
 
     username = request.GET.get("username")
     password = request.GET.get("password")
-    print(f"username: {username}, password: {password}")
     user = authenticate(username=username, password=password)
     if user is not None:
         login(request, user)
