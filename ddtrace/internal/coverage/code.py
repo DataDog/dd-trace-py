@@ -93,7 +93,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         cls._instance._include_paths = include_paths
         cls._instance._collect_module_dependencies = collect_module_dependencies
 
-    def line_coverage_hook(self, arg):
+    def hook(self, arg):
         path, line, is_module_level, import_module_name = arg
 
         if self._coverage_enabled:
@@ -112,22 +112,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
         if import_module_name is not None:
             self._module_dependencies[path].add(import_module_name)
-
-    # def module_coverage_hook(self, arg):
-    #     """Wraps the regular coverage hook to add module-level coverage tracking."""
-    #     # Module-level coverage collection is not context-specific
-    #     # We assume that the hook would only be installed if self._collect_module_dependencies
-    #     # is true, so we don't re-check it here
-    #     path, line, imported_module_name = arg
-    #     module_level_lines = self._module_level_covered[path]
-    #     if line not in module_level_lines:
-    #         module_level_lines.add(line)
-    #
-    #     if imported_module_name is not None:
-    #         self._module_dependencies[path].add(imported_module_name)
-    #
-    #     # Call the regular hook to record regular line coverage
-    #     self.line_coverage_hook((path, line))
 
     @classmethod
     def absorb_data_json(cls, data_json: str):
@@ -340,13 +324,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return code
         self.seen.add(code)
 
-        # _module is None for frozen modules, but frozen modules are never covered
-        # if _module is not None and self._collect_module_dependencies:
-        #     module_coverage_hook = self.module_coverage_hook
-        #     if _module.__name__ not in self._module_names_to_files:
-        #         self._module_names_to_files[_module.__name__] = code.co_filename
-
-        new_code, lines = instrument_all_lines(code, self.line_coverage_hook, code.co_filename, self._collect_module_dependencies)
+        new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, self._collect_module_dependencies)
         # Don't re-instrument the code that was just instrumented
         self.seen.add(new_code)
 
