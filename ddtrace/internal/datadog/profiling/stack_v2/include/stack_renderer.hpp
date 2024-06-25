@@ -16,17 +16,25 @@
 
 namespace Datadog {
 
+struct ThreadInfo
+{
+    // Current thread info.  Keeping one instance of this per StackRenderer is sufficient because the renderer visits
+    // threads one at a time.
+    // The only time this information is revealed is when the sampler observes a thread. When the sampler goes on to
+    // process tasks, it needs to place thread-level information in the Sample.
+    uintptr_t id = 0;
+    unsigned long native_id = 0;
+    std::string name;
+    microsecond_t wall_time_us = 0;
+    microsecond_t cpu_time_us = 0;
+    int64_t now_time_ns = 0;
+
+}
+
 class StackRenderer : public RendererInterface
 {
     Sample* sample = nullptr;
-
-    // Stashed thread information
-    uintptr_t stashed_thread_id = 0;
-    unsigned long stashed_native_id = 0;
-    std::string stashed_thread_name;
-    microsecond_t stashed_wall_time_us = 0;
-    microsecond_t stashed_cpu_time_us = 0;
-    int64_t stashed_now_time_ns = 0;
+    ThreadInfo thread_info = {};
 
     virtual void render_message(std::string_view msg) override;
     virtual void render_thread_begin(PyThreadState* tstate,

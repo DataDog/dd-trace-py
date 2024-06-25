@@ -46,13 +46,14 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     ddup_push_walltime(sample, 1000LL * wall_time_us, 1);
 
-    // We stash the current thread information in the StackRenderer instance, since a task may be begun
-    // after ending the sample.
-    stashed_thread_id = thread_id;
-    stashed_native_id = native_id;
-    stashed_thread_name = std::string(name);
-    stashed_wall_time_us = wall_time_us;
-    stashed_now_time_ns = now_ns;
+    // Save the thread information in case we observe a task on the thread
+    thread_info.id = thread_id;
+    thread_info.native_id = native_id;
+    thread_info.name = std::string(name);
+    thread_info.wall_time_us = wall_time_us;
+    thread_info.now_time_ns = now_ns;
+    thread_info.cpu_time_us = 0; // Walltime samples are guaranteed, but CPU times are not. Initialize to 0
+                                 // since we don't know if we'll get a CPU time here.
 }
 
 void
@@ -63,7 +64,9 @@ StackRenderer::render_task_begin(std::string_view name)
         return;
     }
     if (sample == nullptr) {
-        // This is possible and natural, we just re-hydrate the thread context from the stashed values.
+        // The very first task on a thread will already have a sample, since there's no way to deduce whether
+        // a thread has tasks without checking, and checking before populating the sample would make the state
+        // management very complicated.  The rest of the tasks will not have samples and will hit this code path.
         sample = ddup_start_sample();
         if (sample == nullptr) {
             std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
@@ -71,18 +74,12 @@ StackRenderer::render_task_begin(std::string_view name)
             return;
         }
 
-        // Re-hydrate the thread context
-        ddup_push_threadinfo(sample,
-                             static_cast<int64_t>(stashed_thread_id),
-                             static_cast<int64_t>(stashed_native_id),
-                             stashed_thread_name);
-        ddup_push_walltime(sample, 1000 * stashed_wall_time_us, 1);
-        ddup_push_cputime(sample, 1000 * stashed_cpu_time_us, 1); // initialized to 0, so possibly a no-op
-
-        // If we have a nonzero timestamp, push that too
-        if (stashed_now_time_ns != 0) {
-            ddup_push_monotonic_ns(sample, stashed_now_time_ns);
-        }
+        // Add the thread context into the sample
+        ddup_push_threadinfo(
+          sample, static_cast<int64_t>(thread_info.id), static_cast<int64_t>(thread_info.native_id), thread_info.name);
+        ddup_push_walltime(sample, 1000 * thread_info.wall_time_ns, 1);
+        ddup_push_cputime(sample, 1000 * thread_info.cpu_time_ns, 1); // initialized to 0, so possibly a no-op
+        ddup_push_monotonic_ns(sample, thread_info.now_time_ns);
     }
 
     ddup_push_task_name(sample, name);
@@ -136,9 +133,9 @@ StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
     // ddup is configured to expect nanoseconds
     ddup_push_cputime(sample, 1000 * cpu_time_us, 1);
 
-    // Also stash the CPU time, since this is only visited once per thread, but needs to be associated to
-    // individual tasks, which may be on new samples.
-    stashed_cpu_time_us = cpu_time_us;
+    // TODO - it's absolutely false that thread-level CPU time is task time.  This needs to be normalized
+    // to the task level, but for now just keep it because this is how the v1 sampler works
+    thread_info.cpu_time_us = cpu_time_us;
 }
 
 void
