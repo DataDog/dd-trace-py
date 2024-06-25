@@ -63,7 +63,19 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "wrapt",
     "zipp",
     ## This is a workaround for Sanic failures:
+    "websocket",
+    "h11",
+    "aioquic",
+    "httptools",
+    "sniffio",
+    "py",
     "sanic",
+    "rich",
+    "httpx",
+    "websockets",
+    "uvicorn",
+    "anyio",
+    "httpcore",
 )
 
 
