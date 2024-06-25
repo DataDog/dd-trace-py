@@ -114,3 +114,50 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             resp = self.session.get("mock://datadog/foo")
             assert 200 == resp.status_code
             assert "bar" == resp.text
+
+    def test_propagation_apm_opt_out_true(self):
+        # ensure distributed tracing works when APM is opted out
+        self.tracer._apm_opt_out = True
+        self.tracer.enabled = False
+
+        cfg = config.get_from(self.session)
+        cfg["distributed_tracing"] = True
+        adapter = Adapter()
+        self.session.mount("mock", adapter)
+
+        with self.tracer.trace("root") as root:
+
+            def matcher(request):
+                return self.headers_here(self.tracer, request, root)
+
+            adapter.register_uri("GET", "mock://datadog/foo", additional_matcher=matcher, text="bar")
+            resp = self.session.get("mock://datadog/foo")
+            assert 200 == resp.status_code
+            assert "bar" == resp.text
+
+        spans = self.pop_spans()
+        root, req = spans
+        assert "root" == root.name
+        assert "requests.request" == req.name
+        assert root.trace_id == req.trace_id
+        assert root.span_id == req.parent_id
+
+    def test_propagation_apm_opt_out_false(self):
+        # ensure distributed tracing doesn't works when APM is disabled but not opted out
+        self.tracer._apm_opt_out = False
+        self.tracer.enabled = False
+
+        cfg = config.get_from(self.session)
+        cfg["distributed_tracing"] = True
+        adapter = Adapter()
+        self.session.mount("mock", adapter)
+
+        with self.tracer.trace("root"):
+
+            def matcher(request):
+                return self.headers_not_here(self.tracer, request)
+
+            adapter.register_uri("GET", "mock://datadog/foo", additional_matcher=matcher, text="bar")
+            resp = self.session.get("mock://datadog/foo")
+            assert 200 == resp.status_code
+            assert "bar" == resp.text
