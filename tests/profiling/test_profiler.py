@@ -459,7 +459,7 @@ def test_profiler_ddup_start():
     from ddtrace.internal.datadog.profiling import ddup
 
     try:
-        ddup.config(
+        ddup.init(
             env="my_env",
             service="my_service",
             version="my_version",
