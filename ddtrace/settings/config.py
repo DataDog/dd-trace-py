@@ -583,7 +583,7 @@ class Config(object):
         return self._integration_configs[name]
 
     def _add_extra_service(self, service_name: str) -> None:
-        # DEV: We need to check if gevnt is patched at runtime in case monkey patching occurs after creating the config
+        # DEV: We need to check if gevent is patched at runtime in case monkey patching occurs after creating the config
         if self._extra_services_queue is None or gevent_is_patched():
             return
 
@@ -594,7 +594,7 @@ class Config(object):
                 pass
 
     def _get_extra_services(self) -> Set[str]:
-        # DEV: We need to check if gevnt is patched at runtime in case monkey patching occurs after creating the config
+        # DEV: We need to check if gevent is patched at runtime in case monkey patching occurs after creating the config
         if self._extra_services_queue is None or gevent_is_patched():
             return set()
 
