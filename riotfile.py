@@ -316,8 +316,8 @@ venv = Venv(
                     pys=MAX_PYTHON_VERSION,
                 ),
                 Venv(
-                    name="tracer-legacy-atrrs",
-                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
+                    name="tracer-legacy-attrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==22.1.0"},
                     # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
                     pys=MIN_PYTHON_VERSION,
                 ),
@@ -661,7 +661,7 @@ venv = Venv(
                     pkgs={
                         "pytest": "~=4.0",
                         "celery": [
-                            "~=4.4",  # most recent 4.x
+                            latest,  # most recent 4.x
                         ],
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
@@ -674,18 +674,18 @@ venv = Venv(
                         Venv(pys="3.7", pkgs={"exceptiongroup": latest}),
                     ],
                 ),
-                Venv(
-                    # celery added support for Python 3.9 in 4.x
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={
-                        "pytest": "~=4.0",
-                        "celery": [
-                            "~=4.4",  # most recent 4.x
-                        ],
-                        "redis": "~=3.5",
-                        "kombu": "~=4.4",
-                    },
-                ),
+                # Venv(
+                #     # celery added support for Python 3.9 in 4.x
+                #     pys=select_pys(min_version="3.8", max_version="3.9"),
+                #     pkgs={
+                #         "pytest": "~=4.0",
+                #         "celery": [
+                #             "latest",  # most recent 4.x
+                #         ],
+                #         "redis": "~=3.5",
+                #         "kombu": "~=4.4",
+                #     },
+                # ),
                 # Celery 5.x wants Python 3.6+
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
@@ -902,7 +902,7 @@ venv = Venv(
                 # that we currently have no reasons for expanding this matrix.
                 "django": "==2.2.1",
                 "sqlalchemy": "~=1.2.18",
-                "celery": "~=5.0.5",
+                "celery": latest,
                 "gevent": latest,
                 "requests": latest,
                 "typing-extensions": latest,
@@ -2480,6 +2480,7 @@ venv = Venv(
                 "psutil": latest,
                 "pytest-randomly": latest,
                 "numexpr": latest,
+                "greenlet": "==3.0.3",
             },
             venvs=[
                 Venv(
