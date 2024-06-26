@@ -3654,3 +3654,114 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+    def test_pytest_reports_correct_source_info(self):
+        """Tests that decorated functions are reported with correct source file information and with relative to
+        repo root
+        """
+        os.chdir(self.git_repo)
+        os.mkdir("nested_dir")
+        os.chdir("nested_dir")
+        with open("my_decorators.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def outer_decorator(func):
+                         def wrapper(*args, **kwargs):
+                            return func(*args, **kwargs)
+                         return wrapper
+
+                    @outer_decorator
+                    def inner_decorator(func):
+                         def wrapper(*args, **kwargs):
+                            return func(*args, **kwargs)
+                         return wrapper
+                    """
+                    )
+                )
+            )
+
+        with open("test_mydecorators.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    # this comment is line 2 and if you didn't know that it'd be easy to miscount below
+                    from my_decorators import outer_decorator, inner_decorator
+                    from unittest.mock import patch
+
+                    def local_decorator(func):
+                        def wrapper(*args, **kwargs):
+                            return func(*args, **kwargs)
+                        return wrapper
+
+                    def test_one_decorator():  # line 11
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 != str2
+
+                    @local_decorator  # line 16
+                    def test_local_decorated():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 == str2
+
+                    @patch("ddtrace.config._potato", "potato")  # line 22
+                    def test_patched_undecorated():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 != str2
+
+                    @patch("ddtrace.config._potato", "potato")  # line 28
+                    @inner_decorator
+                    def test_patched_single_decorated():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 == str2
+
+                    @patch("ddtrace.config._potato", "potato")  # line 35
+                    @outer_decorator
+                    def test_patched_double_decorated():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 != str2
+
+                    @outer_decorator  # line 42
+                    @patch("ddtrace.config._potato", "potato")
+                    @local_decorator
+                    def test_grand_slam():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 == str2
+                    """
+                    )
+                )
+            )
+
+        self.inline_run("--ddtrace")
+
+        spans = self.pop_spans()
+        assert len(spans) == 9
+        test_names_to_source_info = {
+            span.get_tag("test.name"): (
+                span.get_tag("test.source.file"),
+                span.get_metric("test.source.start"),
+                span.get_metric("test.source.end"),
+            )
+            for span in spans
+            if span.get_tag("type") == "test"
+        }
+        assert len(test_names_to_source_info) == 6
+
+        expected_path = "nested_dir/test_mydecorators.py"
+        expected_source_info = {
+            "test_one_decorator": (expected_path, 11, 15),
+            "test_local_decorated": (expected_path, 16, 21),
+            "test_patched_undecorated": (expected_path, 22, 27),
+            "test_patched_single_decorated": (expected_path, 28, 34),
+            "test_patched_double_decorated": (expected_path, 35, 41),
+            "test_grand_slam": (expected_path, 42, 49),
+        }
+
+        assert expected_source_info == test_names_to_source_info
