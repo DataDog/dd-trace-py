@@ -921,7 +921,7 @@ def test_flask_packages_patched(package, venv):
 
 @pytest.mark.parametrize(
     "package",
-    [package for package in PACKAGES if package.test_propagation and SKIP_FUNCTION(package)],
+    [package for package in PACKAGES if package.test_propagation and package.name != "rsa"],
     ids=lambda package: package.name,
 )
 def test_flask_packages_propagation(package, venv, printer):
