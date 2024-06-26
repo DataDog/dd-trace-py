@@ -70,13 +70,13 @@ def test_lock_acquire_events():
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 0
     event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-    assert event.lock_name == "test_threading.py:69"
+    assert event.lock_name == "test_threading.py:68"
     assert event.thread_id == _thread.get_ident()
     assert event.wait_time_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[1] == (__file__.replace(".pyc", ".py"), 69, "test_lock_acquire_events", "")
+    assert event.frames[1] == (__file__.replace(".pyc", ".py"), 68, "test_lock_acquire_events", "")
     assert event.sampling_pct == 100
 
 
@@ -94,7 +94,7 @@ def test_lock_acquire_events_class():
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 0
     event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-    assert event.lock_name == "test_threading.py:90"
+    assert event.lock_name == "test_threading.py:89"
     assert event.thread_id == _thread.get_ident()
     assert event.wait_time_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
@@ -402,7 +402,7 @@ def test_lock_enter_exit_events():
     assert release_event.thread_id == _thread.get_ident()
     assert release_event.locked_for_ns >= 0
     assert release_event.frames[0] == (_lock.__file__.replace(".pyc", ".py"), 234, "__exit__", "_ProfiledThreadingLock")
-    release_lineno = 372 if sys.version_info >= (3, 10) else 373
+    release_lineno = 376 if sys.version_info >= (3, 10) else 377
     assert release_event.frames[1] == (
         __file__.replace(".pyc", ".py"),
         release_lineno,
