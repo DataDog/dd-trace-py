@@ -8,6 +8,7 @@ from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -335,8 +336,6 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = None if in_aws_lambda() or gevent_is_patched() else get_mp_context().Queue(512)
-
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -567,6 +566,14 @@ class Config(object):
         self._lib_was_injected = False
         self._inject_was_attempted = asbool(os.getenv("_DD_INJECT_WAS_ATTEMPTED", False))
 
+        # Set up a multiprocessing queue to communicate the extra services with remote config
+        self._extra_services_queue = None
+
+        # DEV: We cannot use multiprocessing queue if we are in AWS Lambda, or gevent is patched.
+        #      We don't need it if remote config is disabled
+        if not (in_aws_lambda() or gevent_is_patched()) and self._remote_config_enabled:
+            self._extra_services_queue = get_mp_context().Queue(5)
+
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
@@ -576,27 +583,28 @@ class Config(object):
         return self._integration_configs[name]
 
     def _add_extra_service(self, service_name: str) -> None:
-        if self._extra_services_queue is None:
+        # DEV: We need to check if gevnt is patched at runtime in case monkey patching occurs after creating the config
+        if self._extra_services_queue is None or gevent_is_patched():
             return
-        if self._remote_config_enabled and service_name != self.service and not gevent_is_patched():
+
+        if service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
             except Exception:  # nosec
                 pass
 
-    def _get_extra_services(self):
-        # type: () -> set[str]
-        if self._extra_services_queue is None:
+    def _get_extra_services(self) -> Set[str]:
+        # DEV: We need to check if gevnt is patched at runtime in case monkey patching occurs after creating the config
+        if self._extra_services_queue is None or gevent_is_patched():
             return set()
 
-        if not gevent_is_patched():
-            try:
-                while True:
-                    self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
-                    if len(self._extra_services) > 64:
-                        self._extra_services.pop()
-            except Exception:  # nosec
-                pass
+        try:
+            while True:
+                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
+                if len(self._extra_services) > 64:
+                    self._extra_services.pop()
+        except Exception:  # nosec
+            pass
         return self._extra_services
 
     def get_from(self, obj):

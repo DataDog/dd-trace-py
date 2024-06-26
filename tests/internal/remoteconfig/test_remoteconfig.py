@@ -589,3 +589,28 @@ def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expect
     if trace_sampling_rules is not None:
         parsed_rules = DatadogSampler._parse_rules_from_str(trace_sampling_rules)
         assert parsed_rules == expected_sampling_rules
+
+
+@pytest.mark.subprocess()
+def test_remoteconfig_gevent_extra_services():
+    """Regression test for gevent deadlocking when remote config is enabled and multiprocessing queue is used"""
+    import ddtrace.auto  # noqa
+    import gevent.monkey
+
+    gevent.monkey.patch_all()
+
+    import typing
+
+    from ddtrace import config
+    from ddtrace import Pin
+
+    # We do not create a queue
+    assert config._extra_services_queue is None
+
+    # Calling Pin.onto would deadlock
+    Pin(service="some-service").onto(typing)
+
+    # Manually call the method that Pin.onto would call
+    config._add_extra_service("some-service")
+
+    assert config._get_extra_services() == set()

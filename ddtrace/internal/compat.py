@@ -497,7 +497,7 @@ def get_mp_context():
     return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")
 
 
-def gevent_is_patched():
+def gevent_is_patched() -> bool:
     if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
         import gevent.monkey  # noqa:F401
 
