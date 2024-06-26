@@ -32,6 +32,8 @@ from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
+from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
@@ -233,11 +235,13 @@ def override_dbm_config(values):
         if key in config_keys:
             setattr(dbm_config, key, value)
     try:
+        dbm_config_listen()
         yield
     finally:
         # Reset all to their original values
         for key, value in originals.items():
             setattr(dbm_config, key, value)
+        dbm_config_unlisten()
 
 
 @contextlib.contextmanager
