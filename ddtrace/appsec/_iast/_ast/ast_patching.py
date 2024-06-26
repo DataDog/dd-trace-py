@@ -7,7 +7,6 @@ import re
 from sys import builtin_module_names
 from types import ModuleType
 from typing import Optional
-from typing import Set
 from typing import Text
 from typing import Tuple
 
@@ -25,19 +24,58 @@ _VISITOR = AstVisitor()
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
 IAST_DENYLIST: Tuple[Text, ...] = (
-    "ddtrace",
-    "pkg_resources",
-    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
-    "inspect",  # this package is used to get the stack frames, propagation is not needed
-    "pycparser",  # this package is called when a module is imported, propagation is not needed
-    "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "flask",
+    "werkzeug",
+    "crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "deprecated",
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
-    "unittest.mock",
-    "pytest",  # Testing framework
+    "asyncpg.pgproto",
+    "blinker",
+    "bytecode",
+    "cattrs",
+    "click",
+    "ddsketch",
+    "ddtrace",
+    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "envier",
+    "exceptiongroup",
     "freezegun",  # Testing utilities for time manipulation
+    "hypothesis",
+    "importlib_metadata",
+    "inspect",  # this package is used to get the stack frames, propagation is not needed
+    "itsdangerous",
+    "opentelemetry-api",
+    "packaging",
+    "pip",
+    "pkg_resources",
+    "pluggy",
+    "protobuf",
+    "pycparser",  # this package is called when a module is imported, propagation is not needed
+    "pytest",  # Testing framework
+    "setuptools",
     "sklearn",  # Machine learning library
+    "tomli",
+    "typing_extensions",
+    "unittest.mock",
+    "uvloop",
     "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
+    "wrapt",
+    "zipp",
+    ## This is a workaround for Sanic failures:
+    "websocket",
+    "h11",
+    "aioquic",
+    "httptools",
+    "sniffio",
+    "py",
+    "sanic",
+    "rich",
+    "httpx",
+    "websockets",
+    "uvicorn",
+    "anyio",
+    "httpcore",
 )
 
 
@@ -67,24 +105,10 @@ def get_encoding(module_path: Text) -> Text:
     return ENCODING
 
 
-try:
-    import importlib.metadata as il_md
-except ImportError:
-    import importlib_metadata as il_md  # type: ignore[no-redef]
+_NOT_PATCH_MODULE_NAMES = _stdlib_for_python_version() | set(builtin_module_names)
 
 
-def _build_installed_package_names_list() -> Set[Text]:
-    return {
-        ilmd_d.metadata["name"] for ilmd_d in il_md.distributions() if ilmd_d is not None and ilmd_d.files is not None
-    }
-
-
-_NOT_PATCH_MODULE_NAMES = (
-    _build_installed_package_names_list() | _stdlib_for_python_version() | set(builtin_module_names)
-)
-
-
-def _in_python_stdlib_or_third_party(module_name: str) -> bool:
+def _in_python_stdlib(module_name: str) -> bool:
     return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
 
 
@@ -98,11 +122,11 @@ def _should_iast_patch(module_name: Text) -> bool:
     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
-    if module_name.startswith(IAST_ALLOWLIST):
+    if module_name.lower().startswith(IAST_ALLOWLIST):
         return True
-    if module_name.startswith(IAST_DENYLIST):
+    if module_name.lower().startswith(IAST_DENYLIST):
         return False
-    return not _in_python_stdlib_or_third_party(module_name)
+    return not _in_python_stdlib(module_name)
 
 
 def visit_ast(
