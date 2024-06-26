@@ -249,12 +249,26 @@ class _ProfiledLock(wrapt.ObjectProxy):
             call_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
             var_name = None
+
+            # Search for global variables
             for name, value in frame.f_globals.items():
                 if value == self:
                     var_name = name
+                    break
+                for attribute in dir(value):
+                    if not attribute.startswith("__") and getattr(value, attribute) == self:
+                        var_name = attribute
+                        break
+            # Search for local variables
             for name, value in frame.f_locals.items():
                 if value == self:
                     var_name = name
+                    break
+                for attribute in dir(value):
+                    if not attribute.startswith("__") and getattr(value, attribute) == self:
+                        var_name = attribute
+                        break
+
             if var_name:
                 call_loc += ":%s" % var_name
             return call_loc

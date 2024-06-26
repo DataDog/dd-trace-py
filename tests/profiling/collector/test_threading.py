@@ -418,3 +418,27 @@ def test_lock_enter_exit_events():
         "",
     )
     assert release_event.sampling_pct == 100
+
+
+def test_class_member_lock():
+    class Foobar:
+        def __init__(self):
+            self.foobar_lock = threading.Lock()
+
+        def bar(self):
+            with self.foobar_lock:
+                pass
+
+    r = recorder.Recorder()
+    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+        foobar = Foobar()
+        foobar.bar()
+
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+
+    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
+    assert acquire_event.lock_name == "test_threading.py:429:foobar_lock"
+
+    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
+    assert release_event.lock_name == "test_threading.py:429:foobar_lock"
