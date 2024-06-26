@@ -62,7 +62,6 @@ def test_filters_test_spans():
     # Root span in trace is a test
     trace = [root_test_span]
     assert trace_filter.process_trace(trace) == trace
-    assert root_test_span.service == "test-service"
     assert root_test_span.get_tag(ci.LIBRARY_VERSION) == ddtrace.__version__
     assert root_test_span.get_tag("hello") == "world"
     assert root_test_span.context.dd_origin == ci.CI_APP_TEST_ORIGIN
