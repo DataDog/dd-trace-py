@@ -28,36 +28,50 @@ def _build_env(env=None):
 
 
 @contextmanager
-def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", tracer_enabled="true", token=None):
-    cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "tests.appsec.app:app"]
+def gunicorn_server(
+    appsec_enabled="true",
+    remote_configuration_enabled="true",
+    tracer_enabled="true",
+    appsec_standalone_enabled=None,
+    token=None,
+    port=8000,
+):
+    cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:%s" % port, "tests.appsec.app:app"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
+        appsec_standalone_enabled=appsec_standalone_enabled,
         remote_configuration_enabled=remote_configuration_enabled,
         tracer_enabled=tracer_enabled,
         token=token,
+        port=port,
     )
 
 
 @contextmanager
 def flask_server(
+    python_cmd="python",
     appsec_enabled="true",
     remote_configuration_enabled="true",
     iast_enabled="false",
     tracer_enabled="true",
+    appsec_standalone_enabled=None,
     token=None,
     app="tests/appsec/app.py",
     env=None,
+    port=8000,
 ):
-    cmd = ["python", app, "--no-reload"]
+    cmd = [python_cmd, app, "--no-reload"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
+        appsec_standalone_enabled=appsec_standalone_enabled,
         remote_configuration_enabled=remote_configuration_enabled,
         iast_enabled=iast_enabled,
         tracer_enabled=tracer_enabled,
         token=token,
         env=env,
+        port=port,
     )
 
 
@@ -67,8 +81,10 @@ def appsec_application_server(
     remote_configuration_enabled="true",
     iast_enabled="false",
     tracer_enabled="true",
+    appsec_standalone_enabled=None,
     token=None,
     env=None,
+    port=8000,
 ):
     env = _build_env(env)
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
@@ -77,6 +93,10 @@ def appsec_application_server(
         env["_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:%s," % (token,)
     if appsec_enabled is not None:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
+    if appsec_standalone_enabled is not None:
+        # TODO: leverage APM disablement once available with standalone ASM enablement
+        # being equivalent to `appsec_enabled and apm_tracing_enabled`
+        env["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = appsec_standalone_enabled
     if iast_enabled is not None and iast_enabled != "false":
         env["DD_IAST_ENABLED"] = iast_enabled
         env["DD_IAST_REQUEST_SAMPLING"] = "100"
@@ -84,6 +104,7 @@ def appsec_application_server(
     if tracer_enabled is not None:
         env["DD_TRACE_ENABLED"] = tracer_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
+    env["FLASK_RUN_PORT"] = str(port)
 
     server_process = subprocess.Popen(
         cmd,
@@ -93,7 +114,7 @@ def appsec_application_server(
         start_new_session=True,
     )
     try:
-        client = Client("http://0.0.0.0:8000")
+        client = Client("http://0.0.0.0:%s" % port)
 
         try:
             print("Waiting for server to start")

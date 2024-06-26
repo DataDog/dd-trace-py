@@ -11,6 +11,7 @@ import attr
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
@@ -19,6 +20,9 @@ from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
+
+
+LOG = get_logger(__name__)
 
 
 @event.event_class
@@ -94,13 +98,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def __aexit__(self, *args, **kwargs):
         return self.__wrapped__.__aexit__(*args, **kwargs)
 
-    def acquire(self, *args, **kwargs):
+    def _acquire(self, inner_func, *args, **kwargs):
         if not self._self_capture_sampler.capture():
-            return self.__wrapped__.acquire(*args, **kwargs)
+            return inner_func(*args, **kwargs)
 
         start = compat.monotonic_ns()
         try:
-            return self.__wrapped__.acquire(*args, **kwargs)
+            return inner_func(*args, **kwargs)
         finally:
             try:
                 end = self._self_acquired_at = compat.monotonic_ns()
@@ -118,6 +122,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     thread_native_id = _threading.get_thread_native_id(thread_id)
 
                     handle = ddup.SampleHandle()
+                    handle.push_monotonic_ns(end)
                     handle.push_lock_name(self._self_name)
                     handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
@@ -146,13 +151,17 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
 
                     self._self_recorder.push_event(event)
-            except Exception:
+            except Exception as e:
+                LOG.warning("Error recording lock acquire event: %s", e)
                 pass  # nosec
 
-    def release(self, *args, **kwargs):
+    def acquire(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
+
+    def _release(self, inner_func, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
         try:
-            return self.__wrapped__.release(*args, **kwargs)
+            return inner_func(*args, **kwargs)
         finally:
             try:
                 if hasattr(self, "_self_acquired_at"):
@@ -172,6 +181,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             thread_native_id = _threading.get_thread_native_id(thread_id)
 
                             handle = ddup.SampleHandle()
+                            handle.push_monotonic_ns(end)
                             handle.push_lock_name(self._self_name)
                             handle.push_release(
                                 end - self._self_acquired_at, 1
@@ -208,10 +218,20 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             self._self_recorder.push_event(event)
                     finally:
                         del self._self_acquired_at
-            except Exception:
+            except Exception as e:
+                LOG.warning("Error recording lock release event: %s", e)
                 pass  # nosec
 
+    def release(self, *args, **kwargs):
+        return self._release(self.__wrapped__.release, *args, **kwargs)
+
     acquire_lock = acquire
+
+    def __enter__(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
+
+    def __exit__(self, *args, **kwargs):
+        self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
 
 class FunctionWrapper(wrapt.FunctionWrapper):

@@ -1,15 +1,9 @@
 import base64
 import enum
-import os
 from typing import Optional
 
 import ddtrace
-from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
 from ddtrace.settings.asm import config as asm_config
-
-
-def _appsec_rc_file_is_not_static():
-    return "DD_APPSEC_RULES" not in os.environ
 
 
 def _asm_feature_is_required():
@@ -47,20 +41,19 @@ _ALL_ASM_BLOCKING = (
     | Flags.ASM_ASM_RESPONSE_BLOCKING
     | Flags.ASM_USER_BLOCKING
     | Flags.ASM_CUSTOM_RULES
-    | Flags.ASM_CUSTOM_RULES
     | Flags.ASM_CUSTOM_BLOCKING_RESPONSE
 )
 
-_ALL_RASP = Flags.ASM_RASP_LFI | Flags.ASM_RASP_SSRF
+_ALL_RASP = Flags.ASM_RASP_SQLI | Flags.ASM_RASP_LFI | Flags.ASM_RASP_SSRF
 
 
 def _rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
     tracer = ddtrace.tracer if test_tracer is None else test_tracer
     value = Flags(0)
     if ddtrace.config._remote_config_enabled:
-        if _appsec_rc_features_is_enabled():
+        if asm_config._asm_can_be_enabled:
             value |= Flags.ASM_ACTIVATION
-        if tracer._appsec_processor and _appsec_rc_file_is_not_static():
+        if tracer._appsec_processor and asm_config._asm_static_rule_file is None:
             value |= _ALL_ASM_BLOCKING
             if asm_config._ep_enabled:
                 value |= _ALL_RASP

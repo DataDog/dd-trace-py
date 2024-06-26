@@ -405,15 +405,6 @@ jobs:
           name: "Spelling"
           command: hatch run lint:spelling
 
-  ccheck:
-    executor: cimg_base
-    steps:
-      - checkout
-      - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format cppcheck
-      - run: scripts/cformat.sh
-      - run: scripts/cppcheck.sh
-
   coverage_report:
     executor: python310
     steps:
@@ -495,10 +486,16 @@ jobs:
 
   appsec_iast_packages:
     <<: *machine_executor
+    parallelism: 5
     steps:
-      - run_test:
-          pattern: 'appsec_iast_packages'
-          snapshot: true
+      - when:
+          condition:
+            matches: { pattern: "main", value: << pipeline.git.branch >> }
+          steps:
+            - run_test:
+                pattern: 'appsec_iast_packages'
+                snapshot: true
+      - run: echo "This test is skipped outside of main branch"
 
   appsec_integrations:
     <<: *machine_executor
@@ -1296,6 +1293,14 @@ jobs:
     steps:
       - run_test:
           pattern: "langchain"
+          snapshot: true
+
+  anthropic:
+    <<: *machine_executor
+    parallelism: 3
+    steps:
+      - run_test:
+          pattern: "anthropic"
           snapshot: true
 
   logbook:

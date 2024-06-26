@@ -1,0 +1,20 @@
+[package]
+name = "ddtrace-core"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+lto = true
+strip = "debuginfo"
+opt-level = 3
+
+[dependencies]
+pyo3 = { version = "0.21.2", features = ["extension-module"] }
+
+[build-dependencies]
+pyo3-build-config = "0.21.2"
+
+[lib]
+name = "_core"
+path = "lib.rs"
+crate-type = ["cdylib"]

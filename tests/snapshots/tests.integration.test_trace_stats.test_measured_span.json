@@ -1,0 +1,770 @@
+[[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 2,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 3,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 4,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 5,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 6,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 6,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 7,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 7,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 8,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 8,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 9,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 9,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 10,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 10,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 11,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 11,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 12,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 12,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 13,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 13,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 14,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 14,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 15,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 15,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 16,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 16,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 17,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 17,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 18,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 18,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }],
+[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 19,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  },
+     {
+       "name": "child_stats",
+       "service": "",
+       "resource": "child_stats",
+       "trace_id": 19,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 999999999,
+       "start": 1
+     }]]

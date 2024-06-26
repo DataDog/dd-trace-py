@@ -385,7 +385,7 @@ def test_agent_decorator_no_args(LLMObs, mock_llmobs_span_writer):
 
 
 def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
-    """Test that setting ml_app kwarg on the LLMObs decorators will override the DD_LLMOBS_APP_NAME value."""
+    """Test that setting ml_app kwarg on the LLMObs decorators will override the DD_LLMOBS_ML_APP value."""
     for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool)]:
 
         @decorator(ml_app="test_ml_app")
