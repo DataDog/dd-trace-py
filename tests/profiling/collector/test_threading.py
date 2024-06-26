@@ -376,7 +376,7 @@ def test_lock_enter_exit_events():
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-    assert acquire_event.lock_name == "test_threading.py:374"
+    assert acquire_event.lock_name == "test_threading.py:373"
     assert acquire_event.thread_id == _thread.get_ident()
     assert acquire_event.wait_time_ns >= 0
     # We know that at least __enter__, this function, and pytest should be
@@ -388,7 +388,7 @@ def test_lock_enter_exit_events():
 
     assert acquire_event.frames[0] == (
         _lock.__file__.replace(".pyc", ".py"),
-        230,
+        231,
         "__enter__",
         "_ProfiledThreadingLock",
     )
@@ -399,7 +399,7 @@ def test_lock_enter_exit_events():
     assert release_event.lock_name == "test_threading.py:373"
     assert release_event.thread_id == _thread.get_ident()
     assert release_event.locked_for_ns >= 0
-    assert release_event.frames[0] == (_lock.__file__.replace(".pyc", ".py"), 233, "__exit__", "_ProfiledThreadingLock")
+    assert release_event.frames[0] == (_lock.__file__.replace(".pyc", ".py"), 234, "__exit__", "_ProfiledThreadingLock")
     release_lineno = 374 if sys.version_info >= (3, 10) else 375
     assert release_event.frames[1] == (
         __file__.replace(".pyc", ".py"),
