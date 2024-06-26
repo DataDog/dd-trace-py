@@ -1277,6 +1277,7 @@
             "@contrib",
             "@tracing",
             "@tornado",
+            "@futures",
             "tests/contrib/tornado/*"
         ],
         "rediscluster": [
