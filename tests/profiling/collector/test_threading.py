@@ -442,3 +442,21 @@ def test_class_member_lock():
 
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert release_event.lock_name == "test_threading.py:429:foobar_lock"
+
+
+def test_global_locks():
+    r = recorder.Recorder()
+    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+        from . import global_locks
+
+        global_locks.foo()
+        global_locks.bar_instance.bar()
+
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 2
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 2
+
+    acquire_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockAcquireEvent]}
+    assert acquire_lock_names == {"global_locks.py:8:global_lock", "global_locks.py:17:bar_lock"}
+
+    release_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockReleaseEvent]}
+    assert release_lock_names == {"global_locks.py:8:global_lock", "global_locks.py:17:bar_lock"}
