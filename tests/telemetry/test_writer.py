@@ -222,7 +222,8 @@ import ddtrace.auto
     env["DD_PROFILING_MEMORY_ENABLED"] = "False"
     env["DD_PROFILING_HEAP_ENABLED"] = "False"
     env["DD_PROFILING_LOCK_ENABLED"] = "False"
-    env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "True"
+    # EXPORT_LIBDD_ENABLED is automatically disabled if ddup is available on a platform (ex: macos)
+    env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "False"
     env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
     env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
     env["DD_PROFILING_MAX_FRAMES"] = "512"
