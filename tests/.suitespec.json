@@ -482,6 +482,7 @@
             "@llmobs",
             "@serverless",
             "@remoteconfig",
+            "@futures",
             "tests/tracer/*",
             "tests/snapshots/test_*"
         ],
