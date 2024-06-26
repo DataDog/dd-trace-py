@@ -151,7 +151,6 @@ def test_lock_events_tracer_late_finish(tracer):
         lock2 = threading.Lock()
         lock2.acquire()
         lock.release()
-        span_id = span.span_id
         lock2.release()
     span.resource = resource
     span.finish()
@@ -160,7 +159,7 @@ def test_lock_events_tracer_late_finish(tracer):
         "test_threading.py:149:lock",
         "test_threading.py:153:lock",
         "test_threading.py:152:lock2",
-        "test_threading.py:155:lock2",
+        "test_threading.py:154:lock2",
     )
     # The tracer might use locks, so we need to look into every event to assert we got ours
     for event_type in (collector_threading.ThreadingLockAcquireEvent, collector_threading.ThreadingLockReleaseEvent):
@@ -190,10 +189,10 @@ def test_resource_not_collected(monkeypatch, tracer):
         lock2.release()
     events = r.reset()
     lock1_acquire, lock1_release, lock2_acquire, lock2_release = (
-        "test_threading.py:184:lock",
-        "test_threading.py:188:lock",
-        "test_threading.py:187:lock2",
-        "test_threading.py:190:lock2",
+        "test_threading.py:183:lock",
+        "test_threading.py:187:lock",
+        "test_threading.py:186:lock2",
+        "test_threading.py:189:lock2",
     )
     # The tracer might use locks, so we need to look into every event to assert we got ours
     for event_type in (collector_threading.ThreadingLockAcquireEvent, collector_threading.ThreadingLockReleaseEvent):
@@ -221,13 +220,13 @@ def test_lock_release_events():
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-    assert event.lock_name == "test_threading.py:220:lock"
+    assert event.lock_name == "test_threading.py:219:lock"
     assert event.thread_id == _thread.get_ident()
     assert event.locked_for_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[1] == (__file__.replace(".pyc", ".py"), 220, "test_lock_release_events", "")
+    assert event.frames[1] == (__file__.replace(".pyc", ".py"), 219, "test_lock_release_events", "")
     assert event.sampling_pct == 100
 
 
@@ -261,7 +260,7 @@ def test_lock_gevent_tasks():
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) >= 1
 
     for event in r.events[collector_threading.ThreadingLockAcquireEvent]:
-        if event.lock_name == "test_threading.py:252:lock":
+        if event.lock_name == "test_threading.py:251:lock":
             assert event.wait_time_ns >= 0
             assert event.task_id == t.ident
             assert event.task_name == "foobar"
@@ -270,7 +269,7 @@ def test_lock_gevent_tasks():
             assert event.nframes > 3
             assert event.frames[1] == (
                 "tests/profiling/collector/test_threading.py",
-                252,
+                251,
                 "play_with_lock",
                 "",
             ), event.frames
@@ -280,7 +279,7 @@ def test_lock_gevent_tasks():
         pytest.fail("Lock event not found")
 
     for event in r.events[collector_threading.ThreadingLockReleaseEvent]:
-        if event.lock_name == "test_threading.py:253:lock":
+        if event.lock_name == "test_threading.py:252:lock":
             assert event.locked_for_ns >= 0
             assert event.task_id == t.ident
             assert event.task_name == "foobar"
@@ -289,7 +288,7 @@ def test_lock_gevent_tasks():
             assert event.nframes > 3
             assert event.frames[1] == (
                 "tests/profiling/collector/test_threading.py",
-                253,
+                252,
                 "play_with_lock",
                 "",
             ), event.frames
@@ -387,7 +386,7 @@ def test_lock_enter_exit_events():
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-    assert acquire_event.lock_name == "test_threading.py:385:th_lock"
+    assert acquire_event.lock_name == "test_threading.py:384:th_lock"
     assert acquire_event.thread_id == _thread.get_ident()
     assert acquire_event.wait_time_ns >= 0
     # We know that at least __enter__, this function, and pytest should be
@@ -403,15 +402,15 @@ def test_lock_enter_exit_events():
         "__enter__",
         "_ProfiledThreadingLock",
     )
-    assert acquire_event.frames[1] == (__file__.replace(".pyc", ".py"), 385, "test_lock_enter_exit_events", "")
+    assert acquire_event.frames[1] == (__file__.replace(".pyc", ".py"), 384, "test_lock_enter_exit_events", "")
     assert acquire_event.sampling_pct == 100
 
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-    assert release_event.lock_name == "test_threading.py:385:th_lock"
+    assert release_event.lock_name == "test_threading.py:384:th_lock"
     assert release_event.thread_id == _thread.get_ident()
     assert release_event.locked_for_ns >= 0
     assert release_event.frames[0] == (_lock.__file__.replace(".pyc", ".py"), 236, "__exit__", "_ProfiledThreadingLock")
-    release_lineno = 385 if sys.version_info >= (3, 10) else 386
+    release_lineno = 384 if sys.version_info >= (3, 10) else 385
     assert release_event.frames[1] == (
         __file__.replace(".pyc", ".py"),
         release_lineno,
