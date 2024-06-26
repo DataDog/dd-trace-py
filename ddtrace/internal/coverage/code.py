@@ -223,9 +223,13 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         def __enter__(self):
             ctx_covered.set(defaultdict(set))
             ctx_coverage_enabled.set(True)
+            return self
 
         def __exit__(self, *args, **kwargs):
             ctx_coverage_enabled.set(False)
+
+        def get_covered_lines(self):
+            return ctx_covered.get()
 
     @classmethod
     def start_coverage(cls):
