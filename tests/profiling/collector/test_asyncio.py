@@ -73,7 +73,7 @@ async def test_lock_events_tracer(tracer):
         "test_asyncio.py:59:lock",
         "test_asyncio.py:63:lock",
         "test_asyncio.py:62:lock2",
-        "test_asyncio.py:66:lock2",
+        "test_asyncio.py:65:lock2",
     )
     for event_type in (collector_asyncio.AsyncioLockAcquireEvent, collector_asyncio.AsyncioLockReleaseEvent):
         if event_type == collector_asyncio.AsyncioLockAcquireEvent:
@@ -81,11 +81,11 @@ async def test_lock_events_tracer(tracer):
         elif event_type == collector_asyncio.AsyncioLockReleaseEvent:
             assert {lock1_release, lock2_release}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
-            if event.lock_name in [lock1_acquire, lock1_release]:
+            if event.lock_name in [lock1_acquire, lock2_release]:
                 assert event.span_id is None
                 assert event.trace_resource_container is None
                 assert event.trace_type is None
-            elif event.lock_name in [lock2_acquire, lock2_release]:
+            elif event.lock_name in [lock2_acquire, lock1_release]:
                 assert event.span_id == span_id
                 assert event.trace_resource_container[0] == t.resource
                 assert event.trace_type == t.span_type
