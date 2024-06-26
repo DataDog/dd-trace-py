@@ -106,6 +106,9 @@ crashtracker_start()
     // This is a one-time start pattern to ensure that the crashtracker is only started once.
     const static bool initialized = []() {
         crashtracker.start();
+
+        // Also install the post-fork handler for the child process
+        pthread_atfork(nullptr, nullptr, crashtracker_postfork_child);
         return true;
     }();
     (void)initialized;
