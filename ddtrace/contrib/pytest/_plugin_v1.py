@@ -13,6 +13,7 @@ to be run at specific points during pytest execution. The most important hooks u
 """
 from doctest import DocTest
 import json
+from pathlib import Path
 import re
 from typing import Dict  # noqa:F401
 
@@ -61,7 +62,6 @@ from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_f
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
 
 
