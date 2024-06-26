@@ -656,6 +656,7 @@
             "@core",
             "@telemetry",
             "@settings",
+            "@profiling",
             "tests/telemetry/*",
             "tests/snapshots/tests.telemetry.*"
         ],
