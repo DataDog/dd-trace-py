@@ -2,8 +2,6 @@ from django.db import connections
 import mock
 
 from ddtrace import Pin
-from ddtrace.internal import core
-from ddtrace.propagation._database_monitoring import handle_dbm_injection
 from tests.contrib import shared_tests
 from tests.utils import DummyTracer
 from tests.utils import override_config
