@@ -8,6 +8,21 @@ features:
   - |
     ASM: This update introduces new Auto User Events support.
 
+    ASM’s [Account TakeOver (ATO) detection](https://docs.datadoghq.com/security/account_takeover_protection) is now automatically monitoring
+    [all compatible user authentication frameworks](https://docs.datadoghq.com/security/application_security/enabling/compatibility/)
+    to detect attempted or leaked user credentials during an ATO campaign.
+
+    To do so, the monitoring of the user activity is extended to now collect all forms of user IDs, including non-numerical forms such as
+    usernames or emails. This is configurable with 3 different working modes: `identification` to send the user IDs in clear text;
+    `anonymization` to send anonymized user IDs; or `disabled` to completely turn off any type of user ID collection (which leads to the
+    disablement of the ATO detection).
+
+    The default collection mode being used is `identification` and this is configurable in your remote service configuration settings in the
+    [service catalog]( https://app.datadog.com/security/appsec/inventory/services?tab=capabilities) (clicking on a service), or with the
+    service environment variable `DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE`.
+
+    You can read more [here](https://docs.datadoghq.com/security/account_takeover_protection).
+
     New local configuration environment variables include:
     - `DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED`: Can be set to "true"/"1" (default if missing) or "false"/"0" (default if
       set to any other value). If set to false, the feature is completely disabled. If enabled, the feature is active.
