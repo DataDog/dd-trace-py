@@ -482,6 +482,7 @@
             "@llmobs",
             "@serverless",
             "@remoteconfig",
+            "@futures",
             "tests/tracer/*",
             "tests/snapshots/test_*"
         ],
@@ -1278,6 +1279,7 @@
             "@contrib",
             "@tracing",
             "@tornado",
+            "@futures",
             "tests/contrib/tornado/*"
         ],
         "rediscluster": [
