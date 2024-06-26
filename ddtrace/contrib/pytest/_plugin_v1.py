@@ -33,6 +33,7 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
+from ddtrace.ext.git import extract_workspace_path
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
@@ -60,6 +61,8 @@ from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_f
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.inspection import undecorated
 
 
 log = get_logger(__name__)
@@ -92,7 +95,7 @@ def _is_pytest_cov_enabled(config) -> bool:
     nocov_option = config.getoption("--no-cov", default=False)
     if nocov_option is True:
         return False
-    if type(cov_option) == list and cov_option == [True] and not nocov_option:
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
         return True
     return cov_option
 
@@ -444,6 +447,14 @@ class _PytestDDTracePluginV1:
             log.debug("CI Visibility enabled - starting test session")
             global _global_skipped_elements
             _global_skipped_elements = 0
+            try:
+                workspace_path = extract_workspace_path()
+            except ValueError:
+                log.debug("Couldn't extract workspace path from git, reverting to config rootdir")
+                workspace_path = session.config.rootdir
+
+            session._dd_workspace_path = workspace_path
+
             test_session_span = _CIVisibility._instance.tracer.trace(
                 "pytest.test_session",
                 service=_CIVisibility._instance._service,
@@ -656,8 +667,14 @@ class _PytestDDTracePluginV1:
             if item.location and item.location[0]:
                 _CIVisibility.set_codeowners_of(item.location[0], span=span)
             if hasattr(item, "_obj"):
-                test_method_object = item._obj
-                _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name, item.config.rootdir)
+                item_path = Path(item.path if hasattr(item, "path") else item.fspath)
+                test_method_object = undecorated(item._obj, item.name, item_path)
+                _add_start_end_source_file_path_data_to_span(
+                    span,
+                    test_method_object,
+                    test_name,
+                    getattr(item.session, "_dd_workspace_path", item.config.rootdir),
+                )
 
             # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
             # (where the actual test status is set), it means there was a pytest error
