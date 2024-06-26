@@ -169,9 +169,9 @@ def test_lock_events_tracer_late_finish(tracer):
         elif event_type == collector_threading.ThreadingLockReleaseEvent:
             assert {lock1_release, lock2_release}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
-                assert event.span_id is None
-                assert event.trace_resource_container is None
-                assert event.trace_type is None
+            assert event.span_id is None
+            assert event.trace_resource_container is None
+            assert event.trace_type is None
 
 
 def test_resource_not_collected(monkeypatch, tracer):
