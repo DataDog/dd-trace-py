@@ -157,11 +157,22 @@ def test_crashtracker_simple():
     assert rlist
 
     conn, _ = sock.accept()
-    rlist, _, _ = select.select([conn], [], [], 5.0)
-    assert rlist
+    data = b''
 
-    data = conn.recv(1024)
-    assert data
+    # Fully drain the socket, but be careful not to block forever
+    # (we don't make the socket nonblocking)
+    while True:
+        rlist, _, _ = select.select([conn], [], [], 1.0)
+        if not rlist:
+            break
+        msg = conn.recv(4096)
+        if not msg:
+            break
+        data += msg
+
+    # The crash came from string_at.  Since the over-the-wire format is multipart, chunked HTTP,
+    # just check for the presence of the raw string 'string_at' in the response.
+    assert b'string_at' in data
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -223,8 +234,19 @@ def test_crashtracker_simple_fork():
     assert rlist
 
     conn, _ = sock.accept()
-    rlist, _, _ = select.select([conn], [], [], 5.0)
-    assert rlist
+    data = b''
 
-    data = conn.recv(1024)
-    assert data
+    # Fully drain the socket, but be careful not to block forever
+    # (we don't make the socket nonblocking)
+    while True:
+        rlist, _, _ = select.select([conn], [], [], 1.0)
+        if not rlist:
+            break
+        msg = conn.recv(4096)
+        if not msg:
+            break
+        data += msg
+
+    # The crash came from string_at.  Since the over-the-wire format is multipart, chunked HTTP,
+    # just check for the presence of the raw string 'string_at' in the response.
+    assert b'string_at' in data
