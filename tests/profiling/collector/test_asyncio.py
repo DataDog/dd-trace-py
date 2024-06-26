@@ -39,7 +39,7 @@ async def test_asyncio_lock_release_events():
     assert len(r.events[collector_asyncio.AsyncioLockAcquireEvent]) == 1
     assert len(r.events[collector_asyncio.AsyncioLockReleaseEvent]) == 1
     event = r.events[collector_asyncio.AsyncioLockReleaseEvent][0]
-    assert event.lock_name == "test_asyncio.py:35"
+    assert event.lock_name == "test_asyncio.py:38:lock"
     assert event.thread_id == _thread.get_ident()
     assert event.locked_for_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
@@ -71,15 +71,14 @@ async def test_lock_events_tracer(tracer):
     events = r.reset()
     # The tracer might use locks, so we need to look into every event to assert we got ours
     for event_type in (collector_asyncio.AsyncioLockAcquireEvent, collector_asyncio.AsyncioLockReleaseEvent):
-        assert {"test_asyncio.py:58", "test_asyncio.py:61"}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
-            if event.name == "test_asyncio.py:58":
-                assert event.trace_id is None
+            lock_name = event.lock_name
+            assert lock_name in ["test_asyncio.py:59:lock", "test_asyncio.py:62:lock2", "test_asyncio.py:63:lock", "test_asyncio.py:66:lock2"]
+            if lock_name in ["test_asyncio.py:59:lock", "test_async_io.py:63:lock"]:
                 assert event.span_id is None
                 assert event.trace_resource_container is None
                 assert event.trace_type is None
-            elif event.name == "test_asyncio.py:61":
-                assert event.trace_id == trace_id
+            elif lock_name in ["test_asyncio.py:62:lock2", "test_async_io.py:66:lock2"]:
                 assert event.span_id == span_id
                 assert event.trace_resource_container[0] == t.resource
                 assert event.trace_type == t.span_type
