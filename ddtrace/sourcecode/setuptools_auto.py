@@ -2,6 +2,14 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 try:
+    from setuptools._distutils_hack import DistutilsMetaFinder
+
+    setattr(DistutilsMetaFinder, "spec_for_ddtrace", DistutilsMetaFinder.spec_for_pip)
+except ImportError:
+    pass
+
+
+try:
     import setuptools  # noqa: I001
 
     import distutils.core as distutils_core
