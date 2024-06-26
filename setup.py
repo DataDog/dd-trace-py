@@ -320,7 +320,9 @@ class CMakeBuild(build_ext):
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
 
-        # If this is an inplace build, propagate this fact to CMake in case it's helpful (for dd_wrapper)
+        # If this is an inplace build, propagate this fact to CMake in case it's helpful
+        # In particular, this is needed for build products which are not otherwise managed
+        # by setuptools/distutils, such libdd_wrapper.so
         if IS_EDITABLE:
             # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
             cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(ext.source_dir))
