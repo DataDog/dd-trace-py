@@ -429,19 +429,28 @@ def test_class_member_lock():
             with self.foobar_lock:
                 pass
 
+    class Baaz:
+        def __init__(self):
+            self.foobar = Foobar()
+
+        def baa(self):
+            self.foobar.bar()
+
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
         foobar = Foobar()
         foobar.bar()
+        baaz = Baaz()
+        baaz.baa()
 
-    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
-    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 2
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 2
 
-    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-    assert acquire_event.lock_name == "test_threading.py:429:foobar_lock"
+    acquire_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockAcquireEvent]}
+    assert acquire_lock_names == {"test_threading.py:429:foobar_lock"}
 
-    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-    assert release_event.lock_name == "test_threading.py:429:foobar_lock"
+    release_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockReleaseEvent]}
+    assert release_lock_names == {"test_threading.py:429:foobar_lock"}
 
 
 def test_global_locks():
