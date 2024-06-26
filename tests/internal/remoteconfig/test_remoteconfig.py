@@ -599,7 +599,7 @@ def test_remoteconfig_gevent_extra_services():
 
     gevent.monkey.patch_all()
 
-    import typing
+    import typing  # noqa: I001
 
     from ddtrace import config
     from ddtrace import Pin
