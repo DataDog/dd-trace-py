@@ -9,6 +9,7 @@ from six.moves import _thread
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import threading as collector_threading
+from ddtrace.profiling.event import DDFrame
 from tests.utils import flaky
 
 from . import test_collector
@@ -255,12 +256,15 @@ def test_lock_gevent_tasks():
             # It's called through pytest so I'm sure it's gonna be that long, right?
             assert len(event.frames) > 3
             assert event.nframes > 3
-            assert event.frames[0] == (
+            expected_frame = DDFrame(
                 "tests/profiling/collector/test_threading.py",
-                238,
+                239,
                 "play_with_lock",
                 "",
-            ), event.frames
+            )
+
+            # Better lock contexts means we have to check the leaf and one level up for the target
+            assert event.frames[0] == expected_frame or event.frames[1] == expected_frame, event.frames
             assert event.sampling_pct == 100
             break
     else:
