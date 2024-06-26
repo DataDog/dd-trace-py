@@ -465,7 +465,7 @@ def test_global_locks():
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 2
 
     acquire_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockAcquireEvent]}
-    assert acquire_lock_names == {"global_locks.py:8:global_lock", "global_locks.py:17:bar_lock"}
+    assert acquire_lock_names == {"global_locks.py:9:global_lock", "global_locks.py:18:bar_lock"}
 
     release_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockReleaseEvent]}
-    assert release_lock_names == {"global_locks.py:8:global_lock", "global_locks.py:17:bar_lock"}
+    assert release_lock_names == {"global_locks.py:9:global_lock", "global_locks.py:18:bar_lock"}
