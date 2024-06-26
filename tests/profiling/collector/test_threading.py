@@ -406,11 +406,11 @@ def test_lock_enter_exit_events():
     assert acquire_event.sampling_pct == 100
 
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-    assert release_event.lock_name == "test_threading.py:384:th_lock"
+    release_lineno = 384 if sys.version_info >= (3, 10) else 385
+    assert release_event.lock_name == "test_threading.py:%d:th_lock" % release_lineno
     assert release_event.thread_id == _thread.get_ident()
     assert release_event.locked_for_ns >= 0
     assert release_event.frames[0] == (_lock.__file__.replace(".pyc", ".py"), 236, "__exit__", "_ProfiledThreadingLock")
-    release_lineno = 384 if sys.version_info >= (3, 10) else 385
     assert release_event.frames[1] == (
         __file__.replace(".pyc", ".py"),
         release_lineno,
@@ -450,7 +450,8 @@ def test_class_member_lock():
     assert acquire_lock_names == {"test_threading.py:429:foobar_lock"}
 
     release_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockReleaseEvent]}
-    assert release_lock_names == {"test_threading.py:429:foobar_lock"}
+    release_lienno = 429 if sys.version_info >= (3, 10) else 430
+    assert release_lock_names == {"test_threading.py:%d:foobar_lock" % release_lienno}
 
 
 def test_global_locks():
@@ -468,4 +469,8 @@ def test_global_locks():
     assert acquire_lock_names == {"global_locks.py:9:global_lock", "global_locks.py:18:bar_lock"}
 
     release_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockReleaseEvent]}
-    assert release_lock_names == {"global_locks.py:9:global_lock", "global_locks.py:18:bar_lock"}
+    release_lines = (9, 18) if sys.version_info >= (3, 10) else (10, 19)
+    assert release_lock_names == {
+        "global_locks.py:%d:global_lock" % release_lines[0],
+        "global_locks.py:%d:bar_lock" % release_lines[1],
+    }
