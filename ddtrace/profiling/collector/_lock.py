@@ -110,6 +110,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 task_id, task_name, task_frame = _task.get_task(thread_id)
+                lock_name = self._get_lock_call_loc_with_name() or self._self_name
 
                 if task_frame is None:
                     frame = sys._getframe(1)
@@ -123,7 +124,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     handle = ddup.SampleHandle()
                     handle.push_monotonic_ns(end)
-                    handle.push_lock_name(self._self_name)
+                    handle.push_lock_name(lock_name)
                     handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
@@ -136,7 +137,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     handle.flush_sample()
                 else:
                     event = self.ACQUIRE_EVENT_CLASS(
-                        lock_name=self._self_name,
+                        lock_name=lock_name,
                         frames=frames,
                         nframes=nframes,
                         thread_id=thread_id,
@@ -169,6 +170,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         end = compat.monotonic_ns()
                         thread_id, thread_name = _current_thread()
                         task_id, task_name, task_frame = _task.get_task(thread_id)
+                        lock_name = self._get_lock_call_loc_with_name() or self._self_name
 
                         if task_frame is None:
                             frame = sys._getframe(1)
@@ -182,7 +184,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                             handle = ddup.SampleHandle()
                             handle.push_monotonic_ns(end)
-                            handle.push_lock_name(self._self_name)
+                            handle.push_lock_name(lock_name)
                             handle.push_release(
                                 end - self._self_acquired_at, 1
                             )  # AFAICT, capture_pct does not adjust anything here
@@ -199,7 +201,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             handle.flush_sample()
                         else:
                             event = self.RELEASE_EVENT_CLASS(
-                                lock_name=self._self_name,
+                                lock_name=lock_name,
                                 frames=frames,
                                 nframes=nframes,
                                 thread_id=thread_id,
@@ -234,7 +236,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
     # Get lock acquire/release call location and variable name the lock is assigned to
-    def _get_lock_name(self):
+    def _get_lock_call_loc_with_name(self) -> typing.Optional[str]:
         try:
             # We expect the call stack to be like this:
             # 0: this
