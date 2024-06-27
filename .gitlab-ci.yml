@@ -17,6 +17,24 @@ include:
 variables:
   REPO_LANG: python
 
+download_wheels:
+  image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  tags: [ "arch:amd64" ]
+  stage: package
+  script:
+    - set +x
+    - export GH_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_ghcr_token --with-decryption --query "Parameter.Value" --out text)
+    - echo $GH_TOKEN | gh auth login --with-token
+    - set -x
+    - gh auth status
+    - .gitlab/download-wheels-from-gh-actions.sh
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+
+package-oci:
+  needs: [ download_wheels ]
+
 onboarding_tests_k8s_injection:
   rules:
     - when: on_success
