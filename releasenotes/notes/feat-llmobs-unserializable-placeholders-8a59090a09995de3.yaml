@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: The ``LLMObs.annotate()`` method now replaces non-JSON serializable values with a placeholder string 
+    ``[Unserializable object: <string representation of object>]`` instead of rejecting the annotation entirely.

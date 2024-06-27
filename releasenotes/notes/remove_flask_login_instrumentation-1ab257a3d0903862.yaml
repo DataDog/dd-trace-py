@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    ASM: This removes the partial auto instrumentation of flask login. It was giving only partial and possibly confusing picture of the login activity.
+    We recommend customers to switch to [manual instrumentation](https://docs.datadoghq.com/security/application_security/threats/add-user-info/?tab=loginsuccess&code-lang=python#adding-business-logic-information-login-success-login-failure-any-business-logic-to-traces).

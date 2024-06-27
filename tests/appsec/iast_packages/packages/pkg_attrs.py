@@ -31,3 +31,33 @@ def pkg_attrs_view():
         response.result1 = str(e)
 
     return response.json()
+
+
+@pkg_attrs.route("/attrs_propagation")
+def pkg_attrs_propagation_view():
+    import attrs
+
+    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+    response = ResultResponse(request.args.get("package_param"))
+    if not is_pyobject_tainted(response.package_param):
+        response.result1 = "Error: package_param is not tainted"
+        return response.json()
+
+    try:
+
+        @attrs.define
+        class UserPropagation:
+            name: str
+            age: int
+
+        user = UserPropagation(name=response.package_param, age=65)
+        if not is_pyobject_tainted(user.name):
+            response.result1 = "Error: user.name is not tainted"
+            return response.json()
+
+        response.result1 = "OK"
+    except Exception as e:
+        response.result1 = str(e)
+
+    return response.json()

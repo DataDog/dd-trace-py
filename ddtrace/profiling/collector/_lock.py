@@ -98,13 +98,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def __aexit__(self, *args, **kwargs):
         return self.__wrapped__.__aexit__(*args, **kwargs)
 
-    def acquire(self, *args, **kwargs):
+    def _acquire(self, inner_func, *args, **kwargs):
         if not self._self_capture_sampler.capture():
-            return self.__wrapped__.acquire(*args, **kwargs)
+            return inner_func(*args, **kwargs)
 
         start = compat.monotonic_ns()
         try:
-            return self.__wrapped__.acquire(*args, **kwargs)
+            return inner_func(*args, **kwargs)
         finally:
             try:
                 end = self._self_acquired_at = compat.monotonic_ns()
@@ -155,10 +155,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 LOG.warning("Error recording lock acquire event: %s", e)
                 pass  # nosec
 
-    def release(self, *args, **kwargs):
+    def acquire(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
+
+    def _release(self, inner_func, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
         try:
-            return self.__wrapped__.release(*args, **kwargs)
+            return inner_func(*args, **kwargs)
         finally:
             try:
                 if hasattr(self, "_self_acquired_at"):
@@ -219,7 +222,16 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 LOG.warning("Error recording lock release event: %s", e)
                 pass  # nosec
 
+    def release(self, *args, **kwargs):
+        return self._release(self.__wrapped__.release, *args, **kwargs)
+
     acquire_lock = acquire
+
+    def __enter__(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
+
+    def __exit__(self, *args, **kwargs):
+        self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
 
 class FunctionWrapper(wrapt.FunctionWrapper):

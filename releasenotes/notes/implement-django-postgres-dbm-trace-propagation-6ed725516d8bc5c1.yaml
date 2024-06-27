@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Database Monitoring: Adds Database Monitoring (DBM) trace propagation for postgres
+    databases used through Django.

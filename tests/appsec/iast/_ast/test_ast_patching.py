@@ -5,7 +5,7 @@ import astunparse
 import mock
 import pytest
 
-from ddtrace.appsec._iast._ast.ast_patching import _in_python_stdlib_or_third_party
+from ddtrace.appsec._iast._ast.ast_patching import _in_python_stdlib
 from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import visit_ast
@@ -136,19 +136,19 @@ def test_module_should_iast_patch():
 @pytest.mark.parametrize(
     "module_name, result",
     [
-        ("Envier", True),
+        ("Envier", False),
         ("iterTools", True),
         ("functooLs", True),
-        ("astunparse", True),
-        ("pytest.warns", True),
+        ("astunparse", False),
+        ("pytest.warns", False),
         ("datetime", True),
         ("posiX", True),
         ("app", False),
         ("my_app", False),
     ],
 )
-def test_module_in_python_stdlib_or_third_party(module_name, result):
-    assert _in_python_stdlib_or_third_party(module_name) == result
+def test_module_in_python_stdlib(module_name, result):
+    assert _in_python_stdlib(module_name) == result
 
 
 def test_module_path_none(caplog):

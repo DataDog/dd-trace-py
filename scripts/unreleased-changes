@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+"""
+Shell script to help find unreleased changes on release branches.
+
+Loops through each release branch from current branch to 1.0 and prints out
+the changes that have not been released yet in json format as:
+
+{"branch": "1.1","changes": ["..."]}
+{"branch": "1.0","changes": ["..."]}
+"""
+import json
+import packaging.version
+import subprocess
+import sys
+
+
+def get_release_branches() -> list[str]:
+    # get list of all git release tags
+    tags = subprocess.check_output(["git", "tag", "--list", "v*"]).splitlines()
+    # get list of all release branches
+    branches = sorted(
+        {".".join(tag.decode("utf-8")[1:].split(".")[:2]) for tag in tags},
+        key=lambda x: packaging.version.Version(x),
+        reverse=True,
+    )
+
+    return [branch for branch in branches if float(branch) >= 1.0]
+
+
+def get_unreleased_changes(branch: str) -> list[str]:
+    # get list of reno changes for the branch
+    results = subprocess.check_output(
+        ["reno", "--quiet", "list", "--branch", branch, "--stop-at-branch-base"], stderr=subprocess.PIPE
+    ).decode("utf-8")
+
+    changes = []
+
+    unreleased_version = None
+    # The output from reno list will be:
+    #
+    # v1.2.3-13
+    #     releasenotes/unreleased-change
+    # v1.2.3
+    #     releasenotes/released-change ...
+    # v1.2.2
+    #     releasenotes/released-change ...
+    #
+    # We want to collect all the lines between the first version with a `vx.y.z-#` until
+    # the next version
+    for line in results.splitlines():
+        if line.startswith("v") and "-" in line:
+            unreleased_version = line.strip()
+        elif line.startswith("\t") and unreleased_version:
+            changes.append(line.strip())
+        elif unreleased_version and line.startswith("v"):
+            break
+
+    return changes
+
+
+def main():
+    # Make sure we have the latest tags
+    subprocess.check_output(["git", "fetch", "--tags", "--force"], stderr=subprocess.PIPE)
+
+    branches = get_release_branches()
+    for branch in branches:
+        changes = get_unreleased_changes(branch)
+        if changes:
+            json.dump({"branch": branch, "changes": changes}, sys.stdout, indent=None, separators=(",", ":"))
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()
