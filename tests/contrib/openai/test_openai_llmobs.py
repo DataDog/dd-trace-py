@@ -591,7 +591,7 @@ class TestLLMObsOpenaiV1:
                 model_name=resp.model,
                 model_provider="openai",
                 input_documents=[{"text": "hello world"}],
-                output_value="[1 embeddings returned with size 1536]",
+                output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"prompt_tokens": 2, "completion_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -610,7 +610,7 @@ class TestLLMObsOpenaiV1:
                 model_name=resp.model,
                 model_provider="openai",
                 input_documents=[{"text": "hello world"}, {"text": "hello again"}],
-                output_value="[2 embeddings returned with size 1536]",
+                output_value="[2 embedding(s) returned with size 1536]",
                 token_metrics={"prompt_tokens": 4, "completion_tokens": 0, "total_tokens": 4},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -629,7 +629,7 @@ class TestLLMObsOpenaiV1:
                 model_name=resp.model,
                 model_provider="openai",
                 input_documents=[{"text": "[1111, 2222, 3333]"}],
-                output_value="[1 embeddings returned with size 1536]",
+                output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"prompt_tokens": 3, "completion_tokens": 0, "total_tokens": 3},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -654,7 +654,7 @@ class TestLLMObsOpenaiV1:
                     {"text": "[4444, 5555, 6666]"},
                     {"text": "[7777, 8888, 9999]"},
                 ],
-                output_value="[3 embeddings returned with size 1536]",
+                output_value="[3 embedding(s) returned with size 1536]",
                 token_metrics={"prompt_tokens": 9, "completion_tokens": 0, "total_tokens": 9},
                 tags={"ml_app": "<ml-app-name>"},
             )
