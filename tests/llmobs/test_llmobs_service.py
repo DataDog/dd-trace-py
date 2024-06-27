@@ -881,8 +881,8 @@ def test_submit_evaluation_numerical_value_raises_deprecation_warning(LLMObs, mo
     mock_logs.warning.assert_has_calls(
         [
             mock.call(
-                """The evaluation metric type 'numerical' is deprecated. Use 'score' instead. """
-                """Converting `numerical` metric to `score` type."""
+                "The evaluation metric type 'numerical' is deprecated in ddtrace 2.10.x Use 'score' instead. "
+                "Converting `numerical` metric to `score` type."
             ),
         ]
     )
