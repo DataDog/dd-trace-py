@@ -222,8 +222,9 @@ import ddtrace.auto
     env["DD_PROFILING_MEMORY_ENABLED"] = "False"
     env["DD_PROFILING_HEAP_ENABLED"] = "False"
     env["DD_PROFILING_LOCK_ENABLED"] = "False"
-    # EXPORT_LIBDD_ENABLED is automatically disabled if ddup is available on a platform (ex: macos)
-    env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "False"
+    # FIXME: Profiling native exporter can be enabled even if DD_PROFILING_EXPORT_LIBDD_ENABLED=False. The native
+    # exporter will be always be enabled stack v2 is enabled and the ddup module is available (platform dependent).
+    # env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "False"
     env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
     env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
     env["DD_PROFILING_MAX_FRAMES"] = "512"
@@ -269,7 +270,7 @@ import ddtrace.auto
             {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 5.0},
             {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 10.0},
             {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 512},
