@@ -90,7 +90,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_export_libdd_enabled = export_libdd_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
-        self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+        self._self_init_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+        self._self_name = None
 
     def __aenter__(self):
         return self.__wrapped__.__aenter__()
@@ -110,7 +111,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 task_id, task_name, task_frame = _task.get_task(thread_id)
-                lock_name = self._get_lock_call_loc_with_name() or self._self_name
+                lock_name = self._get_lock_call_loc_with_name() or self._self_init_loc
 
                 if task_frame is None:
                     frame = sys._getframe(1)
@@ -170,7 +171,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         end = compat.monotonic_ns()
                         thread_id, thread_name = _current_thread()
                         task_id, task_name, task_frame = _task.get_task(thread_id)
-                        lock_name = self._get_lock_call_loc_with_name() or self._self_name
+                        lock_name = self._get_lock_call_loc_with_name() or self._self_init_loc
 
                         if task_frame is None:
                             frame = sys._getframe(1)
@@ -248,31 +249,35 @@ class _ProfiledLock(wrapt.ObjectProxy):
             code = frame.f_code
             call_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
-            var_name = None
-
-            # Search for local variables
-            for name, value in frame.f_locals.items():
-                if value == self:
-                    var_name = name
-                    break
-                for attribute in dir(value):
-                    if not attribute.startswith("__") and getattr(value, attribute) == self:
-                        var_name = attribute
-                        break
-            if var_name is None:
-                # Search for global variables
-                for name, value in frame.f_globals.items():
+            if self._self_name is None:
+                # Search for local variables and their attributes
+                for name, value in frame.f_locals.items():
                     if value == self:
-                        var_name = name
+                        self._self_name = name
                         break
                     for attribute in dir(value):
                         if not attribute.startswith("__") and getattr(value, attribute) == self:
-                            var_name = attribute
+                            self._self_name = attribute
+                            break
+            if self._self_name is None:
+                # Search for global variables and their attributes
+                for name, value in frame.f_globals.items():
+                    if value == self:
+                        self._self_name = name
+                        break
+                    for attribute in dir(value):
+                        if not attribute.startswith("__") and getattr(value, attribute) == self:
+                            self._self_name = attribute
                             break
 
-            if var_name:
-                call_loc += ":%s" % var_name
-            return call_loc
+            if self._self_name:
+                return "%s:%s" % (call_loc, self._self_name)
+            else:
+                LOG.warning(
+                    "Failed to get lock variable name, we only support local/global variables and their attributes."
+                )
+                return call_loc
+
         except Exception as e:
             LOG.warning("Error getting lock acquire/release call location and variable name: %s", e)
             return None

@@ -398,7 +398,7 @@ def test_lock_enter_exit_events():
 
     assert acquire_event.frames[0] == (
         _lock.__file__.replace(".pyc", ".py"),
-        233,
+        234,
         "__enter__",
         "_ProfiledThreadingLock",
     )
@@ -410,7 +410,7 @@ def test_lock_enter_exit_events():
     assert release_event.lock_name == "test_threading.py:%d:th_lock" % release_lineno
     assert release_event.thread_id == _thread.get_ident()
     assert release_event.locked_for_ns >= 0
-    assert release_event.frames[0] == (_lock.__file__.replace(".pyc", ".py"), 236, "__exit__", "_ProfiledThreadingLock")
+    assert release_event.frames[0] == (_lock.__file__.replace(".pyc", ".py"), 237, "__exit__", "_ProfiledThreadingLock")
     assert release_event.frames[1] == (
         __file__.replace(".pyc", ".py"),
         release_lineno,
@@ -476,6 +476,35 @@ def test_private_lock():
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     release_lineno = 463 if sys.version_info >= (3, 10) else 464
     assert release_event.lock_name == "test_threading.py:%d:_Foo__lock" % release_lineno
+
+
+def test_inner_lock():
+    class Foo:
+        def __init__(self):
+            self.foo_lock = threading.Lock()
+
+    class Bar:
+        def __init__(self):
+            self.foo = Foo()
+
+        def bar(self):
+            with self.foo.foo_lock:
+                pass
+
+    r = recorder.Recorder()
+    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+        bar = Bar()
+        bar.bar()
+
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+
+    acquire_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockAcquireEvent]}
+    assert acquire_lock_names == {"test_threading.py:491"}
+
+    release_lock_names = {e.lock_name for e in r.events[collector_threading.ThreadingLockReleaseEvent]}
+    release_lienno = 491 if sys.version_info >= (3, 10) else 492
+    assert release_lock_names == {"test_threading.py:%d" % release_lienno}
 
 
 def test_global_locks():
