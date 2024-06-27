@@ -37,7 +37,6 @@ machine_executor: &machine_executor
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
     - PYTHONUNBUFFERED: 1
     - CMAKE_BUILD_PARALLEL_LEVEL: 12
-    - PIP_VERBOSE: 3
   steps:
     - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
     - &pyenv-set-global
@@ -353,28 +352,24 @@ executors:
       - image: *cimg_base_image
         environment:
           - CMAKE_BUILD_PARALLEL_LEVEL: 6
-          - PIP_VERBOSE: 3
     resource_class: medium
   python310:
     docker:
       - image: *python310_image
         environment:
           - CMAKE_BUILD_PARALLEL_LEVEL: 12
-          - PIP_VERBOSE: 3
     resource_class: large
   ddtrace_dev:
     docker:
       - image: *ddtrace_dev_image
         environment:
           - CMAKE_BUILD_PARALLEL_LEVEL: 6
-          - PIP_VERBOSE: 3
     resource_class: *default_resource_class
   ddtrace_dev_small:
     docker:
       - image: *ddtrace_dev_image
         environment:
           - CMAKE_BUILD_PARALLEL_LEVEL: 4
-          - PIP_VERBOSE: 3
     resource_class: small
 
 # Common configuration blocks as YAML anchors
