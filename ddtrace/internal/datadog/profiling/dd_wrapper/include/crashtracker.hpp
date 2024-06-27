@@ -3,11 +3,28 @@
 #include "constants.hpp"
 #include "libdatadog_helpers.hpp"
 
+#include <atomic>
 #include <optional>
 #include <string>
 #include <string_view>
 
 namespace Datadog {
+
+// One of the core intrigues with crashtracker is contextualization of crashes--did a crash occur
+// because of some user code, or was it this library?
+// It's really hard to rule out knock-on or indirect effects, but at least crashtracker
+// can mark whether a Datadog component was on-CPU at the time of the crash, and even
+// indicate what it was doing.
+//
+// Right now the caller is assumed to only tell this system _what_ it is doing.  There's no
+// available "profiling, other" state.  Just sampling, unwinding, or serializing.
+struct ProfilingState
+{
+    std::atomic<int> is_sampling{ 0 };
+    std::atomic<int> is_unwinding{ 0 };
+    std::atomic<int> is_serializing{ 0 };
+};
+
 class Crashtracker
 {
   private:
@@ -17,6 +34,8 @@ class Crashtracker
     std::string path_to_receiver_binary;
     ddog_prof_StacktraceCollection resolve_frames = DDOG_PROF_STACKTRACE_COLLECTION_ENABLED;
     uint64_t timeout_secs = g_crashtracker_timeout_secs;
+
+    ProfilingState profiling_state;
 
     std::string env;
     std::string service;
@@ -58,14 +77,12 @@ class Crashtracker
     bool atfork_child();
 
     // State transition
-    void start_not_profiling();
-    void stop_not_profiling();
-    void start_sampling();
-    void stop_sampling();
-    void start_unwinding();
-    void stop_unwinding();
-    void start_serializing();
-    void stop_serializing();
+    void sampling_start();
+    void sampling_stop();
+    void unwinding_start();
+    void unwinding_stop();
+    void serializing_start();
+    void serializing_stop();
 };
 
 } // namespace Datadog

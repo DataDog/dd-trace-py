@@ -22,6 +22,12 @@ extern "C"
     void crashtracker_set_resolve_frames_fast();
     void crashtracker_set_resolve_frames_full();
     bool crashtracker_set_receiver_binary_path(std::string_view path);
+    void crashtracker_profiling_state_sampling_start();
+    void crashtracker_profiling_state_sampling_stop();
+    void crashtracker_profiling_state_unwinding_start();
+    void crashtracker_profiling_state_unwinding_stop();
+    void crashtracker_profiling_state_serializing_start();
+    void crashtracker_profiling_state_serializing_stop();
     void crashtracker_start();
 #ifdef __cplusplus
 } // extern "C"

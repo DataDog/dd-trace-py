@@ -186,10 +186,6 @@ Datadog::Crashtracker::start()
         ddog_Error_drop(&err);
         return false;
     }
-
-    // Set the base state for profiling ops
-    start_not_profiling();
-
     return true;
 }
 
@@ -211,65 +207,97 @@ Datadog::Crashtracker::atfork_child()
         return false;
     }
 
-    // Set the base state for profiling ops
-    start_not_profiling();
+    // Reset the profiling state
+    profiling_state.is_sampling.store(0);
+    auto res_sampling = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_COLLECTING_SAMPLE);
+    (void)res_sampling;
+
+    profiling_state.is_unwinding.store(0);
+    auto res_unwinding = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_UNWINDING);
+    (void)res_unwinding;
+
+    profiling_state.is_serializing.store(0);
+    auto res_serializing = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_SERIALIZING);
+    (void)res_serializing;
 
     return true;
 }
 
 // Profiling state management
 void
-Datadog::Crashtracker::start_not_profiling()
+Datadog::Crashtracker::sampling_stop()
 {
-    auto res = ddog_prof_Crashtracker_begin_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_NOT_PROFILING);
-    (void)res; // ignore for now
+    static bool has_errored = false; // cppcheck-suppress threadsafety-threadsafety
+
+    // If this was the last sampling operation, then emit that fact to crashtracker
+    auto old_val = profiling_state.is_sampling.fetch_sub(1);
+    if (old_val == 1) {
+        auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_COLLECTING_SAMPLE);
+        (void)res; // ignore for now
+    } else if (old_val == 0 && !has_errored) {
+        // This is an error condition.  We only emit the error once, since the bug in the state machine
+        // may jitter around 0 at high frequency.
+        std::cerr << "Profiling sampling state underflow" << std::endl;
+        has_errored = true;
+    }
 }
 
 void
-Datadog::Crashtracker::stop_not_profiling()
+Datadog::Crashtracker::sampling_start()
 {
-    auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_NOT_PROFILING);
-    (void)res; // ignore for now
+    // If this is the first sampling operation, then emit that fact to crashtracker
+    // Just like the stop operation, there may be an invalid count, but we track only at stop time
+    auto old_val = profiling_state.is_sampling.fetch_add(1);
+    if (old_val == 0) {
+        auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_COLLECTING_SAMPLE);
+        (void)res; // ignore for now
+    }
 }
 
 void
-Datadog::Crashtracker::start_sampling()
+Datadog::Crashtracker::unwinding_start()
 {
-    auto res = ddog_prof_Crashtracker_begin_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_COLLECTING_SAMPLE);
-    (void)res; // ignore for now
+    static bool has_errored = false; // cppcheck-suppress threadsafety-threadsafety
+    auto old_val = profiling_state.is_unwinding.fetch_sub(1);
+    if (old_val == 1) {
+        auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_UNWINDING);
+        (void)res;
+    } else if (old_val == 0 && !has_errored) {
+        std::cerr << "Profiling unwinding state underflow" << std::endl;
+        has_errored = true;
+    }
 }
 
 void
-Datadog::Crashtracker::stop_sampling()
+Datadog::Crashtracker::unwinding_stop()
 {
-    auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_NOT_PROFILING);
-    (void)res; // ignore for now
+    auto old_val = profiling_state.is_unwinding.fetch_add(1);
+    if (old_val == 0) {
+        auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_UNWINDING);
+        (void)res;
+    }
 }
 
 void
-Datadog::Crashtracker::start_unwinding()
+Datadog::Crashtracker::serializing_start()
 {
-    auto res = ddog_prof_Crashtracker_begin_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_UNWINDING);
-    (void)res; // ignore for now
+    static bool has_errored = false; // cppcheck-suppress threadsafety-threadsafety
+    auto old_val = profiling_state.is_serializing.fetch_sub(1);
+    if (old_val == 1) {
+        auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_SERIALIZING);
+        (void)res;
+    } else if (old_val == 0 && !has_errored) {
+        std::cerr << "Profiling serializing state underflow" << std::endl;
+        has_errored = true;
+    }
 }
 
 void
-Datadog::Crashtracker::stop_unwinding()
+Datadog::Crashtracker::serializing_stop()
 {
-    auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_UNWINDING);
-    (void)res; // ignore for now
-}
-
-void
-Datadog::Crashtracker::start_serializing()
-{
-    auto res = ddog_prof_Crashtracker_begin_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_SERIALIZING);
-    (void)res; // ignore for now
-}
-
-void
-Datadog::Crashtracker::stop_serializing()
-{
-    auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_SERIALIZING);
-    (void)res; // ignore for now
+    auto old_val = profiling_state.is_serializing.fetch_add(1);
+    if (old_val == 0) {
+        auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_SERIALIZING);
+        (void)res;
+    }
 }
