@@ -21,6 +21,7 @@ extern "C"
     void crashtracker_set_resolve_frames_disable();
     void crashtracker_set_resolve_frames_fast();
     void crashtracker_set_resolve_frames_full();
+    void crashtracker_set_resolve_frames_safe();
     bool crashtracker_set_receiver_binary_path(std::string_view path);
     void crashtracker_profiling_state_sampling_start();
     void crashtracker_profiling_state_sampling_stop();

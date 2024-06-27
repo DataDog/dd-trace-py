@@ -32,7 +32,7 @@ class Crashtracker
     std::optional<std::string> stderr_filename{ std::nullopt };
     std::optional<std::string> stdout_filename{ std::nullopt };
     std::string path_to_receiver_binary;
-    ddog_prof_StacktraceCollection resolve_frames = DDOG_PROF_STACKTRACE_COLLECTION_ENABLED;
+    ddog_prof_StacktraceCollection resolve_frames = DDOG_PROF_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS;
     uint64_t timeout_secs = g_crashtracker_timeout_secs;
 
     ProfilingState profiling_state;

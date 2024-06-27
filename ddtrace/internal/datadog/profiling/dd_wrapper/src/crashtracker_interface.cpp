@@ -92,7 +92,13 @@ crashtracker_set_resolve_frames_fast() // cppcheck-suppress unusedFunction
 void
 crashtracker_set_resolve_frames_full() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED);
+    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED_WITH_INPROCESS_SYMBOLS);
+}
+
+void
+crashtracker_set_resolve_frames_safe() // cppcheck-suppress unusedFunction
+{
+    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED_WITH_SYMBOLS_IN_RECEIVER);
 }
 
 bool

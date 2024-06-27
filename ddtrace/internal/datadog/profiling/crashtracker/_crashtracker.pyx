@@ -41,6 +41,7 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_set_resolve_frames_disable()
     void crashtracker_set_resolve_frames_fast()
     void crashtracker_set_resolve_frames_full()
+    void crashtracker_set_resolve_frames_safe()
     bint crashtracker_set_receiver_binary_path(string_view path)
     void crashtracker_profiling_state_sampling_start()
     void crashtracker_profiling_state_sampling_stop()
@@ -123,6 +124,11 @@ def set_resolve_frames_fast() -> None:
 @not_implemented
 def set_resolve_frames_full() -> None:
     crashtracker_set_resolve_frames_full()
+
+
+@not_implemented
+def set_resolve_frames_safe() -> None:
+    crashtracker_set_resolve_frames_safe()
 
 
 @not_implemented
