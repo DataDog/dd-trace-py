@@ -1,5 +1,0 @@
-deprecations:
-  - |
-    LLM Observability: `numerical` type evaluation metrics is deprecated and will be removed in the next major version of ddtrace.
-            All `numerical` type evaluation metrics will be converted and submitted as `score` types.
-            As an alternative to `numerical` type evaluation metrics, use the `score` type instead.

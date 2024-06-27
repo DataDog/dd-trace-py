@@ -693,7 +693,7 @@ class LLMObs(Service):
         metric_type = metric_type.lower()
         if metric_type == "numerical":
             log.warning(
-                "The evaluation metric type 'numerical' is deprecated in ddtrace 2.10.x Use 'score' instead. "
+                "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
                 "Converting `numerical` metric to `score` type."
             )
             metric_type = "score"

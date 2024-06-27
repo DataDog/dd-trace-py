@@ -874,14 +874,14 @@ def test_submit_evaluation_incorrect_metric_type_raises_warning(LLMObs, mock_log
     mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
 
 
-def test_submit_evaluation_numerical_value_raises_deprecation_warning(LLMObs, mock_logs):
+def test_submit_evaluation_numerical_value_raises_unsupported_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value="high"
     )
     mock_logs.warning.assert_has_calls(
         [
             mock.call(
-                "The evaluation metric type 'numerical' is deprecated in ddtrace 2.10.x Use 'score' instead. "
+                "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
                 "Converting `numerical` metric to `score` type."
             ),
         ]
