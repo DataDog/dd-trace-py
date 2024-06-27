@@ -454,6 +454,30 @@ def test_class_member_lock():
     assert release_lock_names == {"test_threading.py:%d:foobar_lock" % release_lienno}
 
 
+def test_private_lock():
+    class Foo:
+        def __init__(self):
+            self.__lock = threading.Lock()
+
+        def foo(self):
+            with self.__lock:
+                pass
+
+    r = recorder.Recorder()
+    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+        foo = Foo()
+        foo.foo()
+
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+
+    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
+    assert acquire_event.lock_name == "test_threading.py:463:_Foo__lock"
+    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
+    release_lineno = 463 if sys.version_info >= (3, 10) else 464
+    assert release_event.lock_name == "test_threading.py:%d:_Foo__lock" % release_lineno
+
+
 def test_global_locks():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
