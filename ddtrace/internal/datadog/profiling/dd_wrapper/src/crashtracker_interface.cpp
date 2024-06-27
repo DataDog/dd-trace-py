@@ -115,7 +115,6 @@ crashtracker_start() // cppcheck-suppress unusedFunction
     (void)initialized;
 }
 
-
 void
 crashtracker_profiling_state_sampling_start() // cppcheck-suppress unusedFunction
 {
