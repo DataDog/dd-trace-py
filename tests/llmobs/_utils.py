@@ -23,7 +23,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     expected_tags = [
         "version:{}".format(tags.get("version", "")),
         "env:{}".format(tags.get("env", "")),
-        "service:{}".format(tags.get("service", "")),
+        "service:{}".format(tags.get("service", "ddtrace")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
         "session_id:{}".format(session_id or "{:x}".format(span.trace_id)),

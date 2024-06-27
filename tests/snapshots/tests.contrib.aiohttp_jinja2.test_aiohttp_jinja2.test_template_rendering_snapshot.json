@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.template",
-    "service": "",
+    "service": "ddtrace",
     "resource": "aiohttp.template",
     "trace_id": 0,
     "span_id": 1,

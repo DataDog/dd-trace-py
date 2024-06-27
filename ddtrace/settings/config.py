@@ -33,6 +33,7 @@ from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
+from ..internal.utils.get_inferred_service import get_inferred_service
 from ..pin import Pin
 from ._otel_remapper import otel_remapping as _otel_remapping
 from .http import HttpConfig
@@ -439,7 +440,9 @@ class Config(object):
         )
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+
+        self._inferred_service = get_inferred_service(default=DEFAULT_SPAN_SERVICE_NAME)
+        self.service = os.getenv("DD_SERVICE", default=(self.tags.get("service", self._inferred_service)))
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
@@ -561,10 +564,6 @@ class Config(object):
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
         self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP")
-
-        self._inject_force = asbool(os.getenv("DD_INJECT_FORCE", False))
-        self._lib_was_injected = False
-        self._inject_was_attempted = asbool(os.getenv("_DD_INJECT_WAS_ATTEMPTED", False))
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
