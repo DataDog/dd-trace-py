@@ -466,3 +466,25 @@ def test_automatic_annotation_off_non_llm_decorators(LLMObs, mock_llmobs_span_wr
         mock_llmobs_span_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(span, decorator_name, session_id="test_session_id")
         )
+
+
+def test_automatic_annotation_off_if_manually_annotated(LLMObs, mock_llmobs_span_writer):
+    """Test disabling automatic input/output annotation for non-LLM decorators."""
+    for decorator_name, decorator in (("task", task), ("workflow", workflow), ("tool", tool), ("agent", agent)):
+
+        @decorator(name="test_function", session_id="test_session_id")
+        def f(prompt, arg_2, kwarg_1=None, kwarg_2=None):
+            LLMObs.annotate(input_data="my custom input", output_data="my custom output")
+            return prompt
+
+        f("test_prompt", "arg_2", kwarg_2=12345)
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                decorator_name,
+                session_id="test_session_id",
+                input_value="my custom input",
+                output_value="my custom output",
+            )
+        )

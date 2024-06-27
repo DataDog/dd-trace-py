@@ -5,6 +5,8 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 
 
@@ -70,10 +72,15 @@ def _llmobs_decorator(operation_kind):
                 with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
                     func_signature = signature(func)
                     bound_args = func_signature.bind_partial(*args, **kwargs)
-                    if _automatic_io_annotation and bound_args.arguments:
+                    if _automatic_io_annotation and bound_args.arguments and span.get_tag(INPUT_VALUE) is None:
                         LLMObs.annotate(span=span, input_data=bound_args.arguments)
                     resp = func(*args, **kwargs)
-                    if _automatic_io_annotation and resp and operation_kind != "retrieval":
+                    if (
+                        _automatic_io_annotation
+                        and resp
+                        and operation_kind != "retrieval"
+                        and span.get_tag(OUTPUT_VALUE) is None
+                    ):
                         LLMObs.annotate(span=span, output_data=resp)
                     return resp
 
