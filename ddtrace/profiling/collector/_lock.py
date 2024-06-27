@@ -252,21 +252,21 @@ class _ProfiledLock(wrapt.ObjectProxy):
             if self._self_name is None:
                 # Search for local variables and their attributes
                 for name, value in frame.f_locals.items():
-                    if value == self:
+                    if value is self:
                         self._self_name = name
                         break
                     for attribute in dir(value):
-                        if not attribute.startswith("__") and getattr(value, attribute) == self:
+                        if not attribute.startswith("__") and getattr(value, attribute) is self:
                             self._self_name = attribute
                             break
             if self._self_name is None:
                 # Search for global variables and their attributes
                 for name, value in frame.f_globals.items():
-                    if value == self:
+                    if value is self:
                         self._self_name = name
                         break
                     for attribute in dir(value):
-                        if not attribute.startswith("__") and getattr(value, attribute) == self:
+                        if not attribute.startswith("__") and getattr(value, attribute) is self:
                             self._self_name = attribute
                             break
 
