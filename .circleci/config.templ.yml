@@ -451,7 +451,8 @@ jobs:
           # DEV: riot list -i tracer lists all supported Python versions
           command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY"
           environment:
-            CMAKE_BUILD_PARALLEL_LEVEL: 8
+            CMAKE_BUILD_PARALLEL_LEVEL: 12
+            PIP_VERBOSE: 3
       - persist_to_workspace:
           root: .
           paths:
