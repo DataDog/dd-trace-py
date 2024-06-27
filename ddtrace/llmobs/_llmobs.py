@@ -687,12 +687,13 @@ class LLMObs(Service):
             return
 
         if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score"):
-            log.warning("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+            log.warning("metric_type must be one of 'categorical' or 'score'.")
+            return
 
         metric_type = metric_type.lower()
         if metric_type == "numerical":
             log.warning(
-                """Metric type 'numerical' is deprecated. Use 'score' instead. """
+                """The evaluation metric type 'numerical' is deprecated. Use 'score' instead. """
                 """Converting `numerical` metric to `score` type."""
             )
             metric_type = "score"

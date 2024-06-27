@@ -866,12 +866,12 @@ def test_submit_evaluation_incorrect_metric_type_raises_warning(LLMObs, mock_log
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
     )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
     mock_logs.reset_mock()
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
     )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
 
 
 def test_submit_evaluation_incorrect_score_value_type_raises_warning(LLMObs, mock_logs):
