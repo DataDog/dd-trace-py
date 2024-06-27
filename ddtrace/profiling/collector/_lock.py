@@ -4,6 +4,7 @@ import _thread
 import abc
 import os.path
 import sys
+import types
 import typing
 
 import attr
@@ -236,6 +237,21 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def __exit__(self, *args, **kwargs):
         self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
+    def _maybe_update_lock_name(self, var_dict: typing.Dict):
+        if self._self_name:
+            return
+        for name, value in var_dict.items():
+            if name.startswith("__") or isinstance(value, types.ModuleType):
+                continue
+            if value is self:
+                self._self_name = name
+                break
+            if config.lock.name_inspect_dir:
+                for attribute in dir(value):
+                    if not attribute.startswith("__") and getattr(value, attribute) is self:
+                        self._self_name = attribute
+                        break
+
     # Get lock acquire/release call location and variable name the lock is assigned to
     def _get_lock_call_loc_with_name(self) -> typing.Optional[str]:
         try:
@@ -249,26 +265,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
             code = frame.f_code
             call_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
-            if self._self_name is None:
-                # Search for local variables and their attributes
-                for name, value in frame.f_locals.items():
-                    if value is self:
-                        self._self_name = name
-                        break
-                    for attribute in dir(value):
-                        if not attribute.startswith("__") and getattr(value, attribute) is self:
-                            self._self_name = attribute
-                            break
-            if self._self_name is None:
-                # Search for global variables and their attributes
-                for name, value in frame.f_globals.items():
-                    if value is self:
-                        self._self_name = name
-                        break
-                    for attribute in dir(value):
-                        if not attribute.startswith("__") and getattr(value, attribute) is self:
-                            self._self_name = attribute
-                            break
+            # First, look at the local variables of the caller frame, and then the global variables
+            self._maybe_update_lock_name(frame.f_locals)
+            self._maybe_update_lock_name(frame.f_globals)
 
             if self._self_name:
                 return "%s:%s" % (call_loc, self._self_name)

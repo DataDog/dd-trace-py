@@ -223,6 +223,15 @@ class ProfilingConfig(En):
             help="Whether to enable the lock profiler",
         )
 
+        name_inspect_dir = En.v(
+            bool,
+            "name_inspect_dir",
+            default=True,
+            help_type="Boolean",
+            help="Whether to inspect the directory of local and global variables to find the name of the lock. "
+            "Turn this off if you are experiencing performance issues from the lock profiler.",
+        )
+
     class Memory(En):
         __item__ = __prefix__ = "memory"
 
