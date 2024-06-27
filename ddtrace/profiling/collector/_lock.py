@@ -92,7 +92,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
         self._self_init_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
-        self._self_name = None
+        self._self_name: typing.Optional[str] = None
 
     def __aenter__(self):
         return self.__wrapped__.__aenter__()
