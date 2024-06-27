@@ -70,7 +70,7 @@ def on_all(callback: Callable[..., Any]) -> None:
 
 def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]] = None) -> None:
     """Remove all registered listeners. If an event_id is provided, only clear those
-    event listeners. If a callback is provided, then only that listener is removed.
+    event listeners. If a callback is provided, then only the listeners for that callback are removed.
     """
     global _listeners
     global _all_listeners
