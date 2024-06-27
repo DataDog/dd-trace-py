@@ -521,6 +521,22 @@ def test_inner_lock():
     assert release_lock_names == {"test_threading.py:%d" % release_lienno}
 
 
+def test_anonymous_lock():
+    r = recorder.Recorder()
+    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+        with threading.Lock():
+            pass
+
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+
+    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
+    assert acquire_event.lock_name == "test_threading.py:527"
+    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
+    release_lineno = 527 if sys.version_info >= (3, 10) else 528
+    assert release_event.lock_name == "test_threading.py:%d" % release_lineno
+
+
 def test_global_locks():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
