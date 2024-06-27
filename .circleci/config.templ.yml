@@ -456,12 +456,15 @@ jobs:
       - checkout
       - setup_riot
       - run:
+          name: "Install moreutils"
+          command: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends moreutils
+      - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY 2>&1 | awk '{ print strftime(\"[%Y-%m-%d %H:%M:%S]\"), $0 }'"
+          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY 2>&1 | ts"
           environment:
             CMAKE_BUILD_PARALLEL_LEVEL: 12
-            PIP_VERBOSE: 3
+            PIP_VERBOSE: 1
       - persist_to_workspace:
           root: .
           paths:
