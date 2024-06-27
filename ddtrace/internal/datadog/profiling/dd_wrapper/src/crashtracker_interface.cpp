@@ -3,6 +3,7 @@
 
 // A global instance of the crashtracker is created here.
 Datadog::Crashtracker crashtracker;
+bool crashtracker_initialized = false;
 
 void
 crashtracker_postfork_child()
@@ -114,38 +115,56 @@ crashtracker_start() // cppcheck-suppress unusedFunction
     (void)initialized;
 }
 
+
 void
 crashtracker_profiling_state_sampling_start() // cppcheck-suppress unusedFunction
 {
-    crashtracker.sampling_start();
+    // These functions may be called by components which have no knowledge of
+    // whether the crashtracker was started.  We let them call, but ignore them
+    // if the crashtracker was not started.
+    // Generally, the goal is to start crashtracker as early as possible if
+    // we're going to start it at all, so we shouldn't miss any calls.
+    if (crashtracker_initialized) {
+        crashtracker.sampling_start();
+    }
 }
 
 void
 crashtracker_profiling_state_sampling_stop() // cppcheck-suppress unusedFunction
 {
-    crashtracker.sampling_stop();
+    if (crashtracker_initialized) {
+        crashtracker.sampling_stop();
+    }
 }
 
 void
 crashtracker_profiling_state_unwinding_start() // cppcheck-suppress unusedFunction
 {
-    crashtracker.unwinding_start();
+    if (crashtracker_initialized) {
+        crashtracker.unwinding_start();
+    }
 }
 
 void
 crashtracker_profiling_state_unwinding_stop() // cppcheck-suppress unusedFunction
 {
-    crashtracker.unwinding_stop();
+    if (crashtracker_initialized) {
+        crashtracker.unwinding_stop();
+    }
 }
 
 void
 crashtracker_profiling_state_serializing_start() // cppcheck-suppress unusedFunction
 {
-    crashtracker.serializing_start();
+    if (crashtracker_initialized) {
+        crashtracker.serializing_start();
+    }
 }
 
 void
 crashtracker_profiling_state_serializing_stop() // cppcheck-suppress unusedFunction
 {
-    crashtracker.serializing_stop();
+    if (crashtracker_initialized) {
+        crashtracker.serializing_stop();
+    }
 }

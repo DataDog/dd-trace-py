@@ -42,6 +42,12 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_set_resolve_frames_fast()
     void crashtracker_set_resolve_frames_full()
     bint crashtracker_set_receiver_binary_path(string_view path)
+    void crashtracker_profiling_state_sampling_start()
+    void crashtracker_profiling_state_sampling_stop()
+    void crashtracker_profiling_state_unwinding_start()
+    void crashtracker_profiling_state_unwinding_stop()
+    void crashtracker_profiling_state_serializing_start()
+    void crashtracker_profiling_state_serializing_stop()
     void crashtracker_start()
 
 
@@ -117,6 +123,30 @@ def set_resolve_frames_fast() -> None:
 @not_implemented
 def set_resolve_frames_full() -> None:
     crashtracker_set_resolve_frames_full()
+
+
+@not_implemented
+def set_profiling_state_sampling(on: bool) -> None:
+    if on:
+        crashtracker_profiling_state_sampling_start()
+    else:
+        crashtracker_profiling_state_sampling_stop()
+
+
+@not_implemented
+def set_profiling_state_unwinding(on: bool) -> None:
+    if on:
+        crashtracker_profiling_state_unwinding_start()
+    else:
+        crashtracker_profiling_state_unwinding_stop()
+
+
+@not_implemented
+def set_profiling_state_serializing(on: bool) -> None:
+    if on:
+        crashtracker_profiling_state_serializing_start()
+    else:
+        crashtracker_profiling_state_serializing_stop()
 
 
 @not_implemented

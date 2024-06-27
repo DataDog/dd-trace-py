@@ -18,11 +18,6 @@ if (DO_CPPCHECK)
     )
     set(CPPCHECK_EXECUTABLE ${CMAKE_BINARY_DIR}/cppcheck/bin/cppcheck)
   endif()
-
-  # The function we use to register targets for cppcheck would require us to run separate
-  # commands for each target, which is annoying.  Instead we'll consolidate all the targets
-  # as dependencies of a single target, and then run that target.
-  add_custom_target(cppcheck_runner ALL COMMENT "Runs cppcheck on all defined targets")
 endif()
 
 # This function will add a cppcheck target for a given directory
