@@ -442,7 +442,7 @@ jobs:
     resource_class: large
     docker:
       - image: *ddtrace_dev_image
-    parallelism: 8
+    parallelism: 6
     steps:
       - checkout
       - setup_riot
