@@ -45,7 +45,9 @@ def _expected_llmobs_llm_span_event(
     span,
     span_kind="llm",
     input_messages=None,
+    input_documents=None,
     output_messages=None,
+    output_value=None,
     parameters=None,
     metadata=None,
     token_metrics=None,
@@ -78,10 +80,16 @@ def _expected_llmobs_llm_span_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
     )
     meta_dict = {"input": {}, "output": {}}
-    if input_messages is not None:
-        meta_dict["input"].update({"messages": input_messages})
-    if output_messages is not None:
-        meta_dict["output"].update({"messages": output_messages})
+    if span_kind == "llm":
+        if input_messages is not None:
+            meta_dict["input"].update({"messages": input_messages})
+        if output_messages is not None:
+            meta_dict["output"].update({"messages": output_messages})
+    if span_kind == "embedding":
+        if input_documents is not None:
+            meta_dict["input"].update({"documents": input_documents})
+        if output_value is not None:
+            meta_dict["output"].update({"value": output_value})
     if metadata is not None:
         meta_dict.update({"metadata": metadata})
     if parameters is not None:

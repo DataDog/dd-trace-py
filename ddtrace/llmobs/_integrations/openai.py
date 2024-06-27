@@ -9,14 +9,17 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs.utils import Document
 from ddtrace.pin import Pin
 
 
@@ -46,7 +49,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        if operation_id.endswith("Completion"):
+        if operation_id.endswith("Completion") or operation_id == "createEmbedding":
             submit_to_llmobs = True
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
@@ -131,7 +134,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
-        span.set_tag_str(SPAN_KIND, "llm")
+        span_kind = "embedding" if record_type == "embedding" else "llm"
+        span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
         span.set_tag_str(MODEL_NAME, model_name or "")
         span.set_tag_str(MODEL_PROVIDER, "openai")
@@ -139,6 +143,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_completions, span)
         elif record_type == "chat":
             self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_completions, span)
+        elif record_type == "embedding":
+            self._llmobs_set_meta_tags_from_embedding(resp, err, kwargs, span)
         span.set_tag_str(
             METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None))
         )
@@ -213,6 +219,21 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
+    def _llmobs_set_meta_tags_from_embedding(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span) -> None:
+        """Extract prompt tags from an embedding and set them as temporary "_ml_obs.meta.*" tags."""
+        embedding_inputs = kwargs.get("input", "")
+        if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
+            embedding_inputs = [embedding_inputs]
+        input_documents = []
+        for doc in embedding_inputs:
+            input_documents.append(Document(text=str(doc)))
+        span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents))
+        if err is not None:
+            return
+        embedding_dim = len(resp.data[0].embedding)
+        span.set_tag_str(OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim))
+
+    @staticmethod
     def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed: bool = False) -> Dict[str, Any]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         metrics = {}
@@ -227,11 +248,13 @@ class OpenAIIntegration(BaseLLMIntegration):
                 }
             )
         elif resp:
+            prompt_tokens = getattr(resp.usage, "prompt_tokens", 0)
+            completion_tokens = getattr(resp.usage, "completion_tokens", 0)
             metrics.update(
                 {
-                    "prompt_tokens": resp.usage.prompt_tokens,
-                    "completion_tokens": resp.usage.completion_tokens,
-                    "total_tokens": resp.usage.prompt_tokens + resp.usage.completion_tokens,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens,
                 }
             )
         return metrics

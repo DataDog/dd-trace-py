@@ -577,3 +577,85 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
+
+    def test_embedding_string(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(input="hello world", model="text-embedding-ada-002")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                input_documents=[{"text": "hello world"}],
+                output_value="[1 embeddings returned with size 1536]",
+                token_metrics={"prompt_tokens": 2, "completion_tokens": 0, "total_tokens": 2},
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
+
+    def test_embedding_string_array(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_string_array.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                input_documents=[{"text": "hello world"}, {"text": "hello again"}],
+                output_value="[2 embeddings returned with size 1536]",
+                token_metrics={"prompt_tokens": 4, "completion_tokens": 0, "total_tokens": 4},
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
+
+    def test_embedding_token_array(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_token_array.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                input_documents=[{"text": "[1111, 2222, 3333]"}],
+                output_value="[1 embeddings returned with size 1536]",
+                token_metrics={"prompt_tokens": 3, "completion_tokens": 0, "total_tokens": 3},
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
+
+    def test_embedding_array_of_token_arrays(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_array_of_token_arrays.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(
+                input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]], model="text-embedding-ada-002"
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                input_documents=[
+                    {"text": "[1111, 2222, 3333]"},
+                    {"text": "[4444, 5555, 6666]"},
+                    {"text": "[7777, 8888, 9999]"},
+                ],
+                output_value="[3 embeddings returned with size 1536]",
+                token_metrics={"prompt_tokens": 9, "completion_tokens": 0, "total_tokens": 9},
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
