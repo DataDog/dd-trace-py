@@ -229,7 +229,7 @@ class ProfilingConfig(En):
             default=True,
             help_type="Boolean",
             help="Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
-            "With this enabled, the profiler finds the name of locks that are attributes of an object."
+            "With this enabled, the profiler finds the name of locks that are attributes of an object.",
         )
 
     class Memory(En):
