@@ -1,3 +1,4 @@
+import sys
 import sysconfig
 import time
 from typing import Any  # noqa:F401
@@ -7,13 +8,11 @@ import httpretty
 import mock
 import pytest
 
-from ddtrace.internal.module import origin
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriterModuleWatchdog
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
@@ -342,12 +341,15 @@ import ddtrace.auto
 
 
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
-    import xmltodict
+    if "xmltodict" in sys.modules:
+        del sys.modules["xmltodict"]
 
-    new_deps = [str(origin(xmltodict))]
-    telemetry_writer._update_dependencies_event(new_deps)
+    telemetry_writer.periodic(force_flush=True)
+
+    import xmltodict  # noqa: F401
+
     # force a flush
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events()
     assert len(events) >= 1
     assert "payload" in events[-1]
@@ -356,20 +358,17 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     xmltodict_events = [e for e in events if e["payload"]["dependencies"][0]["name"] == "xmltodict"]
     assert len(xmltodict_events) == 1
     assert "xmltodict" in telemetry_writer._imported_dependencies
-    assert telemetry_writer._imported_dependencies["xmltodict"].name == "xmltodict"
-    assert telemetry_writer._imported_dependencies["xmltodict"].version
 
 
 def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         initial_event_count = len(test_agent_session.get_events())
-        TelemetryWriterModuleWatchdog._initial = False
-        TelemetryWriterModuleWatchdog._new_imported.clear()
 
-        import xmltodict
+        if "xmltodict" in sys.modules:
+            del sys.modules["xmltodict"]
 
-        new_deps = [str(origin(xmltodict))]
-        telemetry_writer._update_dependencies_event(new_deps)
+        import xmltodict  # noqa: F401
+
         # force a flush
         telemetry_writer.periodic()
         events = test_agent_session.get_events()
@@ -378,15 +377,12 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
             assert events[0]["request_type"] != "app-dependencies-loaded"
 
 
-@pytest.mark.skip(reason="FIXME: This test does not generate a dependencies event")
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
-    TelemetryWriterModuleWatchdog._initial = False
-    TelemetryWriterModuleWatchdog._new_imported.clear()
+    if "string" in sys.modules:
+        del sys.modules["string"]
 
-    import string
+    import string  # noqa: F401
 
-    new_deps = [str(origin(string))]
-    telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events("app-dependencies-loaded")
@@ -394,21 +390,17 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     assert len(events) == 1
 
 
-@flaky(1717255857)
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
-    TelemetryWriterModuleWatchdog._initial = False
-    TelemetryWriterModuleWatchdog._new_imported.clear()
+    if "xmltodict" in sys.modules:
+        del sys.modules["xmltodict"]
 
-    import xmltodict
+    import xmltodict  # noqa: F401
 
-    new_deps = [str(origin(xmltodict))]
-    telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
     assert events[0]["payload"]["dependencies"][0]["name"] == "xmltodict"
 
-    telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
@@ -525,14 +517,15 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 # sends failing app-heartbeat event
                 telemetry_writer.periodic()
                 # asserts unsuccessful status code was logged
-                log.debug.assert_called_with(
+                log.debug.assert_called_once_with(
                     "failed to send telemetry to the %s at %s. response: %s",
                     "Datadog Agent",
                     telemetry_writer._client.url,
                     mock_status,
                 )
             # ensure one failing request was sent
-            assert len(httpretty.latest_requests()) == 1
+            reqs = httpretty.latest_requests()
+            assert len(reqs) == 1
 
 
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
