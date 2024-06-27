@@ -124,7 +124,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def llmobs_set_tags(
         self,
-        record_type: str,
+        operation: str,  # oneof "completion", "chat", "embedding"
         resp: Any,
         span: Span,
         kwargs: Dict[str, Any],
@@ -134,16 +134,16 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
-        span_kind = "embedding" if record_type == "embedding" else "llm"
+        span_kind = "embedding" if operation == "embedding" else "llm"
         span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
         span.set_tag_str(MODEL_NAME, model_name or "")
         span.set_tag_str(MODEL_PROVIDER, "openai")
-        if record_type == "completion":
+        if operation == "completion":
             self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_completions, span)
-        elif record_type == "chat":
+        elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_completions, span)
-        elif record_type == "embedding":
+        elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(resp, err, kwargs, span)
         span.set_tag_str(
             METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None))
