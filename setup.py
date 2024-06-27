@@ -43,6 +43,7 @@ HERE = Path(__file__).resolve().parent
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
+IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
@@ -230,6 +231,13 @@ class LibDDWafDownload(LibraryDownload):
 
 class LibraryDownloader(BuildPyCommand):
     def run(self):
+        # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
+        # is set to True when the package is being installed in editable mode, which we need to know
+        # for some extensions
+        global IS_EDITABLE
+        if self.editable_mode:
+            IS_EDITABLE = True
+
         CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
@@ -310,6 +318,13 @@ class CMakeBuild(build_ext):
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
+
+        # If this is an inplace build, propagate this fact to CMake in case it's helpful
+        # In particular, this is needed for build products which are not otherwise managed
+        # by setuptools/distutils, such libdd_wrapper.so
+        if IS_EDITABLE:
+            # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
+            cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(ext.source_dir))
 
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
