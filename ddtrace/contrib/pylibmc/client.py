@@ -69,6 +69,9 @@ class TracedClient(ObjectProxy):
             pin.clone().onto(traced_client)
         return traced_client
 
+    def add(self, *args, **kwargs):
+        return self._trace_cmd("add", *args, **kwargs)
+
     def get(self, *args, **kwargs):
         return self._trace_cmd("get", *args, **kwargs)
 
@@ -99,6 +102,12 @@ class TracedClient(ObjectProxy):
     def prepend(self, *args, **kwargs):
         return self._trace_cmd("prepend", *args, **kwargs)
 
+    def replace(self, *args, **kwargs):
+        return self._trace_cmd("replace", *args, **kwargs)
+
+    def add_multi(self, *args, **kwargs):
+        return self._trace_multi_cmd("add_multi", *args, **kwargs)
+
     def get_multi(self, *args, **kwargs):
         return self._trace_multi_cmd("get_multi", *args, **kwargs)
 
@@ -107,6 +116,9 @@ class TracedClient(ObjectProxy):
 
     def delete_multi(self, *args, **kwargs):
         return self._trace_multi_cmd("delete_multi", *args, **kwargs)
+
+    def incr_multi(self, *args, **kwargs):
+        return self._trace_multi_cmd("incr_multi", *args, **kwargs)
 
     def _trace_cmd(self, method_name, *args, **kwargs):
         """trace the execution of the method with the given name and will
