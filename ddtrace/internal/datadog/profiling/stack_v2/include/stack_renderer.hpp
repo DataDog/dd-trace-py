@@ -16,7 +16,7 @@
 
 namespace Datadog {
 
-struct ThreadInfo
+struct ThreadState
 {
     // Current thread info.  Keeping one instance of this per StackRenderer is sufficient because the renderer visits
     // threads one at a time.
@@ -25,16 +25,15 @@ struct ThreadInfo
     uintptr_t id = 0;
     unsigned long native_id = 0;
     std::string name;
-    microsecond_t wall_time_us = 0;
-    microsecond_t cpu_time_us = 0;
+    microsecond_t wall_time_ns = 0;
+    microsecond_t cpu_time_ns = 0;
     int64_t now_time_ns = 0;
-
-}
+};
 
 class StackRenderer : public RendererInterface
 {
     Sample* sample = nullptr;
-    ThreadInfo thread_info = {};
+    ThreadState thread_state = {};
 
     virtual void render_message(std::string_view msg) override;
     virtual void render_thread_begin(PyThreadState* tstate,
