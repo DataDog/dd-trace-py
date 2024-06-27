@@ -994,12 +994,6 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(LLMObs, mock_llmobs
     )
 
 
-def test_flush_calls_periodic(LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
-    LLMObs.flush()
-    mock_llmobs_span_writer.periodic.assert_called_once()
-    mock_llmobs_eval_metric_writer.periodic.assert_called_once()
-
-
 def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_llmobs_eval_metric_writer):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value=35
@@ -1023,6 +1017,12 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
             score_value=35,
         )
     )
+
+
+def test_flush_calls_periodic(LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
+    LLMObs.flush()
+    mock_llmobs_span_writer.periodic.assert_called_once()
+    mock_llmobs_eval_metric_writer.periodic.assert_called_once()
 
 
 def test_flush_does_not_call_period_when_llmobs_is_disabled(
