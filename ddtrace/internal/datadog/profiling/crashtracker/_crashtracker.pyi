@@ -1,6 +1,4 @@
-from typing import Union
-
-StringType = Union[str, bytes, None]
+from ..types import StringType
 
 def set_url(url: StringType) -> None: ...
 def set_service(service: StringType) -> None: ...

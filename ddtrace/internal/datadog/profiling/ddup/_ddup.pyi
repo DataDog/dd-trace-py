@@ -1,9 +1,8 @@
 from typing import Dict
 from typing import Optional
 from typing import Union
+from ..types import StringType
 from ddtrace._trace.span import Span
-
-StringType = Union[str, bytes, None]
 
 def config(
     env: StringType,

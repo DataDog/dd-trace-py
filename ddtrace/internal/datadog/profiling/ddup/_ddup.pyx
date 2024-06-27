@@ -7,14 +7,12 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace.internal.compat import ensure_binary
+from ..types import StringType
+from ..util import ensure_binary_or_empty
+from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.datadog.profiling.ddup.utils import sanitize_string
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
-
-
-StringType = Union[str, bytes, None]
 
 
 cdef extern from "stdint.h":
@@ -98,14 +96,6 @@ cdef call_ddup_config_user_tag(bytes key, bytes val):
 
 
 # Conversion functions
-def ensure_binary_or_empty(s: StringType) -> bytes:
-    try:
-        return ensure_binary(s)
-    except Exception:
-        pass
-    return b""
-
-
 cdef uint64_t clamp_to_uint64_unsigned(value):
     # This clamps a Python int to the nonnegative range of an unsigned 64-bit integer.
     # The name is redundant, but consistent with the other clamping function.

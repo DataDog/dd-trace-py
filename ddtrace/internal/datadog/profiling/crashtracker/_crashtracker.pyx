@@ -6,11 +6,9 @@
 
 import os
 from functools import wraps
-from typing import Union
 
-from ddtrace.internal.compat import ensure_binary
-
-StringType = Union[str, bytes]
+from ..types import StringType
+from ..util import ensure_binary_or_empty
 
 
 def not_implemented(func):
@@ -45,15 +43,6 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_set_resolve_frames_full()
     bint crashtracker_set_receiver_binary_path(string_view path)
     void crashtracker_start()
-
-
-# String conversion helper
-def ensure_binary_or_empty(s: StringType) -> bytes:
-    try:
-        return ensure_binary(s)
-    except Exception:
-        pass
-    return b""
 
 
 @not_implemented
