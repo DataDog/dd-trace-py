@@ -874,6 +874,31 @@ def test_submit_evaluation_incorrect_metric_type_raises_warning(LLMObs, mock_log
     mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
 
 
+def test_submit_evaluation_numerical_value_raises_deprecationg_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value="high"
+    )
+    mock_logs.warning.assert_has_calls(
+        [
+            mock.call(
+                """The evaluation metric type 'numerical' is deprecated. Use 'score' instead. """
+                """Converting `numerical` metric to `score` type."""
+            ),
+        ]
+    )
+
+
+def test_submit_evaluation_incorrect_numerical_value_type_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value="high"
+    )
+    mock_logs.warning.assert_has_calls(
+        [
+            mock.call("value must be an integer or float for a score metric."),
+        ]
+    )
+
+
 def test_submit_evaluation_incorrect_score_value_type_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="score", value="high"
@@ -994,7 +1019,9 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(LLMObs, mock_llmobs
     )
 
 
-def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metric(
+    LLMObs, mock_llmobs_eval_metric_writer
+):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value=35
     )
