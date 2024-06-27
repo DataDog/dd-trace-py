@@ -8,7 +8,7 @@ fi
 RUN_ID=$(gh run ls --repo DataDog/dd-trace-py --commit=$CI_COMMIT_SHA --workflow=build_deploy.yml --json databaseId --jq "first (.[]) | .databaseId")
 
 # wait for run to finish
-gh run watch 9699662933 --interval 15 --exit-status 1 --repo DataDog/dd-trace-py
+gh run watch $RUN_ID --interval 15 --exit-status 1 --repo DataDog/dd-trace-py
 
 mkdir pywheels
 cd pywheels
