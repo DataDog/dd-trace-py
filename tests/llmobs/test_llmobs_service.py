@@ -866,12 +866,12 @@ def test_submit_evaluation_incorrect_metric_type_raises_warning(LLMObs, mock_log
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
     )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'score'.")
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'numerical', or 'score'.")
     mock_logs.reset_mock()
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
     )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'score'.")
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'numerical', or 'score'.")
 
 
 def test_submit_evaluation_incorrect_score_value_type_raises_warning(LLMObs, mock_logs):
@@ -998,6 +998,31 @@ def test_flush_calls_periodic(LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_
     LLMObs.flush()
     mock_llmobs_span_writer.periodic.assert_called_once()
     mock_llmobs_eval_metric_writer.periodic.assert_called_once()
+
+
+def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_llmobs_eval_metric_writer):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value=35
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123", trace_id="456", label="token_count", metric_type="score", score_value=35
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset_mock()
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.submit_evaluation(
+            span_context=LLMObs.export_span(span), label="token_count", metric_type="numerical", value=35
+        )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id=str(span.span_id),
+            trace_id="{:x}".format(span.trace_id),
+            label="token_count",
+            metric_type="score",
+            score_value=35,
+        )
+    )
 
 
 def test_flush_does_not_call_period_when_llmobs_is_disabled(
