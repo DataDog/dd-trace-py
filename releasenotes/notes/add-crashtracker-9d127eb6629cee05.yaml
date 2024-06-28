@@ -1,4 +1,0 @@
----
-features:
-  - |
-    core: add support for crashtracker, which reports application crashes to Datadog. Enable with DD_CRASHTRACKER_ENABLED=true.
