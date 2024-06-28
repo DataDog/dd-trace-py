@@ -11,13 +11,16 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs.utils import Document
 from ddtrace.pin import Pin
@@ -254,9 +257,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             completion_tokens = span.get_metric("openai.response.usage.completion_tokens") or 0
             metrics.update(
                 {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens,
+                    INPUT_TOKENS_METRIC_KEY: prompt_tokens,
+                    OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
+                    TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
                 }
             )
         elif resp:
@@ -264,9 +267,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             completion_tokens = getattr(resp.usage, "completion_tokens", 0)
             metrics.update(
                 {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens,
+                    INPUT_TOKENS_METRIC_KEY: prompt_tokens,
+                    OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
+                    TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
                 }
             )
         return metrics
