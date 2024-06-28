@@ -261,6 +261,11 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # 2: acquire/release (or __enter__/__exit__)
             # 3: caller frame
             # And we expect additional frame if WRAPT_C_EXT is False
+            if __debug__:
+                frame = sys._getframe(1)
+                assert frame.f_code.co_name in {"_acquire", "_release"}
+                frame = sys._getframe(2)
+                assert frame.f_code.co_name in {"acquire", "release", "__enter__", "__exit__"}
             frame = sys._getframe(3 if WRAPT_C_EXT else 4)
             code = frame.f_code
             call_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
