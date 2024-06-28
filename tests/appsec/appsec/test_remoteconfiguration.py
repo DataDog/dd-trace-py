@@ -118,11 +118,11 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "4Av8"),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "gOAD/A=="),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
-        (True, "false", "CAA="),
+        (True, "false", "gAAAAA=="),
         (False, "false", ""),
-        (True, "", "CAI="),  # ASM_ACTIVATION
+        (True, "", "gAAAAg=="),  # ASM_ACTIVATION
         (False, "", ""),
     ],
 )
@@ -143,8 +143,8 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "4Av+"),  # All capabilities
-        ({"_asm_static_rule_file": DEFAULT.RULES}, "CAI="),  # Only ASM_FEATURES
+        ({}, "gOAD/g=="),  # All capabilities
+        ({"_asm_static_rule_file": DEFAULT.RULES}, "gAAAAg=="),  # Only ASM_FEATURES
     ],
 )
 def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, expected):
@@ -198,17 +198,22 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     disable_appsec_rc()
 
 
-@pytest.mark.parametrize("apisec_enabled", [True, False])
-def test_rc_activation_with_api_security_appsec_fixed(tracer, remote_config_worker, apisec_enabled):
+@pytest.mark.parametrize("auto_user", [True, False])
+def test_rc_activation_with_auto_user_appsec_fixed(tracer, remote_config_worker, auto_user):
     with override_env({APPSEC.ENV: "true"}), override_global_config(
-        dict(_remote_config_enabled=True, _asm_enabled=True, _api_security_enabled=apisec_enabled, api_version="v0.4")
+        dict(
+            _remote_config_enabled=True,
+            _asm_enabled=True,
+            _auto_user_instrumentation_enabled=auto_user,
+            api_version="v0.4",
+        )
     ):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
 
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM)
-        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)) == apisec_enabled
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)) == auto_user
 
     disable_appsec_rc()
 
