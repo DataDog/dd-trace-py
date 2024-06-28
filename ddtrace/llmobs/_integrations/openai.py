@@ -155,10 +155,11 @@ class OpenAIIntegration(BaseLLMIntegration):
         if isinstance(prompt, str):
             prompt = [prompt]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
-        if kwargs.get("max_tokens"):
-            parameters["max_tokens"] = kwargs.get("max_tokens")
+
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt")}
+        parameters["temperature"] = kwargs.get("temperature", 0)
         span.set_tag_str(METADATA, json.dumps(parameters))
+
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
@@ -181,10 +182,11 @@ class OpenAIIntegration(BaseLLMIntegration):
                 continue
             input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
-        if kwargs.get("max_tokens"):
-            parameters["max_tokens"] = kwargs.get("max_tokens")
+
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
+        parameters["temperature"] = kwargs.get("temperature", 0)
         span.set_tag_str(METADATA, json.dumps(parameters))
+
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
