@@ -42,7 +42,7 @@ onboarding_tests_k8s_injection:
   allow_failure: true
   parallel:
     matrix:
-      - WEBLOG_VARIANT: [['dd-lib-python-init-test-django','dd-lib-python-init-test-django-gunicorn','dd-lib-python-init-test-django-uvicorn']]
+      - WEBLOG_VARIANT: [dd-lib-python-init-test-django, dd-lib-python-init-test-django-gunicorn, dd-lib-python-init-test-django-uvicorn]
 
 deploy_to_di_backend:manual:
   stage: internal-publish
