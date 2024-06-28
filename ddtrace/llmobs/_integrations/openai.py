@@ -221,6 +221,12 @@ class OpenAIIntegration(BaseLLMIntegration):
     @staticmethod
     def _llmobs_set_meta_tags_from_embedding(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span) -> None:
         """Extract prompt tags from an embedding and set them as temporary "_ml_obs.meta.*" tags."""
+        encoding_format = kwargs.get("encoding_format") or "float"
+        metadata = {"encoding_format": encoding_format}
+        if kwargs.get("dimensions"):
+            metadata["dimensions"] = kwargs.get("dimensions")
+        span.set_tag_str(METADATA, json.dumps(metadata))
+
         embedding_inputs = kwargs.get("input", "")
         if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
             embedding_inputs = [embedding_inputs]
@@ -228,10 +234,16 @@ class OpenAIIntegration(BaseLLMIntegration):
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
         span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents))
+
         if err is not None:
             return
-        embedding_dim = len(resp.data[0].embedding)
-        span.set_tag_str(OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim))
+        if encoding_format == "float":
+            embedding_dim = len(resp.data[0].embedding)
+            span.set_tag_str(
+                OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
+            )
+            return
+        span.set_tag_str(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
     def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed: bool = False) -> Dict[str, Any]:

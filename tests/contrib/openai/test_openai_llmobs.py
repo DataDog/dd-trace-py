@@ -590,6 +590,7 @@ class TestLLMObsOpenaiV1:
                 span_kind="embedding",
                 model_name=resp.model,
                 model_provider="openai",
+                metadata={"encoding_format": "float"},
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"prompt_tokens": 2, "completion_tokens": 0, "total_tokens": 2},
@@ -609,6 +610,7 @@ class TestLLMObsOpenaiV1:
                 span_kind="embedding",
                 model_name=resp.model,
                 model_provider="openai",
+                metadata={"encoding_format": "float"},
                 input_documents=[{"text": "hello world"}, {"text": "hello again"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 token_metrics={"prompt_tokens": 4, "completion_tokens": 0, "total_tokens": 4},
@@ -628,6 +630,7 @@ class TestLLMObsOpenaiV1:
                 span_kind="embedding",
                 model_name=resp.model,
                 model_provider="openai",
+                metadata={"encoding_format": "float"},
                 input_documents=[{"text": "[1111, 2222, 3333]"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"prompt_tokens": 3, "completion_tokens": 0, "total_tokens": 3},
@@ -649,6 +652,7 @@ class TestLLMObsOpenaiV1:
                 span_kind="embedding",
                 model_name=resp.model,
                 model_provider="openai",
+                metadata={"encoding_format": "float"},
                 input_documents=[
                     {"text": "[1111, 2222, 3333]"},
                     {"text": "[4444, 5555, 6666]"},
@@ -656,6 +660,31 @@ class TestLLMObsOpenaiV1:
                 ],
                 output_value="[3 embedding(s) returned with size 1536]",
                 token_metrics={"prompt_tokens": 9, "completion_tokens": 0, "total_tokens": 9},
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
+
+    def test_embedding_string_base64(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_b64.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(
+                input="hello world",
+                model="text-embedding-3-small",
+                encoding_format="base64",
+                dimensions=512,
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                metadata={"encoding_format": "base64", "dimensions": 512},
+                input_documents=[{"text": "hello world"}],
+                output_value="[1 embedding(s) returned]",
+                token_metrics={"prompt_tokens": 2, "completion_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
