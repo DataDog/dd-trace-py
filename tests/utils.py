@@ -1,6 +1,7 @@
 import contextlib
 from contextlib import contextmanager
 import datetime as dt
+from http.client import RemoteDisconnected
 import inspect
 import json
 import os
@@ -1048,7 +1049,7 @@ def snapshot_context(
             while r is None and time.time() - attempt_start < 60:
                 try:
                     r = conn.getresponse()
-                except http.client.RemoteDisconnected:
+                except RemoteDisconnected:
                     time.sleep(1)
             if r is None:
                 pytest.fail("Repeated attempts to start testagent session failed", pytrace=False)
