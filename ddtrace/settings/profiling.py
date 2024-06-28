@@ -188,6 +188,14 @@ class ProfilingConfig(En):
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
 
+    enable_asserts = En.v(
+        bool,
+        "enable_asserts",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable debug assertions in the profiler code",
+    )
+
     class Stack(En):
         __item__ = __prefix__ = "stack"
 
