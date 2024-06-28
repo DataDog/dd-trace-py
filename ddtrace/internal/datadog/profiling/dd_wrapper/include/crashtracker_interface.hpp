@@ -30,6 +30,8 @@ extern "C"
     void crashtracker_profiling_state_serializing_start();
     void crashtracker_profiling_state_serializing_stop();
     void crashtracker_start();
+
+    void crashtracker_chain_sigsegv_to_signum(int signum);
 #ifdef __cplusplus
 } // extern "C"
 #endif

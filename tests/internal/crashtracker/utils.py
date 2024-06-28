@@ -25,6 +25,8 @@ def crashtracker_receiver_bind():
 
 def listen_get_conn(sock):
     """Given a listening socket, wait for a connection and return it"""
+    if not sock:
+        return None
     rlist, _, _ = select.select([sock], [], [], 5.0)  # 5 second timeout
     if not rlist:
         return None
@@ -51,7 +53,7 @@ def start_crashtracker(port: int):
     """Start the crashtracker with some placeholder values"""
     ret = False
     try:
-        import ddtrace.internal.core.crashtracker as crashtracker
+        import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
 
         crashtracker.set_url("http://localhost:%d" % port)
         crashtracker.set_service("my_favorite_service")
@@ -64,7 +66,8 @@ def start_crashtracker(port: int):
         crashtracker.set_alt_stack(False)
         crashtracker.set_resolve_frames_full()
         ret = crashtracker.start()
-    except Exception:
+    except Exception as e:
+        print("Failed to start crashtracker: %s" % str(e))
         ret = False
     return ret
 

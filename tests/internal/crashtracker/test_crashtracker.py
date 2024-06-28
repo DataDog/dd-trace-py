@@ -17,7 +17,7 @@ def test_crashtracker_loading():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
 def test_crashtracker_available():
-    import ddtrace.internal.core.crashtracker as crashtracker
+    import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
 
     assert crashtracker.is_available
 
@@ -31,7 +31,6 @@ def test_crashtracker_config():
     from tests.internal.crashtracker.utils import start_crashtracker
 
     start_crashtracker(1234)
-
     stdout_msg, stderr_msg = read_files(["stdout.log", "stderr.log"])
     if stdout_msg or stderr_msg:
         pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
@@ -42,7 +41,7 @@ def test_crashtracker_config():
 def test_crashtracker_config_bytes():
     import pytest
 
-    import ddtrace.internal.core.crashtracker as crashtracker
+    import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
     from tests.internal.crashtracker.utils import read_files
 
     try:
@@ -74,40 +73,37 @@ def test_crashtracker_simple():
     # 3. Starts the crashtracker with the URL set to the port
     # 4. Crashes the process
     # 5. Verifies that the crashtracker sends a crash report to the server
+    import ctypes
     import os
 
-    from tests.internal.crashtracker.utils import conn_to_bytes
-    from tests.internal.crashtracker.utils import crashtracker_receiver_bind
-    from tests.internal.crashtracker.utils import listen_get_conn
-    from tests.internal.crashtracker.utils import start_crashtracker
+    import tests.internal.crashtracker.utils as utils
 
     # Part 1 and 2
-    port, sock = crashtracker_receiver_bind()
-    assert port is not None
-    assert sock is not None
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
 
     # Part 3 and 4, Fork, setup crashtracker, and crash
     pid = os.fork()
     if pid == 0:
-        import ctypes
+        assert utils.start_crashtracker(port)
+        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+        assert not stdout_msg
+        assert not stderr_msg
 
-        start_crashtracker(port)
         ctypes.string_at(0)
-        pytest.fail("Should not reach here")
-        exit(1)  # just in case
+        exit(-1)
 
     # Part 5
     # Check to see if the listening socket was triggered, if so accept the connection
     # then check to see if the resulting connection is readable
-    conn = listen_get_conn(sock)
+    conn = utils.listen_get_conn(sock)
     assert conn
-
-    data = conn_to_bytes(conn)
-    conn.close()
-    assert data
 
     # The crash came from string_at.  Since the over-the-wire format is multipart, chunked HTTP,
     # just check for the presence of the raw string 'string_at' in the response.
+    data = utils.conn_to_bytes(conn)
+    conn.close()
     assert b"string_at" in data
 
 
@@ -116,42 +112,105 @@ def test_crashtracker_simple():
 def test_crashtracker_simple_fork():
     # This is similar to the simple test, except crashtracker initialization is done
     # in the parent
+    import ctypes
     import os
 
-    from tests.internal.crashtracker.utils import conn_to_bytes
-    from tests.internal.crashtracker.utils import crashtracker_receiver_bind
-    from tests.internal.crashtracker.utils import listen_get_conn
-    from tests.internal.crashtracker.utils import start_crashtracker
+    import tests.internal.crashtracker.utils as utils
 
     # Part 1 and 2
-    port, sock = crashtracker_receiver_bind()
-    assert port is not None
-    assert sock is not None
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
 
-    # Part 3
-    start_crashtracker(port)
+    # Part 3, setup crashtracker in parent
+    assert utils.start_crashtracker(port)
+    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+    assert not stdout_msg
+    assert not stderr_msg
 
-    # Part 4, Fork, setup crashtracker, and crash
+    # Part 4, Fork and crash
     pid = os.fork()
     if pid == 0:
-        import ctypes
-
-        import pytest
-
         ctypes.string_at(0)
-        pytest.fail("Should not reach here")
-        exit(1)  # just in case
+        exit(-1)  # just in case
 
-    # Part 5
-    # Check to see if the listening socket was triggered, if so accept the connection
-    # then check to see if the resulting connection is readable
-    conn = listen_get_conn(sock)
+    # Part 5, check
+    conn = utils.listen_get_conn(sock)
     assert conn
 
-    data = conn_to_bytes(conn)
+    data = utils.conn_to_bytes(conn)
     conn.close()
-    assert data
-
-    # The crash came from string_at.  Since the over-the-wire format is multipart, chunked HTTP,
-    # just check for the presence of the raw string 'string_at' in the response.
     assert b"string_at" in data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_simple_sigsegv():
+    # Just throw a SIGSEGV normally
+    import os
+    import signal
+
+    import tests.internal.crashtracker.utils as utils
+
+    # Part 1 and 2
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
+
+    assert utils.start_crashtracker(port)
+    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+    assert not stdout_msg
+    assert not stderr_msg
+
+    # Part 4, raise SIGSEGV
+    pid = os.fork()
+    if pid == 0:
+        os.kill(os.getpid(), signal.SIGSEGV.value)
+        exit(-1)
+
+    # Part 5, check
+    conn = utils.listen_get_conn(sock)
+    assert conn
+
+    data = utils.conn_to_bytes(conn)
+    conn.close()
+    assert b"os_kill_impl" in data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_simple_sigabrt():
+    # Throw a segfault in the SIGABRT handler as a final act of desperation
+    # This tests an advanced/niche end-user diagnostics workflow, NOT a common use case
+    import os
+    import signal
+
+    import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
+    import tests.internal.crashtracker.utils as utils
+
+    # Part 1 and 2
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
+
+    assert utils.start_crashtracker(port)
+    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+    assert not stdout_msg
+    assert not stderr_msg
+
+    # Now install the handler
+    crashtracker.chain_handler(signal.SIGABRT.value)
+
+    # Part 4, raise SIGABRT
+    pid = os.fork()
+    if pid == 0:
+        os.kill(os.getpid(), signal.SIGABRT.value)
+        exit(-1)
+
+    # Part 5, check
+    conn = utils.listen_get_conn(sock)
+    assert conn
+
+    data = utils.conn_to_bytes(conn)
+    conn.close()
+    assert b"os_kill_impl" in data

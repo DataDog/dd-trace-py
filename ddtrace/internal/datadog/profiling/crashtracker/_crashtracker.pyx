@@ -50,6 +50,7 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_profiling_state_serializing_start()
     void crashtracker_profiling_state_serializing_stop()
     void crashtracker_start()
+    void crashtracker_chain_sigsegv_to_signum(int signum)
 
 
 @not_implemented
@@ -169,3 +170,8 @@ def start() -> bool:
     if bin_exists:
         crashtracker_start()
     return bin_exists
+
+
+@not_implemented
+def chain_handler(signum: int) -> None:
+    crashtracker_chain_sigsegv_to_signum(signum)

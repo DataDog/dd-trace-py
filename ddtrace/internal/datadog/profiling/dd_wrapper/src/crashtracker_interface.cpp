@@ -1,6 +1,9 @@
 #include "crashtracker_interface.hpp"
 #include "crashtracker.hpp"
 
+#include <pthread.h>
+#include <signal.h>
+
 // A global instance of the crashtracker is created here.
 Datadog::Crashtracker crashtracker;
 bool crashtracker_initialized = false;
@@ -171,5 +174,35 @@ crashtracker_profiling_state_serializing_stop() // cppcheck-suppress unusedFunct
 {
     if (crashtracker_initialized) {
         crashtracker.serializing_stop();
+    }
+}
+
+// This handler just throws a segfault in order to summon the crashtracker.
+void
+throw_segfault(int) // cppcheck-suppress unusedFunction
+{
+    volatile int* p = nullptr;
+    *p = 0;
+}
+
+void
+crashtracker_chain_sigsegv_to_signum(int signum) // cppcheck-suppress unusedFunction
+{
+    // This is not advisable and it is simple to refactor crashtracker to handle this case.
+    // However, it hasn't been refactored yet, and this is a useful diagnostic operation when everything else
+    // has failed.
+
+    // Get the address of the SIGSEGV signal handler, so we have the same overall settings
+    struct sigaction sa;
+    if (sigaction(SIGSEGV, nullptr, &sa) == -1) {
+        return;
+    }
+
+    // Set the new signal handler
+    sa.sa_handler = throw_segfault;
+
+    // Install it on the specified signal
+    if (sigaction(signum, &sa, nullptr) == -1) {
+        return;
     }
 }
