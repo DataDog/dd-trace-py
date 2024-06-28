@@ -17,7 +17,6 @@ class Flags(enum.IntFlag):
     ASM_CUSTOM_RULES = 1 << 8
     ASM_CUSTOM_BLOCKING_RESPONSE = 1 << 9
     ASM_TRUSTED_IPS = 1 << 10
-    # ASM_API_SECURITY_SAMPLE_RATE = 1 << 11 deprecated
     ASM_RASP_SQLI = 1 << 21
     ASM_RASP_LFI = 1 << 22
     ASM_RASP_SSRF = 1 << 23

@@ -34,3 +34,5 @@ features:
     Additionally, an optional argument for the public API `track_user_login_success_event` and `track_user_login_failure_event`:
     `login_events_mode="auto"`. This allows manual instrumentation to follow remote configuration settings, enabling or disabling
     manual instrumentation with a single remote action on the Datadog UI.
+
+    Also prevents non numerical user ids to be reported by default without user instrumentation in Django.
