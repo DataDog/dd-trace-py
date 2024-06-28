@@ -147,11 +147,28 @@ def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
     return span, args, kwargs
 
 
-if dbm_config.propagation_mode in ["full", "service"]:
-    core.on("aiomysql.execute", handle_dbm_injection, "result")
-    core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
-    core.on("dbapi.execute", handle_dbm_injection, "result")
-    core.on("mysql.execute", handle_dbm_injection, "result")
-    core.on("mysqldb.execute", handle_dbm_injection, "result")
-    core.on("psycopg.execute", handle_dbm_injection, "result")
-    core.on("pymysql.execute", handle_dbm_injection, "result")
+_DBM_STANDARD_EVENTS = {
+    "aiomysql.execute",
+    "dbapi.execute",
+    "django-postgres.execute",
+    "mysql.execute",
+    "mysqldb.execute",
+    "psycopg.execute",
+    "pymysql.execute",
+}
+
+
+def listen():
+    if dbm_config.propagation_mode in ["full", "service"]:
+        for event in _DBM_STANDARD_EVENTS:
+            core.on(event, handle_dbm_injection, "result")
+        core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
+
+
+def unlisten():
+    for event in _DBM_STANDARD_EVENTS:
+        core.reset_listeners(event, handle_dbm_injection)
+    core.reset_listeners("asyncpg.execute", handle_dbm_injection_asyncpg)
+
+
+listen()

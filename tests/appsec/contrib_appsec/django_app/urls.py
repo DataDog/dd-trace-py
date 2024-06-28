@@ -25,6 +25,12 @@ else:
     from django.conf.urls import url as path
 
 
+# for user events
+
+
+# creating users at start
+
+
 @csrf_exempt
 def healthcheck(request):
     return HttpResponse("ok ASM", status=200)
@@ -141,6 +147,33 @@ def rasp(request, endpoint: str):
 
 
 @csrf_exempt
+def login_user(request):
+    from django.contrib.auth import authenticate
+    from django.contrib.auth import get_user_model
+    from django.contrib.auth import login
+
+    for username, email, passwd, last_name, user_id in [
+        ("test", "testuser@ddog.com", "1234", "test", "social-security-id"),
+        ("testuuid", "testuseruuid@ddog.com", "1234", "testuuid", "591dc126-8431-4d0f-9509-b23318d3dce4"),
+    ]:
+        try:
+            CustomUser = get_user_model()
+            if not CustomUser.objects.filter(id=user_id).exists():
+                user = CustomUser.objects.create_user(username, email, passwd, last_name=last_name, id=user_id)
+                user.save()
+        except Exception:
+            pass
+
+    username = request.GET.get("username")
+    password = request.GET.get("password")
+    user = authenticate(username=username, password=password)
+    if user is not None:
+        login(request, user)
+        return HttpResponse("OK")
+    return HttpResponse("login failure", status=401)
+
+
+@csrf_exempt
 def new_service(request, service_name: str):
     import ddtrace
 
@@ -186,6 +219,8 @@ if django.VERSION >= (2, 0, 0):
         path("new_service/<str:service_name>", new_service, name="new_service"),
         path("rasp/<str:endpoint>/", rasp, name="rasp"),
         path("rasp/<str:endpoint>", rasp, name="rasp"),
+        path("login/", login_user, name="login"),
+        path("login", login_user, name="login"),
     ]
 else:
     urlpatterns += [
@@ -195,4 +230,6 @@ else:
         path(r"new_service/(?P<service_name>\w+)$", new_service, name="new_service"),
         path(r"rasp/(?P<endpoint>\w+)/$", new_service, name="rasp"),
         path(r"rasp/(?P<endpoint>\w+)$", new_service, name="rasp"),
+        path("login/", login_user, name="login"),
+        path("login", login_user, name="login"),
     ]

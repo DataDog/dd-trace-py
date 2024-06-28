@@ -320,7 +320,7 @@ def _after_request_tags(pin, span: Span, request, response):
                     span.set_tag_str("django.user.is_authenticated", str(user_is_authenticated(user)))
 
                 uid = getattr(user, "pk", None)
-                if uid:
+                if uid and isinstance(uid, int):
                     span.set_tag_str("django.user.id", str(uid))
                     span.set_tag_str(_user.ID, str(uid))
                 if config.django.include_user_name:

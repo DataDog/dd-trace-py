@@ -19,7 +19,6 @@ from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import tests.appsec.rules as rules
-from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -322,7 +321,6 @@ def test_appsec_span_tags_snapshot(tracer):
         assert get_triggers(span)
 
 
-@flaky(1735812000)
 @snapshot(
     include_tracer=True,
     ignores=[
@@ -335,7 +333,11 @@ def test_appsec_span_tags_snapshot(tracer):
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):
     with override_global_config(
-        dict(_asm_enabled=True, _asm_static_rule_file=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"))
+        dict(
+            _asm_enabled=True,
+            _asm_static_rule_file=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"),
+            _waf_timeout=50_000,
+        )
     ):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(), tracer.trace(

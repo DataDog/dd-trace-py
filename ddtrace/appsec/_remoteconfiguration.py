@@ -7,7 +7,6 @@ from typing import Mapping
 from typing import Optional
 
 from ddtrace import Tracer
-from ddtrace import config
 from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.internal import forksafe
@@ -97,6 +96,7 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
 def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
     config = features.get("config", {})
     _appsec_1click_activation(config, test_tracer)
+    _appsec_auto_user_mode(config, test_tracer)
     _appsec_rules_data(config, test_tracer)
 
 
@@ -143,9 +143,7 @@ def _preprocess_results_appsec_1click_activation(
             if features == {}:
                 rc_asm_enabled = False
             else:
-                asm_features = features.get("asm", {})
-                if asm_features is not None:
-                    rc_asm_enabled = asm_features.get("enabled")
+                rc_asm_enabled = features.get("asm", {}).get("enabled")
             log.debug(
                 "[%s][P: %s] ASM Remote Configuration ASM_FEATURES. Appsec enabled: %s",
                 os.getpid(),
@@ -224,17 +222,8 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
                     asm_config._asm_enabled = False
 
 
-def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
+def _appsec_auto_user_mode(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
     """
-    Deprecated
-    Update API Security settings from remote config
-    Actually: Update sample rate
+    Update Auto User settings from remote config
     """
-    if config._remote_config_enabled and asm_config._api_security_enabled:
-        rc_api_security_sample_rate = features.get("api_security", {}).get("request_sample_rate", None)
-        if rc_api_security_sample_rate is not None:
-            try:
-                sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
-                asm_config._api_security_sample_rate = sample_rate
-            except Exception:  # nosec
-                pass
+    asm_config._auto_user_instrumentation_rc_mode = features.get("auto_user_instrum", {}).get("mode", None)
