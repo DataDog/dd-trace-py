@@ -263,9 +263,11 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # And we expect additional frame if WRAPT_C_EXT is False
             if __debug__:
                 frame = sys._getframe(1)
-                assert frame.f_code.co_name in {"_acquire", "_release"}
+                if frame.f_code.co_name not in {"_acquire", "_release"}:
+                    raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
                 frame = sys._getframe(2)
-                assert frame.f_code.co_name in {"acquire", "release", "__enter__", "__exit__"}
+                if frame.f_code.co_name not in {"acquire", "release", "__enter__", "__exit__"}:
+                    raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
             frame = sys._getframe(3 if WRAPT_C_EXT else 4)
             code = frame.f_code
             call_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
