@@ -16,7 +16,6 @@ std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-g
 
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
-
 void
 ddup_postfork_child()
 {

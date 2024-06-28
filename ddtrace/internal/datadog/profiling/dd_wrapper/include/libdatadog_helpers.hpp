@@ -60,6 +60,8 @@ enum class ExportLabelKey
     EXPORTER_LABELS(X_ENUM) Length_
 };
 
+// When a std::unique_ptr is registered, the template accepts a custom deleter. We want the runtime to manage pointers
+// for us, so here's the deleter for the exporter.
 struct DdogProfExporterDeleter
 {
     void operator()(ddog_prof_Exporter* ptr) const

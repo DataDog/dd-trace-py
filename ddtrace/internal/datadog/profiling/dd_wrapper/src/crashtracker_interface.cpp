@@ -2,7 +2,6 @@
 #include "crashtracker.hpp"
 
 #include <pthread.h>
-#include <signal.h>
 
 // A global instance of the crashtracker is created here.
 Datadog::Crashtracker crashtracker;
