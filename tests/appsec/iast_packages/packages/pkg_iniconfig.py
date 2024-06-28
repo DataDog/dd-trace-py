@@ -67,18 +67,13 @@ def pkg_iniconfig_propagation_view():
         ini_path = "example.ini"
 
         try:
-            with open(ini_path, "w") as f:
-                f.write(ini_content)
-
-            config = iniconfig.IniConfig(ini_path)
-            parsed_data = {section.name: list(section.items()) for section in config}
-            value = parsed_data["section"][0][1]
+            config = iniconfig.IniConfig(ini_path, data=ini_content)
+            read_value = config["section"]["key"]
             result_output = (
-                "OK" if is_pyobject_tainted(value) else f"Error: value from parsed_data is not tainted: {value}"
+                "OK"
+                if is_pyobject_tainted(read_value)
+                else f"Error: read_value from parsed_data is not tainted: {read_value}"
             )
-
-            if os.path.exists(ini_path):
-                os.remove(ini_path)
         except Exception as e:
             result_output = f"Error: {str(e)}"
     except Exception as e:
