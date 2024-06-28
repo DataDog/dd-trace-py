@@ -56,7 +56,7 @@ def _w_configure(func, instance, args, kwargs):
 
     def _wrapped_patcher(record):
         original_patcher(record)
-        record.update(_tracer_injection(record["extra"]))
+        record.update({k: v for k, v in _tracer_injection(record["extra"]).items() if k.startswith("dd.")})
 
     kwargs["patcher"] = _wrapped_patcher
     return func(*args, **kwargs)
