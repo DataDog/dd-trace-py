@@ -20,21 +20,7 @@ if [ "$ARCH" = "arm64" ]; then
   WHEEL_ARCH="aarch64"
 fi
 
-unpack_wheels.py \
-    --python-version=3.12 \
-    --python-version=3.11 \
-    --python-version=3.10 \
-    --python-version=3.9 \
-    --python-version=3.8 \
-    --python-version=3.7 \
-    --arch=x86_64 \
-    --platform=musllinux_1_1 \
-    --platform=manylinux2014 \
-    --input-dir=../pywheels \
-    --output-dir=../sources/ddtrace_pkgs \
-    --verbose
-
-unpack_wheels.py \
+../.gitlab/unpack_wheels.py \
     --python-version=3.12 \
     --python-version=3.11 \
     --python-version=3.10 \
