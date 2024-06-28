@@ -6,11 +6,6 @@ import ddtrace
 from ddtrace.settings.asm import config as asm_config
 
 
-def _asm_feature_is_required():
-    flags = _rc_capabilities()
-    return Flags.ASM_ACTIVATION in flags or Flags.ASM_API_SECURITY_SAMPLE_RATE in flags
-
-
 class Flags(enum.IntFlag):
     ASM_ACTIVATION = 1 << 1
     ASM_IP_BLOCKING = 1 << 2
@@ -22,7 +17,6 @@ class Flags(enum.IntFlag):
     ASM_CUSTOM_RULES = 1 << 8
     ASM_CUSTOM_BLOCKING_RESPONSE = 1 << 9
     ASM_TRUSTED_IPS = 1 << 10
-    ASM_API_SECURITY_SAMPLE_RATE = 1 << 11
     ASM_RASP_SQLI = 1 << 21
     ASM_RASP_LFI = 1 << 22
     ASM_RASP_SSRF = 1 << 23
@@ -31,6 +25,7 @@ class Flags(enum.IntFlag):
     ASM_RASP_RCE = 1 << 26
     ASM_RASP_NOSQLI = 1 << 27
     ASM_RASP_XSS = 1 << 28
+    ASM_AUTO_USER = 1 << 31
 
 
 _ALL_ASM_BLOCKING = (
@@ -45,6 +40,12 @@ _ALL_ASM_BLOCKING = (
 )
 
 _ALL_RASP = Flags.ASM_RASP_SQLI | Flags.ASM_RASP_LFI | Flags.ASM_RASP_SSRF
+_FEATURE_REQUIRED = Flags.ASM_ACTIVATION | Flags.ASM_AUTO_USER
+
+
+def _asm_feature_is_required() -> bool:
+    flags = _rc_capabilities()
+    return (_FEATURE_REQUIRED & flags) != 0
 
 
 def _rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
@@ -57,8 +58,8 @@ def _rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
             value |= _ALL_ASM_BLOCKING
             if asm_config._ep_enabled:
                 value |= _ALL_RASP
-        if asm_config._api_security_enabled:
-            value |= Flags.ASM_API_SECURITY_SAMPLE_RATE
+        if asm_config._auto_user_instrumentation_enabled:
+            value |= Flags.ASM_AUTO_USER
     return value
 
 
