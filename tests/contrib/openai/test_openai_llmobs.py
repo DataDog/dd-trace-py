@@ -664,6 +664,9 @@ class TestLLMObsOpenaiV1:
             )
         )
 
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 10, 0), reason="Embedding dimensions available in 1.10.0+"
+    )
     def test_embedding_string_base64(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_b64.yaml"):
             client = openai.OpenAI()
