@@ -72,7 +72,7 @@ def _llmobs_decorator(operation_kind):
                 with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
                     func_signature = signature(func)
                     bound_args = func_signature.bind_partial(*args, **kwargs)
-                    if _automatic_io_annotation and bound_args.arguments and span.get_tag(INPUT_VALUE) is None:
+                    if _automatic_io_annotation and bound_args.arguments:
                         LLMObs.annotate(span=span, input_data=bound_args.arguments)
                     resp = func(*args, **kwargs)
                     if (
