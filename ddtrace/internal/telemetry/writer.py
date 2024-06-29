@@ -109,21 +109,6 @@ from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 log = get_logger(__name__)
 
-AGENT_ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
-AGENTLESS_ENDPOINT_V2 = "api/v2/apmtelemetry"
-
-
-def _get_endpoint_v2(agentless):
-    return AGENTLESS_ENDPOINT_V2 if agentless else AGENT_ENDPOINT
-
-
-def _get_agentless_telemetry_url(site: str):
-    if site == "datad0g.com":
-        return "https://all-http-intake.logs.datad0g.com"
-    if site == "datadoghq.eu":
-        return "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
-    return f"https://instrumentation-telemetry-intake.{site}/"
-
 
 class LogData(dict):
     def __hash__(self):
@@ -139,13 +124,14 @@ class LogData(dict):
 
 
 class _TelemetryClient:
-    def __init__(self, endpoint, agentless=False):
-        # type: (str, bool) -> None
-        self._telemetry_url = _get_agentless_telemetry_url(config._dd_site) if agentless else get_trace_url()
-        self._endpoint = endpoint
+    AGENT_ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
+    AGENTLESS_ENDPOINT_V2 = "api/v2/apmtelemetry"
+
+    def __init__(self, agentless):
+        # type: (bool) -> None
+        self._telemetry_url = self.get_host(config._dd_site, agentless)
+        self._endpoint = self.get_endpoint(agentless)
         self._encoder = JSONEncoderV2()
-        self._is_agentless = agentless
-        self._is_disabled = False
 
         self._headers = {
             "Content-Type": "application/json",
@@ -153,11 +139,7 @@ class _TelemetryClient:
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
 
-        if self._is_agentless:
-            if not config._dd_api_key:
-                log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
-                self._is_disabled = True
-                return
+        if agentless and config._dd_api_key:
             self._headers["dd-api-key"] = config._dd_api_key
 
     @property
@@ -166,12 +148,8 @@ class _TelemetryClient:
 
     def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
-        if self._is_disabled:
-            return None
-
         resp = None
         conn = None
-        endpoint_str = "Datadog endpoint" if self._is_agentless else "Datadog Agent"
         try:
             rb_json = self._encoder.encode(request)
             headers = self.get_headers(request)
@@ -182,9 +160,9 @@ class _TelemetryClient:
             if resp.status < 300:
                 log.debug("sent %d in %.5fs to %s. response: %s", len(rb_json), sw.elapsed(), self.url, resp.status)
             else:
-                log.debug("failed to send telemetry to the %s at %s. response: %s", endpoint_str, self.url, resp.status)
+                log.debug("failed to send telemetry to %s. response: %s", self.url, resp.status)
         except Exception:
-            log.debug("failed to send telemetry to the %s at %s.", endpoint_str, self.url, exc_info=True)
+            log.debug("failed to send telemetry to %s.", self.url, exc_info=True)
         finally:
             if conn is not None:
                 conn.close()
@@ -199,6 +177,18 @@ class _TelemetryClient:
         headers["DD-Telemetry-API-Version"] = request["api_version"]
         container.update_headers_with_container_info(headers, container.get_container_info())
         return headers
+
+    def get_endpoint(self, agentless: bool) -> str:
+        return self.AGENTLESS_ENDPOINT_V2 if agentless else self.AGENT_ENDPOINT
+
+    def get_host(self, site: str, agentless: bool) -> str:
+        if not agentless:
+            return get_trace_url()
+        elif site == "datad0g.com":
+            return "https://all-http-intake.logs.datad0g.com"
+        elif site == "datadoghq.eu":
+            return "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
+        return f"https://instrumentation-telemetry-intake.{site}/"
 
 
 class TelemetryWriterModuleWatchdog(BaseModuleWatchdog):
@@ -257,14 +247,11 @@ class TelemetryWriter(PeriodicService):
         self._error = (0, "")  # type: Tuple[int, str]
         self._namespace = MetricNamespace()
         self._logs = set()  # type: Set[Dict[str, Any]]
-        self._enabled = config._telemetry_enabled
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, Distribution] = dict()
-
-        self._is_agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
 
         self.started = False
         forksafe.register(self._fork_writer)
@@ -272,9 +259,12 @@ class TelemetryWriter(PeriodicService):
         # Debug flag that enables payload debug mode.
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
 
-        self._endpoint = _get_endpoint_v2(self._is_agentless)
-
-        self._client = _TelemetryClient(self._endpoint, self._is_agentless)
+        self._enabled = config._telemetry_enabled
+        agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
+        if agentless and not config._dd_api_key:
+            log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
+            self._enabled = False
+        self._client = _TelemetryClient(agentless)
 
     def enable(self):
         # type: () -> bool
