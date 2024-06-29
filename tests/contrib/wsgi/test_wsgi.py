@@ -388,3 +388,37 @@ app.get("/")"""
         env["DD_SERVICE"] = service_name
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
+
+
+def test_distributed_tracing_existing_parent(tracer, test_spans):
+    """We should not parse and activate distributed context if there is already an active span"""
+
+    # Middleware that starts a root trace, but doesn't parse headers
+    def broken_middleware(app, tracer):
+        def middleware(environ, start_response):
+            with tracer.trace("broken_middleware"):
+                return app(environ, start_response)
+
+        return middleware
+
+    app = TestApp(broken_middleware(wsgi.DDWSGIMiddleware(application, tracer=tracer), tracer))
+    resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
+
+    assert config.wsgi.distributed_tracing is True
+    assert resp.status == "200 OK"
+    assert resp.status_int == 200
+
+    spans = test_spans.pop()
+    assert len(spans) == 5
+
+    # The root should NOT inherit from distributed headers
+    root = spans[0]
+    assert root.name == "broken_middleware"
+    assert root.trace_id != 4321
+    assert root.parent_id != 1234
+
+    # The rest of the spans should inherit from the root
+    for span in spans[1:]:
+        assert span.trace_id == root.trace_id
+        if span.name == "wsgi.request":
+            assert span.parent_id == root.span_id
