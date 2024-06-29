@@ -230,6 +230,7 @@ class TelemetryWriter(PeriodicService):
     # of `itertools.count()` which is a CPython implementation detail. The sequence field in telemetry
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
+    _ORIGINAL_EXCEPTHOOK = sys.excepthook
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
@@ -265,6 +266,14 @@ class TelemetryWriter(PeriodicService):
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
             self._enabled = False
         self._client = _TelemetryClient(agentless)
+
+        if self._enabled:
+            self.install_excepthook()
+            # In order to support 3.12, we start the writer upon initialization.
+            # See https://github.com/python/cpython/pull/104826.
+            # Telemetry events will only be sent after the `app-started` is queued.
+            # This will occur when the agent writer starts.
+            self.enable()
 
     def enable(self):
         # type: () -> bool
@@ -811,3 +820,51 @@ class TelemetryWriter(PeriodicService):
         super(TelemetryWriter, self)._stop_service(*args, **kwargs)
         if join:
             self.join(timeout=2)
+
+    def _excepthook(self, tp, value, root_traceback):
+        if root_traceback is not None:
+            # Get the frame which raised the exception
+            traceback = root_traceback
+            while traceback.tb_next:
+                traceback = traceback.tb_next
+
+            lineno = traceback.tb_frame.f_code.co_firstlineno
+            filename = traceback.tb_frame.f_code.co_filename
+            self.add_error(1, str(value), filename, lineno)
+
+            dir_parts = filename.split(os.path.sep)
+            # Check if exception was raised in the  `ddtrace.contrib` package
+            if "ddtrace" in dir_parts and "contrib" in dir_parts:
+                ddtrace_index = dir_parts.index("ddtrace")
+                contrib_index = dir_parts.index("contrib")
+                # Check if the filename has the following format:
+                # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
+                if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
+                    integration_name = dir_parts[contrib_index + 1]
+                    self.add_count_metric(
+                        "tracers",
+                        "integration_errors",
+                        1,
+                        (("integration_name", integration_name), ("error_type", tp.__name__)),
+                    )
+                    error_msg = "{}:{} {}".format(filename, lineno, str(value))
+                    self.add_integration(integration_name, True, error_msg=error_msg)
+
+            if config._telemetry_enabled and not self.started:
+                self._app_started_event(False)
+
+            self.app_shutdown()
+
+        return self._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
+
+    def install_excepthook(self):
+        """Install a hook that intercepts unhandled exception and send metrics about them."""
+        sys.excepthook = self._excepthook
+
+    def uninstall_excepthook(self):
+        """Uninstall the global tracer except hook."""
+        sys.excepthook = self._ORIGINAL_EXCEPTHOOK
+
+    def disable_and_flush(self):
+        self.periodic(True)
+        self._enabled = False

@@ -1963,14 +1963,14 @@ def test_ctx_api():
 
 
 def test_installed_excepthook():
-    telemetry.install_excepthook()
+    telemetry.telemetry_writer.install_excepthook()
     assert sys.excepthook is telemetry._excepthook
-    telemetry.uninstall_excepthook()
+    telemetry.telemetry_writer.uninstall_excepthook()
     assert sys.excepthook is not telemetry._excepthook
-    telemetry.install_excepthook()
+    telemetry.telemetry_writer.install_excepthook()
     assert sys.excepthook is telemetry._excepthook
     # Reset exception hooks
-    telemetry.uninstall_excepthook()
+    telemetry.telemetry_writer.uninstall_excepthook()
 
 
 @pytest.mark.subprocess(parametrize={"IMPORT_DDTRACE_TRACER": ["true", "false"]})

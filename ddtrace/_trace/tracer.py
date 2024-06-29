@@ -1103,11 +1103,6 @@ class Tracer(object):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
 
-            if config._telemetry_enabled:
-                from ddtrace.internal import telemetry
-
-                telemetry.disable_and_flush()
-
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
             forksafe.unregister_before_fork(self._sample_before_fork)
