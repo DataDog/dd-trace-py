@@ -14,7 +14,6 @@ from typing import Tuple
 from typing import Union
 import weakref
 
-from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
@@ -245,8 +244,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
 
         _asm_request_context.set_waf_callback(waf_callable)
-        if config._telemetry_enabled:
-            _asm_request_context.add_context_callback(_set_waf_request_metrics)
+        _asm_request_context.add_context_callback(_set_waf_request_metrics)
         if headers is not None:
             _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
             _asm_request_context.set_waf_address(

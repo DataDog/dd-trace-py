@@ -18,6 +18,7 @@ from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
+from ddtrace.internal import telemetry
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -25,12 +26,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
 
-
-if config._telemetry_enabled:
-    from ddtrace.internal import telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 
 try:
     from typing import DefaultDict  # noqa:F401
@@ -314,8 +312,7 @@ class SpanAggregator(SpanProcessor):
             #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
                 log_msg = "finished span not connected to a trace"
-                if config._telemetry_enabled:
-                    telemetry.telemetry_writer.add_log("ERROR", log_msg)
+                telemetry.telemetry_writer.add_log("ERROR", log_msg)
                 log.debug("%s: %s", log_msg, span)
                 return
 
@@ -339,8 +336,7 @@ class SpanAggregator(SpanProcessor):
                 trace.num_finished -= num_finished
                 if trace.num_finished != 0:
                     log_msg = "unexpected finished span count"
-                    if config._telemetry_enabled:
-                        telemetry.telemetry_writer.add_log("ERROR", log_msg)
+                    telemetry.telemetry_writer.add_log("ERROR", log_msg)
                     log.debug("%s (%s) for span %s", log_msg, num_finished, span)
                     trace.num_finished = 0
 

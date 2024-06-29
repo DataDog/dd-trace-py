@@ -7,9 +7,10 @@ from typing import Set  # noqa:F401
 import attr
 
 import ddtrace
-from ddtrace import config
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal import telemetry
+from ddtrace.internal.telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
@@ -22,10 +23,6 @@ from .tag_collectors import TracerTagCollector
 
 
 log = get_logger(__name__)
-
-if config._telemetry_enabled:
-    import ddtrace.internal.telemetry as telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 
 
 class RuntimeCollectorsIterable(object):
@@ -111,8 +108,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = False
 
         # Report status to telemetry
-        if config._telemetry_enabled:
-            telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="unknown")
+        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="unknown")
 
     @classmethod
     def _restart(cls):
@@ -139,8 +135,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = True
 
         # Report status to telemetry
-        if config._telemetry_enabled:
-            telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
+        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
 
     def flush(self):
         # type: () -> None

@@ -255,7 +255,6 @@ class TelemetryWriter(PeriodicService):
         self._imported_dependencies: Dict[str, Distribution] = dict()
 
         self.started = False
-        forksafe.register(self._fork_writer)
 
         # Debug flag that enables payload debug mode.
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
@@ -286,6 +285,8 @@ class TelemetryWriter(PeriodicService):
 
         if self.status == ServiceStatus.RUNNING:
             return True
+
+        forksafe.register(self._fork_writer)
 
         if self._is_periodic:
             self.start()
