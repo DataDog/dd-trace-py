@@ -1,4 +1,4 @@
-#include "interface.hpp"
+#include "ddup_interface.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "sample.hpp"

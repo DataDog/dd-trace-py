@@ -5,4 +5,5 @@
 #ifdef __cplusplus
 extern "C"
 #endif
-bool crashtracker_receiver_entry();
+  bool
+  crashtracker_receiver_entry();

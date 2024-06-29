@@ -29,7 +29,7 @@ cdef extern from "sample.hpp" namespace "Datadog":
     ctypedef struct Sample:
         pass
 
-cdef extern from "interface.hpp":
+cdef extern from "ddup_interface.hpp":
     void ddup_config_env(string_view env)
     void ddup_config_service(string_view service)
     void ddup_config_version(string_view version)
