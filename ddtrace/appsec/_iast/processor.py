@@ -32,7 +32,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
             span = tracer.current_root_span()
 
-        if span and span.span_type == SpanTypes.WEB and core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
+        if span and span.span_type == SpanTypes.WEB and core.get_item(IAST.REQUEST_IAST_ENABLED):
             return True
         return False
 
@@ -51,7 +51,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if oce.acquire_request(span):
             request_iast_enabled = True
 
-        core.set_item(IAST.REQUEST_IAST_ENABLED, request_iast_enabled, span=span)
+        core.set_item(IAST.REQUEST_IAST_ENABLED, request_iast_enabled)
 
     def on_span_finish(self, span: Span):
         """Report reported vulnerabilities.
@@ -64,7 +64,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        if not core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
+        if not core.get_item(IAST.REQUEST_IAST_ENABLED):
             span.set_metric(IAST.ENABLED, 0.0)
             return
 
@@ -72,7 +72,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         span.set_metric(IAST.ENABLED, 1.0)
 
-        report_data: IastSpanReporter = core.get_item(IAST.CONTEXT_KEY, span=span)  # type: ignore
+        report_data: IastSpanReporter = core.get_item(IAST.CONTEXT_KEY)  # type: ignore
 
         if report_data:
             report_data.build_and_scrub_value_parts()

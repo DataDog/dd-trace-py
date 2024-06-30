@@ -87,7 +87,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         )
         result = mod.propagation_memory_check(tainted_string_1, tainted_string_2)
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert len(span_report.sources) > 0
         assert len(span_report.vulnerabilities) > 0
         assert len(get_tainted_ranges(result)) == 6
