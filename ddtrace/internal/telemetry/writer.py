@@ -851,7 +851,7 @@ class TelemetryWriter(PeriodicService):
                     error_msg = "{}:{} {}".format(filename, lineno, str(value))
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
-            if config._telemetry_enabled and not self.started:
+            if self._enabled and not self.started:
                 self._app_started_event(False)
 
             self.app_shutdown()
