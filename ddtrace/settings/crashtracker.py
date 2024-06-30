@@ -2,7 +2,7 @@ import typing as t
 
 from envier import En
 
-from ddtrace.internal.datadog.profiling.crashtracker import crashtracker
+from ddtrace.internal.datadog.profiling import crashtracker
 
 
 def _derive_stacktrace_resolver(config):
