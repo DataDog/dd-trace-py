@@ -45,7 +45,7 @@ def _tracer_injection(event_dict):
     event_dd_attributes[RECORD_ATTR_SERVICE] = config.service or RECORD_ATTR_VALUE_EMPTY
     event_dd_attributes[RECORD_ATTR_VERSION] = config.version or RECORD_ATTR_VALUE_EMPTY
 
-    event_dict |= event_dd_attributes
+    event_dict.update(event_dd_attributes)
 
     return event_dd_attributes
 
