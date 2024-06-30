@@ -36,15 +36,18 @@ def _tracer_injection(event_dict):
         if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
             trace_id = span._trace_id_64bits
 
+    event_dd_attributes = {}
     # add ids to loguru event dictionary
-    event_dict[RECORD_ATTR_TRACE_ID] = str(trace_id or RECORD_ATTR_VALUE_ZERO)
-    event_dict[RECORD_ATTR_SPAN_ID] = str(span_id or RECORD_ATTR_VALUE_ZERO)
+    event_dd_attributes[RECORD_ATTR_TRACE_ID] = str(trace_id or RECORD_ATTR_VALUE_ZERO)
+    event_dd_attributes[RECORD_ATTR_SPAN_ID] = str(span_id or RECORD_ATTR_VALUE_ZERO)
     # add the env, service, and version configured for the tracer
-    event_dict[RECORD_ATTR_ENV] = config.env or RECORD_ATTR_VALUE_EMPTY
-    event_dict[RECORD_ATTR_SERVICE] = config.service or RECORD_ATTR_VALUE_EMPTY
-    event_dict[RECORD_ATTR_VERSION] = config.version or RECORD_ATTR_VALUE_EMPTY
+    event_dd_attributes[RECORD_ATTR_ENV] = config.env or RECORD_ATTR_VALUE_EMPTY
+    event_dd_attributes[RECORD_ATTR_SERVICE] = config.service or RECORD_ATTR_VALUE_EMPTY
+    event_dd_attributes[RECORD_ATTR_VERSION] = config.version or RECORD_ATTR_VALUE_EMPTY
 
-    return event_dict
+    event_dict |= event_dd_attributes
+
+    return event_dd_attributes
 
 
 def _w_configure(func, instance, args, kwargs):
