@@ -865,7 +865,3 @@ class TelemetryWriter(PeriodicService):
     def uninstall_excepthook(self):
         """Uninstall the global tracer except hook."""
         sys.excepthook = self._ORIGINAL_EXCEPTHOOK
-
-    def disable_and_flush(self):
-        self.periodic(True)
-        self._enabled = False
