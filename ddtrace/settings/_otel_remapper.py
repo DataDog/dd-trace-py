@@ -1,15 +1,10 @@
 import os
-import sys
+import typing
 
 from ..constants import ENV_KEY
 from ..constants import VERSION_KEY
 from ..internal.logger import get_logger
 
-
-if sys.version_info >= (3, 8):
-    import typing
-else:
-    import typing_extensions as typing  # noqa: F401
 
 log = get_logger(__name__)
 
@@ -38,7 +33,9 @@ def _remap_otel_propagators(otel_value: str) -> str:
     accepted_styles = []
     for style in otel_value.split(","):
         style = style.strip().lower()
-        if style in ["b3", "b3multi", "datadog", "tracecontext", "none"]:
+        if style in ["b3", "b3multi", "b3single", "datadog", "tracecontext", "none"]:
+            if style == "b3single":
+                style = "b3"
             if style not in accepted_styles:
                 accepted_styles.append(style)
         else:
@@ -50,16 +47,15 @@ def _remap_traces_sampler(otel_value: str) -> str:
     """Remaps the otel trace sampler to ddtrace trace sampler"""
     if otel_value in ["always_on", "always_off", "traceidratio"]:
         log.warning(
-            "Trace sampler set from %s to parentbased_%s; only parent based sampling is supported.",
-            otel_value,
+            "Trace sampler set to %s; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.",
             otel_value,
         )
-        otel_value = f"parentbased_{otel_value}"
-    if otel_value == "parentbased_always_on":
+        os.environ["DD_TRACE_SAMPLE_IGNORE_PARENT"] = "True"
+    if otel_value in ["always_on", "parentbased_always_on"]:
         return "1.0"
-    elif otel_value == "parentbased_always_off":
+    elif otel_value in ["always_off", "parentbased_always_off"]:
         return "0.0"
-    elif otel_value == "parentbased_traceidratio":
+    elif otel_value in ["traceidratio", "parentbased_traceidratio"]:
         return os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
     else:
         log.warning("Unknown sampling configuration: %s.", otel_value)
