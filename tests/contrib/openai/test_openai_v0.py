@@ -1442,9 +1442,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     assert mock.call.distribution("tokens.total", 35 + prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
-)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_integration_sync", ignores=["meta.http.useragent"])
 def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses requests for its synchronous requests.
 
@@ -1490,7 +1488,6 @@ with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
         "metrics.openai.response.usage.prompt_tokens",
         "metrics.openai.response.usage.completion_tokens",
     ],
-    async_mode=False,
 )
 def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses requests for its synchronous requests.
@@ -1885,7 +1882,6 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
         token="tests.contrib.openai.test_openai_v0.test_integration_service_name[%s-%s]"
         % (service_name, schema_version),
         ignores=["meta.http.useragent", "meta.openai.base_url"],
-        async_mode=False,
     ):
         out, err, status, pid = ddtrace_run_python_code_in_subprocess(
             """

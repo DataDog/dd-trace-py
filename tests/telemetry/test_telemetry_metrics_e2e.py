@@ -22,10 +22,9 @@ def _build_env():
 
 
 @contextmanager
-def gunicorn_server(telemetry_metrics_enabled="true", token=None):
+def gunicorn_server():
     cmd = ["ddtrace-run", "gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "tests.telemetry.app:app"]
     env = _build_env()
-    env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["DD_TRACE_DEBUG"] = "true"
     # do not patch flask because we will end up with confusing metrics

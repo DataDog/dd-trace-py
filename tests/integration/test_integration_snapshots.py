@@ -97,7 +97,7 @@ def test_filters(writer, tracer):
 # Have to use sync mode snapshot so that the traces are associated to this
 # test case since we use a custom writer (that doesn't have the trace headers
 # injected).
-@snapshot(async_mode=False)
+@snapshot()
 def test_synchronous_writer():
     tracer = Tracer()
     writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampling=config._priority_sampling)
