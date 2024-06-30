@@ -77,6 +77,12 @@ ddup_config_profiler_version(std::string_view profiler_version) // cppcheck-supp
 }
 
 void
+ddup_config_host(std::string_view host) // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_host(host);
+}
+
+void
 ddup_config_url(std::string_view url) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_url(url);

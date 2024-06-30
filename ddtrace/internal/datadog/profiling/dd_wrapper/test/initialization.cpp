@@ -9,7 +9,7 @@
 void
 simple_init()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", "ultranano", 256);
     std::exit(0);
 }
 
@@ -21,7 +21,7 @@ TEST(InitDeathTest, TestInit)
 void
 empty_init()
 {
-    configure("", "", "", "", "", "", "", 0);
+    configure("", "", "", "", "", "", "", "", 0);
     std::exit(0);
 }
 
@@ -55,6 +55,7 @@ short_lifetime_init()
         std::string runtime("cpython");
         std::string runtime_version("3.10.6");
         std::string profiler_version("3.100");
+        std::string host("my_really_cool_host");
 
         ddup_config_service(service.c_str());
         ddup_config_env(env.c_str());
@@ -63,6 +64,7 @@ short_lifetime_init()
         ddup_config_runtime(runtime.c_str());
         ddup_config_runtime_version(runtime_version.c_str());
         ddup_config_profiler_version(profiler_version.c_str());
+        ddup_config_host(host.c_str());
     }
 
     ddup_init();

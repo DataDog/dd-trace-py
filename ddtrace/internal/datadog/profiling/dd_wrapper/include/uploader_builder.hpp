@@ -24,6 +24,7 @@ class UploaderBuilder
     static inline std::string runtime_version;
     static inline std::string runtime_id;
     static inline std::string profiler_version; // TODO: get this at build time
+    static inline std::string host{ "localhost" };
     static inline std::string url{ "http://localhost:8126" };
     static inline ExporterTagset user_tags{};
 
@@ -38,6 +39,7 @@ class UploaderBuilder
     static void set_runtime_version(std::string_view _runtime_version);
     static void set_runtime_id(std::string_view _runtime_id);
     static void set_profiler_version(std::string_view _profiler_version);
+    static void set_host(std::string_view _host);
     static void set_url(std::string_view _url);
     static void set_tag(std::string_view _key, std::string_view _val);
 

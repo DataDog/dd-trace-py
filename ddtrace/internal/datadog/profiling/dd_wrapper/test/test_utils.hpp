@@ -16,6 +16,7 @@ configure(const char* service,
           const char* runtime,
           const char* runtime_version,
           const char* profiler_version,
+          const char* host,
           int max_nframes)
 {
     ddup_config_service(service);
@@ -25,6 +26,7 @@ configure(const char* service,
     ddup_config_runtime(runtime);
     ddup_config_runtime_version(runtime_version);
     ddup_config_profiler_version(profiler_version);
+    ddup_config_host(host);
     ddup_config_max_nframes(max_nframes);
     ddup_init();
 }

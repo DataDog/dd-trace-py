@@ -21,6 +21,7 @@ namespace Datadog {
 #define EXPORTER_TAGS(X)                                                                                               \
     X(language, "language")                                                                                            \
     X(dd_env, "env")                                                                                                   \
+    X(host, "host")                                                                                                    \
     X(service, "service")                                                                                              \
     X(version, "version")                                                                                              \
     X(runtime_version, "runtime_version")                                                                              \
