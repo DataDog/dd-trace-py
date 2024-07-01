@@ -212,7 +212,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                         "name": getattr(tool_call.function, "name", ""),
                         "arguments": getattr(tool_call.function, "arguments", {}),
                         "tool_id": getattr(tool_call, "id", ""),
-                        "type": getattr(tool_call, "type", ""),
+                        "type": getattr(tool_call, "type", "")
                     }
                     content = {"tool_call": tool_call_info}
             output_messages.append({
