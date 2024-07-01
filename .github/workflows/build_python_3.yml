@@ -105,6 +105,7 @@ jobs:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
           CIBW_ARCHS: ${{ matrix.archs }}
+          CIBW_MACOSX_DEPLOYMENT_TARGET: 11.7
           CIBW_BUILD: ${{ inputs.cibw_build }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
