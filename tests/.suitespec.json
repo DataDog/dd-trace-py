@@ -30,6 +30,8 @@
             "tests/lib-injection/dd-lib-python-init-test-django-no-perms/*",
             "tests/lib-injection/dd-lib-python-init-test-django-pre-installed/*",
             "tests/lib-injection/dd-lib-python-init-test-django-unsupported-python/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package-force/*",
             "tests/lib-injection/dd-lib-python-init-test-django-uvicorn/*"
         ],
         "core": [
@@ -480,6 +482,7 @@
             "@llmobs",
             "@serverless",
             "@remoteconfig",
+            "@futures",
             "tests/tracer/*",
             "tests/snapshots/test_*"
         ],
@@ -631,7 +634,8 @@
             "@git",
             "@pytest",
             "@codeowners",
-            "tests/ci_visibility/*"
+            "tests/ci_visibility/*",
+            "tests/coverage/*"
         ],
         "llmobs": [
             "@bootstrap",
@@ -652,6 +656,7 @@
             "@core",
             "@telemetry",
             "@settings",
+            "@profiling",
             "tests/telemetry/*",
             "tests/snapshots/tests.telemetry.*"
         ],
@@ -763,7 +768,7 @@
             "@contrib",
             "@tracing",
             "@dbapi",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "asyncpg": [
             "@bootstrap",
@@ -773,7 +778,7 @@
             "@pg",
             "tests/contrib/asyncpg/*",
             "tests/snapshots/tests.contrib.{suite}.*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aiohttp": [
             "@bootstrap",
@@ -936,7 +941,6 @@
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
-            "tests/contrib/flask_login/*",
             "tests/snapshots/tests.contrib.flask.*"
         ],
         "gevent": [
@@ -1229,7 +1233,7 @@
             "@mysql",
             "tests/contrib/aiomysql/*",
             "tests/snapshots/tests.contrib.{suite}.*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aiopg": [
             "@bootstrap",
@@ -1240,7 +1244,7 @@
             "@pg",
             "@aiopg",
             "tests/contrib/aiopg/*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aredis": [
             "@bootstrap",
@@ -1275,6 +1279,7 @@
             "@contrib",
             "@tracing",
             "@tornado",
+            "@futures",
             "tests/contrib/tornado/*"
         ],
         "rediscluster": [

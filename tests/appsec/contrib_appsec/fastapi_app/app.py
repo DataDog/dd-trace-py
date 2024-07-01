@@ -194,4 +194,46 @@ def get_app():
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
 
+    @app.get("/login/")
+    async def login_user(request: Request):
+        """manual instrumentation login endpoint"""
+        from ddtrace.appsec import trace_utils as appsec_trace_utils
+
+        USERS = {
+            "test": {"email": "testuser@ddog.com", "password": "1234", "name": "test", "id": "social-security-id"},
+            "testuuid": {
+                "email": "testuseruuid@ddog.com",
+                "password": "1234",
+                "name": "testuuid",
+                "id": "591dc126-8431-4d0f-9509-b23318d3dce4",
+            },
+        }
+
+        def authenticate(username: str, password: str) -> Optional[str]:
+            """authenticate user"""
+            if username in USERS:
+                if USERS[username]["password"] == password:
+                    return USERS[username]["id"]
+                else:
+                    appsec_trace_utils.track_user_login_failure_event(
+                        tracer, user_id=USERS[username]["id"], exists=True, login_events_mode="auto"
+                    )
+                    return None
+            appsec_trace_utils.track_user_login_failure_event(
+                tracer, user_id=username, exists=False, login_events_mode="auto"
+            )
+            return None
+
+        def login(user_id: str) -> None:
+            """login user"""
+            appsec_trace_utils.track_user_login_success_event(tracer, user_id=user_id, login_events_mode="auto")
+
+        username = request.query_params.get("username")
+        password = request.query_params.get("password")
+        user_id = authenticate(username=username, password=password)
+        if user_id is not None:
+            login(user_id)
+            return HTMLResponse("OK")
+        return HTMLResponse("login failure", status_code=401)
+
     return app

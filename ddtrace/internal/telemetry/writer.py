@@ -52,6 +52,9 @@ from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
 from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_INJECT_WAS_ATTEMPTED
+from .constants import TELEMETRY_LIB_INJECTION_FORCED
+from .constants import TELEMETRY_LIB_WAS_INJECTED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
@@ -498,6 +501,9 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
                 (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
                 (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
+                (TELEMETRY_INJECT_WAS_ATTEMPTED, config._inject_was_attempted, "unknown"),
+                (TELEMETRY_LIB_WAS_INJECTED, config._lib_was_injected, "unknown"),
+                (TELEMETRY_LIB_INJECTION_FORCED, config._inject_force, "unknown"),
             ]
             + get_python_config_vars()
         )
@@ -582,7 +588,7 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-client-configuration-change")
 
-    def _update_dependencies_event(self, newly_imported_deps: List[str]):
+    def _app_dependencies_loaded_event(self, newly_imported_deps: List[str]):
         """Adds events to report imports done since the last periodic run"""
 
         if not config._telemetry_dependency_collection or not self._enabled:
@@ -728,7 +734,7 @@ class TelemetryWriter(PeriodicService):
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
-    def periodic(self, force_flush=False):
+    def periodic(self, force_flush=False, shutting_down=False):
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
@@ -758,7 +764,10 @@ class TelemetryWriter(PeriodicService):
         if config._telemetry_dependency_collection:
             newly_imported_deps = self._flush_new_imported_dependencies()
             if newly_imported_deps:
-                self._update_dependencies_event(newly_imported_deps)
+                self._app_dependencies_loaded_event(newly_imported_deps)
+
+        if shutting_down:
+            self._app_closing_event()
 
         # Send a heartbeat event to the agent, this is required to keep RC connections alive
         self._app_heartbeat_event()
@@ -768,8 +777,7 @@ class TelemetryWriter(PeriodicService):
             self._client.send_event(telemetry_event)
 
     def app_shutdown(self):
-        self._app_closing_event()
-        self.periodic(force_flush=True)
+        self.periodic(force_flush=True, shutting_down=True)
         self.disable()
 
     def reset_queues(self):
@@ -778,6 +786,8 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = dict()
         self._namespace.flush()
         self._logs = set()
+        self._imported_dependencies = {}
+        self._configuration_queue = {}
 
     def _flush_events_queue(self):
         # type: () -> List[Dict]

@@ -18,3 +18,9 @@ from ddtrace.appsec._utils import parse_form_params
 def test_parse_form_params(body, res):
     form_params = parse_form_params(body)
     assert form_params == res
+
+
+def test_used_id_hashing():
+    from ddtrace.appsec._utils import _hash_user_id
+
+    assert _hash_user_id("zouzou@sansgluten.com") == "anon_0c76692372ebf01a7da6e9570fb7d0a1"

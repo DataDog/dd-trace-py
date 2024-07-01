@@ -41,6 +41,7 @@ from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
@@ -114,8 +115,8 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        _tracer=None,
-    ):
+        _tracer: Optional[ddtrace.Tracer] = None,
+    ) -> None:
         """
         Enable LLM Observability tracing.
 
@@ -186,7 +187,7 @@ class LLMObs(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def _integration_is_enabled(cls, integration):
+    def _integration_is_enabled(cls, integration: str) -> bool:
         if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
             return False
         return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
@@ -205,7 +206,7 @@ class LLMObs(Service):
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
-    def flush(cls):
+    def flush(cls) -> None:
         """
         Flushes any remaining spans and evaluation metrics to the LLMObs backend.
         """
@@ -286,7 +287,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
@@ -313,9 +314,7 @@ class LLMObs(Service):
         )
 
     @classmethod
-    def tool(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    def tool(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
         """
         Trace a call to an external interface or API.
 
@@ -331,9 +330,7 @@ class LLMObs(Service):
         return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
-    def task(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    def task(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
         """
         Trace a standalone non-LLM operation which does not involve an external request.
 
@@ -349,9 +346,7 @@ class LLMObs(Service):
         return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
-    def agent(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    def agent(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
         """
         Trace a dynamic workflow in which an embedded language model (agent) decides what sequence of actions to take.
 
@@ -369,7 +364,7 @@ class LLMObs(Service):
     @classmethod
     def workflow(
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace a predefined or static sequence of operations.
 
@@ -392,7 +387,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace a call to an embedding model or function to create an embedding.
 
@@ -426,7 +421,7 @@ class LLMObs(Service):
     @classmethod
     def retrieval(
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace a vector search operation involving a list of documents being returned from an external knowledge base.
 
@@ -566,7 +561,7 @@ class LLMObs(Service):
                 span.set_tag_str(OUTPUT_VALUE, output_text)
             else:
                 try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text))
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse output text. Output text must be JSON serializable.")
 
@@ -580,7 +575,7 @@ class LLMObs(Service):
                 span.set_tag_str(INPUT_VALUE, input_text)
             else:
                 try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text))
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse input text. Input text must be JSON serializable.")
         if output_documents is not None:
@@ -602,7 +597,7 @@ class LLMObs(Service):
                 span.set_tag_str(INPUT_VALUE, input_value)
             else:
                 try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value))
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse input value. Input value must be JSON serializable.")
         if output_value is not None:
@@ -610,7 +605,7 @@ class LLMObs(Service):
                 span.set_tag_str(OUTPUT_VALUE, output_value)
             else:
                 try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value))
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse output value. Output value must be JSON serializable.")
 
@@ -626,7 +621,7 @@ class LLMObs(Service):
             current_tags = span.get_tag(TAGS)
             if current_tags:
                 span_tags.update(json.loads(current_tags))
-            span.set_tag_str(TAGS, json.dumps(span_tags))
+            span.set_tag_str(TAGS, json.dumps(span_tags, default=_unserializable_default_repr))
         except TypeError:
             log.warning("Failed to parse span tags. Tag key-value pairs must be JSON serializable.")
 
@@ -637,7 +632,7 @@ class LLMObs(Service):
             log.warning("metadata must be a dictionary of string key-value pairs.")
             return
         try:
-            span.set_tag_str(METADATA, json.dumps(metadata))
+            span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
         except TypeError:
             log.warning("Failed to parse span metadata. Metadata key-value pairs must be JSON serializable.")
 

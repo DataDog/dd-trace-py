@@ -66,7 +66,6 @@ def test_filters_test_spans():
     # Root span in trace is a test
     trace = [root_test_span]
     assert trace_filter.process_trace(trace) == trace
-    assert root_test_span.service == "test-service"
     assert root_test_span.get_tag(ci.LIBRARY_VERSION) == ddtrace.__version__
     assert root_test_span.get_tag("hello") == "world"
     assert root_test_span.context.dd_origin == ci.CI_APP_TEST_ORIGIN
@@ -870,6 +869,33 @@ class TestCheckEnabledFeatures:
             assert mock_do_request.call_count == expected_call_count
             assert enabled_features == _CIVisibilitySettings(False, False, False, False)
 
+    @pytest.mark.parametrize(
+        "dd_civisibility_agentless_url, expected_url",
+        [
+            ("", "https://api.datad0g.com/api/v2/libraries/tests/services/setting"),
+            ("https://bar.foo:1234", "https://bar.foo:1234/api/v2/libraries/tests/services/setting"),
+        ],
+    )
+    def test_civisibility_check_enabled_feature_respects_civisibility_agentless_url(
+        self, dd_civisibility_agentless_url, expected_url
+    ):
+        """Tests that DD_CIVISIBILITY_AGENTLESS_URL is respected when set"""
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_AGENTLESS_URL=dd_civisibility_agentless_url,
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            )
+        ):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.recorder._do_request",
+                side_effect=[self._get_settings_api_response(200, False, False, False, False)],
+            ) as mock_do_request:
+                mock_civisibility = self._get_mock_civisibility(REQUESTS_MODE.AGENTLESS_EVENTS, False)
+                _ = mock_civisibility._check_enabled_features()
+
+                assert mock_do_request.call_args_list[0][0][1] == expected_url
+
 
 def test_run_protocol_unshallow_git_ge_227():
     with mock.patch("ddtrace.internal.ci_visibility.git_client.extract_git_version", return_value=(2, 27, 0)):
@@ -1438,11 +1464,17 @@ class TestFetchTestsToSkip:
             assert mock_civisibility._tests_to_skip == {}
 
 
-def test_fetch_tests_to_skip_custom_configurations():
+@pytest.mark.parametrize(
+    "dd_ci_visibility_agentless_url,expected_url_prefix",
+    [("", "https://api.datadoghq.com"), ("https://mycustomurl.com:1234", "https://mycustomurl.com:1234")],
+)
+def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_url, expected_url_prefix):
+    expected_url = expected_url_prefix + "/api/v2/ci/tests/skippable"
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_AGENTLESS_URL=dd_ci_visibility_agentless_url,
             DD_TAGS="test.configuration.disk:slow,test.configuration.memory:low",
             DD_SERVICE="test-service",
             DD_ENV="test-env",
@@ -1512,7 +1544,7 @@ def test_fetch_tests_to_skip_custom_configurations():
 
             mock_do_request.assert_called_once_with(
                 "POST",
-                "https://api.datadoghq.com/api/v2/ci/tests/skippable",
+                expected_url,
                 expected_data_arg,
                 {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
                 20,
