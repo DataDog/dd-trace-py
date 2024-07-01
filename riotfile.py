@@ -2679,7 +2679,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="profile-wrapt-disabled",
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(),
                     env={
                         "WRAPT_DISABLE_EXTENSIONS": "1",
                     },
