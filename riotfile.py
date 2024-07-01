@@ -605,22 +605,6 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
-                # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
-                Venv(
-                    # celery dropped support for Python 2.7/3.5 in 5.0
-                    pkgs={
-                        "pytest": "~=4.0",
-                        "celery": [
-                            latest,  # most recent 4.x
-                        ],
-                        "redis": "~=3.5",
-                        "kombu": "~=4.4",
-                        "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib_metadata 5.0
-                        "pytest-cov": "~=3.0",
-                        "pytest-mock": "==2.0.0",
-                    },
-                ),
                 # Venv(
                 #     # celery added support for Python 3.9 in 4.x
                 #     pys=select_pys(min_version="3.8", max_version="3.9"),
@@ -634,7 +618,6 @@ venv = Venv(
                 #     },
                 # ),
                 # Celery 5.x wants Python 3.6+
-                # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     env={

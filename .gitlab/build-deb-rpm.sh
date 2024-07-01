@@ -23,7 +23,6 @@ echo $(pwd)
 	--python-version=3.10 \
 	--python-version=3.9 \
 	--python-version=3.8 \
-	--python-version=3.7 \
 	--ddtrace-version=$PYTHON_PACKAGE_VERSION \
 	--arch x86_64 \
 	--arch aarch64 \

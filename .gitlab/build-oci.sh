@@ -30,7 +30,6 @@ fi
 	--python-version=3.10 \
 	--python-version=3.9 \
 	--python-version=3.8 \
-	--python-version=3.7 \
 	--ddtrace-version=$PYTHON_PACKAGE_VERSION \
 	--arch=$WHEEL_ARCH \
 	--platform=musllinux_1_1 \
