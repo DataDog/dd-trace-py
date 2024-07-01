@@ -36,7 +36,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
                 metadata={"temperature": 0.8, "max_tokens": 10},
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
+                token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -58,7 +58,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": expected_completion}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 16, "total_tokens": 18},
+                token_metrics={"input_tokens": 2, "output_tokens": 16, "total_tokens": 18},
                 tags={"ml_app": "<ml-app-name>"},
             ),
         )
@@ -95,7 +95,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
+                token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -132,7 +132,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20},
+                token_metrics={"input_tokens": 8, "output_tokens": 12, "total_tokens": 20},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -164,7 +164,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -200,7 +200,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 63, "completion_tokens": 33, "total_tokens": 96},
+                token_metrics={"input_tokens": 63, "output_tokens": 33, "total_tokens": 96},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -227,7 +227,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -337,7 +337,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
                 metadata={"temperature": 0.8, "max_tokens": 10},
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
+                token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -364,7 +364,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": expected_completion}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
+                token_metrics={"input_tokens": 2, "output_tokens": 2, "total_tokens": 4},
                 tags={"ml_app": "<ml-app-name>"},
             ),
         )
@@ -400,7 +400,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
+                token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -438,7 +438,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 8, "completion_tokens": 8, "total_tokens": 16},
+                token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -469,7 +469,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -503,7 +503,7 @@ class TestLLMObsOpenaiV1:
                     }
                 ],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )

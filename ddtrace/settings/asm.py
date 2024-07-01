@@ -2,6 +2,7 @@ import os
 import os.path
 from platform import machine
 from platform import system
+from typing import List
 from typing import Optional
 
 from envier import Env
@@ -12,8 +13,11 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
 def _validate_sample_rate(r: float) -> None:
@@ -24,6 +28,16 @@ def _validate_sample_rate(r: float) -> None:
 def _validate_non_negative_int(r: int) -> None:
     if r < 0:
         raise ValueError("value must be non negative")
+
+
+def _parse_options(options: List[str]):
+    def parse(str_in: str) -> str:
+        for o in options:
+            if o.startswith(str_in.lower()):
+                return o
+        return options[0]
+
+    return parse
 
 
 def build_libddwaf_filename() -> str:
@@ -54,7 +68,43 @@ class ASMConfig(Env):
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
-    _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="safe")
+    _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="", parser=str.lower)
+    # Deprecation phase, to be removed in ddtrace 3.0.0
+    if _automatic_login_events_mode is not None:
+        if _automatic_login_events_mode == "extended":
+            deprecate(
+                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=extended is deprecated",
+                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=identification instead",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            _automatic_login_events_mode = LOGIN_EVENTS_MODE.IDENT
+        elif _automatic_login_events_mode == "safe":
+            deprecate(
+                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=safe is deprecated",
+                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=anonymisation instead",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            _automatic_login_events_mode = LOGIN_EVENTS_MODE.ANON
+        elif _automatic_login_events_mode == "disabled":
+            deprecate(
+                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=disabled is deprecated",
+                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=disabled"
+                " instead or DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED=false"
+                " to disable the feature and bypass Remote Config",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+    _auto_user_instrumentation_local_mode = Env.var(
+        str,
+        APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
+        default="",
+        parser=_parse_options([LOGIN_EVENTS_MODE.DISABLED, LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON]),
+    )
+    _auto_user_instrumentation_rc_mode: Optional[str] = None
+    _auto_user_instrumentation_enabled = Env.var(bool, APPSEC.AUTO_USER_INSTRUMENTATION_MODE_ENABLED, default=True)
+
     _user_model_login_field = Env.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
     _user_model_email_field = Env.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
     _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
@@ -118,6 +168,9 @@ class ASMConfig(Env):
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",
+        "_auto_user_instrumentation_local_mode",
+        "_auto_user_instrumentation_rc_mode",
+        "_auto_user_instrumentation_enabled",
         "_user_model_login_field",
         "_user_model_email_field",
         "_user_model_name_field",
@@ -147,6 +200,9 @@ class ASMConfig(Env):
         super().__init__()
         # Is one click available?
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        # Only for deprecation phase
+        if self._auto_user_instrumentation_local_mode == "":
+            self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode or LOGIN_EVENTS_MODE.IDENT
 
     def reset(self):
         """For testing puposes, reset the configuration to its default values given current environment variables."""
@@ -155,6 +211,14 @@ class ASMConfig(Env):
     @property
     def _api_security_feature_active(self) -> bool:
         return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
+
+    @property
+    def _user_event_mode(self) -> str:
+        if self._asm_enabled and self._auto_user_instrumentation_enabled:
+            if self._auto_user_instrumentation_rc_mode is not None:
+                return self._auto_user_instrumentation_rc_mode
+            return self._auto_user_instrumentation_local_mode
+        return LOGIN_EVENTS_MODE.DISABLED
 
 
 config = ASMConfig()

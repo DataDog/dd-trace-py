@@ -41,6 +41,7 @@ from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
@@ -560,7 +561,7 @@ class LLMObs(Service):
                 span.set_tag_str(OUTPUT_VALUE, output_text)
             else:
                 try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text))
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse output text. Output text must be JSON serializable.")
 
@@ -574,7 +575,7 @@ class LLMObs(Service):
                 span.set_tag_str(INPUT_VALUE, input_text)
             else:
                 try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text))
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse input text. Input text must be JSON serializable.")
         if output_documents is not None:
@@ -596,7 +597,7 @@ class LLMObs(Service):
                 span.set_tag_str(INPUT_VALUE, input_value)
             else:
                 try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value))
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse input value. Input value must be JSON serializable.")
         if output_value is not None:
@@ -604,7 +605,7 @@ class LLMObs(Service):
                 span.set_tag_str(OUTPUT_VALUE, output_value)
             else:
                 try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value))
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse output value. Output value must be JSON serializable.")
 
@@ -620,7 +621,7 @@ class LLMObs(Service):
             current_tags = span.get_tag(TAGS)
             if current_tags:
                 span_tags.update(json.loads(current_tags))
-            span.set_tag_str(TAGS, json.dumps(span_tags))
+            span.set_tag_str(TAGS, json.dumps(span_tags, default=_unserializable_default_repr))
         except TypeError:
             log.warning("Failed to parse span tags. Tag key-value pairs must be JSON serializable.")
 
@@ -631,7 +632,7 @@ class LLMObs(Service):
             log.warning("metadata must be a dictionary of string key-value pairs.")
             return
         try:
-            span.set_tag_str(METADATA, json.dumps(metadata))
+            span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
         except TypeError:
             log.warning("Failed to parse span metadata. Metadata key-value pairs must be JSON serializable.")
 
