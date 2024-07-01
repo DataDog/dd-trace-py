@@ -197,7 +197,6 @@ test = [
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
 ]
 
-# python 3.12 should replace 3.11 in this list, but installation is failing on 3.12
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_django.matrix]]
@@ -242,7 +241,6 @@ test = [
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
 ]
 
-# python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_flask.matrix]]
@@ -284,7 +282,6 @@ test = [
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 
-# python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_fastapi.matrix]]
