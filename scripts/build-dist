@@ -3,17 +3,17 @@ set -ex
 
 # Determine where "../dist" is
 DIST_DIR="${1:-dist}"
-if which gmktemp > /dev/null 2>&1
-then
-    # For Darwin
-    MKTEMP=gmktemp
+if which gmktemp >/dev/null 2>&1; then
+	# For Darwin
+	MKTEMP=gmktemp
 else
-    MKTEMP=mktemp
+	MKTEMP=mktemp
 fi
 BUILD_DIR=$($MKTEMP --directory --tmpdir=$PWD build-dist-tmp-XXXXXX)
 mkdir -p "$BUILD_DIR"
 
-build_script=$(cat <<'EOF'
+build_script=$(
+	cat <<'EOF'
 set -ex
 
 # This is used for pattern matching and excluding Python versions
@@ -39,7 +39,7 @@ EOF
 # First build a source distribution for our package
 python setup.py sdist --dist-dir "$BUILD_DIR"
 
-MANYLINUX_IMAGE_X86_64=quay.io/pypa/manylinux2010_x86_64
+MANYLINUX_IMAGE_X86_64=quay.io/pypa/manylinux2_28_x86_64
 # Build x86_64 linux and manylinux wheels
 docker pull ${MANYLINUX_IMAGE_X86_64}
 docker run -it --rm -v "${BUILD_DIR}:/dd-trace-py" -e "ARCH=x86_64" ${MANYLINUX_IMAGE_X86_64} /bin/bash -c "${build_script}"

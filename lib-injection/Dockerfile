@@ -20,7 +20,7 @@ RUN python3 dl_wheels.py \
         --arch x86_64 \
         --arch aarch64 \
         --platform musllinux_1_1 \
-        --platform manylinux2014 \
+        --platform manylinux_2_28 \
         --output-dir /build/pkgs \
         --verbose
 
