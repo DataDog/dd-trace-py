@@ -482,6 +482,7 @@
             "@llmobs",
             "@serverless",
             "@remoteconfig",
+            "@futures",
             "tests/tracer/*",
             "tests/snapshots/test_*"
         ],
@@ -655,6 +656,7 @@
             "@core",
             "@telemetry",
             "@settings",
+            "@profiling",
             "tests/telemetry/*",
             "tests/snapshots/tests.telemetry.*"
         ],
@@ -766,7 +768,7 @@
             "@contrib",
             "@tracing",
             "@dbapi",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "asyncpg": [
             "@bootstrap",
@@ -776,7 +778,7 @@
             "@pg",
             "tests/contrib/asyncpg/*",
             "tests/snapshots/tests.contrib.{suite}.*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aiohttp": [
             "@bootstrap",
@@ -939,7 +941,6 @@
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
-            "tests/contrib/flask_login/*",
             "tests/snapshots/tests.contrib.flask.*"
         ],
         "gevent": [
@@ -1241,7 +1242,7 @@
             "@mysql",
             "tests/contrib/aiomysql/*",
             "tests/snapshots/tests.contrib.{suite}.*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aiopg": [
             "@bootstrap",
@@ -1252,7 +1253,7 @@
             "@pg",
             "@aiopg",
             "tests/contrib/aiopg/*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aredis": [
             "@bootstrap",
@@ -1287,6 +1288,7 @@
             "@contrib",
             "@tracing",
             "@tornado",
+            "@futures",
             "tests/contrib/tornado/*"
         ],
         "rediscluster": [
