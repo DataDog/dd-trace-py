@@ -116,7 +116,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
         # Title
         print(" DATADOG LINE COVERAGE REPORT ".center(w, "="))
-
         n = max(len(path) for path in self.lines) + 4
 
         # Header
@@ -163,7 +162,13 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return code
         self.seen.add(code)
 
-        path = str(Path(code.co_filename).resolve().relative_to(CWD))
+        try:
+            path = str(Path(code.co_filename).resolve().relative_to(CWD))
+        except ValueError:
+            # Don't monitor code objects that are not in the current working directory
+            return code
+
+        print(f"Instrumenting path {path=}")
 
         new_code, lines = instrument_all_lines(code, self.hook, path)
 
