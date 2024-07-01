@@ -41,6 +41,7 @@ PYTHON_VERSION = None
 PYTHON_RUNTIME = None
 PKGS_ALLOW_LIST = None
 VERSION_COMPAT_FILE_LOCATIONS = ("../datadog-lib/min_compatible_versions.csv", "min_compatible_versions.csv")
+PACKAGES_DENY_LIST = ["uwsgi"]
 
 
 def build_installed_pkgs():
@@ -187,32 +188,34 @@ def _inject():
         _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
         _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
 
-        # check installed packages against allow list
-        incompatible_packages = {}
+        incompat_allowlist_pkgs = {}
         for package_name, package_version in INSTALLED_PACKAGES.items():
             if not package_is_compatible(package_name, package_version):
-                incompatible_packages[package_name] = package_version
+                incompat_allowlist_pkgs[package_name] = package_version
 
-        if incompatible_packages:
-            _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
-            integration_incomp = True
-            if not FORCE_INJECT:
-                _log("Aborting dd-trace-py instrumentation.", level="debug")
+        for package_name in PACKAGES_DENY_LIST:
+            if package_name in INSTALLED_PACKAGES.keys():
+                incompat_allowlist_pkgs[package_name] = INSTALLED_PACKAGES[package_name]
+                if not FORCE_INJECT:
+                    denylist_package = True
 
-                for key, value in incompatible_packages.items():
-                    telemetry_data.append(
-                        create_count_metric(
-                            "library_entrypoint.abort.integration",
-                            [
-                                "integration:" + key,
-                                "integration_version:" + value,
-                            ],
-                        )
+        if incompat_allowlist_pkgs:
+            _log("Found incompatible packages: %s." % incompat_allowlist_pkgs, level="debug")
+        if not FORCE_INJECT:
+            for key, value in incompat_allowlist_pkgs.items():
+                telemetry_data.append(
+                    create_count_metric(
+                        "library_entrypoint.abort.integration",
+                        [
+                            "integration:" + key,
+                            "integration_version:" + value,
+                        ],
                     )
+                )
 
             else:
                 _log(
-                    "DD_INJECT_FORCE set to True, allowing unsupported integrations and continuing.",
+                    "DD_INJECT_FORCE set to True, instrumenting unsupported integrations, and ignoring deny list.",
                     level="debug",
                 )
         if not runtime_version_is_supported(PYTHON_RUNTIME, PYTHON_VERSION):
@@ -236,7 +239,7 @@ def _inject():
                 create_count_metric(
                     "library_entrypoint.abort",
                     [
-                        "reason:integration" if integration_incomp else "reason:incompatible_runtime",
+                        "reason:integration" if denylist_package else "reason:incompatible_runtime",
                     ],
                 )
             )
@@ -262,6 +265,9 @@ def _inject():
             _log("failed to load ddtrace module: %s" % e, level="error")
             return
         else:
+            if not FORCE_INJECT:
+                for module in incompat_allowlist_pkgs.keys():
+                    ddtrace._monkey.PATCH_MODULES[module] = False
             # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
             os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
             ddtrace.settings.config._lib_was_injected = True
