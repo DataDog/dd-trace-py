@@ -268,7 +268,7 @@ def test_lock_gevent_tasks():
             # It's called through pytest so I'm sure it's gonna be that long, right?
             assert len(event.frames) > 3
             assert event.nframes > 3
-            assert event.frames[1] == (
+            assert event.frames[0] == (
                 "tests/profiling/collector/test_threading.py",
                 252,
                 "play_with_lock",
@@ -287,7 +287,7 @@ def test_lock_gevent_tasks():
             # It's called through pytest so I'm sure it's gonna be that long, right?
             assert len(event.frames) > 3
             assert event.nframes > 3
-            assert event.frames[1] == (
+            assert event.frames[0] == (
                 "tests/profiling/collector/test_threading.py",
                 253,
                 "play_with_lock",
