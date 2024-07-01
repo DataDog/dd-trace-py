@@ -40,13 +40,10 @@ span.finish()
     events = test_agent_session.get_events()
 
     assert len(events) == 5
-    # app-closed is sent after the generate-metrics event. This is because the span aggregator is shutdown after the
-    # the telemetry writer. This is a known limitation of the current implementation. Ideally the app-closed event
-    # would be sent last.
-    assert events[0]["request_type"] == "generate-metrics"
-    assert events[1]["request_type"] == "app-closing"
-    assert events[2]["request_type"] == "app-dependencies-loaded"
-    assert events[3]["request_type"] == "app-integrations-change"
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-integrations-change"
+    assert events[3]["request_type"] == "generate-metrics"
     assert events[4]["request_type"] == "app-started"
 
 

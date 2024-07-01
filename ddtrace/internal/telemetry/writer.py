@@ -267,6 +267,11 @@ class TelemetryWriter(PeriodicService):
         self._client = _TelemetryClient(agentless)
 
         if self._enabled:
+            # Avoids sending app-started and app-closed events in forked processes
+            forksafe.register(self._fork_writer)
+            # shutdown the telemetry writer when the application exits
+            atexit.register(self.app_shutdown)
+            # Captures unhandled exceptions during application start up
             self.install_excepthook()
             # In order to support 3.12, we start the writer upon initialization.
             # See https://github.com/python/cpython/pull/104826.
@@ -285,8 +290,6 @@ class TelemetryWriter(PeriodicService):
 
         if self.status == ServiceStatus.RUNNING:
             return True
-
-        forksafe.register(self._fork_writer)
 
         if self._is_periodic:
             self.start()
@@ -308,7 +311,7 @@ class TelemetryWriter(PeriodicService):
         if TelemetryWriterModuleWatchdog.is_installed():
             TelemetryWriterModuleWatchdog.uninstall()
         self.reset_queues()
-        if self._is_periodic and self.status is ServiceStatus.RUNNING:
+        if self._is_periodic and self.status is ServiceStatus.RUNNING and self._worker is not None:
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
@@ -420,8 +423,6 @@ class TelemetryWriter(PeriodicService):
         #  List of configurations to be collected
 
         self.started = True
-        if register_app_shutdown:
-            atexit.register(self.app_shutdown)
 
         inst_config_id_entry = ("instrumentation_config_id", "", "default")
         if "DD_INSTRUMENTATION_CONFIG_ID" in os.environ:
@@ -777,7 +778,8 @@ class TelemetryWriter(PeriodicService):
             self._client.send_event(telemetry_event)
 
     def app_shutdown(self):
-        self.periodic(force_flush=True, shutting_down=True)
+        if self.started:
+            self.periodic(force_flush=True, shutting_down=True)
         self.disable()
 
     def reset_queues(self):

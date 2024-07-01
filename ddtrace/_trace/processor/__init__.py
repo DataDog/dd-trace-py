@@ -379,16 +379,12 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if config._telemetry_enabled and (self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]):
-            telemetry.telemetry_writer._is_periodic = False
-            telemetry.telemetry_writer._enabled = True
-            # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-            # before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_created", "integration_name", 1)
-            # on_span_finish(...) queues span finish metrics in batches of 100.
-            # This ensures all remaining counts are sent before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_finished", "integration_name", 1)
-            telemetry.telemetry_writer.periodic(True)
+        # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+        # before the tracer is shutdown.
+        self._queue_span_count_metrics("spans_created", "integration_name", 1)
+        # on_span_finish(...) queues span finish metrics in batches of 100.
+        # This ensures all remaining counts are sent before the tracer is shutdown.
+        self._queue_span_count_metrics("spans_finished", "integration_name", 1)
 
         try:
             self._writer.stop(timeout)

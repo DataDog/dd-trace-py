@@ -9,8 +9,6 @@ import mock
 import pytest
 
 from ddtrace.internal.module import origin
-from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.service import ServiceStatusError
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
@@ -406,14 +404,17 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
+    # app started event must be queued before any other telemetry event
+    telemetry_writer._app_started_event(register_app_shutdown=False)
+    assert telemetry_writer.started
     # send app closed event
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer.app_shutdown()
+    telemetry_writer.app_shutdown()
 
-        requests = test_agent_session.get_requests("app-closing")
-        assert len(requests) == 1
-        # ensure a valid request body was sent
-        assert requests[0]["body"] == _get_request_body({}, "app-closing")
+    requests = test_agent_session.get_requests("app-closing")
+    assert len(requests) == 1
+    # ensure a valid request body was sent
+    totel_events = len(test_agent_session.get_events())
+    assert requests[0]["body"] == _get_request_body({}, "app-closing", totel_events)
 
 
 def test_add_integration(telemetry_writer, test_agent_session, mock_time):
@@ -513,22 +514,6 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 )
             # ensure one failing request was sent
             assert len(httpretty.latest_requests()) == 1
-
-
-def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        try:
-            telemetry_writer.start()
-        except ServiceStatusError:
-            telemetry_writer.status = ServiceStatus.STOPPED
-            telemetry_writer.start()
-        telemetry_writer.stop()
-        # mocks calling sys.atexit hooks
-        telemetry_writer.app_shutdown()
-
-        events = test_agent_session.get_events("app-closing")
-        assert len(events) == 1
-        assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
