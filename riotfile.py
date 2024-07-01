@@ -2663,6 +2663,9 @@ venv = Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+            env={
+                "DD_PROFILING_ENABLE_ASSERTS": "1",
+            },
             pkgs={
                 "gunicorn": latest,
                 #
@@ -2674,6 +2677,13 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
+                Venv(
+                    name="profile-wrapt-disabled",
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    env={
+                        "WRAPT_DISABLE_EXTENSIONS": "1",
+                    },
+                ),
                 # Python 3.7
                 Venv(
                     pys="3.7",

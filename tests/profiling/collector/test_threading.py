@@ -537,6 +537,50 @@ def test_anonymous_lock():
     assert release_event.lock_name == "test_threading.py:%d" % release_lineno
 
 
+@pytest.mark.skipif(not os.getenv("WRAPT_DISABLE_EXTENSIONS"), reason="wrapt C extension is disabled")
+def test_wrapt_c_ext_false():
+    from ddtrace.profiling.collector import _lock
+
+    assert _lock.WRAPT_C_EXT is False
+
+    r = recorder.Recorder()
+    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+        th_lock = threading.Lock()
+        with th_lock:
+            pass
+        assert th_lock._self_init_loc == "test_threading.py:548"
+
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
+    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
+    assert acquire_event.lock_name == "test_threading.py:549:th_lock"
+
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
+    release_lineno = 549 if sys.version_info >= (3, 10) else 550
+    assert release_event.lock_name == "test_threading.py:%d:th_lock" % release_lineno
+
+
+@pytest.mark.skipif(os.getenv("WRAPT_DISABLE_EXTENSIONS"), reason="wrapt C extension is enabled")
+def test_wrapt_c_ext_true():
+    from ddtrace.profiling.collector import _lock
+
+    assert _lock.WRAPT_C_EXT is True
+    r = recorder.Recorder()
+    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+        th_lock = threading.Lock()
+        with th_lock:
+            pass
+        assert th_lock._self_init_loc == "test_threading.py:570"
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
+    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
+    assert acquire_event.lock_name == "test_threading.py:571:th_lock"
+
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
+    release_lineno = 571 if sys.version_info >= (3, 10) else 572
+    assert release_event.lock_name == "test_threading.py:%d:th_lock" % release_lineno
+
+
 def test_global_locks():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
