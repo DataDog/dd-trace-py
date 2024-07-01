@@ -60,7 +60,7 @@ jobs:
 
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
-        run: /home/runner/.local/bin/pipx run cibuildwheel==2.19.1 --platform linux
+        run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -80,7 +80,11 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
+            unzip -l {wheel} | grep '\.so' &&
+            auditwheel repair -w ./tempwheelhouse {wheel} &&
+            (yum install -y zip || apk add zip) &&
             for w in ./tempwheelhouse/*.whl; do
+              zip -d $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
@@ -96,7 +100,7 @@ jobs:
 
       - name: Build wheels
         if: matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@v2.19.1
+        uses: pypa/cibuildwheel@v2.16.5
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -116,7 +120,11 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
+            unzip -l {wheel} | grep '\.so' &&
+            auditwheel repair -w ./tempwheelhouse {wheel} &&
+            (yum install -y zip || apk add zip) &&
             for w in ./tempwheelhouse/*.whl; do
+              zip -d $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
