@@ -58,6 +58,15 @@ jobs:
         with:
           platforms: all
 
+      - name: Configure CentOS repository
+        run: |
+          echo "Configuring CentOS repository..."
+          sudo sed -i 's|mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=os|baseurl=http://vault.centos.org/7.9.2009/os/$basearch/|g' /etc/yum.repos.d/CentOS-Base.repo
+          sudo sed -i 's|mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=updates|baseurl=http://vault.centos.org/7.9.2009/updates/$basearch/|g' /etc/yum.repos.d/CentOS-Base.repo
+          sudo sed -i 's|mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=extras|baseurl=http://vault.centos.org/7.9.2009/extras/$basearch/|g' /etc/yum.repos.d/CentOS-Base.repo
+          sudo yum clean all
+          sudo yum makecache
+
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
         run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
