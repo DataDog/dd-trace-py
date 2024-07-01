@@ -29,7 +29,7 @@ def parse_version(version: str) -> Tuple:
 
 
 RUNTIMES_ALLOW_LIST = {
-    "cpython": {"min": parse_version("3.7"), "max": parse_version("3.13")},
+    "cpython": {"min": parse_version("3.8"), "max": parse_version("3.13")},
 }
 
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
