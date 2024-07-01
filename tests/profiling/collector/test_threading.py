@@ -582,6 +582,34 @@ def test_wrapt_c_ext_true():
     assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_wrapt_c_ext_true", "")
 
 
+def test_wrapt_c_ext_config():
+    if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
+        assert _lock.WRAPT_C_EXT is False
+    else:
+        try:
+            import ddtrace.vendor.wrapt._wrappers as _w
+        except ImportError:
+            assert _lock.WRAPT_C_EXT is False
+        else:
+            assert _lock.WRAPT_C_EXT is True
+            del _w
+    r = recorder.Recorder()
+    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+        th_lock = threading.Lock()
+        with th_lock:
+            pass
+        assert th_lock._self_init_loc == "test_threading.py:553"
+
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
+    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
+    assert acquire_event.lock_name == "test_threading.py:554:th_lock"
+
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
+    release_lineno = 554 if sys.version_info >= (3, 10) else 555
+    assert release_event.lock_name == "test_threading.py:%d:th_lock" % release_lineno
+
+
 def test_global_locks():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
