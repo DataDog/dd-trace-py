@@ -62,8 +62,9 @@ jobs:
         if: matrix.os == 'arm-4core-linux'
         run: |
           # Change the baseurl for CentOS due to mirrorlist being deprecated after 01 July 2024
-          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+          # Example for CentOS Stream on ARM architecture
+          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-Stream-*.repo
+          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-Stream-*.repo
           /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
