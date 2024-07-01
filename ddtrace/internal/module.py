@@ -5,9 +5,13 @@ from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from pathlib import Path
+import threading
 import sys
+import os
+import pdb
 from types import CodeType
 from types import ModuleType
+from types import BuiltinFunctionType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
 
@@ -27,6 +31,61 @@ log = get_logger(__name__)
 _run_code = None
 _run_module_transformers: t.List[TransformerType] = []
 _post_run_module_hooks: t.List[ModuleHookType] = []
+
+
+from functools import wraps
+
+
+def trace_calls_and_returns(frame, event, arg):
+    co = frame.f_code
+    func_name = co.co_name
+    if func_name == "write":
+        # Ignore write() calls from print statements
+        return
+    if func_name in ("is_pyobject_tainted", "__repr__"):
+        return
+    line_no = frame.f_lineno
+    filename = co.co_filename
+    if event == "call":
+        try:
+            print("Call to %s on line %s of %s" % (func_name, line_no, filename))
+        except:
+            pass
+        return trace_calls_and_returns
+    elif event == "return":
+        try:
+            print("%s => %s" % (func_name, arg))
+        except:
+            pass
+    return
+
+
+if os.getenv("DD_IAST_DEBUG_ENABLED", "False").lower() in ("true", "1"):
+    threading.settrace(trace_calls_and_returns)
+
+
+def check_parameters_decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            string_args = [arg for arg in args if isinstance(arg, (bytes, str))]
+            string_kwargs = {k: arg for k, arg in kwargs if isinstance(arg, (bytes, str))}
+            log.debug(f"FFFF: {func.__module__}.{func.__name__} called with {string_args}, {string_kwargs}")
+        except Exception as e:
+            pass
+
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def monkey_patch_module(mod):
+    for attr_name in dir(mod):
+        attr = getattr(mod, attr_name)
+
+        if callable(attr) and isinstance(attr, BuiltinFunctionType):
+            log.debug(f"Setting {mod}, {attr_name}")
+            setattr(mod, attr_name, check_parameters_decorator(attr))
 
 
 def _wrapped_run_code(*args: t.Any, **kwargs: t.Any) -> t.Dict[str, t.Any]:
@@ -249,6 +308,10 @@ class _ImportHookChainedLoader:
         if pre_exec_hook:
             pre_exec_hook(self, module)
         else:
+            # if not module.__name__.startswith(("ddtrace", "_ctypes", "_multiprocessing", "gc")):
+            #     if os.getenv("DD_IAST_DEBUG_ENABLED", "False").lower() in ("true", "1"):
+            #         monkey_patch_module(module)
+
             if self.loader is None:
                 spec = getattr(module, "__spec__", None)
                 if spec is not None and is_namespace_spec(spec):

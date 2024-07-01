@@ -436,11 +436,39 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(module_node)
         return module_node
 
+    def create_taint_check(self, args):
+        if not args:
+            return ast.NameConstant(value=False)
+
+        checks = [
+            ast.Call(
+                func=ast.Name(id="is_pyobject_tainted", ctx=ast.Load()),
+                args=[arg if isinstance(arg, ast.Name) else ast.Name(id=arg.arg, ctx=ast.Load())],
+                keywords=[],
+            )
+            for arg in args
+        ]
+
+        if len(checks) == 0:
+            return ast.NameConstant(value=False)
+        elif len(checks) == 1:
+            return checks[0]
+        return ast.BoolOp(op=ast.Or(), values=checks)
+
+    def create_import_stmt(self):
+        return ast.ImportFrom(
+            module="ddtrace.appsec._iast._taint_tracking",
+            names=[ast.alias(name="is_pyobject_tainted", asname=None)],
+            level=0,
+        )
+
     def visit_FunctionDef(self, def_node: ast.FunctionDef) -> Any:
         """
         Special case for some tests which would enter in a patching
         loop otherwise when visiting the check functions
         """
+        self.generic_visit(def_node)
+
         self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
 
         if hasattr(def_node.args, "vararg") and def_node.args.vararg:
@@ -471,7 +499,59 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(def_node)
         self._current_function_name = None
 
+        # if def_node.name == "__repr__":
+        #     return def_node
+
+        condition = self.create_taint_check(def_node.args.args)
+        # Create print statements for function call and its arguments
+        #
+        tainted_stmts = [
+            self.create_print_call("Tainted args "),
+        ]
+
+        if_stmt = ast.If(test=condition, body=tainted_stmts, orelse=[])
+        def_node.body.insert(0, if_stmt)
+
+        print_stmts = [
+            item
+            for arg in def_node.args.args
+            for item in (self.create_print_call(f"Arg {arg.arg}: "), self.create_print_var(arg.arg))
+        ]
+
+        if print_stmts:
+            for i in reversed(print_stmts):
+                def_node.body.insert(0, i)
+
+        fun_called = self.create_print_call(f"Function called: {def_node.name}")
+
+        def_node.body.insert(0, fun_called)
+
+        import_stmt = self.create_import_stmt()
+
+        def_node.body.insert(0, import_stmt)
+
+        self.ast_modified = True
+
         return def_node
+
+    def get_func_name(self, func):
+        if isinstance(func, ast.Name):
+            return func.id
+        elif isinstance(func, ast.Attribute):
+            return f"{self.get_func_name(func.value)}.{func.attr}"
+        return "unknown"
+
+    def create_print_call(self, message):
+        return ast.Expr(
+            value=ast.Call(func=ast.Name(id="print", ctx=ast.Load()), args=[ast.Str(s=message)], keywords=[])
+        )
+
+    def create_print_var(self, var):
+        return ast.Expr(
+            value=ast.Call(
+                func=ast.Name(id="print", ctx=ast.Load()), args=[ast.Name(id=var, ctx=ast.Load())], keywords=[]
+            )
+        )
 
     def visit_Call(self, call_node: ast.Call) -> Any:
         """
@@ -620,6 +700,9 @@ class AstVisitor(ast.NodeTransformer):
         """
 
         self.generic_visit(fmt_value_node)
+
+        if hasattr(fmt_value_node, "avoid_convert"):
+            return fmt_value_node
 
         if hasattr(fmt_value_node, "value") and self._is_node_constant_or_binop(fmt_value_node.value):
             return fmt_value_node
