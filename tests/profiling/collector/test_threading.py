@@ -544,7 +544,7 @@ def test_wrapt_c_ext_false():
 
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-    release_lineno = 536 if sys.version_info >= (3, 10) else 537
+    release_lineno = 537 if sys.version_info >= (3, 10) else 538
     assert release_event.lock_name == "test_threading.py:%d:th_lock" % release_lineno
 
 
