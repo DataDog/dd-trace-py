@@ -824,7 +824,7 @@ class TelemetryWriter(PeriodicService):
         if join:
             self.join(timeout=2)
 
-    def _excepthook(self, tp, value, root_traceback):
+    def _telemetry_excepthook(self, tp, value, root_traceback):
         if root_traceback is not None:
             # Get the frame which raised the exception
             traceback = root_traceback
@@ -862,7 +862,7 @@ class TelemetryWriter(PeriodicService):
 
     def install_excepthook(self):
         """Install a hook that intercepts unhandled exception and send metrics about them."""
-        sys.excepthook = self._excepthook
+        sys.excepthook = self._telemetry_excepthook
 
     def uninstall_excepthook(self):
         """Uninstall the global tracer except hook."""

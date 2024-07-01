@@ -396,3 +396,20 @@ assert "ddtrace.internal.telemetry" in sys.modules
 
     assert status == 0, stderr
     assert stderr == b""
+
+
+# Disable agentless to ensure telemetry is enabled (agentless needs dd-api-key to be set)
+@pytest.mark.subprocess(env={"DD_CIVISIBILITY_AGENTLESS_ENABLED": "0"})
+def test_installed_excepthook():
+    import sys
+
+    # importing ddtrace initializes the telemetry writer and installs the excepthook
+    import ddtrace  # noqa: F401
+
+    assert sys.excepthook.__name__ == "_telemetry_excepthook"
+
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._enabled is True
+    telemetry_writer.uninstall_excepthook()
+    assert sys.excepthook.__name__ != "_telemetry_excepthook"

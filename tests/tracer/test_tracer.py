@@ -8,7 +8,6 @@ import logging
 import multiprocessing
 import os
 from os import getpid
-import sys
 import threading
 from unittest.case import SkipTest
 import weakref
@@ -35,7 +34,6 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
-from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -1960,17 +1958,6 @@ def test_ctx_api():
 
     assert core.get_item("appsec.key") is None
     assert core.get_items(["appsec.key"]) == [None]
-
-
-def test_installed_excepthook():
-    telemetry.telemetry_writer.install_excepthook()
-    assert sys.excepthook is telemetry._excepthook
-    telemetry.telemetry_writer.uninstall_excepthook()
-    assert sys.excepthook is not telemetry._excepthook
-    telemetry.telemetry_writer.install_excepthook()
-    assert sys.excepthook is telemetry._excepthook
-    # Reset exception hooks
-    telemetry.telemetry_writer.uninstall_excepthook()
 
 
 @pytest.mark.subprocess(parametrize={"IMPORT_DDTRACE_TRACER": ["true", "false"]})
