@@ -85,9 +85,6 @@ jobs:
             sed -i 's/#baseurl/baseurl/g' /etc/yum.repos.d/CentOS-fasttrack.repo &&
             sed -i '/mirrorlist/d' /etc/yum.repos.d/CentOS-fasttrack.repo &&
             sed -i 's/mirror.centos.org.centos..releasever/archive.kernel.org\/centos-vault\/5.11/g' /etc/yum.repos.d/CentOS-Base.repo &&
-            sed -i 's/#baseurl/baseurl/g' /etc/yum.repos.d/libselinux.repo &&
-            sed -i '/mirrorlist/d' /etc/yum.repos.d/libselinux.repo &&
-            sed -i 's/mirror.centos.org.centos..releasever/archive.kernel.org\/centos-vault\/5.11/g' /etc/yum.repos.d/libselinux.repo &&
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
             auditwheel repair -w ./tempwheelhouse {wheel} &&
@@ -134,9 +131,6 @@ jobs:
             sed -i 's/#baseurl/baseurl/g' /etc/yum.repos.d/CentOS-fasttrack.repo &&
             sed -i '/mirrorlist/d' /etc/yum.repos.d/CentOS-fasttrack.repo &&
             sed -i 's/mirror.centos.org.centos..releasever/archive.kernel.org\/centos-vault\/5.11/g' /etc/yum.repos.d/CentOS-Base.repo &&
-            sed -i 's/#baseurl/baseurl/g' /etc/yum.repos.d/libselinux.repo &&
-            sed -i '/mirrorlist/d' /etc/yum.repos.d/libselinux.repo &&
-            sed -i 's/mirror.centos.org.centos..releasever/archive.kernel.org\/centos-vault\/5.11/g' /etc/yum.repos.d/libselinux.repo &&
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
             auditwheel repair -w ./tempwheelhouse {wheel} &&
