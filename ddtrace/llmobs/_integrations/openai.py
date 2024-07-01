@@ -203,7 +203,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             if getattr(choice.message, "function_call", None):
                 function_call_info = {
                     "name": getattr(choice.message.function_call, "name", ""),
-                    "arguments": getattr(choice.message.function_call, "arguments", {})
+                    "arguments": getattr(choice.message.function_call, "arguments", {}),
                 }
                 content = {"function_call": function_call_info}
             elif getattr(choice.message, "tool_calls", None):
@@ -212,13 +212,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                         "name": getattr(tool_call.function, "name", ""),
                         "arguments": getattr(tool_call.function, "arguments", {}),
                         "tool_id": getattr(tool_call, "id", ""),
-                        "type": getattr(tool_call, "type", "")
+                        "type": getattr(tool_call, "type", ""),
                     }
                     content = {"tool_call": tool_call_info}
-            output_messages.append({
-                "content": content,
-                "role": choice.message.role
-            })
+            output_messages.append({"content": content, "role": choice.message.role})
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
