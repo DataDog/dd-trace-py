@@ -60,7 +60,7 @@ jobs:
 
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
-        run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
+        run: /home/runner/.local/bin/pipx run cibuildwheel==2.19.1 --platform linux
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -100,7 +100,7 @@ jobs:
 
       - name: Build wheels
         if: matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.19.1
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
