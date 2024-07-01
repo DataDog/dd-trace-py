@@ -99,6 +99,8 @@ def appsec_application_server(
         env["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = appsec_standalone_enabled
     if iast_enabled is not None and iast_enabled != "false":
         env["DD_IAST_ENABLED"] = iast_enabled
+        env["DD_TRACE_DEBUG"] = iast_enabled
+        env["DD_IAST_DEBUG_ENABLED"] = iast_enabled
         env["DD_IAST_REQUEST_SAMPLING"] = "100"
         env["_DD_APPSEC_DEDUPLICATION_ENABLED"] = "false"
     if tracer_enabled is not None:

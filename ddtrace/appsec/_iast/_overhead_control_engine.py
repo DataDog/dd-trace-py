@@ -63,6 +63,7 @@ class Operation(object):
 
     @classmethod
     def has_quota(cls) -> bool:
+        return True
         cls._lock.acquire()
         result = cls._vulnerability_quota > 0
         cls._lock.release()
