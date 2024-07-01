@@ -215,7 +215,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                         "type": getattr(tool_call, "type", ""),
                     }
                     content = {"tool_call": tool_call_info}
-            output_messages.append({"content": content, "role": choice.message.role})
+            output_messages.append({"content": json.dumps(content), "role": choice.message.role})
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
