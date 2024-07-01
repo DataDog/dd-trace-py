@@ -6,7 +6,7 @@ container](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
 which allows users to easily instrument Python applications without requiring
 changes to the application image.
 
-This Library Injection functionality can be used independently of ddtrace-run, ddtrace.auto,
+This Library Injection functionality can be used independently of `ddtrace-run`, `ddtrace.auto`,
 and any other "manual" instrumentation mechanism.
 
 ## Technical Details
