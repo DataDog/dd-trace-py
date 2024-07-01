@@ -169,12 +169,17 @@ def _llmobs_base_span_event(
     error_stack=None,
     integration=None,
 ):
+    span_name = span.name
+    if integration == "langchain":
+        span_name = span.resource
+    elif integration == "openai":
+        span_name = "openai.{}".format(span.resource)
     span_event = {
         "span_id": str(span.span_id),
         "trace_id": "{:x}".format(span.trace_id),
         "parent_id": _get_llmobs_parent_id(span),
         "session_id": session_id or "{:x}".format(span.trace_id),
-        "name": span.resource if integration == "langchain" else span.name,
+        "name": span_name,
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
