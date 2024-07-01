@@ -1,5 +1,6 @@
 import os
 
+
 def test_flask_openapi3_instrumentation(ddtrace_run_python_code_in_subprocess):
     code = """
 from flask_openapi3 import Info, Tag
