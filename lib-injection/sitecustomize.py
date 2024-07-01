@@ -198,8 +198,10 @@ def _inject():
                 incompat_allowlist_pkgs[package_name] = INSTALLED_PACKAGES[package_name]
                 if not FORCE_INJECT:
                     denylist_package = True
+                    integration_incomp = True
 
         if incompat_allowlist_pkgs:
+            integration_incomp = True
             _log("Found incompatible packages: %s." % incompat_allowlist_pkgs, level="debug")
         if not FORCE_INJECT:
             for key, value in incompat_allowlist_pkgs.items():
