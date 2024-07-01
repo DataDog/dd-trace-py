@@ -60,7 +60,7 @@ jobs:
 
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
-        run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
+        run: /home/runner/.local/bin/pipx run cibuildwheel==2.19.1 --platform linux
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -88,6 +88,7 @@ jobs:
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
+          CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=11.7"
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
             zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
             delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
@@ -100,7 +101,7 @@ jobs:
 
       - name: Build wheels
         if: matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.19.1
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -128,6 +129,7 @@ jobs:
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
+          CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=11.7"
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
             zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
             delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
