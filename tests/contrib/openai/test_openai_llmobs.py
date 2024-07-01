@@ -593,7 +593,7 @@ class TestLLMObsOpenaiV1:
                 metadata={"encoding_format": "float"},
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 0, "total_tokens": 2},
+                token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -613,7 +613,7 @@ class TestLLMObsOpenaiV1:
                 metadata={"encoding_format": "float"},
                 input_documents=[{"text": "hello world"}, {"text": "hello again"}],
                 output_value="[2 embedding(s) returned with size 1536]",
-                token_metrics={"prompt_tokens": 4, "completion_tokens": 0, "total_tokens": 4},
+                token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -633,7 +633,7 @@ class TestLLMObsOpenaiV1:
                 metadata={"encoding_format": "float"},
                 input_documents=[{"text": "[1111, 2222, 3333]"}],
                 output_value="[1 embedding(s) returned with size 1536]",
-                token_metrics={"prompt_tokens": 3, "completion_tokens": 0, "total_tokens": 3},
+                token_metrics={"input_tokens": 3, "output_tokens": 0, "total_tokens": 3},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -659,7 +659,7 @@ class TestLLMObsOpenaiV1:
                     {"text": "[7777, 8888, 9999]"},
                 ],
                 output_value="[3 embedding(s) returned with size 1536]",
-                token_metrics={"prompt_tokens": 9, "completion_tokens": 0, "total_tokens": 9},
+                token_metrics={"input_tokens": 9, "output_tokens": 0, "total_tokens": 9},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -687,7 +687,7 @@ class TestLLMObsOpenaiV1:
                 metadata={"encoding_format": "base64", "dimensions": 512},
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned]",
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 0, "total_tokens": 2},
+                token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
