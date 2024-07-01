@@ -86,8 +86,9 @@ config.trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
 config._tracing_enabled = False
 
-with tracer.trace("test") as span:
-    pass
+from ddtrace.internal.telemetry import telemetry_writer
+# simulate app start event, this occurs when the first span is sent to the datadog agent
+telemetry_writer._app_started_event()
         """,
         env=env,
     )
