@@ -6,11 +6,10 @@ import pytest
 
 def test_enable(test_agent_session, run_python_code_in_subprocess):
     code = """
-from ddtrace.internal.telemetry import telemetry_writer
+import ddtrace # enables telemetry
 from ddtrace.internal.service import ServiceStatus
 
-telemetry_writer.enable()
-
+from ddtrace.internal.telemetry import telemetry_writer
 assert telemetry_writer.status == ServiceStatus.RUNNING
 assert telemetry_writer._worker is not None
 """
@@ -61,10 +60,10 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
+import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 
-telemetry_writer.enable()
 telemetry_writer._app_started_event()
 
 if os.fork() == 0:
@@ -104,16 +103,15 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
+import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.telemetry import telemetry_writer
-
-telemetry_writer.enable()
 
 if os.fork() > 0:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
 
 # Heartbeat events are only sent if no other events are queued
+from ddtrace.internal.telemetry import telemetry_writer
 telemetry_writer.reset_queues()
 telemetry_writer.periodic(force_flush=True)
     """
@@ -166,12 +164,10 @@ import warnings
 # This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-import ddtrace
+import ddtrace # enables telemetry
 import logging
 import os
 
-logging.basicConfig() # required for python 2.7
-ddtrace.internal.telemetry.telemetry_writer.enable()
 os.fork()
 """
     )
