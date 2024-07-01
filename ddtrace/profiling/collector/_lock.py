@@ -115,7 +115,10 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 lock_name = self._get_lock_call_loc_with_name() or self._self_init_loc
 
                 if task_frame is None:
-                    frame = sys._getframe(1)
+                    # If we can't get the task frame, we use the caller frame.
+                    # We expect acquire/release or __enter__/__exit__ to be on
+                    # the stack, so we go back 2 frames.
+                    frame = sys._getframe(2)
                 else:
                     frame = task_frame
 
@@ -175,7 +178,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         lock_name = self._get_lock_call_loc_with_name() or self._self_init_loc
 
                         if task_frame is None:
-                            frame = sys._getframe(1)
+                            frame = sys._getframe(2)
                         else:
                             frame = task_frame
 
