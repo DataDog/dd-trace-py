@@ -91,6 +91,15 @@ def _ensure_datadog_messageattribute_enabled(params):
     ):
         params.update({"MessageSystemAttributeNames": list(params["MessageSystemAttributeNames"]) + ["AWSTraceHeader"]})
 
+    if "AttributeNames" not in params:
+        params.update({"AttributeNames": ["AWSTraceHeader"]})
+    elif (
+        "AWSTraceHeader" not in params["AttributeNames"]
+        and "All" not in params["AttributeNames"]
+        and ".*" not in params["AttributeNames"]
+    ):
+        params.update({"AttributeNames": list(params["AttributeNames"]) + ["AWSTraceHeader"]})
+
 
 def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     with core.context_with_data("botocore.patched_sqs_api_call.propagated") as parent_ctx:
