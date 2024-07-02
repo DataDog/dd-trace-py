@@ -69,6 +69,7 @@ class Context(object):
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
         self._is_remote = is_remote  # type: bool
+        self.trace_flags = True
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[ORIGIN_KEY] = dd_origin
