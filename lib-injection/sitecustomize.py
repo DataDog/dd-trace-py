@@ -174,6 +174,7 @@ def _inject():
     telemetry_data = []
     integration_incomp = False
     runtime_incomp = False
+    denylist_package = False
     os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     try:
         import ddtrace
@@ -188,23 +189,22 @@ def _inject():
         _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
         _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
 
-        incompat_allowlist_pkgs = {}
+        incompat_pkgs = {}
         for package_name, package_version in INSTALLED_PACKAGES.items():
             if not package_is_compatible(package_name, package_version):
-                incompat_allowlist_pkgs[package_name] = package_version
+                incompat_pkgs[package_name] = package_version
 
         for package_name in PACKAGES_DENY_LIST:
             if package_name in INSTALLED_PACKAGES.keys():
-                incompat_allowlist_pkgs[package_name] = INSTALLED_PACKAGES[package_name]
+                incompat_pkgs[package_name] = INSTALLED_PACKAGES[package_name]
                 if not FORCE_INJECT:
                     denylist_package = True
-                    integration_incomp = True
 
-        if incompat_allowlist_pkgs:
+        if incompat_pkgs:
             integration_incomp = True
-            _log("Found incompatible packages: %s." % incompat_allowlist_pkgs, level="debug")
+            _log("Found incompatible packages: %s." % incompat_pkgs, level="debug")
         if not FORCE_INJECT:
-            for key, value in incompat_allowlist_pkgs.items():
+            for key, value in incompat_pkgs.items():
                 telemetry_data.append(
                     create_count_metric(
                         "library_entrypoint.abort.integration",
@@ -215,11 +215,12 @@ def _inject():
                     )
                 )
 
-            else:
-                _log(
-                    "DD_INJECT_FORCE set to True, instrumenting unsupported integrations, and ignoring deny list.",
-                    level="debug",
-                )
+        else:
+            _log(
+                "DD_INJECT_FORCE set to True, instrumenting unsupported integrations, and ignoring deny list.",
+                level="debug",
+            )
+
         if not runtime_version_is_supported(PYTHON_RUNTIME, PYTHON_VERSION):
             _log(
                 "Found incompatible runtime: %s %s. Supported runtimes: %s"
@@ -268,7 +269,7 @@ def _inject():
             return
         else:
             if not FORCE_INJECT:
-                for module in incompat_allowlist_pkgs.keys():
+                for module in incompat_pkgs.keys():
                     ddtrace._monkey.PATCH_MODULES[module] = False
             # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
             os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
