@@ -1525,14 +1525,15 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                # async_generator 1.10 used because @asynccontextmanager was only available in Python 3.6+
-                # aiobotocore 1.x and higher require Python 3.6 or higher
                 Venv(
-                    # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
                         "aiobotocore": ["~=1.4.2", "~=2.0.0", latest],
                     },
+                ),
+                Venv(
+                    pys="3.12",
+                    pkgs={"aiobotocore": latest},
                 ),
             ],
         ),
@@ -2468,7 +2469,7 @@ venv = Venv(
                 ),
                 Venv(
                     # kombu added support for Python 3.10 in 5.2.1
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10", max_version="3.11"),
                     pkgs={
                         "kombu": [">=5.2,<5.3", latest],
                     },
