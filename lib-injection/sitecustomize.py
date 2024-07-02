@@ -246,9 +246,12 @@ def _inject():
                     ],
                 )
             )
+
+            return
+
+        if telemetry_data:
             telemetry_event = gen_telemetry_payload(telemetry_data)
             send_telemetry(telemetry_event)
-            return
 
         site_pkgs_path = os.path.join(
             pkgs_path, "site-packages-ddtrace-py%s-%s" % (".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
