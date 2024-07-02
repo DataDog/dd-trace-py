@@ -319,6 +319,8 @@ class _EmbeddingHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags("embedding", resp, span, kwargs, err=error)
         if not resp:
             return
         span.set_metric("openai.response.embeddings_count", len(resp.data))
