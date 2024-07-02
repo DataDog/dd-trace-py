@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -76,7 +77,27 @@ def extract_DD_context_from_messages(messages, extract_from_message: Callable):
         message = messages[0]
         context_json = extract_from_message(message)
         if context_json is not None:
-            child_of = HTTPPropagator.extract(context_json)
-            if child_of.trace_id is not None:
-                ctx = child_of
+            if "AWSTraceHeader" in context_json:
+                from opentelemetry.propagators.aws import AwsXRayPropagator
+
+                (
+                    trace_id,
+                    span_id,
+                    sampled,
+                ) = AwsXRayPropagator._extract_span_properties(context_json["AWSTraceHeader"])
+
+                child_of = Context(
+                    # DEV: Do not allow `0` for trace id or span id, use None instead
+                    trace_id=int(trace_id) or None,
+                    span_id=int(span_id) or None,  # type: ignore[arg-type]
+                    sampling_priority=int(sampled),  # type: ignore[arg-type]
+                )
+
+                if child_of.trace_id is not None:
+                    ctx = child_of
+
+            if ctx is None:
+                child_of = HTTPPropagator.extract(context_json)
+                if child_of.trace_id is not None:
+                    ctx = child_of
     return ctx
