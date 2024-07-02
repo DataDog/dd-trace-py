@@ -237,7 +237,7 @@ def _inject():
                     "DD_INJECT_FORCE set to True, allowing unsupported runtimes and continuing.",
                     level="debug",
                 )
-        if telemetry_data:
+        if runtime_incomp or denylist_package:
             telemetry_data.append(
                 create_count_metric(
                     "library_entrypoint.abort",
