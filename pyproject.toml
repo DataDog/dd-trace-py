@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.7'", "setuptools-rust<2"]
+requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools-rust<2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -17,7 +17,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -32,7 +31,6 @@ dependencies = [
     "cattrs",
     "ddsketch>=3.0.0",
     "envier~=0.5",
-    "importlib_metadata<=6.5.0; python_version<'3.8'",
     "opentelemetry-api>=1",
     "protobuf>=3",
     "setuptools; python_version>='3.12'",
@@ -83,7 +81,7 @@ exclude = '''
 
 [tool.black]
 line-length = 120
-target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
+target_version = ['py38', 'py39', 'py310', 'py311', 'py312']
 include = '''\.py[ix]?$'''
 exclude = '''
 (
@@ -182,7 +180,7 @@ exclude_dirs = [
 ]
 
 [tool.cibuildwheel]
-build = ["cp27-*", "cp35-*", "cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*"]
+build = ["cp38-*", "cp39-*", "cp310-*", "cp311-*", "cp312-*"]
 test-command = ["python {project}/tests/smoke_test.py"]
 # Skip trying to test arm64 builds on Intel Macs
 test-skip = "*-macosx_universal2:arm64"
