@@ -459,12 +459,13 @@ def test_profiler_ddup_start():
     from ddtrace.internal.datadog.profiling import ddup
 
     try:
-        ddup.start(
+        ddup.config(
             env="my_env",
             service="my_service",
             version="my_version",
             tags={},
             url="http://localhost:8126",
         )
+        ddup.start()
     except Exception as e:
         pytest.fail(str(e))
