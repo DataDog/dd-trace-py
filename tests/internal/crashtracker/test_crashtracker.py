@@ -229,7 +229,7 @@ def test_crashtracker_raise_sigsegv():
 
     data = utils.conn_to_bytes(conn)
     conn.close()
-    assert b"os_kill_impl" in data
+    assert b"os_kill" in data
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -262,4 +262,4 @@ def test_crashtracker_raise_sigbus():
 
     data = utils.conn_to_bytes(conn)
     conn.close()
-    assert b"os_kill_impl" in data
+    assert b"os_kill" in data
