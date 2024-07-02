@@ -281,4 +281,7 @@ class Context(object):
             self._is_remote,
         )
 
+    def is_valid(self):
+        return True
+
     __str__ = __repr__

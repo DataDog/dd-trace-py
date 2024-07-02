@@ -659,6 +659,9 @@ class Span(object):
             self.name,
         )
 
+    def get_span_context(self):
+        return self._context
+
 
 def _is_top_level(span):
     # type: (Span) -> bool
