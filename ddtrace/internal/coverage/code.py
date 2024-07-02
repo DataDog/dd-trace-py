@@ -92,6 +92,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         if line in lines:
             # This line has already been covered
             return
+        # print(f"ADDING LINE {line} TO {path}")
 
         # Take note of the line that was covered
         lines.add(line)

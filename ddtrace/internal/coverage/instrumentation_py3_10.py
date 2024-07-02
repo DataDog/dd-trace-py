@@ -21,26 +21,23 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
     class Jump(ABC):
         def __init__(self, start: int, argbytes: list[int]) -> None:
             self.start = start
-            self.end: t.Optional[int] = None
+            self.end: int
             self.arg = int.from_bytes(argbytes, "big", signed=False)
             self.argsize = len(argbytes)
 
-    # TODO: There are no absolute jumps in CPython >= 3.10
     class AJump(Jump):
         __opcodes__ = set(dis.hasjabs)
 
         def __init__(self, start: int, arg: list[int]) -> None:
             super().__init__(start, arg)
-            self.end = self.arg << 1  # TODO: Depends on the Python version
+            self.end = self.arg << 1
 
     class RJump(Jump):
         __opcodes__ = set(dis.hasjrel)
 
         def __init__(self, start: int, arg: list[int], direction: JumpDirection) -> None:
             super().__init__(start, arg)
-
             self.direction = direction
-            # TODO: Depends on the Python version
             self.end = start + (self.arg << 1) * self.direction + 2
 
     class Instruction:
@@ -52,14 +49,24 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
             self.arg = arg
             self.targets: t.List["Branch"] = []
 
-    class Branch:
+    class Branch(ABC):
         def __init__(self, start: Instruction, end: Instruction) -> None:
             self.start = start
             self.end = end
 
         @property
         def arg(self) -> int:
+            raise NotImplementedError
+
+    class RBranch(Branch):
+        @property
+        def arg(self) -> int:
             return abs(self.end.offset - self.start.offset - 2) >> 1
+
+    class ABranch(Branch):
+        @property
+        def arg(self) -> int:
+            return self.end.offset >> 1
 
     EXTENDED_ARG = dis.EXTENDED_ARG
 
@@ -154,7 +161,6 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
             ext: list[int] = []
             while True:
                 original_offset, opcode = next(code_iter)
-
                 if original_offset in line_starts:
                     # Inject trap call at the beginning of the line. Keep track
                     # of location and size of the trap call instructions. We
@@ -209,7 +215,11 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
             # If we are jumping at the beginning of a line, jump to the
             # beginning of the trap call instead
             target_instr = line_map.get(jump.end, instructions[new_end >> 1])
-            branch = Branch(instructions[new_start >> 1], target_instr)
+            branch: Branch = (
+                RBranch(instructions[new_start >> 1], target_instr)
+                if isinstance(jump, RJump)
+                else ABranch(instructions[new_start >> 1], target_instr)
+            )
             target_instr.targets.append(branch)
 
             branches.append(branch)
@@ -226,7 +236,7 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
                 jump_instr.arg = new_arg & 0xFF
                 new_arg >>= 8
                 c = 0
-                index = jump_instr.offset
+                index = jump_instr.offset >> 1
 
                 # Update the argument of the branching instruction, adding
                 # EXTENDED_ARGs if needed
@@ -274,12 +284,14 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
                 new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg)
                 seen_lines.update(nested_lines)
 
+        new_linetable = update_location_data(code, traps, [(instr.offset, s) for instr, s in exts])
+
         return (
             code.replace(
                 co_code=bytes(new_code),
                 co_consts=tuple(new_consts),
                 co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-                co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
+                co_linetable=new_linetable,
             ),
             seen_lines,
         )

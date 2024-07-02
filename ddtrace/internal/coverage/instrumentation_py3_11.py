@@ -384,13 +384,21 @@ if sys.version_info >= (3, 11) and sys.version_info < (3, 12):
                 new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg)
                 seen_lines.update(nested_lines)
 
+        new_linetable = update_location_data(code, traps, [(instr.offset, s) for instr, s in exts])
+        new_exceptiontable = compile_exception_table(exc_table)
+
+        replace = code.replace(
+            co_code=bytes(new_code),
+            co_consts=tuple(new_consts),
+            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+            co_linetable=new_linetable,
+            co_exceptiontable=new_exceptiontable,
+        )
+
+        if code.co_filename.endswith("src/flask/typing.py"):
+            breakpoint()
+
         return (
-            code.replace(
-                co_code=bytes(new_code),
-                co_consts=tuple(new_consts),
-                co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-                co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
-                co_exceptiontable=compile_exception_table(exc_table),
-            ),
+            replace,
             seen_lines,
         )

@@ -39,4 +39,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
             # pseudo-instruction (e.g. label)
             pass
 
-    return abstract_code.to_code(), lines
+    to_code = abstract_code.to_code()
+    if code.co_filename.endswith("src/flask/typing.py"):
+        breakpoint()
+    return to_code, lines
