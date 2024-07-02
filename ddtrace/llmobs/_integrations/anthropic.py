@@ -8,12 +8,15 @@ from typing import Optional
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 
 from .base import BaseLLMIntegration
 
@@ -175,16 +178,16 @@ class AnthropicIntegration(BaseLLMIntegration):
     @staticmethod
     def _get_llmobs_metrics_tags(span):
         usage = {}
-        prompt_tokens = span.get_metric("anthropic.response.usage.input_tokens")
-        completion_tokens = span.get_metric("anthropic.response.usage.output_tokens")
+        input_tokens = span.get_metric("anthropic.response.usage.input_tokens")
+        output_tokens = span.get_metric("anthropic.response.usage.output_tokens")
         total_tokens = span.get_metric("anthropic.response.usage.total_tokens")
 
-        if prompt_tokens is not None:
-            usage["prompt_tokens"] = prompt_tokens
-        if completion_tokens is not None:
-            usage["completion_tokens"] = completion_tokens
+        if input_tokens is not None:
+            usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        if output_tokens is not None:
+            usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
         if total_tokens is not None:
-            usage["total_tokens"] = total_tokens
+            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
         return usage
 
 
