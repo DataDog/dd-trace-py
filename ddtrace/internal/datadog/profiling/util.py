@@ -14,7 +14,8 @@ def ensure_binary_or_empty(s: StringType) -> bytes:
     try:
         return ensure_binary(s)
     except Exception:
-        pass
+        # We don't alert on this situation, we just take it in stride
+        return b""
     return b""
 
 
