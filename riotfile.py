@@ -1989,13 +1989,12 @@ venv = Venv(
         ),
         Venv(
             name="rediscluster",
-            pys=select_pys(max_version="3.12"),
             command="pytest {cmdargs} tests/contrib/rediscluster",
-            pkgs={
-                # deprecated package
-                "redis-py-cluster": [">=2.0,<2.1", latest],
-                "pytest-randomly": latest,
-            },
+            pkgs={"pytest-randomly": latest},
+            venvs=[
+                Venv(pys=select_pys(max_version="3.11"), pkgs={"redis-py-cluster": [">=2.0,<2.1", latest]}),
+                Venv(pys="3.12", pkgs={"redis-py-cluster": latest}),
+            ],
         ),
         Venv(
             name="redis",
