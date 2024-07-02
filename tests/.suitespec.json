@@ -1022,7 +1022,17 @@
             "@molten",
             "tests/contrib/molten/*"
         ],
-        "mysqldb": [
+        "mysqlconnector": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@dbapi",
+            "@mysql",
+            "tests/contrib/mysql/*",
+            "tests/contrib/shared_tests.py"
+        ],
+        "mysqlpython": [
             "@bootstrap",
             "@core",
             "@tracing",
@@ -1030,7 +1040,6 @@
             "@dbapi",
             "@mysql",
             "tests/contrib/mysqldb/*",
-            "tests/contrib/mysql/*",
             "tests/contrib/shared_tests.py"
         ],
         "pymysql": [
