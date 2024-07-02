@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.9.1
+
+
+### Deprecation Notes
+
+- Removes the deprecated sqlparse dependency.
+
+
+---
+
 ## 2.8.5
 
 
