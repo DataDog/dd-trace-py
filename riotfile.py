@@ -190,7 +190,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_tdd_propagation",
-            pys=select_pys(min_version="3.11", max_version="3.11"),
+            pys=select_pys(min_version="3.11", max_version="3.12"),
             command="pytest tests/appsec/iast_tdd_propagation/",
             pkgs={
                 "coverage": latest,
@@ -250,7 +250,7 @@ venv = Venv(
                 ),
                 # Flask 2.x.x
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "flask": "~=2.2",
                     },
@@ -499,7 +499,13 @@ venv = Venv(
                                 "gevent": ["~=22.10.0", latest],
                             },
                         ),
-                        # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
+                        Venv(
+                            # gevent added support for Python 3.11 in 22.8.0
+                            pys="3.12",
+                            pkgs={
+                                "gevent": [latest],
+                            },
+                        ),
                     ],
                 ),
             ],
@@ -908,7 +914,7 @@ venv = Venv(
                 "typing-extensions": latest,
                 "pytest-randomly": latest,
             },
-            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pys=select_pys(min_version="3.8", max_version="3.12"),
         ),
         Venv(
             name="dramatiq",
@@ -1111,7 +1117,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "flask": "~=1.1.0",
                         "flask-caching": ["~=1.10.0", latest],
@@ -1124,7 +1130,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "flask": [latest],
                         "flask-caching": ["~=1.10.0", latest],
@@ -1162,6 +1168,11 @@ venv = Venv(
                     pys="3.11",
                     pkgs={"mysql-connector-python": ["~=8.0.31", latest]},
                 ),
+                Venv(
+                    # mysql-connector-python added support for Python 3.11 in 8.0.31
+                    pys="3.12",
+                    pkgs={"mysql-connector-python": latest},
+                ),
             ],
         ),
         Venv(
@@ -1192,12 +1203,12 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     # Python 3.6 supported up to 3.1.0
                     pkgs={"psycopg": ["~=3.0.18"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     # psycopg3>=3.1.0 supports Python 3.7 -> 3.11
                     pkgs={"psycopg": [latest]},
                 ),
@@ -1225,7 +1236,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     # FIXME[python-3.12]: moto test dependency needs to be updated
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "pynamodb": ["~=5.0", "~=5.3", latest],
                         "moto": ">=1.0,<2.0",
@@ -1273,6 +1284,10 @@ venv = Venv(
                     pys="3.11",
                     pkgs={"starlette": ["~=0.21.0", "~=0.33.0", latest]},
                 ),
+                Venv(
+                    pys="3.12",
+                    pkgs={"starlette": latest},
+                ),
             ],
         ),
         Venv(
@@ -1308,13 +1323,13 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
                 "urllib3": "~=1.0",
+                "requests-mock": ">=1.4",
             },
             venvs=[
                 # requests added support for Python 3.7 in 2.20
                 Venv(
                     pys="3.7",
                     pkgs={
-                        "requests-mock": ">=1.4",
                         "requests": [
                             "~=2.20.0",
                             latest,
@@ -1325,7 +1340,6 @@ venv = Venv(
                     # requests added support for Python 3.8 in 2.23
                     pys="3.8",
                     pkgs={
-                        "requests-mock": ">=1.4",
                         "requests": [
                             "~=2.23.0",
                             latest,
@@ -1336,7 +1350,6 @@ venv = Venv(
                     # requests added support for Python 3.9 in 2.25
                     pys="3.9",
                     pkgs={
-                        "requests-mock": ">=1.4",
                         "requests": [
                             "~=2.25.0",
                             latest,
@@ -1347,7 +1360,6 @@ venv = Venv(
                     # requests added support for Python 3.10 in 2.27
                     pys="3.10",
                     pkgs={
-                        "requests-mock": ">=1.4",
                         "requests": [
                             "~=2.27",
                             latest,
@@ -1358,9 +1370,16 @@ venv = Venv(
                     # requests added support for Python 3.11 in 2.28
                     pys="3.11",
                     pkgs={
-                        "requests-mock": ">=1.4",
                         "requests": [
                             "~=2.28.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys="3.12",
+                    pkgs={
+                        "requests": [
                             latest,
                         ],
                     },
@@ -1389,7 +1408,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={"botocore": ["~=1.13", latest], "vcrpy": latest},
                 ),
             ],
@@ -1490,7 +1509,7 @@ venv = Venv(
                 Venv(
                     # pyramid added support for Python 3.10/3.11 in 2.1
                     # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
-                    pys=select_pys(min_version="3.10", max_version="3.11"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
                         "pyramid": [latest],
                     },
@@ -1510,7 +1529,7 @@ venv = Venv(
                 # aiobotocore 1.x and higher require Python 3.6 or higher
                 Venv(
                     # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "aiobotocore": ["~=1.4.2", "~=2.0.0", latest],
                     },
@@ -1744,6 +1763,10 @@ venv = Venv(
                     pys="3.11",
                     pkgs={"grpcio": ["~=1.49.0", "~=1.59.0"]},
                 ),
+                Venv(
+                    pys="3.12",
+                    pkgs={"grpcio": latest},
+                ),
             ],
         ),
         Venv(
@@ -1918,7 +1941,7 @@ venv = Venv(
                 "yarl": "~=1.0",
             },
             # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
-            pys=select_pys(min_version="3.7", max_version="3.11"),
+            pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
             name="aiohttp_jinja2",
@@ -1938,7 +1961,7 @@ venv = Venv(
                 "jinja2": latest,
             },
             # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
-            pys=select_pys(min_version="3.7", max_version="3.11"),
+            pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
             name="jinja2",
@@ -1966,7 +1989,7 @@ venv = Venv(
         ),
         Venv(
             name="rediscluster",
-            pys=select_pys(max_version="3.11"),
+            pys=select_pys(max_version="3.12"),
             command="pytest {cmdargs} tests/contrib/rediscluster",
             pkgs={
                 # deprecated package
@@ -2000,7 +2023,14 @@ venv = Venv(
                         "redis": ["~=4.3", "==5.0.1"],
                     },
                 ),
-                # FIXME[python-3.12]: blocked on redis release https://github.com/redis/redis-py/pull/2873
+                Venv(
+                    # redis added support for Python 3.11 in 4.3
+                    pys="3.12",
+                    command="pytest {cmdargs} tests/contrib/redis",
+                    pkgs={
+                        "redis": latest,
+                    },
+                ),
             ],
         ),
         Venv(
@@ -2083,6 +2113,13 @@ venv = Venv(
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
+                Venv(
+                    pys="3.12",
+                    pkgs={
+                        "sanic": [latest],
+                        "sanic-testing": "~=22.3.0",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -2110,7 +2147,7 @@ venv = Venv(
                 ),
                 Venv(
                     # snowflake-connector-python added support for Python 3.11 in 3.0
-                    pys="3.11",
+                    pys=select_pys(min_version="3.11"),
                     pkgs={"snowflake-connector-python": [latest]},
                 ),
             ],
@@ -2150,6 +2187,10 @@ venv = Venv(
                     # asyncpg added support for Python 3.11 in 0.27
                     pys="3.11",
                     pkgs={"asyncpg": ["~=0.27", latest]},
+                ),
+                Venv(
+                    pys="3.12",
+                    pkgs={"asyncpg": [latest]},
                 ),
             ],
         ),
@@ -2260,7 +2301,7 @@ venv = Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
             # FIXME: this test suite breaks on 3.7
-            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pys=select_pys(min_version="3.8", max_version="3.12"),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -2295,13 +2336,13 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.30.1"],
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
                         "openai[datalib]": ["==1.30.1"],
                         "tiktoken": latest,
@@ -2357,6 +2398,10 @@ venv = Venv(
                             pys="3.11",
                             pkgs={"gevent": "~=22.8.0"},
                         ),
+                        Venv(
+                            pys="3.12",
+                            pkgs={"gevent": "~=23.9.0"},
+                        ),
                     ],
                 ),
             ],
@@ -2377,7 +2422,7 @@ venv = Venv(
                 ),
                 Venv(
                     # pyodbc added support for Python 3.11 in 4.0.35
-                    pys="3.11",
+                    pys=select_pys(min_version="3.11"),
                     pkgs={"pyodbc": [latest]},
                 ),
             ],
@@ -2424,7 +2469,7 @@ venv = Venv(
                 ),
                 Venv(
                     # kombu added support for Python 3.10 in 5.2.1
-                    pys=select_pys(min_version="3.10", max_version="3.11"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
                         "kombu": [">=5.2,<5.3", latest],
                     },
@@ -2469,7 +2514,7 @@ venv = Venv(
             name="langchain",
             command="pytest {cmdargs} tests/contrib/langchain",
             # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
-            pys=select_pys(min_version="3.9", max_version="3.11"),
+            pys=select_pys(min_version="3.9", max_version="3.12"),
             pkgs={
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -2608,7 +2653,7 @@ venv = Venv(
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(pys="3.11", pkgs={"confluent-kafka": latest}),
+                        Venv(pys=select_pys(min_version="3.11"), pkgs={"confluent-kafka": latest}),
                     ],
                 ),
             ],
