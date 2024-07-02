@@ -1734,7 +1734,10 @@ venv = Venv(
                 Venv(
                     # grpcio added support for Python 3.12 in 1.59
                     pys="3.12",
-                    pkgs={"grpcio": ["~=1.59.0", latest]},
+                    pkgs={
+                        "grpcio": ["~=1.59.0", latest],
+                        "pytest-asyncio": "==0.22.0",
+                    },
                 ),
             ],
         ),
