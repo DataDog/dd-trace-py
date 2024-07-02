@@ -63,21 +63,22 @@ def patch_conn(conn, traced_conn_cls, pin=None):
             _patch_extensions(extensions_to_patch)
 
     c = traced_conn_cls(conn)
+    dsn = sql.parse_pg_conn_dsn(conn)
 
-    # if the connection has an info attr, we are using psycopg3
-    if hasattr(conn, "dsn"):
-        dsn = sql.parse_pg_dsn(conn.dsn)
+    if dsn is not None:
+        tags = {
+            net.TARGET_HOST: dsn.get("host"),
+            net.TARGET_PORT: dsn.get("port", 5432),
+            db.NAME: dsn.get("dbname"),
+            db.USER: dsn.get("user"),
+            "db.application": dsn.get("application_name"),
+            db.SYSTEM: "postgresql",
+        }
     else:
-        dsn = sql.parse_pg_dsn(conn.info.dsn)
+        tags = {
+            db.SYSTEM: "postgresql",
+        }
 
-    tags = {
-        net.TARGET_HOST: dsn.get("host"),
-        net.TARGET_PORT: dsn.get("port", 5432),
-        db.NAME: dsn.get("dbname"),
-        db.USER: dsn.get("user"),
-        "db.application": dsn.get("application_name"),
-        db.SYSTEM: "postgresql",
-    }
     Pin(tags=tags, _config=_config).onto(c)
     return c
 
