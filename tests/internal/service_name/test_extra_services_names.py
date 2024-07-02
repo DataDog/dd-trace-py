@@ -5,13 +5,11 @@ import time
 import pytest
 
 import ddtrace
-from tests.utils import flaky
 
 
 MAX_NAMES = 64
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize("nb_service", [2, 16, 64, 256])
 def test_service_name(nb_service):
     ddtrace.config._extra_services = set()
@@ -22,12 +20,20 @@ def test_service_name(nb_service):
 
     default_remote_config_enabled = ddtrace.config._remote_config_enabled
     ddtrace.config._remote_config_enabled = True
+    if ddtrace.config._extra_services_queue is None:
+        import ddtrace.internal._file_queue as file_queue
+
+        ddtrace.config._extra_services_queue = file_queue.File_Queue()
 
     threads = [threading.Thread(target=write_in_subprocess, args=(i,)) for i in range(nb_service)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
-    ddtrace.config._remote_config_enabled = default_remote_config_enabled
+
     assert len(ddtrace.config._get_extra_services()) == min(nb_service, MAX_NAMES)
+
+    ddtrace.config._remote_config_enabled = default_remote_config_enabled
+    if not default_remote_config_enabled:
+        ddtrace.config._extra_services_queue = None
     ddtrace.config._extra_services = set()
