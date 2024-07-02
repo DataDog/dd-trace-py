@@ -52,7 +52,7 @@ from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
@@ -549,9 +549,9 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 # if apm opt out, neither agent or tracer should compute the stats
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (compute_stats_enabled or self._apm_opt_out)
-                else {},
+                headers=(
+                    {"Datadog-Client-Computed-Stats": "yes"} if (compute_stats_enabled or self._apm_opt_out) else {}
+                ),
                 report_metrics=not self._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
@@ -1132,7 +1132,7 @@ class Tracer(object):
         elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
-        elif in_gcp_function() or in_azure_function_consumption_plan():
+        elif in_gcp_function() or in_azure_function():
             return False
         else:
             return in_aws_lambda()
@@ -1147,14 +1147,10 @@ class Tracer(object):
         - AWS Lambdas can have the Datadog agent installed via an extension.
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
-        - Google Cloud Functions and Azure Consumption Plan Functions have a mini-agent spun up by the tracer.
+        - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
-        return (
-            (in_aws_lambda() and has_aws_lambda_agent_extension())
-            or in_gcp_function()
-            or in_azure_function_consumption_plan()
-        )
+        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
 
     @staticmethod
     def _is_span_internal(span):

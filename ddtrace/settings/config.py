@@ -12,7 +12,7 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal.compat import get_mp_context
-from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -443,7 +443,7 @@ class Config(object):
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
-        if self.service is None and in_azure_function_consumption_plan():
+        if self.service is None and in_azure_function():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
         self._extra_services = set()
@@ -510,7 +510,7 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
 
-        trace_compute_stats_default = in_gcp_function() or in_azure_function_consumption_plan()
+        trace_compute_stats_default = in_gcp_function() or in_azure_function()
         self._trace_compute_stats = asbool(
             os.getenv(
                 "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
