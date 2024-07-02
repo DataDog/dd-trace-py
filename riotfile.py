@@ -1254,6 +1254,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "pynamodb": ["~=5.0", "~=5.3", latest],
+                        "moto": latest,
                         "cfn-lint": "~=0.53.1",
                         "Jinja2": "~=2.11.0",
                         "pytest-randomly": latest,
