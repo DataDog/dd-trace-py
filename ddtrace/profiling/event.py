@@ -65,6 +65,7 @@ class StackBasedEvent(SampleEvent):
         self,
         span,  # type: typing.Optional[ddspan.Span]
         endpoint_collection_enabled,  # type: bool
+        type_filter="web",  # type: str
     ):
         # type: (...) -> None
         if span:
