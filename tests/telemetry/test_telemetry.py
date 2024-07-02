@@ -6,11 +6,10 @@ import pytest
 
 def test_enable(test_agent_session, run_python_code_in_subprocess):
     code = """
-from ddtrace.internal.telemetry import telemetry_writer
+import ddtrace # enables telemetry
 from ddtrace.internal.service import ServiceStatus
 
-telemetry_writer.enable()
-
+from ddtrace.internal.telemetry import telemetry_writer
 assert telemetry_writer.status == ServiceStatus.RUNNING
 assert telemetry_writer._worker is not None
 """
@@ -41,13 +40,10 @@ span.finish()
     events = test_agent_session.get_events()
 
     assert len(events) == 5
-    # app-closed is sent after the generate-metrics event. This is because the span aggregator is shutdown after the
-    # the telemetry writer. This is a known limitation of the current implementation. Ideally the app-closed event
-    # would be sent last.
-    assert events[0]["request_type"] == "generate-metrics"
-    assert events[1]["request_type"] == "app-closing"
-    assert events[2]["request_type"] == "app-dependencies-loaded"
-    assert events[3]["request_type"] == "app-integrations-change"
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-integrations-change"
+    assert events[3]["request_type"] == "generate-metrics"
     assert events[4]["request_type"] == "app-started"
 
 
@@ -61,10 +57,10 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
+import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 
-telemetry_writer.enable()
 telemetry_writer._app_started_event()
 
 if os.fork() == 0:
@@ -104,16 +100,15 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
+import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.telemetry import telemetry_writer
-
-telemetry_writer.enable()
 
 if os.fork() > 0:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
 
 # Heartbeat events are only sent if no other events are queued
+from ddtrace.internal.telemetry import telemetry_writer
 telemetry_writer.reset_queues()
 telemetry_writer.periodic(force_flush=True)
     """
@@ -166,12 +161,10 @@ import warnings
 # This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-import ddtrace
+import ddtrace # enables telemetry
 import logging
 import os
 
-logging.basicConfig() # required for python 2.7
-ddtrace.internal.telemetry.telemetry_writer.enable()
 os.fork()
 """
     )
@@ -392,10 +385,9 @@ from ddtrace import tracer
 # Create a span to start the telemetry writer
 tracer.trace("hi").finish()
 
-# Importing ddtrace.internal.telemetry.__init__ creates the telemetry writer. This has a performance cost.
-# We want to avoid this cost when telemetry is disabled.
+# We want to import the telemetry module even when telemetry is disabled.
 import sys
-assert "ddtrace.internal.telemetry" not in sys.modules
+assert "ddtrace.internal.telemetry" in sys.modules
 """
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
@@ -404,3 +396,20 @@ assert "ddtrace.internal.telemetry" not in sys.modules
 
     assert status == 0, stderr
     assert stderr == b""
+
+
+# Disable agentless to ensure telemetry is enabled (agentless needs dd-api-key to be set)
+@pytest.mark.subprocess(env={"DD_CIVISIBILITY_AGENTLESS_ENABLED": "0"})
+def test_installed_excepthook():
+    import sys
+
+    # importing ddtrace initializes the telemetry writer and installs the excepthook
+    import ddtrace  # noqa: F401
+
+    assert sys.excepthook.__name__ == "_telemetry_excepthook"
+
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._enabled is True
+    telemetry_writer.uninstall_excepthook()
+    assert sys.excepthook.__name__ != "_telemetry_excepthook"

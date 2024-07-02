@@ -152,7 +152,6 @@ class CIVisibilityGitClient(object):
     ):
         # type: (...) -> None
         log.setLevel(log_level)
-        telemetry.telemetry_writer.enable()
         _metadata_upload_status.value = METADATA_UPLOAD_STATUS.IN_PROCESS
         try:
             if _tags is None:

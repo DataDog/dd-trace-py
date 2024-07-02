@@ -153,8 +153,6 @@ class CIVisibility(Service):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
         super(CIVisibility, self).__init__()
 
-        telemetry.telemetry_writer.enable()
-
         if tracer:
             self.tracer = tracer
         else:
