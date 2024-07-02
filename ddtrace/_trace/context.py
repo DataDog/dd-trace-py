@@ -47,7 +47,7 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote"]
+    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote", "trace_flags"]
 
     def __init__(
         self,
