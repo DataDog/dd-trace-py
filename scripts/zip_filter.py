@@ -1,7 +1,7 @@
 import argparse
 import fnmatch
-import zipfile
 import os
+import zipfile
 
 
 def remove_from_zip(zip_filename, patterns):
