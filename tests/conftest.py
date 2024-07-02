@@ -536,3 +536,24 @@ def test_agent_session(telemetry_writer, request):
     finally:
         os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()
+
+
+@pytest.fixture
+def core():
+    from copy import deepcopy
+
+    import ddtrace.internal.core as _core
+    import ddtrace.internal.core.event_hub as _event_hub
+
+    # Save reference to the current state
+    old_state = _event_hub._listeners, _event_hub._all_listeners
+
+    # Make a new event hub state
+    _event_hub._listeners = deepcopy(_event_hub._listeners)
+    _event_hub._all_listeners = deepcopy(_event_hub._all_listeners)
+
+    try:
+        yield _core
+    finally:
+        # Restore the old state
+        _event_hub._listeners, _event_hub._all_listeners = old_state
