@@ -18,7 +18,7 @@ try:
         fcntl.lockf(f, fcntl.LOCK_UN)
 
 except ModuleNotFoundError:
-    # Availability:Windows file locking
+    # Availability: Windows
     import msvcrt
 
     def size(f):
