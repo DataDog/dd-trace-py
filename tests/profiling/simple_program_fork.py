@@ -12,7 +12,7 @@ import ddtrace.profiling.profiler
 
 lock = threading.Lock()
 lock.acquire()
-lock_acquire_name = "simple_program_fork.py:14:lock"
+lock_lock_name = "simple_program_fork.py:13:lock"
 
 
 assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING
@@ -30,24 +30,23 @@ if child_pid == 0:
     lock.release()
 
     # We don't track it
-    assert lock_acquire_name not in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockReleaseEvent])
+    assert lock_lock_name not in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockReleaseEvent])
 
     # We track this one though
     lock = threading.Lock()
-    lock_acquire_name = "simple_program_fork.py:39:lock"
-    assert lock_acquire_name not in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockAcquireEvent])
+    lock_lock_name = "simple_program_fork.py:36:lock"
+    assert lock_lock_name not in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockAcquireEvent])
     lock.acquire()
     events = recorder.reset()
-    assert lock_acquire_name in set(e.lock_name for e in events[cthreading.ThreadingLockAcquireEvent])
-    lock_release_name = "simple_program_fork.py:44:lock"
-    assert lock_release_name not in set(e.lock_name for e in events[cthreading.ThreadingLockReleaseEvent])
+    assert lock_lock_name in set(e.lock_name for e in events[cthreading.ThreadingLockAcquireEvent])
+    assert lock_lock_name not in set(e.lock_name for e in events[cthreading.ThreadingLockReleaseEvent])
     lock.release()
-    assert lock_release_name in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockReleaseEvent])
+    assert lock_lock_name in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockReleaseEvent])
 
     parent_events = parent_recorder.reset()
     # Let's sure our copy of the parent recorder does not receive it since the parent profiler has been stopped
-    assert lock_acquire_name not in set(e.lock_name for e in parent_events[cthreading.ThreadingLockAcquireEvent])
-    assert lock_release_name not in set(e.lock_name for e in parent_events[cthreading.ThreadingLockReleaseEvent])
+    assert lock_lock_name not in set(e.lock_name for e in parent_events[cthreading.ThreadingLockAcquireEvent])
+    assert lock_lock_name not in set(e.lock_name for e in parent_events[cthreading.ThreadingLockReleaseEvent])
 
     # This can run forever if anything is broken!
     while not recorder.events[stack_event.StackSampleEvent]:
@@ -55,10 +54,9 @@ if child_pid == 0:
 else:
     recorder = ddtrace.profiling.bootstrap.profiler._profiler._recorder
     assert recorder is parent_recorder
-    lock_release_name = "simple_program_fork.py:60:lock"
-    assert lock_release_name not in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockReleaseEvent])
+    assert lock_lock_name not in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockReleaseEvent])
     lock.release()
-    assert lock_release_name in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockReleaseEvent])
+    assert lock_lock_name in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockReleaseEvent])
     assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING
     print(child_pid)
     pid, status = os.waitpid(child_pid, 0)
