@@ -280,7 +280,7 @@ class Context(object):
             self._baggage,
             self._is_remote,
         )
-    
+
     def is_valid(self):
         return True
 

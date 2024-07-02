@@ -127,16 +127,16 @@ def patched_lib_fn(original_func, instance, args, kwargs):
         tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
     ) as ctx, ctx.get_item(ctx.get_item("call_key")):
         return original_func(*args, **kwargs)
-    
+
 
 @with_traced_module
 def _patched_endpoint_prepare_request(botocore, pin, original_func, instance, args, kwargs):
-    if pin and pin.tags and 'X-Amzn-Trace-Id' in pin.tags:
+    if pin and pin.tags and "X-Amzn-Trace-Id" in pin.tags:
         # Only the x-ray header is propagated by AWS services. Using any
         # other propagator will lose the trace context.
-        args[0].headers['X-Amzn-Trace-Id'] = pin.tags['X-Amzn-Trace-Id']
+        args[0].headers["X-Amzn-Trace-Id"] = pin.tags["X-Amzn-Trace-Id"]
         tags = pin.tags
-        del tags['X-Amzn-Trace-Id']
+        del tags["X-Amzn-Trace-Id"]
         pin.clone(tags=tags).onto(botocore)
 
     return original_func(*args, **kwargs)

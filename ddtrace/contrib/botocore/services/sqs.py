@@ -2,6 +2,7 @@ import json
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
+from unittest.mock import patch
 
 import botocore.client
 import botocore.exceptions
@@ -81,13 +82,20 @@ def _ensure_datadog_messageattribute_enabled(params):
     elif "_datadog" not in params["MessageAttributeNames"]:
         params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
+    if "MessageSystemAttributeNames" not in params:
+        params.update({"MessageSystemAttributeNames": ["AWSTraceHeader"]})
+    elif (
+        "AWSTraceHeader" not in params["MessageSystemAttributeNames"]
+        and "All" not in params["MessageSystemAttributeNames"]
+        and ".*" not in params["MessageSystemAttributeNames"]
+    ):
+        params.update({"MessageSystemAttributeNames": list(params["MessageSystemAttributeNames"]) + ["AWSTraceHeader"]})
+
 
 def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     with core.context_with_data("botocore.patched_sqs_api_call.propagated") as parent_ctx:
         return _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars)
 
-
-from unittest.mock import patch
 
 # Function to return the mock span within a given context
 def mock_get_current_span(context):
@@ -166,7 +174,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
 
             if operation == "SendMessage" or operation == "SendMessageBatch":
-                with patch('opentelemetry.trace.get_current_span', side_effect=mock_get_current_span):
+                with patch("opentelemetry.trace.get_current_span", side_effect=mock_get_current_span):
                     from opentelemetry.propagators.aws import AwsXRayPropagator
 
                     tags = {}

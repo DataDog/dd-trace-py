@@ -658,7 +658,7 @@ class Span(object):
             self.parent_id,
             self.name,
         )
-    
+
     def get_span_context(self):
         return self._context
 
