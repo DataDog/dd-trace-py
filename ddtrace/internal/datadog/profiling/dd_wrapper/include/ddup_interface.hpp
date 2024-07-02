@@ -27,7 +27,7 @@ extern "C"
     void ddup_config_sample_type(unsigned int type);
 
     bool ddup_is_initialized();
-    void ddup_init();
+    void ddup_start();
     void ddup_set_runtime_id(std::string_view runtime_id);
     bool ddup_upload();
 
@@ -60,7 +60,6 @@ extern "C"
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
-
 #ifdef __cplusplus
 } // extern "C"
 #endif

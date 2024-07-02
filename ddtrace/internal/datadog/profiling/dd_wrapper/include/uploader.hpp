@@ -13,11 +13,6 @@ extern "C"
 
 namespace Datadog {
 
-struct DdogProfExporterDeleter
-{
-    void operator()(ddog_prof_Exporter* ptr) const;
-};
-
 struct DdogCancellationTokenDeleter
 {
     void operator()(ddog_CancellationToken* ptr) const;

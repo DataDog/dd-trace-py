@@ -1,11 +1,10 @@
 from typing import Dict
 from typing import Optional
 from typing import Union
+from ..types import StringType
 from ddtrace._trace.span import Span
 
-StringType = Union[str, bytes, None]
-
-def init(
+def config(
     env: StringType,
     service: StringType,
     version: StringType,
@@ -14,6 +13,7 @@ def init(
     url: Optional[str],
     timeline_enabled: Optional[bool],
 ) -> None: ...
+def start() -> None: ...
 def upload() -> None: ...
 
 class SampleHandle:
