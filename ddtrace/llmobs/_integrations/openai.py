@@ -203,14 +203,14 @@ class OpenAIIntegration(BaseLLMIntegration):
             if getattr(choice.message, "function_call", None):
                 function_call_info = {
                     "name": getattr(choice.message.function_call, "name", ""),
-                    "arguments": getattr(choice.message.function_call, "arguments", {}),
+                    "arguments": json.load(getattr(choice.message.function_call, "arguments", {})),
                 }
                 content = {"function_call": function_call_info}
             elif getattr(choice.message, "tool_calls", None):
                 for tool_call in choice.message.tool_calls:
                     tool_call_info = {
                         "name": getattr(tool_call.function, "name", ""),
-                        "arguments": getattr(tool_call.function, "arguments", {}),
+                        "arguments": json.load(getattr(tool_call.function, "arguments", {})),
                         "tool_id": getattr(tool_call, "id", ""),
                         "type": getattr(tool_call, "type", ""),
                     }
