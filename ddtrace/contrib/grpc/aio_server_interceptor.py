@@ -1,4 +1,6 @@
 import inspect
+from ...internal.logger import get_logger  # JJJ
+log = get_logger(__name__)  # JJJ
 from typing import Any  # noqa:F401
 from typing import Awaitable  # noqa:F401
 from typing import Callable  # noqa:F401
@@ -31,6 +33,8 @@ from ...internal.compat import to_unicode
 from .. import trace_utils
 from ..grpc import constants
 from ..grpc.utils import set_grpc_method_meta
+
+log.debug("JJJ TTT: testing log from main aio server file")
 
 
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
@@ -210,6 +214,7 @@ def _create_span(pin, handler_call_details, method_kind):
 class _TracedCoroRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, pin, handler_call_details, wrapped):
         # type: (Pin, grpc.HandlerCallDetails, grpc.RpcMethodHandler) -> None
+        log.debug("JJJ PPP _TracedCoroRpcMethodHandler.__init__")
         super(_TracedCoroRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
         self._handler_call_details = handler_call_details
@@ -233,6 +238,7 @@ class _TracedCoroRpcMethodHandler(wrapt.ObjectProxy):
 
 class _TracedAsyncGenRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, pin, handler_call_details, wrapped):
+        log.debug("JJJ PPP _TracedAsyncGenRpcMethodHandler.__init__")
         # type: (Pin, grpc.HandlerCallDetails, grpc.RpcMethodHandler) -> None
         super(_TracedAsyncGenRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
@@ -256,6 +262,7 @@ class _TracedAsyncGenRpcMethodHandler(wrapt.ObjectProxy):
 class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, pin, handler_call_details, wrapped):
         # type: (Pin, grpc.HandlerCallDetails, grpc.RpcMethodHandler) -> None
+        log.debug("JJJ TTT _TracedRpcMethodHandler.__init__")
         super(_TracedRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
         self._handler_call_details = handler_call_details
@@ -290,6 +297,7 @@ TracedRpcMethodHandlerType = Union[
 
 class _ServerInterceptor(aio.ServerInterceptor):
     def __init__(self, interceptor_function):
+        log.debug("JJJ TTT _ServerInterceptor.__init__ AIO")
         self._fn = interceptor_function
 
     async def intercept_service(

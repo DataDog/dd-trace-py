@@ -1,5 +1,7 @@
 import grpc
 
+from ddtrace.internal.logger import get_logger  # JJJ
+log = get_logger(__name__)  # JJJ
 from ddtrace import config
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
@@ -20,7 +22,10 @@ from . import constants
 from .utils import set_grpc_method_meta
 
 
+log.debug("JJJ TTT: testing log from main server file")
+
 def create_server_interceptor(pin):
+    log.debug("JJJ TTT: create_server_interceptor")
     def interceptor_function(continuation, handler_call_details):
         if not pin.enabled:
             return continuation(handler_call_details)
@@ -49,6 +54,7 @@ def _handle_server_exception(server_context, span):
 
 
 def _wrap_response_iterator(response_iterator, server_context, span):
+    log.warning("JJJ TTT: _wrap_response_iterator")
     try:
         for response in response_iterator:
             core.dispatch("grpc.server.response.message", (response,))
@@ -68,6 +74,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         self._handler_call_details = handler_call_details
 
     def _fn(self, method_kind, behavior, args, kwargs):
+        log.debug("JJJ TTT: _TracedRpcMethodHandler._fn")
         tracer = self._pin.tracer
         headers = dict(self._handler_call_details.invocation_metadata)
         request_message = None
@@ -143,6 +150,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
 class _ServerInterceptor(grpc.ServerInterceptor):
     def __init__(self, interceptor_function):
+        log.debug("JJJ _ServerInterceptor.__init__")
         self._fn = interceptor_function
 
     def intercept_service(self, continuation, handler_call_details):

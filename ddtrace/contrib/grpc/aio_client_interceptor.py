@@ -34,6 +34,7 @@ from ..grpc import utils
 
 
 log = get_logger(__name__)
+log.debug("JJJ TTT: testing log from main aio client file")
 
 
 def create_aio_client_interceptors(pin, host, port):
@@ -134,6 +135,7 @@ class _ClientInterceptor:
         self._pin = pin
         self._host = host
         self._port = port
+        log.debug("JJJ TTT _ClientInterceptor.__init__ AIO")
 
     def _intercept_client_call(self, method_kind, client_call_details):
         # type: (str, aio.ClientCallDetails) -> Tuple[Span, aio.ClientCallDetails]
