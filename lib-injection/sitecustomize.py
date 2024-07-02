@@ -246,6 +246,8 @@ def _inject():
                     ],
                 )
             )
+            telemetry_event = gen_telemetry_payload(telemetry_data)
+            send_telemetry(telemetry_data)
 
             return
 
