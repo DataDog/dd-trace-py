@@ -87,6 +87,14 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
         return _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars)
 
 
+from unittest.mock import patch
+
+# Function to return the mock span within a given context
+def mock_get_current_span(context):
+    span = context.get_item(context.get_item("call_key"))
+    return span
+
+
 def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
@@ -156,6 +164,16 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             pin=pin,
         ) as ctx, ctx.get_item(ctx.get_item("call_key")):
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
+
+            if operation == "SendMessage" or operation == "SendMessageBatch":
+                with patch('opentelemetry.trace.get_current_span', side_effect=mock_get_current_span):
+                    from opentelemetry.propagators.aws import AwsXRayPropagator
+
+                    tags = {}
+                    propagator = AwsXRayPropagator()
+                    propagator.inject(carrier=tags, context=ctx)
+
+                pin.clone(tags=tags).onto(botocore)
 
             if should_update_messages:
                 update_messages(ctx, endpoint_service=endpoint_name)

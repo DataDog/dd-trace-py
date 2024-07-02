@@ -87,6 +87,13 @@ def patch():
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
+
+    wrapt.wrap_function_wrapper(
+        "botocore.endpoint",
+        "Endpoint.prepare_request",
+        _patched_endpoint_prepare_request(botocore),
+    )
+
     Pin(service="aws").onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
     Pin(service="aws").onto(botocore.parsers.ResponseParser)
@@ -120,6 +127,19 @@ def patched_lib_fn(original_func, instance, args, kwargs):
         tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
     ) as ctx, ctx.get_item(ctx.get_item("call_key")):
         return original_func(*args, **kwargs)
+    
+
+@with_traced_module
+def _patched_endpoint_prepare_request(botocore, pin, original_func, instance, args, kwargs):
+    if pin and pin.tags and 'X-Amzn-Trace-Id' in pin.tags:
+        # Only the x-ray header is propagated by AWS services. Using any
+        # other propagator will lose the trace context.
+        args[0].headers['X-Amzn-Trace-Id'] = pin.tags['X-Amzn-Trace-Id']
+        tags = pin.tags
+        del tags['X-Amzn-Trace-Id']
+        pin.clone(tags=tags).onto(botocore)
+
+    return original_func(*args, **kwargs)
 
 
 @with_traced_module
