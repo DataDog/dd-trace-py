@@ -79,6 +79,7 @@ jobs:
             if [ -d "/etc/yum.repos.d" ]; then
               sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
               sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+              sed -i 's|/centos/7/sclo|/altarch/7/sclo|g' /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo
               yum clean all
               yum makecache
             fi;
