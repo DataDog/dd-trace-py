@@ -117,6 +117,7 @@ opensearch-py,0
 opensearch-py[async],0
 opensearch-py[requests],~=1.1.0
 opentelemetry-api,>=1
+opentelemetry-propagator-aws-xray>=1.0.1
 opentelemetry-instrumentation-flask,<=0.37b0
 opentracing,>=2.0.0
 peewee,0
