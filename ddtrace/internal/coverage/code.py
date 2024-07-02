@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections import deque
+from copy import deepcopy
 import json
 import os
 from types import CodeType
@@ -58,11 +59,14 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def __init__(self) -> None:
         super().__init__()
         self.seen: t.Set = set()
+        self._collect_module_dependencies: bool = False
         self._coverage_enabled: bool = False
         self.lines: t.DefaultDict[str, t.Set] = defaultdict(set)
         self.covered: t.DefaultDict[str, t.Set] = defaultdict(set)
+        self._module_dependencies: t.DefaultDict[str, t.Set] = defaultdict(set)
+        self._module_names_to_files: t.Dict[str, str] = {}
+        self._module_level_covered: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
         self._include_paths: t.List[Path] = []
-        self.lines_by_context: t.DefaultDict[str, t.DefaultDict[str, t.Set]] = defaultdict(lambda: defaultdict(set))
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -73,7 +77,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             pass
 
     @classmethod
-    def install(cls, include_paths: t.Optional[t.List[Path]] = None):
+    def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_module_dependencies: bool = False):
         if ModuleCodeCollector.is_installed():
             return
 
@@ -87,9 +91,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             include_paths = [Path(os.getcwd())]
 
         cls._instance._include_paths = include_paths
+        cls._instance._collect_module_dependencies = collect_module_dependencies
 
     def hook(self, arg):
-        path, line = arg
+        path, line, is_module_level, import_module_name = arg
 
         if self._coverage_enabled:
             lines = self.covered[path]
@@ -102,19 +107,43 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             if line not in ctx_lines:
                 ctx_lines.add(line)
 
-    def absorb_data_json(self, data_json: str):
+        # Module-level dependencies depend on import-time behavior (before coverage is started), so collection
+        # happens regardless of context or global enablement of coverage
+        if self._collect_module_dependencies:
+            if is_module_level:
+                self._module_level_covered[path].add(line)
+
+            if import_module_name:
+                self._module_dependencies[path].add(import_module_name)
+
+    @classmethod
+    def absorb_data_json(cls, data_json: str):
         """Absorb a JSON report of coverage data. This is used to aggregate coverage data from multiple processes.
 
         Absolute paths are expected.
         """
         data = json.loads(data_json)
-        for path, lines in data["lines"].items():
-            self.lines[path] |= set(lines)
-        for path, covered in data["covered"].items():
-            if self._coverage_enabled:
-                self.covered[path] |= set(covered)
-            if ctx_coverage_enabled.get():
-                ctx_covered.get()[path] |= set(covered)
+        cls.inject_coverage(lines=data["lines"], covered=data["covered"])
+
+    @classmethod
+    def inject_coverage(
+        cls, lines: t.Optional[t.Dict[str, t.Set[int]]] = None, covered: t.Optional[t.Dict[str, t.Set[int]]] = None
+    ):
+        """Inject coverage data into the collector. This can be used to arbitrarily add covered files."""
+        instance = cls._instance
+
+        if instance is None:
+            return
+
+        if lines:
+            for path, path_lines in lines.items():
+                instance.lines[path] |= set(path_lines)
+        if covered:
+            for path, path_covered in covered.items():
+                if instance._coverage_enabled:
+                    instance.covered[path] |= set(path_covered)
+                if ctx_coverage_enabled.get():
+                    ctx_covered.get()[path] |= set(path_covered)
 
     @classmethod
     def report(cls, workspace_path: Path, ignore_nocover: bool = False):
@@ -163,10 +192,32 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         with open(filename, "w") as f:
             f.write(gen_json_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover))
 
-    def _get_covered_lines(self) -> t.Dict[str, t.Set[int]]:
-        if ctx_coverage_enabled.get(False):
-            return ctx_covered.get()
-        return self.covered
+    def _get_covered_lines(self, include_imported: bool = False) -> t.Dict[str, t.Set[int]]:
+        # Covered lines should always be a copy to make sure the original cannot be altered
+        covered_lines = deepcopy((ctx_covered.get() if ctx_coverage_enabled.get() else self.covered))
+        if include_imported:
+            self._add_import_time_lines(covered_lines)
+
+        return covered_lines
+
+    def _add_import_time_lines(self, covered_lines):
+        """Modify given covered_lines in place and add lines that were covered at import time"""
+        visited_paths = set()
+        to_visit_paths = set(covered_lines.keys())
+
+        while to_visit_paths:
+            path = to_visit_paths.pop()
+            visited_paths.add(path)
+
+            imported_module_lines = self._module_level_covered.get(path, set())
+            covered_lines[path] |= imported_module_lines
+
+            # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
+            for dependency in self._module_dependencies.get(path, set()):
+                if dependency in self._module_names_to_files:
+                    dependency_path = self._module_names_to_files[dependency]
+                    if dependency_path not in visited_paths:
+                        to_visit_paths.add(self._module_names_to_files[dependency])
 
     class CollectInContext:
         def __enter__(self):
@@ -205,7 +256,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         return cls._instance is not None and ctx_coverage_enabled.get()
 
     @classmethod
-    def report_seen_lines(cls):
+    def report_seen_lines(cls, workspace_path: Path, include_imported: bool = False):
         """Generate the same data as expected by ddtrace.ci_visibility.coverage.build_payload:
 
         if input_path is provided, filter files to only include that path, and make it relative to said path
@@ -223,19 +274,29 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         if cls._instance is None:
             return []
         files = []
-        covered = cls._instance._get_covered_lines()
+        covered = cls._instance._get_covered_lines(include_imported=include_imported)
 
-        for path, lines in covered.items():
+        for abs_path_str, lines in covered.items():
+            abs_path = Path(abs_path_str)
+            path_str = (
+                str(abs_path.relative_to(workspace_path)) if abs_path.is_relative_to(workspace_path) else abs_path_str
+            )
+
             sorted_lines = sorted(lines)
+
             collapsed_ranges = collapse_ranges(sorted_lines)
             file_segments = []
             for file_segment in collapsed_ranges:
                 file_segments.append([file_segment[0], 0, file_segment[1], 0, -1])
-            files.append({"filename": path, "segments": file_segments})
+            files.append({"filename": path_str, "segments": file_segments})
 
         return files
 
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
+        # Never instrument frozen modules
+        if _module is None:
+            return code
+
         code_path = Path(code.co_filename)
 
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
@@ -248,7 +309,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         # generator will be invalidated.
         for nested_code, parent_code in list(collect_code_objects(code)):
             # Instrument the code object
-            new_code = self.instrument_code(nested_code)
+            new_code = self.instrument_code(nested_code, _module)
 
             # If it has a parent, update the parent's co_consts to point to the
             # new code object.
@@ -260,13 +321,19 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def after_import(self, _module: ModuleType) -> None:
         pass
 
-    def instrument_code(self, code: CodeType) -> CodeType:
+    def instrument_code(self, code: CodeType, _module: ModuleType) -> CodeType:
         # Avoid instrumenting the same code object multiple times
         if code in self.seen:
             return code
         self.seen.add(code)
 
-        new_code, lines = instrument_all_lines(code, self.hook, code.co_filename)
+        # Any
+        if self._collect_module_dependencies and _module.__name__ not in self._module_names_to_files:
+            self._module_names_to_files[_module.__name__] = code.co_filename
+
+        new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, self._collect_module_dependencies)
+        # Don't re-instrument the code that was just instrumented
+        self.seen.add(new_code)
 
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
