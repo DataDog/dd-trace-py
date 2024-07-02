@@ -1208,19 +1208,25 @@ venv = Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
-                    # Python 3.6 supported up to 3.1.0
-                    pkgs={"psycopg": ["~=3.0.18"]},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
-                    # psycopg3>=3.1.0 supports Python 3.7 -> 3.11
                     pkgs={"psycopg": [latest]},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.11"),
+                            pkgs={
+                                "pytest-asyncio": "==0.21.1",
+                            },
+                        ),
+                        Venv(
+                            pys="3.12",
+                            pkgs={
+                                "pytest-asyncio": "==0.23.0",
+                            },
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -1245,11 +1251,9 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pynamodb",
             venvs=[
                 Venv(
-                    # FIXME[python-3.12]: moto test dependency needs to be updated
                     pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "pynamodb": ["~=5.0", "~=5.3", latest],
-                        "moto": ">=1.0,<2.0",
                         "cfn-lint": "~=0.53.1",
                         "Jinja2": "~=2.11.0",
                         "pytest-randomly": latest,
@@ -1746,7 +1750,7 @@ venv = Venv(
                     pys="3.12",
                     pkgs={
                         "grpcio": ["~=1.59.0", latest],
-                        "pytest-asyncio": "==0.22.0",
+                        "pytest-asyncio": "==0.23.0",
                     },
                 ),
             ],
@@ -1756,7 +1760,6 @@ venv = Venv(
             command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
             pkgs={
                 "googleapis-common-protos": latest,
-                "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
             # grpc.aio support is broken and disabled by default
@@ -1764,22 +1767,34 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"grpcio": ["~=1.34.0", "~=1.59.0"]},
+                    pkgs={
+                        "grpcio": ["~=1.34.0", "~=1.59.0"],
+                        "pytest-asyncio": "==0.21.1",
+                    },
                 ),
                 Venv(
                     # grpcio added support for Python 3.10 in 1.41
                     # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
                     pys="3.10",
-                    pkgs={"grpcio": ["~=1.42.0", "~=1.59.0"]},
+                    pkgs={
+                        "grpcio": ["~=1.42.0", "~=1.59.0"],
+                        "pytest-asyncio": "==0.21.1",
+                    },
                 ),
                 Venv(
                     # grpcio added support for Python 3.11 in 1.49
                     pys="3.11",
-                    pkgs={"grpcio": ["~=1.49.0", "~=1.59.0"]},
+                    pkgs={
+                        "grpcio": ["~=1.49.0", "~=1.59.0"],
+                        "pytest-asyncio": "==0.21.1",
+                    },
                 ),
                 Venv(
                     pys="3.12",
-                    pkgs={"grpcio": latest},
+                    pkgs={
+                        "grpcio": latest,
+                        "pytest-asyncio": "==0.23.0",
+                    },
                 ),
             ],
         ),
@@ -1853,7 +1868,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "httpx": [
                     "~=0.17.0",
-                    "~=0.22.0",
+                    "~=0.23.0",
                     latest,
                 ],
             },
@@ -2012,7 +2027,6 @@ venv = Venv(
         Venv(
             name="redis",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -2020,6 +2034,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.7", max_version="3.10"),
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
+                        "pytest-asyncio": "==0.21.1",
                         "redis": [
                             "~=4.1",
                             "~=4.3",
@@ -2033,6 +2048,7 @@ venv = Venv(
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": ["~=4.3", "==5.0.1"],
+                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
@@ -2041,6 +2057,7 @@ venv = Venv(
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
+                        "pytest-asyncio": "==0.23.0",
                     },
                 ),
             ],
@@ -2188,7 +2205,7 @@ venv = Venv(
                 Venv(
                     # asyncpg added support for Python 3.9 in 0.22
                     pys="3.9",
-                    pkgs={"asyncpg": ["~=0.22.0", latest]},
+                    pkgs={"asyncpg": ["~=0.23.0", latest]},
                 ),
                 Venv(
                     # asyncpg added support for Python 3.10 in 0.24
@@ -2332,7 +2349,6 @@ venv = Venv(
             pkgs={
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
-                "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "pillow": latest,
             },
@@ -2345,21 +2361,32 @@ venv = Venv(
                     pkgs={
                         "openai": "==0.26.5",
                         "scikit-learn": "==1.0.2",
+                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.30.1"],
                     },
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.11"), pkgs={"pytest-asyncio": "==0.21.1"}
+                        ),
+                        Venv(pys="3.12", pkgs={"pytest-asyncio": "==0.23.0"}),
+                    ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
                         "openai[datalib]": ["==1.30.1"],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.8", max_version="3.11"), pkgs={"pytest-asyncio": "==0.21.1"}
+                        ),
+                        Venv(pys="3.12", pkgs={"pytest-asyncio": "==0.23.0"}),
+                    ],
                 ),
             ],
         ),
