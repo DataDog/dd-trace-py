@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fix an issue where task information coming from echion was
+    encoded improperly, which could segfault the application.
