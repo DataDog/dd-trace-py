@@ -71,7 +71,10 @@ void
 Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
 {
     if (!_runtime_id.empty()) {
-        runtime_id = _runtime_id;
+        if (runtime_id != _runtime_id) {
+            runtime_id = _runtime_id;
+            upload_seq = 0;
+        }
     }
 }
 
@@ -151,5 +154,5 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    return Datadog::Uploader{ url, ddog_exporter };
+    return Datadog::Uploader{ ddog_exporter, runtime_id, upload_seq };
 }

@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <mutex>
+#include <string_view>
 
 extern "C"
 {
@@ -29,12 +30,13 @@ class Uploader
     static inline std::mutex upload_lock{};
     std::string errmsg;
     static inline std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel;
-    std::string runtime_id;
-    std::string url;
     std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
+    std::string runtime_id;
+    uint64_t upload_seq = 0;
 
   public:
     bool upload(ddog_prof_Profile& profile);
+    bool pprof_to_disk(ddog_prof_Profile& profile, int dirfd);
     static void cancel_inflight();
     static void lock();
     static void unlock();
@@ -42,7 +44,7 @@ class Uploader
     static void postfork_parent();
     static void postfork_child();
 
-    Uploader(std::string_view _url, ddog_prof_Exporter* ddog_exporter);
+    Uploader(ddog_prof_Exporter* ddog_exporter, std::string_view _runtime_id, uint64_t _upload_seq);
 };
 
 } // namespace Datadog
