@@ -3,6 +3,8 @@ import os.path
 import tempfile
 import typing
 
+from ddtrace.internal._unpatched import unpatched_open
+
 
 try:
     # Unix based file locking
@@ -39,7 +41,7 @@ class File_Queue:
     def put(self, data: str) -> None:
         """Push a string to the queue."""
         try:
-            with open(self.filename, "a") as f:
+            with unpatched_open(self.filename, "a") as f:
                 lock(f)
                 f.write(data + "\x00")
                 unlock(f)
@@ -49,7 +51,7 @@ class File_Queue:
     def get_all(self) -> typing.Set[str]:
         """Pop all unique strings from the queue."""
         try:
-            with open(self.filename, "r+") as f:
+            with unpatched_open(self.filename, "r+") as f:
                 lock(f)
                 data = f.read()
                 os.unlink(self.filename)
