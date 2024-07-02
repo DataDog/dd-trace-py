@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    loguru: This fix avoids copying attributes from a log record's "extras" field to the record's top level
+    if those attributes were not added by the Datadog integration.
