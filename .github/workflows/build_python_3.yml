@@ -79,8 +79,8 @@ jobs:
             if [ -d "/etc/yum.repos.d" ]; then
               sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
               sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
-              sudo yum clean all
-              sudo yum makecache
+              su yum clean all
+              su yum makecache
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
@@ -126,8 +126,8 @@ jobs:
             if [ -d "/etc/yum.repos.d" ]; then
               sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
               sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
-              sudo yum clean all
-              sudo yum makecache
+              su yum clean all
+              su yum makecache
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
