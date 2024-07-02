@@ -1117,7 +1117,6 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "flask": "~=1.1.0",
                         "flask-caching": ["~=1.10.0", latest],
@@ -1128,13 +1127,24 @@ venv = Venv(
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
                     },
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.11"),
+                        ),
+                        Venv(pys="3.12", pkgs={"redis": latest}),
+                    ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "flask": [latest],
                         "flask-caching": ["~=1.10.0", latest],
                     },
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.11"),
+                        ),
+                        Venv(pys="3.12", pkgs={"redis": latest}),
+                    ],
                 ),
             ],
         ),
@@ -1997,7 +2007,6 @@ venv = Venv(
             pkgs={"pytest-randomly": latest},
             venvs=[
                 Venv(pys=select_pys(max_version="3.11"), pkgs={"redis-py-cluster": [">=2.0,<2.1", latest]}),
-                Venv(pys="3.12", pkgs={"redis-py-cluster": latest}),
             ],
         ),
         Venv(
