@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 TELEMETRY_NAMESPACE_TAG_TRACER = "tracers"
 TELEMETRY_NAMESPACE_TAG_APPSEC = "appsec"
 TELEMETRY_NAMESPACE_TAG_IAST = "iast"
@@ -5,6 +8,8 @@ TELEMETRY_NAMESPACE_TAG_IAST = "iast"
 TELEMETRY_TYPE_GENERATE_METRICS = "generate-metrics"
 TELEMETRY_TYPE_DISTRIBUTION = "distributions"
 TELEMETRY_TYPE_LOGS = "logs"
+
+TELEMETRY_LOG_LEVEL = Enum("TELEMETRY_LOG_LEVEL", ["DEBUG", "WARN", "ERROR"])
 
 # Configuration names must map to values supported by backend services:
 # https://github.com/DataDog/dd-go/blob/f88e85d64b173e7733ac03e23576d1c9be37f32e/trace/apps/tracer-telemetry-intake/telemetry-payload/static/config_norm_rules.json
