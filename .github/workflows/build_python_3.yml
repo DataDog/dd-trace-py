@@ -30,10 +30,10 @@ jobs:
         run: |
           MATRIX_INCLUDE=$(
             {
-              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cRr '{only: ., arch: (capture("_(?<arch>x86_64|i686)$") | .arch), os: "ubuntu-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cRr '{only: ., arch: (capture("_(?<arch>aarch64)$") | .arch), os: "arm-4core-linux"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cRr '{only: ., arch: (capture("-(?<arch>win_amd64|win32)$") | .arch), os: "windows-latest"} | if .arch == "win_amd64" then .arch = "AMD64" elif .arch == "win32" then .arch = "x86" else . end' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cRr '{only: ., arch: (capture("_(?<arch>x86_64|universal2)$") | .arch), os: "macos-12"}'
+              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cR '{only: ., os: "macos-12"}'
             } | jq -sc
           )
           echo $MATRIX_INCLUDE
@@ -84,7 +84,6 @@ jobs:
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
-          CIBW_ARCHS: ${{ matrix.arch }}
           CIBW_BUILD: ${{ matrix.only }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
@@ -123,7 +122,6 @@ jobs:
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
-          CIBW_ARCHS: ${{ matrix.arch }}
           CIBW_BUILD: ${{ matrix.only }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
