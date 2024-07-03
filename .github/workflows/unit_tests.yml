@@ -19,8 +19,8 @@ jobs:
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
-         - os: macos-12
-           archs: x86_64 universal2
+         - os: macos-latest
+           archs: arm64
     steps:
       - uses: actions/checkout@v4
         # Include all history and tags
@@ -38,7 +38,7 @@ jobs:
 
       - name: Install hatch
         run: |
-          sudo apt install -y python3-pip
+          apt install -y python3-pip
           python3 -m pip install hatch
 
       - name: Run tests
