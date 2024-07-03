@@ -162,7 +162,7 @@ class SPAN_DATA_NAMES(metaclass=Constant_Class):
     GRPC_SERVER_RESPONSE_MESSAGE = "grpc.server.response.message"
     GRPC_SERVER_REQUEST_METADATA = "grpc.server.request.metadata"
     GRPC_SERVER_METHOD = "grpc.server.method"
-    
+
 
 class API_SECURITY(metaclass=Constant_Class):
     """constants related to API Security"""
