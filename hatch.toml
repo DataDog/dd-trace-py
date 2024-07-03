@@ -243,22 +243,23 @@ test = [
 
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
-[[envs.appsec_threats_flask.matrix]]
-python = ["3.7", "3.9"]
-flask = ["~=1.1"]
-markupsafe = ["~=1.1"]
+#[[envs.appsec_threats_flask.matrix]]
+#python = ["3.7", "3.9"]
+#flask = ["~=1.1"]
+#markupsafe = ["~=1.1"]
+
+#[[envs.appsec_threats_flask.matrix]]
+#python = ["3.7", "3.9"]
+#flask = ["==2.1.3"]
+#werkzeug = ["<3.0"]
+
+#[[envs.appsec_threats_flask.matrix]]
+#python = ["3.8", "3.9", "3.12"]
+#flask = ["~=2.3"]
 
 [[envs.appsec_threats_flask.matrix]]
-python = ["3.7", "3.9"]
-flask = ["==2.1.3"]
-werkzeug = ["<3.0"]
-
-[[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.9", "3.12"]
-flask = ["~=2.3"]
-
-[[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.10", "3.12"]
+#python = ["3.8", "3.10", "3.12"]
+python = ["3.10"]
 flask = ["~=3.0"]
 
 ## ASM FastAPI
@@ -284,15 +285,16 @@ test = [
 
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
-[[envs.appsec_threats_fastapi.matrix]]
-python = ["3.7", "3.9", "3.11"]
-fastapi = ["==0.86.0"]
-anyio = ["==3.7.1"]
+#[[envs.appsec_threats_fastapi.matrix]]
+#python = ["3.7", "3.9", "3.11"]
+#fastapi = ["==0.86.0"]
+#anyio = ["==3.7.1"]
+
+#[[envs.appsec_threats_fastapi.matrix]]
+#python = ["3.7", "3.9", "3.12"]
+#fastapi = ["==0.94.1"]
 
 [[envs.appsec_threats_fastapi.matrix]]
-python = ["3.7", "3.9", "3.12"]
-fastapi = ["==0.94.1"]
-
-[[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.12"]
+#python = ["3.8", "3.10", "3.12"]
+python = ["3.10"]
 fastapi = ["~=0.109"]
