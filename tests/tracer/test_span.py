@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from functools import partial
 import re
 import sys
 import time
@@ -18,6 +19,7 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -767,3 +769,29 @@ def test_set_exc_info_with_unicode():
 
     exception_span = get_exception_span(Exception("DataDog/水"))
     assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)
+
+
+def test_span_exception_core_event():
+    s = Span(None)
+    e = ValueError()
+
+    event_handler_called = False
+
+    @partial(core.on, "span.exception")
+    def _(span, *exc_info):
+        nonlocal event_handler_called
+
+        assert span is s
+        assert exc_info[1] is e
+
+        event_handler_called = True
+
+    try:
+        with s:
+            raise e
+    except ValueError:
+        assert event_handler_called
+    else:
+        raise AssertionError("should have raised")
+    finally:
+        core.reset_listeners("span.exception")
