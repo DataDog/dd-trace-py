@@ -1223,7 +1223,7 @@ venv = Venv(
                         Venv(
                             pys="3.12",
                             pkgs={
-                                "pytest-asyncio": "==0.23.0",
+                                "pytest-asyncio": "==0.23.7",
                             },
                         ),
                     ],
