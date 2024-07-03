@@ -80,11 +80,8 @@ jobs:
 
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
-        run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
+        run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --only ${{ matrix.only }}
         env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_BUILD: ${{ matrix.only }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
@@ -119,10 +116,9 @@ jobs:
       - name: Build wheels
         if: matrix.os != 'arm-4core-linux'
         uses: pypa/cibuildwheel@v2.16.5
+        with:
+          only: ${{ matrix.only }}
         env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_BUILD: ${{ matrix.only }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
