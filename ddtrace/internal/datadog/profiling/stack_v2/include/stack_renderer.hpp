@@ -11,7 +11,7 @@
 
 #include "python_headers.hpp"
 
-#include "dd_wrapper/include/interface.hpp"
+#include "dd_wrapper/include/ddup_interface.hpp"
 #include "echion/render.h"
 
 namespace Datadog {
