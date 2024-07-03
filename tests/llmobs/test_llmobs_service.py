@@ -693,8 +693,8 @@ def test_annotate_output_llm_message_wrong_type(LLMObs, mock_logs):
 
 def test_annotate_metrics(LLMObs):
     with LLMObs.llm(model_name="test_model") as span:
-        LLMObs.annotate(span=span, metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30})
-        assert json.loads(span.get_tag(METRICS)) == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+        LLMObs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30})
+        assert json.loads(span.get_tag(METRICS)) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
 
 
 def test_annotate_metrics_wrong_type(LLMObs, mock_logs):

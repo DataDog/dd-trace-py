@@ -59,7 +59,7 @@ class TestLLMObsAnthropic:
                 ],
                 output_messages=[{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}],
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
-                token_metrics={"prompt_tokens": 32, "completion_tokens": 15, "total_tokens": 47},
+                token_metrics={"input_tokens": 32, "output_tokens": 15, "total_tokens": 47},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -153,7 +153,7 @@ class TestLLMObsAnthropic:
                         {"content": 'The phrase "I think, therefore I am" (originally in Latin as', "role": "assistant"}
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
-                    token_metrics={"prompt_tokens": 27, "completion_tokens": 15, "total_tokens": 42},
+                    token_metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
                     tags={"ml_app": "<ml-app-name>"},
                 )
             )
@@ -210,7 +210,7 @@ class TestLLMObsAnthropic:
                         }
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
-                    token_metrics={"prompt_tokens": 27, "completion_tokens": 15, "total_tokens": 42},
+                    token_metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
                     tags={"ml_app": "<ml-app-name>"},
                 )
             )
@@ -265,7 +265,7 @@ class TestLLMObsAnthropic:
                         }
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
-                    token_metrics={"prompt_tokens": 246, "completion_tokens": 15, "total_tokens": 261},
+                    token_metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
                     tags={"ml_app": "<ml-app-name>"},
                 )
             )
@@ -303,7 +303,7 @@ class TestLLMObsAnthropic:
                     {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 200.0},
-                token_metrics={"prompt_tokens": 599, "completion_tokens": 152, "total_tokens": 751},
+                token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -356,7 +356,7 @@ class TestLLMObsAnthropic:
                     }
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 500.0},
-                token_metrics={"prompt_tokens": 768, "completion_tokens": 29, "total_tokens": 797},
+                token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -395,7 +395,7 @@ class TestLLMObsAnthropic:
                     {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 200.0},
-                token_metrics={"prompt_tokens": 599, "completion_tokens": 152, "total_tokens": 751},
+                token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -448,7 +448,7 @@ class TestLLMObsAnthropic:
                     }
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 500.0},
-                token_metrics={"prompt_tokens": 768, "completion_tokens": 29, "total_tokens": 797},
+                token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -497,7 +497,7 @@ class TestLLMObsAnthropic:
                     {"content": message[1]["text"], "role": "assistant"},
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 200.0},
-                token_metrics={"prompt_tokens": 599, "completion_tokens": 135, "total_tokens": 734},
+                token_metrics={"input_tokens": 599, "output_tokens": 135, "total_tokens": 734},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -547,7 +547,7 @@ class TestLLMObsAnthropic:
                     }
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 500.0},
-                token_metrics={"prompt_tokens": 762, "completion_tokens": 33, "total_tokens": 795},
+                token_metrics={"input_tokens": 762, "output_tokens": 33, "total_tokens": 795},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -591,7 +591,7 @@ class TestLLMObsAnthropic:
                     {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 200.0},
-                token_metrics={"prompt_tokens": 599, "completion_tokens": 146, "total_tokens": 745},
+                token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -643,7 +643,7 @@ class TestLLMObsAnthropic:
                     {"content": "\n\nThe current weather in San Francisco, CA is 73°F.", "role": "assistant"}
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 500.0},
-                token_metrics={"prompt_tokens": 762, "completion_tokens": 18, "total_tokens": 780},
+                token_metrics={"input_tokens": 762, "output_tokens": 18, "total_tokens": 780},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
