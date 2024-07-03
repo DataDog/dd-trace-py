@@ -12,6 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        fail-fast: false
         include:
          - os: ubuntu-latest
            archs: x86_64 i686

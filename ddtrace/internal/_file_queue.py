@@ -1,5 +1,6 @@
 import os
 import os.path
+import sys
 import tempfile
 import typing
 
@@ -45,7 +46,8 @@ class File_Queue:
                 lock(f)
                 f.write(data + "\x00")
                 unlock(f)
-        except Exception:  # nosec
+        except Exception as e:  # nosec
+            print(f"Failed to write to file queue: {self.filename} {data} {e!r}", file=sys.stderr)
             pass
 
     def get_all(self) -> typing.Set[str]:
@@ -59,5 +61,6 @@ class File_Queue:
             if not data:
                 return set()
             return set(data.split("\x00")[:-1])
-        except Exception:  # nosec
+        except Exception as e:  # nosec
+            print(f"Failed to read from file queue: {self.filename} {e!r}", file=sys.stderr)
             return set()
