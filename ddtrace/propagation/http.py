@@ -896,7 +896,9 @@ _PROP_STYLES = {
 
 
 class HTTPPropagator(object):
-    """A HTTP Propagator using HTTP headers as carrier."""
+    """A HTTP Propagator using HTTP headers as carrier. Injects and Extracts headers
+    according to the propagation style set by ddtrace configurations.
+    """
 
     @staticmethod
     def _extract_configured_contexts_avail(normalized_headers):
