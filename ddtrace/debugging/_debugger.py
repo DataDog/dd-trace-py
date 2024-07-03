@@ -23,10 +23,10 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._config import ed_config
+from ddtrace.debugging._config import er_config
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
-from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+from ddtrace.debugging._exception.replay import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
@@ -369,8 +369,8 @@ class Debugger(Service):
             raise_on_exceed=False,
         )
 
-        if ed_config.enabled:
-            from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+        if er_config.enabled:
+            from ddtrace.debugging._exception.replay import SpanExceptionProcessor
 
             self._span_processor = SpanExceptionProcessor(collector=self._collector)
             self._span_processor.register()

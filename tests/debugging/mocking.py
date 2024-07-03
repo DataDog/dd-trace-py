@@ -9,7 +9,7 @@ from typing import Generator
 from envier import En
 
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._config import ed_config
+from ddtrace.debugging._config import er_config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
@@ -192,9 +192,9 @@ def debugger(**config_overrides: Any) -> Generator[TestDebugger, None, None]:
 
 
 @contextmanager
-def exception_debugging(**config_overrides):
+def exception_replay(**config_overrides):
     # type: (Any) -> Generator[TestDebugger, None, None]
     config_overrides.setdefault("enabled", True)
 
-    with _debugger(ed_config, config_overrides) as ed:
+    with _debugger(er_config, config_overrides) as ed:
         yield ed
