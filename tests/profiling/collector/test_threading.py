@@ -542,46 +542,6 @@ def test_anonymous_lock():
     assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_anonymous_lock", "")
 
 
-@pytest.mark.skipif(not os.getenv("WRAPT_DISABLE_EXTENSIONS"), reason="wrapt C extension is disabled")
-def test_wrapt_c_ext_false():
-    assert _lock.WRAPT_C_EXT is False
-    r = recorder.Recorder()
-    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        th_lock = threading.Lock()
-        with th_lock:
-            pass
-    expected_lock_name = "test_threading.py:550:th_lock"
-    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
-    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-    assert acquire_event.lock_name == expected_lock_name
-    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), 551, "test_wrapt_c_ext_false", "")
-    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
-    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-    assert release_event.lock_name == expected_lock_name
-    release_lineno = 551 if sys.version_info >= (3, 10) else 552
-    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_wrapt_c_ext_false", "")
-
-
-@pytest.mark.skipif(os.getenv("WRAPT_DISABLE_EXTENSIONS"), reason="wrapt C extension is enabled")
-def test_wrapt_c_ext_true():
-    assert _lock.WRAPT_C_EXT is True
-    r = recorder.Recorder()
-    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        th_lock = threading.Lock()
-        with th_lock:
-            pass
-    expected_lock_name = "test_threading.py:570:th_lock"
-    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
-    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-    assert acquire_event.lock_name == expected_lock_name
-    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), 571, "test_wrapt_c_ext_true", "")
-    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
-    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-    assert release_event.lock_name == expected_lock_name
-    release_lineno = 571 if sys.version_info >= (3, 10) else 572
-    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_wrapt_c_ext_true", "")
-
-
 def test_wrapt_c_ext_config():
     if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
         assert _lock.WRAPT_C_EXT is False
@@ -598,16 +558,16 @@ def test_wrapt_c_ext_config():
         th_lock = threading.Lock()
         with th_lock:
             pass
-        assert th_lock._self_init_loc == "test_threading.py:553"
 
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-    assert acquire_event.lock_name == "test_threading.py:554:th_lock"
-
+    assert acquire_event.lock_name == "test_threading.py:558:th_lock"
+    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), 559, "test_wrapt_c_ext_config", "")
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-    release_lineno = 554 if sys.version_info >= (3, 10) else 555
-    assert release_event.lock_name == "test_threading.py:%d:th_lock" % release_lineno
+    assert release_event.lock_name == "test_threading.py:558:th_lock"
+    release_lineno = 559 if sys.version_info >= (3, 10) else 560
+    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_wrapt_c_ext_config", "")
 
 
 def test_global_locks():
