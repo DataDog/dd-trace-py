@@ -33,7 +33,6 @@ if sys.version_info >= (3, 11) and sys.version_info < (3, 12):
             super().__init__(start, arg)
 
             self.direction = direction
-            # TODO: Depends on the Python version
             self.end = start + (self.arg << 1) * self.direction + 2
 
     class Instruction:
@@ -300,7 +299,7 @@ if sys.version_info >= (3, 11) and sys.version_info < (3, 12):
         # jumps
         for index, instr in enumerate(instructions):
             new_offset = index << 1
-            if instr.offset in jump_targets:
+            if instr.offset in jump_targets or instr.offset in offset_map:
                 offset_map[instr.offset] = new_offset
             instr.offset = new_offset
 
@@ -394,9 +393,6 @@ if sys.version_info >= (3, 11) and sys.version_info < (3, 12):
             co_linetable=new_linetable,
             co_exceptiontable=new_exceptiontable,
         )
-
-        if code.co_filename.endswith("src/flask/typing.py"):
-            breakpoint()
 
         return (
             replace,

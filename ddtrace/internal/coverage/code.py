@@ -92,7 +92,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         if line in lines:
             # This line has already been covered
             return
-        # print(f"ADDING LINE {line} TO {path}")
 
         # Take note of the line that was covered
         lines.add(line)
@@ -168,8 +167,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         except ValueError:
             # Don't monitor code objects that are not in the current working directory
             return code
-
-        print(f"Instrumenting path {path=}")
 
         new_code, lines = instrument_all_lines(code, self.hook, path)
 
