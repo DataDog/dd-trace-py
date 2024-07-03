@@ -1962,7 +1962,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
                 "pytest-aiohttp": [latest],
-                "pytest-asyncio": ["==0.21.1"],
+                "pytest-asyncio": ["==0.23.7"],
                 "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7",
@@ -1970,7 +1970,6 @@ venv = Venv(
                 ],
                 "yarl": "~=1.0",
             },
-            # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
