@@ -3,6 +3,7 @@ import os.path
 import secrets
 import sys
 import tempfile
+import time
 import typing
 
 from ddtrace.internal._unpatched import unpatched_open
@@ -29,7 +30,7 @@ except ModuleNotFoundError:
     import msvcrt
 
     def lock(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_RLCK, MAX_FILE_SIZE)
+        msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, MAX_FILE_SIZE)
 
     def unlock(f):
         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, MAX_FILE_SIZE)
@@ -58,30 +59,36 @@ class File_Queue:
 
     def put(self, data: str) -> None:
         """Push a string to the queue."""
-        try:
-            with open_file(self.filename, "ab") as f:
-                lock(f)
-                f.seek(0, os.SEEK_END)
-                if f.tell() < MAX_FILE_SIZE:
-                    f.write((data + "\x00").encode())
-                unlock(f)
-        except Exception as e:  # nosec
-            print(f"Failed to write to file queue: {self.filename} {data} {e!r}", file=sys.stderr)
-            pass
+        for i in range(10):  # only useful for retrying on windows
+            try:
+                with open_file(self.filename, "ab") as f:
+                    lock(f)
+                    f.seek(0, os.SEEK_END)
+                    if f.tell() < MAX_FILE_SIZE:
+                        f.write((data + "\x00").encode())
+                    unlock(f)
+                    return
+            except Exception as e:  # nosec
+                time.sleep(0.001)  # only useful for retrying on windows
+                pass
+                print(f"{i} Failed to write to file queue: {self.filename} {data} {e!r}", file=sys.stderr)
 
     def get_all(self) -> typing.Set[str]:
         """Pop all unique strings from the queue."""
-        try:
-            with open_file(self.filename, "r+b") as f:
-                lock(f)
-                f.seek(0)
-                data = f.read().decode()
-                f.seek(0)
-                f.truncate()
-                unlock(f)
-            if not data:
-                return set()
-            return set(data.split("\x00")[:-1])
-        except Exception as e:  # nosec
-            print(f"Failed to read from file queue: {self.filename} {e!r}", file=sys.stderr)
-            return set()
+        for i in range(10):  # only useful for retrying on windows
+            try:
+                with open_file(self.filename, "r+b") as f:
+                    lock(f)
+                    f.seek(0)
+                    data = f.read().decode()
+                    f.seek(0)
+                    f.truncate()
+                    unlock(f)
+                if not data:
+                    return set()
+                return set(data.split("\x00")[:-1])
+            except Exception as e:  # nosec
+                time.sleep(0.001)  # only useful for retrying on windows
+                pass
+                print(f"{i} Failed to read from file queue: {self.filename} {e!r}", file=sys.stderr)
+        return set()
