@@ -1,5 +1,6 @@
 import os
 import os.path
+import secrets
 import sys
 import tempfile
 import typing
@@ -37,14 +38,15 @@ class File_Queue:
 
     def __init__(self) -> None:
         self.directory = tempfile.gettempdir()
-        self.filename = os.path.join(self.directory, "file_queue")
+        self.filename = os.path.join(self.directory, secrets.token_hex(8))
 
     def put(self, data: str) -> None:
         """Push a string to the queue."""
         try:
-            with unpatched_open(self.filename, "a") as f:
+            with unpatched_open(self.filename, "a+b") as f:
                 lock(f)
-                f.write(data + "\x00")
+                f.seek(0, os.SEEK_END)
+                f.write((data + "\x00").encode())
                 unlock(f)
         except Exception as e:  # nosec
             print(f"Failed to write to file queue: {self.filename} {data} {e!r}", file=sys.stderr)
@@ -53,10 +55,12 @@ class File_Queue:
     def get_all(self) -> typing.Set[str]:
         """Pop all unique strings from the queue."""
         try:
-            with unpatched_open(self.filename, "r+") as f:
+            with unpatched_open(self.filename, "r+b") as f:
                 lock(f)
-                data = f.read()
-                os.unlink(self.filename)
+                f.seek(0)
+                data = f.read().decode()
+                f.seek(0)
+                f.truncate()
                 unlock(f)
             if not data:
                 return set()
