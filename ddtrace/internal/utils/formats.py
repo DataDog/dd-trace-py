@@ -88,7 +88,7 @@ def parse_tags_str(tags_str):
 
         for tag in tags:
             key, sep, value = tag.partition(":")
-            if "," in key:
+            if not key.strip() or "," in key or (sep and not value):
                 invalids.append(tag)
             elif sep:
                 # parse key:val,key2:value2
