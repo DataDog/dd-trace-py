@@ -3,7 +3,6 @@ import os.path
 import secrets
 import sys
 import tempfile
-import time
 import typing
 
 from ddtrace.internal._unpatched import unpatched_open
@@ -30,9 +29,11 @@ except ModuleNotFoundError:
     import msvcrt
 
     def lock(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, MAX_FILE_SIZE)
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_RLCK, MAX_FILE_SIZE)
 
     def unlock(f):
+        f.seek(0)
         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, MAX_FILE_SIZE)
 
     def open_file(path, mode):
@@ -59,41 +60,37 @@ class File_Queue:
 
     def put(self, data: str) -> None:
         """Push a string to the queue."""
-        for i in range(10):  # only useful for retrying on windows
-            try:
-                with open_file(self.filename, "ab") as f:
-                    print(f"{i} File opened {self.filename} {data}", file=sys.stderr)
-                    lock(f)
-                    print(f"{i} File locked {self.filename} {data}", file=sys.stderr)
-                    f.seek(0, os.SEEK_END)
-                    print(f"{i} File to end {self.filename} {data}", file=sys.stderr)
-                    if f.tell() < MAX_FILE_SIZE:
-                        f.write((data + "\x00").encode())
-                    print(f"{i} File wrote {self.filename} {data}", file=sys.stderr)
-                    unlock(f)
-                    print(f"{i} File unlocked {self.filename} {data}", file=sys.stderr)
-                    return
-            except Exception as e:  # nosec
-                time.sleep(0.001)  # only useful for retrying on windows
-                pass
-                print(f"{i} Failed to write to file queue: {self.filename} {data} {e!r}", file=sys.stderr)
+        try:
+            with open_file(self.filename, "ab") as f:
+                print(f"File opened {self.filename} {data}", file=sys.stderr)
+                lock(f)
+                print(f"File locked {self.filename} {data}", file=sys.stderr)
+                f.seek(0, os.SEEK_END)
+                print(f"File to end {self.filename} {data}", file=sys.stderr)
+                if f.tell() < MAX_FILE_SIZE:
+                    f.write((data + "\x00").encode())
+                print(f"File wrote {self.filename} {data}", file=sys.stderr)
+                unlock(f)
+                print(f"File unlocked {self.filename} {data}", file=sys.stderr)
+                return
+        except Exception as e:  # nosec
+            print(f"Failed to write to file queue: {self.filename} {data} {e!r}", file=sys.stderr)
+            pass
 
     def get_all(self) -> typing.Set[str]:
         """Pop all unique strings from the queue."""
-        for i in range(10):  # only useful for retrying on windows
-            try:
-                with open_file(self.filename, "r+b") as f:
-                    lock(f)
-                    f.seek(0)
-                    data = f.read().decode()
-                    f.seek(0)
-                    f.truncate()
-                    unlock(f)
-                if not data:
-                    return set()
-                return set(data.split("\x00")[:-1])
-            except Exception as e:  # nosec
-                time.sleep(0.001)  # only useful for retrying on windows
-                pass
-                print(f"{i} Failed to read from file queue: {self.filename} {e!r}", file=sys.stderr)
-        return set()
+        try:
+            with open_file(self.filename, "r+b") as f:
+                lock(f)
+                f.seek(0)
+                data = f.read().decode()
+                f.seek(0)
+                f.truncate()
+                unlock(f)
+            if not data:
+                return set()
+            return set(data.split("\x00")[:-1])
+        except Exception as e:  # nosec
+            pass
+            print(f"Failed to read from file queue: {self.filename} {e!r}", file=sys.stderr)
+            return set()
