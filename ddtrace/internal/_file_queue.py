@@ -40,7 +40,8 @@ except ModuleNotFoundError:
 
         flag = {"ab": _winapi.GENERIC_WRITE, "r+b": _winapi.GENERIC_READ | _winapi.GENERIC_WRITE}[mode]
         SHARED_READ_WRITE = 0x7
-        handle = _winapi.CreateFile(path, flag, SHARED_READ_WRITE, None, _winapi.OPEN_ALWAYS, 0, None)
+        OPEN_ALWAYS = 4
+        handle = _winapi.CreateFile(path, flag, SHARED_READ_WRITE, None, OPEN_ALWAYS, 0, None)
         fd = msvcrt.open_osfhandle(handle, 0)
         return unpatched_open(fd)
 
