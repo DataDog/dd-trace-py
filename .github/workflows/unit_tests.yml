@@ -37,9 +37,7 @@ jobs:
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
 
       - name: Install hatch
-        run: |
-          apt install -y python3-pip
-          python3 -m pip install hatch
+        run: pip install hatch
 
       - name: Run tests
         run: hatch run ddtrace_unit_tests:test
