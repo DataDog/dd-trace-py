@@ -1249,12 +1249,13 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest {cmdargs} tests/contrib/pynamodb",
+            # TODO: Py312 requires changes to test code
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
                         "pynamodb": ["~=5.0", "~=5.3", latest],
-                        "moto": latest,
+                        "moto": ">=1.0,<2.0",
                         "cfn-lint": "~=0.53.1",
                         "Jinja2": "~=2.11.0",
                         "pytest-randomly": latest,
@@ -1767,7 +1768,14 @@ venv = Venv(
             env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"},
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pys="3.7",
+                    pkgs={
+                        "grpcio": ["~=1.34.0", "~=1.59.0"],
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
                         "grpcio": ["~=1.34.0", "~=1.59.0"],
                         "pytest-asyncio": "==0.23.7",
@@ -1779,7 +1787,7 @@ venv = Venv(
                     pys="3.10",
                     pkgs={
                         "grpcio": ["~=1.42.0", "~=1.59.0"],
-                        "pytest-asyncio": "==0.21.1",
+                        "pytest-asyncio": "==0.23.7",
                     },
                 ),
                 Venv(
@@ -1787,7 +1795,7 @@ venv = Venv(
                     pys="3.11",
                     pkgs={
                         "grpcio": ["~=1.49.0", "~=1.59.0"],
-                        "pytest-asyncio": "==0.21.1",
+                        "pytest-asyncio": "==0.23.7",
                     },
                 ),
                 Venv(
@@ -1962,7 +1970,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
                 "pytest-aiohttp": [latest],
-                "pytest-asyncio": ["==0.23.7"],
                 "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7",
@@ -1970,7 +1977,20 @@ venv = Venv(
                 ],
                 "yarl": "~=1.0",
             },
-            pys=select_pys(min_version="3.7", max_version="3.12"),
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pkgs={
+                        "pytest-asyncio": ["==0.21.1"],
+                    },
+                ),
+                Venv(
+                    pys="3.12",
+                    pkgs={
+                        "pytest-asyncio": ["==0.23.7"],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="aiohttp_jinja2",
@@ -2031,16 +2051,28 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.10"),
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
-                        "pytest-asyncio": "==0.21.1",
                         "redis": [
                             "~=4.1",
                             "~=4.3",
                             "==5.0.1",
                         ],
                     },
+                    venvs=[
+                        Venv(
+                            pys="3.7",
+                            pkgs={
+                                "pytest-asyncio": "==0.21.1",
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.8", max_version="3.10"),
+                            pkgs={
+                                "pytest-asyncio": "==0.23.7",
+                            },
+                        ),
+                    ],
                 ),
                 Venv(
                     # redis added support for Python 3.11 in 4.3
@@ -2048,7 +2080,7 @@ venv = Venv(
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": ["~=4.3", "==5.0.1"],
-                        "pytest-asyncio": "==0.21.1",
+                        "pytest-asyncio": "==0.23.7",
                     },
                 ),
                 Venv(
