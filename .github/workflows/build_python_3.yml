@@ -14,19 +14,38 @@ on:
         type: string
 
 jobs:
+  build-wheels-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{steps.set-matrix.outputs.include}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+      - run: pip install cibuildwheel==2.16.5
+        env:
+          CIBW_BUILD: ${{ inputs.cibw_build }}
+      - id: set-matrix
+        run: |
+          MATRIX_INCLUDE=$(
+            {
+              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cRr '{only: ., arch: (capture("_(?<arch>x86_64|i686)$") | .arch), os: "ubuntu-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cRr '{only: ., arch: (capture("_(?<arch>aarch64)$") | .arch), os: "arm-4core-linux"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cRr '{only: ., arch: (capture("_(?<arch>AMD64|x86)$") | .arch), os: "windows-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cRr '{only: ., arch: (capture("_(?<arch>x86_64|universal2)$") | .arch), os: "macos-12"}'
+            } | jq - sc
+          )
+          echo "::set-output name=include::$MATRIX_INCLUDE"
+
   build:
+    needs: build-wheels-matrix
     runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.only }}
     strategy:
       matrix:
-        include:
-         - os: ubuntu-latest
-           archs: x86_64 i686
-         - os: arm-4core-linux
-           archs: aarch64
-         - os: windows-latest
-           archs: AMD64 x86
-         - os: macos-12
-           archs: x86_64 universal2
+        include: ${{ fromJson(needs.build-wheels-matrix.outputs.include) }}
+
     steps:
       - uses: actions/checkout@v4
         # Include all history and tags
@@ -64,7 +83,7 @@ jobs:
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
+          CIBW_ARCHS: ${{ matrix.arch }}
           CIBW_BUILD: ${{ inputs.cibw_build }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
@@ -103,7 +122,7 @@ jobs:
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
+          CIBW_ARCHS: ${{ matrix.arch }}
           CIBW_BUILD: ${{ inputs.cibw_build }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
@@ -138,11 +157,11 @@ jobs:
 
       - if: runner.os != 'Windows'
         run: |
-          echo "ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.archs }}-$(echo "${{ inputs.cibw_build }}" | tr -cd '[:alnum:]_-')" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.arch }}-$(echo "${{ inputs.cibw_build }}" | tr -cd '[:alnum:]_-')" >> $GITHUB_ENV
       - if: runner.os == 'Windows'
         run: |
           chcp 65001 #set code page to utf-8
-          echo ("ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.archs }}-${{ inputs.cibw_build }}".replace('*', '').replace(' ', '_')) >> $env:GITHUB_ENV
+          echo ("ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.arch }}-${{ inputs.cibw_build }}".replace('*', '').replace(' ', '_')) >> $env:GITHUB_ENV
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
