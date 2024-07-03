@@ -76,9 +76,15 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
             if hasattr(args[0], "DESCRIPTOR") and hasattr(args[0].DESCRIPTOR, "fields"):
                 request_message = args[0]
 
-        core.dispatch("grpc.server.data",
-                      (headers, request_message, self._handler_call_details.method,
-                       self._handler_call_details.invocation_metadata))
+        core.dispatch(
+            "grpc.server.data",
+            (
+                headers,
+                request_message,
+                self._handler_call_details.method,
+                self._handler_call_details.invocation_metadata,
+            ),
+        )
 
         trace_utils.activate_distributed_headers(tracer, int_config=config.grpc_server, request_headers=headers)
 

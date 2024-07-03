@@ -139,6 +139,7 @@ def _get_rate_limiter() -> RateLimiter:
 
 _ALLOWED_SPANS = {SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.GRPC}
 
+
 @dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
     rules: str = dataclasses.field(default_factory=get_rules)

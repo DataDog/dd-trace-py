@@ -425,6 +425,7 @@ def _on_grpc_server_response(message):
         return
 
     from ddtrace.appsec._asm_request_context import set_waf_address
+
     set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_RESPONSE_MESSAGE, message)
     _on_grpc_response(message)
 
@@ -433,7 +434,9 @@ def _on_grpc_server_data(headers, request_message, method, metadata):
     if not _is_iast_enabled():
         return
 
-    from ddtrace.appsec._asm_request_context import set_headers, set_waf_address
+    from ddtrace.appsec._asm_request_context import set_headers
+    from ddtrace.appsec._asm_request_context import set_waf_address
+
     set_headers(headers)
     if request_message is not None:
         set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_MESSAGE, request_message)
