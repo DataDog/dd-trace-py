@@ -104,9 +104,13 @@ def _deleted_rc_config():
             "expected_source": {"trace_http_header_tags": "code"},
         },
         {
-            "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1,X-Header-Tag-2"},
+            "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1,X-Header-Tag-2,X-Header-Tag-3:specific_tag3"},
             "expected": {
-                "trace_http_header_tags": {"X-Header-Tag-1": "header_tag_1", "X-Header-Tag-2": "header_tag_2"}
+                "trace_http_header_tags": {
+                    "X-Header-Tag-1": "X-Header-Tag-1",
+                    "X-Header-Tag-2": "X-Header-Tag-2",
+                    "X-Header-Tag-3": "specific_tag3",
+                }
             },
             "expected_source": {"trace_http_header_tags": "env_var"},
         },
