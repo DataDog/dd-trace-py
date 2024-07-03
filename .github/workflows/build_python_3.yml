@@ -32,7 +32,7 @@ jobs:
             {
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cRr '{only: ., arch: (capture("_(?<arch>x86_64|i686)$") | .arch), os: "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cRr '{only: ., arch: (capture("_(?<arch>aarch64)$") | .arch), os: "arm-4core-linux"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cRr '{only: ., arch: (capture("_(?<arch>AMD64|x86)$") | .arch), os: "windows-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cRr '{only: ., arch: (capture("_(?<arch>amd64|win32)$") | .arch), os: "windows-latest"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cRr '{only: ., arch: (capture("_(?<arch>x86_64|universal2)$") | .arch), os: "macos-12"}'
             } | jq -sc
           )
