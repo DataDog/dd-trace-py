@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euox pipefail
+set -euo pipefail
 
 ### Useful globals
 MY_DIR=$(dirname $(realpath $0))
@@ -48,6 +48,7 @@ CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 # Targets to target dirs
 declare -A target_dirs
 target_dirs["ddup"]="ddup"
+target_dirs["crashtracker"]="crashtracker"
 target_dirs["stack_v2"]="stack_v2"
 target_dirs["dd_wrapper"]="dd_wrapper"
 
@@ -142,18 +143,18 @@ print_help() {
   echo "Usage: ${MY_NAME} [options] [build_mode] [target]"
   echo "Options (one of)"
   echo "  -h, --help        Show this help message and exit"
-  echo "  -a, --address     Clang + " ${compile_args["address"]}
-  echo "  -l, --leak        Clang + " ${compile_args["leak"]}
-  echo "  -u, --undefined   Clang + " ${compile_args["undefined"]}
-  echo "  -s, --safety      Clang + " ${compile_args["safety"]}
-  echo "  -t, --thread      Clang + " ${compile_args["thread"]}
-  echo "  -n, --numerical   Clang + " ${compile_args["numerical"]}
-  echo "  -d, --dataflow    Clang + " ${compile_args["dataflow"]}  # Requires custom libstdc++ to work
-  echo "  -m  --memory      Clang + " ${compile_args["memory"]}
-  echo "  -C  --cppcheck    Clang + " ${compile_args["cppcheck"]}
-  echo "  -I  --infer       Clang + " ${compile_args["infer"]}
-  echo "  -T  --clangtidy   Clang + " ${compile_args["clangtidy"]}
-  echo "  -f, --fanalyze    GCC + " ${compile_args["fanalyzer"]}
+  echo "  -a, --address     Clang + " ${compiler_args["address"]}
+  echo "  -l, --leak        Clang + " ${compiler_args["leak"]}
+  echo "  -u, --undefined   Clang + " ${compiler_args["undefined"]}
+  echo "  -s, --safety      Clang + " ${compiler_args["safety"]}
+  echo "  -t, --thread      Clang + " ${compiler_args["thread"]}
+  echo "  -n, --numerical   Clang + " ${compiler_args["numerical"]}
+  echo "  -d, --dataflow    Clang + " ${compiler_args["dataflow"]}  # Requires custom libstdc++ to work
+  echo "  -m  --memory      Clang + " ${compiler_args["memory"]}
+  echo "  -C  --cppcheck    Clang + " ${compiler_args["cppcheck"]}
+  echo "  -I  --infer       Clang + " ${compiler_args["infer"]}
+  echo "  -T  --clangtidy   Clang + " ${compiler_args["clangtidy"]}
+  echo "  -f, --fanalyze    GCC + " ${compiler_args["fanalyzer"]}
   echo "  -c, --clang       Clang (alone)"
   echo "  -g, --gcc         GCC (alone)"
   echo "  --                Don't do anything special"
@@ -175,6 +176,8 @@ print_help() {
   echo "  stack_v2_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
   echo "  ddup_test (also builds dd_wrapper_test)"
+  echo "  crashtracker (also builds dd_wrapper)"
+  echo "  crashtracker_test (also builds dd_wrapper_test)"
 }
 
 print_cmake_args() {
@@ -289,6 +292,7 @@ add_target() {
     all|--)
       targets+=("stack_v2")
       targets+=("ddup")
+      targets+=("crashtracker")
       ;;
     dd_wrapper)
       # We always build dd_wrapper, so no need to add it to the list
@@ -298,6 +302,9 @@ add_target() {
       ;;
     ddup)
       targets+=("ddup")
+      ;;
+    crashtracker)
+      targets+=("crashtracker")
       ;;
     *)
       echo "Unknown target: $1"
