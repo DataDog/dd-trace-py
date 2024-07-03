@@ -37,11 +37,14 @@ except ModuleNotFoundError:
     def open_file(path, mode):
         import _winapi
 
-        flag = {"ab": _winapi.GENERIC_WRITE, "r+b": _winapi.GENERIC_READ | _winapi.GENERIC_WRITE}[mode]
-        fd_flag = {"ab": os.O_WRONLY | os.O_CREAT | os.O_BINARY, "r+b": os.O_RDWR | os.O_CREAT | os.O_BINARY}[mode]
+        # force all modes to be read/write binary
+        mode = "r+b"
+        flag = _winapi.GENERIC_READ | _winapi.GENERIC_WRITE
+        fd_flag = os.O_RDWR | os.O_CREAT | os.O_BINARY | os.O_RANDOM
         SHARED_READ_WRITE = 0x7
         OPEN_ALWAYS = 4
-        handle = _winapi.CreateFile(path, flag, SHARED_READ_WRITE, 0, OPEN_ALWAYS, 0, 0)
+        RANDOM_ACCESS = 0x10000000
+        handle = _winapi.CreateFile(path, flag, SHARED_READ_WRITE, 0, OPEN_ALWAYS, RANDOM_ACCESS, 0)
         fd = msvcrt.open_osfhandle(handle, fd_flag | os.O_NOINHERIT)
         return unpatched_open(fd, mode)
 
