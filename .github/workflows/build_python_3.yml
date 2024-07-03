@@ -36,7 +36,8 @@ jobs:
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cRr '{only: ., arch: (capture("_(?<arch>x86_64|universal2)$") | .arch), os: "macos-12"}'
             } | jq -sc
           )
-          echo "::set-output name=include::$MATRIX_INCLUDE"
+          echo $MATRIX_INCLUDE
+          echo "include=${MATRIX_INCLUDE}" >> $GITHUB_OUTPUT
 
   build:
     needs: build-wheels-matrix
