@@ -70,8 +70,13 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
             )
             if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
                 raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "lfi", filename)
-
-    return original_open_callable(*args, **kwargs)
+    try:
+        return original_open_callable(*args, **kwargs)
+    except Exception as e:
+        previous_frame = e.__traceback__.tb_frame.f_back
+        raise e.with_traceback(
+            e.__traceback__.__class__(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno)
+        )
 
 
 def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs):

@@ -48,6 +48,7 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
+CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
 CURRENT_OS = platform.system()
@@ -478,6 +479,19 @@ if not IS_PYSTON:
             )
         )
 
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
+                source_dir=CRASHTRACKER_DIR,
+                cmake_args=[
+                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
+                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
+                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
+                ],
+                optional=False,
+            )
+        )
+
         # Echion doesn't build on 3.7, so just skip it outright for now
         if sys.version_info >= (3, 8):
             ext_modules.append(
@@ -501,6 +515,7 @@ setup(
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
+        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python

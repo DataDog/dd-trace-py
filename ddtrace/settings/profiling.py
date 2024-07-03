@@ -62,14 +62,60 @@ def _check_for_stack_v2_available():
     return stack_v2_is_available
 
 
+def _derive_libdd_enabled(config):
+    # type: (ProfilingConfig.Export) -> bool
+    if not _check_for_ddup_available():
+        return False
+    if not config._libdd_enabled and config.libdd_required:
+        logger.debug("Enabling libdd because it is required")
+    return config.libdd_required or config._libdd_enabled
+
+
 # We don't check for the availability of the ddup module when determining whether libdd is _required_,
 # since it's up to the application code to determine what happens in that failure case.
-def _is_libdd_required(config):
+def _derive_libdd_required(config):
+    # type: (ProfilingConfig.Export) -> bool
+    if not config._libdd_required and config.stack.v2.enabled:
+        logger.debug("Requiring libdd because stack v2 is enabled")
     return config.stack.v2.enabled or config._libdd_required
 
 
+# When you have nested classes and include them, it looks like envier prefixes the included class with the outer class.
+# The way around this is to define classes-to-be-included on the outside of the parent class, instantiate them within
+# the parent, then include them in the inner class.
+# This is fine, except we want the prefixes to line up
+profiling_prefix = "dd.profiling"
+
+
+class StackConfig(En):
+    __prefix__ = profiling_prefix + ".stack"
+
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the stack profiler",
+    )
+
+    class V2(En):
+        __item__ = __prefix__ = "v2"
+
+        _enabled = En.v(
+            bool,
+            "enabled",
+            default=False,
+            help_type="Boolean",
+            help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
+        )
+
+        enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._enabled)
+
+
 class ProfilingConfig(En):
-    __prefix__ = "dd.profiling"
+    __prefix__ = profiling_prefix
+
+    stack = StackConfig()
 
     enabled = En.v(
         bool,
@@ -188,29 +234,13 @@ class ProfilingConfig(En):
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
 
-    class Stack(En):
-        __item__ = __prefix__ = "stack"
-
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the stack profiler",
-        )
-
-        class V2(En):
-            __item__ = __prefix__ = "v2"
-
-            _enabled = En.v(
-                bool,
-                "enabled",
-                default=False,
-                help_type="Boolean",
-                help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
-            )
-
-            enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._enabled)
+    enable_asserts = En.v(
+        bool,
+        "enable_asserts",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable debug assertions in the profiler code",
+    )
 
     class Lock(En):
         __item__ = __prefix__ = "lock"
@@ -221,6 +251,15 @@ class ProfilingConfig(En):
             default=True,
             help_type="Boolean",
             help="Whether to enable the lock profiler",
+        )
+
+        name_inspect_dir = En.v(
+            bool,
+            "name_inspect_dir",
+            default=True,
+            help_type="Boolean",
+            help="Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
+            "With this enabled, the profiler finds the name of locks that are attributes of an object.",
         )
 
     class Memory(En):
@@ -275,7 +314,7 @@ class ProfilingConfig(En):
 
         libdd_required = En.d(
             bool,
-            _is_libdd_required,
+            _derive_libdd_required,
         )
 
         _libdd_enabled = En.v(
@@ -287,10 +326,12 @@ class ProfilingConfig(En):
         )
 
         libdd_enabled = En.d(
-            bool, lambda c: (_is_libdd_required(c) or c._libdd_enabled) and _check_for_ddup_available()
+            bool,
+            _derive_libdd_enabled,
         )
 
-    Export.include(Stack, namespace="stack")
+
+ProfilingConfig.Export.include(ProfilingConfig.stack, namespace="stack")
 
 
 config = ProfilingConfig()

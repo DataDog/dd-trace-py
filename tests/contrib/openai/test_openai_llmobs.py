@@ -36,7 +36,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
                 metadata={"temperature": 0.8, "max_tokens": 10},
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
+                token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -58,7 +58,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": expected_completion}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 16, "total_tokens": 18},
+                token_metrics={"input_tokens": 2, "output_tokens": 16, "total_tokens": 18},
                 tags={"ml_app": "<ml-app-name>"},
             ),
         )
@@ -95,7 +95,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
+                token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -132,7 +132,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20},
+                token_metrics={"input_tokens": 8, "output_tokens": 12, "total_tokens": 20},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -164,7 +164,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -200,7 +200,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 63, "completion_tokens": 33, "total_tokens": 96},
+                token_metrics={"input_tokens": 63, "output_tokens": 33, "total_tokens": 96},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -227,7 +227,7 @@ class TestLLMObsOpenaiV0:
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -337,7 +337,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
                 metadata={"temperature": 0.8, "max_tokens": 10},
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
+                token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -364,7 +364,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": expected_completion}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
+                token_metrics={"input_tokens": 2, "output_tokens": 2, "total_tokens": 4},
                 tags={"ml_app": "<ml-app-name>"},
             ),
         )
@@ -400,7 +400,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
+                token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -438,7 +438,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 8, "completion_tokens": 8, "total_tokens": 16},
+                token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -469,7 +469,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -503,7 +503,7 @@ class TestLLMObsOpenaiV1:
                     }
                 ],
                 metadata={"temperature": 0},
-                token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
@@ -574,6 +574,120 @@ class TestLLMObsOpenaiV1:
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
+
+    def test_embedding_string(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(input="hello world", model="text-embedding-ada-002")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                metadata={"encoding_format": "float"},
+                input_documents=[{"text": "hello world"}],
+                output_value="[1 embedding(s) returned with size 1536]",
+                token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
+
+    def test_embedding_string_array(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_string_array.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                metadata={"encoding_format": "float"},
+                input_documents=[{"text": "hello world"}, {"text": "hello again"}],
+                output_value="[2 embedding(s) returned with size 1536]",
+                token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
+
+    def test_embedding_token_array(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_token_array.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                metadata={"encoding_format": "float"},
+                input_documents=[{"text": "[1111, 2222, 3333]"}],
+                output_value="[1 embedding(s) returned with size 1536]",
+                token_metrics={"input_tokens": 3, "output_tokens": 0, "total_tokens": 3},
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
+
+    def test_embedding_array_of_token_arrays(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_array_of_token_arrays.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(
+                input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]], model="text-embedding-ada-002"
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                metadata={"encoding_format": "float"},
+                input_documents=[
+                    {"text": "[1111, 2222, 3333]"},
+                    {"text": "[4444, 5555, 6666]"},
+                    {"text": "[7777, 8888, 9999]"},
+                ],
+                output_value="[3 embedding(s) returned with size 1536]",
+                token_metrics={"input_tokens": 9, "output_tokens": 0, "total_tokens": 9},
+                tags={"ml_app": "<ml-app-name>"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 10, 0), reason="Embedding dimensions available in 1.10.0+"
+    )
+    def test_embedding_string_base64(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_b64.yaml"):
+            client = openai.OpenAI()
+            resp = client.embeddings.create(
+                input="hello world",
+                model="text-embedding-3-small",
+                encoding_format="base64",
+                dimensions=512,
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                span_kind="embedding",
+                model_name=resp.model,
+                model_provider="openai",
+                metadata={"encoding_format": "base64", "dimensions": 512},
+                input_documents=[{"text": "hello world"}],
+                output_value="[1 embedding(s) returned]",
+                token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )

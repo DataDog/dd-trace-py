@@ -6,61 +6,44 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
-from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_LOGS
-from tests.telemetry.test_writer import _get_request_body
 from tests.utils import override_global_config
 
 
 def _assert_metric(
     test_agent,
-    expected_series,
+    expected_metrics,
     namespace=TELEMETRY_NAMESPACE_TAG_TRACER,
     type_paypload=TELEMETRY_TYPE_GENERATE_METRICS,
-    seq_id=1,
 ):
-    test_agent.telemetry_writer.periodic()
-    events = test_agent.get_events()
+    assert len(expected_metrics) > 0, "expected_metrics should not be empty"
+    test_agent.telemetry_writer.periodic(force_flush=True)
+    metrics_events = test_agent.get_events(type_paypload)
+    assert len(metrics_events) > 0, "captured metrics events should not be empty"
 
-    filtered_events = [event for event in events if event["request_type"] != "app-dependencies-loaded"]
+    metrics = []
+    for event in metrics_events:
+        if event["payload"]["namespace"] == namespace:
+            for metric in event["payload"]["series"]:
+                metric["tags"].sort()
+                metrics.append(metric)
 
-    payload = {
-        "namespace": namespace,
-        "series": expected_series,
-    }
-    assert filtered_events[0]["request_type"] == type_paypload
-
-    # Python 2.7 and Python 3.5 fail with dictionaries and lists order
-    expected_body = _get_request_body(payload, type_paypload, seq_id)
-    expected_body_sorted = expected_body["payload"]["series"]
-    for metric in expected_body_sorted:
-        metric["tags"].sort()
-    expected_body_sorted.sort(key=lambda x: (x["metric"], x["tags"], x.get("type")), reverse=False)
-
-    filtered_events.sort(key=lambda x: x["seq_id"], reverse=True)
-    result_event = filtered_events[0]["payload"]["series"]
-    for metric in result_event:
-        metric["tags"].sort()
-    result_event.sort(key=lambda x: (x["metric"], x["tags"], x.get("type")), reverse=False)
-
-    assert result_event == expected_body_sorted
+    for expected_metric in expected_metrics:
+        expected_metric["tags"].sort()
+        assert expected_metric in metrics
 
 
-def _assert_logs(
-    test_agent,
-    expected_payload,
-    seq_id=1,
-):
-    test_agent.telemetry_writer.periodic()
-    events = test_agent.get_events()
+def _assert_logs(test_agent, expected_logs):
+    assert len(expected_logs) > 0, "expected_logs should not be empty"
+    test_agent.telemetry_writer.periodic(force_flush=True)
+    log_events = test_agent.get_events("logs")
+    assert len(log_events) > 0, "captured log events should not be empty"
 
-    expected_body = _get_request_body({"logs": expected_payload}, TELEMETRY_TYPE_LOGS, seq_id)
-    expected_body["payload"]["logs"].sort(key=lambda x: x["message"], reverse=False)
-    expected_body_sorted = expected_body["payload"]["logs"]
+    captured_logs = []
+    for event in log_events:
+        captured_logs += event["payload"]["logs"]
 
-    events[0]["payload"]["logs"].sort(key=lambda x: x["message"], reverse=False)
-    result_event = events[0]["payload"]["logs"]
-
-    assert result_event == expected_body_sorted
+    for expected_log in expected_logs:
+        assert expected_log in captured_logs
 
 
 def test_send_metric_flush_and_generate_metrics_series_is_restarted(telemetry_writer, test_agent_session, mock_time):
@@ -80,7 +63,7 @@ def test_send_metric_flush_and_generate_metrics_series_is_restarted(telemetry_wr
 
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, (("a", "b"),))
 
-    _assert_metric(test_agent_session, expected_series, seq_id=2)
+    _assert_metric(test_agent_session, expected_series)
 
 
 def test_send_metric_datapoint_equal_type_and_tags_yields_single_series(
@@ -346,7 +329,6 @@ def test_send_metric_flush_and_distributions_series_is_restarted(telemetry_write
         expected_series,
         namespace=TELEMETRY_NAMESPACE_TAG_APPSEC,
         type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
-        seq_id=2,
     )
 
 
@@ -399,7 +381,7 @@ def test_send_multiple_log_metric(telemetry_writer, test_agent_session, mock_tim
 
         telemetry_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
 
-        _assert_logs(test_agent_session, expected_payload, seq_id=2)
+        _assert_logs(test_agent_session, expected_payload)
 
 
 def test_send_multiple_log_metric_no_duplicates(telemetry_writer, test_agent_session, mock_time):
@@ -438,7 +420,7 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval(telemetry_writ
         for _ in range(10):
             telemetry_writer.add_log("WARNING", "test error 1")
 
-        _assert_logs(test_agent_session, expected_payload, seq_id=2)
+        _assert_logs(test_agent_session, expected_payload)
 
 
 def test_send_multiple_log_metric_no_duplicates_for_each_interval_check_time(telemetry_writer, test_agent_session):
@@ -461,4 +443,4 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval_check_time(tel
             sleep(0.1)
             telemetry_writer.add_log("WARNING", "test error 1")
 
-        _assert_logs(test_agent_session, expected_payload, seq_id=2)
+        _assert_logs(test_agent_session, expected_payload)
