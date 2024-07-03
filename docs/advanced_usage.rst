@@ -238,7 +238,7 @@ To trace requests across hosts, the spans on the secondary hosts must be linked 
 - On the client side, it means to propagate the attributes, commonly as a header/metadata.
 
 Note that `ddtrace` makes use of lazy sampling, essentially making the sampling decision for a trace at the latest possible moment.
-This includes before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumentedintegration.
+This includes before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumented integration.
 If utilizing your own propagator make sure to run `tracer.sample(tracer.current_root_span())`
 before propagating downstream, to ensure that the sampling decision is the same across the trace.
 
