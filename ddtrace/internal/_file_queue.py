@@ -30,7 +30,7 @@ except ModuleNotFoundError:
     import msvcrt
 
     def lock(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, MAX_FILE_SIZE)
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, MAX_FILE_SIZE)
 
     def unlock(f):
         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, MAX_FILE_SIZE)
