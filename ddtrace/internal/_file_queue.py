@@ -1,7 +1,6 @@
 import os
 import os.path
 import secrets
-import sys
 import tempfile
 import typing
 
@@ -29,10 +28,12 @@ except ModuleNotFoundError:
     import msvcrt
 
     def lock(f):
+        # You need to seek to the beginning of the file before locking it
         f.seek(0)
         msvcrt.locking(f.fileno(), msvcrt.LK_RLCK, MAX_FILE_SIZE)
 
     def unlock(f):
+        # You need to seek to the same position of the file when you locked before unlocking it
         f.seek(0)
         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, MAX_FILE_SIZE)
 
@@ -62,19 +63,12 @@ class File_Queue:
         """Push a string to the queue."""
         try:
             with open_file(self.filename, "ab") as f:
-                print(f"File opened {self.filename} {data}", file=sys.stderr)
                 lock(f)
-                print(f"File locked {self.filename} {data}", file=sys.stderr)
                 f.seek(0, os.SEEK_END)
-                print(f"File to end {self.filename} {data}", file=sys.stderr)
                 if f.tell() < MAX_FILE_SIZE:
                     f.write((data + "\x00").encode())
-                print(f"File wrote {self.filename} {data}", file=sys.stderr)
                 unlock(f)
-                print(f"File unlocked {self.filename} {data}", file=sys.stderr)
-                return
-        except Exception as e:  # nosec
-            print(f"Failed to write to file queue: {self.filename} {data} {e!r}", file=sys.stderr)
+        except Exception:  # nosec
             pass
 
     def get_all(self) -> typing.Set[str]:
@@ -87,10 +81,8 @@ class File_Queue:
                 f.seek(0)
                 f.truncate()
                 unlock(f)
-            if not data:
-                return set()
-            return set(data.split("\x00")[:-1])
-        except Exception as e:  # nosec
+            if data:
+                return set(data.split("\x00")[:-1])
+        except Exception:  # nosec
             pass
-            print(f"Failed to read from file queue: {self.filename} {e!r}", file=sys.stderr)
-            return set()
+        return set()
