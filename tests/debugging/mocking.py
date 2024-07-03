@@ -33,18 +33,20 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
         self.queue.append(payload.decode())
 
     def wait_for_payloads(self, cond=lambda _: bool(_), timeout=1.0):
+        _cond = (lambda _: len(_) == cond) if isinstance(cond, int) else cond
+
         end = monotonic() + timeout
 
-        while not cond(self.queue):
+        while not _cond(self.payloads):
             if monotonic() > end:
-                raise PayloadWaitTimeout(cond, timeout)
+                raise PayloadWaitTimeout(_cond, timeout)
             sleep(0.05)
 
         return self.payloads
 
     @property
     def payloads(self):
-        return [json.loads(data) for data in self.queue]
+        return [_ for data in self.queue for _ in json.loads(data)]
 
 
 class MockDebuggingRCV07(object):
@@ -150,7 +152,10 @@ class TestDebugger(Debugger):
 
     @contextmanager
     def assert_single_snapshot(self):
+        self.uploader.wait_for_payloads()
+
         assert len(self.test_queue) == 1
+
         yield self.test_queue[0]
 
 

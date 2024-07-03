@@ -14,6 +14,7 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
+DocumentType = Dict[str, Union[str, int, float]]
 
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
@@ -44,7 +45,7 @@ class Messages:
 
 
 class Documents:
-    def __init__(self, documents: Union[List[Dict[str, str]], Dict[str, str], str]):
+    def __init__(self, documents: Union[List[DocumentType], DocumentType, str]):
         self.documents = []
         if not isinstance(documents, list):
             documents = [documents]  # type: ignore[list-item]
