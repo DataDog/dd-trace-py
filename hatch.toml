@@ -310,11 +310,15 @@ dependencies = [
     "hypothesis",
 ]
 
+[envs.ddtrace_unit_tests.env-vars]
+DD_IAST_ENABLED = "false"
+DD_REMOTE_CONFIGURATION_ENABLED = "false"
+
 [envs.ddtrace_unit_tests.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/internal/service_name/test_extra_services_names.py",
+    "python -m pytest tests/internal/service_name/test_extra_services_names.py",
 ]
 
 [[envs.ddtrace_unit_tests.matrix]]
