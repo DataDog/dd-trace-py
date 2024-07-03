@@ -24,9 +24,9 @@ jobs:
         with:
           python-version: '3.8'
       - run: pip install cibuildwheel==2.16.5
+      - id: set-matrix
         env:
           CIBW_BUILD: ${{ inputs.cibw_build }}
-      - id: set-matrix
         run: |
           MATRIX_INCLUDE=$(
             {
