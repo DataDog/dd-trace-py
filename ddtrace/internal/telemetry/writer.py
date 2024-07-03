@@ -231,14 +231,12 @@ class TelemetryWriter(PeriodicService):
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
     _ORIGINAL_EXCEPTHOOK = sys.excepthook
+    FLUSH_HEARTBEAT_COUNT = 6
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
-        super(TelemetryWriter, self).__init__(interval=min(config._telemetry_heartbeat_interval, 10))
+        super(TelemetryWriter, self).__init__(interval=10)
         # Decouples the aggregation and sending of the telemetry events
-        # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
-        # By default this will occur at 10 second intervals.
-        self._periodic_threshold = int(config._telemetry_heartbeat_interval // self.interval) - 1
         self._periodic_count = 0
         self._is_periodic = is_periodic
         self._integrations_queue = dict()  # type: Dict[str, Dict]
@@ -749,15 +747,15 @@ class TelemetryWriter(PeriodicService):
         if logs_metrics:
             self._generate_logs_event(logs_metrics)
 
-        # Telemetry metrics and logs should be aggregated into payloads every time periodic is called.
-        # This ensures metrics and logs are submitted in 0 to 10 second time buckets.
-        # Optimization: All other events should be aggregated using `config._telemetry_heartbeat_interval`.
-        # Telemetry payloads will be submitted according to `config._telemetry_heartbeat_interval`.
-        if self._is_periodic and force_flush is False:
-            if self._periodic_count < self._periodic_threshold:
-                self._periodic_count += 1
-                return
-            self._periodic_count = 0
+        # Telemetry metrics and logs should be aggregated into payloads every interval (10 seconds).
+        # All other events should be aggregated into payloads every 6th interval (60 seconds).
+        # Telemetry payloads will be submitted  every 6th interval (60 seconds).
+        self._periodic_count += 1
+        if self._is_periodic and not force_flush and self._periodic_count % self.FLUSH_HEARTBEAT_COUNT != 0:
+            return
+
+        # Send a heartbeat event to the agent, this is required to keep RC connections alive
+        self._app_heartbeat_event()
 
         integrations = self._flush_integrations_queue()
         if integrations:
@@ -772,11 +770,9 @@ class TelemetryWriter(PeriodicService):
             if newly_imported_deps:
                 self._app_dependencies_loaded_event(newly_imported_deps)
 
+        # app-closing event should only be the last event sent
         if shutting_down:
             self._app_closing_event()
-
-        # Send a heartbeat event to the agent, this is required to keep RC connections alive
-        self._app_heartbeat_event()
 
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:

@@ -516,34 +516,16 @@ def test_send_failing_request(mock_status, telemetry_writer):
             assert len(httpretty.latest_requests()) == 1
 
 
-def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, Any) -> None
-    """asserts that we queue/send app-heartbeat when periodc() is called"""
-    # Ensure telemetry writer is initialized to send periodic events
-    telemetry_writer._is_periodic = True
-    telemetry_writer.started = True
-    # Assert default telemetry interval is 10 seconds and the expected periodic threshold and counts are set
-    assert telemetry_writer.interval == 10
-    assert telemetry_writer._periodic_threshold == 5
-    assert telemetry_writer._periodic_count == 0
-
-    # Assert next flush contains app-heartbeat event
-    for _ in range(telemetry_writer._periodic_threshold):
-        telemetry_writer.periodic()
-        assert test_agent_session.get_events("app-heartbeat") == []
-
-    telemetry_writer.periodic()
-    heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
-    assert len(heartbeat_events) == 1
-
-
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
-    """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
-    # Assert a maximum of one heartbeat is queued per flush
-    telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
-    assert len(events) > 0
+    """asserts that an app-heartbeat event is sent on the 6th invocation of periodic"""
+    for i in range(6):
+        telemetry_writer.periodic()
+        events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
+        if i < 5:
+            assert len(events) == 0
+        else:
+            assert len(events) == 1
 
 
 def _get_request_body(payload, payload_type, seq_id=1):

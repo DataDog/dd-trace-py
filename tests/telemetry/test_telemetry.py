@@ -106,11 +106,6 @@ from ddtrace.internal.runtime import get_runtime_id
 if os.fork() > 0:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
-
-# Heartbeat events are only sent if no other events are queued
-from ddtrace.internal.telemetry import telemetry_writer
-telemetry_writer.reset_queues()
-telemetry_writer.periodic(force_flush=True)
     """
     env = os.environ.copy()
     env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
@@ -126,30 +121,6 @@ telemetry_writer.periodic(force_flush=True)
     assert len(app_heartbeats) > 0
     for hb in app_heartbeats:
         assert hb["runtime_id"] == runtime_id
-
-
-def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
-    """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
-    code = """
-import warnings
-# This test logs the following warning in py3.12:
-# This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-from ddtrace import config
-assert config._telemetry_heartbeat_interval == 61
-
-from ddtrace.internal.telemetry import telemetry_writer
-assert telemetry_writer._is_periodic is True
-assert telemetry_writer.interval == 10
-assert telemetry_writer._periodic_threshold == 5
-    """
-
-    env = os.environ.copy()
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
-    assert status == 0, stderr
-    assert stderr == b""
 
 
 def test_logs_after_fork(run_python_code_in_subprocess):
