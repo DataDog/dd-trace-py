@@ -311,10 +311,15 @@ class TelemetryWriter(PeriodicService):
         if TelemetryWriterModuleWatchdog.is_installed():
             TelemetryWriterModuleWatchdog.uninstall()
         self.reset_queues()
-        if self._is_periodic and self.status is ServiceStatus.RUNNING and self._worker is not None:
+        if self._is_running():
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
+
+    def _is_running(self):
+        # type: () -> bool
+        """Returns True when the telemetry writer worker thread is running"""
+        return self._is_periodic and self._worker is not None and self.status is ServiceStatus.RUNNING
 
     def add_event(self, payload, payload_type):
         # type: (Union[Dict[str, Any], List[Any]], str) -> None
@@ -808,7 +813,7 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        if self._is_periodic:
+        if self._is_running():
             self.stop(join=False)
 
         # Enable writer service in child process to avoid interpreter shutdown
