@@ -44,7 +44,7 @@ except ModuleNotFoundError:
         OPEN_ALWAYS = 4
         handle = _winapi.CreateFile(path, flag, SHARED_READ_WRITE, 0, OPEN_ALWAYS, 0, 0)
         fd = msvcrt.open_osfhandle(handle, fd_flag | os.O_NOINHERIT)
-        return unpatched_open(fd)
+        return os.fdopen(fd, mode)
 
 
 class File_Queue:
