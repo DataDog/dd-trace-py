@@ -158,7 +158,7 @@ jobs:
 
       - if: runner.os != 'Windows'
         run: |
-          echo "ARTIFACT_NAME=${{ matrix.only }} >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${{ matrix.only }}" >> $GITHUB_ENV
       - if: runner.os == 'Windows'
         run: |
           chcp 65001 #set code page to utf-8
