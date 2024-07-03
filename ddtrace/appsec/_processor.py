@@ -225,7 +225,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib import trace_utils
 
-        if span.span_type != _ALLOWED_SPANS:
+        if span.span_type not in _ALLOWED_SPANS:
             return
 
         if _asm_request_context.free_context_available():

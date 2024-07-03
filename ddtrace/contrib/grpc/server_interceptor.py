@@ -51,7 +51,8 @@ def _handle_server_exception(server_context, span):
 def _wrap_response_iterator(response_iterator, server_context, span):
     try:
         for response in response_iterator:
-            core.dispatch("grpc.server.response.message", (response,))
+            if response is not None:
+                core.dispatch("grpc.server.response.message", (response,))
             yield response
     except Exception:
         span.set_traceback()
@@ -123,7 +124,8 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
                 response_or_iterator = _wrap_response_iterator(response_or_iterator, server_context, span)
             else:
                 # not iterator
-                core.dispatch("grpc.server.response.message", (response_or_iterator,))
+                if response_or_iterator is not None:
+                    core.dispatch("grpc.server.response.message", (response_or_iterator,))
         except Exception:
             span.set_traceback()
             _handle_server_exception(server_context, span)
