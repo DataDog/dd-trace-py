@@ -1,4 +1,5 @@
 import random
+import re
 import threading
 import time
 
@@ -31,7 +32,9 @@ def test_service_name(nb_service):
     for thread in threads:
         thread.join()
 
-    assert len(ddtrace.config._get_extra_services()) == min(nb_service, MAX_NAMES)
+    extra_services = ddtrace.config._get_extra_services()
+    assert len(extra_services) == min(nb_service, MAX_NAMES)
+    assert all(re.match(r"extra_service_\d+", service) for service in extra_services)
 
     ddtrace.config._remote_config_enabled = default_remote_config_enabled
     if not default_remote_config_enabled:
