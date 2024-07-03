@@ -1751,7 +1751,7 @@ venv = Venv(
                     pys="3.12",
                     pkgs={
                         "grpcio": ["~=1.59.0", latest],
-                        "pytest-asyncio": "==0.23.0",
+                        "pytest-asyncio": "==0.23.7",
                     },
                 ),
             ],
@@ -1794,7 +1794,7 @@ venv = Venv(
                     pys="3.12",
                     pkgs={
                         "grpcio": latest,
-                        "pytest-asyncio": "==0.23.0",
+                        "pytest-asyncio": "==0.23.7",
                     },
                 ),
             ],
@@ -2058,7 +2058,7 @@ venv = Venv(
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
-                        "pytest-asyncio": "==0.23.0",
+                        "pytest-asyncio": "==0.23.7",
                     },
                 ),
             ],
@@ -2373,7 +2373,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.11"), pkgs={"pytest-asyncio": "==0.21.1"}
                         ),
-                        Venv(pys="3.12", pkgs={"pytest-asyncio": "==0.23.0"}),
+                        Venv(pys="3.12", pkgs={"pytest-asyncio": "==0.23.7"}),
                     ],
                 ),
                 Venv(
@@ -2386,7 +2386,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.8", max_version="3.11"), pkgs={"pytest-asyncio": "==0.21.1"}
                         ),
-                        Venv(pys="3.12", pkgs={"pytest-asyncio": "==0.23.0"}),
+                        Venv(pys="3.12", pkgs={"pytest-asyncio": "==0.23.7"}),
                     ],
                 ),
             ],
