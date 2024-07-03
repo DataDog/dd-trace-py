@@ -1770,7 +1770,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
                     pkgs={
                         "grpcio": ["~=1.34.0", "~=1.59.0"],
-                        "pytest-asyncio": "==0.21.1",
+                        "pytest-asyncio": "==0.23.7",
                     },
                 ),
                 Venv(
