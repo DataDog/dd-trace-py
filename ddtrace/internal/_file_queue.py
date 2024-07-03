@@ -62,11 +62,16 @@ class File_Queue:
         for i in range(10):  # only useful for retrying on windows
             try:
                 with open_file(self.filename, "ab") as f:
+                    print(f"{i} File opened {self.filename} {data}", file=sys.stderr)
                     lock(f)
+                    print(f"{i} File locked {self.filename} {data}", file=sys.stderr)
                     f.seek(0, os.SEEK_END)
+                    print(f"{i} File to end {self.filename} {data}", file=sys.stderr)
                     if f.tell() < MAX_FILE_SIZE:
                         f.write((data + "\x00").encode())
+                    print(f"{i} File wrote {self.filename} {data}", file=sys.stderr)
                     unlock(f)
+                    print(f"{i} File unlocked {self.filename} {data}", file=sys.stderr)
                     return
             except Exception as e:  # nosec
                 time.sleep(0.001)  # only useful for retrying on windows
