@@ -13,10 +13,10 @@ try:
     # Availability: Unix, not Emscripten, not WASI.
     import fcntl
 
-    def lock(f):
+    def lock(f, _):
         fcntl.lockf(f, fcntl.LOCK_EX)
 
-    def unlock(f):
+    def unlock(f, _):
         fcntl.lockf(f, fcntl.LOCK_UN)
 
     def open_file(path, mode):
@@ -26,14 +26,14 @@ except ModuleNotFoundError:
     # Availability: Windows
     import msvcrt
 
-    def size(f):
-        return os.path.getsize(os.path.realpath(f.name))
+    def size(filename):
+        return os.path.getsize(os.path.realpath(filename))
 
-    def lock(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_RLCK, size(f))
+    def lock(f, filename):
+        msvcrt.locking(f.fileno(), msvcrt.LK_RLCK, size(filename))
 
-    def unlock(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, size(f))
+    def unlock(f, filename):
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, size(filename))
 
     def open_file(path, mode):
         import _winapi
@@ -58,10 +58,10 @@ class File_Queue:
         """Push a string to the queue."""
         try:
             with open_file(self.filename, "ab") as f:
-                lock(f)
+                lock(f, self.filename)
                 f.seek(0, os.SEEK_END)
                 f.write((data + "\x00").encode())
-                unlock(f)
+                unlock(f, self.filename)
         except Exception as e:  # nosec
             print(f"Failed to write to file queue: {self.filename} {data} {e!r}", file=sys.stderr)
             pass
@@ -70,12 +70,12 @@ class File_Queue:
         """Pop all unique strings from the queue."""
         try:
             with open_file(self.filename, "r+b") as f:
-                lock(f)
+                lock(f, self.filename)
                 f.seek(0)
                 data = f.read().decode()
                 f.seek(0)
                 f.truncate()
-                unlock(f)
+                unlock(f, self.filename)
             if not data:
                 return set()
             return set(data.split("\x00")[:-1])
