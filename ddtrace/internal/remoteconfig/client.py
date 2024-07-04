@@ -130,7 +130,8 @@ class Root:
     version: int
 
     def __post_init__(self):
-        assert self._type == "root"
+        if self._type != "root":
+            raise ValueError("Root: invalid root type")
         if isinstance(self.expires, str):
             self.expires = parse_isoformat(self.expires)
         for k, v in self.keys.items():
@@ -171,8 +172,10 @@ class Targets:
     version: int
 
     def __post_init__(self):
-        assert self._type == "targets"
-        assert self.spec_version in ("1.0", "1.0.0")
+        if self._type != "targets":
+            raise ValueError("Targets: invalid targets type")
+        if self.spec_version not in ("1.0", "1.0.0"):
+            raise ValueError("Targets: invalid spec version")
         if isinstance(self.expires, str):
             self.expires = parse_isoformat(self.expires)
         for k, v in self.targets.items():
