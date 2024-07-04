@@ -266,7 +266,7 @@ def test_export_404_agentless(endpoint_test_unknown_server):
     assert str(t.value) == "HTTP Error 404"
 
 
-@pytest.mark.dependency()
+@pytest.mark.dependency(depends=["test_wrong_api_key", "test_export"])
 @pytest.mark.serial
 def test_export_tracer_base_path(endpoint_test_server):
     # Base path is prepended to the endpoint path because
@@ -280,7 +280,7 @@ def test_export_tracer_base_path(endpoint_test_server):
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
-@pytest.mark.dependency(depends=["test_export_tracer_base_path"])
+@pytest.mark.dependency(depends=["test_wrong_api_key", "test_export", "test_export_tracer_base_path"])
 @pytest.mark.serial
 def test_export_tracer_base_path_agent_less(endpoint_test_server):
     # Base path is ignored by the profiling HTTP exporter
