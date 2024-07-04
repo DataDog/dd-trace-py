@@ -482,9 +482,8 @@ class StackCollector(collector.PeriodicCollector):
     _thread_span_links: typing.Optional[_ThreadSpanLinks] = None
     _stack_collector_v2_enabled: bool = config.stack.v2.enabled
 
-    @max_time_usage_pct.validator
-    def _check_max_time_usage(self, attribute, value):
-        if value <= 0 or value > 100:
+    def __post_init__(self):
+        if self.max_time_usage_pct <= 0 or self.max_time_usage_pct > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
     def _init(self):
