@@ -49,8 +49,8 @@ PYTHON_INTERPRETER = platform.python_implementation()
 import http.client as httplib  # noqa: E402
 from io import StringIO  # noqa: E402
 from queue import Queue  # noqa: E402
-from urllib.parse import urlencode  # noqa: E402
 import urllib.parse as parse  # noqa: E402
+from urllib.parse import urlencode  # noqa: E402
 
 
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
