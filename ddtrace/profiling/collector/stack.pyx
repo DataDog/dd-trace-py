@@ -477,8 +477,8 @@ class StackCollector(collector.PeriodicCollector):
     ignore_profiler: bool = config.ignore_profiler
     endpoint_collection_enabled: typing.Optional[bool] = None
     tracer: typing.Optional[ddtrace.Tracer] = None
-    _thread_time: _ThreadTime = field(init=False, repr=False, eq=False)
-    _last_wall_time: int = field(init=False, repr=False, eq=False)
+    _thread_time: _ThreadTime = field(init=False, repr=False, compare=False)
+    _last_wall_time: int = field(init=False, repr=False, compare=False)
     _thread_span_links: typing.Optional[_ThreadSpanLinks] = None
     _stack_collector_v2_enabled: bool = config.stack.v2.enabled
 
