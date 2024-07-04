@@ -204,15 +204,16 @@ class TargetFile:
 
 @dataclasses.dataclass
 class AgentPayload:
-    roots: List[SignedRoot]
-    targets: SignedTargets
+    roots: Optional[List[SignedRoot]] = None
+    targets: Optional[SignedTargets] = None
     target_files: List[TargetFile] = dataclasses.field(default_factory=list)
     client_configs: Set[str] = dataclasses.field(default_factory=set)
 
     def __post_init__(self):
-        for i in range(len(self.roots)):
-            if isinstance(self.roots[i], str):
-                self.roots[i] = SignedRoot(**json.loads(base64.b64decode(self.roots[i])))
+        if self.roots is not None:
+            for i in range(len(self.roots)):
+                if isinstance(self.roots[i], str):
+                    self.roots[i] = SignedRoot(**json.loads(base64.b64decode(self.roots[i])))
         if isinstance(self.targets, str):
             self.targets = SignedTargets(**json.loads(base64.b64decode(self.targets)))
         for i in range(len(self.target_files)):
@@ -576,9 +577,7 @@ class RemoteConfigClient:
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
         try:
-            print(">>>> parsing")
             payload = AgentPayload(**data)
-            print(f">>>> parsed {payload}")
         except Exception as e:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             msg = f"invalid agent payload received: {e}"
@@ -587,6 +586,8 @@ class RemoteConfigClient:
         self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
 
         # 1. Deserialize targets
+        if payload.targets is None:
+            return
         last_targets_version, backend_state, targets = self._process_targets(payload)
         if last_targets_version is None or targets is None:
             return
