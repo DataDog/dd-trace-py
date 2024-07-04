@@ -1,7 +1,6 @@
 from collections import deque
 from itertools import count
 from pathlib import Path
-import sys
 from threading import current_thread
 from types import FrameType
 from types import TracebackType
@@ -10,17 +9,20 @@ import uuid
 
 import attr
 
-from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 
+
+log = get_logger(__name__)
 
 GLOBAL_RATE_LIMITER = RateLimiter(
     limit_rate=1,  # one trace per second
@@ -145,18 +147,18 @@ def can_capture(span: Span) -> bool:
 
 
 @attr.s
-class SpanExceptionProcessor(SpanProcessor):
+class SpanExceptionHandler:
     collector = attr.ib(type=SignalCollector)
 
-    def on_span_start(self, span: Span) -> None:
-        pass
+    def install(self) -> None:
+        core.on("span.exception", self.on_span_exception, name=__name__)
 
-    def on_span_finish(self, span: Span) -> None:
-        if not (span.error and can_capture(span)):
-            # No error or budget to capture
+    def on_span_exception(
+        self, span: Span, _exc_type: t.Type[BaseException], exc: BaseException, _tb: t.Optional[TracebackType]
+    ) -> None:
+        if not can_capture(span):
+            # No budget to capture
             return
-
-        _, exc, _tb = sys.exc_info()
 
         chain, exc_id = unwind_exception_chain(exc, _tb)
         if not chain or exc_id is None:
@@ -210,3 +212,16 @@ class SpanExceptionProcessor(SpanProcessor):
 
             span.set_tag_str(DEBUG_INFO_TAG, "true")
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
+
+
+def capture_exception() -> None:
+    import sys
+
+    from ddtrace import tracer
+
+    try:
+        span = tracer.current_span()
+        if span is not None:
+            span.set_exc_info(*sys.exc_info())
+    except Exception:
+        log.exception("error capturing exception")

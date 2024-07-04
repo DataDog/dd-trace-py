@@ -59,7 +59,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             snapshots = {str(s.uuid): s for s in d.test_queue}
 
             for n, span in enumerate(self.spans):
-                assert span.get_tag("error.debug_info_captured") == "true"
+                assert span.get_tag(auto_instrument.DEBUG_INFO_TAG) == "true"
 
                 exc_id = span.get_tag("_dd.debug.error.exception_id")
 
@@ -126,7 +126,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             number_of_exc_ids = 1
 
             for n, span in enumerate(self.spans):
-                assert span.get_tag("error.debug_info_captured") == "true"
+                assert span.get_tag(auto_instrument.DEBUG_INFO_TAG) == "true"
 
                 exc_id = span.get_tag("_dd.debug.error.exception_id")
 
@@ -164,3 +164,30 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             self.assert_span_count(6)
             # no new snapshots
             assert len(d.test_queue) == 3
+
+    def test_debugger_capture_exception(self):
+        from ddtrace.debugging import capture_exception
+
+        def a(v):
+            with self.trace("a"):
+                try:
+                    raise ValueError("hello", v)
+                except Exception:
+                    capture_exception()
+
+        def b():
+            with self.trace("b"):
+                a(42)
+
+        with exception_debugging() as d:
+            with with_rate_limiter(RateLimiter(limit_rate=1, raise_on_exceed=False)):
+                b()
+
+            self.assert_span_count(2)
+            assert len(d.test_queue) == 1
+
+            span_b, span_a = self.spans
+
+            assert span_a.name == "a"
+            assert span_a.get_tag(auto_instrument.DEBUG_INFO_TAG) == "true"
+            assert span_b.get_tag(auto_instrument.DEBUG_INFO_TAG) is None
