@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import binascii
 from dataclasses import dataclass
+from dataclasses import field
 import datetime
 import gzip
 from http import client as http_client
@@ -53,9 +54,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
     service: typing.Optional[str] = None
     env: typing.Optional[str] = None
     version: typing.Optional[str] = None
-    tags: typing.Dict[str, str] = {}
+    tags: typing.Dict[str, str] = field(default_factory=dict)
     max_retry_delay: typing.Optional[float] = None
-    _container_info = container.get_container_info()
+    _container_info: typing.Optional[container.CGroupInfo] = container.get_container_info()
     endpoint_path: str = "/profiling/v1/input"
 
     endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = None

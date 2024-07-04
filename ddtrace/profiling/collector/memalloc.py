@@ -57,7 +57,7 @@ class MemoryCollector(collector.PeriodicCollector):
     _DEFAULT_INTERVAL = 0.5
 
     # Arbitrary interval to empty the _memalloc event buffer
-    _interval = field(default=_DEFAULT_INTERVAL, repr=False)
+    _interval: float = field(default=_DEFAULT_INTERVAL, repr=False)
 
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
     _max_events: int = config.memory.events_buffer

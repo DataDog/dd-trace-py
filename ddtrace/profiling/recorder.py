@@ -35,11 +35,11 @@ class Recorder:
     default_max_events: int = config.spec.max_events.default
     """The maximum number of events for an event type if one is not specified."""
 
-    max_events: typing.Dict[typing.Type[event.Event], typing.Optional[int]] = {}
+    max_events: typing.Dict[typing.Type[event.Event], typing.Optional[int]] = field(default_factory=dict)
     """A dict of {event_type_class: max events} to limit the number of events to record."""
 
     events: EventsType = field(init=False, repr=False, compare=False)
-    _events_lock = field(init=False, repr=False, default_factory=threading.RLock, compare=False)
+    _events_lock: threading.RLock = field(init=False, repr=False, default_factory=threading.RLock, compare=False)
 
     def __post_init__(self):
         # type: (...) -> None

@@ -306,7 +306,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     tracer: typing.Optional[Tracer] = None
 
-    _original = field(init=False, repr=False, compare=False)
+    _original: typing.Any = field(init=False, repr=False, compare=False)
 
     # Check if libdd is available, if not, disable the feature
     if export_libdd_enabled and not ddup.is_available:

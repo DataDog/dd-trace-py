@@ -68,7 +68,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         try:
             import _pytest.assertion.rewrite as par
 
-            par.exec = self._exec
+            par.exec = self._exec  # type: ignore[attr-defined]
         except ImportError:
             pass
 
@@ -293,7 +293,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         try:
             import _pytest.assertion.rewrite as par
 
-            par.exec = _original_exec
+            par.exec = _original_exec  # type: ignore[attr-defined]
         except ImportError:
             pass
 

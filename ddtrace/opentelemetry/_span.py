@@ -144,7 +144,7 @@ class Span(OtelSpan):
             if self._ddspan.context.sampling_priority and self._ddspan.context.sampling_priority > 0:
                 tf = TraceFlags.SAMPLED
 
-        return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
+        return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)  # type: ignore[arg-type]
 
     def set_attributes(self, attributes):
         # type: (Mapping[str, AttributeValue]) -> None
@@ -161,7 +161,7 @@ class Span(OtelSpan):
         # Override reserved OTel span attributes
         ddattribute = _OTelDatadogMapping.get(key)
         if ddattribute is not None:
-            _ddmap(self._ddspan, ddattribute, value)
+            _ddmap(self._ddspan, ddattribute, value)  # type: ignore[arg-type]
             return
 
         if is_sequence(value):
@@ -180,7 +180,7 @@ class Span(OtelSpan):
             # timestamp arg is in micoseconds we must convert it to nanoseconds
             timestamp = timestamp * 1000
 
-        self._ddspan._add_event(name, attributes, timestamp)
+        self._ddspan._add_event(name, attributes, timestamp)  # type: ignore[arg-type]
 
     def update_name(self, name):
         # type: (str) -> None
@@ -234,7 +234,7 @@ class Span(OtelSpan):
         }
         if attributes:
             # User provided attributes must take precedence over atrrs
-            attrs.update(attributes)
+            attrs.update(attributes)  # type: ignore[arg-type]
 
         # Set the error type, error message and error stacktrace tags on the span
         self._ddspan._meta[ERROR_MSG] = attrs["exception.message"]

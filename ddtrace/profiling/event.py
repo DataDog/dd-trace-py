@@ -14,10 +14,10 @@ StackTraceType = typing.List[DDFrame]
 
 
 @dataclass(**compat.dataclass_slots())
-class Event(object):
+class Event:
     """An event happening at a point in time."""
 
-    timestamp = field(default_factory=compat.time_ns)
+    timestamp: int = field(default_factory=compat.time_ns)
 
     @property
     def name(self):
@@ -30,14 +30,14 @@ class Event(object):
 class TimedEvent(Event):
     """An event that has a duration."""
 
-    duration = None
+    duration: typing.Optional[float] = None
 
 
 @dataclass(**compat.dataclass_slots())
 class SampleEvent(Event):
     """An event representing a sample gathered from the system."""
 
-    sampling_period = None
+    sampling_period: typing.Optional[int] = None
 
 
 @dataclass(**compat.dataclass_slots())

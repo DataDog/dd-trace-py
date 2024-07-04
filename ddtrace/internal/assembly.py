@@ -95,7 +95,7 @@ class Assembly:
         if label_ident in self._labels:
             raise ValueError("label %s already defined" % label_ident)
 
-        label = self._labels[label_ident] = self._ref_labels.pop(label_ident, None) or bc.Label()
+        label = self._labels[label_ident] = self._ref_labels.pop(label_ident, None) or bc.Label()  # type: ignore[arg-type]
 
         return label
 
@@ -268,10 +268,10 @@ class Assembly:
             elif isinstance(entry, bc.Label):
                 print(f"{self._label_ident(entry)}:")
             elif isinstance(entry, bc.TryBegin):
-                print(f"try @{self._label_ident(entry.target)} (lasti={entry.push_lasti})")
+                print(f"try @{self._label_ident(entry.target)} (lasti={entry.push_lasti})")  # type: ignore[arg-type]
 
     def __iter__(self) -> t.Iterator[bc.Instr]:
-        return iter(self._instrs)
+        return iter(self._instrs)  # type: ignore[arg-type]
 
     def __len__(self) -> int:
         return len(self._instrs)

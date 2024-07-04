@@ -76,13 +76,13 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
     last_lineno = None
     for i, instr in enumerate(code):
         try:
-            if instr.lineno == last_lineno:
+            if instr.lineno == last_lineno:  # type: ignore[union-attr]
                 continue
-            last_lineno = instr.lineno
+            last_lineno = instr.lineno  # type: ignore[union-attr]
             # Some lines might be implemented across multiple instruction
             # offsets, and sometimes a NOP is used as a placeholder. We skip
             # those to avoid duplicate injections.
-            if instr.lineno == lineno and instr.name != "NOP":
+            if instr.lineno == lineno and instr.name != "NOP":  # type: ignore[union-attr]
                 locs.appendleft(i)
         except AttributeError:
             # pseudo-instruction (e.g. label)
@@ -115,10 +115,11 @@ def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
             # DEV: We look at the expected opcode pattern to match the injected
             # hook and we also test for the expected opcode arguments
             if (
-                instr.lineno == line
-                and code[i + _INJECT_HOOK_OPCODE_POS].arg == hook  # bound methods don't like identity comparisons
-                and code[i + _INJECT_ARG_OPCODE_POS].arg is arg
-                and [code[_].name for _ in range(i, i + len(_INJECT_HOOK_OPCODES))] == _INJECT_HOOK_OPCODES
+                instr.lineno == line  # type: ignore[union-attr]
+                and code[i + _INJECT_HOOK_OPCODE_POS].arg == hook  # type: ignore[union-attr]
+                # bound methods don't like identity comparisons
+                and code[i + _INJECT_ARG_OPCODE_POS].arg is arg  # type: ignore[union-attr]
+                and [code[_].name for _ in range(i, i + len(_INJECT_HOOK_OPCODES))] == _INJECT_HOOK_OPCODES  # type: ignore[union-attr]
             ):
                 locs.appendleft(i)
         except AttributeError:

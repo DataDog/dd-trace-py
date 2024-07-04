@@ -5,6 +5,7 @@ from dataclasses import fields
 import logging
 import os
 import typing
+from typing import Any  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Type  # noqa:F401
@@ -110,7 +111,7 @@ class _ProfilerInstance(service.Service):
     # User-supplied values
     url: Optional[str] = None
     service: Optional[str] = field(default_factory=lambda: os.environ.get("DD_SERVICE"))
-    tags: typing.Dict[str, str] = {}
+    tags: typing.Dict[str, str] = field(default_factory=dict)
     env: Optional[str] = field(default_factory=lambda: os.environ.get("DD_ENV"))
     version: Optional[str] = field(default_factory=lambda: os.environ.get("DD_VERSION"))
     tracer: Tracer = ddtrace.tracer
@@ -122,9 +123,9 @@ class _ProfilerInstance(service.Service):
     enable_code_provenance: bool = config.code_provenance
     endpoint_collection_enabled: bool = config.endpoint_collection
 
-    _recorder = field(init=False, default=None)
+    _recorder: Any = field(init=False, default=None)
     _collectors: Optional[List[Union[stack.StackCollector, memalloc.MemoryCollector]]] = field(init=False, default=None)
-    _collectors_on_import = field(init=False, default=None, compare=False)
+    _collectors_on_import: Any = field(init=False, default=None, compare=False)
     _scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = field(init=False, default=None)
     _lambda_function_name: Optional[str] = field(
         init=False,
@@ -284,7 +285,7 @@ class _ProfilerInstance(service.Service):
             try:
                 self._collectors.append(
                     stack.StackCollector(
-                        r,  # type: ignore[arg-type]
+                        r,
                         tracer=self.tracer,
                         endpoint_collection_enabled=self.endpoint_collection_enabled,
                     )  # type: ignore[call-arg]
@@ -324,7 +325,7 @@ class _ProfilerInstance(service.Service):
                 ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
-            self._collectors.append(memalloc.MemoryCollector(r))  # type: ignore[arg-type]
+            self._collectors.append(memalloc.MemoryCollector(r))
 
         exporters = self._build_default_exporters()
 
