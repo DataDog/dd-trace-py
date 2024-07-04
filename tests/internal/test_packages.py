@@ -63,6 +63,10 @@ def test_get_distributions():
     assert pkg_resources_ws == importlib_pkgs
 
 
+def test_filename_to_package_invalid_path(packages):
+    package = packages.filename_to_package("<string>")
+    assert package is None
+
 def test_filename_to_package(packages):
     # type: (...) -> None
     package = packages.filename_to_package(packages.__file__)
