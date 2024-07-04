@@ -183,6 +183,8 @@ def _get_span_processor():
     return endpoint_call_counter_span_processor
 
 
+@pytest.mark.dependency()
+@pytest.mark.serial
 def test_wrong_api_key(endpoint_test_server):
     # This is mostly testing our test server, not the exporter
     exp = http.PprofHTTPExporter(
@@ -196,6 +198,8 @@ def test_wrong_api_key(endpoint_test_server):
     assert str(t.value) == "Server returned 400, check your API key"
 
 
+@pytest.mark.dependency(depends=["test_wrong_api_key"])
+@pytest.mark.serial
 def test_export(endpoint_test_server):
     exp = http.PprofHTTPExporter(
         endpoint=_ENDPOINT, api_key=_API_KEY, endpoint_call_counter_span_processor=_get_span_processor()
@@ -214,6 +218,7 @@ def test_export_server_down():
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
+@pytest.mark.serial
 def test_export_timeout(endpoint_test_timeout_server):
     exp = http.PprofHTTPExporter(
         endpoint=_TIMEOUT_ENDPOINT,
@@ -226,6 +231,7 @@ def test_export_timeout(endpoint_test_timeout_server):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
+@pytest.mark.serial
 def test_export_reset(endpoint_test_reset_server):
     exp = http.PprofHTTPExporter(
         endpoint=_RESET_ENDPOINT,
@@ -238,6 +244,8 @@ def test_export_reset(endpoint_test_reset_server):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
+@pytest.mark.dependency()
+@pytest.mark.serial
 def test_export_404_agent(endpoint_test_unknown_server):
     exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT, endpoint_call_counter_span_processor=_get_span_processor())
     with pytest.raises(exporter.ExportError) as t:
@@ -247,6 +255,8 @@ def test_export_404_agent(endpoint_test_unknown_server):
     )
 
 
+@pytest.mark.dependency(depends=["test_export_404_agent"])
+@pytest.mark.serial
 def test_export_404_agentless(endpoint_test_unknown_server):
     exp = http.PprofHTTPExporter(
         endpoint=_UNKNOWN_ENDPOINT, api_key="123", timeout=1, endpoint_call_counter_span_processor=_get_span_processor()
@@ -256,6 +266,8 @@ def test_export_404_agentless(endpoint_test_unknown_server):
     assert str(t.value) == "HTTP Error 404"
 
 
+@pytest.mark.dependency()
+@pytest.mark.serial
 def test_export_tracer_base_path(endpoint_test_server):
     # Base path is prepended to the endpoint path because
     # it does not start with a slash.
@@ -268,6 +280,8 @@ def test_export_tracer_base_path(endpoint_test_server):
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
+@pytest.mark.dependency(depends=["test_export_tracer_base_path"])
+@pytest.mark.serial
 def test_export_tracer_base_path_agent_less(endpoint_test_server):
     # Base path is ignored by the profiling HTTP exporter
     # because the endpoint path starts with a slash.
