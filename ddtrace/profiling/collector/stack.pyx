@@ -11,6 +11,7 @@ from dataclasses import field
 import six
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
+from ddtrace.internal.compat import dataclass_slots
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
 from ddtrace.internal import compat
@@ -425,7 +426,7 @@ else:
     _thread_span_links_base = _threading._ThreadLink
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(**dataclass_slots(eq=False))
 class _ThreadSpanLinks(_thread_span_links_base):
 
     def link_span(
@@ -461,7 +462,7 @@ def _default_min_interval_time():
     return sys.getswitchinterval() * 2
 
 
-@dataclass(slots=True)
+@dataclass(**dataclass_slots())
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
     # This need to be a real OS thread in order to catch

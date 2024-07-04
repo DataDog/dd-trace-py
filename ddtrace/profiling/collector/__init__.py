@@ -5,6 +5,7 @@ import typing  # noqa:F401
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
+from ddtrace.internal.compat import dataclass_slots
 from ddtrace.settings.profiling import config
 
 from .. import event  # noqa:F401
@@ -32,7 +33,7 @@ class Collector(service.Service):
         """
 
 
-@dataclass(slots=True)
+@dataclass(**dataclass_slots())
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 

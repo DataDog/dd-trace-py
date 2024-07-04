@@ -26,7 +26,7 @@ from ddtrace.vendor import wrapt
 LOG = get_logger(__name__)
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
@@ -34,14 +34,14 @@ class LockEventBase(event.StackBasedEvent):
     sampling_pct: int = 0
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
     wait_time_ns: int = 0
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 

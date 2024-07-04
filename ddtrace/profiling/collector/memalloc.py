@@ -24,7 +24,7 @@ from ddtrace.settings.profiling import config
 LOG = logging.getLogger(__name__)
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class MemoryAllocSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
@@ -38,7 +38,7 @@ class MemoryAllocSampleEvent(event.StackBasedEvent):
     """The total number of allocation events sampled."""
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class MemoryHeapSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
@@ -49,7 +49,7 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
     """The sampling size."""
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 

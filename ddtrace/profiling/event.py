@@ -13,7 +13,7 @@ DDFrame = namedtuple("DDFrame", ["file_name", "lineno", "function_name", "class_
 StackTraceType = typing.List[DDFrame]
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class Event(object):
     """An event happening at a point in time."""
 
@@ -26,21 +26,21 @@ class Event(object):
         return self.__class__.__name__
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class TimedEvent(Event):
     """An event that has a duration."""
 
     duration = None
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class SampleEvent(Event):
     """An event representing a sample gathered from the system."""
 
     sampling_period = None
 
 
-@dataclass(slots=True)
+@dataclass(**compat.dataclass_slots())
 class StackBasedEvent(SampleEvent):
     thread_id: typing.Optional[int] = None
     thread_name: typing.Optional[str] = None

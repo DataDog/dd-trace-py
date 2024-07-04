@@ -6,6 +6,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
+from ..compat import dataclass_slots
 from ..constants import CONTAINER_ID_HEADER_NAME
 from ..constants import ENTITY_ID_HEADER_NAME
 from ..logger import get_logger
@@ -14,7 +15,7 @@ from ..logger import get_logger
 log = get_logger(__name__)
 
 
-@dataclass(slots=True)
+@dataclass(**dataclass_slots())
 class CGroupInfo:
     id: Any = None
     groups: Any = None
