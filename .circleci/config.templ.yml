@@ -4,7 +4,6 @@ default_resource_class: &default_resource_class medium
 ubuntu_base_image: &ubuntu_base_img ubuntu-2004:2023.04.2
 cimg_base_image: &cimg_base_image cimg/base:2022.08
 python310_image: &python310_image cimg/python:3.10.12
-python312_image: &python312_image cimg/python:3.12.3
 ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner@sha256:9b2364afa4d1cd8382f251aca5963113cfc47e6c6b9aaed2c28e8a2a48ac1f75
 redis_image: &redis_image redis:4.0-alpine@sha256:3e99741f293147ff406657dda7644c2b88564b80a498cd00da8f905743449c9f
 memcached_image: &memcached_image memcached:1.5-alpine@sha256:48cb7207e3d34871893fa1628f3a4984375153e9942facf82e25935b0a633c8a
@@ -354,12 +353,6 @@ executors:
         environment:
           - CMAKE_BUILD_PARALLEL_LEVEL: 6
     resource_class: medium
-  python312:
-    docker:
-      - image: *python312_image
-        environment:
-          - CMAKE_BUILD_PARALLEL_LEVEL: 12
-    resource_class: large
   python310:
     docker:
       - image: *python310_image
@@ -1351,7 +1344,7 @@ jobs:
           path: /tmp/docs
 
   slotscheck:
-    executor: python312
+    executor: python310
     steps:
       - checkout
       - setup_rust
