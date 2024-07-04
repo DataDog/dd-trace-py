@@ -118,7 +118,7 @@ def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
                 instr.lineno == line
                 and code[i + _INJECT_HOOK_OPCODE_POS].arg == hook  # bound methods don't like identity comparisons
                 and code[i + _INJECT_ARG_OPCODE_POS].arg is arg
-                and [code[_].name for _ in range(i, i + len(_INJECT_HOOK_OPCODES))] == _INJECT_HOOK_OPCODES  # type: ignore[union-attr]
+                and [code[_].name for _ in range(i, i + len(_INJECT_HOOK_OPCODES))] == _INJECT_HOOK_OPCODES
             ):
                 locs.appendleft(i)
         except AttributeError:

@@ -250,7 +250,7 @@ class DDCompiler:
 
         # Python 3.11
         return (
-            [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]  # type: ignore[arg-type]
+            [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
             + list(chain(*args))
             + [Instr("PRECALL", len(args)), Instr("CALL", len(args))]
         )

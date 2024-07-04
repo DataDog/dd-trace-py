@@ -608,7 +608,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 instr = bc[i]
                 try:
                     if instr.name == "RETURN_VALUE":
-                        return_code = CONTEXT_RETURN.bind({"context": self}, lineno=instr.lineno)  # type: ignore[union-attr]
+                        return_code = CONTEXT_RETURN.bind({"context": self}, lineno=instr.lineno)
                     else:
                         return_code = []
 
