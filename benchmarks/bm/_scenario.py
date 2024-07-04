@@ -1,16 +1,18 @@
 import abc
-from dataclasses import field
-from dataclasses import fields
 import time
 
+import attr
 import pyperf
 import six
 
 from ._to_bool import to_bool
 
 
-def var_bool(_input):
-    return to_bool(_input)
+var = attr.ib
+
+
+def var_bool(*args, **kwargs):
+    return attr.ib(*args, **kwargs, converter=to_bool)
 
 
 def _register(scenario_cls):
@@ -18,22 +20,22 @@ def _register(scenario_cls):
 
     # This extends pyperf's runner by registering arguments for the scenario config
     def add_cmdline_args(cmd, args):
-        for _field in fields(scenario_cls):
-            if hasattr(args, _field.name):
-                cmd.extend(("--{}".format(_field.name), str(getattr(args, _field.name))))
+        for field in attr.fields(scenario_cls):
+            if hasattr(args, field.name):
+                cmd.extend(("--{}".format(field.name), str(getattr(args, field.name))))
 
     runner = pyperf.Runner(add_cmdline_args=add_cmdline_args)
     cmd = runner.argparser
 
-    for _field in fields(scenario_cls):
-        cmd.add_argument("--{}".format(_field.name), type=_field.type)
+    for field in attr.fields(scenario_cls):
+        cmd.add_argument("--{}".format(field.name), type=field.type)
 
     parsed_args = runner.parse_args()
 
     config_dict = {
-        _field.name: getattr(parsed_args, field.name)
-        for _field in fields(scenario_cls)
-        if hasattr(parsed_args, _field.name)
+        field.name: getattr(parsed_args, field.name)
+        for field in attr.fields(scenario_cls)
+        if hasattr(parsed_args, field.name)
     }
     scenario = scenario_cls(**config_dict)
 
@@ -44,6 +46,9 @@ class ScenarioMeta(abc.ABCMeta):
     def __init__(cls, name, bases, _dict):
         super(ScenarioMeta, cls).__init__(name, bases, _dict)
 
+        # Make sure every sub-class is wrapped by `attr.s`
+        cls = attr.s()(cls)
+
         # Do not register the base Scenario class
         # DEV: We cannot compare `cls` to `Scenario` since it doesn't exist yet
         if cls.__module__ != __name__:
@@ -53,7 +58,7 @@ class ScenarioMeta(abc.ABCMeta):
 class Scenario(six.with_metaclass(ScenarioMeta)):
     """The base class for specifying a benchmark."""
 
-    name: str
+    name = attr.ib(type=str)
 
     @property
     def scenario_name(self):
