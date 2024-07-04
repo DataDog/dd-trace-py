@@ -210,7 +210,7 @@ class _ProfilerInstance(service.Service):
         # * If initialization fails and libdd is required, disable everything and return (error)
         if self._export_libdd_enabled:
             try:
-                ddup.init(
+                ddup.config(
                     env=self.env,
                     service=self.service,
                     version=self.version,
@@ -219,6 +219,8 @@ class _ProfilerInstance(service.Service):
                     url=endpoint,
                     timeline_enabled=config.timeline_enabled,
                 )
+                ddup.start()
+
                 return []
             except Exception as e:
                 LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
