@@ -202,7 +202,7 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
 
     try:
         path = Path(filename) if isinstance(filename, str) else filename
-        return mapping.get(_root_module(path.resolve()))
+        return mapping.get(_root_module(path.resolve())) if path.is_file() else None
     except ValueError:
         return None
 
