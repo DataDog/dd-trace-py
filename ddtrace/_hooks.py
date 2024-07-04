@@ -7,6 +7,7 @@ from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 
+from .internal.compat import dataclass_slots
 from .internal.logger import get_logger
 
 
@@ -18,7 +19,7 @@ except ImportError:
 log = get_logger(__name__)
 
 
-@dataclass(slots=True)
+@dataclass(**dataclass_slots())
 class Hooks(object):
     """
     Hooks configuration object is used for registering and calling hook functions
