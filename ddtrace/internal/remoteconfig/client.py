@@ -142,7 +142,7 @@ class Root:
 
 
 @dataclasses.dataclass
-class SignedRoot(object):
+class SignedRoot:
     signatures: List[Signature]
     signed: Root
 
@@ -155,14 +155,14 @@ class SignedRoot(object):
 
 
 @dataclasses.dataclass
-class TargetDesc(object):
+class TargetDesc:
     length: int
     hashes: Mapping[str, str]
     custom: Mapping[str, Any]
 
 
 @dataclasses.dataclass
-class Targets(object):
+class Targets:
     _type: str
     custom: Mapping[str, Any]
     expires: datetime
@@ -181,7 +181,7 @@ class Targets(object):
 
 
 @dataclasses.dataclass
-class SignedTargets(object):
+class SignedTargets:
     signatures: List[Signature]
     signed: Targets
 
@@ -194,13 +194,13 @@ class SignedTargets(object):
 
 
 @dataclasses.dataclass
-class TargetFile(object):
+class TargetFile:
     path: str
     raw: str
 
 
 @dataclasses.dataclass
-class AgentPayload(object):
+class AgentPayload:
     roots: List[SignedRoot]
     targets: SignedTargets
     target_files: List[TargetFile] = dataclasses.field(default_factory=list)
@@ -221,7 +221,7 @@ AppliedConfigType = Dict[str, ConfigMetadata]
 TargetsType = Dict[str, ConfigMetadata]
 
 
-class RemoteConfigClient(object):
+class RemoteConfigClient:
     """
     The Remote Configuration client regularly checks for updates on the agent
     and dispatches configurations to registered products.
