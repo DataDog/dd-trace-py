@@ -84,10 +84,6 @@ class RemoteConfigError(Exception):
     """
 
 
-def _base64_to_struct(val, cls):
-    return json.loads(base64.b64decode(val))
-
-
 @dataclasses.dataclass
 class ConfigMetadata:
     """
