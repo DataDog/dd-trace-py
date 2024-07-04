@@ -112,10 +112,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 task_id, task_name, task_frame = _task.get_task(thread_id)
-                lock_name = self._get_lock_call_loc_with_name() or self._self_init_loc
+                self._maybe_update_self_name()
+                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
 
                 if task_frame is None:
-                    frame = sys._getframe(1)
+                    # If we can't get the task frame, we use the caller frame. We expect acquire/release or
+                    # __enter__/__exit__ to be on the stack, so we go back 2 frames.
+                    frame = sys._getframe(2)
                 else:
                     frame = task_frame
 
@@ -172,10 +175,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         end = compat.monotonic_ns()
                         thread_id, thread_name = _current_thread()
                         task_id, task_name, task_frame = _task.get_task(thread_id)
-                        lock_name = self._get_lock_call_loc_with_name() or self._self_init_loc
+                        lock_name = (
+                            "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                        )
 
                         if task_frame is None:
-                            frame = sys._getframe(1)
+                            # See the comments in _acquire
+                            frame = sys._getframe(2)
                         else:
                             frame = task_frame
 
@@ -237,49 +243,49 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def __exit__(self, *args, **kwargs):
         self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
-    def _maybe_update_lock_name(self, var_dict: typing.Dict):
-        if self._self_name:
-            return
+    def _find_self_name(self, var_dict: typing.Dict):
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, types.ModuleType):
                 continue
             if value is self:
-                self._self_name = name
-                break
+                return name
             if config.lock.name_inspect_dir:
                 for attribute in dir(value):
                     if not attribute.startswith("__") and getattr(value, attribute) is self:
                         self._self_name = attribute
-                        break
+                        return attribute
+        return None
 
     # Get lock acquire/release call location and variable name the lock is assigned to
-    def _get_lock_call_loc_with_name(self) -> typing.Optional[str]:
+    def _maybe_update_self_name(self):
+        if self._self_name:
+            return
         try:
             # We expect the call stack to be like this:
             # 0: this
             # 1: _acquire/_release
             # 2: acquire/release (or __enter__/__exit__)
             # 3: caller frame
-            # And we expect additional frame if WRAPT_C_EXT is False
-            frame = sys._getframe(3 if WRAPT_C_EXT else 4)
-            code = frame.f_code
-            call_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+            if config.enable_asserts:
+                frame = sys._getframe(1)
+                if frame.f_code.co_name not in {"_acquire", "_release"}:
+                    raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+                frame = sys._getframe(2)
+                if frame.f_code.co_name not in {"acquire", "release", "__enter__", "__exit__"}:
+                    raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+            frame = sys._getframe(3)
 
             # First, look at the local variables of the caller frame, and then the global variables
-            self._maybe_update_lock_name(frame.f_locals)
-            self._maybe_update_lock_name(frame.f_globals)
+            self._self_name = self._find_self_name(frame.f_locals) or self._find_self_name(frame.f_globals)
 
-            if self._self_name:
-                return "%s:%s" % (call_loc, self._self_name)
-            else:
+            if not self._self_name:
+                self._self_name = ""
                 LOG.warning(
                     "Failed to get lock variable name, we only support local/global variables and their attributes."
                 )
-                return call_loc
 
         except Exception as e:
             LOG.warning("Error getting lock acquire/release call location and variable name: %s", e)
-            return None
 
 
 class FunctionWrapper(wrapt.FunctionWrapper):
