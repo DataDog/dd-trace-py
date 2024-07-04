@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import binascii
+from dataclasses import dataclass
 import datetime
 import gzip
 from http import client as http_client
@@ -11,8 +12,6 @@ import platform
 import typing
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
-
-import attr
 
 import ddtrace
 from ddtrace.ext.git import COMMIT_SHA
@@ -37,29 +36,29 @@ PYTHON_IMPLEMENTATION = platform.python_implementation()
 PYTHON_VERSION = platform.python_version()
 
 
-@attr.s
+@dataclass
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
     RETRY_ATTEMPTS = 3
 
     # repeat this to please mypy
-    enable_code_provenance = attr.ib(default=True, type=bool)
+    enable_code_provenance: bool = True
 
-    endpoint = attr.ib(type=str, factory=agent.get_trace_url)
-    api_key = attr.ib(default=None, type=typing.Optional[str])
+    endpoint: str = agent.get_trace_url()
+    api_key: typing.Optional[str] = None
     # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
     # backend is not as fast as the tracer one.
-    timeout = attr.ib(default=config.api_timeout, type=float)
-    service = attr.ib(default=None, type=typing.Optional[str])
-    env = attr.ib(default=None, type=typing.Optional[str])
-    version = attr.ib(default=None, type=typing.Optional[str])
-    tags = attr.ib(factory=dict, type=typing.Dict[str, str])
-    max_retry_delay = attr.ib(default=None)
-    _container_info = attr.ib(factory=container.get_container_info, repr=False)
-    endpoint_path = attr.ib(default="/profiling/v1/input")
+    timeout: float = config.api_timeout
+    service: typing.Optional[str] = None
+    env: typing.Optional[str] = None
+    version: typing.Optional[str] = None
+    tags: typing.Dict[str, str] = {}
+    max_retry_delay: typing.Optional[float] = None
+    _container_info = container.get_container_info()
+    endpoint_path: str = "/profiling/v1/input"
 
-    endpoint_call_counter_span_processor = attr.ib(default=None, type=EndpointCallCounterProcessor)
+    endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = None
 
     def _update_git_metadata_tags(self, tags):
         """
@@ -76,7 +75,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
             tags[MAIN_PACKAGE] = main_package
         return tags
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         if self.max_retry_delay is None:
             self.max_retry_delay = self.timeout * 3
 

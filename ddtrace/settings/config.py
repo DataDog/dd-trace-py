@@ -545,7 +545,7 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
-        self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
+        self._subscriptions: List[Tuple[List[str], Callable[[Config, List[str]], None]]] = []
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")

@@ -1,18 +1,16 @@
+from dataclasses import dataclass
 import typing  # noqa:F401
 
-import attr
-
 from .. import collector
-from .. import event
 from . import _lock
 
 
-@event.event_class
+@dataclass(slots=True)
 class AsyncioLockAcquireEvent(_lock.LockAcquireEvent):
     """An asyncio.Lock has been acquired."""
 
 
-@event.event_class
+@dataclass(slots=True)
 class AsyncioLockReleaseEvent(_lock.LockReleaseEvent):
     """An asyncio.Lock has been released."""
 
@@ -22,7 +20,7 @@ class _ProfiledAsyncioLock(_lock._ProfiledLock):
     RELEASE_EVENT_CLASS = AsyncioLockReleaseEvent
 
 
-@attr.s
+@dataclass
 class AsyncioLockCollector(_lock.LockCollector):
     """Record asyncio.Lock usage."""
 

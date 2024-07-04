@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
+from dataclasses import dataclass
+from dataclasses import field
 import typing  # noqa:F401
-
-import attr
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
@@ -18,11 +18,11 @@ class CollectorUnavailable(CollectorError):
     pass
 
 
-@attr.s
+@dataclass
 class Collector(service.Service):
     """A profile collector."""
 
-    recorder = attr.ib()
+    recorder = field()
 
     @staticmethod
     def snapshot():
@@ -32,7 +32,7 @@ class Collector(service.Service):
         """
 
 
-@attr.s(slots=True)
+@dataclass(slots=True)
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
@@ -51,17 +51,12 @@ class PeriodicCollector(Collector, periodic.PeriodicService):
         raise NotImplementedError
 
 
-@attr.s
+@dataclass
 class CaptureSampler(object):
     """Determine the events that should be captured based on a sampling percentage."""
 
-    capture_pct = attr.ib(default=100)
-    _counter = attr.ib(default=0, init=False)
-
-    @capture_pct.validator
-    def capture_pct_validator(self, attribute, value):
-        if value < 0 or value > 100:
-            raise ValueError("Capture percentage should be between 0 and 100 included")
+    capture_pct: float = 100.0
+    _counter: int = field(default=0, init=False)
 
     def capture(self):
         self._counter += self.capture_pct
@@ -70,12 +65,15 @@ class CaptureSampler(object):
             return True
         return False
 
+    def __post_init__(self):
+        if self.capture_pct < 0 or self.capture_pct > 100:
+            raise ValueError("Capture percentage should be between 0 and 100 included")
 
-def _create_capture_sampler(collector):
-    return CaptureSampler(collector.capture_pct)
 
-
-@attr.s
+@dataclass
 class CaptureSamplerCollector(Collector):
-    capture_pct = attr.ib(type=float, default=config.capture_pct)
-    _capture_sampler = attr.ib(default=attr.Factory(_create_capture_sampler, takes_self=True), init=False, repr=False)
+    capture_pct: float = config.capture_pct
+    _capture_sampler: CaptureSampler = field(init=False, repr=False)
+
+    def __post_init__(self):
+        self._capture_sampler = CaptureSampler(self.capture_pct)

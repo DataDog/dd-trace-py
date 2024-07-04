@@ -1,11 +1,11 @@
 import collections
 from copy import deepcopy
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
-
-import attr
 
 from .internal.logger import get_logger
 
@@ -18,7 +18,7 @@ except ImportError:
 log = get_logger(__name__)
 
 
-@attr.s(slots=True)
+@dataclass(slots=True)
 class Hooks(object):
     """
     Hooks configuration object is used for registering and calling hook functions
@@ -30,7 +30,7 @@ class Hooks(object):
             pass
     """
 
-    _hooks = attr.ib(init=False, factory=lambda: collections.defaultdict(set), type=DefaultDict[str, Set])
+    _hooks: DefaultDict[str, Set] = field(init=False, default_factory=lambda: collections.defaultdict(set))
 
     def __deepcopy__(self, memodict=None):
         hooks = Hooks()

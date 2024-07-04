@@ -1,20 +1,18 @@
 from __future__ import absolute_import
 
+from dataclasses import dataclass
 import threading
 import typing  # noqa:F401
 
-import attr
-
-from .. import event
 from . import _lock
 
 
-@event.event_class
+@dataclass(slots=True)
 class ThreadingLockAcquireEvent(_lock.LockAcquireEvent):
     """A threading.Lock has been acquired."""
 
 
-@event.event_class
+@dataclass(slots=True)
 class ThreadingLockReleaseEvent(_lock.LockReleaseEvent):
     """A threading.Lock has been released."""
 
@@ -24,7 +22,7 @@ class _ProfiledThreadingLock(_lock._ProfiledLock):
     RELEASE_EVENT_CLASS = ThreadingLockReleaseEvent
 
 
-@attr.s
+@dataclass
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 

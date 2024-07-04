@@ -2,12 +2,12 @@ from __future__ import absolute_import
 
 import _thread
 import abc
+from dataclasses import dataclass
+from dataclasses import field
 import os.path
 import sys
 import types
 import typing
-
-import attr
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
@@ -26,26 +26,26 @@ from ddtrace.vendor import wrapt
 LOG = get_logger(__name__)
 
 
-@event.event_class
+@dataclass(slots=True)
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
-    lock_name = attr.ib(default="<unknown lock name>", type=str)
-    sampling_pct = attr.ib(default=0, type=int)
+    lock_name: str = "<unknown lock name>"
+    sampling_pct: int = 0
 
 
-@event.event_class
+@dataclass(slots=True)
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
-    wait_time_ns = attr.ib(default=0, type=int)
+    wait_time_ns: int = 0
 
 
-@event.event_class
+@dataclass(slots=True)
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 
-    locked_for_ns = attr.ib(default=0, type=int)
+    locked_for_ns: int = 0
 
 
 def _current_thread():
@@ -296,17 +296,17 @@ class FunctionWrapper(wrapt.FunctionWrapper):
         return self
 
 
-@attr.s
+@dataclass
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes = attr.ib(type=int, default=config.max_frames)
-    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
-    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    nframes: int = config.max_frames
+    endpoint_collection_enabled: bool = config.endpoint_collection
+    export_libdd_enabled: bool = config.export.libdd_enabled
 
-    tracer = attr.ib(default=None)
+    tracer: typing.Optional[Tracer] = None
 
-    _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
+    _original = field(init=False, repr=False, compare=False)
 
     # Check if libdd is available, if not, disable the feature
     if export_libdd_enabled and not ddup.is_available:

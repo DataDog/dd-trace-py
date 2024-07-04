@@ -6,7 +6,8 @@ import logging
 import sys
 import typing
 
-import attr
+from dataclasses import dataclass
+from dataclasses import field
 import six
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
@@ -424,7 +425,7 @@ else:
     _thread_span_links_base = _threading._ThreadLink
 
 
-@attr.s(slots=True, eq=False)
+@dataclass(slots=True, eq=False)
 class _ThreadSpanLinks(_thread_span_links_base):
 
     def link_span(
@@ -460,25 +461,25 @@ def _default_min_interval_time():
     return sys.getswitchinterval() * 2
 
 
-@attr.s(slots=True)
+@dataclass(slots=True)
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
     # This need to be a real OS thread in order to catch
     _real_thread = True
-    _interval = attr.ib(factory=_default_min_interval_time, init=False, repr=False)
+    _interval = field(default_factory=_default_min_interval_time, init=False, repr=False)
     # This is the minimum amount of time the thread will sleep between polling interval,
     # no matter how fast the computer is.
-    min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
+    min_interval_time = field(default_factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct = attr.ib(type=float, default=config.max_time_usage_pct)
-    nframes = attr.ib(type=int, default=config.max_frames)
-    ignore_profiler = attr.ib(type=bool, default=config.ignore_profiler)
-    endpoint_collection_enabled = attr.ib(default=None)
-    tracer = attr.ib(default=None)
-    _thread_time = attr.ib(init=False, repr=False, eq=False)
-    _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
-    _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
-    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2.enabled)
+    max_time_usage_pct: float = config.max_time_usage_pct
+    nframes: int = config.max_frames
+    ignore_profiler: bool = config.ignore_profiler
+    endpoint_collection_enabled: typing.Optional[bool] = None
+    tracer: typing.Optional[ddtrace.Tracer] = None
+    _thread_time: _ThreadTime = field(init=False, repr=False, eq=False)
+    _last_wall_time: int = field(init=False, repr=False, eq=False)
+    _thread_span_links: typing.Optional[_ThreadSpanLinks] = None
+    _stack_collector_v2_enabled: bool = config.stack.v2.enabled
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):

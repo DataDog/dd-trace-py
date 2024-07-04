@@ -1,4 +1,7 @@
 # -*- encoding: utf-8 -*-
+from dataclasses import dataclass
+from dataclasses import field
+from dataclasses import fields
 import logging
 import os
 import typing
@@ -7,9 +10,8 @@ from typing import Optional  # noqa:F401
 from typing import Type  # noqa:F401
 from typing import Union  # noqa:F401
 
-import attr
-
 import ddtrace
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
@@ -97,7 +99,7 @@ class Profiler(object):
         return getattr(self._profiler, key)
 
 
-@attr.s
+@dataclass
 class _ProfilerInstance(service.Service):
     """A instance of the profiler.
 
@@ -106,29 +108,30 @@ class _ProfilerInstance(service.Service):
     """
 
     # User-supplied values
-    url = attr.ib(default=None)
-    service = attr.ib(factory=lambda: os.environ.get("DD_SERVICE"))
-    tags = attr.ib(factory=dict, type=typing.Dict[str, str])
-    env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
-    version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
-    tracer = attr.ib(default=ddtrace.tracer)
-    api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
-    agentless = attr.ib(type=bool, default=config.agentless)
-    _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
-    _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
-    _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
-    enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
-    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
+    url: Optional[str] = None
+    service: Optional[str] = field(default_factory=lambda: os.environ.get("DD_SERVICE"))
+    tags: typing.Dict[str, str] = {}
+    env: Optional[str] = field(default_factory=lambda: os.environ.get("DD_ENV"))
+    version: Optional[str] = field(default_factory=lambda: os.environ.get("DD_VERSION"))
+    tracer: Tracer = ddtrace.tracer
+    api_key: Optional[str] = field(default_factory=lambda: os.environ.get("DD_API_KEY"))
+    agentless: bool = config.agentless
+    _memory_collector_enabled: bool = config.memory.enabled
+    _stack_collector_enabled: bool = config.stack.enabled
+    _lock_collector_enabled: bool = config.lock.enabled
+    enable_code_provenance: bool = config.code_provenance
+    endpoint_collection_enabled: bool = config.endpoint_collection
 
-    _recorder = attr.ib(init=False, default=None)
-    _collectors = attr.ib(init=False, default=None)
-    _collectors_on_import = attr.ib(init=False, default=None, eq=False)
-    _scheduler = attr.ib(init=False, default=None, type=Union[scheduler.Scheduler, scheduler.ServerlessScheduler])
-    _lambda_function_name = attr.ib(
-        init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
+    _recorder = field(init=False, default=None)
+    _collectors: Optional[List[Union[stack.StackCollector, memalloc.MemoryCollector]]] = field(init=False, default=None)
+    _collectors_on_import = field(init=False, default=None, compare=False)
+    _scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = field(init=False, default=None)
+    _lambda_function_name: Optional[str] = field(
+        init=False,
+        default_factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"),
     )
-    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _export_libdd_required = attr.ib(type=bool, default=config.export.libdd_required)
+    _export_libdd_enabled: bool = config.export.libdd_enabled
+    _export_libdd_required: bool = config.export.libdd_required
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -256,7 +259,7 @@ class _ProfilerInstance(service.Service):
             )
         ]
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         # type: (...) -> None
         # Allow to store up to 10 threads for 60 seconds at 50 Hz
         max_stack_events = 10 * 60 * 50
@@ -281,7 +284,7 @@ class _ProfilerInstance(service.Service):
             try:
                 self._collectors.append(
                     stack.StackCollector(
-                        r,
+                        r,  # type: ignore[arg-type]
                         tracer=self.tracer,
                         endpoint_collection_enabled=self.endpoint_collection_enabled,
                     )  # type: ignore[call-arg]
@@ -309,7 +312,8 @@ class _ProfilerInstance(service.Service):
                             LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
                             return
 
-                    self._collectors.append(col)
+                    if self._collectors is not None:
+                        self._collectors.append(col)
 
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
@@ -320,7 +324,7 @@ class _ProfilerInstance(service.Service):
                 ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
-            self._collectors.append(memalloc.MemoryCollector(r))
+            self._collectors.append(memalloc.MemoryCollector(r))  # type: ignore[arg-type]
 
         exporters = self._build_default_exporters()
 
@@ -351,7 +355,7 @@ class _ProfilerInstance(service.Service):
         return self.__class__(
             **{
                 a.name: getattr(self, a.name)
-                for a in attr.fields(self.__class__)
+                for a in fields(self.__class__)
                 if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
             }
         )
@@ -360,15 +364,16 @@ class _ProfilerInstance(service.Service):
         # type: (...) -> None
         """Start the profiler."""
         collectors = []
-        for col in self._collectors:
-            try:
-                col.start()
-            except collector.CollectorUnavailable:
-                LOG.debug("Collector %r is unavailable, disabling", col)
-            except Exception:
-                LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
-            else:
-                collectors.append(col)
+        if self._collectors is not None:
+            for col in self._collectors:
+                try:
+                    col.start()
+                except collector.CollectorUnavailable:
+                    LOG.debug("Collector %r is unavailable, disabling", col)
+                except Exception:
+                    LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                else:
+                    collectors.append(col)
         self._collectors = collectors
 
         if self._scheduler is not None:
@@ -381,7 +386,7 @@ class _ProfilerInstance(service.Service):
         :param flush: Flush a last profile.
         """
         # Prevent doing more initialisation now that we are shutting down.
-        if self._lock_collector_enabled:
+        if self._lock_collector_enabled and self._collectors_on_import:
             for module, hook in self._collectors_on_import:
                 try:
                     ModuleWatchdog.unregister_module_hook(module, hook)
@@ -398,16 +403,18 @@ class _ProfilerInstance(service.Service):
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
                 self._scheduler.flush()
 
-        for col in reversed(self._collectors):
-            try:
-                col.stop()
-            except service.ServiceStatusError:
-                # It's possible some collector failed to start, ignore failure to stop
-                pass
+        if self._collectors is not None:
+            for col in reversed(self._collectors):
+                try:
+                    col.stop()
+                except service.ServiceStatusError:
+                    # It's possible some collector failed to start, ignore failure to stop
+                    pass
 
         if join:
-            for col in reversed(self._collectors):
-                col.join()
+            if self._collectors is not None:
+                for col in reversed(self._collectors):
+                    col.join()
 
     def visible_events(self):
         return not self._export_libdd_enabled
