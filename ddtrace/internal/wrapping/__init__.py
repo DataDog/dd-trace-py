@@ -134,8 +134,8 @@ def wrap_bytecode(wrapper, wrapped):
     # Push the wrapper function that is to be called and the wrapped function to
     # be passed as first argument.
     instrs = [
-        bc.Instr("LOAD_CONST", wrapper, lineno=lineno),  # type: ignore[arg-type]
-        bc.Instr("LOAD_CONST", wrapped, lineno=lineno),  # type: ignore[arg-type]
+        bc.Instr("LOAD_CONST", wrapper, lineno=lineno),
+        bc.Instr("LOAD_CONST", wrapped, lineno=lineno),
     ]
     if PY >= (3, 11):
         # From insert_prefix_instructions
@@ -164,12 +164,12 @@ def wrap_bytecode(wrapper, wrapped):
         if varargs:
             instrs.extend(
                 [
-                    bc.Instr("LOAD_FAST", varargsname, lineno=lineno),  # type: ignore[arg-type]
+                    bc.Instr("LOAD_FAST", varargsname, lineno=lineno),
                     _add(lineno),
                 ]
             )
     elif varargs:
-        instrs.append(bc.Instr("LOAD_FAST", varargsname, lineno=lineno))  # type: ignore[arg-type]
+        instrs.append(bc.Instr("LOAD_FAST", varargsname, lineno=lineno))
     else:
         instrs.append(bc.Instr("BUILD_TUPLE", 0, lineno=lineno))
 
@@ -184,17 +184,17 @@ def wrap_bytecode(wrapper, wrapped):
             )
         instrs.append(bc.Instr("BUILD_MAP", kwonlyargs, lineno=lineno))
         if varkwargs:
-            instrs.extend(UPDATE_MAP.bind({"varkwargsname": varkwargsname}, lineno=lineno))  # type: ignore[arg-type]
+            instrs.extend(UPDATE_MAP.bind({"varkwargsname": varkwargsname}, lineno=lineno))
 
     elif varkwargs:
-        instrs.append(bc.Instr("LOAD_FAST", varkwargsname, lineno=lineno))  # type: ignore[arg-type]
+        instrs.append(bc.Instr("LOAD_FAST", varkwargsname, lineno=lineno))
 
     else:
         instrs.append(bc.Instr("BUILD_MAP", 0, lineno=lineno))
 
     # Call the wrapper function with the wrapped function, the positional and
     # keyword arguments, and return the result.
-    instrs.extend(CALL_RETURN.bind({"arg": 3}, lineno=lineno))  # type: ignore[arg-type]
+    instrs.extend(CALL_RETURN.bind({"arg": 3}, lineno=lineno))
 
     # If the function has special flags set, like the generator, async generator
     # or coroutine, inject unraveling code before the return opcode.
@@ -232,12 +232,12 @@ def wrap(f, wrapper):
     wrapped.__kwdefaults__ = f.__kwdefaults__
 
     code = wrap_bytecode(wrapper, wrapped)
-    code.freevars = f.__code__.co_freevars  # type: ignore[assignment]
+    code.freevars = f.__code__.co_freevars
     if PY >= (3, 11):
-        code.cellvars = f.__code__.co_cellvars  # type: ignore[assignment]
+        code.cellvars = f.__code__.co_cellvars
     code.name = f.__code__.co_name
     code.filename = f.__code__.co_filename
-    code.flags = f.__code__.co_flags  # type: ignore[assignment]
+    code.flags = f.__code__.co_flags
     code.argcount = f.__code__.co_argcount
     try:
         code.posonlyargcount = f.__code__.co_posonlyargcount
@@ -251,7 +251,7 @@ def wrap(f, wrapper):
     except AttributeError:
         pass
     nargs += bool(code.flags & bc.CompilerFlags.VARARGS) + bool(code.flags & bc.CompilerFlags.VARKEYWORDS)
-    code.argnames = f.__code__.co_varnames[:nargs]  # type: ignore[assignment]
+    code.argnames = f.__code__.co_varnames[:nargs]
 
     f.__code__ = code.to_code()
 

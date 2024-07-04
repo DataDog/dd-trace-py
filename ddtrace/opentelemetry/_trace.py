@@ -89,7 +89,7 @@ class Tracer(OtelTracer):
             # Convert otel span to a ddtrace context object.
             trace_id, span_id, _, tf, ts, _ = curr_otel_span.get_span_context()
             trace_state = ts.to_header() if ts else None
-            dd_active = _TraceContext._get_context(trace_id, span_id, tf, trace_state)  # type: ignore[arg-type]
+            dd_active = _TraceContext._get_context(trace_id, span_id, tf, trace_state)
         else:
             log.error(
                 "Programming Error: The current active Span is not supported by ddtrace. The following span will not "
@@ -107,7 +107,7 @@ class Tracer(OtelTracer):
                     link.context.span_id,
                     link.context.trace_state.to_header(),
                     link.context.trace_flags,
-                    link.attributes,  # type: ignore[arg-type]
+                    link.attributes,
                 )
         return Span(
             dd_span,

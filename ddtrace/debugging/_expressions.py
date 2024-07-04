@@ -55,8 +55,8 @@ def _is_identifier(name: str) -> bool:
     return isinstance(name, str) and name.isidentifier()
 
 
-IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)  # type: ignore[attr-defined]
-NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else Instr("CONTAINS_OP", 1)  # type: ignore[attr-defined]
+IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)
+NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else Instr("CONTAINS_OP", 1)
 
 
 def short_circuit_instrs(op: str, label: Label) -> List[Instr]:
@@ -109,7 +109,7 @@ class DDCompiler:
 
         abstract_code = Bytecode(instrs)
         abstract_code.argcount = len(args)
-        abstract_code.argnames = args  # type: ignore[assignment]
+        abstract_code.argnames = args
         abstract_code.name = name
 
         return FunctionType(abstract_code.to_code(), {}, name, (), None)
@@ -158,7 +158,7 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % b)
 
             short_circuit = Label()
-            return ca + short_circuit_instrs(_type, short_circuit) + cb + [short_circuit]  # type: ignore[list-item]
+            return ca + short_circuit_instrs(_type, short_circuit) + cb + [short_circuit]
 
         if _type in {"eq", "ge", "gt", "le", "lt", "ne"}:
             a, b = args
@@ -189,7 +189,7 @@ class DDCompiler:
             return self._call_function(
                 lambda i, c, _locals: f(c(_, _locals) for _ in i),
                 ca,
-                [Instr("LOAD_CONST", fb)],  # type: ignore[arg-type]
+                [Instr("LOAD_CONST", fb)],
                 [Instr("LOAD_FAST", "_locals")],
             )
 
@@ -244,9 +244,9 @@ class DDCompiler:
 
     def _call_function(self, func: Callable, *args: List[Instr]) -> List[Instr]:
         if PY < (3, 11):
-            return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]  # type: ignore[arg-type]
+            return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
         elif PY >= (3, 12):
-            return [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL", len(args))]  # type: ignore[arg-type]
+            return [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL", len(args))]
 
         # Python 3.11
         return (
@@ -287,7 +287,7 @@ class DDCompiler:
             return self._call_function(
                 lambda i, c, _locals: type(i)(_ for _ in i if c(_, _locals)),
                 ca,
-                [Instr("LOAD_CONST", fb)],  # type: ignore[arg-type]
+                [Instr("LOAD_CONST", fb)],
                 [Instr("LOAD_FAST", "_locals")],
             )
 
@@ -333,7 +333,7 @@ class DDCompiler:
         if not (isinstance(ast, (str, int, float, bool)) or ast is None):
             return None
 
-        return [Instr("LOAD_CONST", ast)]  # type: ignore[arg-type]
+        return [Instr("LOAD_CONST", ast)]
 
     def _compile_value_source(self, ast: DDASTType) -> Optional[List[Instr]]:
         # value_source  =>  <literal> | <operation>

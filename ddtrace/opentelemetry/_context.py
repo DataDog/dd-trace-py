@@ -37,7 +37,7 @@ class DDRuntimeContext:
             elif isinstance(otel_span, OtelSpan):
                 trace_id, span_id, _, tf, ts, _ = otel_span.get_span_context()
                 trace_state = ts.to_header() if ts else None
-                ddcontext = _TraceContext._get_context(trace_id, span_id, tf, trace_state)  # type: ignore[arg-type]
+                ddcontext = _TraceContext._get_context(trace_id, span_id, tf, trace_state)
                 self._ddcontext_provider.activate(ddcontext)
             else:
                 log.error(
@@ -64,8 +64,8 @@ class DDRuntimeContext:
         elif isinstance(ddactive, DDContext):
             tf = TraceFlags.SAMPLED if ddactive._traceflags == "01" else TraceFlags.DEFAULT
             ts = TraceState.from_header([ddactive._tracestate])
-            span_context = OtelSpanContext(ddactive.trace_id or 0, ddactive.span_id or 0, True, tf, ts)  # type: ignore[arg-type]
-            span = OtelNonRecordingSpan(span_context)  # type: ignore[assignment]
+            span_context = OtelSpanContext(ddactive.trace_id or 0, ddactive.span_id or 0, True, tf, ts)
+            span = OtelNonRecordingSpan(span_context)
             context = set_span_in_context(span, context)
         return context
 

@@ -607,10 +607,10 @@ class _UniversalWrappingContext(BaseWrappingContext):
             while i < len(bc):
                 instr = bc[i]
                 try:
-                    if instr.name == "RETURN_VALUE":  # type: ignore[union-attr]
+                    if instr.name == "RETURN_VALUE":
                         return_code = CONTEXT_RETURN.bind({"context": self}, lineno=instr.lineno)  # type: ignore[union-attr]
                     else:
-                        return_code = []  # type: ignore[assignment]
+                        return_code = []
 
                     bc[i:i] = return_code
                     i += len(return_code)
@@ -624,7 +624,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             if sys.version_info >= (3, 10) and iscoroutinefunction(f):
                 for i, instr in enumerate(bc, 1):
                     try:
-                        if instr.name == "GEN_START":  # type: ignore[union-attr]
+                        if instr.name == "GEN_START":
                             break
                     except AttributeError:
                         # Not an instruction
@@ -659,7 +659,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             wc = wrapped.__dd_context_wrapped__
             for i, instr in enumerate(bc):
                 try:
-                    if instr.name == "LOAD_CONST" and instr.arg is wc:  # type: ignore[union-attr]
+                    if instr.name == "LOAD_CONST" and instr.arg is wc:
                         break
                 except AttributeError:
                     # Not an instruction
@@ -672,7 +672,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             while i < len(bc):
                 instr = bc[i]
                 try:
-                    if instr.name == "RETURN_VALUE":  # type: ignore[union-attr]
+                    if instr.name == "RETURN_VALUE":
                         bc[i - len(CONTEXT_RETURN) : i] = []
                         i -= len(CONTEXT_RETURN)
                 except AttributeError:
