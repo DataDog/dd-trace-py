@@ -2,8 +2,8 @@
 from dataclasses import dataclass
 from dataclasses import field
 import typing  # noqa:F401
-
 from typing import Any
+
 from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.internal.compat import dataclass_slots
