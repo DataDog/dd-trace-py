@@ -1,4 +1,9 @@
+# This module supports an optional feature.  It may not even load on all platforms or configurations.
+# In ddtrace/settings/profiling.py, this module is imported and the is_available attribute is checked to determine
+# whether the feature is available. If not, then the feature is disabled and all downstream consumption is
+# suppressed.
 is_available = False
+failure_msg = ""
 
 
 try:
@@ -7,7 +12,4 @@ try:
     is_available = True
 
 except Exception as e:
-    from ddtrace.internal.logger import get_logger
-
-    LOG = get_logger(__name__)
-    LOG.warning("Failed to import _ddup: %s", e)
+    failure_msg = str(e)
