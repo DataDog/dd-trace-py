@@ -38,7 +38,7 @@ class RateLimitExceeded(Exception):
 
 
 @dataclass
-class BudgetRateLimiterWithJitter(object):
+class BudgetRateLimiterWithJitter:
     """A budget rate limiter with jitter.
 
     The jitter is induced by a uniform distribution. The rate limit can be
@@ -64,7 +64,7 @@ class BudgetRateLimiterWithJitter(object):
     limit_rate: float
     tau: float = 1.0
     raise_on_exceed: bool = True
-    on_exceed: Optional[Callable[[], None]] = None
+    on_exceed: Optional[Callable] = None
     call_once: bool = False
     budget: float = field(init=False)
     max_budget: float = field(init=False)

@@ -15,7 +15,9 @@ EndpointCountsType = typing.Dict[str, int]
 @dataclass(eq=False)
 class EndpointCallCounterProcessor(SpanProcessor):
     endpoint_counts: EndpointCountsType = field(default_factory=dict, init=False, repr=False, compare=False)
-    _endpoint_counts_lock: typing.Callable = field(default_factory=forksafe.Lock, init=False, repr=False, compare=False)
+    _endpoint_counts_lock: typing.ContextManager = field(
+        default_factory=forksafe.Lock, init=False, repr=False, compare=False
+    )
     _enabled: bool = field(default=False, repr=False, compare=False)
 
     def enable(self):

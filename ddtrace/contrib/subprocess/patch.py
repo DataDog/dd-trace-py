@@ -9,6 +9,7 @@ from threading import RLock
 from typing import Deque  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
@@ -71,12 +72,12 @@ def patch():
 
 @dataclass(eq=False)
 class SubprocessCmdLineCacheEntry(object):
-    binary: str = None
-    arguments: List = None
+    binary: Optional[str] = None
+    arguments: Optional[List] = None
     truncated: bool = False
-    env_vars: List = None
-    as_list: List = None
-    as_string: str = None
+    env_vars: Optional[List] = None
+    as_list: Optional[List] = None
+    as_string: Optional[str] = None
 
 
 class SubprocessCmdLine(object):
