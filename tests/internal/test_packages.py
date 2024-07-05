@@ -80,6 +80,11 @@ def test_filename_to_package(packages):
     package = packages.filename_to_package(gp.__file__)
     assert package.name == "protobuf"
 
+    try:
+        package = packages.filename_to_package("You may be wondering how I got here even though I am not a file.")
+    except Exception:
+        pytest.fail("filename_to_package should not raise an exception when given a non-file path")
+
 
 def test_third_party_packages():
     assert 4000 < len(_third_party_packages()) < 5000
