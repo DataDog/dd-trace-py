@@ -1819,7 +1819,7 @@ venv = Venv(
                 Venv(
                     pys="3.12",
                     pkgs={
-                        "grpcio": "==1.60.1",
+                        "grpcio": "==1.64.1",
                         "pytest-asyncio": "==0.23.7",
                     },
                 ),
