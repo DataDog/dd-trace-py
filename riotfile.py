@@ -1979,13 +1979,13 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7", max_version="3.7"),
                     pkgs={
                         "pytest-asyncio": ["==0.21.1"],
                     },
                 ),
                 Venv(
-                    pys="3.12",
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
                     },
