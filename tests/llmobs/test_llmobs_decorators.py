@@ -403,3 +403,37 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
             span, "embedding", model_name="test_model", model_provider="custom", tags={"ml_app": "test_ml_app"}
         )
     )
+
+
+async def test_non_llm_async_decorators(LLMObs, mock_llmobs_span_writer):
+    """Test that decorators work with async functions."""
+    for decorator_name, decorator in [
+        ("task", task),
+        ("workflow", workflow),
+        ("tool", tool),
+        ("agent", agent),
+        ("retrieval", retrieval),
+    ]:
+        @decorator
+        async def f():
+            pass
+
+        await f()
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, decorator_name))
+
+
+async def test_llm_async_decorators(LLMObs, mock_llmobs_span_writer):
+    """Test that decorators work with async functions."""
+    for decorator_name, decorator in [("llm", llm), ("embedding", embedding)]:
+        @decorator(model_name="test_model", model_provider="test_provider")
+        async def f():
+            pass
+
+        await f()
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span, decorator_name, model_name="test_model", model_provider="test_provider"
+            )
+        )
