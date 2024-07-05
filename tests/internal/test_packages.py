@@ -67,6 +67,7 @@ def test_filename_to_package_invalid_path(packages):
     package = packages.filename_to_package("<string>")
     assert package is None
 
+
 def test_filename_to_package(packages):
     # type: (...) -> None
     package = packages.filename_to_package(packages.__file__)
