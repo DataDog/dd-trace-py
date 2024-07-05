@@ -1,0 +1,5 @@
+other:
+  - |
+    LLM Observability: the SDK allowed users to submit an unsupported `numerical` evaluation metric type. All
+    evaluation metric types submitted with `numerical` type will now be automatically converted to a `score` type. 
+    As an alternative to using the `numerical type, use `score` instead.

@@ -55,6 +55,8 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.18.0"
 
+RUST_MINIMUM_VERSION = "1.71"  # Safe guess:  1.71 is about a year old as of 2024-07-03
+
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
     os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
@@ -384,6 +386,34 @@ class CMakeExtension(Extension):
         self.install_args = install_args or []
         self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
         self.optional = optional  # If True, cmake errors are ignored
+
+
+def check_rust_toolchain():
+    try:
+        rustc_res = subprocess.run(["rustc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        cargo_res = subprocess.run(["cargo", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if rustc_res.returncode != 0:
+            raise EnvironmentError("rustc required to build Rust extensions")
+        if cargo_res.returncode != 0:
+            raise EnvironmentError("cargo required to build Rust extensions")
+
+        # Now check valid minimum versions.  These are hardcoded for now, but should be canonized in some other way
+        rustc_ver = rustc_res.stdout.decode().split(" ")[1]
+        cargo_ver = cargo_res.stdout.decode().split(" ")[1]
+        if rustc_ver < RUST_MINIMUM_VERSION:
+            raise EnvironmentError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
+        if cargo_ver < RUST_MINIMUM_VERSION:
+            raise EnvironmentError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
+    except FileNotFoundError:
+        raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
+
+
+# Before adding any extensions, check that system pre-requisites are satisfied
+try:
+    check_rust_toolchain()
+except EnvironmentError as e:
+    print(f"{e}")
+    sys.exit(1)
 
 
 def get_exts_for(name):
