@@ -144,7 +144,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         return
 
     for header_name, header_value in headers.items():
-        """config._header_tag_name gets an element of the dictionary in config.http._header_tags
+        """config._header_tag_name gets an element of the dictionary in config.http.trace_http_header_tags
         which gets the value from DD_TRACE_HEADER_TAGS environment variable."""
         tag_name = integration_config._header_tag_name(header_name)
         if tag_name is None:
