@@ -1,7 +1,7 @@
 import sys
 
 
-if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
+if sys.version_info >= (3, 9) and sys.version_info < (3, 10):
     from abc import ABC
     import dis
     from enum import Enum
@@ -19,6 +19,7 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
             return cls.BACKWARD if "BACKWARD" in dis.opname[opcode] else cls.FORWARD
 
     class Jump(ABC):
+        # NOTE: in Python 3.9, jump arguments are offsets, vs instruction numbers (ie offsets/2) in Python 3.10
         def __init__(self, start: int, argbytes: list[int]) -> None:
             self.start = start
             self.end: int
@@ -30,7 +31,7 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
 
         def __init__(self, start: int, arg: list[int]) -> None:
             super().__init__(start, arg)
-            self.end = self.arg << 1
+            self.end = self.arg
 
     class RJump(Jump):
         __opcodes__ = set(dis.hasjrel)
@@ -38,7 +39,7 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
         def __init__(self, start: int, arg: list[int], direction: JumpDirection) -> None:
             super().__init__(start, arg)
             self.direction = direction
-            self.end = start + (self.arg << 1) * self.direction + 2
+            self.end = start + (self.arg) * self.direction + 2
 
     class Instruction:
         __slots__ = ("offset", "opcode", "arg", "targets")
@@ -79,48 +80,112 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
         return instructions
 
     def update_location_data(
-        code: CodeType, trap_map: t.Dict[int, int], ext_arg_offsets: t.List[t.Tuple[int, int]]
+        code: CodeType, trap_map: t.Dict[int, int], ext_arg_offsets: t.List[t.Tuple[int, int]], line_starts, debug_here
     ) -> bytes:
+        # Some code objects do not have co_lnotab data (eg: certain lambdas)
+        if code.co_lnotab == b"":
+            return code.co_lnotab
+
+        debug_here = debug_here
+        # debug_here = True
+
         # DEV: We expect the original offsets in the trap_map
         new_data = bytearray()
+        data = code.co_lnotab
 
-        data = code.co_linetable
-        data_iter = iter(data)
+        # if 1470 in line_starts.values() and code.co_filename.endswith("src/flask/app.py"):
+        #     debug_here = True
+
         ext_arg_offset_iter = iter(sorted(ext_arg_offsets))
         ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
 
-        original_offset = offset = 0
-        while True:
-            try:
-                if original_offset in trap_map:
-                    # Give no line number to the trap instrumentation
-                    trap_offset_delta = trap_map[original_offset] << 1
-                    new_data.append(trap_offset_delta)
-                    new_data.append(128)  # No line number
-                    offset += trap_offset_delta
+        # if code.co_filename.endswith("conftest.py") and (34 in line_starts.values() or 148 in line_starts.values()):
+        #     print("UPDATING LOCATION DATA")
+        #     debug_here = True
 
-                offset_delta = next(data_iter)
-                line_delta = next(data_iter)
+        # if code.co_filename.endswith("src/flask/app.py") and (567 in line_starts.values()):
+        #     print("UPDATING LOCATION DATA")
+        #     debug_here = True
 
-                original_offset += offset_delta
-                offset += offset_delta
-                if ext_arg_offset is not None and ext_arg_size is not None and offset > ext_arg_offset:
-                    new_offset_delta = offset_delta + (ext_arg_size << 1)
-                    new_data.append(new_offset_delta & 0xFF)
-                    new_data.append(line_delta)
-                    new_offset_delta >>= 8
-                    while new_offset_delta:
-                        new_data.append(new_offset_delta & 0xFF)
-                        new_data.append(0)
-                        new_offset_delta >>= 8
-                    offset += ext_arg_size << 1
+        # if ext_arg_offset:
+        #     print("FOUND EXTRA ARG OFFSET")
+        #     debug_here = True
 
-                    ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
-                else:
-                    new_data.append(offset_delta)
-                    new_data.append(line_delta)
-            except StopIteration:
-                break
+        if debug_here:
+            print(f"DEBUG FILE {code}")
+            print(f"DEBUG data={list(data)}, len({len(data)}, first line: {code.co_firstlineno}")
+            print(f"DEBUG {trap_map=}")
+            print(f"DEBUG {ext_arg_offsets=}")
+            breakpoint()
+
+        # The first offset and line in lnotab never changes:
+        # orig_offset_delta = next(data_iter)
+        # orig_line = next(data_iter)
+        # new_data.append(orig_offset_delta)
+        # new_data.append(orig_line)
+
+        current_orig_offset = 0  # Cumulative offset used to compare against trap offsets
+        current_new_offset = current_orig_offset  # Cumulative offset used to compare against extended args offsets
+
+        # In 3.9 , all instructions have to have line numbers, so the first instructions of the trap call must mark the
+        # beginning of the line. The subsequent offsets need to be incremented by the size of the trap call instructions
+        # plus any extended args.
+
+        # If the first item is not 0
+
+        # Line deltas never change, since we are not modifying lines of code
+
+        # start = 2 if data[0] == 0 else 0
+
+        # Set the first trap size:
+        current_new_offset = accumulated_new_offset = trap_map[0] << 1
+
+        for i in range(0, len(data), 2):
+            orig_offset_delta = data[i]
+            line_delta = data[i + 1]
+
+            # For each original offset, we compute how many offsets have been added in the new code, this includes:
+            # - the size of the trap at the previous offset
+            # - the amount of extended args added since the previous offset
+
+            current_new_offset += orig_offset_delta
+            current_orig_offset += orig_offset_delta
+            accumulated_new_offset += orig_offset_delta
+
+            if debug_here:
+                print(f"{current_orig_offset=} {current_new_offset=} {orig_offset_delta=} {line_delta}")
+
+            # If the current offset is 255, just increment:
+            if orig_offset_delta == 255:
+                continue
+
+            # If the current offset is 0, it means we are only incrementing the amount of lines jumped by the previous
+            # non-zero offset
+            if orig_offset_delta == 0:
+                new_data.append(0)
+                new_data.append(line_delta)
+                continue
+
+            while ext_arg_offset is not None and ext_arg_size is not None and current_new_offset > ext_arg_offset:
+                if debug_here:
+                    print(f"PROCESSING OFFSET {ext_arg_offset=} {ext_arg_size=}")
+                accumulated_new_offset += ext_arg_size << 1
+                current_new_offset += ext_arg_size << 1
+                ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
+
+            # If the current line delta changes, flush accumulated data:
+            if line_delta != 0:
+                while accumulated_new_offset > 255:
+                    new_data.append(255)
+                    new_data.append(0)
+                    accumulated_new_offset -= 255
+
+                new_data.append(accumulated_new_offset)
+                new_data.append(line_delta)
+
+                # Also add the current trap size to the accumulated offset
+                accumulated_new_offset = trap_map[current_orig_offset] << 1
+                current_new_offset += accumulated_new_offset
 
         return bytes(new_data)
 
@@ -139,6 +204,11 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
     def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[CodeType, t.Set[int]]:
         # TODO[perf]: Check if we really need to << and >> everywhere
         trap_func, trap_arg = hook, path
+        # if path != code.co_filename:
+        #     print("UH OH BAD")
+        #     breakpoint()
+
+        debug_here = False
 
         instructions: t.List[Instruction] = []
 
@@ -156,11 +226,21 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
         line_map = {}
         line_starts = dict(dis.findlinestarts(code))
 
+        if code.co_filename.endswith("src/flask/cli.py") and 904 in line_starts.values():
+            debug_here = True
+
+        if code.co_filename.endswith("tests/test_basic.py") and 326 in line_starts.values():
+            debug_here = True
+
+        if code.co_filename.endswith("src/flask/testing.py") and 240 in line_starts.values():
+            debug_here = True
+
         try:
             code_iter = iter(enumerate(code.co_code))
             ext: list[int] = []
             while True:
                 original_offset, opcode = next(code_iter)
+
                 if original_offset in line_starts:
                     # Inject trap call at the beginning of the line. Keep track
                     # of location and size of the trap call instructions. We
@@ -181,6 +261,9 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
 
                 # Propagate code
                 instructions.append(Instruction(original_offset, opcode, arg))
+
+                # if code.co_filename.endswith("conftest.py") and 34 in line_starts.values() and original_offset == 76:
+                #     breakpoint()
 
                 # Collect branching instructions for processing
                 if opcode in AJump.__opcodes__:
@@ -232,7 +315,7 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
             process_branches = False
             for branch in branches:
                 jump_instr = branch.start
-                new_arg = branch.arg
+                new_arg = branch.arg << 1  # 3.9 uses offsets, not instruction numbers
                 jump_instr.arg = new_arg & 0xFF
                 new_arg >>= 8
                 c = 0
@@ -284,25 +367,24 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
                 new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg)
                 seen_lines.update(nested_lines)
 
-        new_linetable = update_location_data(code, traps, [(instr.offset, s) for instr, s in exts])
+        ext_arg_offsets = [(instr.offset, s) for instr, s in exts]
+        new_lnotab = update_location_data(code, traps, ext_arg_offsets, line_starts, False)
 
         replace = code.replace(
             co_code=bytes(new_code),
             co_consts=tuple(new_consts),
             co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-            co_linetable=new_linetable,
+            co_lnotab=new_lnotab,
         )
 
-        if code.co_filename.endswith("conftest.py"):
-            dis.dis(replace)
+        if debug_here and False:
+            dis.dis(replace, depth=0)
             breakpoint()
 
+        print(f"DEBUG CODE {code} REPLACE {replace}")
+        dis.dis(replace, depth=0)
+
         return (
-            code.replace(
-                co_code=bytes(new_code),
-                co_consts=tuple(new_consts),
-                co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-                co_linetable=new_linetable,
-            ),
+            replace,
             seen_lines,
         )

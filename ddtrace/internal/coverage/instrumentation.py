@@ -8,5 +8,7 @@ elif sys.version_info >= (3, 11):
     from ddtrace.internal.coverage.instrumentation_py3_11 import instrument_all_lines  # noqa
 elif sys.version_info >= (3, 10):
     from ddtrace.internal.coverage.instrumentation_py3_10 import instrument_all_lines  # noqa
+elif sys.version_info >= (3, 9):
+    from ddtrace.internal.coverage.instrumentation_py3_9 import instrument_all_lines  # noqa
 else:
     from ddtrace.internal.coverage.instrumentation_py3_fallback import instrument_all_lines  # noqa
