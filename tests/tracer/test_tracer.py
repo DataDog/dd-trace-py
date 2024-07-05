@@ -986,7 +986,7 @@ class EnvTracerTestCase(TracerTestCase):
     def test_dd_tags_invalid(self):
         assert self.tracer._tags.get("key1")
         assert self.tracer._tags.get("key2")
-        assert self.tracer._tags.get("key3") is None
+        assert self.tracer._tags.get("key3")
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
     def test_tags_from_DD_TAGS(self):
