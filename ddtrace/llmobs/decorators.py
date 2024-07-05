@@ -5,7 +5,6 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 
