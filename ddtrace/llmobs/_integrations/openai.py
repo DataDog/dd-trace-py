@@ -207,6 +207,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                 }
                 content = {"function_call": function_call_info}
             elif getattr(choice.message, "tool_calls", None):
+                tool_calls_info = []
                 for tool_call in choice.message.tool_calls:
                     tool_call_info = {
                         "name": getattr(tool_call.function, "name", ""),
@@ -214,7 +215,8 @@ class OpenAIIntegration(BaseLLMIntegration):
                         "tool_id": getattr(tool_call, "id", ""),
                         "type": getattr(tool_call, "type", ""),
                     }
-                    content = {"tool_call": tool_call_info}
+                    tool_calls_info.append(tool_call_info)
+                content = {"tool_calls": tool_calls_info}
             output_messages.append({"content": json.dumps(content), "role": choice.message.role})
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
