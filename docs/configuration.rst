@@ -296,7 +296,7 @@ The following environment variables for the tracer are supported:
          ``DD_TRACE_HEADER_TAGS=User-Agent:http.useragent,content-type:http.content_type``. The value of the header will stored in tags with the name ``http.useragent`` and ``http.content_type``.
 
         If a tag name is not supplied the header name will be used. For example if
-         ``DD_TRACE_HEADER_TAGS=User-Agent,content-type``. The value of http header will be stored in tags with the names ``http.<response/request>.headers.user-agent`` and ``http.<response/request>.headers.content-type``.
+        ``DD_TRACE_HEADER_TAGS=User-Agent,content-type``. The value of http header will be stored in tags with the names ``http.<response/request>.headers.user-agent`` and ``http.<response/request>.headers.content-type``.
 
    DD_TRACE_API_VERSION:
      default: |
