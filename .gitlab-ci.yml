@@ -31,11 +31,12 @@ download_wheels:
 package-oci:
   needs: [ download_wheels ]
 
-onboarding_tests_k8s_injection:
+# no installer tests for python
+onboarding_tests_installer:
   rules:
-    - when: on_success
-      allow_failure: true
-  allow_failure: true
+    - when: never
+
+onboarding_tests_k8s_injection:
   parallel:
     matrix:
       - WEBLOG_VARIANT: [dd-lib-python-init-test-django, dd-lib-python-init-test-django-gunicorn, dd-lib-python-init-test-django-uvicorn]
