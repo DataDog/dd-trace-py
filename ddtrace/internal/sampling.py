@@ -15,9 +15,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import SAMPLING_AGENT_DECISION
-from ddtrace.constants import SAMPLING_LIMIT_DECISION
 from ddtrace.constants import SAMPLING_RULE_DECISION
-from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import _CATEGORY_TO_PRIORITIES
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
@@ -304,18 +302,6 @@ def _set_sampling_tags(span, sampled, sample_rate, priority_category):
     priorities = _CATEGORY_TO_PRIORITIES[priority_category]
     _set_priority(span, priorities[_KEEP_PRIORITY_INDEX] if sampled else priorities[_REJECT_PRIORITY_INDEX])
     set_sampling_decision_maker(span.context, mechanism)
-
-
-def _apply_rate_limit(span, sampled, limiter):
-    # type: (Span, bool, RateLimiter) -> bool
-    allowed = True
-    if sampled:
-        allowed = limiter.is_allowed()
-        if not allowed:
-            _set_priority(span, USER_REJECT)
-    if limiter._has_been_configured:
-        span.set_metric(SAMPLING_LIMIT_DECISION, limiter.effective_rate)
-    return allowed
 
 
 def _set_priority(span, priority):
