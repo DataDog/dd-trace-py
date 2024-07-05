@@ -1997,7 +1997,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp_jinja2",
             pkgs={
                 "pytest-aiohttp": [latest],
-                "pytest-asyncio": ["==0.21.1"],
                 "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7",
@@ -2009,8 +2008,20 @@ venv = Venv(
                 ],
                 "jinja2": latest,
             },
-            # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
-            pys=select_pys(min_version="3.7", max_version="3.12"),
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.7"),
+                    pkgs={
+                        "pytest-asyncio": ["==0.21.1"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pkgs={
+                        "pytest-asyncio": ["==0.23.7"],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="jinja2",
