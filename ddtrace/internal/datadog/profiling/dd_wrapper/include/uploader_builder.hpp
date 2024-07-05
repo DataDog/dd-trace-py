@@ -2,6 +2,7 @@
 
 #include "uploader.hpp"
 
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -23,9 +24,11 @@ class UploaderBuilder
     static inline std::string runtime{ "cython" };
     static inline std::string runtime_version;
     static inline std::string runtime_id;
-    static inline std::string profiler_version; // TODO: get this at build time
+    static inline std::string profiler_version;
     static inline std::string url{ "http://localhost:8126" };
+    static inline std::string dir{ "" };
     static inline ExporterTagset user_tags{};
+    static inline std::atomic<uint64_t> upload_seq{ 0 };
 
     static constexpr std::string_view language{ "python" };
     static constexpr std::string_view family{ "python" };
@@ -39,7 +42,11 @@ class UploaderBuilder
     static void set_runtime_id(std::string_view _runtime_id);
     static void set_profiler_version(std::string_view _profiler_version);
     static void set_url(std::string_view _url);
+    static bool set_dir(std::string_view _dir);
     static void set_tag(std::string_view _key, std::string_view _val);
+
+    static void clear_url();
+    static void clear_dir();
 
     static std::variant<Uploader, std::string> build();
 };
