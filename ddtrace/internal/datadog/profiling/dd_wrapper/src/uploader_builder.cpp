@@ -8,6 +8,10 @@
 #include <utility>
 #include <vector>
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 void
 Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
 {
@@ -15,6 +19,7 @@ Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
         dd_env = _dd_env;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_service(std::string_view _service)
 {
@@ -22,6 +27,7 @@ Datadog::UploaderBuilder::set_service(std::string_view _service)
         service = _service;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_version(std::string_view _version)
 {
@@ -29,6 +35,7 @@ Datadog::UploaderBuilder::set_version(std::string_view _version)
         version = _version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_runtime(std::string_view _runtime)
 {
@@ -36,6 +43,7 @@ Datadog::UploaderBuilder::set_runtime(std::string_view _runtime)
         runtime = _runtime;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
 {
@@ -43,6 +51,7 @@ Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
         runtime_version = _runtime_version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
 {
@@ -50,6 +59,7 @@ Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_versio
         profiler_version = _profiler_version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_url(std::string_view _url)
 {
@@ -57,6 +67,62 @@ Datadog::UploaderBuilder::set_url(std::string_view _url)
         url = _url;
     }
 }
+
+void
+Datadog::UploaderBuilder::clear_url()
+{
+    url = "";
+}
+
+bool
+Datadog::UploaderBuilder::set_dir(std::string_view _dir)
+{
+    if (_dir.empty()) {
+        return false;
+    }
+
+    // Given a directory, we need to ensure that it
+    // - Exists
+    // - Is writable by the current user
+    // We'll do this by attempting to create a file in the directory
+    // and then deleting it.  If we can't do that, we'll throw an error.
+    const char *file_cstr = ".dd_test_file";
+    const char *dir_cstr = _dir.data();
+
+    // this will be a real file and not a FIFO, so we don't need to check EINTR
+    int dirfd = open(dir_cstr, O_DIRECTORY);
+    if (dirfd == -1) {
+        return false;
+    }
+    int fd = openat(dirfd, file_cstr, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+    close(dirfd);
+    unlink(file_cstr);
+    if (fd == -1) {
+        return false;
+    }
+
+    // Usually just creating a file is sufficient, but SELinux is a thing, so write too.
+    size_t bytes_written = 0;
+    do {
+        bytes_written = write(fd, "test", 4);
+    } while (errno == EINTR);
+    close(fd);
+
+    if (bytes_written != 4) {
+        return false;
+    }
+
+    // If we're here, we can write to the directory, so we'll save it.
+    dir = _dir;
+    return true;
+}
+
+void
+Datadog::UploaderBuilder::clear_dir()
+{
+    dir = "";
+}
+
 void
 Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 {
@@ -96,6 +162,10 @@ join(const std::vector<std::string>& vec, const std::string& delim)
 std::variant<Datadog::Uploader, std::string>
 Datadog::UploaderBuilder::build()
 {
+    // Increment the upload sequence number every time we build an uploader; in the current
+    // code Uploaders are use-once-and-destroy, so this pans out.
+    upload_seq++;
+
     // Setup the ddog_Exporter
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
 
@@ -154,5 +224,5 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    return Datadog::Uploader{ url, ddog_exporter };
+    return Datadog::Uploader{ url, dir, ddog_exporter, upload_seq };
 }
