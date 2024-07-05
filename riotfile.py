@@ -906,15 +906,28 @@ venv = Venv(
                 # other versions as the main purpose of these tests is to ensure
                 # an error-free interaction between Django and Celery. We find
                 # that we currently have no reasons for expanding this matrix.
-                "django": "==2.2.1",
-                "sqlalchemy": "~=1.2.18",
                 "celery": latest,
                 "gevent": latest,
                 "requests": latest,
                 "typing-extensions": latest,
                 "pytest-randomly": latest,
             },
-            pys=select_pys(min_version="3.8", max_version="3.12"),
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pkgs={
+                        "sqlalchemy": "~=1.2.18",
+                        "django": "==2.2.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pkgs={
+                        "sqlalchemy": latest,
+                        "django": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="dramatiq",
@@ -1421,11 +1434,16 @@ venv = Venv(
             pkgs={
                 "moto[all]": "<5.0",
                 "pytest-randomly": latest,
+                "vcrpy": latest,
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
-                    pkgs={"botocore": ["~=1.13", latest], "vcrpy": latest},
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pkgs={"botocore": ["~=1.13", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pkgs={"botocore": latest},
                 ),
             ],
         ),
@@ -1801,7 +1819,7 @@ venv = Venv(
                 Venv(
                     pys="3.12",
                     pkgs={
-                        "grpcio": latest,
+                        "grpcio": "==1.60.1",
                         "pytest-asyncio": "==0.23.7",
                     },
                 ),
@@ -2412,10 +2430,8 @@ venv = Venv(
                         "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.30.1"],
                     },
                     venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.7", max_version="3.11"), pkgs={"pytest-asyncio": "==0.21.1"}
-                        ),
-                        Venv(pys="3.12", pkgs={"pytest-asyncio": "==0.23.7"}),
+                        Venv(pys=select_pys(min_version="3.7", max_version="3.7"), pkgs={"pytest-asyncio": "==0.21.1"}),
+                        Venv(pys=select_pys(min_version="3.8"), pkgs={"pytest-asyncio": "==0.23.7"}),
                     ],
                 ),
                 Venv(
@@ -2426,9 +2442,8 @@ venv = Venv(
                     env={"TIKTOKEN_AVAILABLE": "True"},
                     venvs=[
                         Venv(
-                            pys=select_pys(min_version="3.8", max_version="3.11"), pkgs={"pytest-asyncio": "==0.21.1"}
+                            pys=select_pys(min_version="3.8", max_version="3.12"), pkgs={"pytest-asyncio": "==0.21.1"}
                         ),
-                        Venv(pys="3.12", pkgs={"pytest-asyncio": "==0.23.7"}),
                     ],
                 ),
             ],
@@ -2595,11 +2610,8 @@ venv = Venv(
         Venv(
             name="langchain",
             command="pytest {cmdargs} tests/contrib/langchain",
-            # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
-            pys=select_pys(min_version="3.9", max_version="3.12"),
             pkgs={
                 "vcrpy": latest,
-                "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
@@ -2617,7 +2629,9 @@ venv = Venv(
                         "openai": "==0.27.8",
                         "pinecone-client": "==2.2.4",
                         "cohere": "==4.57",
-                    }
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
                     pkgs={
@@ -2633,7 +2647,9 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": "==5.4.0",
-                    }
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
                     pkgs={
@@ -2648,7 +2664,9 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                    }
+                        "pytest-asyncio": "==0.23.7",
+                    },
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
                 Venv(
                     pkgs={
@@ -2664,7 +2682,9 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                    }
+                        "pytest-asyncio": "==0.23.7",
+                    },
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
             ],
         ),

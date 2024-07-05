@@ -21,14 +21,12 @@ def get_redis_instance(max_connections: int, client_name: typing.Optional[str] =
     )
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 def redis_client():
     r = get_redis_instance(max_connections=10)  # default values
     yield r
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 def single_pool_redis_client():
     r = get_redis_instance(max_connections=1)
