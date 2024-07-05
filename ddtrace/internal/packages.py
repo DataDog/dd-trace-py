@@ -205,6 +205,8 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
         return mapping.get(_root_module(path.resolve()))
     except ValueError:
         return None
+    except OSError:
+        return None
 
 
 @cached()
