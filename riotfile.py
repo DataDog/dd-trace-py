@@ -457,7 +457,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/gevent",
             pkgs={
                 "elasticsearch": latest,
-                "pynamodb": latest,
+                "pynamodb": "<6.0",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -1267,7 +1267,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "pynamodb": ["~=5.0", "~=5.3", latest],
+                        "pynamodb": ["~=5.0", "~=5.3", "<6.0"],
                         "moto": ">=1.0,<2.0",
                         "cfn-lint": "~=0.53.1",
                         "Jinja2": "~=2.11.0",
@@ -1813,13 +1813,6 @@ venv = Venv(
                     pys="3.11",
                     pkgs={
                         "grpcio": ["~=1.49.0", "~=1.59.0"],
-                        "pytest-asyncio": "==0.23.7",
-                    },
-                ),
-                Venv(
-                    pys="3.12",
-                    pkgs={
-                        "grpcio": "==1.64.1",
                         "pytest-asyncio": "==0.23.7",
                     },
                 ),
@@ -2620,6 +2613,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "numexpr": latest,
                 "greenlet": "==3.0.3",
+                "pytest-asyncio": "==0.23.7",
             },
             venvs=[
                 Venv(
@@ -2629,7 +2623,6 @@ venv = Venv(
                         "openai": "==0.27.8",
                         "pinecone-client": "==2.2.4",
                         "cohere": "==4.57",
-                        "pytest-asyncio": "==0.21.1",
                     },
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
@@ -2647,7 +2640,6 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": "==5.4.0",
-                        "pytest-asyncio": "==0.21.1",
                     },
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
@@ -2664,7 +2656,6 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                        "pytest-asyncio": "==0.23.7",
                     },
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
@@ -2682,7 +2673,6 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                        "pytest-asyncio": "==0.23.7",
                     },
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
