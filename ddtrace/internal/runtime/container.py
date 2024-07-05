@@ -1,12 +1,11 @@
-from dataclasses import dataclass
 import errno
 import os
 import re
-from typing import Any
 from typing import Dict
 from typing import Optional
 
-from ..compat import dataclass_slots
+import attr
+
 from ..constants import CONTAINER_ID_HEADER_NAME
 from ..constants import ENTITY_ID_HEADER_NAME
 from ..logger import get_logger
@@ -15,15 +14,15 @@ from ..logger import get_logger
 log = get_logger(__name__)
 
 
-@dataclass(**dataclass_slots())
-class CGroupInfo:
-    id: Any = None
-    groups: Any = None
-    path: Any = None
-    container_id: Any = None
-    controllers: Any = None
-    pod_id: Any = None
-    node_inode: Any = None
+@attr.s(slots=True)
+class CGroupInfo(object):
+    id = attr.ib(default=None)
+    groups = attr.ib(default=None)
+    path = attr.ib(default=None)
+    container_id = attr.ib(default=None)
+    controllers = attr.ib(default=None)
+    pod_id = attr.ib(default=None)
+    node_inode = attr.ib(default=None)
 
     # The second part is the PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
     # See https://github.com/DataDog/datadog-agent/blob/7.40.x/pkg/util/cgroups/reader.go#L50

@@ -1,5 +1,6 @@
-from dataclasses import dataclass
 import typing
+
+import attr
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
@@ -10,7 +11,7 @@ class ExportError(Exception):
     pass
 
 
-@dataclass
+@attr.s
 class Exporter(object):
     """Exporter base class."""
 
@@ -30,7 +31,7 @@ class Exporter(object):
         raise NotImplementedError
 
 
-@dataclass
+@attr.s
 class NullExporter(Exporter):
     """Exporter that does nothing."""
 

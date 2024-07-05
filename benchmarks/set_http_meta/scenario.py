@@ -1,7 +1,5 @@
 from collections import defaultdict
 import copy
-from dataclasses import dataclass
-from dataclasses import field
 
 import bm as bm
 import bm.utils as utils
@@ -46,16 +44,15 @@ DATA_GET = dict(
 )
 
 
-@dataclass
 class SetHttpMeta(bm.Scenario):
-    useragentvariant: str
-    url: str
-    querystring: str
-    ip_header: str
-    allenabled: bool = field(default_factory=bm.var_bool)
-    obfuscation_disabled: bool = field(default_factory=bm.var_bool)
-    send_querystring_enabled: bool = field(default_factory=bm.var_bool)
-    ip_enabled: bool = field(default_factory=bm.var_bool)
+    allenabled = bm.var_bool()
+    useragentvariant = bm.var(type=str)
+    obfuscation_disabled = bm.var_bool()
+    send_querystring_enabled = bm.var_bool()
+    url = bm.var(type=str)
+    querystring = bm.var(type=str)
+    ip_header = bm.var(type=str)
+    ip_enabled = bm.var_bool()
 
     def run(self):
         # run scenario to also set tags on spans

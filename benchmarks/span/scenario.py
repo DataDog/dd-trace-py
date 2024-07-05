@@ -1,23 +1,18 @@
-from benchmarks.bm import Scenario
-from benchmarks.bm import var_bool
-import benchmarks.bm.utils as utils
+import bm
+import bm.utils as utils
 
-from dataclasses import dataclass
-from dataclasses import field
 from ddtrace import config
 from ddtrace import tracer
 
 
-@dataclass(kw_only=True)
-class Span(Scenario):
-    name: str
-    nspans: int
-    ntags: int
-    ltags: int
-    nmetrics: int
-    finishspan: bool = field(default_factory=var_bool)
-    traceid128: bool = field(default_factory=var_bool)
-    telemetry: bool = field(default_factory=var_bool)
+class Span(bm.Scenario):
+    nspans = bm.var(type=int)
+    ntags = bm.var(type=int)
+    ltags = bm.var(type=int)
+    nmetrics = bm.var(type=int)
+    finishspan = bm.var_bool()
+    traceid128 = bm.var_bool()
+    telemetry = bm.var_bool()
 
     def run(self):
         # run scenario to also set tags on spans
