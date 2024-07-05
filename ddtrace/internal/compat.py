@@ -495,10 +495,3 @@ def get_mp_context():
     import multiprocessing
 
     return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")
-
-
-def dataclass_slots(**kwargs):
-    new_kwargs = kwargs or {}
-    if PYTHON_VERSION_INFO >= (3, 10):
-        new_kwargs["slots"] = True
-    return new_kwargs

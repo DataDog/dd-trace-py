@@ -13,6 +13,7 @@ except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 
 import bytecode as bc
+from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
@@ -35,9 +36,9 @@ Wrapper = Callable[[FunctionType, Tuple[Any], Dict[str, Any]], Any]
 
 def _add(lineno):
     if PY >= (3, 11):
-        return bc.Instr("BINARY_OP", bc.BinaryOp.ADD, lineno=lineno)
+        return Instr("BINARY_OP", bc.BinaryOp.ADD, lineno=lineno)
 
-    return bc.Instr("INPLACE_ADD", lineno=lineno)
+    return Instr("INPLACE_ADD", lineno=lineno)
 
 
 UPDATE_MAP = Assembly()
@@ -145,7 +146,7 @@ def wrap_bytecode(wrapper, wrapped):
         ]
 
         if code.co_cellvars:
-            instrs[0:0] = [bc.Instr("MAKE_CELL", bc.CellVar(_), lineno=lineno) for _ in code.co_cellvars]
+            instrs[0:0] = [Instr("MAKE_CELL", bc.CellVar(_), lineno=lineno) for _ in code.co_cellvars]
 
         if code.co_freevars:
             instrs.insert(0, bc.Instr("COPY_FREE_VARS", len(code.co_freevars), lineno=lineno))
@@ -154,7 +155,7 @@ def wrap_bytecode(wrapper, wrapped):
     if nargs:
         instrs.extend(
             [
-                bc.Instr("LOAD_DEREF", bc.CellVar(argname), lineno=lineno)
+                Instr("LOAD_DEREF", bc.CellVar(argname), lineno=lineno)
                 if PY >= (3, 11) and argname in code.co_cellvars
                 else bc.Instr("LOAD_FAST", argname, lineno=lineno)
                 for argname in argnames
