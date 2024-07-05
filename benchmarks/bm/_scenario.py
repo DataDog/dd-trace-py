@@ -1,10 +1,12 @@
 import abc
-from dataclasses import field
+
+# from dataclasses import dataclass
+# from dataclasses import field
 from dataclasses import fields
 import time
 
+# import pdb
 import pyperf
-import six
 
 from ._to_bool import to_bool
 
@@ -25,13 +27,14 @@ def _register(scenario_cls):
     runner = pyperf.Runner(add_cmdline_args=add_cmdline_args)
     cmd = runner.argparser
 
+    # pdb.set_trace()
     for _field in fields(scenario_cls):
         cmd.add_argument("--{}".format(_field.name), type=_field.type)
 
     parsed_args = runner.parse_args()
 
     config_dict = {
-        _field.name: getattr(parsed_args, field.name)
+        _field.name: getattr(parsed_args, _field.name)
         for _field in fields(scenario_cls)
         if hasattr(parsed_args, _field.name)
     }
@@ -40,9 +43,9 @@ def _register(scenario_cls):
     runner.bench_time_func(scenario.scenario_name, scenario._pyperf)
 
 
-class ScenarioMeta(abc.ABCMeta):
+class ScenarioMetaClass(abc.ABCMeta):
     def __init__(cls, name, bases, _dict):
-        super(ScenarioMeta, cls).__init__(name, bases, _dict)
+        super(ScenarioMetaClass, cls).__init__(name, bases, _dict)
 
         # Do not register the base Scenario class
         # DEV: We cannot compare `cls` to `Scenario` since it doesn't exist yet
@@ -50,10 +53,8 @@ class ScenarioMeta(abc.ABCMeta):
             _register(cls)
 
 
-class Scenario(six.with_metaclass(ScenarioMeta)):
+class ScenarioMeta(metaclass=ScenarioMetaClass):
     """The base class for specifying a benchmark."""
-
-    name: str
 
     @property
     def scenario_name(self):
@@ -77,3 +78,7 @@ class Scenario(six.with_metaclass(ScenarioMeta)):
             pass
         finally:
             return dt  # noqa: B012
+
+
+class Scenario(ScenarioMetaClass):
+    pass

@@ -6,7 +6,6 @@ import threading
 import typing
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat import dataclass_slots
 from ddtrace.settings.profiling import config
 
 from . import event
@@ -28,7 +27,7 @@ class _defaultdictkey(dict):
 EventsType = typing.Dict[event.Event, typing.Sequence[event.Event]]
 
 
-@dataclass(**dataclass_slots())
+@dataclass()
 class Recorder:
     """An object that records program activity."""
 
