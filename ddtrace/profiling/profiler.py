@@ -116,6 +116,7 @@ class _ProfilerInstance(service.Service):
     agentless = attr.ib(type=bool, default=config.agentless)
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
     _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
+    _stack_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
     _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
@@ -128,7 +129,6 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _export_libdd_required = attr.ib(type=bool, default=config.export.libdd_required)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -171,16 +171,10 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
-        # Did the user request the libdd collector?  Better log it.
-        if self._export_libdd_enabled:
-            LOG.debug("The libdd collector is enabled")
-        if self._export_libdd_required:
-            LOG.debug("The libdd collector is required")
-
         # Build the list of enabled Profiling features and send along as a tag
         configured_features = []
         if self._stack_collector_enabled:
-            if config.stack.v2.enabled:
+            if self._stack_v2_enabled:
                 configured_features.append("stack_v2")
             else:
                 configured_features.append("stack")
@@ -195,8 +189,6 @@ class _ProfilerInstance(service.Service):
             configured_features.append("exp_dd")
         else:
             configured_features.append("exp_py")
-        if self._export_libdd_required:
-            configured_features.append("req_dd")
         configured_features.append("CAP" + str(config.capture_pct))
         configured_features.append("MAXF" + str(config.max_frames))
         self.tags.update({"profiler_config": "_".join(configured_features)})
@@ -207,7 +199,6 @@ class _ProfilerInstance(service.Service):
 
         # If libdd is enabled, then
         # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
-        # * If initialization fails and libdd is required, disable everything and return (error)
         if self._export_libdd_enabled:
             try:
                 ddup.init(
@@ -225,16 +216,11 @@ class _ProfilerInstance(service.Service):
                 self._export_libdd_enabled = False
                 config.export.libdd_enabled = False
 
-                # If we're here and libdd was required, then there's nothing else to do.  We don't have a
-                # collector.
-                if self._export_libdd_required:
-                    LOG.error("libdd collector is required but could not be initialized. Disabling profiling.")
-                    config.enabled = False
-                    config.export.libdd_required = False
-                    config.lock.enabled = False
-                    config.memory.enabled = False
-                    config.stack.enabled = False
-                    return []
+                # also disable other features that might be enabled
+                if self._stack_v2_enabled:
+                    LOG.error("Disabling stack_v2 as libdd collector failed to initialize")
+                    self._stack_v2_enabled = False
+                    config.stack.v2_enabled = False
 
         # DEV: Import this only if needed to avoid importing protobuf
         # unnecessarily
