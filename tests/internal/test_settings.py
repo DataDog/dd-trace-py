@@ -107,8 +107,8 @@ def _deleted_rc_config():
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1,X-Header-Tag-2,X-Header-Tag-3:specific_tag3"},
             "expected": {
                 "trace_http_header_tags": {
-                    "X-Header-Tag-1": "X-Header-Tag-1",
-                    "X-Header-Tag-2": "X-Header-Tag-2",
+                    "X-Header-Tag-1": "",
+                    "X-Header-Tag-2": "",
                     "X-Header-Tag-3": "specific_tag3",
                 }
             },

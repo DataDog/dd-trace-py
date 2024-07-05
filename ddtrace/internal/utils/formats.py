@@ -95,7 +95,7 @@ def parse_tags_str(tags_str):
                 parsed_tags.append((key, value))
             else:
                 # parse key,key2
-                parsed_tags.append((key, key))
+                parsed_tags.append((key, ""))
 
         return parsed_tags, invalids
 

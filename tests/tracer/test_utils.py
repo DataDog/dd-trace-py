@@ -58,12 +58,12 @@ _LOG_ERROR_FAIL_SEPARATOR = (
         ("key: val", dict(key=" val"), None),
         (
             "key key: val",
-            {"key": "key", "val": "val"},
+            {"key": "", "val": ""},
             [mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key key: val")],
         ),
         ("key: val,key2:val2", dict(key=" val", key2="val2"), None),
         (" key: val,key2:val2", {"key": " val", "key2": "val2"}, None),
-        ("key key2:val1", {"key": "key", "key2": "val1"}, None),
+        ("key key2:val1", {"key": "", "key2": "val1"}, None),
         ("key:val key2:val:2", {"key": "val", "key2": "val:2"}, None),
         (
             "key:val,key2:val2 key3:1234.23",
@@ -77,12 +77,12 @@ _LOG_ERROR_FAIL_SEPARATOR = (
         ),
         (
             "key:val key2:val 2",
-            {"2": "2", "key": "val", "key2": "val"},
+            {"2": "", "key": "val", "key2": "val"},
             None,
         ),
         (
             "key: val key2:val2 key3:val3",
-            {"key2": "val2", "key3": "val3", "val": "val"},
+            {"key2": "val2", "key3": "val3", "val": ""},
             [mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key: val key2:val2 key3:val3")],
         ),
         (
@@ -92,10 +92,10 @@ _LOG_ERROR_FAIL_SEPARATOR = (
         ),
         (",", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "")]),
         (":,:", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, ":,:")]),
-        ("key,key2:val1", {"key": "key", "key2": "val1"}, None),
+        ("key,key2:val1", {"key": "", "key2": "val1"}, None),
         ("key2:val1:", {"key2": "val1:"}, None),
-        ("key,key2,key3", {"key": "key", "key2": "key2", "key3": "key3"}, None),
-        ("key key2 key3", {"key": "key", "key2": "key2", "key3": "key3"}, None),
+        ("key,key2,key3", {"key": "", "key2": "", "key3": ""}, None),
+        ("key key2 key3", {"key": "", "key2": "", "key3": ""}, None),
         ("foo:bar,foo:baz", dict(foo="baz"), None),
         ("hash:asd url:https://github.com/foo/bar", dict(hash="asd", url="https://github.com/foo/bar"), None),
     ],

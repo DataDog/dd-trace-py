@@ -32,7 +32,7 @@ The following environment variables for the tracer are supported:
      description: |
          Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2:value2`` or ``key1:value key2:value2``.
 
-         If a tag value is not supplied the key will be set as a tag. e.g. ``key_val1,key_val2`` is equivalent to ``key_val1:key_val1,key_val2:key_val2``.
+         If a tag value is not supplied the value will be an empty string. e.g. ``key1,key2`` or ``key1,key2``.
      version_added:
        v0.38.0: Comma separated support added
        v0.48.0: Space separated support added
@@ -292,11 +292,11 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_HEADER_TAGS:
      description: |
-         A map of case-insensitive header keys to tag names. Automatically applies matching header values as tags on root spans. For example if
-         ``DD_TRACE_HEADER_TAGS=User-Agent:http.useragent,content-type:http.content_type``. The value of the header will set in ``http.useragent`` and ``http.content_type`` tags.
+         A map of case-insensitive http headers to tag names. Automatically applies matching header values as tags on request and response spans. For example if
+         ``DD_TRACE_HEADER_TAGS=User-Agent:http.useragent,content-type:http.content_type``. The value of the header will stored in tags with the name ``http.useragent`` and ``http.content_type``.
 
-        If a tag value is not supplied the header will be normalized and set. For example if
-         ``DD_TRACE_HEADER_TAGS=User-Agent,content-type``. The value of the header will set in ``user-agent`` and ``content-type`` tags.
+        If a tag name is not supplied the header name will be used. For example if
+         ``DD_TRACE_HEADER_TAGS=User-Agent,content-type``. The value of http header will be stored in tags with the names ``http.<response/request>.user-agent`` and ``http.<response/request>.content-type``.
 
    DD_TRACE_API_VERSION:
      default: |
