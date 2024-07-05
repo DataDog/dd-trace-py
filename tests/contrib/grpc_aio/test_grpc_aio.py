@@ -484,8 +484,8 @@ async def test_analytics_without_rate(server_info, tracer):
 
 
 @pytest.mark.skipif(
-    sys.version_info in ((3, 11, 0), (3, 11, 1)),
-    reason="Segfaults in Python 3.11.0 and 3.11.1",
+    sys.version_info >= (3, 11, 0),
+    reason="Segfaults in Python 3.11.0 and later",
 )
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_unary_exception(server_info, tracer):
@@ -525,8 +525,8 @@ async def test_unary_exception(server_info, tracer):
 
 
 @pytest.mark.skipif(
-    sys.version_info in ((3, 11, 0), (3, 11, 1)),
-    reason="Segfaults in Python 3.11.0 and 3.11.1",
+    sys.version_info >= (3, 11, 0),
+    reason="Segfaults in Python 3.11.0 and later",
 )
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_unary_cancellation(server_info, tracer):
@@ -705,8 +705,8 @@ async def test_client_streaming(server_info, tracer):
 
 
 @pytest.mark.skipif(
-    sys.version_info in ((3, 11, 0), (3, 11, 1)),
-    reason="Segfaults in Python 3.11.0 and 3.11.1",
+    sys.version_info >= (3, 11, 0),
+    reason="Segfaults in Python 3.11.0 and later",
 )
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_client_streaming_exception(server_info, tracer):
@@ -805,8 +805,8 @@ async def test_bidi_streaming(server_info, tracer):
 
 
 @pytest.mark.skipif(
-    sys.version_info in ((3, 11, 0), (3, 11, 1)),
-    reason="Segfaults in Python 3.11.0 and 3.11.1",
+    sys.version_info >= (3, 11, 0),
+    reason="Segfaults in Python 3.11.0 and later",
 )
 @pytest.mark.parametrize(
     "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True

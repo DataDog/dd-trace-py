@@ -95,7 +95,6 @@ def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_v
         )
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_llm_async(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
@@ -110,7 +109,6 @@ def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
         llm.invoke("Why is Spongebob so bad at driving?")
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI(streaming=True)
@@ -275,7 +273,6 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
         )
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_chat_model_async_call(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
@@ -283,7 +280,6 @@ async def test_openai_chat_model_async_call(langchain, langchain_openai, request
         await chat._call_async([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_chat_model_async_generate(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
@@ -314,7 +310,6 @@ def test_openai_chat_model_sync_stream(langchain, langchain_openai, request_vcr)
         chat.invoke(input=[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")])
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream",
     ignores=["metrics.langchain.tokens.total_cost"],
@@ -526,7 +521,6 @@ def test_chain_invoke_str_input(langchain, langchain_openai, request_vcr):
         chain.invoke("two")
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_math_chain_async(langchain, langchain_openai, request_vcr):
     """
@@ -645,7 +639,6 @@ def test_openai_sequential_chain_with_multiple_llm_sync(langchain, langchain_ope
         sequential_chain.invoke({"input_text": input_text})
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langchain_openai, request_vcr):
     template = """Paraphrase this text:
@@ -1162,7 +1155,6 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
         chain.invoke({"topic": "chickens", "style": "a 90s rapper"})
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
@@ -1233,7 +1225,6 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
 
 
 @flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
-@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):
     """
