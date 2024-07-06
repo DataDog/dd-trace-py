@@ -103,6 +103,9 @@ import os
 import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 
+# Telemetry must be started before events are sent
+ddtrace.internal.telemetry.telemetry_writer.started = True
+
 if os.fork() > 0:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
@@ -118,7 +121,7 @@ if os.fork() > 0:
 
     # Allow test agent session to capture all heartbeat events
     app_heartbeats = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
-    assert len(app_heartbeats) > 0
+    assert len(app_heartbeats) >= 1
     for hb in app_heartbeats:
         assert hb["runtime_id"] == runtime_id
 

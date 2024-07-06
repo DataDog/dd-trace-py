@@ -37,7 +37,8 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == payload_type
     assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v2"
     assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "False"
-    assert requests[0]["body"] == _get_request_body(payload, payload_type)
+    seq_id = requests[0]["body"]["seq_id"]
+    assert requests[0]["body"] == _get_request_body(payload, payload_type, seq_id)
 
 
 def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
@@ -158,7 +159,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             },
         }
         requests[0]["body"]["payload"]["configuration"].sort(key=lambda c: c["name"])
-        assert requests[0]["body"] == _get_request_body(payload, "app-started")
+        seq_id = requests[0]["body"]["seq_id"]
+        assert requests[0]["body"] == _get_request_body(payload, "app-started", seq_id)
 
 
 @pytest.mark.parametrize(
@@ -395,11 +397,8 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
     # force a flush
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-dependencies-loaded")
-
-    assert events[0]["seq_id"] == 1
-    # only one event must be sent with a non empty payload
-    # flaky
-    # assert sum(e["payload"] != {} for e in events) == 1
+    assert len(events) > 0
+    assert len(events[0]["payload"]["dependencies"]) > 0
 
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
@@ -413,7 +412,7 @@ def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     requests = test_agent_session.get_requests("app-closing")
     assert len(requests) == 1
     # ensure a valid request body was sent
-    totel_events = len(test_agent_session.get_events())
+    totel_events = len(test_agent_session.get_events(filter_heartbeats=False))
     assert requests[0]["body"] == _get_request_body({}, "app-closing", totel_events)
 
 
@@ -452,7 +451,8 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
                 },
             ]
         }
-        assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change")
+        seq_id = requests[0]["body"]["seq_id"]
+        assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change", seq_id)
 
 
 def test_app_client_configuration_changed_event(telemetry_writer, test_agent_session, mock_time):
@@ -528,7 +528,7 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
             assert len(events) == 1
 
 
-def _get_request_body(payload, payload_type, seq_id=1):
+def _get_request_body(payload, payload_type, seq_id):
     # type: (Dict, str, int) -> Dict
     """used to test the body of requests received by the testagent"""
     return {

@@ -751,7 +751,7 @@ class TelemetryWriter(PeriodicService):
         # All other events should be aggregated into payloads every 6th interval (60 seconds).
         # Telemetry payloads will be submitted  every 6th interval (60 seconds).
         self._periodic_count += 1
-        if self._is_periodic and not force_flush and self._periodic_count % self.FLUSH_HEARTBEAT_COUNT != 0:
+        if not force_flush and (self._periodic_count % self.FLUSH_HEARTBEAT_COUNT != 0):
             return
 
         # Send a heartbeat event to the agent, this is required to keep RC connections alive

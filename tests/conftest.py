@@ -421,21 +421,19 @@ def remote_config_worker():
 
 @pytest.fixture
 def telemetry_writer():
-    # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
-    # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
-    telemetry_writer = TelemetryWriter(is_periodic=False, agentless=False)
-    telemetry_writer.enable()
-
     # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
     try:
         ddtrace.internal.telemetry.telemetry_writer.disable()
+        # Since the only difference between regular and agentless behavior are the client's URL and endpoints,
+        # and the API key header, we only test the telemetry submission to the agent,
+        # so this fixture is forced to not be agentless.
+        telemetry_writer = TelemetryWriter(is_periodic=False, agentless=False)
+        telemetry_writer._restart_sequence()
         with mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer):
             yield telemetry_writer
-
     finally:
-        if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
-            telemetry_writer.disable()
-        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
+        telemetry_writer.disable()
+        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
 
 
 class TelemetryTestSession(object):
@@ -506,7 +504,6 @@ class TelemetryTestSession(object):
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
-    telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
     requests = TelemetryTestSession(token, telemetry_writer)
@@ -535,4 +532,4 @@ def test_agent_session(telemetry_writer, request):
         yield requests
     finally:
         os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
-        telemetry_writer.reset_queues()
+        requests.clear()
