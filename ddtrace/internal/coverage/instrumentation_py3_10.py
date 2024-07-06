@@ -286,17 +286,6 @@ if sys.version_info >= (3, 10) and sys.version_info < (3, 11):
 
         new_linetable = update_location_data(code, traps, [(instr.offset, s) for instr, s in exts])
 
-        replace = code.replace(
-            co_code=bytes(new_code),
-            co_consts=tuple(new_consts),
-            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-            co_linetable=new_linetable,
-        )
-
-        if code.co_filename.endswith("conftest.py"):
-            dis.dis(replace)
-            breakpoint()
-
         return (
             code.replace(
                 co_code=bytes(new_code),

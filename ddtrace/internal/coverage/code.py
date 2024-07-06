@@ -88,7 +88,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         cls._instance._include_paths = include_paths
 
     def hook(self, arg):
-        path, line = arg
+        line, path = arg
 
         if self._coverage_enabled:
             lines = self.covered[path]
