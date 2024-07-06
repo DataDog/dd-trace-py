@@ -334,10 +334,10 @@ dependencies = [
     "pytest-cov",
 ]
 
-[envs.dd_coverage_tests.scripts]
+[envs.dd_coverage.scripts]
 test = [
     "python -m pytest tests/coverage -s",
 ]
 
-[[envs.dd_coverage_tests.matrix]]
+[[envs.dd_coverage.matrix]]
 python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
