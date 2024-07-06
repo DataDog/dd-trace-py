@@ -80,62 +80,24 @@ if sys.version_info >= (3, 9) and sys.version_info < (3, 10):
         return instructions
 
     def update_location_data(
-        code: CodeType, trap_map: t.Dict[int, int], ext_arg_offsets: t.List[t.Tuple[int, int]], line_starts, debug_here
+        code: CodeType, trap_map: t.Dict[int, int], ext_arg_offsets: t.List[t.Tuple[int, int]]
     ) -> bytes:
         # Some code objects do not have co_lnotab data (eg: certain lambdas)
         if code.co_lnotab == b"":
             return code.co_lnotab
 
-        debug_here = debug_here
-        # debug_here = True
-
         # DEV: We expect the original offsets in the trap_map
         new_data = bytearray()
         data = code.co_lnotab
 
-        # if 1470 in line_starts.values() and code.co_filename.endswith("src/flask/app.py"):
-        #     debug_here = True
-
         ext_arg_offset_iter = iter(sorted(ext_arg_offsets))
         ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
 
-        # if code.co_filename.endswith("conftest.py") and (34 in line_starts.values() or 148 in line_starts.values()):
-        #     print("UPDATING LOCATION DATA")
-        #     debug_here = True
-
-        # if code.co_filename.endswith("src/flask/app.py") and (567 in line_starts.values()):
-        #     print("UPDATING LOCATION DATA")
-        #     debug_here = True
-
-        # if ext_arg_offset:
-        #     print("FOUND EXTRA ARG OFFSET")
-        #     debug_here = True
-
-        if debug_here:
-            print(f"DEBUG FILE {code}")
-            print(f"DEBUG data={list(data)}, len({len(data)}, first line: {code.co_firstlineno}")
-            print(f"DEBUG {trap_map=}")
-            print(f"DEBUG {ext_arg_offsets=}")
-            breakpoint()
-
-        # The first offset and line in lnotab never changes:
-        # orig_offset_delta = next(data_iter)
-        # orig_line = next(data_iter)
-        # new_data.append(orig_offset_delta)
-        # new_data.append(orig_line)
-
         current_orig_offset = 0  # Cumulative offset used to compare against trap offsets
-        current_new_offset = current_orig_offset  # Cumulative offset used to compare against extended args offsets
 
         # In 3.9 , all instructions have to have line numbers, so the first instructions of the trap call must mark the
         # beginning of the line. The subsequent offsets need to be incremented by the size of the trap call instructions
         # plus any extended args.
-
-        # If the first item is not 0
-
-        # Line deltas never change, since we are not modifying lines of code
-
-        # start = 2 if data[0] == 0 else 0
 
         # Set the first trap size:
         current_new_offset = accumulated_new_offset = trap_map[0] << 1
@@ -152,9 +114,6 @@ if sys.version_info >= (3, 9) and sys.version_info < (3, 10):
             current_orig_offset += orig_offset_delta
             accumulated_new_offset += orig_offset_delta
 
-            if debug_here:
-                print(f"{current_orig_offset=} {current_new_offset=} {orig_offset_delta=} {line_delta}")
-
             # If the current offset is 255, just increment:
             if orig_offset_delta == 255:
                 continue
@@ -167,8 +126,6 @@ if sys.version_info >= (3, 9) and sys.version_info < (3, 10):
                 continue
 
             while ext_arg_offset is not None and ext_arg_size is not None and current_new_offset > ext_arg_offset:
-                if debug_here:
-                    print(f"PROCESSING OFFSET {ext_arg_offset=} {ext_arg_size=}")
                 accumulated_new_offset += ext_arg_size << 1
                 current_new_offset += ext_arg_size << 1
                 ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
@@ -204,11 +161,6 @@ if sys.version_info >= (3, 9) and sys.version_info < (3, 10):
     def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[CodeType, t.Set[int]]:
         # TODO[perf]: Check if we really need to << and >> everywhere
         trap_func, trap_arg = hook, path
-        # if path != code.co_filename:
-        #     print("UH OH BAD")
-        #     breakpoint()
-
-        debug_here = False
 
         instructions: t.List[Instruction] = []
 
@@ -225,15 +177,6 @@ if sys.version_info >= (3, 9) and sys.version_info < (3, 10):
         traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
         line_map = {}
         line_starts = dict(dis.findlinestarts(code))
-
-        if code.co_filename.endswith("src/flask/cli.py") and 904 in line_starts.values():
-            debug_here = True
-
-        if code.co_filename.endswith("tests/test_basic.py") and 326 in line_starts.values():
-            debug_here = True
-
-        if code.co_filename.endswith("src/flask/testing.py") and 240 in line_starts.values():
-            debug_here = True
 
         try:
             code_iter = iter(enumerate(code.co_code))
@@ -261,9 +204,6 @@ if sys.version_info >= (3, 9) and sys.version_info < (3, 10):
 
                 # Propagate code
                 instructions.append(Instruction(original_offset, opcode, arg))
-
-                # if code.co_filename.endswith("conftest.py") and 34 in line_starts.values() and original_offset == 76:
-                #     breakpoint()
 
                 # Collect branching instructions for processing
                 if opcode in AJump.__opcodes__:
@@ -368,7 +308,7 @@ if sys.version_info >= (3, 9) and sys.version_info < (3, 10):
                 seen_lines.update(nested_lines)
 
         ext_arg_offsets = [(instr.offset, s) for instr, s in exts]
-        new_lnotab = update_location_data(code, traps, ext_arg_offsets, line_starts, False)
+        new_lnotab = update_location_data(code, traps, ext_arg_offsets)
 
         replace = code.replace(
             co_code=bytes(new_code),
@@ -376,13 +316,6 @@ if sys.version_info >= (3, 9) and sys.version_info < (3, 10):
             co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
             co_lnotab=new_lnotab,
         )
-
-        if debug_here and False:
-            dis.dis(replace, depth=0)
-            breakpoint()
-
-        print(f"DEBUG CODE {code} REPLACE {replace}")
-        dis.dis(replace, depth=0)
 
         return (
             replace,
