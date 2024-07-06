@@ -11,7 +11,7 @@ from ddtrace.internal.injection import HookType
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-assert sys.version_info >= (3, 11) and sys.version_info < (3, 12)
+assert sys.version_info >= (3, 11) and sys.version_info < (3, 12)  # nosec
 
 
 class JumpDirection(int, Enum):
@@ -87,7 +87,8 @@ def to_varint(value: int, set_begin_marker: bool = False) -> bytes:
     # Encode value as a varint on 7 bits (MSB should come first) and set
     # the begin marker if requested.
     temp = bytearray()
-    assert value >= 0
+    if value < 0:
+        raise ValueError("Invalid value for varint")
     while value:
         temp.insert(0, value & 63 | (64 if temp else 0))
         value >>= 6
@@ -375,7 +376,8 @@ def instrument_all_lines(
                     # of that jump.
                     if jump_instr.targets:
                         for target in jump_instr.targets:
-                            assert target.end is jump_instr
+                            if target.end is not jump_instr:
+                                raise ValueError("Invalid target")
                             target.end = ext_instr
                         ext_instr.targets.extend(jump_instr.targets)
                         jump_instr.targets.clear()

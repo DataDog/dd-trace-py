@@ -10,7 +10,7 @@ from ddtrace.internal.injection import HookType
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-assert sys.version_info >= (3, 10) and sys.version_info < (3, 11)
+assert sys.version_info >= (3, 10) and sys.version_info < (3, 11)  # nosec
 
 
 class JumpDirection(int, Enum):
@@ -271,7 +271,8 @@ def instrument_all_lines(
                     # of that jump.
                     if jump_instr.targets:
                         for target in jump_instr.targets:
-                            assert target.end is jump_instr
+                            if target.end is not jump_instr:
+                                raise ValueError("Invalid target")
                             target.end = ext_instr
                         ext_instr.targets.extend(jump_instr.targets)
                         jump_instr.targets.clear()

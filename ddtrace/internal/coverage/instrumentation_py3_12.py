@@ -7,7 +7,7 @@ from ddtrace.internal.injection import HookType
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
-assert sys.version_info >= (3, 12)
+assert sys.version_info >= (3, 12)  # nosec
 
 # Register the coverage tool with the low-impact monitoring system
 try:
