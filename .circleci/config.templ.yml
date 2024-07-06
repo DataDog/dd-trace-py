@@ -565,6 +565,16 @@ jobs:
       - run_test:
           pattern: "internal"
 
+  dd_coverage:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_hatch_env_test:
+          pattern: "dd_coverage"
+
+
   datastreams:
     <<: *contrib_job_small
     steps:

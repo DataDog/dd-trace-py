@@ -303,7 +303,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             # Not a code object we want to instrument
             return code
 
-        return self.instrument_code(code)
+        return self.instrument_code(code, _module)
 
     def after_import(self, _module: ModuleType) -> None:
         pass
