@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    kafka: This fix resolves an issue where ``None`` messages from confluent-kafka could cause crashes in the Kafka integration.

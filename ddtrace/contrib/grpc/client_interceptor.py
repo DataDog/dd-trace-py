@@ -5,6 +5,7 @@ import grpc
 from ddtrace import config
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -79,6 +80,9 @@ def _handle_response(span, response):
     # use duck-typing to support future-like response as in the case of
     # google-api-core which has its own future base class
     # https://github.com/googleapis/python-api-core/blob/49c6755a21215bbb457b60db91bab098185b77da/google/api_core/future/base.py#L23
+    if hasattr(response, "_response"):
+        core.dispatch("grpc.response_message", (response._response,))
+
     if hasattr(response, "add_done_callback"):
         response.add_done_callback(_future_done_callback(span))
 
@@ -158,7 +162,10 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             raise
 
     def __next__(self):
-        return self._next()
+        n = self._next()
+        if n is not None:
+            core.dispatch("grpc.response_message", (n,))
+        return n
 
     next = __next__
 

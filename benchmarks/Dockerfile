@@ -1,7 +1,7 @@
 FROM debian:buster-slim as base
 
-ARG PYTHON_VERSION=3.9.6
-ARG PYENV_VERSION=2.0.4
+ARG PYTHON_VERSION=3.9.15
+ARG PYENV_VERSION=2.4.1
 RUN apt-get update && apt-get install --no-install-recommends -y \
     make build-essential libssl-dev zlib1g-dev \
     libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
@@ -14,12 +14,13 @@ RUN git clone --depth 1 https://github.com/pyenv/pyenv.git --branch "v$PYENV_VER
 RUN pyenv install "$PYTHON_VERSION"
 
 FROM debian:buster-slim
-ARG PYTHON_VERSION=3.9.6
+ARG PYTHON_VERSION=3.9.15
 
 COPY --from=base /pyenv /pyenv
 ENV PYENV_ROOT "/pyenv"
 ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:/root/.cargo/bin/:$PATH"
 RUN pyenv global "$PYTHON_VERSION"
+RUN pip install -U pip
 
 ARG SCENARIO=base
 
@@ -59,6 +60,7 @@ COPY ./bm/ /app/bm/
 COPY ./${SCENARIO}/ /app/
 
 ENV SCENARIO=${SCENARIO}
+ENV PROFILE_BENCHMARKS=0
 
 ENTRYPOINT ["/app/entrypoint"]
 CMD ["/app/benchmark"]

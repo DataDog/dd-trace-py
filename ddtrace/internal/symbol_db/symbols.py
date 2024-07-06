@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import dis
 from enum import Enum
-import http
+from http.client import HTTPResponse
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from inspect import isasyncgenfunction
@@ -31,7 +31,6 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
-from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
@@ -50,10 +49,10 @@ EOF = 2147483647
 
 
 @cached()
-def is_from_stdlib(obj: t.Any) -> t.Optional[bool]:
+def is_from_user_code(obj: t.Any) -> t.Optional[bool]:
     try:
         path = origin(sys.modules[object.__getattribute__(obj, "__module__")])
-        return is_stdlib(path) if path is not None else None
+        return packages.is_user_code(path) if path is not None else None
     except (AttributeError, KeyError):
         return None
 
@@ -182,9 +181,6 @@ class Scope:
         symbols = []
         scopes = []
 
-        if is_stdlib(module_origin):
-            return None
-
         for alias, child in object.__getattribute__(module, "__dict__").items():
             if _isinstance(child, ModuleType):
                 # We don't want to traverse other modules.
@@ -224,7 +220,7 @@ class Scope:
             return None
         data.seen.add(obj)
 
-        if is_from_stdlib(obj):
+        if not is_from_user_code(obj):
             return None
 
         symbols = []
@@ -347,7 +343,7 @@ class Scope:
             return None
         data.seen.add(f)
 
-        if is_from_stdlib(f):
+        if not is_from_user_code(f):
             return None
 
         code = f.__dd_wrapped__.__code__ if hasattr(f, "__dd_wrapped__") else f.__code__
@@ -416,7 +412,7 @@ class Scope:
         data.seen.add(pr.fget)
 
         # TODO: These names don't match what is reported by the discovery.
-        if pr.fget is None or is_from_stdlib(pr.fget):
+        if pr.fget is None or not is_from_user_code(pr.fget):
             return None
 
         path = func_origin(t.cast(FunctionType, pr.fget))
@@ -477,7 +473,7 @@ class ScopeContext:
             "scopes": [_.to_json() for _ in self._scopes],
         }
 
-    def upload(self) -> http.client.HTTPResponse:
+    def upload(self) -> HTTPResponse:
         body, headers = multipart(
             parts=[
                 FormData(
@@ -509,14 +505,24 @@ class ScopeContext:
 
 
 def is_module_included(module: ModuleType) -> bool:
+    # Check if module name matches the include patterns
     if symdb_config._includes_re.match(module.__name__):
         return True
 
-    package = packages.module_to_package(module)
-    if package is None:
+    # Check if it is user code
+    module_origin = origin(module)
+    if module_origin is None:
         return False
 
-    return symdb_config._includes_re.match(package.name) is not None
+    if packages.is_user_code(module_origin):
+        return True
+
+    # Check if the package name matches the include patterns
+    package = packages.filename_to_package(module_origin)
+    if package is not None and symdb_config._includes_re.match(package.name):
+        return True
+
+    return False
 
 
 class SymbolDatabaseUploader(BaseModuleWatchdog):
@@ -525,10 +531,32 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
     def __init__(self) -> None:
         super().__init__()
 
+        self._seen_modules: t.Set[str] = set()
+        self._update_called = False
+
+        self._process_unseen_loaded_modules()
+
+    def _process_unseen_loaded_modules(self) -> None:
         # Look for all the modules that are already imported when this is
         # installed and upload the symbols that are marked for inclusion.
         context = ScopeContext()
-        for module in (_ for _ in list(sys.modules.values()) if is_module_included(_)):
+        for name, module in list(sys.modules.items()):
+            # Skip modules that are being initialized as they might not be
+            # fully loaded yet.
+            try:
+                if module.__spec__._initializing:  # type: ignore[union-attr]
+                    continue
+            except AttributeError:
+                pass
+
+            if name in self._seen_modules:
+                continue
+
+            self._seen_modules.add(name)
+
+            if not is_module_included(module):
+                continue
+
             try:
                 scope = Scope.from_module(module)
             except Exception:
@@ -570,6 +598,21 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         scope = Scope.from_module(module)
         if scope is not None:
             self._upload_context(ScopeContext([scope]))
+
+    @classmethod
+    def update(cls):
+        instance = t.cast(SymbolDatabaseUploader, cls._instance)
+        if instance is None:
+            return
+
+        if instance._update_called:
+            return
+
+        # We only need to update the symbol database once, in case the
+        # enablement raced with module imports.
+        instance._process_unseen_loaded_modules()
+
+        instance._update_called = True
 
     @staticmethod
     def _upload_context(context: ScopeContext) -> None:

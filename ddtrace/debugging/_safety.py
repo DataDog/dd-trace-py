@@ -32,7 +32,7 @@ def get_locals(frame: FrameType) -> Iterator[Tuple[str, Any]]:
 
 def get_globals(frame: FrameType) -> Iterator[Tuple[str, Any]]:
     nonlocal_names = frame.f_code.co_names
-    _globals = globals()
+    _globals = frame.f_globals
 
     return ((name, _globals[name]) for name in nonlocal_names if name in _globals)
 

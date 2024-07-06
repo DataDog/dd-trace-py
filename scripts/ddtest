@@ -40,7 +40,7 @@ if [[ "${CIRCLECI}" = "true" ]]; then
                    --quiet-pull \
                    --rm \
                    testrunner \
-                   bash -c "$FULL_CMD"
+                   bash -c "ulimit -c unlimited || true && $FULL_CMD || (./scripts/bt && false)"
 else
     docker-compose run \
                    -e DD_TRACE_AGENT_URL \

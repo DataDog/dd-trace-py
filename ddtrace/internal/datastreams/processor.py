@@ -247,7 +247,7 @@ class DataStreamsProcessor(PeriodicService):
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = get_connection_response(conn)
         except Exception:
-            log.error("failed to submit pathway stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
+            log.debug("failed to submit pathway stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
             raise
         else:
             if resp.status == 404:
@@ -290,7 +290,11 @@ class DataStreamsProcessor(PeriodicService):
         try:
             self._flush_stats_with_backoff(compressed)
         except Exception:
-            log.error("retry limit exceeded submitting pathway stats to the Datadog agent at %s", self._agent_endpoint)
+            log.error(
+                "retry limit exceeded submitting pathway stats to the Datadog agent at %s",
+                self._agent_endpoint,
+                exc_info=True,
+            )
 
     def shutdown(self, timeout):
         # type: (Optional[float]) -> None

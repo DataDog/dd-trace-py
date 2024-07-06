@@ -4,12 +4,15 @@ import MySQLdb
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...ext import SpanKind
@@ -19,6 +22,8 @@ from ...ext import net
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
+from ...propagation._database_monitoring import _DBM_Propagator
+from ..trace_utils import _convert_to_string
 
 
 config._add(
@@ -29,6 +34,7 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),
+        _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )
 
@@ -59,6 +65,9 @@ def patch():
         _w("MySQLdb", "Connection", _connect)
     if hasattr(MySQLdb, "connect"):
         _w("MySQLdb", "connect", _connect)
+
+    if asm_config._iast_enabled:
+        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 
 def unpatch():
@@ -99,7 +108,9 @@ def _connect(func, instance, args, kwargs):
 
 def patch_conn(conn, *args, **kwargs):
     tags = {
-        t: kwargs[k] if k in kwargs else args[p] for t, (k, p) in KWPOS_BY_TAG.items() if k in kwargs or len(args) > p
+        t: _convert_to_string(kwargs[k]) if k in kwargs else _convert_to_string(args[p])
+        for t, (k, p) in KWPOS_BY_TAG.items()
+        if k in kwargs or len(args) > p
     }
     tags[db.SYSTEM] = "mysql"
     tags[net.TARGET_PORT] = conn.port

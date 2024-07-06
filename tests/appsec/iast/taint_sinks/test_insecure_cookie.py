@@ -1,12 +1,28 @@
+import json
+
+import attr
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _iast_report_to_str
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 from ddtrace.internal import core
+
+
+def _iast_report_to_str(data):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+    class OriginTypeEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, OriginType):
+                # if the obj is uuid, we simply return the value of uuid
+                return origin_to_str(obj)
+            return json.JSONEncoder.default(self, obj)
+
+    return json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder)
 
 
 def test_insecure_cookies(iast_span_defaults):

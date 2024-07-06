@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    kafka: This fix resolves an issue where an empty message list returned from consume calls could cause crashes in the Kafka integration.
+    Empty lists from consume can occur when the call times out.

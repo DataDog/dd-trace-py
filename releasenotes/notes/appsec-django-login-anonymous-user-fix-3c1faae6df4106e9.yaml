@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where a valid user may trigger a failed login event.

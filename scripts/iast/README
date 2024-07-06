@@ -1,0 +1,146 @@
+This folder (scripts/iast/) contains some scripts to check memory usage of native code.
+
+## Memory Leaks, How to
+
+### 1. Build the docker image
+
+```sh
+docker build . -f docker/Dockerfile_py311_debug_mode -t python_311_debug
+```
+
+### 2. Run the docker container
+
+#### 2.1. Run the container with the script to find references  (this script will run the memory usage check)
+
+```sh
+docker run --rm -it -v ${PWD}:/ddtrace python_311_debug /bin/bash -c "cd /ddtrace && source scripts/iast/.env && \
+sh scripts/iast/run_references.sh"
+>> References: 1003
+>> References: 2
+>> References: 2
+>> References: 2
+>> References: 2
+>> References: 2
+```
+
+#### 2.2. Run the container with the script with memray usage check
+
+```sh
+docker run --rm -it -v ${PWD}:/ddtrace python_311_debug /bin/bash -c "cd /ddtrace && source scripts/iast/.env && \
+sh scripts/iast/run_memray.sh"
+google-chrome file://$PWD/memray-flamegraph-lel.html
+```
+
+#### 2.3. Run the container with the script with Max RSS
+
+```sh
+docker run --rm -it -v ${PWD}:/ddtrace python_311_debug /bin/bash -c "cd /ddtrace && source scripts/iast/.env && \
+sh scripts/iast/run_memory.sh"
+>> Round 0 Max RSS: 41.9453125
+>> 42.2109375
+```
+
+#### 2.4. Run the container with valgrind
+
+- `--tool`: default: memcheck, other options: cachegrind, callgrind, helgrind, drd, massif, dhat, lackey, none, exp-bbv
+  - memcheck:
+    - `--leak-check`: options summary/full/yes
+  - massif: heap profiler, see below
+- `--track-origins`: increases the size of the basic block translations
+- `--suppressions`: path to our suppression file: `scripts/iast/valgrind-python.supp`
+- `--log-file`: Valgrind report a lot information, we store this info in a file to analyze carefully the reports
+
+docker run --rm -it -v ${PWD}:/ddtrace python_311_debug /bin/bash -c "cd /ddtrace && source scripts/iast/.env && \
+valgrind --tool=memcheck --leak-check=full  --log-file=scripts/iast/valgrind_bench_overload.out --track-origins=yes \
+--suppressions=scripts/iast/valgrind-python.supp  --show-leak-kinds=all \
+python3.11 scripts/iast/test_leak_functions.py 100"
+
+##### Understanding results of memcheck
+
+Valgrind Memcheck returns all traces of C and C++ files. Most of them are Python core traces. These traces could be
+memory leaks in our Python code, but we can't interpret them at the moment. Therefore, all of them are in the
+ suppression file.
+
+
+The valid traces of our C files, are like that:
+```
+==324555== 336 bytes in 1 blocks are possibly lost in loss record 4,806 of 5,852
+==324555==    at 0x483DD99: calloc (in /usr/lib/x86_64-linux-gnu/valgrind/vgpreload_memcheck-amd64-linux.so)
+==324555==    by 0x40149CA: allocate_dtv (dl-tls.c:286)
+==324555==    by 0x40149CA: _dl_allocate_tls (dl-tls.c:532)
+==324555==    by 0x486E322: allocate_stack (allocatestack.c:622)
+==324555==    by 0x486E322: pthread_create@@GLIBC_2.2.5 (pthread_create.c:660)
+==324555==    by 0xFBF078E: ??? (in /root/ddtrace/native-core.so)
+==324555==    by 0x19D312C7: ???
+==324555==    by 0x1FFEFEFAFF: ???
+==324555==
+```
+
+## Segmentation fault, How to
+
+Have you been blessed by a Segmentation Fault? Have you got an error like...?
+
+```sh
+riot run --python=3.11 -r flask
+....
+tests/contrib/flask/test_blueprint.py .......                                                                                                                                                                                    [  9%]
+tests/contrib/flask/test_errorhandler.py .....                                                                                                                                                                                   [ 15%]
+tests/contrib/flask/test_flask_appsec.py Test failed with exit code -11
+```
+
+### 1. Compile the project in debug mode
+
+```sh
+export DD_COMPILE_DEBUG=true
+python setup.py build_ext --inplace
+```
+
+### 2. Run the tests with GDB
+
+```sh
+DD_TRACE_AGENT_URL=http://127.0.0.1:8126/ gdb --args python -m pytest tests/appsec
+```
+
+When the application raises a Segmentation fault, GDB will stop the execution, type backtrace and…
+
+```sh
+Program received signal SIGSEGV, Segmentation fault.
+0x00007ffff57caa00 in std::_Hash_bytes(void const*, unsigned long, unsigned long) () from /lib/x86_64-linux-gnu/libstdc++.so.6
+(gdb) backtrace
+#0  0x00007ffff57caa00 in std::_Hash_bytes(void const*, unsigned long, unsigned long) () from /lib/x86_64-linux-gnu/libstdc++.so.6
+#1  0x00007ffff59f35b7 in std::pair<std::__detail::_Node_iterator<std::pair<std::basic_string_view<char, std::char_traits<char> > const, ddwaf::parameter>, false, true>, bool> std::_Hashtable<std::basic_string_view<char, std::char_traits<char> >, std::pair<std::basic_string_view<char, std::char_traits<char> > const, ddwaf::parameter>, std::allocator<std::pair<std::basic_string_view<char, std::char_traits<char> > const, ddwaf::parameter> >, std::__detail::_Select1st, std::equal_to<std::basic_string_view<char, std::char_traits<char> > >, std::hash<std::basic_string_view<char, std::char_traits<char> > >, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::_M_emplace<std::basic_string_view<char, std::char_traits<char> >, ddwaf::parameter const&>(std::integral_constant<bool, true>, std::basic_string_view<char, std::char_traits<char> >&&, ddwaf::parameter const&) () from ddtrace/appsec/_ddwaf.so
+#2  0x00007ffff59f27e5 in ddwaf::parameter::operator std::unordered_map<std::basic_string_view<char, std::char_traits<char> >, ddwaf::parameter, std::hash<std::basic_string_view<char, std::char_traits<char> > >, std::equal_to<std::basic_string_view<char, std::char_traits<char> > >, std::allocator<std::pair<std::basic_string_view<char, std::char_traits<char> > const, ddwaf::parameter> > >() () from ddtrace/appsec/_ddwaf.so
+#3  0x00007ffff59c8e94 in ddwaf::parser::parse(ddwaf::parameter, ddwaf::ruleset_info&, std::vector<ddwaf::rule, std::allocator<ddwaf::rule> >&, PWManifest&, std::unordered_map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::vector<std::reference_wrapper<ddwaf::rule>, std::allocator<std::reference_wrapper<ddwaf::rule> > >, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, std::vector<std::reference_wrapper<ddwaf::rule>, std::allocator<std::reference_wrapper<ddwaf::rule> > > > > >&) () from ddtrace/appsec/_ddwaf.so
+#4  0x00007ffff59aa1ae in PowerWAF::fromConfig(_ddwaf_object, _ddwaf_config const*, ddwaf::ruleset_info&) () from ddtrace/appsec/_ddwaf.so
+#5  0x00007ffff5995045 in ddwaf_init () from ddtrace/appsec/_ddwaf.so
+```
+
+Pray to Linus Torvalds to understand the error ¯\_(ツ)_/¯
+
+### 2.1 Common errors
+
+Linux users have restriction with ptrace:
+
+```
+Starting program: /home/alberto.vara/.pyenv/versions/3.8.13/envs/dd-trace-py-38/bin/python -m pytest tests/appsec
+warning: Could not trace the inferior process.
+warning: ptrace: Operation not permitted
+During startup program exited with code 127.
+```
+You can temporarily disable this restriction (and revert to the old behaviour allowing your user to ptrace (gdb) any of their other processes) by doing:
+
+```
+echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
+```
+
+To permanently allow it edit /etc/sysctl.d/10-ptrace.conf and change the line:
+
+```
+kernel.yama.ptrace_scope = 1
+```
+
+To read:
+
+```
+kernel.yama.ptrace_scope = 0
+```

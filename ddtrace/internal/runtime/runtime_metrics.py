@@ -9,12 +9,12 @@ import attr
 import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal import telemetry
+from ddtrace.internal.telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 
 from .. import periodic
-from .. import telemetry
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
-from ..telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import DEFAULT_RUNTIME_METRICS
 from .metric_collectors import GCRuntimeMetricCollector
 from .metric_collectors import PSUtilRuntimeMetricCollector

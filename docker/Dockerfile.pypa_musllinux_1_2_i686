@@ -1,0 +1,3 @@
+FROM quay.io/pypa/musllinux_1_2_i686:latest
+RUN apk add --no-cache gcc libgcc libstdc++ llvm15-libs musl musl-dev rust-stdlib && \
+    apk add --no-cache rust cargo

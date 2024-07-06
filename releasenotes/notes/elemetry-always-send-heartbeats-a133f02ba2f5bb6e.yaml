@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal telemetry: Ensures heartbeat events are sent at regular intervals even when no other events are being sent.

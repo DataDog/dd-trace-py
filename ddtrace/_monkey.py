@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
+from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .settings import _config as config
@@ -25,7 +26,7 @@ PATCH_MODULES = {
     "aioredis": True,
     "aiomysql": True,
     "aredis": True,
-    "asyncio": False,
+    "asyncio": True,
     "boto": True,
     "botocore": True,
     "bottle": True,
@@ -33,6 +34,7 @@ PATCH_MODULES = {
     "celery": True,
     "consul": True,
     "django": True,
+    "dramatiq": True,
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
@@ -69,7 +71,6 @@ PATCH_MODULES = {
     "jinja2": True,
     "mako": True,
     "flask": True,
-    "flask_login": True,
     "kombu": False,
     "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
@@ -90,6 +91,7 @@ PATCH_MODULES = {
     "tornado": False,
     "openai": True,
     "langchain": True,
+    "anthropic": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
@@ -157,8 +159,6 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
-        if config._telemetry_enabled:
-            from .internal import telemetry
         # Import and patch module
         path = "%s.%s" % (prefix, module)
         try:
@@ -168,25 +168,23 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                 raise
             error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
             log.error(error_msg, exc_info=True)
-            if config._telemetry_enabled:
-                telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
-                telemetry.telemetry_writer.add_count_metric(
-                    "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
-                )
+            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
+            telemetry.telemetry_writer.add_count_metric(
+                "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
+            )
         else:
             imported_module.patch()
-            if config._telemetry_enabled:
-                if hasattr(imported_module, "get_versions"):
-                    versions = imported_module.get_versions()
-                    for name, v in versions.items():
-                        telemetry.telemetry_writer.add_integration(
-                            name, True, PATCH_MODULES.get(module) is True, "", version=v
-                        )
-                else:
-                    version = imported_module.get_version()
+            if hasattr(imported_module, "get_versions"):
+                versions = imported_module.get_versions()
+                for name, v in versions.items():
                     telemetry.telemetry_writer.add_integration(
-                        module, True, PATCH_MODULES.get(module) is True, "", version=version
+                        name, True, PATCH_MODULES.get(module) is True, "", version=v
                     )
+            else:
+                version = imported_module.get_version()
+                telemetry.telemetry_writer.add_integration(
+                    module, True, PATCH_MODULES.get(module) is True, "", version=version
+                )
 
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
@@ -226,8 +224,15 @@ def patch_all(**patch_modules):
     patch(raise_errors=False, **modules)
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._patch_modules import patch_iast
+        from ddtrace.appsec.iast import enable_iast_propagation
 
         patch_iast()
+        enable_iast_propagation()
+
+    if asm_config._ep_enabled or asm_config._iast_enabled:
+        from ddtrace.appsec._common_module_patches import patch_common_modules
+
+        patch_common_modules()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):

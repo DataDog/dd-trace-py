@@ -16,12 +16,14 @@ from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import Tuple  # noqa:F401
 from unittest import mock
+import warnings
 
 from _pytest.runner import call_and_report
 from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
 
 import ddtrace
+from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -65,6 +67,17 @@ def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container
     container.reset()
+
+
+@pytest.fixture(autouse=True)
+def clear_context_after_every_test():
+    try:
+        yield
+    finally:
+        ctx = _DD_CONTEXTVAR.get()
+        if ctx is not None:
+            warnings.warn(f"Context was not cleared after test, expected None, got {ctx}")
+        _DD_CONTEXTVAR.set(None)
 
 
 @pytest.fixture
@@ -258,6 +271,18 @@ def run_function_from_file(item, params=None):
 
 
 @pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(session, config, items):
+    """Don't let ITR skip tests that use the subprocess marker because coverage collection in subprocesses is broken"""
+    for item in items:
+        if item.get_closest_marker("subprocess"):
+            if item.get_closest_marker("skipif"):
+                # Respect any existing skipif marker because they preempt ITR's decision-making
+                continue
+            unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
+            item.add_marker(unskippable)
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item):
     if item.get_closest_marker("skip"):
         return default_pytest_runtest_protocol(item, None)
@@ -371,8 +396,8 @@ def git_repo(git_repo_empty):
 
 
 def _stop_remote_config_worker():
-    if remoteconfig_poller._worker:
-        remoteconfig_poller._stop_service(True)
+    if remoteconfig_poller.status == ServiceStatus.RUNNING:
+        remoteconfig_poller.stop(join=True)
         remoteconfig_poller._worker = None
 
 
@@ -396,20 +421,21 @@ def remote_config_worker():
 
 @pytest.fixture
 def telemetry_writer():
-    telemetry_writer = TelemetryWriter(is_periodic=False)
+    # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
+    # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
+    telemetry_writer = TelemetryWriter(is_periodic=False, agentless=False)
     telemetry_writer.enable()
 
     # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
     try:
         ddtrace.internal.telemetry.telemetry_writer.disable()
-
         with mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer):
             yield telemetry_writer
 
     finally:
         if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
             telemetry_writer.disable()
-        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
+        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
 
 
 class TelemetryTestSession(object):
@@ -418,7 +444,7 @@ class TelemetryTestSession(object):
         self.telemetry_writer = telemetry_writer
 
     def create_connection(self):
-        parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
+        parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method, url):
@@ -444,7 +470,7 @@ class TelemetryTestSession(object):
             pytest.fail("Failed to clear session: %s" % self.token)
         return True
 
-    def get_requests(self):
+    def get_requests(self, request_type=None, filter_heartbeats=True):
         """Get a list of the requests sent to the test agent
 
         Results are in reverse order by ``seq_id``
@@ -453,22 +479,27 @@ class TelemetryTestSession(object):
 
         if status != 200:
             pytest.fail("Failed to fetch session requests: %s %s %s" % (self.create_connection(), status, self.token))
-        requests = json.loads(body.decode("utf-8"))
-        for req in requests:
-            body_str = base64.b64decode(req["body"]).decode("utf-8")
-            req["body"] = json.loads(body_str)
+        requests = []
+        for req in json.loads(body.decode("utf-8")):
+            if "api/v2/apmtelemetry" not in req["url"]:
+                # /test/session/requests captures non telemetry payloads, ignore these requests
+                continue
+            req["body"] = json.loads(base64.b64decode(req["body"]))
+            # filter heartbeat requests to reduce noise
+            if req["body"]["request_type"] == "app-heartbeat" and filter_heartbeats:
+                continue
+            if request_type is None or req["body"]["request_type"] == request_type:
+                requests.append(req)
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_events(self):
+    def get_events(self, event_type=None, filter_heartbeats=True):
         """Get a list of the event payloads sent to the test agent
 
         Results are in reverse order by ``seq_id``
         """
-        status, body = self._request("GET", "/test/session/apmtelemetry?test_session_token=%s" % self.token)
-        if status != 200:
-            pytest.fail("Failed to fetch session events: %s" % self.token)
-        return sorted(json.loads(body.decode("utf-8")), key=lambda e: e["seq_id"], reverse=True)
+        requests = self.get_requests(event_type, filter_heartbeats)
+        return [req["body"] for req in requests]
 
 
 @pytest.fixture
@@ -494,7 +525,14 @@ def test_agent_session(telemetry_writer, request):
             time.sleep(pow(exp_time, try_nb))
         finally:
             conn.close()
+
+    p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
     try:
+        # The default environment for the telemetry writer tests disables agentless mode
+        # because the behavior is identical except for the trace URL, endpoint, and
+        # presence of an API key header.
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "0"
         yield requests
     finally:
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()

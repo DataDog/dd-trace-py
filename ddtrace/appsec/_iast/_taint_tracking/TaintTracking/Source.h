@@ -1,10 +1,5 @@
 #pragma once
-#include "structmember.h"
-#include <Python.h>
-#include <iostream>
-#include <pybind11/pybind11.h>
 #include <sstream>
-#include <string.h>
 
 #include "../Constants.h"
 
@@ -24,6 +19,7 @@ enum class OriginType
     PATH_PARAMETER,
     COOKIE,
     COOKIE_NAME,
+    GRPC_BODY,
     EMPTY
 };
 
@@ -45,14 +41,14 @@ struct Source
 
     [[nodiscard]] string toString() const;
 
-    inline void set_values(string name_ = "", string value_ = "", OriginType origin_ = OriginType())
+    void set_values(string name_ = "", string value_ = "", OriginType origin_ = OriginType())
     {
         name = std::move(name_);
         value = std::move(value_);
         origin = origin_;
     }
 
-    inline void reset()
+    void reset()
     {
         name = "";
         value = "";
@@ -61,7 +57,7 @@ struct Source
 
     [[nodiscard]] int get_hash() const;
 
-    static inline size_t hash(const string& name, const string& value, const OriginType origin)
+    static size_t hash(const string& name, const string& value, const OriginType origin)
     {
         return std::hash<size_t>()(std::hash<string>()(name + value) ^ (int)origin);
     };
@@ -70,7 +66,7 @@ struct Source
 };
 
 inline string
-origin_to_str(OriginType origin_type)
+origin_to_str(const OriginType origin_type)
 {
     switch (origin_type) {
         case OriginType::PARAMETER:
@@ -93,6 +89,8 @@ origin_to_str(OriginType origin_type)
             return "http.request.cookie.name";
         case OriginType::COOKIE:
             return "http.request.cookie.value";
+        case OriginType::GRPC_BODY:
+            return "http.request.grpc_body";
         default:
             return "";
     }
@@ -122,6 +120,8 @@ str_to_origin(const string& origin_type_str)
         return OriginType::COOKIE_NAME;
     if (origin_type_str == "http.request.cookie.value")
         return OriginType::COOKIE;
+    if (origin_type_str == "http.request.grpc_body")
+        return OriginType::GRPC_BODY;
 
     return OriginType::PARAMETER;
 }

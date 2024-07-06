@@ -1,0 +1,202 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "what is the city Spongebob Squarepants
+      is from?"}], "model": "gpt-3.5-turbo", "n": 1, "stream": false, "temperature":
+      0.7}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '165'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1RQy27CMBC85ytWPgMCQsrjyAEuHBC5tKoq5JhN4uJ4XXujQhH/Xplne/FhZmc8
+        M6cEQOidmIFQtWTVONOdTt/0oU6X+egnfz3mI7faLBdLs+iv1ptUdKKCik9UfFf1FDXOIGuyV1p5
+        lIzRdTAeDPsv2SibXoiGdmiirHLcTXtZl1tfULc/GGY3ZU1aYRAzeE8AAE6XN2a0OzyIGfQ7d6TB
+        EGSFYvY4AhCeTESEDEEHlpZF50kqsoz2Ejt3ZCucUwH5Vys9rqXlADpA6akBrhFKrWIhaaC1O/Tf
+        ktGD0nwEKmGu99pqmBMzNT1x++L8yGaocp6K2MO2xjzwUlsd6q1HGcjGHIHJXeXnBODjskH7r5Zw
+        nhrHW6Y92mg4mFztxHP1P+T4RjKxNE88zZJbPhGOgbHZltpW6J3X10FKty2GkyKdlqWciOSc/AIA
+        AP//AwAHfh/xGgIAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 86e140bf7f001a34-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 02 Apr 2024 13:44:20 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=fuJc.1q.QCl8.FqyUMf570NZ8Q9p9Dr7ZkVJfruYEOc-1712065460-1.0.1.1-Q_gPOEcVg71sH1AWtSC9CUiI0g5Fl3UswRVju37DbK1BuN_116Sq66Q.ZJU_1uLrUoaO56ZYugQPpzIRrLp.nQ;
+        path=/; expires=Tue, 02-Apr-24 14:14:20 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=dAtfrl6Vmvxsh50WftUQCkcyvrYwVmaAYFE757lWeII-1712065460050-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '615'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '40000'
+      x-ratelimit-remaining-requests:
+      - '199'
+      x-ratelimit-remaining-tokens:
+      - '39971'
+      x-ratelimit-reset-requests:
+      - 7m12s
+      x-ratelimit-reset-tokens:
+      - 43ms
+      x-request-id:
+      - req_1ed955ba5797db0a8872a782414eca60
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "user", "content": "what country is the city SpongeBob
+      SquarePants is from the fictional underwater city of Bikini Bottom. in? respond
+      in Spanish"}], "model": "gpt-3.5-turbo", "n": 1, "stream": false, "temperature":
+      0.7}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '243'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=fuJc.1q.QCl8.FqyUMf570NZ8Q9p9Dr7ZkVJfruYEOc-1712065460-1.0.1.1-Q_gPOEcVg71sH1AWtSC9CUiI0g5Fl3UswRVju37DbK1BuN_116Sq66Q.ZJU_1uLrUoaO56ZYugQPpzIRrLp.nQ;
+        _cfuvid=dAtfrl6Vmvxsh50WftUQCkcyvrYwVmaAYFE757lWeII-1712065460050-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1SQT0sDMRDF7/sphpxt6e5a++dYQfBWLSIiUrLZ2e3YbCYms2CRfnfJtrZ4CeH9
+        8l7ezE8GoKhWS1Bmp8V03o4Wizc6dPft4Tt/pKf4upHZ+qX8ep4/FLOFukkOrj7RyJ9rbLjzFoXY
+        nbAJqAVTaj7Li8nd9PZuMoCOa7TJ1noZlePpSPpQ8WiSF9Ozc8dkMKolvGcAAD/DmTq6Gr/VEoac
+        QekwRt2iWl4eAajANilKx0hRtBN1c4WGnaAbam88uxZXXMHmq9cB19pJBIxQI1gNhvpa1xD7qtOB
+        nIaGjJAhnfgDu5rTZUV7cjRW5x+Ol2qWWx+4SmO43tqL3pCjuNsG1JFdqhGF/cl+zAA+hhX0/6ZS
+        PnDnZSu8R5cCy/IUp65Lv8IiP0Nh0faqT2+zcz8VD1Gw2zbkWgw+0Gkfjd9WxbwqF02j5yo7Zr8A
+        AAD//wMAbH1E5BkCAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 86e140c5fbf51a34-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 02 Apr 2024 13:44:21 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '800'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '40000'
+      x-ratelimit-remaining-requests:
+      - '198'
+      x-ratelimit-remaining-tokens:
+      - '39951'
+      x-ratelimit-reset-requests:
+      - 14m22.947s
+      x-ratelimit-reset-tokens:
+      - 73ms
+      x-request-id:
+      - req_eaed131f5f734e6b0b35e0efd11d807f
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -3,6 +3,33 @@ import os
 import vcr
 
 
+chat_completion_input_description = """
+    David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
+    David is an active member of the university's Chess Club and the South Asian Student Association.
+    He hopes to pursue a career in software engineering after graduating.
+    """
+chat_completion_custom_functions = [
+    {
+        "name": "extract_student_info",
+        "description": "Get the student information from the body of the input text",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the person"},
+                "major": {"type": "string", "description": "Major subject."},
+                "school": {"type": "string", "description": "The university name."},
+                "grades": {"type": "integer", "description": "GPA of the student."},
+                "clubs": {
+                    "type": "array",
+                    "description": "School clubs for extracurricular activities. ",
+                    "items": {"type": "string", "description": "Name of School Club"},
+                },
+            },
+        },
+    },
+]
+
+
 def iswrapped(obj):
     return hasattr(obj, "__dd_wrapped__")
 

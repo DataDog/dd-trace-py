@@ -46,9 +46,9 @@ class TaintedObject
                             RANGE_LENGTH max_length = -1,
                             RANGE_START orig_offset = -1);
 
-    std::string toString();
+    std::string toString() const;
 
-    explicit operator string();
+    explicit operator string() const;
 
     void move_ranges_to_stack();
 
@@ -62,4 +62,4 @@ class TaintedObject
 };
 
 void
-pyexport_taintedobject(py::module& m);
+pyexport_taintedobject(const py::module& m);

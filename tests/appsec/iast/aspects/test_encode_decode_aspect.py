@@ -131,7 +131,7 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
         assert list_ranges[0].length == len_infix
 
 
-def test_encode_error_and_no_log_metric(telemetry_writer):
+def test_encode_error_with_tainted_gives_one_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject="abcde",
         source_name="test_add_aspect_tainting_left_hand",
@@ -142,16 +142,38 @@ def test_encode_error_and_no_log_metric(telemetry_writer):
         mod.do_encode(string_input, "encoding-not-exists")
 
     list_metrics_logs = list(telemetry_writer._logs)
+    assert len(list_metrics_logs) == 1
+    assert "message" in list_metrics_logs[0]
+    assert "IAST propagation error. encode_aspect. " in list_metrics_logs[0]["message"]
+
+
+def test_encode_error_with_not_tainted_gives_no_log_metric(telemetry_writer):
+    string_input = "abcde"
+    with pytest.raises(LookupError):
+        mod.do_encode(string_input, "encoding-not-exists")
+
+    list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 0
 
 
-def test_dencode_error_and_no_log_metric(telemetry_writer):
+def test_dencode_error_with_tainted_gives_one_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject=b"abcde",
         source_name="test_add_aspect_tainting_left_hand",
         source_value="abcde",
         source_origin=OriginType.PARAMETER,
     )
+    with pytest.raises(LookupError):
+        mod.do_decode(string_input, "decoding-not-exists")
+
+    list_metrics_logs = list(telemetry_writer._logs)
+    assert len(list_metrics_logs) == 1
+    assert "message" in list_metrics_logs[0]
+    assert "IAST propagation error. decode_aspect. " in list_metrics_logs[0]["message"]
+
+
+def test_dencode_error_with_not_tainted_gives_no_log_metric(telemetry_writer):
+    string_input = b"abcde"
     with pytest.raises(LookupError):
         mod.do_decode(string_input, "decoding-not-exists")
 

@@ -30,6 +30,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal._rand import rand64bits as _rand64bits
 from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
@@ -50,6 +51,24 @@ _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
 _TagNameType = Union[Text, bytes]
 _MetaDictType = Dict[_TagNameType, Text]
 _MetricDictType = Dict[_TagNameType, NumericType]
+
+
+class SpanEvent:
+    __slots__ = ["name", "attributes", "time_unix_nano"]
+
+    def __init__(self, name: str, attributes: Optional[Dict[str, str]] = None, time_unix_nano: Optional[int] = None):
+        self.name: str = name
+        self.attributes: Dict[str, str] = attributes or {}
+        if time_unix_nano is None:
+            time_unix_nano = time_ns()
+        self.time_unix_nano: int = time_unix_nano
+
+    def __dict__(self):
+        d = {"name": self.name, "time_unix_nano": self.time_unix_nano}
+        if self.attributes:
+            d["attributes"] = self.attributes
+        return d
+
 
 log = get_logger(__name__)
 
@@ -91,6 +110,7 @@ class Span(object):
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "_links",
+        "_events",
         "__weakref__",
     ]
 
@@ -173,6 +193,7 @@ class Span(object):
         self._links = {}  # type: Dict[int, SpanLink]
         if links:
             self._links = {link.span_id: link for link in links}
+        self._events = []  # type: List[SpanEvent]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
@@ -486,6 +507,11 @@ class Span(object):
         self._context = self.context._with_baggage_item(key, value)
         return self
 
+    def _add_event(self, name, attributes=None, timestamp=None):
+        # type: (str, Optional[Dict[str, str]], Optional[int]) -> None
+        """Add an event to the span."""
+        self._events.append(SpanEvent(name, attributes, timestamp))
+
     def _get_baggage_item(self, key):
         # type: (str) -> Optional[Any]
         """Gets a baggage item from the span context of this span."""
@@ -524,12 +550,10 @@ class Span(object):
             return
 
         self.error = 1
-        self._set_exc_tags(exc_type, exc_val, exc_tb)
 
-    def _set_exc_tags(self, exc_type, exc_val, exc_tb):
         # get the traceback
         buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=30)
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
         tb = buff.getvalue()
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
@@ -538,6 +562,8 @@ class Span(object):
         self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
+
+        core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
 
     def _pprint(self):
         # type: () -> str

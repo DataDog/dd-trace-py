@@ -1,7 +1,12 @@
 import os
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Set
+from typing import Text  # noqa:F401
 
+from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.internal.logger import get_logger
 
 from ..._constants import IAST_SPAN_TAGS
@@ -11,26 +16,18 @@ from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
-from .._patch import try_unwrap
 from .._patch import try_wrap_function_wrapper
 from ..constants import DEFAULT_WEAK_HASH_ALGORITHMS
-from ..constants import EVIDENCE_ALGORITHM_TYPE
 from ..constants import MD5_DEF
 from ..constants import SHA1_DEF
 from ..constants import VULN_INSECURE_HASHING_TYPE
 from ._base import VulnerabilityBase
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Callable  # noqa:F401
-    from typing import Set  # noqa:F401
-
 log = get_logger(__name__)
 
 
-def get_weak_hash_algorithms():
-    # type: () -> Set
+def get_weak_hash_algorithms() -> Set:
     CONFIGURED_WEAK_HASH_ALGORITHMS = None
     DD_IAST_WEAK_HASH_ALGORITHMS = os.getenv("DD_IAST_WEAK_HASH_ALGORITHMS")
     if DD_IAST_WEAK_HASH_ALGORITHMS:
@@ -42,11 +39,9 @@ def get_weak_hash_algorithms():
 @oce.register
 class WeakHash(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_HASHING_TYPE
-    evidence_type = EVIDENCE_ALGORITHM_TYPE
 
 
 def unpatch_iast():
-    # type: () -> None
     set_module_unpatched("hashlib", default_attr="_datadog_weak_hash_patch")
     set_module_unpatched("Crypto", default_attr="_datadog_weak_hash_patch")
 
@@ -69,13 +64,11 @@ def unpatch_iast():
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> Text:
     return ""
 
 
 def patch():
-    # type: () -> None
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
@@ -126,8 +119,7 @@ def patch():
 
 
 @WeakHash.wrap
-def wrapped_digest_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if instance.name.lower() in get_weak_hash_algorithms():
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
         _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
@@ -138,20 +130,17 @@ def wrapped_digest_function(wrapped, instance, args, kwargs):
 
 
 @WeakHash.wrap
-def wrapped_md5_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_md5_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     return wrapped_function(wrapped, MD5_DEF, instance, args, kwargs)
 
 
 @WeakHash.wrap
-def wrapped_sha1_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_sha1_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     return wrapped_function(wrapped, SHA1_DEF, instance, args, kwargs)
 
 
 @WeakHash.wrap
-def wrapped_new_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if args[0].lower() in get_weak_hash_algorithms():
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
         _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
@@ -161,8 +150,7 @@ def wrapped_new_function(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def wrapped_function(wrapped, evidence, instance, args, kwargs):
-    # type: (Callable, str, Any, Any, Any) -> Any
+def wrapped_function(wrapped: Callable, evidence: Text, instance: Any, args: Any, kwargs: Any) -> Any:
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
     _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
     WeakHash.report(

@@ -4,6 +4,7 @@ import asyncpg
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
@@ -17,6 +18,7 @@ from ...internal.logger import get_logger
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
+from ...propagation._database_monitoring import _DBM_Propagator
 from ..trace_utils import ext_service
 from ..trace_utils import unwrap
 from ..trace_utils import wrap
@@ -37,6 +39,7 @@ config._add(
     "asyncpg",
     dict(
         _default_service=schematize_service_name("postgres"),
+        _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )
 
@@ -113,16 +116,21 @@ async def _traced_query(pin, method, query, args, kwargs):
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)
+
+        # dispatch DBM
+        result = core.dispatch_with_results("asyncpg.execute", (config.asyncpg, method, span, args, kwargs)).result
+        if result:
+            span, args, kwargs = result.value
+
         return await method(*args, **kwargs)
 
 
 @with_traced_module
 async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
     state = get_argument_value(args, kwargs, 0, "state")  # type: Union[str, PreparedStatement]
-    query = state if isinstance(state, str) else state.query
+    query = state if isinstance(state, str) or isinstance(state, bytes) else state.query
     return await _traced_query(pin, func, query, args, kwargs)
 
 

@@ -70,12 +70,12 @@ class Profile
     void profile_release();
 
     // String table manipulation
-    std::string_view insert_or_get(std::string_view sv);
+    std::string_view insert_or_get(std::string_view str);
 
     // constref getters
     const ValueIndex& val();
 
     // collect
-    bool collect(const ddog_prof_Sample& sample);
+    bool collect(const ddog_prof_Sample& sample, int64_t endtime_ns);
 };
 } // namespace Datadog

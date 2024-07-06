@@ -13,6 +13,7 @@ try:
 except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
+from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -70,9 +71,6 @@ class MemoryCollector(collector.PeriodicCollector):
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
-
-        if self._export_libdd_enabled and not ddup.is_available:
-            self._export_libdd_enabled = False
 
         try:
             _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
@@ -170,6 +168,7 @@ class MemoryCollector(collector.PeriodicCollector):
                 if thread_id in thread_id_ignore_set:
                     continue
                 handle = ddup.SampleHandle()
+                handle.push_monotonic_ns(compat.monotonic_ns())
                 handle.push_alloc(int((ceil(size) * alloc_count) / count), count)  # Roundup to help float precision
                 handle.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)

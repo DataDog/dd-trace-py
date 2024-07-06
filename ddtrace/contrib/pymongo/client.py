@@ -68,6 +68,7 @@ class TracedMongoClient(ObjectProxy):
                 client = _MongoClient(client, *args, **kwargs)
 
         super(TracedMongoClient, self).__init__(client)
+        client._datadog_proxy = self
         # NOTE[matt] the TracedMongoClient attempts to trace all of the network
         # calls in the trace library. This is good because it measures the
         # actual network time. It's bad because it uses a private API which
@@ -83,6 +84,25 @@ class TracedMongoClient(ObjectProxy):
 
     def __getddpin__(self):
         return ddtrace.Pin.get_from(self._topology)
+
+
+@contextlib.contextmanager
+def wrapped_validate_session(wrapped, instance, args, kwargs):
+    # We do this to handle a validation `A is B` in pymongo that
+    # relies on IDs being equal. Since we are proxying objects, we need
+    # to ensure we're compare proxy with proxy or wrapped with wrapped
+    # or this validation will fail
+    client = args[0]
+    session = args[1]
+    session_client = session._client
+    if isinstance(session_client, TracedMongoClient):
+        if isinstance(client, _MongoClient):
+            client = getattr(client, "_datadog_proxy", client)
+    elif isinstance(session_client, _MongoClient):
+        if isinstance(client, TracedMongoClient):
+            client = client.__wrapped__
+
+    yield wrapped(client, session)
 
 
 class TracedTopology(ObjectProxy):

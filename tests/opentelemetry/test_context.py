@@ -93,6 +93,7 @@ def _subprocess_task(parent_span_context, errors):
 def test_otel_trace_across_fork(oteltracer):
     errors = multiprocessing.Queue()
     with oteltracer.start_as_current_span("root") as root:
+        oteltracer._tracer.sample(root._ddspan)
         p = multiprocessing.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
         try:
             p.start()

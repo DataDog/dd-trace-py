@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: This fixes a bug in the AST patching process where ``ImportError`` exceptions were being caught, interfering with the proper application cycle if an ``ImportError`` was expected."

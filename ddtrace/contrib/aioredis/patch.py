@@ -5,9 +5,15 @@ import sys
 import aioredis
 
 from ddtrace import config
+from ddtrace._trace.utils_redis import _instrument_redis_cmd
+from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
+from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.redis_utils import _run_redis_command_async
+from ddtrace.contrib.redis_utils import determine_row_count
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
+from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -24,11 +30,6 @@ from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from .. import trace_utils
-from ..trace_utils_redis import ROW_RETURNING_COMMANDS
-from ..trace_utils_redis import _run_redis_command_async
-from ..trace_utils_redis import _trace_redis_cmd
-from ..trace_utils_redis import _trace_redis_execute_pipeline
-from ..trace_utils_redis import determine_row_count
 
 
 try:
@@ -46,7 +47,8 @@ config._add(
 )
 
 aioredis_version_str = getattr(aioredis, "__version__", "")
-aioredis_version = tuple([int(i) for i in aioredis_version_str.split(".")])
+aioredis_version = parse_version(aioredis_version_str)
+V2 = parse_version("2.0")
 
 
 def get_version():
@@ -59,7 +61,7 @@ def patch():
         return
     aioredis._datadog_patch = True
     pin = Pin()
-    if aioredis_version >= (2, 0):
+    if aioredis_version >= V2:
         _w("aioredis.client", "Redis.execute_command", traced_execute_command)
         _w("aioredis.client", "Redis.pipeline", traced_pipeline)
         _w("aioredis.client", "Pipeline.execute", traced_execute_pipeline)
@@ -76,7 +78,7 @@ def unpatch():
         return
 
     aioredis._datadog_patch = False
-    if aioredis_version >= (2, 0):
+    if aioredis_version >= V2:
         _u(aioredis.client.Redis, "execute_command")
         _u(aioredis.client.Redis, "pipeline")
         _u(aioredis.client.Pipeline, "execute")
@@ -91,8 +93,8 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.aioredis, instance, args) as span:
-        return await _run_redis_command_async(span=span, func=func, args=args, kwargs=kwargs)
+    with _instrument_redis_cmd(pin, config.aioredis, instance, args) as ctx:
+        return await _run_redis_command_async(ctx=ctx, func=func, args=args, kwargs=kwargs)
 
 
 def traced_pipeline(func, instance, args, kwargs):
@@ -109,7 +111,7 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
     cmds = [stringify_cache_args(c, cmd_max_len=config.aioredis.cmd_max_length) for c, _ in instance.command_stack]
-    with _trace_redis_execute_pipeline(pin, config.aioredis, cmds, instance):
+    with _instrument_redis_execute_pipeline(pin, config.aioredis, cmds, instance):
         return await func(*args, **kwargs)
 
 
@@ -173,7 +175,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
             redis_command = span.resource.split(" ")[0]
             future.result()
             if redis_command in ROW_RETURNING_COMMANDS:
-                determine_row_count(redis_command=redis_command, span=span, result=future.result())
+                span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=future.result()))
         # CancelledError exceptions extend from BaseException as of Python 3.8, instead of usual Exception
         except (Exception, aioredis.CancelledError):
             span.set_exc_info(*sys.exc_info())

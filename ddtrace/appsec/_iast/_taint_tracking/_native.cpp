@@ -1,4 +1,4 @@
-/* *****
+/**
  * IAST Native Module
  * This C++ module contains IAST propagation features:
  * - Taint tracking: propagation of a tainted variable.
@@ -27,9 +27,6 @@ using namespace pybind11::literals;
 namespace py = pybind11;
 
 static PyMethodDef AspectsMethods[] = {
-    // We are using  METH_VARARGS because we need compatibility with
-    // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
-    // >= 3.7
     { "add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add" },
     { "extend_aspect", ((PyCFunction)api_extend_aspect), METH_FASTCALL, "aspect extend" },
     { "index_aspect", ((PyCFunction)api_index_aspect), METH_FASTCALL, "aspect index" },
@@ -45,10 +42,7 @@ static struct PyModuleDef aspects = { PyModuleDef_HEAD_INIT,
                                       .m_methods = AspectsMethods };
 
 static PyMethodDef OpsMethods[] = {
-    // We are using  METH_VARARGS because we need compatibility with
-    // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
-    // >= 3.7
-    { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_VARARGS, "new pyobject id" },
+    { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL, "new pyobject id" },
     { "set_ranges_from_values", ((PyCFunction)api_set_ranges_from_values), METH_FASTCALL, "set_ranges_from_values" },
     { nullptr, nullptr, 0, nullptr }
 };
@@ -59,12 +53,14 @@ static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
                                   .m_size = -1,
                                   .m_methods = OpsMethods };
 
+/**
+ * This function initializes the native module.
+ */
 PYBIND11_MODULE(_native, m)
 {
     const char* env_iast_enabled = std::getenv("DD_IAST_ENABLED");
     if (env_iast_enabled == nullptr) {
         throw py::import_error("IAST not enabled");
-        return;
     }
 
     std::string iast_enabled = std::string(env_iast_enabled);
@@ -72,7 +68,6 @@ PYBIND11_MODULE(_native, m)
       iast_enabled.begin(), iast_enabled.end(), iast_enabled.begin(), [](unsigned char c) { return std::tolower(c); });
     if (iast_enabled != "true" && iast_enabled != "1") {
         throw py::import_error("IAST not enabled");
-        return;
     }
 
     initializer = make_unique<Initializer>();

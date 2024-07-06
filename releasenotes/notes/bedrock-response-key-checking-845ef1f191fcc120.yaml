@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: This fix adds additional key name checking and appropriate defaults for responses from Cohere and Amazon models.

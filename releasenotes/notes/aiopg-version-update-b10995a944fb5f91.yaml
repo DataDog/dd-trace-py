@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    aiopg: Upgrades supported versions to >=1.2. Drops support for 0.x versions.

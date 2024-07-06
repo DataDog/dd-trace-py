@@ -1,3 +1,5 @@
+import os
+
 import grpc
 
 from ddtrace import Pin
@@ -5,12 +7,19 @@ from ddtrace import config
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ...internal.logger import get_logger
+from ...internal.utils import get_argument_value
+from ...internal.utils import set_argument_value
+from ...internal.utils.formats import asbool
 from ..trace_utils import unwrap as _u
 from . import constants
 from . import utils
 from .client_interceptor import create_client_interceptor
 from .client_interceptor import intercept_channel
 from .server_interceptor import create_server_interceptor
+
+
+log = get_logger(__name__)
 
 
 def get_version():
@@ -61,6 +70,8 @@ config._add(
     dict(
         _default_service=schematize_service_name(constants.GRPC_SERVICE_CLIENT),
         distributed_tracing_enabled=True,
+        # TODO: Remove this configuration when grpc.aio support is fixed
+        _grpc_aio_enabled=asbool(os.getenv("_DD_TRACE_GRPC_AIO_ENABLED", False)),
     ),
 )
 
@@ -86,7 +97,8 @@ if HAS_GRPC_AIO:
 def patch():
     _patch_client()
     _patch_server()
-    if HAS_GRPC_AIO:
+    if HAS_GRPC_AIO and config.grpc._grpc_aio_enabled:
+        log.debug("The ddtrace grpc aio patch is enabled. This is an experimental feature and may not be stable.")
         _patch_aio_client()
         _patch_aio_server()
 
@@ -94,7 +106,7 @@ def patch():
 def unpatch():
     _unpatch_client()
     _unpatch_server()
-    if HAS_GRPC_AIO:
+    if HAS_GRPC_AIO and config.grpc._grpc_aio_enabled:
         _unpatch_aio_client()
         _unpatch_aio_server()
 
@@ -196,7 +208,7 @@ def _unpatch_aio_server():
 def _client_channel_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
 
-    pin = Pin.get_from(channel)
+    pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
     if not pin or not pin.enabled():
         return channel
 
@@ -207,20 +219,25 @@ def _client_channel_interceptor(wrapped, instance, args, kwargs):
 
 
 def _aio_client_channel_interceptor(wrapped, instance, args, kwargs):
-    channel = wrapped(*args, **kwargs)
+    pin = Pin.get_from(GRPC_AIO_PIN_MODULE_CLIENT)
 
-    pin = Pin.get_from(channel)
     if not pin or not pin.enabled():
-        return channel
+        return wrapped(*args, **kwargs)
 
     (host, port) = utils._parse_target_from_args(args, kwargs)
 
-    interceptors = create_aio_client_interceptors(pin, host, port)
+    dd_interceptors = create_aio_client_interceptors(pin, host, port)
+    interceptor_index = 3
+    if wrapped.__name__ == "secure_channel":
+        interceptor_index = 4
+    interceptors = get_argument_value(args, kwargs, interceptor_index, "interceptors", True)
     # DEV: Inject our tracing interceptor first in the list of interceptors
-    if "interceptors" in kwargs:
-        kwargs["interceptors"] = interceptors + tuple(kwargs["interceptors"])
+    if interceptors:
+        args, kwargs = set_argument_value(
+            args, kwargs, interceptor_index, "interceptors", dd_interceptors + tuple(interceptors)
+        )
     else:
-        kwargs["interceptors"] = interceptors
+        args, kwargs = set_argument_value(args, kwargs, interceptor_index, "interceptors", dd_interceptors, True)
 
     return wrapped(*args, **kwargs)
 

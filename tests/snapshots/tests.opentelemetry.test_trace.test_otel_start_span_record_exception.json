@@ -1,0 +1,58 @@
+[[
+  {
+    "name": "internal",
+    "service": "",
+    "resource": "test-raised-exception",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6658897400000000",
+      "error.message": "Sorry Otel Span, I failed you",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/tests/opentelemetry/test_trace.py\", line 27, in test_otel_start_span_record_exception\n    raise Exception(\"Sorry Otel Span, I failed you\")\nException: Sorry Otel Span, I failed you\n",
+      "error.type": "builtins.Exception",
+      "events": "[{\"name\": \"exception\", \"time_unix_nano\": 1716560261227739000, \"attributes\": {\"exception.type\": \"builtins.ValueError\", \"exception.message\": \"Invalid Operation 1\", \"exception.escaped\": \"False\"}}, {\"name\": \"exception\", \"time_unix_nano\": 1716560261227739000, \"attributes\": {\"exception.type\": \"builtins.Exception\", \"exception.message\": \"Sorry Otel Span, I failed you\", \"exception.escaped\": \"True\"}}]",
+      "language": "python",
+      "runtime-id": "d0950ce7bda6498183acde9036abb131"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 71659
+    },
+    "duration": 518127750028000,
+    "start": 1716560261227739000
+  }],
+[
+  {
+    "name": "internal",
+    "service": "",
+    "resource": "test-recorded-exception",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6658897400000000",
+      "error.message": "MoonEar Fire!!!",
+      "error.stack": "Fake traceback",
+      "error.type": "RandoException",
+      "events": "[{\"name\": \"exception\", \"time_unix_nano\": 1716560281337739000, \"attributes\": {\"exception.type\": \"builtins.IndexError\", \"exception.message\": \"Invalid Operation 2\", \"exception.escaped\": \"False\", \"exception.stuff\": \"thing 2\"}}, {\"name\": \"exception\", \"time_unix_nano\": 1716560271237812000, \"attributes\": {\"exception.type\": \"RandoException\", \"exception.message\": \"MoonEar Fire!!!\", \"exception.escaped\": \"False\", \"exception.stacktrace\": \"Fake traceback\", \"exception.details\": \"This is FAKE, I overwrote the real exception details\"}}]",
+      "language": "python",
+      "runtime-id": "d0950ce7bda6498183acde9036abb131"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 71659
+    },
+    "duration": 518127750240000,
+    "start": 1716560281337739000
+  }]]

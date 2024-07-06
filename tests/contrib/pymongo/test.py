@@ -768,6 +768,17 @@ class TestPymongoSocketTracing(TracerTestCase):
         self.check_socket_metadata(spans[0])
         assert spans[1].name == "pymongo.cmd"
 
+    def test_validate_session_equivalence(self):
+        """
+        This tests validate_session from:
+        https://github.com/mongodb/mongo-python-driver/blob/v3.13/pymongo/pool.py#L884-L898
+        which fails under some circumstances unless we patch correctly
+        """
+        # Trigger a command which calls validate_session internal to PyMongo
+        db_conn = pymongo.database.Database(self.client, "foo")
+        collection = db_conn["mycollection"]
+        collection.insert_one({"Foo": "Bar"})
+
     def test_service_name_override(self):
         with TracerTestCase.override_config("pymongo", dict(service_name="testdb")):
             self.client["some_db"].drop_collection("some_collection")

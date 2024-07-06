@@ -71,6 +71,9 @@ def daphne_client(django_asgi, additional_env=None):
         "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "metrics._dd.appsec.rasp.duration",
+        "metrics._dd.appsec.rasp.duration_ext",
+        "metrics._dd.appsec.rasp.rule.eval",
         APPSEC_JSON_TAG,
     ]
 )
@@ -93,6 +96,9 @@ def test_appsec_enabled():
         "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "metrics._dd.appsec.rasp.duration",
+        "metrics._dd.appsec.rasp.duration_ext",
+        "metrics._dd.appsec.rasp.rule.eval",
         APPSEC_JSON_TAG,
     ]
 )
@@ -113,6 +119,9 @@ def test_appsec_enabled_attack():
         "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "metrics._dd.appsec.rasp.duration",
+        "metrics._dd.appsec.rasp.duration_ext",
+        "metrics._dd.appsec.rasp.rule.eval",
         APPSEC_JSON_TAG,
         "metrics._dd.appsec.event_rules.loaded",
     ]
@@ -145,6 +154,9 @@ def test_request_ipblock_nomatch_200():
         "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "metrics._dd.appsec.rasp.duration",
+        "metrics._dd.appsec.rasp.duration_ext",
+        "metrics._dd.appsec.rasp.rule.eval",
         "metrics._dd.appsec.event_rules.loaded",
     ]
 )
@@ -182,6 +194,9 @@ def test_request_ipblock_match_403():
         "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "metrics._dd.appsec.rasp.duration",
+        "metrics._dd.appsec.rasp.duration_ext",
+        "metrics._dd.appsec.rasp.rule.eval",
         "metrics._dd.appsec.event_rules.loaded",
     ]
 )

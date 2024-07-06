@@ -1,3 +1,4 @@
+import mock
 import pytest
 
 from ddtrace import config
@@ -204,10 +205,10 @@ def test_extended_sampling_w_None_meta(writer, tracer):
     tracer.trace("should_send1", resource="banana").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_w_metrics(writer, tracer):
+@snapshot()
+def test_extended_sampling_w_metrics(tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": 123}, resource=RESOURCE)])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer.configure(sampler=sampler)
 
     tracer._tags = {"test": 123}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -275,3 +276,70 @@ def test_extended_sampling_tags_and_name_glob(writer, tracer):
     tracer._tags = {"banana": "True"}
     tracer.trace("should_send1").finish()
     tracer.trace(name="mycoolname").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_float_special_case_do_not_match(writer, tracer):
+    """A float with a non-zero decimal and a tag with a non-* pattern
+    # should not match the rule, and should therefore be kept
+    """
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"tag": "2*"})])
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace(name="should_send") as span:
+        span.set_tag("tag", 20.1)
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_float_special_case_match_star(writer, tracer):
+    """A float with a non-zero decimal and a tag with a * pattern
+    # should match the rule, and should therefore should be dropped
+    """
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"tag": "*"})])
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace(name="should_send") as span:
+        span.set_tag("tag", 20.1)
+
+
+def test_rate_limiter_on_spans(tracer):
+    """
+    Ensure that the rate limiter is applied to spans
+    """
+    tracer.configure(sampler=DatadogSampler(rate_limit=10))
+    spans = []
+    # Generate 10 spans with the start and finish time in same second
+    for x in range(10):
+        start_time = x / 10
+        span = tracer.trace(name=f"span {start_time}")
+        span.start = start_time
+        span.finish(1 - start_time)
+        spans.append(span)
+    # Generate 11th span in the same second
+    dropped_span = tracer.trace(name=f"span {start_time}")
+    dropped_span.start = 0.8
+    dropped_span.finish(0.9)
+    # Spans are sampled on flush
+    tracer.flush()
+    # Since the rate limiter is set to 10, first ten spans should be kept
+    for span in spans:
+        assert span.context.sampling_priority > 0
+    # 11th span should be dropped
+    assert dropped_span.context.sampling_priority < 0
+
+
+def test_rate_limiter_on_long_running_spans(tracer):
+    """
+    Ensure that the rate limiter is applied on increasing time intervals
+    """
+    tracer.configure(sampler=DatadogSampler(rate_limit=5))
+
+    with mock.patch("ddtrace.internal.rate_limiter.compat.monotonic_ns", return_value=1617333414):
+        span_m30 = tracer.trace(name="march 30")
+        span_m30.start = 1622347257  # Mar 30 2021
+        span_m30.finish(1617333414)  # April 2 2021
+
+        span_m29 = tracer.trace(name="march 29")
+        span_m29.start = 1616999414  # Mar 29 2021
+        span_m29.finish(1617333414)  # April 2 2021
+
+    assert span_m29.context.sampling_priority > 0
+    assert span_m30.context.sampling_priority > 0

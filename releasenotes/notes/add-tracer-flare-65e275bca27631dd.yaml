@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    tracer: This introduces the tracer flare functionality. Currently the tracer flare includes the
+    tracer logs and tracer configurations.

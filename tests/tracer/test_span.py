@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from functools import partial
 import re
 import sys
 import time
@@ -18,6 +19,7 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -234,6 +236,32 @@ class SpanTestCase(TracerTestCase):
             s.set_traceback()
             stack = s.get_tag(ERROR_STACK)
             assert len(stack.splitlines()) == tb_length_limit * 2, "stacktrace should contain two lines per entry"
+
+    def test_custom_traceback_size_with_error(self):
+        tb_length_limit = 2
+        with override_global_config(dict(_span_traceback_max_size=tb_length_limit)):
+            s = Span("test.span")
+
+            def divide_by_zero():
+                1 / 0
+
+            # Wrapper function to generate a larger traceback
+            def wrapper():
+                divide_by_zero()
+
+            try:
+                wrapper()
+            except ZeroDivisionError:
+                s.set_traceback()
+            else:
+                assert 0, "should have failed"
+
+            stack = s.get_tag(ERROR_STACK)
+            # one header "Traceback (most recent call last):" and one footer "ZeroDivisionError: division by zero"
+            header_and_footer_lines = 2
+            assert (
+                len(stack.splitlines()) == tb_length_limit * 2 + header_and_footer_lines
+            ), "stacktrace should contain two lines per entry"
 
     def test_ctx_mgr(self):
         s = Span("bar")
@@ -741,3 +769,29 @@ def test_set_exc_info_with_unicode():
 
     exception_span = get_exception_span(Exception("DataDog/水"))
     assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)
+
+
+def test_span_exception_core_event():
+    s = Span(None)
+    e = ValueError()
+
+    event_handler_called = False
+
+    @partial(core.on, "span.exception")
+    def _(span, *exc_info):
+        nonlocal event_handler_called
+
+        assert span is s
+        assert exc_info[1] is e
+
+        event_handler_called = True
+
+    try:
+        with s:
+            raise e
+    except ValueError:
+        assert event_handler_called
+    else:
+        raise AssertionError("should have raised")
+    finally:
+        core.reset_listeners("span.exception")

@@ -2,6 +2,10 @@
 Trace queries along a session to a cassandra cluster
 """
 import sys
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 from cassandra import __version__
 
@@ -10,7 +14,12 @@ try:
     import cassandra.cluster as cassandra_cluster
 except AttributeError:
     from cassandra import cluster as cassandra_cluster
+from cassandra.query import BatchStatement
+from cassandra.query import BoundStatement
+from cassandra.query import PreparedStatement
+from cassandra.query import SimpleStatement
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 
@@ -131,7 +140,12 @@ def traced_start_fetching_next_page(func, instance, args, kwargs):
 
     query = getattr(instance, "query", None)
 
-    span = _start_span_and_set_tags(pin, query, session, cluster)
+    sanitized_query = _sanitize_query(query) if isinstance(query, BatchStatement) else None
+    statements_and_parameters = query._statements_and_parameters if isinstance(query, BatchStatement) else None
+    additional_tags = dict(**_extract_session_metas(session), **_extract_cluster_metas(cluster))
+    span = _start_span_and_set_tags(
+        pin, _get_resource(query), additional_tags, sanitized_query, statements_and_parameters
+    )
 
     page_number = getattr(instance, PAGE_NUMBER, 1) + 1
     setattr(instance, PAGE_NUMBER, page_number)
@@ -152,7 +166,12 @@ def traced_execute_async(func, instance, args, kwargs):
 
     query = get_argument_value(args, kwargs, 0, "query")
 
-    span = _start_span_and_set_tags(pin, query, instance, cluster)
+    sanitized_query = _sanitize_query(query) if isinstance(query, BatchStatement) else None
+    statements_and_parameters = query._statements_and_parameters if isinstance(query, BatchStatement) else None
+    additional_tags = dict(**_extract_session_metas(instance), **_extract_cluster_metas(cluster))
+    span = _start_span_and_set_tags(
+        pin, _get_resource(query), additional_tags, sanitized_query, statements_and_parameters
+    )
 
     try:
         result = func(*args, **kwargs)
@@ -179,24 +198,29 @@ def traced_execute_async(func, instance, args, kwargs):
         raise
 
 
-def _start_span_and_set_tags(pin, query, session, cluster):
-    service = pin.service
-    tracer = pin.tracer
-    span_name = schematize_database_operation("cassandra.query", database_provider="cassandra")
-    span = tracer.trace(span_name, service=service, span_type=SpanTypes.CASSANDRA)
-
+def _start_span_and_set_tags(
+    pin,
+    resource: str,
+    additional_tags: Dict,
+    query: Optional[str] = None,
+    statements_and_parameters: Optional[List] = None,
+) -> Span:
+    span = pin.tracer.trace(
+        schematize_database_operation("cassandra.query", database_provider="cassandra"),
+        service=pin.service,
+        span_type=SpanTypes.CASSANDRA,
+    )
     span.set_tag_str(COMPONENT, config.cassandra.integration_name)
     span.set_tag_str(db.SYSTEM, "cassandra")
-
-    # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
     span.set_tag(SPAN_MEASURED_KEY)
-    _sanitize_query(span, query)
-    span.set_tags(_extract_session_metas(session))  # FIXME[matt] do once?
-    span.set_tags(_extract_cluster_metas(cluster))
-    # set analytics sample rate if enabled
+    span.set_tags(additional_tags)
     span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.cassandra.get_analytics_sample_rate())
+    if query is not None:
+        span.set_tag_str("cassandra.query", query)
+    if statements_and_parameters is not None:
+        span.set_metric("cassandra.batch_size", len(statements_and_parameters))
+    span.resource = resource[:RESOURCE_MAX_LENGTH]
     return span
 
 
@@ -261,34 +285,30 @@ def _extract_result_metas(result):
     return metas
 
 
-def _sanitize_query(span, query):
-    # TODO (aaditya): fix this hacky type check. we need it to avoid circular imports
-    t = type(query).__name__
-
-    resource = None
-    if t in ("SimpleStatement", "PreparedStatement"):
-        # reset query if a string is available
-        resource = getattr(query, "query_string", query)
-    elif t == "BatchStatement":
-        resource = "BatchStatement"
-        # Each element in `_statements_and_parameters` is:
-        #   (is_prepared, statement, parameters)
-        #  ref:https://github.com/datastax/python-driver/blob/13d6d72be74f40fcef5ec0f2b3e98538b3b87459/cassandra/query.py#L844
-        #
-        # For prepared statements, the `statement` value is just the query_id
-        #   which is not a statement and when trying to join with other strings
-        #   raises an error in python3 around joining bytes to unicode, so this
-        #   just filters out prepared statements from this tag value
-        q = "; ".join(q[1] for q in query._statements_and_parameters[:2] if not q[0])
-        span.set_tag_str("cassandra.query", q)
-        span.set_metric("cassandra.batch_size", len(query._statements_and_parameters))
-    elif t == "BoundStatement":
+def _get_resource(query: Any) -> str:
+    if isinstance(query, SimpleStatement) or isinstance(query, PreparedStatement):
+        return getattr(query, "query_string", query)
+    elif isinstance(query, BatchStatement):
+        return "BatchStatement"
+    elif isinstance(query, BoundStatement):
         ps = getattr(query, "prepared_statement", None)
         if ps:
-            resource = getattr(ps, "query_string", None)
-    elif t == "str":
-        resource = query
+            return getattr(ps, "query_string", None)
+    elif isinstance(query, str):
+        return query
     else:
-        resource = "unknown-query-type"  # FIXME[matt] what else do to here?
+        return "unknown-query-type"
 
-    span.resource = str(resource)[:RESOURCE_MAX_LENGTH]
+
+def _sanitize_query(query: BatchStatement) -> str:
+    """
+    Each element in `_statements_and_parameters` is:
+        (is_prepared, statement, parameters)
+        ref:https://github.com/datastax/python-driver/blob/13d6d72be74f40fcef5ec0f2b3e98538b3b87459/cassandra/query.py#L844
+
+    For prepared statements, the `statement` value is just the query_id
+        which is not a statement and when trying to join with other strings
+        raises an error in python3 around joining bytes to unicode, so this
+        just filters out prepared statements from this tag value
+    """
+    return "; ".join(q[1] for q in query._statements_and_parameters[:2] if not q[0])

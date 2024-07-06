@@ -1,9 +1,6 @@
 #pragma once
 #include "Aspects/Helpers.h"
 #include "Initializer/Initializer.h"
-#include "TaintTracking/Source.h"
-#include "TaintTracking/TaintRange.h"
-#include "TaintTracking/TaintedObject.h"
 
 template<class StrType>
 StrType

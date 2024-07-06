@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    asm: This fix resolves an issue where lfi attack on request path was not always detected
+    with flask and uwsgi.

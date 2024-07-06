@@ -14,9 +14,7 @@ from ddtrace.internal.injection import HookType
 from ddtrace.internal.injection import eject_hooks
 from ddtrace.internal.injection import inject_hooks
 from ddtrace.internal.wrapping import WrappedFunction
-from ddtrace.internal.wrapping import Wrapper
-from ddtrace.internal.wrapping import unwrap
-from ddtrace.internal.wrapping import wrap
+from ddtrace.internal.wrapping.context import WrappingContext
 
 
 WrapperType = Callable[[FunctionType, Any, Any, Any], Any]
@@ -41,8 +39,8 @@ class FunctionStore(object):
 
     def __init__(self, extra_attrs: Optional[List[str]] = None) -> None:
         self._code_map: Dict[FunctionType, CodeType] = {}
-        self._wrapper_map: Dict[FunctionType, Wrapper] = {}
-        self._extra_attrs = ["__dd_wrapped__"]
+        self._wrapper_map: Dict[FunctionType, WrappingContext] = {}
+        self._extra_attrs = ["__dd_context_wrapped__"]
         if extra_attrs:
             self._extra_attrs.extend(extra_attrs)
 
@@ -90,15 +88,15 @@ class FunctionStore(object):
         """Eject a hook from a function."""
         return not not self.eject_hooks(function, [(hook, line, arg)])
 
-    def wrap(self, function: FunctionType, wrapper: Wrapper) -> None:
+    def wrap(self, function: FunctionType, wrapping_context: WrappingContext) -> None:
         """Wrap a function with a hook."""
         self._store(function)
-        self._wrapper_map[function] = wrapper
-        wrap(function, wrapper)
+        self._wrapper_map[function] = wrapping_context
+        wrapping_context.wrap()
 
     def unwrap(self, function: FullyNamedWrappedFunction) -> None:
         """Unwrap a hook around a wrapped function."""
-        unwrap(function, self._wrapper_map.pop(cast(FunctionType, function)))
+        self._wrapper_map.pop(cast(FunctionType, function)).unwrap()
 
     def restore_all(self) -> None:
         """Restore all the patched functions to their original form."""

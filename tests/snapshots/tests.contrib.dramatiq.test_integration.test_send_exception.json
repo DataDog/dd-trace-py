@@ -1,0 +1,31 @@
+[[
+  {
+    "name": "dramatiq.Actor.send_with_options",
+    "service": "",
+    "resource": "dramatiq.Actor.send_with_options",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66045a7900000000",
+      "actor.name": "fn_task",
+      "actor.options": "{}",
+      "error.message": "send_with_options() takes 1 positional argument but 2 were given",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/dramatiq/patch.py\", line 70, in _traced_send_with_options\n    return func(*args, **kwargs)\nTypeError: send_with_options() takes 1 positional argument but 2 were given\n",
+      "error.type": "builtins.TypeError",
+      "language": "python",
+      "runtime-id": "cfcd83a635904a38b9b1e08a2631d30c",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 9685
+    },
+    "duration": 319125,
+    "start": 1711561337913970014
+  }]]

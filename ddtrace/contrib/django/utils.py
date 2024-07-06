@@ -320,7 +320,7 @@ def _after_request_tags(pin, span: Span, request, response):
                     span.set_tag_str("django.user.is_authenticated", str(user_is_authenticated(user)))
 
                 uid = getattr(user, "pk", None)
-                if uid:
+                if uid and isinstance(uid, int):
                     span.set_tag_str("django.user.id", str(uid))
                     span.set_tag_str(_user.ID, str(uid))
                 if config.django.include_user_name:
@@ -374,7 +374,24 @@ def _after_request_tags(pin, span: Span, request, response):
             response_cookies = {}
             if response.cookies:
                 for k, v in response.cookies.items():
-                    response_cookies[k] = v.OutputString()
+                    # `v` is a http.cookies.Morsel class instance in some scenarios:
+                    # 'cookie_key=cookie_value; HttpOnly; Path=/; SameSite=Strict'
+                    try:
+                        i = 0
+                        result = ""
+                        for element in v.OutputString().split(";"):
+                            if i == 0:
+                                # split cookie_key="cookie_value"
+                                key, value = element.split("=", 1)
+                                # Remove quotes "cookie_value"
+                                result = value[1:-1] if value.startswith('"') and value[-1] == '"' else value
+                            else:
+                                result += ";" + element
+                            i += 1
+                        response_cookies[k] = result
+                    except Exception:
+                        # parse cookies by the old way
+                        response_cookies[k] = v.OutputString()
 
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):

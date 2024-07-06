@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: fix a bug that caused the HTTP exporter to crash when attempting to serialize tags.

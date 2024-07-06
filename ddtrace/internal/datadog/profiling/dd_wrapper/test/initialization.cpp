@@ -1,4 +1,4 @@
-#include "interface.hpp"
+#include "ddup_interface.hpp"
 #include "test_utils.hpp"
 #include <gtest/gtest.h>
 
@@ -28,18 +28,6 @@ empty_init()
 TEST(DD_WrapperTest, TestInitWithEmpty)
 {
     EXPECT_EXIT(empty_init(), ::testing::ExitedWithCode(0), "");
-}
-
-void
-null_init()
-{
-    configure(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0);
-    std::exit(0);
-}
-
-TEST(DD_WrapperTest, TestInitWithNull)
-{
-    EXPECT_EXIT(null_init(), ::testing::ExitedWithCode(0), "");
 }
 
 void

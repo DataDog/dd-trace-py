@@ -1,0 +1,103 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_core.runnables.base.RunnableSequence",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6619490700000000",
+      "langchain.request.inputs.0": "chickens",
+      "langchain.request.inputs.1": "pigs",
+      "langchain.request.type": "chain",
+      "langchain.response.outputs.0": "Why did the chicken join a band? Because it had the drumsticks!",
+      "langchain.response.outputs.1": "Why did the pig go to the casino?\\n\\nTo bring home the bacon!",
+      "language": "python",
+      "runtime-id": "43a1417abf3441ff9235f239d8b721fa"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 30,
+      "langchain.tokens.prompt_tokens": 28,
+      "langchain.tokens.total_cost": 0.00010200000000000001,
+      "langchain.tokens.total_tokens": 58,
+      "process_id": 60120
+    },
+    "duration": 45649000,
+    "start": 1712933127875287000
+  },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.api_key": "...key>",
+         "langchain.request.messages.0.0.content": "Tell me a short joke about chickens",
+         "langchain.request.messages.0.0.message_type": "HumanMessage",
+         "langchain.request.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.n": "1",
+         "langchain.request.openai.parameters.stream": "False",
+         "langchain.request.openai.parameters.temperature": "0.7",
+         "langchain.request.provider": "openai",
+         "langchain.request.type": "chat_model",
+         "langchain.response.completions.0.0.content": "Why did the chicken join a band? Because it had the drumsticks!",
+         "langchain.response.completions.0.0.message_type": "AIMessage"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.tokens.completion_tokens": 15,
+         "langchain.tokens.prompt_tokens": 14,
+         "langchain.tokens.total_cost": 5.1000000000000006e-05,
+         "langchain.tokens.total_tokens": 29
+       },
+       "duration": 32710000,
+       "start": 1712933127887160000
+     },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.api_key": "...key>",
+         "langchain.request.messages.0.0.content": "Tell me a short joke about pigs",
+         "langchain.request.messages.0.0.message_type": "HumanMessage",
+         "langchain.request.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.n": "1",
+         "langchain.request.openai.parameters.stream": "False",
+         "langchain.request.openai.parameters.temperature": "0.7",
+         "langchain.request.provider": "openai",
+         "langchain.request.type": "chat_model",
+         "langchain.response.completions.0.0.content": "Why did the pig go to the casino?\\n\\nTo bring home the bacon!",
+         "langchain.response.completions.0.0.message_type": "AIMessage"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.tokens.completion_tokens": 15,
+         "langchain.tokens.prompt_tokens": 14,
+         "langchain.tokens.total_cost": 5.1000000000000006e-05,
+         "langchain.tokens.total_tokens": 29
+       },
+       "duration": 29429000,
+       "start": 1712933127888888000
+     }]]

@@ -1,0 +1,4 @@
+---
+issues:
+  - |
+    grpc: Tracing for the ``grpc.aio`` clients and servers is experimental and may not be stable. This integration is now disabled by default.

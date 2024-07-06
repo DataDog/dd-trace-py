@@ -34,6 +34,7 @@ class SamplingRule(object):
         name=NO_RULE,  # type: Any
         resource=NO_RULE,  # type: Any
         tags=NO_RULE,  # type: Any
+        provenance="default",  # type: str
     ):
         # type: (...) -> None
         """
@@ -83,6 +84,7 @@ class SamplingRule(object):
         self.service = self.choose_matcher(service)
         self.name = self.choose_matcher(name)
         self.resource = self.choose_matcher(resource)
+        self.provenance = provenance
 
     @property
     def sample_rate(self):
@@ -168,6 +170,19 @@ class SamplingRule(object):
             # If the value doesn't match in meta, check the metrics
             if tag_match is False:
                 value = metrics.get(tag_key)
+                # Floats: Matching floating point values with a non-zero decimal part is not supported.
+                # For floating point values with a non-zero decimal part, any all * pattern always returns true.
+                # Other patterns always return false.
+                if isinstance(value, float):
+                    if not value.is_integer():
+                        if self._tag_value_matchers[tag_key].pattern == "*":
+                            tag_match = True
+                        else:
+                            return False
+                        continue
+                    else:
+                        value = int(value)
+
                 tag_match = self._tag_value_matchers[tag_key].match(str(value))
             else:
                 continue
@@ -223,13 +238,14 @@ class SamplingRule(object):
             return GlobMatcher(prop) if prop != SamplingRule.NO_RULE else SamplingRule.NO_RULE
 
     def __repr__(self):
-        return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r})".format(
+        return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r}, provenance={!r})".format(
             self.__class__.__name__,
             self.sample_rate,
             self._no_rule_or_self(self.service),
             self._no_rule_or_self(self.name),
             self._no_rule_or_self(self.resource),
             self._no_rule_or_self(self.tags),
+            self.provenance,
         )
 
     __str__ = __repr__

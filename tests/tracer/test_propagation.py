@@ -4,12 +4,17 @@ import logging
 import os
 import pickle
 
+import mock
 import pytest
 
 from ddtrace import tracer as ddtracer
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
+from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.constants import AUTO_REJECT
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
@@ -76,6 +81,7 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
 def test_inject_128bit_trace_id_datadog():
     from ddtrace._trace.context import Context
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -93,7 +99,9 @@ def test_inject_128bit_trace_id_datadog():
             assert headers == {
                 "x-datadog-trace-id": str(span._trace_id_64bits),
                 "x-datadog-parent-id": str(span.span_id),
-                "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+                "x-datadog-tags": "{}=-0,".format(SAMPLING_DECISION_TRACE_TAG_KEY)
+                + "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+                "x-datadog-sampling-priority": "1",
             }
 
 
@@ -116,7 +124,7 @@ def test_inject_128bit_trace_id_b3multi():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex}
+            assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex, "x-b3-sampled": "1"}
 
 
 @pytest.mark.subprocess(
@@ -138,7 +146,7 @@ def test_inject_128bit_trace_id_b3_single_header():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"b3": "%s-%s" % (trace_id_hex, span_id_hex)}
+            assert headers == {"b3": "%s-%s-1" % (trace_id_hex, span_id_hex)}
 
 
 @pytest.mark.subprocess(
@@ -160,7 +168,7 @@ def test_inject_128bit_trace_id_tracecontext():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers["traceparent"] == "00-%s-%s-00" % (trace_id_hex, span_id_hex)
+            assert headers["traceparent"] == "00-%s-%s-01" % (trace_id_hex, span_id_hex)
 
 
 def test_inject_tags_unicode(tracer):  # noqa: F811
@@ -286,6 +294,7 @@ def test_extract(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -295,8 +304,335 @@ def test_extract(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
+                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
+
+
+def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(tracer):  # noqa: F811
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    try:
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": str(USER_KEEP),
+            "x-datadog-origin": "synthetics",
+            "x-datadog-tags": "_dd.p.test=value,any=tag",
+            "ot-baggage-key1": "value1",
+        }
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span0") as span:
+            # First span should be kept, as we keep 1 per min
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            # Priority is unset
+            assert span.context.sampling_priority is None
+            assert "_sampling_priority_v1" not in span._metrics
+            assert span.context.dd_origin == "synthetics"
+            assert "_dd.p.test" in span.context._meta
+            assert "_dd.p.appsec" not in span.context._meta
+
+        next_headers = {}
+        HTTPPropagator.inject(span.context, next_headers)
+
+        # Ensure propagation of headers is interrupted
+        assert "x-datadog-origin" not in next_headers
+        assert "x-datadog-tags" not in next_headers
+        assert "x-datadog-trace-id" not in next_headers
+        assert "x-datadog-parent-id" not in next_headers
+        assert "x-datadog-sampling-priority" not in next_headers
+
+        # Span priority was unset, but as we keep 1 per min, it should be kept
+        # Since we have a rate limiter, priorities used are USER_KEEP and USER_REJECT
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(tracer):  # noqa: F811
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    try:
+        with tracer.trace("local_root_span0"):
+            # First span should be kept, as we keep 1 per min
+            pass
+
+        headers = {}
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert "_dd.p.appsec" not in span.context._meta
+
+        next_headers = {}
+        HTTPPropagator.inject(span.context, next_headers)
+
+        # Ensure propagation of headers takes place as expected
+        assert "x-datadog-origin" not in next_headers
+        assert "x-datadog-tags" not in next_headers
+        assert "x-datadog-trace-id" not in next_headers
+        assert "x-datadog-parent-id" not in next_headers
+        assert "x-datadog-sampling-priority" not in next_headers
+
+        # Ensure span is dropped (no appsec event upstream or in this span)
+        assert span._metrics["_sampling_priority_v1"] == USER_REJECT
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept(tracer):  # noqa: F811
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    try:
+        with tracer.trace("local_root_span0"):
+            # First span should be kept, as we keep 1 per min
+            pass
+
+        headers = {}
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            _asm_manual_keep(span)
+            assert "_dd.p.appsec" in span.context._meta
+
+        next_headers = {}
+        HTTPPropagator.inject(span.context, next_headers)
+
+        # Ensure propagation of headers takes place as expected
+        assert "x-datadog-origin" not in next_headers
+        assert "_dd.p.test=value" not in next_headers["x-datadog-tags"]
+        assert "_dd.p.appsec=1" in next_headers["x-datadog-tags"]
+        assert next_headers["x-datadog-trace-id"] != "1234"
+        assert next_headers["x-datadog-parent-id"] != "5678"
+        assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
+
+        # Ensure span is user keep
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
+    tracer,  # noqa: F811
+):
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    try:
+        with tracer.trace("local_root_span0"):
+            # First span should be kept, as we keep 1 per min
+            pass
+
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": str(USER_KEEP),
+            "x-datadog-origin": "synthetics",
+            "x-datadog-tags": "_dd.p.test=value,any=tag",
+            "ot-baggage-key1": "value1",
+        }
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            # Priority is unset
+            assert span.context.sampling_priority is None
+            assert "_sampling_priority_v1" not in span._metrics
+            assert span.context.dd_origin == "synthetics"
+            assert "_dd.p.test" in span.context._meta
+            assert "_dd.p.appsec" not in span.context._meta
+
+        next_headers = {}
+        HTTPPropagator.inject(span.context, next_headers)
+
+        # Ensure propagation of headers takes place as expected
+        assert "x-datadog-origin" not in next_headers
+        assert "x-datadog-tags" not in next_headers
+        assert "x-datadog-trace-id" not in next_headers
+        assert "x-datadog-parent-id" not in next_headers
+        assert "x-datadog-sampling-priority" not in next_headers
+
+        # Priority was unset, and trace is not kept, so it should be dropped
+        # As we have a rate limiter, priorities used are USER_KEEP and USER_REJECT
+        assert span._metrics["_sampling_priority_v1"] == USER_REJECT
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
+    tracer,  # noqa: F811
+):
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    try:
+        with tracer.trace("local_root_span0"):
+            # First span should be kept, as we keep 1 per min
+            pass
+
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": str(AUTO_REJECT),
+            "x-datadog-origin": "synthetics",
+            "x-datadog-tags": "_dd.p.test=value,any=tag",
+            "ot-baggage-key1": "value1",
+        }
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            _asm_manual_keep(span)
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            assert span.context.sampling_priority == USER_KEEP
+            assert span.context.dd_origin == "synthetics"
+            assert "_dd.p.appsec" in span.context._meta
+            assert span.context._meta["_dd.p.appsec"] == "1"
+            assert "_dd.p.test" in span.context._meta
+
+        next_headers = {}
+        HTTPPropagator.inject(span.context, next_headers)
+
+        # Ensure propagation of headers is not reset and adds appsec tag
+        assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
+        assert next_headers["x-datadog-trace-id"] == "1234"
+        assert "_dd.p.test=value" in next_headers["x-datadog-tags"]
+        assert "_dd.p.appsec=1" in next_headers["x-datadog-tags"]
+
+        # Ensure span has force-keep priority now
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+@pytest.mark.parametrize("upstream_priority", ["1", "2"])
+def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_user_keep(
+    tracer, upstream_priority  # noqa: F811
+):
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    try:
+        with tracer.trace("local_root_span0"):
+            # First span should be kept, as we keep 1 per min
+            pass
+
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": upstream_priority,
+            "x-datadog-origin": "synthetics",
+            "x-datadog-tags": "_dd.p.appsec=1,any=tag",
+            "ot-baggage-key1": "value1",
+        }
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            # Enforced user keep regardless of upstream priority
+            assert span.context.sampling_priority == USER_KEEP
+            assert span.context.dd_origin == "synthetics"
+            assert span.context._meta == {
+                "_dd.origin": "synthetics",
+                "_dd.p.dm": "-3",
+                "_dd.p.appsec": "1",
+            }
+            with tracer.trace("child_span") as child_span:
+                assert child_span.trace_id == 1234
+                assert child_span.parent_id != 5678
+                assert child_span.context.sampling_priority == USER_KEEP
+                assert child_span.context.dd_origin == "synthetics"
+                assert child_span.context._meta == {
+                    "_dd.origin": "synthetics",
+                    "_dd.p.dm": "-3",
+                    "_dd.p.appsec": "1",
+                }
+
+            next_headers = {}
+            HTTPPropagator.inject(span.context, next_headers)
+            assert next_headers["x-datadog-origin"] == "synthetics"
+            assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
+            assert next_headers["x-datadog-trace-id"] == "1234"
+            assert next_headers["x-datadog-tags"].startswith("_dd.p.appsec=1,")
+
+        # Ensure span sets user keep regardless of received priority (appsec event upstream)
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+@pytest.mark.parametrize("upstream_priority", ["1", "2"])
+def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_force_keep(
+    tracer, upstream_priority  # noqa: F811
+):
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    try:
+        with tracer.trace("local_root_span0"):
+            # First span should be kept, as we keep 1 per min
+            pass
+
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": upstream_priority,
+            "x-datadog-origin": "synthetics",
+            "x-datadog-tags": "_dd.p.appsec=1,any=tag",
+            "ot-baggage-key1": "value1",
+        }
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            _asm_manual_keep(span)
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            assert span.context.sampling_priority == USER_KEEP  # user keep always
+            assert span.context.dd_origin == "synthetics"
+            assert span.context._meta == {
+                "_dd.origin": "synthetics",
+                "_dd.p.dm": "-4",
+                "_dd.p.appsec": "1",
+            }
+            with tracer.trace("child_span") as child_span:
+                assert child_span.trace_id == 1234
+                assert child_span.parent_id != 5678
+                assert child_span.context.sampling_priority == USER_KEEP  # user keep always
+                assert child_span.context.dd_origin == "synthetics"
+                assert child_span.context._meta == {
+                    "_dd.origin": "synthetics",
+                    "_dd.p.dm": "-4",
+                    "_dd.p.appsec": "1",
+                }
+
+            next_headers = {}
+            HTTPPropagator.inject(span.context, next_headers)
+            assert next_headers["x-datadog-origin"] == "synthetics"
+            assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)  # user keep always
+            assert next_headers["x-datadog-trace-id"] == "1234"
+            assert next_headers["x-datadog-tags"].startswith("_dd.p.appsec=1,")
+
+        # Ensure span set to user keep regardless received priority (appsec event upstream)
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP  # user keep always
+
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
@@ -499,6 +835,7 @@ def test_extract_unicode(tracer):  # noqa: F811
 
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -508,6 +845,7 @@ def test_extract_unicode(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
+                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
 
@@ -561,6 +899,7 @@ def test_WSGI_extract(tracer):  # noqa: F811
         assert span.context._meta == {
             "_dd.origin": "synthetics",
             "_dd.p.test": "value",
+            "_dd.p.dm": "-3",
         }
 
 
@@ -584,6 +923,7 @@ def test_extract_invalid_tags(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.propagation_error": "decoding_error",
         }
 
@@ -608,6 +948,7 @@ def test_extract_tags_large(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.propagation_error": "extract_max_size",
         }
 
@@ -670,7 +1011,7 @@ TRACECONTEXT_HEADERS_VALID_BASIC = {
 }
 
 TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION = {
-    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-00",
     _HTTP_HEADER_TRACESTATE: "dd=o:rum",
 }
 
@@ -1181,6 +1522,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1192,6 +1534,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1221,6 +1564,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1243,6 +1587,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1254,6 +1599,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1486,6 +1832,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1513,6 +1860,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1552,6 +1900,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1586,6 +1935,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1597,6 +1947,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1665,6 +2016,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     # Testing that order matters
@@ -1730,28 +2082,33 @@ EXTRACT_FIXTURES = [
         DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS,
         {
             "trace_id": _get_64_lowest_order_bits_as_int(TRACE_ID),
-            "span_id": 5678,
+            "span_id": 67667974448284343,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE]},
+            "meta": {
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-3",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
+            },
         },
     ),
     # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
     (
         "no_additional_tracestate_support_when_present_but_trace_ids_do_not_match",
         [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        ALL_HEADERS,
+        {**DATADOG_HEADERS_VALID, **TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION},
         {
             "trace_id": 13088165645273925489,
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
-                    tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
-                    flags=1,
+                    tracestate="dd=o:rum",
+                    flags=0,
                     attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
                 )
             ],
@@ -1768,6 +2125,21 @@ EXTRACT_FIXTURES = [
         [],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         CONTEXT_EMPTY,
+    ),
+    (
+        "datadog_tracecontext_conflicting_span_ids",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        {
+            HTTP_HEADER_TRACE_ID: "9291375655657946024",
+            HTTP_HEADER_PARENT_ID: "15",
+            _HTTP_HEADER_TRACEPARENT: "00-000000000000000080f198ee56343ba8-000000000000000a-01",
+        },
+        {
+            "trace_id": 9291375655657946024,
+            "span_id": 10,
+            "sampling_priority": 2,
+            "meta": {"_dd.p.dm": "-3", LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+        },
     ),
 ]
 
@@ -1802,7 +2174,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "dd_origin": "rum",
             "meta": {
                 "tracestate": "dd=o:rum",
-                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "traceparent": TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION[_HTTP_HEADER_TRACEPARENT],
                 LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
         },
@@ -2046,7 +2418,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         Context(
             trace_id=13088165645273925489,
             span_id=5678,
-            meta={"_dd.origin": "synthetics"},
+            meta={"_dd.origin": "synthetics", "_dd.p.dm": "-3"},
             metrics={"_sampling_priority_v1": 1},
             span_links=[
                 SpanLink(
@@ -2088,8 +2460,16 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         ALL_HEADERS_CHAOTIC_1,
         Context(
             trace_id=7277407061855694839,
-            span_id=5678,
-            meta={"_dd.origin": "synthetics", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"},
+            span_id=67667974448284343,
+            # it's weird that both _dd.p.dm and tracestate.t.dm are set here. as far as i know, this is the expected
+            # behavior for this chaotic set of headers, specifically when STYLE_DATADOG precedes STYLE_W3C_TRACECONTEXT
+            # in the styles configuration
+            meta={
+                "_dd.p.dm": "-3",
+                "_dd.origin": "synthetics",
+                "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
+            },
             metrics={"_sampling_priority_v1": 1},
             span_links=[
                 SpanLink(
@@ -2106,7 +2486,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
 
 
 @pytest.mark.parametrize("name,styles,headers,expected_context", FULL_CONTEXT_EXTRACT_FIXTURES)
-def test_mutliple_context_interactions(name, styles, headers, expected_context):
+def test_multiple_context_interactions(name, styles, headers, expected_context):
     with override_global_config(dict(_propagation_style_extract=styles)):
         context = HTTPPropagator.extract(headers)
         assert context == expected_context
@@ -2127,6 +2507,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_t
         attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
     )
     assert spans[0][1]._links == {}
+    assert spans[0][1].context._span_links == []
 
 
 VALID_DATADOG_CONTEXT = {
@@ -2638,3 +3019,26 @@ print(json.dumps(headers))
 
     result = json.loads(stdout.decode())
     assert result == expected_headers
+
+
+def test_llmobs_enabled_injects_llmobs_parent_id():
+    with override_global_config(dict(_llmobs_enabled=True)):
+        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+            context = Context(trace_id=1, span_id=2)
+            HTTPPropagator.inject(context, {})
+            mock_llmobs_inject.assert_called_once_with(context)
+
+
+def test_llmobs_disabled_does_not_inject_parent_id():
+    with override_global_config(dict(_llmobs_enabled=False)):
+        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+            context = Context(trace_id=1, span_id=2)
+            HTTPPropagator.inject(context, {})
+            mock_llmobs_inject.assert_not_called()
+
+
+def test_llmobs_parent_id_not_injected_by_default():
+    with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+        context = Context(trace_id=1, span_id=2)
+        HTTPPropagator.inject(context, {})
+        mock_llmobs_inject.assert_not_called()

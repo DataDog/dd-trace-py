@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    tracing: ``tracer.sampler`` is deprecated and will be removed in the next major version release.
+    To manually sample please call ``tracer.sample`` instead.

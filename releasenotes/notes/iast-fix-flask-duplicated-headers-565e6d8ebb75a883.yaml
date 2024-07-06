@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers 
+    (i.e., with `headers.items()`) does not duplicate them.

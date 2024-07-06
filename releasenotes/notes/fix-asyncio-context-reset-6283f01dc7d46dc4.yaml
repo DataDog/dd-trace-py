@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    This fix resolves an issue where importing ``asyncio`` after a trace has already been started will reset the currently active span.

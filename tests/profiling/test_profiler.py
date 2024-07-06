@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import time
 
 import mock
@@ -411,3 +412,60 @@ def test_profiler_serverless(monkeypatch):
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
     assert p.tags["functionname"] == "foobar"
+
+
+@pytest.mark.subprocess()
+def test_profiler_ddtrace_deprecation():
+    """
+    ddtrace interfaces loaded by the profiler can be marked deprecated, and we should update
+    them when this happens.  As reported by https://github.com/DataDog/dd-trace-py/issues/8881
+    """
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        from ddtrace.profiling import _threading  # noqa:F401
+        from ddtrace.profiling import event  # noqa:F401
+        from ddtrace.profiling import profiler  # noqa:F401
+        from ddtrace.profiling import recorder  # noqa:F401
+        from ddtrace.profiling import scheduler  # noqa:F401
+        from ddtrace.profiling.collector import _lock  # noqa:F401
+        from ddtrace.profiling.collector import _task  # noqa:F401
+        from ddtrace.profiling.collector import _traceback  # noqa:F401
+        from ddtrace.profiling.collector import memalloc  # noqa:F401
+        from ddtrace.profiling.collector import stack  # noqa:F401
+        from ddtrace.profiling.collector import stack_event  # noqa:F401
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_PROFILING_EXPORT_LIBDD_ENABLED": "true"})
+def test_profiler_libdd_available():
+    """
+    Tests that the libdd module can be loaded
+    """
+    from ddtrace.internal.datadog.profiling import ddup
+
+    assert ddup.is_available
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_PROFILING_EXPORT_LIBDD_ENABLED": "true"})
+def test_profiler_ddup_start():
+    """
+    Tests that the the libdatadog exporter can be enabled
+    """
+    import pytest
+
+    from ddtrace.internal.datadog.profiling import ddup
+
+    try:
+        ddup.config(
+            env="my_env",
+            service="my_service",
+            version="my_version",
+            tags={},
+            url="http://localhost:8126",
+        )
+        ddup.start()
+    except Exception as e:
+        pytest.fail(str(e))

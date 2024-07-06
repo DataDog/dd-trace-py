@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: Resolves segfaults raised when grpc.aio interceptors are registered

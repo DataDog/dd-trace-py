@@ -1,6 +1,7 @@
 """CPU profiling collector."""
 from __future__ import absolute_import
 
+from itertools import chain
 import logging
 import sys
 import typing
@@ -8,10 +9,11 @@ import typing
 import attr
 import six
 
-from ddtrace import _threading as ddtrace_threading
-from ddtrace import context
-from ddtrace import span as ddspan
+from ddtrace.internal._unpatched import _threading as ddtrace_threading
+from ddtrace._trace import context
+from ddtrace._trace import span as ddspan
 from ddtrace.internal import compat
+from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.utils import formats
@@ -288,11 +290,14 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
     )
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint, now_ns = 0):
     # Do not use `threading.enumerate` to not mess with locking (gevent!)
+    # Also collect the native threads, that are not registered with the built-in
+    # threading module, to keep backward compatibility with the previous
+    # pure-Python implementation of periodic threads.
     thread_id_ignore_list = {
         thread_id
-        for thread_id, thread in ddtrace_threading._active.items()
+        for thread_id, thread in chain(periodic_threads.items(), ddtrace_threading._active.items())
         if getattr(thread, "_ddtrace_profiling_ignore", False)
     } if ignore_profiler else set()
 
@@ -326,6 +331,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if nframes:
                 if use_libdd:
                     handle = ddup.SampleHandle()
+                    handle.push_monotonic_ns(now_ns)
                     handle.push_walltime(wall_time, 1)
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
@@ -353,6 +359,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if nframes:
             if use_libdd:
                 handle = ddup.SampleHandle()
+                handle.push_monotonic_ns(now_ns)
                 handle.push_cputime( cpu_time, 1)
                 handle.push_walltime( wall_time, 1)
                 handle.push_threadinfo(thread_id, thread_native_id, thread_name)
@@ -385,6 +392,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if nframes:
                 if use_libdd:
                     handle = ddup.SampleHandle()
+                    handle.push_monotonic_ns(now_ns)
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_exceptioninfo(exc_type, 1)
                     handle.push_class_name(frames[0].class_name)
@@ -470,7 +478,7 @@ class StackCollector(collector.PeriodicCollector):
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
-    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2.enabled)
+    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -487,26 +495,9 @@ class StackCollector(collector.PeriodicCollector):
 
         # If libdd is enabled, propagate the configuration
         if config.export.libdd_enabled:
-            if not ddup.is_available:
-                # We don't report on this, since it's already been reported in profiler.py
-                set_use_libdd(False)
+            set_use_libdd(True)
 
-                # If the user had also set stack.v2.enabled, then we need to disable that as well.
-                if self._stack_collector_v2_enabled:
-                    self._stack_collector_v2_enabled = False
-                    LOG.error("Stack v2 was requested, but the libdd collector could not be enabled.  Falling back to the v1 stack sampler.")
-            else:
-                set_use_libdd(True)
-
-        # If stack v2 is requested, verify it is loaded properly and that libdd has been enabled.
-        if self._stack_collector_v2_enabled:
-            if not stack_v2.is_available:
-                self._stack_collector_v2_enabled = False
-                LOG.error("Stack v2 was requested, but it could not be enabled.  Check debug logs for more information.")
-            if not use_libdd:
-                self._stack_collector_v2_enabled = False
-
-        # If at the end of things, stack v2 is still enabled, then start the native thread running the v2 sampler
+        # If stack v2 is enabled, then use the v2 sampler
         if self._stack_collector_v2_enabled:
             LOG.debug("Starting the stack v2 sampler")
             stack_v2.start()
@@ -553,6 +544,7 @@ class StackCollector(collector.PeriodicCollector):
                 wall_time,
                 self._thread_span_links,
                 self.endpoint_collection_enabled,
+                now_ns=now,
             )
 
         used_wall_time_ns = compat.monotonic_ns() - now

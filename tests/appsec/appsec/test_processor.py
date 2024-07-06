@@ -9,6 +9,7 @@ from six import ensure_binary
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
+from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
@@ -18,7 +19,6 @@ from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import tests.appsec.rules as rules
-from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -74,22 +74,31 @@ def test_enable(tracer_appsec):
 
 
 def test_enable_custom_rules():
-    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+    with override_global_config(dict(_asm_static_rule_file=rules.RULES_GOOD_PATH)):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
     assert processor.rules == rules.RULES_GOOD_PATH
 
 
+def test_ddwaf_ctx(tracer_appsec):
+    tracer = tracer_appsec
+
+    with override_global_config(dict(_asm_static_rule_file=rules.RULES_GOOD_PATH)):
+        with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            processor = AppSecSpanProcessor()
+            processor.on_span_start(span)
+            ctx = processor._span_to_waf_ctx.get(span)
+            assert ctx
+            processor.on_span_finish(span)
+            assert span not in processor._span_to_waf_ctx
+
+
 @pytest.mark.parametrize("rule,exc", [(rules.RULES_MISSING_PATH, IOError), (rules.RULES_BAD_PATH, ValueError)])
 def test_enable_bad_rules(rule, exc, tracer):
-    # with override_env(dict(DD_APPSEC_RULES=rule)):
-    #     with pytest.raises(exc):
-    #         _enable_appsec(tracer)
-
     # by default enable must not crash but display errors in the logs
-    with override_global_config(dict(_raise=False)):
-        with override_env(dict(DD_APPSEC_RULES=rule)):
+    with override_env(dict(DD_APPSEC_RULES=rule)):
+        with override_global_config(dict(_raise=False)):
             _enable_appsec(tracer)
 
 
@@ -114,7 +123,7 @@ def test_valid_json(tracer_appsec):
 def test_header_attack(tracer_appsec):
     tracer = tracer_appsec
 
-    with override_global_config(dict(retrieve_client_ip=True)):
+    with override_global_config(dict(retrieve_client_ip=True, _asm_enabled=True)):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
@@ -208,7 +217,7 @@ def test_appsec_body_no_collection_snapshot(tracer):
 
 
 def test_ip_block(tracer):
-    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(rules._IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -224,7 +233,7 @@ def test_ip_block(tracer):
 
 @pytest.mark.parametrize("ip", [rules._IP.MONITORED, rules._IP.BYPASS, rules._IP.DEFAULT])
 def test_ip_not_block(tracer, ip):
-    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(ip, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -312,7 +321,6 @@ def test_appsec_span_tags_snapshot(tracer):
         assert get_triggers(span)
 
 
-@flaky(1735812000)
 @snapshot(
     include_tracer=True,
     ignores=[
@@ -324,16 +332,21 @@ def test_appsec_span_tags_snapshot(tracer):
     ],
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):
-    with override_global_config(dict(_asm_enabled=True)):
-        with override_env(dict(DD_APPSEC_RULES=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"))):
-            _enable_appsec(tracer)
-            with _asm_request_context.asm_request_context_manager(), tracer.trace(
-                "test", service="test", span_type=SpanTypes.WEB
-            ) as span:
-                span.set_tag("http.url", "http://example.com/.git")
-                set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
+    with override_global_config(
+        dict(
+            _asm_enabled=True,
+            _asm_static_rule_file=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"),
+            _waf_timeout=50_000,
+        )
+    ):
+        _enable_appsec(tracer)
+        with _asm_request_context.asm_request_context_manager(), tracer.trace(
+            "test", service="test", span_type=SpanTypes.WEB
+        ) as span:
+            span.set_tag("http.url", "http://example.com/.git")
+            set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-        assert get_triggers(span) is None
+    assert get_triggers(span) is None
 
 
 def test_appsec_span_rate_limit(tracer):
@@ -504,7 +517,7 @@ def test_ddwaf_run():
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
         ctx = _ddwaf._at_request_start()
-        res = _ddwaf.run(ctx, data, DEFAULT.WAF_TIMEOUT)  # res is a serialized json
+        res = _ddwaf.run(ctx, data, timeout_ms=DEFAULT.WAF_TIMEOUT)  # res is a serialized json
         assert res.data
         assert res.data[0]["rule"]["id"] == "crs-942-100"
         assert res.runtime > 0
@@ -522,7 +535,7 @@ def test_ddwaf_run_timeout():
             "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
         }
         ctx = _ddwaf._at_request_start()
-        res = _ddwaf.run(ctx, data, 0.001)  # res is a serialized json
+        res = _ddwaf.run(ctx, data, timeout_ms=0.001)  # res is a serialized json
         assert res.runtime > 0
         assert res.total_runtime > 0
         assert res.total_runtime > res.runtime
@@ -695,8 +708,30 @@ def test_asm_context_registration(tracer_appsec):
     assert core.get_item("asm_env") is None
 
 
+CUSTOM_RULE_METHOD = {
+    "custom_rules": [
+        {
+            "conditions": [
+                {
+                    "operator": "match_regex",
+                    "parameters": {
+                        "inputs": [{"address": "server.request.method"}],
+                        "options": {"case_sensitive": False},
+                        "regex": "GET",
+                    },
+                }
+            ],
+            "id": "32b243c7-26eb-4046-adf4-custom",
+            "name": "test required",
+            "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+            "transformers": [],
+        }
+    ]
+}
+
+
 def test_required_addresses():
-    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+    with override_global_config(dict(_asm_static_rule_file=rules.RULES_GOOD_PATH)):
         processor = AppSecSpanProcessor()
 
     assert processor._addresses_to_keep == {
@@ -711,28 +746,7 @@ def test_required_addresses():
         "usr.id",
     }
 
-    processor._update_rules(
-        {
-            "custom_rules": [
-                {
-                    "conditions": [
-                        {
-                            "operator": "match_regex",
-                            "parameters": {
-                                "inputs": [{"address": "server.request.method"}],
-                                "options": {"case_sensitive": False},
-                                "regex": "GET",
-                            },
-                        }
-                    ],
-                    "id": "32b243c7-26eb-4046-adf4-custom",
-                    "name": "test required",
-                    "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
-                    "transformers": [],
-                }
-            ]
-        }
-    )
+    processor._update_rules(CUSTOM_RULE_METHOD)
 
     assert processor._addresses_to_keep == {
         "grpc.server.request.message",
@@ -746,3 +760,29 @@ def test_required_addresses():
         "server.response.headers.no_cookies",
         "usr.id",
     }
+
+
+@pytest.mark.parametrize(
+    "persistent", [key for key, value in WAF_DATA_NAMES if value in WAF_DATA_NAMES.PERSISTENT_ADDRESSES]
+)
+@pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
+@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
+def test_ephemeral_addresses(mock_run, persistent, ephemeral):
+    from ddtrace import tracer
+
+    processor = AppSecSpanProcessor()
+    processor._update_rules(CUSTOM_RULE_METHOD)
+
+    with override_global_config(
+        dict(_asm_enabled=True)
+    ), _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        # first call must send all data to the waf
+        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
+        assert mock_run.call_args[0][1] == {WAF_DATA_NAMES[persistent]: {"key_1": "value_1"}}
+        assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES[ephemeral]: {"key_2": "value_2"}}
+        # second call must only send ephemeral data to the waf, not persistent data again
+        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_3"}})
+        assert mock_run.call_args[0][1] == {}
+        assert mock_run.call_args[1]["ephemeral_data"] == {
+            WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
+        }

@@ -10,6 +10,22 @@ All metrics, logs, and traces submitted from the LangChain integration are tagge
 - ``langchain.request.model``: LLM/Chat/Embeddings model used in the request.
 - ``langchain.request.api_key``: LLM provider API key used to make the request (obfuscated into the format ``...XXXX`` where ``XXXX`` is the last 4 digits of the key).
 
+**Note**: For ``langchain>=0.1.0``, this integration drops tracing support for the following deprecated langchain operations in favor
+of the recommended alternatives in the `langchain changelog docs <https://python.langchain.com/docs/changelog/core>`_.
+This includes:
+
+- ``langchain.chain.Chain.run/arun`` with ``langchain.chain.Chain.invoke/ainvoke``
+- ``langchain.embeddings.openai.OpenAIEmbeddings.embed_documents`` with ``langchain_openai.OpenAIEmbeddings.embed_documents``
+- ``langchain.vectorstores.pinecone.Pinecone.similarity_search`` with ``langchain_pinecone.PineconeVectorStore.similarity_search``
+
+**Note**: For ``langchain>=0.2.0``, this integration does not patch ``langchain-community`` if it is not available, as ``langchain-community``
+is no longer a required dependency of ``langchain>=0.2.0``. This means that this integration will not trace the following:
+
+- Embedding calls made using ``langchain_community.embeddings.*``
+- Vector store similarity search calls made using ``langchain_community.vectorstores.*``
+- Total cost metrics for OpenAI requests
+
+
 Metrics
 ~~~~~~~
 

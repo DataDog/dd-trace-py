@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    telemetry: This fix resolves an issue when using ``pytest`` + ``gevent`` where the telemetry writer was eager initialized by ``pytest`` entrypoints loading of our plugin causing a potential dead lock.

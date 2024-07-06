@@ -38,6 +38,7 @@ CAPTURE_TIME_BUDGET = 0.2  # seconds
 def _capture_context(
     arguments: List[Tuple[str, Any]],
     _locals: List[Tuple[str, Any]],
+    _globals: List[Tuple[str, Any]],
     throwable: ExcInfoType,
     limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
 ) -> Dict[str, Any]:
@@ -50,18 +51,29 @@ def _capture_context(
             "arguments": utils.capture_pairs(
                 arguments, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
             )
-            if arguments is not None
+            if arguments
             else {},
             "locals": utils.capture_pairs(
                 _locals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
             )
-            if _locals is not None
+            if _locals
+            else {},
+            "staticFields": utils.capture_pairs(
+                _globals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
+            )
+            if _globals
             else {},
             "throwable": utils.capture_exc_info(throwable),
         }
 
 
-_EMPTY_CAPTURED_CONTEXT = _capture_context([], [], (None, None, None), DEFAULT_CAPTURE_LIMITS)
+_EMPTY_CAPTURED_CONTEXT = _capture_context(
+    arguments=[],
+    _locals=[],
+    _globals=[],
+    throwable=(None, None, None),
+    limits=DEFAULT_CAPTURE_LIMITS,
+)
 
 
 @attr.s
@@ -74,6 +86,8 @@ class Snapshot(LogSignal):
     entry_capture = attr.ib(type=Optional[dict], default=None)
     return_capture = attr.ib(type=Optional[dict], default=None)
     line_capture = attr.ib(type=Optional[dict], default=None)
+
+    _stack = attr.ib(type=Optional[list], default=None)
 
     _message = attr.ib(type=Optional[str], default=None)
     duration = attr.ib(type=Optional[int], default=None)  # nanoseconds
@@ -121,6 +135,7 @@ class Snapshot(LogSignal):
             self.entry_capture = _capture_context(
                 _args,
                 [],
+                [],
                 (None, None, None),
                 limits=probe.limits,
             )
@@ -145,8 +160,8 @@ class Snapshot(LogSignal):
         elif self.state not in {SignalState.NONE, SignalState.DONE}:
             return
 
-        _locals = []
-        _, exc, _ = exc_info
+        _locals = list(_safety.get_locals(self.frame))
+        _, exc, tb = exc_info
         if exc is None:
             _locals.append(("@return", retval))
         else:
@@ -154,12 +169,25 @@ class Snapshot(LogSignal):
 
         if probe.take_snapshot:
             self.return_capture = _capture_context(
-                self.args or _safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
+                self.args or _safety.get_args(self.frame), _locals, [], exc_info, limits=probe.limits
             )
         self.duration = duration
         self.state = SignalState.DONE
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
             self._eval_message(dict(_args))
+
+        stack = utils.capture_stack(self.frame)
+
+        # Fix the line number of the top frame. This might have been mangled by
+        # the instrumented exception handling of function probes.
+        while tb is not None:
+            frame = tb.tb_frame
+            if frame == self.frame:
+                stack[0]["lineNumber"] = tb.tb_lineno
+                break
+            tb = tb.tb_next
+
+        self._stack = stack
 
     def line(self):
         if not isinstance(self.probe, LogLineProbe):
@@ -179,11 +207,15 @@ class Snapshot(LogSignal):
             self.line_capture = _capture_context(
                 self.args or _safety.get_args(frame),
                 _safety.get_locals(frame),
+                _safety.get_globals(frame),
                 sys.exc_info(),
                 limits=probe.limits,
             )
 
         self._eval_message(frame.f_locals)
+
+        self._stack = utils.capture_stack(frame)
+
         self.state = SignalState.DONE
 
     @property
@@ -195,7 +227,6 @@ class Snapshot(LogSignal):
 
     @property
     def data(self):
-        frame = self.frame
         probe = self.probe
 
         captures = None
@@ -209,7 +240,7 @@ class Snapshot(LogSignal):
                 }
 
         return {
-            "stack": utils.capture_stack(frame),
+            "stack": self._stack,
             "captures": captures,
             "duration": self.duration,
         }

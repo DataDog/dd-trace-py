@@ -22,6 +22,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -37,10 +38,14 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from ...appsec._utils import _UserInfoRetriever
+from ...ext import db
+from ...ext import net
 from ...internal.utils import get_argument_value
+from ...propagation._database_monitoring import _DBM_Propagator
 from .. import trace_utils
 from ..trace_utils import _get_request_header_user_agent
 
@@ -77,6 +82,14 @@ _NotSet = object()
 psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
 
 
+DB_CONN_ATTR_BY_TAG = {
+    net.TARGET_HOST: "HOST",
+    net.TARGET_PORT: "PORT",
+    db.USER: "USER",
+    db.NAME: "NAME",
+}
+
+
 def get_version():
     # type: () -> str
     import django
@@ -102,6 +115,14 @@ def patch_conn(django, conn):
                 psycopg_cursor_cls = None
                 Psycopg2TracedCursor = None
 
+    tags = {}
+    settings_dict = getattr(conn, "settings_dict", {})
+    for tag, attr in DB_CONN_ATTR_BY_TAG.items():
+        if attr in settings_dict:
+            tags[tag] = trace_utils._convert_to_string(conn.settings_dict.get(attr))
+
+    conn._datadog_tags = tags
+
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
 
@@ -114,12 +135,14 @@ def patch_conn(django, conn):
 
         vendor = getattr(conn, "vendor", "db")
         prefix = sqlx.normalize_vendor(vendor)
-        tags = {
-            "django.db.vendor": vendor,
-            "django.db.alias": alias,
-        }
+
+        tags = {"django.db.vendor": vendor, "django.db.alias": alias}
+        tags.update(getattr(conn, "_datadog_tags", {}))
+
         pin = Pin(service, tags=tags, tracer=pin.tracer)
+
         cursor = func(*args, **kwargs)
+
         traced_cursor_cls = dbapi.TracedCursor
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg2."):
@@ -144,6 +167,7 @@ def patch_conn(django, conn):
             trace_fetch_methods=config.django.trace_fetch_methods,
             analytics_enabled=config.django.analytics_enabled,
             analytics_sample_rate=config.django.analytics_sample_rate,
+            _dbm_propagator=_DBM_Propagator(0, "query"),
         )
         return traced_cursor_cls(cursor, pin, cfg)
 
@@ -466,7 +490,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         def blocked_response():
             from django.http import HttpResponse
 
-            block_config = core.get_item(HTTP_REQUEST_BLOCKED)
+            block_config = core.get_item(HTTP_REQUEST_BLOCKED) or {}
             desired_type = block_config.get("type", "auto")
             status = block_config.get("status_code", 403)
             if desired_type == "none":
@@ -482,6 +506,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
+                response["Content-Length"] = len(content.encode())
             utils._after_request_tags(pin, ctx["call"], request, response)
             return response
 
@@ -509,7 +534,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 response = blocked_response()
                 return response
 
-            response = func(*args, **kwargs)
+            try:
+                response = func(*args, **kwargs)
+            except BlockingException as e:
+                core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
+                response = blocked_response()
+                return response
 
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 response = blocked_response()
@@ -655,6 +685,53 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
 
 class _DjangoUserInfoRetriever(_UserInfoRetriever):
+    def __init__(self, user, credentials=None):
+        super(_DjangoUserInfoRetriever, self).__init__(user)
+
+        self.credentials = credentials if credentials else {}
+        if self.credentials and not user:
+            self._try_load_user()
+
+    def _try_load_user(self):
+        self.user_model = None
+
+        try:
+            from django.contrib.auth import get_user_model
+        except ImportError:
+            log.debug("user_exist: Could not import Django get_user_model", exc_info=True)
+            return
+
+        try:
+            self.user_model = get_user_model()
+            if not self.user_model:
+                return
+        except Exception:
+            log.debug("user_exist: Could not get the user model", exc_info=True)
+            return
+
+        login_field = asm_config._user_model_login_field
+        login_field_value = self.credentials.get(login_field, None) if login_field else None
+
+        if not login_field or not login_field_value:
+            # Try to get the username from the credentials
+            for possible_login_field in self.possible_login_fields:
+                if possible_login_field in self.credentials:
+                    login_field = possible_login_field
+                    login_field_value = self.credentials[login_field]
+                    break
+            else:
+                # Could not get what the login field, so we can't check if the user exists
+                log.debug("try_load_user_model: could not get the login field from the credentials")
+                return
+
+        try:
+            self.user = self.user_model.objects.get(**{login_field: login_field_value})
+        except self.user_model.DoesNotExist:
+            log.debug("try_load_user_model: could not load user model", exc_info=True)
+
+    def user_exists(self):
+        return self.user is not None
+
     def get_username(self):
         if hasattr(self.user, "USERNAME_FIELD") and not asm_config._user_model_name_field:
             user_type = type(self.user)
@@ -686,25 +763,13 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
 @trace_utils.with_traced_module
 def traced_login(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
-
+    mode = asm_config._user_event_mode
+    if mode == "disabled":
+        return
     try:
-        mode = asm_config._automatic_login_events_mode
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
-
-        if mode == "disabled":
-            return
-
-        core.dispatch(
-            "django.login",
-            (
-                pin,
-                request,
-                user,
-                mode,
-                _DjangoUserInfoRetriever(user),
-            ),
-        )
+        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user)))
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
@@ -712,24 +777,15 @@ def traced_login(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
+    mode = asm_config._user_event_mode
+    if mode == "disabled":
+        return result_user
     try:
-        mode = asm_config._automatic_login_events_mode
-        if mode == "disabled":
-            return result_user
-
         result = core.dispatch_with_results(
-            "django.auth",
-            (
-                result_user,
-                mode,
-                kwargs,
-                pin,
-                _DjangoUserInfoRetriever(result_user),
-            ),
+            "django.auth", (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs))
         ).user
         if result and result.value[0]:
             return result.value[1]
-
     except Exception:
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
 
@@ -817,8 +873,8 @@ def _patch(django):
     def _(m):
         import channels
 
-        channels_version = tuple(int(x) for x in channels.__version__.split("."))
-        if channels_version >= (3, 0):
+        channels_version = parse_version(channels.__version__)
+        if channels_version >= parse_version("3.0"):
             # ASGI3 is only supported in channels v3.0+
             trace_utils.wrap(m, "URLRouter.__init__", unwrap_views)
 

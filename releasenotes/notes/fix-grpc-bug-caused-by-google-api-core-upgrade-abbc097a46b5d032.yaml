@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    fix(grpc): This fix a bug in the grpc.aio support specific to streaming responses.

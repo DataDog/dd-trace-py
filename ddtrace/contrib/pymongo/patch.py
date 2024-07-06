@@ -17,6 +17,7 @@ from ...ext import mongo
 from ..trace_utils import unwrap as _u
 from .client import TracedMongoClient
 from .client import set_address_tags
+from .client import wrapped_validate_session
 
 
 config._add(
@@ -35,6 +36,7 @@ _MongoClient = pymongo.MongoClient
 
 _VERSION = pymongo.version_tuple
 _CHECKOUT_FN_NAME = "get_socket" if _VERSION < (4, 5) else "checkout"
+_VERIFY_VERSION_CLASS = pymongo.pool.SocketInfo if _VERSION < (4, 5) else pymongo.pool.Connection
 
 
 def patch():
@@ -59,6 +61,7 @@ def patch_pymongo_module():
     # - Creates a new socket & performs a TCP handshake
     # - Grabs a socket already initialized before
     _w("pymongo.server", "Server.%s" % _CHECKOUT_FN_NAME, traced_get_socket)
+    _w("pymongo.pool", f"{_VERIFY_VERSION_CLASS.__name__}.validate_session", wrapped_validate_session)
 
 
 def unpatch_pymongo_module():
@@ -67,6 +70,7 @@ def unpatch_pymongo_module():
     pymongo._datadog_patch = False
 
     _u(pymongo.server.Server, _CHECKOUT_FN_NAME)
+    _u(_VERIFY_VERSION_CLASS, "validate_session")
 
 
 @contextlib.contextmanager

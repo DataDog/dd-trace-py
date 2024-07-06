@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: This fix resolves an error regarding the remote config module with payloads missing a ``lib_config`` entry

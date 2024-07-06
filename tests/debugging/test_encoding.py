@@ -131,18 +131,18 @@ def test_capture_exc_info():
 
     assert serialized is not None
     assert serialized["type"] == "ValueError"
-    assert [_["function"] for _ in serialized["stacktrace"][:3]] == ["a", "b", "c"]
+    assert [_["function"] for _ in serialized["stacktrace"][-3:]] == ["c", "b", "a"]
     assert serialized["message"] == "'bad'"
 
 
 def test_capture_context_default_level():
-    context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=0))
+    context = _capture_context([("self", tree)], [], [], (None, None, None), CaptureLimits(max_level=0))
     self = context["arguments"]["self"]
     assert self["fields"]["root"]["notCapturedReason"] == "depth"
 
 
 def test_capture_context_one_level():
-    context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=1))
+    context = _capture_context([("self", tree)], [], [], (None, None, None), CaptureLimits(max_level=1))
     self = context["arguments"]["self"]
 
     assert self["fields"]["root"]["fields"]["left"] == {"notCapturedReason": "depth", "type": "Node"}
@@ -152,13 +152,13 @@ def test_capture_context_one_level():
 
 
 def test_capture_context_two_level():
-    context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=2))
+    context = _capture_context([("self", tree)], [], [], (None, None, None), CaptureLimits(max_level=2))
     self = context["arguments"]["self"]
     assert self["fields"]["root"]["fields"]["left"]["fields"]["right"] == {"notCapturedReason": "depth", "type": "Node"}
 
 
 def test_capture_context_three_level():
-    context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=3))
+    context = _capture_context([("self", tree)], [], [], (None, None, None), CaptureLimits(max_level=3))
     self = context["arguments"]["self"]
     assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"]["isNull"], context
     assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["left"]["isNull"], context
@@ -169,11 +169,12 @@ def test_capture_context_exc():
     try:
         raise Exception("test", "me")
     except Exception:
-        context = _capture_context([], [], sys.exc_info())
+        context = _capture_context([], [], [], sys.exc_info())
         exc = context.pop("throwable")
         assert context == {
             "arguments": {},
             "locals": {},
+            "staticFields": {},
         }
         assert exc["message"] == "'test', 'me'"
         assert exc["type"] == "Exception"
@@ -190,7 +191,7 @@ def test_batch_json_encoder():
     # to test that we can handle unicode strings.
     cake = "After the test there will be ✨ 🍰 ✨ in the annex"
 
-    buffer_size = 30 * (1 << 10)
+    buffer_size = 30 * (1 << 20)
     queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
 
     s.line()

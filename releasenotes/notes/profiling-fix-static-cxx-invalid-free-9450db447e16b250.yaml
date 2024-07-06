@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: This fixes a ``free(): invalid pointer`` error which would arise as a result of incorrectly
+    linking the C++ runtime.

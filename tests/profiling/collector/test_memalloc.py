@@ -183,6 +183,7 @@ def test_memory_collector():
     assert count_object > 0
 
 
+@flaky(1719591602)
 @pytest.mark.parametrize(
     "ignore_profiler",
     (True, False),

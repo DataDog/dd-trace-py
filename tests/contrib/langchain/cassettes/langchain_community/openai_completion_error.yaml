@@ -1,0 +1,94 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": [12345, 123456], "frequency_penalty":
+      0, "logit_bias": {}, "max_tokens": 256, "n": 1, "presence_penalty": 0, "temperature":
+      0.7, "top_p": 1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '186'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"error\": {\n    \"message\": \"Invalid token in prompt: 123456.
+        Minimum value is 0, maximum value is 100257 (inclusive).\",\n    \"type\":
+        \"invalid_request_error\",\n    \"param\": null,\n    \"code\": null\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8605c06bfdb71791-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '202'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 22:23:41 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=I1afYoQh_k8gEdEEqts0taFsLjLgUlC0O7wectsuts8-1709763821-1.0.1.1-m23klMF5uPkDKaP3XslKg5oMM7Z1__hRpuC3WT8G7Moq1wH4maIPldKDjL2R5fqW9NWvX7I7kHoRxTLThdEV0w;
+        path=/; expires=Wed, 06-Mar-24 22:53:41 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=aqCJdGzQvR8hyEolxeow9NgRKfRnP0w9T.qfTgt1GMw-1709763821554-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '7'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249742'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 61ms
+      x-request-id:
+      - req_e98aba5e91a22b5b0dd28aa92ecd19a2
+    status:
+      code: 400
+      message: Bad Request
+version: 1

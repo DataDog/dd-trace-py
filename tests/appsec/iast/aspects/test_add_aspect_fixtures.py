@@ -78,7 +78,6 @@ class TestOperatorAddReplacement(unittest.TestCase):
         result = mod.do_add_and_uppercase(prefix, suffix)
 
         assert result == "AB"
-        # TODO: migrate aspect title
         assert len(get_tainted_ranges(result)) == 2
 
     def test_string_operator_add_one_tainted_mixed_bytearray_bytes(self):  # type: () -> None
@@ -89,13 +88,7 @@ class TestOperatorAddReplacement(unittest.TestCase):
         bar = bytearray("bar", encoding="utf-8")
         result = mod.do_operator_add_params(string_input, bar)
         assert result == b"foobar"
-        # TODO: error
-        #     def add_aspect(op1, op2):
-        #         if not isinstance(op1, TEXT_TYPES) or not isinstance(op2, TEXT_TYPES):
-        #             return op1 + op2
-        # >       return _add_aspect(op1, op2)
-        # E       SystemError: <method 'join' of 'bytes' objects> returned a result with an exception set
-        # assert len(get_tainted_ranges(result)) == 2
+        assert len(get_tainted_ranges(result)) == 0
 
     def test_string_operator_add_two_mixed_bytearray_bytes(self):  # type: () -> None
         string_input = taint_pyobject(
@@ -105,10 +98,4 @@ class TestOperatorAddReplacement(unittest.TestCase):
 
         result = mod.do_operator_add_params(string_input, bar)
         assert result == bytearray(b"foobar")
-        # TODO: error
-        #     def add_aspect(op1, op2):
-        #         if not isinstance(op1, TEXT_TYPES) or not isinstance(op2, TEXT_TYPES):
-        #             return op1 + op2
-        # >       return _add_aspect(op1, op2)
-        # E       SystemError: <method 'join' of 'bytes' objects> returned a result with an exception set
-        # assert len(get_tainted_ranges(result)) == 2
+        assert len(get_tainted_ranges(result)) == 0

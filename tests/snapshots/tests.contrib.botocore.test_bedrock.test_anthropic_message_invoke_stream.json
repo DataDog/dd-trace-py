@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModelWithResponseStream",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6604ae8300000000",
+      "bedrock.request.max_tokens": "",
+      "bedrock.request.model": "claude-3-sonnet-20240229-v1:0",
+      "bedrock.request.model_provider": "anthropic",
+      "bedrock.request.prompt": "[{'role': 'user', 'content': [{'type': 'text', 'text': 'summarize the plot to the lord of the rings in a dozen words'}]}]",
+      "bedrock.request.stop_sequences": "[]",
+      "bedrock.request.temperature": "0",
+      "bedrock.request.top_k": "",
+      "bedrock.request.top_p": "",
+      "bedrock.response.choices.0.finish_reason": "end_turn",
+      "bedrock.response.choices.0.text": "Hobbits embark on epic quest to destroy powerful ring, battling dark forces.",
+      "bedrock.response.duration": "2033",
+      "bedrock.response.id": "1708c260-6ca9-46ce-8799-1ce6c03cae0d",
+      "bedrock.usage.completion_tokens": "22",
+      "bedrock.usage.prompt_tokens": "21",
+      "language": "python",
+      "runtime-id": "7cf2c8f7bcae407886c63c657123594f"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 40896
+    },
+    "duration": 2950000,
+    "start": 1711582851111829000
+  }]]

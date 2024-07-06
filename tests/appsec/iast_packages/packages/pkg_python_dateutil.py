@@ -13,7 +13,7 @@ pkg_python_dateutil = Blueprint("package_python-dateutil", __name__)
 
 
 @pkg_python_dateutil.route("/python-dateutil")
-def pkg_idna_view():
+def pkg_dateutil_view():
     from dateutil.easter import easter
     from dateutil.parser import parse
     from dateutil.relativedelta import relativedelta

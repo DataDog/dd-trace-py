@@ -1,5 +1,3 @@
-import sys
-
 import mock
 from mock.mock import call
 
@@ -8,27 +6,28 @@ from ddtrace.debugging._function.discovery import undecorated
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.inspection import linenos
+from ddtrace.internal.wrapping.context import WrappingContext
 import tests.submod.stuff as stuff
 
 
-def gen_wrapper(*arg):
-    def _wrapper(wrapped, args, kwargs):
-        # take a snapshot of args and kwargs before they are modified by the
-        # wrapped function
-        try:
-            result = wrapped(*args, **kwargs)
-            # capture the return value
-            mock, v = arg
-            mock(v)
-            return result
-        except Exception:
-            # capture the exception
-            raise
-        finally:
-            # finalise and push the snapshot
-            pass
+class MockWrappingContext(WrappingContext):
+    def __init__(self, f, mock, arg):
+        super().__init__(f)
 
-    return _wrapper
+        self.mock = mock
+        self.arg = arg
+
+    def __exit__(self, *exc):
+        pass
+
+    def __return__(self, value):
+        self.mock(self.arg)
+        return value
+
+
+class MockProbe:
+    def __init__(self, probe_id):
+        self.probe_id = probe_id
 
 
 def test_function_inject():
@@ -52,7 +51,7 @@ def test_function_wrap():
         assert function is stuff.modulestuff
 
         arg = mock.Mock()
-        store.wrap(function, gen_wrapper(arg, 42))
+        store.wrap(function, MockWrappingContext(function, arg, 42))
 
         stuff.modulestuff(None)
 
@@ -78,7 +77,7 @@ def test_function_inject_wrap():
 
         # Wrapping
         arg = mock.Mock()
-        store.wrap(stuff.modulestuff, gen_wrapper(arg, 42))
+        store.wrap(stuff.modulestuff, MockWrappingContext(stuff.modulestuff, arg, 42))
         stuff.modulestuff(None)
         arg.assert_called_once_with(42)
 
@@ -98,7 +97,7 @@ def test_function_wrap_inject():
 
         # Wrapping
         arg = mock.Mock()
-        store.wrap(function, gen_wrapper(arg, 42))
+        store.wrap(function, MockWrappingContext(function, arg, 42))
         stuff.modulestuff(None)
         arg.assert_called_once_with(42)
 
@@ -124,7 +123,7 @@ def test_function_wrap_property():
         assert function is stuff.Stuff.propertystuff.fget
 
         arg = mock.Mock()
-        store.wrap(function, gen_wrapper(arg, 42))
+        store.wrap(function, MockWrappingContext(function, arg, 42))
 
         s = stuff.Stuff()
         s.propertystuff
@@ -146,7 +145,7 @@ def test_function_wrap_decorated():
         assert function is undecorated(stuff.Stuff.doublydecoratedstuff, "doublydecoratedstuff", origin(stuff))
 
         arg = mock.Mock()
-        store.wrap(function, gen_wrapper(arg, 42))
+        store.wrap(function, MockWrappingContext(function, arg, 42))
 
         s = stuff.Stuff()
         s.doublydecoratedstuff()
@@ -162,13 +161,10 @@ def test_function_unwrap():
     with FunctionStore() as store:
         function = FunctionDiscovery.from_module(stuff).by_name(stuff.modulestuff.__name__)
         assert function is stuff.modulestuff
-        code = function.__code__
 
-        store.wrap(function, gen_wrapper(None, 42))
-        assert code is not stuff.modulestuff.__code__
+        store.wrap(function, MockWrappingContext(function, None, 42))
 
         store.unwrap(stuff.modulestuff)
-        assert code is stuff.modulestuff.__code__
 
 
 def test_function_inject_wrap_commutativity():
@@ -184,8 +180,7 @@ def test_function_inject_wrap_commutativity():
         # Wrapping
         function = FunctionDiscovery.from_module(stuff).by_name(stuff.modulestuff.__name__)
         assert function.__code__ is stuff.modulestuff.__code__
-        store.wrap(function, gen_wrapper(None, 42))
-        assert code is not stuff.modulestuff.__code__
+        store.wrap(function, MockWrappingContext(function, None, 42))
 
         # Ejection
         assert stuff.modulestuff.__code__ is not code
@@ -193,10 +188,6 @@ def test_function_inject_wrap_commutativity():
 
         # Unwrapping
         store.unwrap(stuff.modulestuff)
-
-        assert stuff.modulestuff.__code__ is not code
-        if sys.version_info < (3, 12):
-            assert stuff.modulestuff.__code__ == code
 
 
 def test_function_wrap_inject_commutativity():
@@ -204,23 +195,17 @@ def test_function_wrap_inject_commutativity():
         # Wrapping
         function = FunctionDiscovery.from_module(stuff).by_name(stuff.modulestuff.__name__)
         assert function is stuff.modulestuff
-        code = function.__code__
-        store.wrap(function, gen_wrapper(None, 42))
-        assert code is not stuff.modulestuff.__code__
+        lo = min(linenos(function))
+        store.wrap(function, MockWrappingContext(function, None, 42))
 
         # Injection
-        lo = min(linenos(stuff.modulestuff.__dd_wrapped__))
         function = FunctionDiscovery.from_module(stuff).at_line(lo)[0]
         hook = mock.Mock()()
-        store.inject_hook(function, hook, lo, 42)
+        probe = MockProbe(42)
+        store.inject_hook(function, hook, lo, probe)
 
         # Unwrapping
         store.unwrap(stuff.modulestuff)
 
         # Ejection
-        assert stuff.modulestuff.__code__ is not code
-        store.eject_hook(stuff.modulestuff, hook, lo, 42)
-
-        assert stuff.modulestuff.__code__ is not code
-        if sys.version_info < (3, 12):
-            assert stuff.modulestuff.__code__ == code
+        store.eject_hook(stuff.modulestuff, hook, lo, probe)

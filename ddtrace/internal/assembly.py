@@ -272,3 +272,6 @@ class Assembly:
 
     def __iter__(self) -> t.Iterator[bc.Instr]:
         return iter(self._instrs)
+
+    def __len__(self) -> int:
+        return len(self._instrs)

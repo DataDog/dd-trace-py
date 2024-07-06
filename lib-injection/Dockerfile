@@ -24,14 +24,18 @@ RUN python3 dl_wheels.py \
         --output-dir /build/pkgs \
         --verbose
 
-FROM alpine:3.18.3
+FROM alpine:3.20
 COPY --from=0 /build/pkgs /datadog-init/ddtrace_pkgs
 ARG UID=10000
 RUN addgroup -g 10000 -S datadog && \
     adduser -u ${UID} -S datadog -G datadog
 RUN chown -R datadog:datadog /datadog-init/ddtrace_pkgs
 RUN chmod -R 755 /datadog-init/ddtrace_pkgs
+ADD telemetry-forwarder.sh /datadog-init/telemetry-forwarder.sh
+RUN chown -R datadog:datadog /datadog-init/telemetry-forwarder.sh
+RUN chmod +x /datadog-init/telemetry-forwarder.sh
 USER ${UID}
 WORKDIR /datadog-init
+ADD min_compatible_versions.csv /datadog-init/min_compatible_versions.csv
 ADD sitecustomize.py /datadog-init/sitecustomize.py
 ADD copy-lib.sh /datadog-init/copy-lib.sh

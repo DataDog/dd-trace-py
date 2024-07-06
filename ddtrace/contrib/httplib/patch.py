@@ -1,9 +1,12 @@
+import functools
 import os
 import sys
 
 from ddtrace import config
+from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -73,11 +76,20 @@ def _wrap_getresponse(func, instance, args, kwargs):
             log.debug("error applying request tags", exc_info=True)
 
 
+def _call_asm_wrap(func, instance, *args, **kwargs):
+    _wrap_request_asm(func, instance, args, kwargs)
+
+
 def _wrap_request(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
+    if asm_config._iast_enabled or asm_config._asm_enabled:
+        func_to_call = functools.partial(_call_asm_wrap, func, instance)
+    else:
+        func_to_call = func
+
     pin = Pin.get_from(instance)
     if should_skip_request(pin, instance):
-        return func(*args, **kwargs)
+        return func_to_call(*args, **kwargs)
 
     cfg = config.get_from(instance)
 
@@ -106,7 +118,7 @@ def _wrap_request(func, instance, args, kwargs):
             span.finish()
 
     try:
-        return func(*args, **kwargs)
+        return func_to_call(*args, **kwargs)
     except Exception:
         span = getattr(instance, "_datadog_span", None)
         exc_info = sys.exc_info()

@@ -1,0 +1,32 @@
+interactions:
+- request:
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"span_id":
+      "12345678901", "trace_id": "98765432101", "metric_type": "categorical", "label":
+      "toxicity", "categorical_value": "high"}]}}}'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://api.datad0g.com/api/unstable/llm-obs/v1/eval-metric
+  response:
+    body:
+      string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '169'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 24 Apr 2024 23:02:22 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 403
+      message: Forbidden
+version: 1

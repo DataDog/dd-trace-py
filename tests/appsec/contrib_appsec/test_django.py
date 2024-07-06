@@ -5,7 +5,6 @@ from django.conf import settings
 from django.test.client import Client
 import pytest
 
-from ddtrace.contrib.django import patch
 from ddtrace.propagation._utils import get_wsgi_header
 from tests.appsec.contrib_appsec import utils
 
@@ -16,7 +15,6 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
         os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
         settings.DEBUG = False
         django.setup()
-        patch()
         client = Client(
             f"http://localhost:{self.SERVER_PORT}",
             SERVER_NAME=f"localhost:{self.SERVER_PORT}",
@@ -60,13 +58,12 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
         client.post = patch_post
 
         interface = utils.Interface("django", django, client)
+        interface.version = django.VERSION
         with utils.test_tracer() as tracer:
             interface.tracer = tracer
             interface.printer = printer
             with utils.post_tracer(interface):
                 yield interface
-        # unpatch failing in this case
-        # unpatch()
 
     def status(self, response):
         return response.status_code

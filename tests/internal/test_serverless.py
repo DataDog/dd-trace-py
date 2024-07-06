@@ -1,6 +1,5 @@
-import sys
-
 import mock
+import pytest
 
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
@@ -90,35 +89,44 @@ def test_not_azure_function_consumption_plan_wrong_sku():
         assert in_azure_function_consumption_plan() is False
 
 
+# DEV: Run this test in a subprocess to avoid messing with global sys.modules state
+@pytest.mark.subprocess()
 def test_slow_imports():
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
+    import os
+    import sys
+
+    os.environ.update(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
+            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
+            "DD_API_SECURITY_ENABLED": "False",
+        }
+    )
 
     blocklist = [
+        "ddtrace.appsec._api_security.api_manager",
         "ddtrace.appsec._iast._ast.ast_patching",
+        "ddtrace.internal.telemetry.telemetry_writer",
+        "email.mime.application",
+        "email.mime.multipart",
+        "logging.handlers",
+        "multiprocessing",
+        "importlib.metadata",
+        "importlib_metadata",
     ]
 
     class BlockListFinder:
         def find_spec(self, fullname, *args):
-            for prefix in blocklist:
-                if fullname.startswith(prefix):
+            for lib in blocklist:
+                if fullname == lib:
                     raise ImportError(f"module {fullname} was imported!")
             return None
 
-    meta_path = [BlockListFinder()]
-    meta_path.extend(sys.meta_path)
+    sys.meta_path.insert(0, BlockListFinder())
 
-    deleted_modules = {}
-
-    for mod in sys.modules.copy():
-        if mod.startswith("ddtrace"):
-            deleted_modules[mod] = sys.modules[mod]
-            del sys.modules[mod]
-
-    with mock.patch("sys.meta_path", meta_path):
-        import ddtrace
-        import ddtrace.contrib.psycopg  # noqa:F401
-
-    for name, mod in deleted_modules.items():
-        sys.modules[name] = mod
+    import ddtrace
+    import ddtrace.contrib.aws_lambda  # noqa:F401
+    import ddtrace.contrib.psycopg  # noqa:F401

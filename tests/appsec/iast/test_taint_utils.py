@@ -9,7 +9,7 @@ from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 from ddtrace.appsec._iast._taint_utils import LazyTaintList
-from ddtrace.appsec._iast._taint_utils import check_tainted_args
+from ddtrace.appsec._iast._taint_utils import check_tainted_dbapi_args
 
 
 def setup():
@@ -192,17 +192,17 @@ def test_checked_tainted_args():
     untainted_arg = "gallahad the pure"
 
     # Returns False: Untainted first argument
-    assert not check_tainted_args(
+    assert not check_tainted_dbapi_args(
         args=(untainted_arg,), kwargs=None, tracer=None, integration_name="sqlite", method=cursor.execute
     )
 
     # Returns False: Untainted first argument
-    assert not check_tainted_args(
+    assert not check_tainted_dbapi_args(
         args=(untainted_arg, tainted_arg), kwargs=None, tracer=None, integration_name="sqlite", method=cursor.execute
     )
 
     # Returns False: Integration name not in list
-    assert not check_tainted_args(
+    assert not check_tainted_dbapi_args(
         args=(tainted_arg,),
         kwargs=None,
         tracer=None,
@@ -211,7 +211,7 @@ def test_checked_tainted_args():
     )
 
     # Returns False: Wrong function name
-    assert not check_tainted_args(
+    assert not check_tainted_dbapi_args(
         args=(tainted_arg,),
         kwargs=None,
         tracer=None,
@@ -220,17 +220,17 @@ def test_checked_tainted_args():
     )
 
     # Returns True:
-    assert check_tainted_args(
+    assert check_tainted_dbapi_args(
         args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="sqlite", method=cursor.execute
     )
 
     # Returns True:
-    assert check_tainted_args(
+    assert check_tainted_dbapi_args(
         args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="mysql", method=cursor.execute
     )
 
     # Returns True:
-    assert check_tainted_args(
+    assert check_tainted_dbapi_args(
         args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="psycopg", method=cursor.execute
     )
 
@@ -306,3 +306,11 @@ def test_simplejson_encode_list():
     )
 
     assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'
+
+
+def test_taint_structure():
+    from ddtrace.appsec._iast._taint_utils import taint_structure
+
+    d = {1: "foo"}
+    tainted = taint_structure(d, OriginType.PARAMETER, OriginType.PARAMETER)
+    assert is_pyobject_tainted(tainted[1])

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: This fix resolves an issue where importing the ``ddtrace.internal.peer_service`` module would fail raising an ImportError

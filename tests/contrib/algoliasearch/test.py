@@ -4,8 +4,13 @@ from ddtrace.contrib.algoliasearch.patch import algoliasearch_version
 from ddtrace.contrib.algoliasearch.patch import patch
 from ddtrace.contrib.algoliasearch.patch import unpatch
 from ddtrace.pin import Pin
+from ddtrace.vendor.packaging.version import parse as parse_version
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
+
+
+V1 = parse_version("1.0")
+V2 = parse_version("2.0")
 
 
 class AlgoliasearchTest(TracerTestCase):
@@ -29,7 +34,7 @@ class AlgoliasearchTest(TracerTestCase):
         # Algolia search is a non free SaaS application, it isn't possible to add it to the
         # docker environment to enable a full-fledged integration test. The next best option
         # is to mock out the search method to prevent it from making server requests
-        if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+        if algoliasearch_version < V2 and algoliasearch_version >= V1:
             import algoliasearch
             import algoliasearch.index as index_module
 
@@ -56,7 +61,7 @@ class AlgoliasearchTest(TracerTestCase):
             self.reset()
 
     def perform_search(self, query_text, query_args=None):
-        if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+        if algoliasearch_version < V2 and algoliasearch_version >= V1:
             self.index.search(query_text, args=query_args)
         else:
             self.index.search(query_text, request_options=query_args)

@@ -4,7 +4,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.settings.asm import config as asm_config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -52,17 +51,6 @@ def _extract_query_string(uri):
     return uri[start:end]
 
 
-def _wrap_request(func, instance, args, kwargs):
-    """This function wraps `request.request`, which includes all request verbs like `request.get` and `request.post`.
-    IAST needs to wrap this function because `Session.send` is too late, as we require the raw arguments of the request.
-    """
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
-
-        _iast_report_ssrf(func, *args, **kwargs)
-    return func(*args, **kwargs)
-
-
 def _wrap_send(func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
     # TODO[manu]: we already offer a way to provide the Global Tracer
@@ -72,7 +60,7 @@ def _wrap_send(func, instance, args, kwargs):
     tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
 
     # skip if tracing is not enabled
-    if not tracer.enabled:
+    if not tracer.enabled and not tracer._apm_opt_out:
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")

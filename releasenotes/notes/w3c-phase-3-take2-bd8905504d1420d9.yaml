@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Ensures W3C tracecontext headers take precedence over all other header formats when incoming headers
+    reference different spans in the same trace.

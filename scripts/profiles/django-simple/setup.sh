@@ -21,14 +21,14 @@ then
 fi
 
 # Create and activate the virtualenv
-python3.8 -m venv ${PREFIX}
+python3.10 -m venv ${PREFIX}
 source ${PREFIX}/bin/activate
 pip install pip --upgrade
 
 # Install the application
 git clone https://github.com/DataDog/trace-examples.git ${PREFIX}/trace-examples
 pushd ${PREFIX}/trace-examples/
-    git checkout 760deae1fd2f2371cf813d3ff3ca9f0e040e8c60
+    git checkout origin/django-simple
     pushd python/django/django-simple
         pip install -r requirements/production.txt
         python manage.py migrate

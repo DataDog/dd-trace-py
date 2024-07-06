@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: This fix resolves an issue where importing the ``ddtrace.contrib.botocore.services`` module would fail raising an ImportError

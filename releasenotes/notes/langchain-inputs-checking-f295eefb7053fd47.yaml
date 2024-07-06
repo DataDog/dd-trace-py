@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langchain: This fix resolves an issue where specifying inputs as a keyword argument for batching on chains caused a crash.

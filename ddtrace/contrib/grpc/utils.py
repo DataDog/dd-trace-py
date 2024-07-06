@@ -1,5 +1,6 @@
 import ipaddress
 import logging
+import re
 
 from ddtrace.internal.compat import parse
 
@@ -81,3 +82,30 @@ def _parse_target_from_args(args, kwargs):
         return hostname, port
     except ValueError:
         log.warning("Malformed target '%s'.", target)
+
+
+def _parse_rpc_repr_string(rpc_string, module):
+    # Define the regular expression patterns to extract status and details
+    status_pattern = r"status\s*=\s*StatusCode\.(\w+)"
+    details_pattern = r'details\s*=\s*"([^"]*)"'
+
+    # Search for the status and details in the input string
+    status_match = re.search(status_pattern, rpc_string)
+    details_match = re.search(details_pattern, rpc_string)
+
+    if not status_match or not details_match:
+        raise ValueError("Unable to parse grpc status or details repr string")
+
+    # Extract the status and details from the matches
+    status_str = status_match.group(1)
+    details = details_match.group(1)
+
+    # Convert the status string to a grpc.StatusCode object
+    try:
+        code = module.StatusCode[status_str]
+    except KeyError:
+        code = None
+        raise ValueError(f"Invalid grpc status code: {status_str}")
+
+    # Return the status code and details
+    return code, details

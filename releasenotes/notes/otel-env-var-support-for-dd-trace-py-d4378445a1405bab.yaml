@@ -1,0 +1,15 @@
+---
+features:
+  - |
+    tracing: Ensures the following OpenTelemetry environment variables are mapped to an equivalent Datadog configuration (datadog environment variables taking precedence in cases where both are configured)::
+      
+        OTEL_SERVICE_NAME -> DD_SERVICE
+        OTEL_LOG_LEVEL -> DD_TRACE_DEBUG
+        OTEL_PROPAGATORS -> DD_TRACE_PROPAGATION_STYLE
+        OTEL_TRACES_SAMPLER -> DD_TRACE_SAMPLE_RATE
+        OTEL_TRACES_EXPORTER -> DD_TRACE_ENABLED
+        OTEL_METRICS_EXPORTER -> DD_RUNTIME_METRICS_ENABLED
+        OTEL_LOGS_EXPORTER -> none
+        OTEL_RESOURCE_ATTRIBUTES -> DD_TAGS
+        OTEL_SDK_DISABLED -> DD_TRACE_OTEL_ENABLED
+

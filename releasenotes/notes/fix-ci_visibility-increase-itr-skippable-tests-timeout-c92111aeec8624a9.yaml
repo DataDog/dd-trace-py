@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should

@@ -1,0 +1,36 @@
+interactions:
+- request:
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"span_id":
+      "12345678901", "trace_id": "98765432101", "metric_type": "categorical", "label":
+      "toxicity", "categorical_value": "high"}]}}}'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://api.datad0g.com/api/unstable/llm-obs/v1/eval-metric
+  response:
+    body:
+      string: '{"data":{"id":"2e899670-dc6f-4e93-a8fa-cb43a38e8576","type":"evaluation_metric","attributes":{"metrics":[{"id":"a87b1729-8ed3-42df-9dc7-6db9d5ab7426","trace_id":"98765432101","span_id":"12345678901","timestamp":1714067595986,"metric_type":"categorical","label":"toxicity","categorical_value":"high"}]}}}'
+    headers:
+      content-length:
+      - '303'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 25 Apr 2024 17:53:16 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

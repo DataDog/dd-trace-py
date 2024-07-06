@@ -1,7 +1,7 @@
 [[
   {
     "name": "mysql.query",
-    "service": "",
+    "service": "mysql",
     "resource": "select 'Jellysmack'",
     "trace_id": 0,
     "span_id": 1,
@@ -9,6 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "aiomysql",
@@ -36,7 +37,7 @@
 [
   {
     "name": "mysql.query",
-    "service": "",
+    "service": "mysql",
     "resource": "select * from some_non_existant_table",
     "trace_id": 1,
     "span_id": 1,
@@ -44,6 +45,7 @@
     "type": "sql",
     "error": 1,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "aiomysql",

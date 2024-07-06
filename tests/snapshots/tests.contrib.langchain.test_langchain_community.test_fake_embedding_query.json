@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_community.embeddings.fake.FakeEmbeddings",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6615ac1900000000",
+      "langchain.request.api_key": "",
+      "langchain.request.inputs.0.text": "foo",
+      "langchain.request.provider": "fake",
+      "langchain.request.type": "embedding",
+      "language": "python",
+      "runtime-id": "2304ee41d4dc442c862ba4160e934dcd"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.request.input_count": 1,
+      "langchain.response.outputs.embedding_length": 99,
+      "process_id": 74685
+    },
+    "duration": 87000,
+    "start": 1712696345494470000
+  }]]

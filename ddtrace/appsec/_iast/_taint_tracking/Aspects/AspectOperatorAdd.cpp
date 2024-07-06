@@ -11,10 +11,13 @@
  * @return A new result object with the taint information.
  */
 PyObject*
-add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, TaintRangeMapType* tx_taint_map)
+add_aspect(PyObject* result_o,
+           PyObject* candidate_text,
+           PyObject* text_to_add,
+           const TaintRangeMapTypePtr& tx_taint_map)
 {
-    size_t len_candidate_text{ get_pyobject_size(candidate_text) };
-    size_t len_text_to_add{ get_pyobject_size(text_to_add) };
+    const size_t len_candidate_text{ get_pyobject_size(candidate_text) };
+    const size_t len_text_to_add{ get_pyobject_size(text_to_add) };
 
     if (len_text_to_add == 0 and len_candidate_text > 0) {
         return candidate_text;
@@ -45,7 +48,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     }
 
     auto tainted = initializer->allocate_tainted_object_copy(to_candidate_text);
-    tainted->add_ranges_shifted(to_text_to_add, (RANGE_START)len_candidate_text);
+    tainted->add_ranges_shifted(to_text_to_add, static_cast<RANGE_START>(len_candidate_text));
     const auto res_new_id = new_pyobject_id(result_o);
     Py_DecRef(result_o);
     set_tainted_object(res_new_id, tainted, tx_taint_map);
@@ -71,13 +74,13 @@ PyObject*
 api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     if (nargs != 2) {
-        // TODO: any other more sane error handling?
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
     }
     PyObject* candidate_text = args[0];
     PyObject* text_to_add = args[1];
 
-    PyObject* result_o;
+    PyObject* result_o = nullptr;
     if (PyUnicode_Check(candidate_text)) {
         result_o = PyUnicode_Concat(candidate_text, text_to_add);
     } else if (PyBytes_Check(candidate_text)) {
@@ -95,10 +98,10 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         return result_o;
     }
 
-    auto ctx_map = initializer->get_tainting_map();
-    if (not ctx_map or ctx_map->empty()) {
+    const auto tx_map = initializer->get_tainting_map();
+    if (not tx_map or tx_map->empty()) {
         return result_o;
     }
-    auto res = add_aspect(result_o, candidate_text, text_to_add, ctx_map);
+    auto res = add_aspect(result_o, candidate_text, text_to_add, tx_map);
     return res;
 }

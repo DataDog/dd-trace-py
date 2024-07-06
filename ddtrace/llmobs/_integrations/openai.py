@@ -9,14 +9,21 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs.utils import Document
+from ddtrace.pin import Pin
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -43,6 +50,11 @@ class OpenAIIntegration(BaseLLMIntegration):
     def user_api_key(self, value: str) -> None:
         # Match the API key representation that OpenAI uses in their UI.
         self._user_api_key = "sk-...%s" % value[-4:]
+
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+        if operation_id.endswith("Completion") or operation_id == "createEmbedding":
+            submit_to_llmobs = True
+        return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -115,29 +127,34 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def llmobs_set_tags(
         self,
-        record_type: str,
+        operation: str,  # oneof "completion", "chat", "embedding"
         resp: Any,
         span: Span,
         kwargs: Dict[str, Any],
-        streamed_resp: Optional[Any] = None,
+        streamed_completions: Optional[Any] = None,
         err: Optional[Any] = None,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
-        span.set_tag_str(SPAN_KIND, "llm")
+        span_kind = "embedding" if operation == "embedding" else "llm"
+        span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
         span.set_tag_str(MODEL_NAME, model_name or "")
         span.set_tag_str(MODEL_PROVIDER, "openai")
-        if record_type == "completion":
-            self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_resp, span)
-        elif record_type == "chat":
-            self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_resp, span)
-        span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_resp is not None)))
+        if operation == "completion":
+            self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_completions, span)
+        elif operation == "chat":
+            self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_completions, span)
+        elif operation == "embedding":
+            self._llmobs_set_meta_tags_from_embedding(resp, err, kwargs, span)
+        span.set_tag_str(
+            METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None))
+        )
 
     @staticmethod
     def _llmobs_set_meta_tags_from_completion(
-        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span
+        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_completions: Optional[Any], span: Span
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
         prompt = kwargs.get("prompt", "")
@@ -147,58 +164,89 @@ class OpenAIIntegration(BaseLLMIntegration):
         parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
+        span.set_tag_str(METADATA, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
-        elif streamed_resp:
+            return
+        if streamed_completions:
             span.set_tag_str(
-                OUTPUT_MESSAGES,
-                json.dumps([{"content": "".join([chunk.text for chunk in choice])} for choice in streamed_resp]),
+                OUTPUT_MESSAGES, json.dumps([{"content": choice["text"]} for choice in streamed_completions])
             )
-        else:
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
+            return
+        span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
 
     @staticmethod
     def _llmobs_set_meta_tags_from_chat(
-        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span
+        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_messages: Optional[Any], span: Span
     ) -> None:
         """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
-        span.set_tag_str(
-            INPUT_MESSAGES,
-            json.dumps(
-                [{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in kwargs.get("messages", [])]
-            ),
-        )
+        input_messages = []
+        for m in kwargs.get("messages", []):
+            if isinstance(m, dict):
+                input_messages.append({"content": str(m.get("content", "")), "role": str(m.get("role", ""))})
+                continue
+            input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
+        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
         parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
+        span.set_tag_str(METADATA, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
-        elif streamed_resp:
-            output_messages = []
-            for idx, choice in enumerate(streamed_resp):
-                content = "".join(c.delta.content for c in choice if getattr(c.delta, "content", None))
-                if getattr(choice[0].delta, "tool_calls", None):
-                    content = "".join(
-                        c.delta.tool_calls.function.arguments for c in choice if getattr(c.delta, "tool_calls", None)
+            return
+        if streamed_messages:
+            messages = []
+            for message in streamed_messages:
+                if "formatted_content" in message:
+                    messages.append({"content": message["formatted_content"], "role": message["role"]})
+                    continue
+                messages.append({"content": message["content"], "role": message["role"]})
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(messages))
+            return
+        output_messages = []
+        for idx, choice in enumerate(resp.choices):
+            content = getattr(choice.message, "content", "")
+            if getattr(choice.message, "function_call", None):
+                content = "[function: {}]\n\n{}".format(
+                    getattr(choice.message.function_call, "name", ""),
+                    getattr(choice.message.function_call, "arguments", ""),
+                )
+            elif getattr(choice.message, "tool_calls", None):
+                content = ""
+                for tool_call in choice.message.tool_calls:
+                    content += "\n[tool: {}]\n\n{}\n".format(
+                        getattr(tool_call.function, "name", ""),
+                        getattr(tool_call.function, "arguments", ""),
                     )
-                elif getattr(choice[0].delta, "function_call", None):
-                    content = "".join(
-                        c.delta.function_call.arguments for c in choice if getattr(c.delta, "function_call", None)
-                    )
-                output_messages.append({"content": content, "role": choice[0].delta.role})
-                span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
-        else:
-            output_messages = []
-            for idx, choice in enumerate(resp.choices):
-                content = getattr(choice.message, "content", "")
-                if getattr(choice.message, "function_call", None):
-                    content = choice.message.function_call.arguments
-                elif getattr(choice.message, "tool_calls", None):
-                    content = choice.message.tool_calls.function.arguments
-                output_messages.append({"content": str(content), "role": choice.message.role})
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+            output_messages.append({"content": str(content).strip(), "role": choice.message.role})
+        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+
+    @staticmethod
+    def _llmobs_set_meta_tags_from_embedding(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span) -> None:
+        """Extract prompt tags from an embedding and set them as temporary "_ml_obs.meta.*" tags."""
+        encoding_format = kwargs.get("encoding_format") or "float"
+        metadata = {"encoding_format": encoding_format}
+        if kwargs.get("dimensions"):
+            metadata["dimensions"] = kwargs.get("dimensions")
+        span.set_tag_str(METADATA, json.dumps(metadata))
+
+        embedding_inputs = kwargs.get("input", "")
+        if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
+            embedding_inputs = [embedding_inputs]
+        input_documents = []
+        for doc in embedding_inputs:
+            input_documents.append(Document(text=str(doc)))
+        span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents))
+
+        if err is not None:
+            return
+        if encoding_format == "float":
+            embedding_dim = len(resp.data[0].embedding)
+            span.set_tag_str(
+                OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
+            )
+            return
+        span.set_tag_str(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
     def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed: bool = False) -> Dict[str, Any]:
@@ -209,17 +257,19 @@ class OpenAIIntegration(BaseLLMIntegration):
             completion_tokens = span.get_metric("openai.response.usage.completion_tokens") or 0
             metrics.update(
                 {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens,
+                    INPUT_TOKENS_METRIC_KEY: prompt_tokens,
+                    OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
+                    TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
                 }
             )
         elif resp:
+            prompt_tokens = getattr(resp.usage, "prompt_tokens", 0)
+            completion_tokens = getattr(resp.usage, "completion_tokens", 0)
             metrics.update(
                 {
-                    "prompt_tokens": resp.usage.prompt_tokens,
-                    "completion_tokens": resp.usage.completion_tokens,
-                    "total_tokens": resp.usage.prompt_tokens + resp.usage.completion_tokens,
+                    INPUT_TOKENS_METRIC_KEY: prompt_tokens,
+                    OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
+                    TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
                 }
             )
         return metrics

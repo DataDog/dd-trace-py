@@ -1,4 +1,5 @@
 from enum import IntEnum
+import re
 
 
 SUITE = "suite"
@@ -64,4 +65,17 @@ class REQUESTS_MODE(IntEnum):
 # Miscellaneous constants
 CUSTOM_CONFIGURATIONS_PREFIX = "test.configuration"
 
-CIVISIBILITY_LOG_FILTER_RE = r"^ddtrace\.(contrib\.(coverage|pytest|unittest)|internal\.ci_visibility|ext\.git)"
+CIVISIBILITY_LOG_FILTER_RE = re.compile(
+    "|".join(
+        [
+            r"^ddtrace\.contrib\.(coverage|pytest|unittest)",
+            r"ddtrace\.internal\.(ci_visibility|gitmetadata).*",
+            r"ddtrace\.ext\.(git|ci_visibility|test)",
+        ]
+    )
+)
+
+
+CIVISIBILITY_SPAN_TYPE = "ci_visibility"
+
+DEFAULT_CI_VISIBILITY_SERVICE = "default_ci_visibility_service"

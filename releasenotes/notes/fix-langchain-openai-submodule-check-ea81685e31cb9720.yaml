@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    langchain: This fix adds error handling for checking if a traced LLM or chat model is an OpenAI instance, as the 
+    langchain_community package does not allow automatic submodule importing. 

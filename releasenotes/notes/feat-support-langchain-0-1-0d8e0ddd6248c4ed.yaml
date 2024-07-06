@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    langchain:  This introduces support for ``langchain==0.1.0``. Note that this does not have tracing support for deprecated
+    langchain operations. Please follow the langchain upgrade `guide <https://python.langchain.com/docs/changelog/core>`_ 
+    or the langchain integration :ref: `docs<langchain>` to enable full tracing support.

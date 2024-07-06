@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where ``DD_TRACE_SPAN_TRACEBACK_MAX_SIZE`` was not applied to exception tracebacks.

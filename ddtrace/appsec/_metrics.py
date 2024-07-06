@@ -1,21 +1,22 @@
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._ddwaf import DDWaf_info
-from ddtrace.appsec._ddwaf import version
+from ddtrace.appsec._ddwaf import version as _version
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 
 
 log = get_logger(__name__)
 
+DDWAF_VERSION = _version()
+
 
 @deduplication
 def _set_waf_error_metric(msg: str, stack_trace: str, info: DDWaf_info) -> None:
-    # perf - avoid importing telemetry until needed
-    from ddtrace.internal import telemetry
-
     try:
         tags = {
-            "waf_version": version(),
+            "waf_version": DDWAF_VERSION,
             "lib_language": "python",
         }
         if info and info.version:
@@ -26,18 +27,14 @@ def _set_waf_error_metric(msg: str, stack_trace: str, info: DDWaf_info) -> None:
 
 
 def _set_waf_updates_metric(info):
-    # perf - avoid importing telemetry until needed
-    from ddtrace.internal import telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
-
     try:
         if info and info.version:
             tags = (
                 ("event_rules_version", info.version),
-                ("waf_version", version()),
+                ("waf_version", DDWAF_VERSION),
             )
         else:
-            tags = (("waf_version", version()),)
+            tags = (("waf_version", DDWAF_VERSION),)
 
         telemetry.telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
@@ -50,23 +47,14 @@ def _set_waf_updates_metric(info):
 
 
 def _set_waf_init_metric(info):
-    # perf - avoid importing telemetry until needed
-    from ddtrace.internal import telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
-
     try:
         if info and info.version:
             tags = (
                 ("event_rules_version", info.version),
-                ("waf_version", version()),
+                ("waf_version", DDWAF_VERSION),
             )
         else:
-            tags = (
-                (
-                    "waf_version",
-                    version(),
-                ),
-            )
+            tags = (("waf_version", DDWAF_VERSION),)
 
         telemetry.telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
@@ -79,38 +67,19 @@ def _set_waf_init_metric(info):
 
 
 def _set_waf_request_metrics(*args):
-    # perf - avoid importing telemetry until needed
-    from ddtrace.internal import telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
-
     try:
-        list_results, list_result_info, list_is_blocked = _asm_request_context.get_waf_results() or ([], [], [])
-        if any((list_results, list_result_info, list_is_blocked)):
-            is_blocked = any(list_is_blocked)
-            is_triggered = any((result.data for result in list_results))
-            is_timeout = any((result.timeout for result in list_results))
+        result = _asm_request_context.get_waf_telemetry_results()
+        if result is not None and result["version"] is not None:
             # TODO: enable it when Telemetry intake accepts this tag
             # is_truncation = any((result.truncation for result in list_results))
-            has_info = any(list_result_info)
 
-            if has_info and list_result_info[0].version:
-                tags_request = (
-                    (
-                        "event_rules_version",
-                        list_result_info[0].version,
-                    ),
-                    ("waf_version", version()),
-                    ("rule_triggered", str(is_triggered).lower()),
-                    ("request_blocked", str(is_blocked).lower()),
-                    ("waf_timeout", str(is_timeout).lower()),
-                )
-            else:
-                tags_request = (
-                    ("waf_version", version()),
-                    ("rule_triggered", str(is_triggered).lower()),
-                    ("request_blocked", str(is_blocked).lower()),
-                    ("waf_timeout", str(is_timeout).lower()),
-                )
+            tags_request = (
+                ("event_rules_version", result["version"]),
+                ("waf_version", DDWAF_VERSION),
+                ("rule_triggered", str(result["triggered"]).lower()),
+                ("request_blocked", str(result["blocked"]).lower()),
+                ("waf_timeout", str(result["timeout"]).lower()),
+            )
 
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE_TAG_APPSEC,
@@ -118,7 +87,26 @@ def _set_waf_request_metrics(*args):
                 1.0,
                 tags=tags_request,
             )
+            rasp = result["rasp"]
+            if rasp["sum_eval"]:
+                for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
+                    for rule_type, value in rasp[t].items():
+                        if value:
+                            telemetry.telemetry_writer.add_count_metric(
+                                TELEMETRY_NAMESPACE_TAG_APPSEC,
+                                n,
+                                float(value),
+                                tags=(
+                                    ("rule_type", rule_type),
+                                    ("waf_version", DDWAF_VERSION),
+                                ),
+                            )
+
     except Exception:
         log.warning("Error reporting ASM WAF requests metrics", exc_info=True)
     finally:
-        _asm_request_context.reset_waf_results()
+        if result is not None:
+            result["triggered"] = False
+            result["blocked"] = False
+            result["timeout"] = False
+            result["version"] = None

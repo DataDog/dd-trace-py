@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <variant>
 
 extern "C"
 {
@@ -26,6 +27,7 @@ namespace Datadog {
     X(runtime, "runtime")                                                                                              \
     X(runtime_id, "runtime-id")                                                                                        \
     X(profiler_version, "profiler_version")                                                                            \
+    X(library_version, "library_version")                                                                              \
     X(profile_seq, "profile_seq")
 
 // Here there are two columns because the Datadog backend expects these labels
@@ -56,6 +58,18 @@ enum class ExportTagKey
 enum class ExportLabelKey
 {
     EXPORTER_LABELS(X_ENUM) Length_
+};
+
+// When a std::unique_ptr is registered, the template accepts a custom deleter. We want the runtime to manage pointers
+// for us, so here's the deleter for the exporter.
+struct DdogProfExporterDeleter
+{
+    void operator()(ddog_prof_Exporter* ptr) const
+    {
+        if (ptr) {
+            ddog_prof_Exporter_drop(ptr);
+        }
+    }
 };
 
 inline ddog_CharSlice
@@ -124,6 +138,16 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
     }
 
     return add_tag(tags, key_sv, val, errmsg);
+}
+
+inline std::variant<ddog_prof_Exporter*, ddog_Error>
+get_newexporter_result(const ddog_prof_Exporter_NewResult& res)
+{
+    if (res.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
+        return res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    } else {
+        return res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    }
 }
 
 // Keep macros from propagating

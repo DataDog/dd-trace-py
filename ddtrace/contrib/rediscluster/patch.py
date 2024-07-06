@@ -8,8 +8,8 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib.redis.patch import traced_execute_command
-from ddtrace.contrib.redis.patch import traced_pipeline
+from ddtrace.contrib.redis.patch import instrumented_execute_command
+from ddtrace.contrib.redis.patch import instrumented_pipeline
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -54,13 +54,13 @@ def patch():
 
     _w = wrapt.wrap_function_wrapper
     if REDISCLUSTER_VERSION >= (2, 0, 0):
-        _w("rediscluster", "client.RedisCluster.execute_command", traced_execute_command(config.rediscluster))
-        _w("rediscluster", "client.RedisCluster.pipeline", traced_pipeline)
+        _w("rediscluster", "client.RedisCluster.execute_command", instrumented_execute_command(config.rediscluster))
+        _w("rediscluster", "client.RedisCluster.pipeline", instrumented_pipeline)
         _w("rediscluster", "pipeline.ClusterPipeline.execute", traced_execute_pipeline)
         Pin().onto(rediscluster.RedisCluster)
     else:
-        _w("rediscluster", "StrictRedisCluster.execute_command", traced_execute_command(config.rediscluster))
-        _w("rediscluster", "StrictRedisCluster.pipeline", traced_pipeline)
+        _w("rediscluster", "StrictRedisCluster.execute_command", instrumented_execute_command(config.rediscluster))
+        _w("rediscluster", "StrictRedisCluster.pipeline", instrumented_pipeline)
         _w("rediscluster", "StrictClusterPipeline.execute", traced_execute_pipeline)
         Pin().onto(rediscluster.StrictRedisCluster)
 

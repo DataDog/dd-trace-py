@@ -1,0 +1,23 @@
+---
+prelude: >
+    tracing: This release adds support for lazy sampling, essentially moving when we make a sampling decision for
+    a trace to the latest possible moment. These include the following:
+    1. Before encoding a trace chunk to be sent to the agent
+    2. Before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumented integration
+    3. Before running ``os.fork()``
+    For most users this change shouldn't have any impact on their traces, but it does allow for more flexibility 
+    in sampling (see ``features`` release note).
+    It should be noted that if a user has application egress points that are not automatically instrumented,
+    to other Datadog components (downstream instrumented services, databases, or execution context changes),
+    and rely on the Python tracer to make the sampling decision (don't have an upstream service doing this),
+    they will need to manually run the sampler for those traces, or use ``HttpPropagator.inject()``. 
+    For more information please see the following:
+    https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#distributed-tracing
+    https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#tracing-context-management
+features:
+  - |
+    tracing: Added support for lazy sampling, the benefit of which is the ability to make a sampling decision using
+    ``DD_TRACE_SAMPLING_RULES`` based on any span attribute (service, resource, tags, name)regardless of when the
+    value for the attribute is set. This change is particularly beneficial for sampling on tags, since the vast
+    majority of tags are set after the span is created. Since sampling was previously done at span creation time,
+    this meant that those tags could not be used for sampling decisions.

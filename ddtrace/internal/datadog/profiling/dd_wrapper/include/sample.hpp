@@ -4,7 +4,6 @@
 #include "profile.hpp"
 #include "types.hpp"
 
-#include <array>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -26,17 +25,25 @@ class Sample
     SampleType type_mask;
     std::string errmsg;
 
+    // Timeline support works by endowing each sample with a timestamp. Collection of this data this data is cheap, but
+    // due to the underlying pprof format, timeline support increases the sample cardinality. Rather than switching
+    // around the frontend code too much, we push enablement down to whether or not timestamps get added to samples (a
+    // 0 value suppresses the tag). However, Sample objects are short-lived, so we make the flag static.
+    static inline bool timeline_enabled = false;
+
     // Keeps temporary buffer of frames in the stack
     std::vector<ddog_prof_Location> locations;
     size_t dropped_frames = 0;
     uint64_t samples = 0;
 
     // Storage for labels
-    std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::Length_)> labels{};
-    size_t cur_label = 0;
+    std::vector<ddog_prof_Label> labels{};
 
     // Storage for values
     std::vector<int64_t> values = {};
+
+    // Additional metadata
+    int64_t endtime_ns = 0; // end of the event
 
   public:
     // Helpers
@@ -50,8 +57,8 @@ class Sample
     bool push_cputime(int64_t cputime, int64_t count);
     bool push_acquire(int64_t acquire_time, int64_t count);
     bool push_release(int64_t lock_time, int64_t count);
-    bool push_alloc(uint64_t size, uint64_t count);
-    bool push_heap(uint64_t size);
+    bool push_alloc(int64_t size, int64_t count);
+    bool push_heap(int64_t size);
 
     // Adds metadata to sample
     bool push_lock_name(std::string_view lock_name);
@@ -64,6 +71,11 @@ class Sample
     bool push_trace_resource_container(std::string_view trace_resource_container);
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
     bool push_class_name(std::string_view class_name);
+    bool push_monotonic_ns(int64_t monotonic_ns);
+
+    // Interacts with static Sample state
+    bool is_timeline_enabled() const;
+    static void set_timeline(bool enabled);
 
     // Assumes frames are pushed in leaf-order
     void push_frame(std::string_view name,     // for ddog_prof_Function

@@ -9,6 +9,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple  # noqa:F401
 
 
+def do_zero_padding_fstring(a):  # type: (int) -> str
+    return f"{a:05d}"
+
+
 def do_fmt_value(a):  # type: (str) -> str
     return f"{a:<8s}bar"
 

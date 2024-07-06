@@ -1,8 +1,7 @@
 from typing import Any  # noqa:F401
 
 import bm
-
-from tests.utils import override_env
+from bm.utils import override_env
 
 
 with override_env({"DD_IAST_ENABLED": "True"}):
@@ -42,7 +41,7 @@ def aspect_function(internal_loop, tainted):
     value = ""
     res = value
     for _ in range(internal_loop):
-        res = add_aspect(res, join_aspect(str.join, 1, "_", (tainted, "_", tainted)))
+        res = add_aspect(res, join_aspect("_".join, 1, "_", (tainted, "_", tainted)))
         value = res
         res = add_aspect(res, tainted)
         value = res

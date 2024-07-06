@@ -1,6 +1,7 @@
 from itertools import islice
 from itertools import takewhile
 from types import FrameType
+from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -125,20 +126,34 @@ def capture_stack(top_frame: FrameType, max_height: int = 4096) -> List[dict]:
     return stack
 
 
+def capture_traceback(tb: TracebackType, max_height: int = 4096) -> List[dict]:
+    stack = []
+    h = 0
+    _tb: Optional[TracebackType] = tb
+    while _tb is not None and h < max_height:
+        frame = _tb.tb_frame
+        code = frame.f_code
+        stack.append(
+            {
+                "fileName": code.co_filename,
+                "function": code.co_name,
+                "lineNumber": _tb.tb_lineno,
+            }
+        )
+        _tb = _tb.tb_next
+        h += 1
+    return stack
+
+
 def capture_exc_info(exc_info: ExcInfoType) -> Optional[Dict[str, Any]]:
     _type, value, tb = exc_info
     if _type is None or value is None:
         return None
 
-    top_tb = tb
-    if top_tb is not None:
-        while top_tb.tb_next is not None:
-            top_tb = top_tb.tb_next
-
     return {
         "type": _type.__name__,
         "message": ", ".join([serialize(v) for v in value.args]),
-        "stacktrace": capture_stack(top_tb.tb_frame) if top_tb is not None else None,
+        "stacktrace": capture_traceback(tb) if tb is not None else None,
     }
 
 

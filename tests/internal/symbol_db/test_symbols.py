@@ -203,19 +203,10 @@ def test_symbols_upload_enabled():
     assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is not None
 
 
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    env=dict(
-        DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1",
-        _DD_SYMBOL_DATABASE_FORCE_UPLOAD="1",
-        DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff",
-    ),
-)
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff"))
 def test_symbols_force_upload():
     from ddtrace.internal.symbol_db.symbols import ScopeType
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
-
-    assert SymbolDatabaseUploader.is_installed()
 
     contexts = []
 
@@ -224,11 +215,18 @@ def test_symbols_force_upload():
 
     SymbolDatabaseUploader._upload_context = staticmethod(_upload_context)
 
+    SymbolDatabaseUploader.install()
+
+    def get_scope(contexts, name):
+        for context in (_.to_json() for _ in contexts):
+            for scope in context["scopes"]:
+                if scope["name"] == name:
+                    return scope
+        raise ValueError(f"Scope {name} not found in {contexts}")
+
     import tests.submod.stuff  # noqa
     import tests.submod.traced_stuff  # noqa
 
-    (context,) = contexts
-
-    (scope,) = context.to_json()["scopes"]
+    scope = get_scope(contexts, "tests.submod.stuff")
     assert scope["scope_type"] == ScopeType.MODULE
     assert scope["name"] == "tests.submod.stuff"

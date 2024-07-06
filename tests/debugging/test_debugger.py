@@ -9,6 +9,7 @@ import pytest
 
 import ddtrace
 from ddtrace.constants import ORIGIN_KEY
+from ddtrace.debugging._debugger import DebuggerWrappingContext
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
@@ -40,7 +41,6 @@ from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import TracerTestCase
 from tests.utils import call_program
-from tests.utils import flaky
 
 
 def good_probe():
@@ -63,12 +63,8 @@ def simple_debugger_test(probe, func):
         except Exception:
             pass
 
-        d.uploader.wait_for_payloads()
-        payloads = list(d.uploader.payloads)
-        assert payloads
-        for snapshots in payloads:
-            assert snapshots
-            assert all(s["debugger.snapshot"]["probe"]["id"] == probe_id for s in snapshots)
+        snapshots = d.uploader.wait_for_payloads()
+        assert all(s["debugger.snapshot"]["probe"]["id"] == probe_id for s in snapshots)
 
         return snapshots
 
@@ -164,13 +160,7 @@ def test_debugger_probe_new_delete(probe, trigger):
 
         trigger()
 
-        d.uploader.wait_for_payloads()
-
-        (payload,) = d.uploader.payloads
-        assert payload
-
-        (snapshot,) = payload
-        assert snapshot
+        (snapshot,) = d.uploader.wait_for_payloads()
         assert snapshot["debugger.snapshot"]["probe"]["id"] == probe_id
 
 
@@ -211,7 +201,7 @@ def test_debugger_function_probe_on_function_with_exception():
             func_qname="throwexcstuff",
             condition=None,
         ),
-        lambda: stuff.throwexcstuff(),
+        stuff.throwexcstuff,
     )
 
     (snapshot,) = snapshots
@@ -244,10 +234,7 @@ def test_debugger_invalid_condition():
         )
         Stuff().instancestuff()
 
-        d.uploader.wait_for_payloads()
-        for snapshots in d.uploader.payloads[1:]:
-            assert snapshots
-            assert all(s["debugger.snapshot"]["probe"]["id"] != "foo" for s in snapshots)
+        assert all(s["debugger.snapshot"]["probe"]["id"] != "foo" for s in d.uploader.wait_for_payloads())
 
 
 def test_debugger_conditional_line_probe_on_instance_method():
@@ -283,10 +270,7 @@ def test_debugger_invalid_line():
         )
         Stuff().instancestuff()
 
-        d.uploader.wait_for_payloads()
-        for snapshots in d.uploader.payloads[1:]:
-            assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidline" for s in snapshots)
-            assert snapshots
+        assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidline" for s in d.uploader.wait_for_payloads())
 
 
 @mock.patch("ddtrace.debugging._debugger.log")
@@ -306,10 +290,7 @@ def test_debugger_invalid_source_file(log):
             "Cannot inject probe %s: source file %s cannot be resolved", "invalidsource", None
         )
 
-        d.uploader.wait_for_payloads()
-        for snapshots in d.uploader.payloads[1:]:
-            assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidsource" for s in snapshots)
-            assert snapshots
+        assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidsource" for s in d.uploader.wait_for_payloads())
 
 
 def test_debugger_decorated_method():
@@ -359,12 +340,9 @@ def test_debugger_tracer_correlation():
             span_id = span.span_id
             Stuff().instancestuff()
 
-        d.uploader.wait_for_payloads()
-        assert d.uploader.payloads
-        for snapshots in d.uploader.payloads[1:]:
-            assert snapshots
-            assert all(snapshot["dd.trace_id"] == trace_id for snapshot in snapshots)
-            assert all(snapshot["dd.span_id"] == span_id for snapshot in snapshots)
+        snapshots = d.uploader.wait_for_payloads()
+        assert all(snapshot["dd.trace_id"] == trace_id for snapshot in snapshots)
+        assert all(snapshot["dd.span_id"] == span_id for snapshot in snapshots)
 
 
 def test_debugger_captured_exception():
@@ -497,7 +475,8 @@ def test_debugger_multiple_function_probes_on_same_function():
     with debugger() as d:
         d.add_probes(*probes)
 
-        assert Stuff.instancestuff.__dd_wrappers__ == {probe.probe_id: probe for probe in probes}
+        wrapping_context = DebuggerWrappingContext.extract(Stuff.instancestuff)
+        assert wrapping_context.probes == {probe.probe_id: probe for probe in probes}
         Stuff().instancestuff(42)
 
         d.collector.wait(
@@ -511,7 +490,7 @@ def test_debugger_multiple_function_probes_on_same_function():
 
         d.remove_probes(probes[1])
 
-        assert "probe-instance-method-1" not in Stuff.instancestuff.__dd_wrappers__
+        assert "probe-instance-method-1" not in wrapping_context.probes
 
         Stuff().instancestuff(42)
 
@@ -603,10 +582,6 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
         d.add_probes(*probes)
 
         wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
-        assert stuff.Stuff.instancestuff.__code__ is stuff.Stuff.instancestuff.__wrapped__.__code__
-        assert stuff.Stuff.instancestuff.__code__ is not code
-        assert stuff.Stuff.instancestuff.__wrapped__.__dd_wrapped__.__code__ is code
-        assert stuff.Stuff.instancestuff is not f
 
         stuff.Stuff().instancestuff(42)
 
@@ -760,14 +735,12 @@ def test_debugger_condition_eval_then_rate_limit():
         for i in range(100):
             Stuff().instancestuff(i)
 
-        d.uploader.wait_for_payloads()
+        (snapshot,) = d.uploader.wait_for_payloads()
 
         # We expect to see just the snapshot generated by the 42 call.
         assert d.signal_state_counter[SignalState.SKIP_COND] == 99
         assert d.signal_state_counter[SignalState.DONE] == 1
 
-        (snapshots,) = d.uploader.payloads
-        (snapshot,) = snapshots
         assert "42" == snapshot["debugger.snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"], snapshot
 
 
@@ -788,14 +761,12 @@ def test_debugger_condition_eval_error_get_reported_once():
         for i in range(100):
             Stuff().instancestuff(i)
 
-        d.uploader.wait_for_payloads()
+        (snapshot,) = d.uploader.wait_for_payloads()
 
         # We expect to see just the snapshot with error only.
         assert d.signal_state_counter[SignalState.SKIP_COND_ERROR] == 99
         assert d.signal_state_counter[SignalState.COND_ERROR] == 1
 
-        (snapshots,) = d.uploader.payloads
-        (snapshot,) = snapshots
         evaluationErrors = snapshot["debugger.snapshot"]["evaluationErrors"]
         assert 1 == len(evaluationErrors)
         assert "foo == 42" == evaluationErrors[0]["expr"]
@@ -899,7 +870,6 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
-@flaky(1735812000)
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
@@ -922,8 +892,7 @@ def test_debugger_log_live_probe_generate_messages():
         Stuff().instancestuff(123)
         Stuff().instancestuff(456)
 
-        (msgs,) = d.uploader.wait_for_payloads()
-        msg1, msg2 = msgs
+        msg1, msg2 = d.uploader.wait_for_payloads(2)
         assert "hello world ERROR 123!" == msg1["message"], msg1
         assert "hello world ERROR 456!" == msg2["message"], msg2
 
@@ -1103,7 +1072,7 @@ def test_debugger_modified_probe():
 
         Stuff().instancestuff()
 
-        ((msg,),) = d.uploader.wait_for_payloads()
+        (msg,) = d.uploader.wait_for_payloads()
         assert "hello world" == msg["message"], msg
         assert msg["debugger.snapshot"]["probe"]["version"] == 1, msg
 
@@ -1119,7 +1088,7 @@ def test_debugger_modified_probe():
 
         Stuff().instancestuff()
 
-        _, (msg,) = d.uploader.wait_for_payloads(lambda q: len(q) == 2)
+        _, msg = d.uploader.wait_for_payloads(2)
         assert "hello brave new world" == msg["message"], msg
         assert msg["debugger.snapshot"]["probe"]["version"] == 2, msg
 
@@ -1165,20 +1134,26 @@ def test_debugger_redacted_identifiers():
                     " pii_dict['jwt']=",
                     {"dsl": "pii_dict['jwt']", "json": {"index": [{"ref": "pii_dict"}, "jwt"]}},
                 ),
-            )
+            ),
+            create_snapshot_function_probe(
+                probe_id="function-probe",
+                module="tests.submod.stuff",
+                func_qname="sensitive_stuff",
+                evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+            ),
         )
 
         stuff.sensitive_stuff("top secret")
 
-        ((msg,),) = d.uploader.wait_for_payloads()
+        msg_line, msg_func = d.uploader.wait_for_payloads(2)
 
         assert (
-            msg["message"] == f"token={REDACTED} answer=42 "
+            msg_line["message"] == f"token={REDACTED} answer=42 "
             f"pii_dict={{'jwt': '{REDACTED}', 'password': '{REDACTED}', 'username': 'admin'}} "
             f"pii_dict['jwt']={REDACTED}"
         )
 
-        assert msg["debugger.snapshot"]["captures"]["lines"]["169"] == {
+        assert msg_line["debugger.snapshot"]["captures"]["lines"]["169"] == {
             "arguments": {"pwd": redacted_value(str())},
             "locals": {
                 "token": redacted_value(str()),
@@ -1197,7 +1172,38 @@ def test_debugger_redacted_identifiers():
                     "size": 3,
                 },
             },
+            "staticFields": {"SensitiveData": {"type": "type", "value": "<class 'tests.submod.stuff.SensitiveData'>"}},
             "throwable": None,
+        }
+
+        assert msg_func["debugger.snapshot"]["captures"] == {
+            "entry": {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None},
+            "return": {
+                "arguments": {"pwd": {"type": "str", "notCapturedReason": "redactedIdent"}},
+                "locals": {
+                    "token": {"type": "str", "notCapturedReason": "redactedIdent"},
+                    "answer": {"type": "int", "value": "42"},
+                    "data": {
+                        "type": "SensitiveData",
+                        "fields": {"password": {"type": "str", "notCapturedReason": "redactedIdent"}},
+                    },
+                    "pii_dict": {
+                        "type": "dict",
+                        "entries": [
+                            [{"type": "str", "value": "'jwt'"}, {"type": "str", "notCapturedReason": "redactedIdent"}],
+                            [
+                                {"type": "str", "value": "'password'"},
+                                {"type": "str", "notCapturedReason": "redactedIdent"},
+                            ],
+                            [{"type": "str", "value": "'username'"}, {"type": "str", "value": "'admin'"}],
+                        ],
+                        "size": 3,
+                    },
+                    "@return": {"type": "str", "value": "'top secret'"},  # TODO: Ouch!
+                },
+                "staticFields": {},
+                "throwable": None,
+            },
         }
 
 
@@ -1218,9 +1224,14 @@ def test_debugger_exception_conditional_function_probe():
                 dsl="expr.__class__.__name__ == 'Exception'",
                 callable=dd_compile(
                     {
-                        "eq": [
-                            {"getmember": [{"getmember": [{"ref": "@exception"}, "__class__"]}, "__name__"]},
-                            "Exception",
+                        "and": [
+                            {"isDefined": "@exception"},
+                            {
+                                "eq": [
+                                    {"getmember": [{"getmember": [{"ref": "@exception"}, "__class__"]}, "__name__"]},
+                                    "Exception",
+                                ]
+                            },
                         ]
                     }
                 ),

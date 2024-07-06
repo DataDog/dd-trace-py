@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: always clear the DDWaf context at the end of the span to avoid gc-induced latency spikes at the end of some requests.
+    

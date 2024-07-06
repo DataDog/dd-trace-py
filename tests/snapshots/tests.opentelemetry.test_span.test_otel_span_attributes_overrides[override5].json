@@ -1,0 +1,26 @@
+[[
+  {
+    "name": "internal",
+    "service": "",
+    "resource": "set-http.response.status_code",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "664e2ebd00000000",
+      "http.status_code": "200",
+      "language": "python",
+      "runtime-id": "51219e893c6e4aa78650c25d19abae25"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4723
+    },
+    "duration": 98584,
+    "start": 1716399805807262166
+  }]]

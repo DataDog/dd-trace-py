@@ -42,6 +42,8 @@ class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV = "DD_APPSEC_ENABLED"
+    STANDALONE_ENV = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
+    RULE_FILE = "DD_APPSEC_RULES"
     ENABLED = "_dd.appsec.enabled"
     JSON = "_dd.appsec.json"
     STRUCT = "appsec"
@@ -53,6 +55,9 @@ class APPSEC(metaclass=Constant_Class):
     WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
     WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
     WAF_VERSION = "_dd.appsec.waf.version"
+    RASP_DURATION = "_dd.appsec.rasp.duration"
+    RASP_DURATION_EXT = "_dd.appsec.rasp.duration_ext"
+    RASP_RULE_EVAL = "_dd.appsec.rasp.rule.eval"
     ORIGIN_VALUE = "appsec"
     CUSTOM_EVENT_PREFIX = "appsec.events"
     USER_LOGIN_EVENT_PREFIX = "_dd.appsec.events.users.login"
@@ -64,10 +69,13 @@ class APPSEC(metaclass=Constant_Class):
     AUTO_LOGIN_EVENTS_FAILURE_MODE = "_dd.appsec.events.users.login.failure.auto.mode"
     BLOCKED = "appsec.blocked"
     EVENT = "appsec.event"
-    AUTOMATIC_USER_EVENTS_TRACKING = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
+    AUTOMATIC_USER_EVENTS_TRACKING = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"  # DEPRECATED
+    AUTO_USER_INSTRUMENTATION_MODE = "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
+    AUTO_USER_INSTRUMENTATION_MODE_ENABLED = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"
     USER_MODEL_LOGIN_FIELD = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD = "DD_USER_MODEL_NAME_FIELD"
+    PROPAGATION_HEADER = "_dd.p.appsec"
 
 
 class IAST(metaclass=Constant_Class):
@@ -84,6 +92,7 @@ class IAST(metaclass=Constant_Class):
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
     REQUEST_IAST_ENABLED = "_dd.iast.request_enabled"
+    TEXT_TYPES = (str, bytes, bytearray)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
@@ -96,6 +105,7 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 class WAF_DATA_NAMES(metaclass=Constant_Class):
     """string names used by the waf library for requesting data from requests"""
 
+    # PERSISTENT ADDRESSES
     REQUEST_BODY = "server.request.body"
     REQUEST_QUERY = "server.request.query"
     REQUEST_HEADERS_NO_COOKIES = "server.request.headers.no_cookies"
@@ -108,7 +118,29 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
     RESPONSE_BODY = "server.response.body"
+    PERSISTENT_ADDRESSES = frozenset(
+        (
+            REQUEST_BODY,
+            REQUEST_QUERY,
+            REQUEST_HEADERS_NO_COOKIES,
+            REQUEST_URI_RAW,
+            REQUEST_METHOD,
+            REQUEST_PATH_PARAMS,
+            REQUEST_COOKIES,
+            REQUEST_HTTP_IP,
+            REQUEST_USER_ID,
+            RESPONSE_STATUS,
+            RESPONSE_HEADERS_NO_COOKIES,
+            RESPONSE_BODY,
+        )
+    )
+
+    # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS = "waf.context.processor"
+    LFI_ADDRESS = "server.io.fs.file"
+    SSRF_ADDRESS = "server.io.net.url"
+    SQLI_ADDRESS = "server.db.statement"
+    SQLI_SYSTEM_ADDRESS = "server.db.system"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -166,6 +198,7 @@ class WAF_ACTIONS(metaclass=Constant_Class):
     DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
     BLOCK_ACTION = "block_request"
     REDIRECT_ACTION = "redirect_request"
+    STACK_ACTION = "generate_stack"
     DEFAULT_ACTIONS = {
         BLOCK: {
             ID: BLOCK,
@@ -187,17 +220,18 @@ class PRODUCTS(metaclass=Constant_Class):
 class LOGIN_EVENTS_MODE(metaclass=Constant_Class):
     """
     string identifier for the mode of the user login events. Can be:
-    DISABLED: automatic login events are disabled.
-    SAFE: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
+    DISABLED: automatic login events are disabled. Can still be enabled by Remote Config.
+    ANONYMIZATION: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
     EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
     email, ...).
     SDK: manually issued login events using the SDK.
     """
 
     DISABLED = "disabled"
-    SAFE = "safe"
-    EXTENDED = "extended"
+    IDENT = "identification"
+    ANON = "anonymization"
     SDK = "sdk"
+    AUTO = "auto"
 
 
 class DEFAULT(metaclass=Constant_Class):
@@ -216,3 +250,23 @@ class DEFAULT(metaclass=Constant_Class):
         rb"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
         rb"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
     )
+
+
+class EXPLOIT_PREVENTION(metaclass=Constant_Class):
+    STACK_TRACES = "_dd.stack"
+    STACK_TRACE_ID = "stack_id"
+    EP_ENABLED = "DD_APPSEC_RASP_ENABLED"
+    STACK_TRACE_ENABLED = "DD_APPSEC_STACK_TRACE_ENABLED"
+    MAX_STACK_TRACES = "DD_APPSEC_MAX_STACK_TRACES"
+    MAX_STACK_TRACE_DEPTH = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
+
+    class TYPE(metaclass=Constant_Class):
+        LFI = "lfi"
+        SSRF = "ssrf"
+        SQLI = "sql_injection"
+
+    class ADDRESS(metaclass=Constant_Class):
+        LFI = "LFI_ADDRESS"
+        SSRF = "SSRF_ADDRESS"
+        SQLI = "SQLI_ADDRESS"
+        SQLI_TYPE = "SQLI_SYSTEM_ADDRESS"

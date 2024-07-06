@@ -1,10 +1,6 @@
 #pragma once
 #include <pybind11/pybind11.h>
 
-#include "TaintTracking/Source.h"
-#include "TaintTracking/TaintRange.h"
-#include "TaintTracking/TaintedObject.h"
-
 inline void
 pyexport_m_taint_tracking(py::module& m)
 {

@@ -12,7 +12,7 @@ jobs:
     name: Validate changelog
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         # Include all history and tags
         with:
           fetch-depth: 0
@@ -25,7 +25,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: scripts/check-releasenotes
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         name: Install Python
         with:
           python-version: '3.8'
@@ -42,7 +42,7 @@ jobs:
           rst2html.py CHANGELOG.rst CHANGELOG.html
 
       - name: Upload CHANGELOG.rst
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: changelog
           path: |

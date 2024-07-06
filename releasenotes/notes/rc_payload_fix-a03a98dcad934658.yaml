@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    RemoteConfig: This fix resolves an issue where remote config did not work for the tracer when using an agent 
+    that would add a flare item to the remote config payload. With this fix, the tracer will now correctly pull out
+    the lib_config we need from the payload in order to implement remote config changes properly.
+
+

@@ -11,7 +11,6 @@ from ddtrace.internal import core
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 from . import app as fastapi_app
@@ -82,7 +81,7 @@ def test_core_callback_request_body(app, client, tracer, test_spans):
 
     payload, content_type = '{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json"
 
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer, asm_enabled=True)
         resp = client.post(

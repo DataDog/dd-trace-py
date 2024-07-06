@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "dramatiq.Actor.send_with_options",
+    "service": "",
+    "resource": "dramatiq.Actor.send_with_options",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66045a5d00000000",
+      "actor.name": "fn_task",
+      "actor.options": "{'max_retries': 1}",
+      "language": "python",
+      "runtime-id": "52f96d4951184129b324a4fa7c46f4fd",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 9573
+    },
+    "duration": 179375,
+    "start": 1711561309822650917
+  }]]

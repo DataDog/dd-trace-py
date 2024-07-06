@@ -1,0 +1,102 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Which team won the 2019
+      NBA finals?"], "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256,
+      "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p": 1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '210'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0yQS2/CMBCE7/kVK58blKQPmtwogmMPFYdKpULBbBMHx2vZa5WH+O+VQwS97GFm
+        Z77VnhMAoXaiAiF7q9PXE89Px3k/W+QdeeyWoVyETO6Lp+NnEA9xm7YdSo4JxgNvJPVWIysyV1s6
+        rBljYz7NyulLVhb5YPS0Qx1jjeX0cfKccnBbSpXx7ILkMd2SkuhFBV8JAMB5mHBlxfDarM2qRViR
+        I8MEH7Vlch5+yQC3CEWWl/D+NoOlMrX2k6F2aFBmhwdRQXZTNDXW0TbSTND6pv8oo3y7cVh7MhHq
+        mawY3EsC8D1cGnzdoKjGC4V11FveMO3RxMJ8xIj7f/6ZxWgyca3velEkEXFJ/gAAAP//AwCv9Cfv
+        lwEAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8605799edd1c439c-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 21:35:21 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=b3USpOEpxhNmxOpiE1tm1IBKxyK4GLbflVs_hrhdwyg-1709760921-1.0.1.1-XHi7Vc8d_yC6totIzrZZ2GZ9Z69DDu2BHzSFbJ7qO8iWjpastKBBYZgh1que28TnJtYDbNsHrDg5i0S8m8hc0Q;
+        path=/; expires=Wed, 06-Mar-24 22:05:21 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=3rH34R5zCyRzeipsUfJ8XN.xIRLRFwVvhJ7dtzI7d40-1709760921708-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '159'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249735'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 63ms
+      x-request-id:
+      - req_508bebac21bca4d530c6942400386c31
+    status:
+      code: 200
+      message: OK
+version: 1

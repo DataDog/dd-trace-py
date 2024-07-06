@@ -2,6 +2,7 @@ import collections
 import logging
 import os
 import typing
+from typing import Optional  # noqa:F401
 from typing import cast  # noqa:F401
 
 
