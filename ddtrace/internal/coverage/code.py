@@ -8,7 +8,6 @@ from types import ModuleType
 import typing as t
 
 from ddtrace.internal.compat import Path
-from ddtrace.internal.coverage._native import replace_in_tuple
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
@@ -67,6 +66,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         self._module_names_to_files: t.Dict[str, str] = {}
         self._module_level_covered: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
         self._include_paths: t.List[Path] = []
+        self.lines_by_context: t.DefaultDict[str, t.DefaultDict[str, t.Set]] = defaultdict(lambda: defaultdict(set))
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -303,20 +303,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             # Not a code object we want to instrument
             return code
 
-        # Recursively instrument nested code objects, in topological order
-        # DEV: We need to make a list of the code objects because when we start
-        # mutating the parent code objects, the hashes maintained by the
-        # generator will be invalidated.
-        for nested_code, parent_code in list(collect_code_objects(code)):
-            # Instrument the code object
-            new_code = self.instrument_code(nested_code, _module)
-
-            # If it has a parent, update the parent's co_consts to point to the
-            # new code object.
-            if parent_code is not None:
-                replace_in_tuple(parent_code.co_consts, nested_code, new_code)
-
-        return new_code
+        return self.instrument_code(code)
 
     def after_import(self, _module: ModuleType) -> None:
         pass
