@@ -566,14 +566,14 @@ jobs:
           pattern: "internal"
 
   dd_coverage:
-    <<: *contrib_job_small
+    parallelism: 6
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
-      - *testagent
     steps:
       - run_hatch_env_test:
-          pattern: "dd_coverage"
-
+          env: 'dd_coverage'
+          snapshot: false
 
   datastreams:
     <<: *contrib_job_small
