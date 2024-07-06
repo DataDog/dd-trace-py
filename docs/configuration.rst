@@ -32,7 +32,7 @@ The following environment variables for the tracer are supported:
      description: |
          Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2:value2`` or ``key1:value key2:value2``.
 
-         If a tag value is not supplied the value will be an empty string. e.g. ``key1,key2`` or ``key1,key2``.
+         If a tag value is not supplied the value will be an empty string. e.g. ``key1,key2`` or ``key1 key2``.
      version_added:
        v0.38.0: Comma separated support added
        v0.48.0: Space separated support added
