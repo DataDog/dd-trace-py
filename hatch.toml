@@ -336,7 +336,7 @@ dependencies = [
 
 [envs.dd_coverage.scripts]
 test = [
-    "python -m pytest tests/coverage -s",
+    "python -m pytest tests/coverage -s --no-cov",
 ]
 
 [[envs.dd_coverage.matrix]]

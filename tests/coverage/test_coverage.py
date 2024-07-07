@@ -52,11 +52,11 @@ def test_coverage_import_time_lib():
         "tests/coverage/included_path/nested_import_time_lib.py": {1, 4},
     }
 
-    assert lines == expected_lines, f"Lines mismatch: {lines=} vs {expected_lines=}"
-    assert covered == expected_covered, f"Covered lines mismatch: {covered=} vs {expected_covered=}"
+    assert lines == expected_lines, f"Lines mismatch: expected={expected_lines} vs actual={lines}"
+    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
         covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: {covered_with_imports=} vs {expected_covered_with_imports=}"
+    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
 
 
 @pytest.mark.subprocess
@@ -100,8 +100,8 @@ def test_coverage_import_time_function():
         "tests/coverage/included_path/imported_in_function_lib.py": {1, 7},
     }
 
-    assert lines == expected_lines, f"Lines mismatch: {lines=} vs {expected_lines=}"
-    assert covered == expected_covered, f"Covered lines mismatch: {covered=} vs {expected_covered=}"
+    assert lines == expected_lines, f"Lines mismatch: expected={expected_lines} vs actual={lines}"
+    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
         covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch:{covered_with_imports=} vs {expected_covered_with_imports=}"
+    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
