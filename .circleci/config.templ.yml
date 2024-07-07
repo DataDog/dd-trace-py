@@ -567,7 +567,7 @@ jobs:
 
   dd_coverage:
     parallelism: 7
-    <<: *contrib_job
+    <<: *machine_executor
     docker:
       - image: *ddtrace_dev_image
     steps:
