@@ -1,3 +1,8 @@
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include "util/file.hpp"
 
 
@@ -40,4 +45,10 @@ Datadog::FileDescriptor::openat(int dirfd, std::string_view path, int flags, mod
 {
     int fd = openat(dirfd, path.data(), flags, mode);
     return FileDescriptor{ fd };
+}
+
+bool
+Datadog::FileDescriptor::unlinkat(int dirfd, std::string_view path, int flags)
+{
+    return unlinkat(dirfd, path.data(), flags) == 0;
 }
