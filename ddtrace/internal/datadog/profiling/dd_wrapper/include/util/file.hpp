@@ -23,6 +23,7 @@ public:
     // Utilities
     static FileDescriptor open(std::string_view path, int flags, mode_t mode);
     static FileDescriptor openat(int dirfd, std::string_view path, int flags, mode_t mode);
+    static FileDescriptor unlinkat(int dirfd, std::string_view path, int flags);
 };
 
 } // namespace Datadog

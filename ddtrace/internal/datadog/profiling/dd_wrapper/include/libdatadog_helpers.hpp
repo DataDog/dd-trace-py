@@ -28,7 +28,10 @@ namespace Datadog {
     X(runtime_id, "runtime-id")                                                                                        \
     X(profiler_version, "profiler_version")                                                                            \
     X(library_version, "library_version")                                                                              \
-    X(profile_seq, "profile_seq")
+    X(profile_seq, "profile_seq")                                                                                      \
+    X(upload_seq, "upload_seq")                                                                                        \
+    X(url, "url")                                                                                                      \
+    X(dir, "dir")                                                                                                      \
 
 // Here there are two columns because the Datadog backend expects these labels
 // to have spaces in the names.

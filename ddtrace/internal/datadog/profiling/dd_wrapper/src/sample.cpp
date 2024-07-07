@@ -332,7 +332,7 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
         // which clock is actually used in std::chrono
         timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
-        auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
+        auto monotonic_ns = reinterpret_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
 
         // Compute the difference.  We're after 1970, so epoch_ns will be larger
         return epoch_ns - monotonic_ns;
