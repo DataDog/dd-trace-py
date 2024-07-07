@@ -24,7 +24,7 @@ class JumpDirection(int, Enum):
 
 
 class Jump(ABC):
-    def __init__(self, start: int, argbytes: list[int]) -> None:
+    def __init__(self, start: int, argbytes: t.List[int]) -> None:
         self.start = start
         self.end: t.Optional[int] = None
         self.arg = int.from_bytes(argbytes, "big", signed=False)
@@ -34,7 +34,7 @@ class Jump(ABC):
 class RJump(Jump):
     __opcodes__ = set(dis.hasjrel)
 
-    def __init__(self, start: int, arg: list[int], direction: JumpDirection) -> None:
+    def __init__(self, start: int, arg: t.List[int], direction: JumpDirection) -> None:
         super().__init__(start, arg)
 
         self.direction = direction

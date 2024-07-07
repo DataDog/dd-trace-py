@@ -24,7 +24,7 @@ class JumpDirection(int, Enum):
 
 class Jump(ABC):
     # NOTE: in Python 3.9, jump arguments are offsets, vs instruction numbers (ie offsets/2) in Python 3.10
-    def __init__(self, start: int, argbytes: list[int]) -> None:
+    def __init__(self, start: int, argbytes: t.List[int]) -> None:
         self.start = start
         self.end: int
         self.arg = int.from_bytes(argbytes, "big", signed=False)
@@ -34,7 +34,7 @@ class Jump(ABC):
 class AJump(Jump):
     __opcodes__ = set(dis.hasjabs)
 
-    def __init__(self, start: int, arg: list[int]) -> None:
+    def __init__(self, start: int, arg: t.List[int]) -> None:
         super().__init__(start, arg)
         self.end = self.arg
 
@@ -42,7 +42,7 @@ class AJump(Jump):
 class RJump(Jump):
     __opcodes__ = set(dis.hasjrel)
 
-    def __init__(self, start: int, arg: list[int], direction: JumpDirection) -> None:
+    def __init__(self, start: int, arg: t.List[int], direction: JumpDirection) -> None:
         super().__init__(start, arg)
         self.direction = direction
         self.end = start + (self.arg) * self.direction + 2
@@ -108,7 +108,7 @@ def update_location_data(
 
     current_orig_offset = 0  # Cumulative offset used to compare against trap offsets
 
-    # In 3.9 , all instructions have to have line numbers, so the first instructions of the trap call must mark the
+    # 3.8 to 3.9: all instructions have to have line numbers, so the first instructions of the trap call must mark the
     # beginning of the line. The subsequent offsets need to be incremented by the size of the trap call instructions
     # plus any extended args.
 
@@ -327,16 +327,13 @@ def instrument_all_lines(
             seen_lines.update(nested_lines)
 
     ext_arg_offsets = [(instr.offset, s) for instr, s in exts]
-    new_lnotab = update_location_data(code, traps, ext_arg_offsets)
-
-    replace = code.replace(
-        co_code=bytes(new_code),
-        co_consts=tuple(new_consts),
-        co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-        co_lnotab=new_lnotab,
-    )
 
     return (
-        replace,
+        code.replace(
+            co_code=bytes(new_code),
+            co_consts=tuple(new_consts),
+            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+            co_lnotab=update_location_data(code, traps, ext_arg_offsets),
+        ),
         seen_lines,
     )

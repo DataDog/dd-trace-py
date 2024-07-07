@@ -107,9 +107,8 @@ def update_location_data(
     ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
 
     current_orig_offset = 0  # Cumulative offset used to compare against trap offsets
-    current_new_offset = current_orig_offset  # Cumulative offset used to compare against extended args offsets
 
-    # In 3.8 , all instructions have to have line numbers, so the first instructions of the trap call must mark the
+    # 3.8 to 3.9: all instructions have to have line numbers, so the first instructions of the trap call must mark the
     # beginning of the line. The subsequent offsets need to be incremented by the size of the trap call instructions
     # plus any extended args.
 

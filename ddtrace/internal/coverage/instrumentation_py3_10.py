@@ -23,7 +23,7 @@ class JumpDirection(int, Enum):
 
 
 class Jump(ABC):
-    def __init__(self, start: int, argbytes: list[int]) -> None:
+    def __init__(self, start: int, argbytes: t.List[int]) -> None:
         self.start = start
         self.end: int
         self.arg = int.from_bytes(argbytes, "big", signed=False)
@@ -33,7 +33,7 @@ class Jump(ABC):
 class AJump(Jump):
     __opcodes__ = set(dis.hasjabs)
 
-    def __init__(self, start: int, arg: list[int]) -> None:
+    def __init__(self, start: int, arg: t.List[int]) -> None:
         super().__init__(start, arg)
         self.end = self.arg << 1
 
@@ -41,7 +41,7 @@ class AJump(Jump):
 class RJump(Jump):
     __opcodes__ = set(dis.hasjrel)
 
-    def __init__(self, start: int, arg: list[int], direction: JumpDirection) -> None:
+    def __init__(self, start: int, arg: t.List[int], direction: JumpDirection) -> None:
         super().__init__(start, arg)
         self.direction = direction
         self.end = start + (self.arg << 1) * self.direction + 2

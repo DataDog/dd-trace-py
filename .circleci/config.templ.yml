@@ -565,16 +565,6 @@ jobs:
       - run_test:
           pattern: "internal"
 
-  dd_coverage:
-    parallelism: 7
-    <<: *machine_executor
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_hatch_env_test:
-          env: 'dd_coverage'
-          snapshot: true
-
   datastreams:
     <<: *contrib_job_small
     steps:
@@ -595,6 +585,15 @@ jobs:
       - run_test:
           pattern: "ci_visibility"
           snapshot: true
+
+  dd_coverage:
+    <<: *machine_executor
+    parallelism: 6
+    steps:
+      - run_hatch_env_test:
+          env: 'dd_coverage'
+          snapshot: true
+
 
   llmobs:
     <<: *contrib_job
