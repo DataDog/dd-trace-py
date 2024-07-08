@@ -4,6 +4,7 @@ import _thread
 import abc
 import os.path
 import sys
+import types
 import typing
 
 import attr
@@ -90,7 +91,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_export_libdd_enabled = export_libdd_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
-        self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+        self._self_init_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+        self._self_name: typing.Optional[str] = None
 
     def __aenter__(self):
         return self.__wrapped__.__aenter__()
@@ -98,21 +100,25 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def __aexit__(self, *args, **kwargs):
         return self.__wrapped__.__aexit__(*args, **kwargs)
 
-    def acquire(self, *args, **kwargs):
+    def _acquire(self, inner_func, *args, **kwargs):
         if not self._self_capture_sampler.capture():
-            return self.__wrapped__.acquire(*args, **kwargs)
+            return inner_func(*args, **kwargs)
 
         start = compat.monotonic_ns()
         try:
-            return self.__wrapped__.acquire(*args, **kwargs)
+            return inner_func(*args, **kwargs)
         finally:
             try:
                 end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 task_id, task_name, task_frame = _task.get_task(thread_id)
+                self._maybe_update_self_name()
+                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
 
                 if task_frame is None:
-                    frame = sys._getframe(1)
+                    # If we can't get the task frame, we use the caller frame. We expect acquire/release or
+                    # __enter__/__exit__ to be on the stack, so we go back 2 frames.
+                    frame = sys._getframe(2)
                 else:
                     frame = task_frame
 
@@ -123,7 +129,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     handle = ddup.SampleHandle()
                     handle.push_monotonic_ns(end)
-                    handle.push_lock_name(self._self_name)
+                    handle.push_lock_name(lock_name)
                     handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
@@ -136,7 +142,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     handle.flush_sample()
                 else:
                     event = self.ACQUIRE_EVENT_CLASS(
-                        lock_name=self._self_name,
+                        lock_name=lock_name,
                         frames=frames,
                         nframes=nframes,
                         thread_id=thread_id,
@@ -155,10 +161,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 LOG.warning("Error recording lock acquire event: %s", e)
                 pass  # nosec
 
-    def release(self, *args, **kwargs):
+    def acquire(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
+
+    def _release(self, inner_func, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
         try:
-            return self.__wrapped__.release(*args, **kwargs)
+            return inner_func(*args, **kwargs)
         finally:
             try:
                 if hasattr(self, "_self_acquired_at"):
@@ -166,9 +175,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         end = compat.monotonic_ns()
                         thread_id, thread_name = _current_thread()
                         task_id, task_name, task_frame = _task.get_task(thread_id)
+                        lock_name = (
+                            "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                        )
 
                         if task_frame is None:
-                            frame = sys._getframe(1)
+                            # See the comments in _acquire
+                            frame = sys._getframe(2)
                         else:
                             frame = task_frame
 
@@ -179,7 +192,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                             handle = ddup.SampleHandle()
                             handle.push_monotonic_ns(end)
-                            handle.push_lock_name(self._self_name)
+                            handle.push_lock_name(lock_name)
                             handle.push_release(
                                 end - self._self_acquired_at, 1
                             )  # AFAICT, capture_pct does not adjust anything here
@@ -196,7 +209,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             handle.flush_sample()
                         else:
                             event = self.RELEASE_EVENT_CLASS(
-                                lock_name=self._self_name,
+                                lock_name=lock_name,
                                 frames=frames,
                                 nframes=nframes,
                                 thread_id=thread_id,
@@ -219,7 +232,60 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 LOG.warning("Error recording lock release event: %s", e)
                 pass  # nosec
 
+    def release(self, *args, **kwargs):
+        return self._release(self.__wrapped__.release, *args, **kwargs)
+
     acquire_lock = acquire
+
+    def __enter__(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
+
+    def __exit__(self, *args, **kwargs):
+        self._release(self.__wrapped__.__exit__, *args, **kwargs)
+
+    def _find_self_name(self, var_dict: typing.Dict):
+        for name, value in var_dict.items():
+            if name.startswith("__") or isinstance(value, types.ModuleType):
+                continue
+            if value is self:
+                return name
+            if config.lock.name_inspect_dir:
+                for attribute in dir(value):
+                    if not attribute.startswith("__") and getattr(value, attribute) is self:
+                        self._self_name = attribute
+                        return attribute
+        return None
+
+    # Get lock acquire/release call location and variable name the lock is assigned to
+    def _maybe_update_self_name(self):
+        if self._self_name:
+            return
+        try:
+            # We expect the call stack to be like this:
+            # 0: this
+            # 1: _acquire/_release
+            # 2: acquire/release (or __enter__/__exit__)
+            # 3: caller frame
+            if config.enable_asserts:
+                frame = sys._getframe(1)
+                if frame.f_code.co_name not in {"_acquire", "_release"}:
+                    raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+                frame = sys._getframe(2)
+                if frame.f_code.co_name not in {"acquire", "release", "__enter__", "__exit__"}:
+                    raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+            frame = sys._getframe(3)
+
+            # First, look at the local variables of the caller frame, and then the global variables
+            self._self_name = self._find_self_name(frame.f_locals) or self._find_self_name(frame.f_globals)
+
+            if not self._self_name:
+                self._self_name = ""
+                LOG.warning(
+                    "Failed to get lock variable name, we only support local/global variables and their attributes."
+                )
+
+        except Exception as e:
+            LOG.warning("Error getting lock acquire/release call location and variable name: %s", e)
 
 
 class FunctionWrapper(wrapt.FunctionWrapper):
