@@ -20,7 +20,7 @@ class Scheduler(periodic.PeriodicService):
     recorder: object
     exporters: object
     before_flush: object = None
-    interval: float = config.upload_interval
+    _interval: float = config.upload_interval
     _configured_interval: float = 0
     _last_export: object = None
     _export_libdd_enabled: bool = config.export.libdd_enabled
