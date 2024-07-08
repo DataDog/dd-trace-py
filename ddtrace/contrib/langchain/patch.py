@@ -397,14 +397,22 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
                 if integration.is_pc_sampled_span(span):
+                    content = integration.extract_chat_completion_output_content(chat_completion)
+                    if not isinstance(content, dict):
+                        span.set_tag_str(
+                            "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
+                            integration.trunc(str(content)),
+                        )
+                    else:
+                        for k, v in content.items():
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.%s" % (message_set_idx, idx, k),
+                                integration.trunc(str(v)),
+                            )
                     span.set_tag_str(
-                        "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
-                        integration.trunc(chat_completion.text),
+                        "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
+                        chat_completion.message.__class__.__name__,
                     )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
-                    chat_completion.message.__class__.__name__,
-                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -421,16 +429,18 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
-            if chat_completions is None:
-                log_chat_completions = []
-            else:
-                log_chat_completions = [
-                    [
-                        {"content": message.text, "message_type": message.message.__class__.__name__}
-                        for message in messages
-                    ]
-                    for messages in chat_completions.generations
-                ]
+            log_chat_completions = []
+            if chat_completions is not None:
+                for messages in chat_completions.generations:
+                    for message in messages:
+                        content = integration.extract_chat_completion_output_content(message)
+                        log_chat_completions.append(
+                            {
+                                "content": str(content) if not isinstance(content, dict) else {**content},
+                                "message_type": message.message.__class__.__name__,  
+                            }
+                        )
+                        
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
@@ -502,14 +512,22 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
                 if integration.is_pc_sampled_span(span):
+                    content = integration.extract_chat_completion_output_content(chat_completion)
+                    if not isinstance(content, dict):
+                        span.set_tag_str(
+                            "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
+                            integration.trunc(str(content)),
+                        )
+                    else:
+                        for k, v in content.items():
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.%s" % (message_set_idx, idx, k),
+                                integration.trunc(str(v)),
+                            )
                     span.set_tag_str(
-                        "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
-                        integration.trunc(chat_completion.text),
+                        "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
+                        chat_completion.message.__class__.__name__,
                     )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
-                    chat_completion.message.__class__.__name__,
-                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -526,16 +544,17 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
-            if chat_completions is None:
-                log_chat_completions = []
-            else:
-                log_chat_completions = [
-                    [
-                        {"content": message.text, "message_type": message.message.__class__.__name__}
-                        for message in messages
-                    ]
-                    for messages in chat_completions.generations
-                ]
+            log_chat_completions = []
+            if chat_completions is not None:
+                for messages in chat_completions.generations:
+                    for message in messages:
+                        content = integration.extract_chat_completion_output_content(message)
+                        log_chat_completions.append(
+                            {
+                                "content": str(content) if not isinstance(content, dict) else {**content},
+                                "message_type": message.message.__class__.__name__,  
+                            }
+                        )
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
