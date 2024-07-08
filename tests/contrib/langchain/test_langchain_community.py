@@ -1248,6 +1248,7 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
     with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
         await chain.abatch(inputs=["chickens", "pigs"])
 
+
 @pytest.mark.snapshot
 def test_lcecl_chain_non_dict_input(langchain_core):
     """
