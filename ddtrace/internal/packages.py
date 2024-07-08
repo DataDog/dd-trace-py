@@ -4,7 +4,6 @@ import sys
 import sysconfig
 import typing as t
 from types import ModuleType
-from functools import lru_cache as cached
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
