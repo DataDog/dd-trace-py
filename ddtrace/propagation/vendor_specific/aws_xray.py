@@ -148,7 +148,7 @@ class _AwsXRayPropagator:
                 raise AwsParseTraceHeaderError(
                     f"Error parsing X-Ray trace header. Invalid key value pair: {kv_pair_str}. Returning INVALID span context."
                 ) from ex
-            if key == TRACE_ID_KEY.lower():
+            if key == TRACE_ID_KEY:
                 if not _AwsXRayPropagator._validate_trace_id(value):
                     raise AwsParseTraceHeaderError(
                         f"Invalid TraceId in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
@@ -160,7 +160,7 @@ class _AwsXRayPropagator:
                     raise AwsParseTraceHeaderError(
                         f"Invalid TraceId in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
                     ) from ex
-            elif key == PARENT_ID_KEY.lower():
+            elif key == PARENT_ID_KEY:
                 if not _AwsXRayPropagator._validate_span_id(value):
                     raise AwsParseTraceHeaderError(
                         f"Invalid ParentId in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
@@ -172,7 +172,7 @@ class _AwsXRayPropagator:
                     raise AwsParseTraceHeaderError(
                         f"Invalid TraceId in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
                     ) from ex
-            elif key == SAMPLED_FLAG_KEY.lower():
+            elif key == SAMPLED_FLAG_KEY:
                 if not _AwsXRayPropagator._validate_sampled_flag(value):
                     raise AwsParseTraceHeaderError(
                         f"Invalid Sampling flag in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
