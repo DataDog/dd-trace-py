@@ -184,7 +184,7 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 template = "appsec_threats_django"
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
     "django{matrix:django}"
@@ -227,7 +227,7 @@ django = ["~=5.0"]
 template = "appsec_threats_flask"
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
     "MarkupSafe{matrix:markupsafe:}",
@@ -269,7 +269,7 @@ flask = ["~=3.0"]
 template = "appsec_threats_fastapi"
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
     "httpx",
@@ -305,7 +305,7 @@ fastapi = ["~=0.109"]
 [envs.ddtrace_unit_tests]
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
 ]
