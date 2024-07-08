@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-from dataclasses import field
 
 from bm import Scenario
-from bm import var_bool
 import bm.utils as utils
 
 from ddtrace import config
@@ -16,9 +14,9 @@ class SpanParent:
     ntags: int
     ltags: int
     nmetrics: int
-    finishspan: bool = field(default_factory=var_bool)
-    traceid128: bool = field(default_factory=var_bool)
-    telemetry: bool = field(default_factory=var_bool)
+    finishspan: bool
+    traceid128: bool
+    telemetry: bool
 
 
 class Span(SpanParent, Scenario):
@@ -53,17 +51,3 @@ class Span(SpanParent, Scenario):
                         s.finish()
 
         yield _
-
-
-# f = Span(
-#     name="Span",
-#     nspans=10,
-#     ntags=10,
-#     ltags=10,
-#     nmetrics=10,
-#     finishspan=True,
-#     traceid128=True,
-#     telemetry=True,
-#     # bases=tuple(),
-#     # namespace=dict(),
-# )

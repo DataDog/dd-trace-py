@@ -1,11 +1,9 @@
 from dataclasses import dataclass
-from dataclasses import field
 import hashlib
 import os
 import random
 import sqlite3
 
-import bm
 from flask import Flask
 from flask import Response
 from flask import render_template_string
@@ -81,13 +79,13 @@ def create_app():
 @dataclass
 class FlaskScenarioMixin:
     name: str
-    tracer_enabled: bool = field(default_factory=bm.var_bool)
-    profiler_enabled: bool = field(default_factory=bm.var_bool)
-    debugger_enabled: bool = field(default_factory=bm.var_bool)
-    appsec_enabled: bool = field(default_factory=bm.var_bool)
-    iast_enabled: bool = field(default_factory=bm.var_bool)
-    post_request: bool = field(default_factory=bm.var_bool)
-    telemetry_metrics_enabled: bool = field(default_factory=bm.var_bool)
+    tracer_enabled: bool
+    profiler_enabled: bool
+    debugger_enabled: bool
+    appsec_enabled: bool
+    iast_enabled: bool
+    post_request: bool
+    telemetry_metrics_enabled: bool
 
     def setup(self):
         # Setup the environment and enable Datadog features

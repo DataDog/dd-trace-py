@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from dataclasses import field
 
 import bm
 
@@ -16,7 +15,7 @@ class CoreAPIScenarioParent:
     listeners: int = 0
     all_listeners: int = 0
     set_item_count: int = 100
-    get_item_exists: bool = field(default_factory=bm.var_bool)
+    get_item_exists: bool
 
 
 class CoreAPIScenario(CoreAPIScenarioParent, bm.Scenario):

@@ -4,8 +4,8 @@ one-trace: &base_variant
   ntags: 0
   ltags: 0
   nmetrics: 0
+  dd_origin: False
   encoding: "v0.4"
-  dd_origin: false
 many-traces:
   <<: *base_variant
   ntraces: 100
@@ -27,13 +27,13 @@ one-trace-with-dd-origin:
   <<: *base_variant
   ntags: 10
   ltags: 16
-  dd_origin: true
+  dd_origin: True
 one-trace-with-dd-origin-no-tags:
   <<: *base_variant
-  dd_origin: true
+  dd_origin: True
 many-traces-with-dd-origin:
   <<: *base_variant
   ntraces: 100
   ntags: 10
   ltags: 16
-  dd_origin: true
+  dd_origin: True

@@ -1,46 +1,46 @@
 auto_baseline: &defaults
-  ddtrace_run: "true"
-  http: "true"
-  runtimemetrics: "false"
-  telemetry: "false"
-  tracing: "false"
-  profiling: "false"
-  appsec: "false"
+  ddtrace_run: True
+  http: True
+  runtimemetrics: False
+  telemetry: False
+  tracing: False
+  profiling: False
+  appsec: False
 
 manual_baseline:
   <<: *defaults
-  ddtrace_run: "false"
+  ddtrace_run: False
 
 auto_runtimemetrics:
   <<: *defaults
-  runtimemetrics: "true"
+  runtimemetrics: True
 
 auto_appsec:
   <<: *defaults
-  appsec: "true"
+  appsec: True
 
 auto_baseline_disable_http:
   <<: *defaults
-  http: "false"
+  http: False
 
 auto_telemetry:
   <<: *defaults
-  telemetry: "true"
+  telemetry: True
 
 auto_profiling:
   <<: *defaults
-  profiling: "true"
+  profiling: True
 
 auto_tracing:
   <<: *defaults
-  tracing: "true"
+  tracing: True
 
 auto_tracing_telemetry:
   <<: *defaults
-  tracing: "true"
-  telemetry: "true"
+  tracing: True
+  telemetry: True
 
 auto_tracing_appsec:
   <<: *defaults
-  tracing: "true"
-  appsec: "true"
+  tracing: True
+  appsec: True

@@ -1,14 +1,13 @@
 import abc
+import ast
 from dataclasses import fields
 import time
 
 import pyperf
 
-from ._to_bool import to_bool
 
-
-def var_bool(_input):
-    return to_bool(_input)
+def str_to_bool(_input):
+    return bool(ast.literal_eval(_input))
 
 
 def _register(scenario_cls):
@@ -24,7 +23,7 @@ def _register(scenario_cls):
     cmd = runner.argparser
 
     for _field in fields(scenario_cls):
-        cmd.add_argument("--{}".format(_field.name), type=_field.type)
+        cmd.add_argument("--{}".format(_field.name), type=_field.type if _field.type is not bool else str_to_bool)
 
     parsed_args = runner.parse_args()
 
@@ -33,6 +32,7 @@ def _register(scenario_cls):
         for _field in fields(scenario_cls)
         if hasattr(parsed_args, _field.name)
     }
+
     scenario = scenario_cls(**config_dict)
 
     runner.bench_time_func(scenario.scenario_name, scenario._pyperf)
@@ -42,7 +42,7 @@ class ScenarioMeta(abc.ABCMeta):
     def __new__(cls, name, bases, attrs):
         cls = super().__new__(cls, name, bases, attrs)
         # Do not register the base Scenario class
-        if name != "Scenario":
+        if hasattr(cls, "run") and not getattr(cls.run, "__isabstractmethod__", False):
             _register(cls)
         return cls
 

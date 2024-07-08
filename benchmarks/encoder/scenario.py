@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from dataclasses import field
 
 import bm
 import utils
@@ -14,7 +13,7 @@ class EncoderParent:
     ltags: int
     nmetrics: int
     encoding: str
-    dd_origin: bool = field(default_factory=bm.var_bool)
+    dd_origin: bool
 
 
 class Encoder(EncoderParent, bm.Scenario):

@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from dataclasses import field
 import os
 
 import bm
@@ -24,8 +23,8 @@ class OtelSpanParent:
     ntags: int
     ltags: int
     nmetrics: int
-    finishspan: bool = field(default_factory=bm.var_bool)
-    telemetry: bool = field(default_factory=bm.var_bool)
+    finishspan: bool
+    telemetry: bool
 
 
 class OtelSpan(OtelSpanParent, bm.Scenario):

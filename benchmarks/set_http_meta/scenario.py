@@ -1,9 +1,8 @@
 from collections import defaultdict
 import copy
 from dataclasses import dataclass
-from dataclasses import field
 
-import bm as bm
+from bm import Scenario
 import bm.utils as utils
 
 from ddtrace import config as ddconfig
@@ -53,13 +52,13 @@ class SetHttpMetaParent:
     url: str
     querystring: str
     ip_header: str
-    allenabled: bool = field(default_factory=bm.var_bool)
-    obfuscation_disabled: bool = field(default_factory=bm.var_bool)
-    send_querystring_enabled: bool = field(default_factory=bm.var_bool)
-    ip_enabled: bool = field(default_factory=bm.var_bool)
+    allenabled: bool
+    obfuscation_disabled: bool
+    send_querystring_enabled: bool
+    ip_enabled: bool
 
 
-class SetHttpMeta(SetHttpMetaParent, bm.Scenario):
+class SetHttpMeta(SetHttpMetaParent, Scenario):
     def run(self):
         # run scenario to also set tags on spans
         if self.allenabled:

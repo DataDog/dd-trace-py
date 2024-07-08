@@ -9,9 +9,9 @@ import bm
 @dataclass
 class StartupParent:
     name: str
-    ddtrace_run: bool = field(default_factory=bm.var_bool)
-    import_ddtrace: bool = field(default_factory=bm.var_bool)
-    import_ddtrace_auto: bool = field(default_factory=bm.var_bool)
+    ddtrace_run: bool
+    import_ddtrace: bool
+    import_ddtrace_auto: bool
     env: dict = field(default_factory=dict)
 
 
