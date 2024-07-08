@@ -2,15 +2,13 @@ import logging
 import os
 import sys
 import sysconfig
-from types import ModuleType
 import typing as t
+from types import ModuleType
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
-from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.cache import callonce
+from ddtrace.internal.utils.cache import cached, callonce
 from ddtrace.settings.third_party import config as tp_config
-
 
 LOG = logging.getLogger(__name__)
 
@@ -77,7 +75,7 @@ def get_distributions():
     return pkgs
 
 
-@cached()
+@cached(maxsize=65536)
 def get_version_for_package(name):
     # type: (str) -> str
     """returns the version of a package"""
@@ -194,7 +192,7 @@ def _third_party_packages() -> set:
     ) - tp_config.excludes
 
 
-@cached()
+@cached(maxsize=65536)
 def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
     mapping = _package_for_root_module_mapping()
     if mapping is None:
@@ -209,7 +207,7 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
         return None
 
 
-@cached()
+@cached(maxsize=65536)
 def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
     """Returns the package distribution for a module"""
     module_origin = origin(module)
@@ -222,7 +220,7 @@ purelib_path = Path(sysconfig.get_path("purelib")).resolve()
 platlib_path = Path(sysconfig.get_path("platlib")).resolve()
 
 
-@cached()
+@cached(maxsize=65536)
 def is_stdlib(path: Path) -> bool:
     rpath = path.resolve()
 
@@ -231,7 +229,7 @@ def is_stdlib(path: Path) -> bool:
     )
 
 
-@cached()
+@cached(maxsize=65536)
 def is_third_party(path: Path) -> bool:
     package = filename_to_package(str(path))
     if package is None:
@@ -240,12 +238,12 @@ def is_third_party(path: Path) -> bool:
     return package.name in _third_party_packages()
 
 
-@cached()
+@cached(maxsize=65536)
 def is_user_code(path: Path) -> bool:
     return not (is_stdlib(path) or is_third_party(path))
 
 
-@cached()
+@cached(maxsize=65536)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
     try:
