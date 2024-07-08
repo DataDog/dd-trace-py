@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any  # noqa:F401
 
 import bm
@@ -67,10 +68,14 @@ def launch_function(enable_propagation, func, internal_loop, caller_loop):
         func(internal_loop, tainted_value)
 
 
-class IastPropagation(bm.Scenario):
-    iast_enabled = bm.var(type=int)
-    internal_loop = bm.var(type=int)
+@dataclass
+class IastPropagationParent:
+    name: str
+    iast_enabled: int
+    internal_loop: int
 
+
+class IastPropagation(IastPropagationParent, bm.Scenario):
     def run(self):
         caller_loop = 10
         if self.iast_enabled:

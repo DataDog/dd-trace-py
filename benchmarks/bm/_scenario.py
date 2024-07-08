@@ -1,10 +1,8 @@
 import abc
-from dataclasses import field
 from dataclasses import fields
 import time
 
 import pyperf
-import six
 
 from ._to_bool import to_bool
 
@@ -31,7 +29,7 @@ def _register(scenario_cls):
     parsed_args = runner.parse_args()
 
     config_dict = {
-        _field.name: getattr(parsed_args, field.name)
+        _field.name: getattr(parsed_args, _field.name)
         for _field in fields(scenario_cls)
         if hasattr(parsed_args, _field.name)
     }
@@ -41,19 +39,16 @@ def _register(scenario_cls):
 
 
 class ScenarioMeta(abc.ABCMeta):
-    def __init__(cls, name, bases, _dict):
-        super(ScenarioMeta, cls).__init__(name, bases, _dict)
-
+    def __new__(cls, name, bases, attrs):
+        cls = super().__new__(cls, name, bases, attrs)
         # Do not register the base Scenario class
-        # DEV: We cannot compare `cls` to `Scenario` since it doesn't exist yet
-        if cls.__module__ != __name__:
+        if name != "Scenario":
             _register(cls)
+        return cls
 
 
-class Scenario(six.with_metaclass(ScenarioMeta)):
+class Scenario(metaclass=ScenarioMeta):
     """The base class for specifying a benchmark."""
-
-    name: str
 
     @property
     def scenario_name(self):

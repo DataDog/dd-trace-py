@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from dataclasses import field
 import os
 
 import bm
@@ -15,14 +17,18 @@ os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 otel_tracer = get_tracer(__name__)
 
 
-class OtelSpan(bm.Scenario):
-    nspans = bm.var(type=int)
-    ntags = bm.var(type=int)
-    ltags = bm.var(type=int)
-    nmetrics = bm.var(type=int)
-    finishspan = bm.var_bool()
-    telemetry = bm.var_bool()
+@dataclass
+class OtelSpanParent:
+    name: str
+    nspans: int
+    ntags: int
+    ltags: int
+    nmetrics: int
+    finishspan: bool = field(default_factory=bm.var_bool)
+    telemetry: bool = field(default_factory=bm.var_bool)
 
+
+class OtelSpan(OtelSpanParent, bm.Scenario):
     def run(self):
         # run scenario to also set tags on spans
         tags = utils.gen_tags(self)

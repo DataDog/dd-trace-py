@@ -80,6 +80,7 @@ def create_app():
 
 @dataclass
 class FlaskScenarioMixin:
+    name: str
     tracer_enabled: bool = field(default_factory=bm.var_bool)
     profiler_enabled: bool = field(default_factory=bm.var_bool)
     debugger_enabled: bool = field(default_factory=bm.var_bool)

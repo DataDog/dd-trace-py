@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from dataclasses import field
 import os
 import subprocess
 import sys
@@ -7,9 +9,13 @@ from bm.iast_utils.ast_patching import create_project_structure
 from bm.iast_utils.ast_patching import destroy_project_structure
 
 
-class IAST_AST_Patching(bm.Scenario):
-    iast_enabled = bm.var_bool()
+@dataclass
+class IAST_AST_PatchingParent:
+    name: str
+    iast_enabled: bool = field(default_factory=bm.var_bool)
 
+
+class IAST_AST_Patching(IAST_AST_PatchingParent, bm.Scenario):
     def run(self):
         try:
             python_file_path = create_project_structure()

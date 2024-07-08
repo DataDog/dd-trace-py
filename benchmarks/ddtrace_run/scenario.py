@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from dataclasses import field
 import os
 import subprocess
 import sys
@@ -5,15 +7,19 @@ import sys
 import bm
 
 
-class DDtraceRun(bm.Scenario):
-    ddtrace_run = bm.var_bool()
-    http = bm.var_bool()
-    runtimemetrics = bm.var_bool()
-    telemetry = bm.var_bool()
-    profiling = bm.var_bool()
-    appsec = bm.var_bool()
-    tracing = bm.var_bool()
+@dataclass
+class DDtraceRunParent:
+    name: str
+    ddtrace_run: bool = field(default_factory=bm.var_bool)
+    http: bool = field(default_factory=bm.var_bool)
+    runtimemetrics: bool = field(default_factory=bm.var_bool)
+    telemetry: bool = field(default_factory=bm.var_bool)
+    profiling: bool = field(default_factory=bm.var_bool)
+    appsec: bool = field(default_factory=bm.var_bool)
+    tracing: bool = field(default_factory=bm.var_bool)
 
+
+class DDtraceRun(DDtraceRunParent, bm.Scenario):
     def run(self):
         # setup subprocess environment variables
         env = os.environ.copy()

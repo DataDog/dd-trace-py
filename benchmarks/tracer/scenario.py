@@ -1,10 +1,16 @@
+from dataclasses import dataclass
+
 import bm
 import bm.utils as utils
 
 
-class Tracer(bm.Scenario):
-    depth = bm.var(type=int)
+@dataclass
+class TracerParent:
+    name: str
+    depth: int
 
+
+class Tracer(TracerParent, bm.Scenario):
     def run(self):
         # configure global tracer to drop traces rather than encoded and sent to
         # an agent

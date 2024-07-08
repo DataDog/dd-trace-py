@@ -61,7 +61,7 @@ invalid_priority_header: &invalid_priority_header
 invalid_tags_header: &invalid_tags_header
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": ""7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.test=☺"}
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.test=☺"}
 
 
 # Same scenarios as above but with HTTP_WSGI_STYLE_HEADERS

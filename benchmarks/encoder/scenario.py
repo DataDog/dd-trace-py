@@ -1,16 +1,23 @@
+from dataclasses import dataclass
+from dataclasses import field
+
 import bm
 import utils
 
 
-class Encoder(bm.Scenario):
-    ntraces = bm.var(type=int)
-    nspans = bm.var(type=int)
-    ntags = bm.var(type=int)
-    ltags = bm.var(type=int)
-    nmetrics = bm.var(type=int)
-    dd_origin = bm.var_bool()
-    encoding = bm.var(type=str)
+@dataclass
+class EncoderParent:
+    name: str
+    ntraces: int
+    nspans: int
+    ntags: int
+    ltags: int
+    nmetrics: int
+    encoding: str
+    dd_origin: bool = field(default_factory=bm.var_bool)
 
+
+class Encoder(EncoderParent, bm.Scenario):
     def run(self):
         encoder = utils.init_encoder(self.encoding)
         traces = utils.gen_traces(self)
