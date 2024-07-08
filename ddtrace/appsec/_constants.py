@@ -76,6 +76,8 @@ class APPSEC(metaclass=Constant_Class):
     USER_MODEL_EMAIL_FIELD = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD = "DD_USER_MODEL_NAME_FIELD"
     PROPAGATION_HEADER = "_dd.p.appsec"
+    OBFUSCATION_PARAMETER_KEY_REGEXP = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
+    OBFUSCATION_PARAMETER_VALUE_REGEXP = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
 
 
 class IAST(metaclass=Constant_Class):
@@ -240,12 +242,13 @@ class DEFAULT(metaclass=Constant_Class):
     TRACE_RATE_LIMIT = 100
     WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
-        rb"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?"
-        rb"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization"
+        rb"(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer[_-]?"
+        rb"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\.net[_-]sessionid|sid|jwt"
     )
     APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
-        rb"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)"
-        rb"key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)"
+        rb"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
+        rb"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
+        rb"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
         rb'(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}'
         rb"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
         rb"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
