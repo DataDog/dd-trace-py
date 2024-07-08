@@ -1054,6 +1054,8 @@ class HTTPPropagator(object):
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
             # tracer configured to extract first only
+            print("propagators")
+            print(config._propagation_style_extract)
             if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:

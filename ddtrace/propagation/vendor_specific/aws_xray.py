@@ -90,6 +90,7 @@ class _AwsXRayPropagator:
 
         try:
             trace_id, span_id, sampling_flag = _AwsXRayPropagator._extract_span_properties(trace_header)
+            print((trace_id, span_id, sampling_flag))
         except AwsParseTraceHeaderError as err:
             _logger.debug(err.message)
             return None
