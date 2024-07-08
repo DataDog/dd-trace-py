@@ -36,8 +36,4 @@ def in_azure_function():
     """Returns whether the environment is an Azure Function.
     This is accomplished by checking the presence of two Azure Function env vars.
     """
-    is_azure_function = (
-        os.environ.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and os.environ.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
-    )
-
-    return is_azure_function
+    return os.environ.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and os.environ.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
