@@ -1,5 +1,6 @@
 import abc
 import copy
+import dataclasses
 import os
 from typing import TYPE_CHECKING  # noqa:F401
 
@@ -55,7 +56,6 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
 
     def dispatch(self, pubsub_instance=None):
         # type: (Optional[Any]) -> None
-        from attr import asdict
 
         # TODO: RemoteConfigPublisher doesn't need _preprocess_results_func callback at this moment. Uncomment those
         #  lines if a new product need it
@@ -65,7 +65,7 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
         log.debug("[%s][P: %s] Publisher publish data: %s", os.getpid(), os.getppid(), self._config_and_metadata)
 
         self._data_connector.write(
-            [asdict(metadata) if metadata else None for _, metadata in self._config_and_metadata],
+            [dataclasses.asdict(metadata) if metadata else None for _, metadata in self._config_and_metadata],
             [config for config, _ in self._config_and_metadata],
         )
         self._config_and_metadata = []
