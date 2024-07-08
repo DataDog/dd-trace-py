@@ -96,8 +96,8 @@ class TestLLMObsBedrock:
             output_messages=[{"content": mock.ANY} for _ in range(n_output)],
             metadata=expected_parameters,
             token_metrics={
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
+                "input_tokens": prompt_tokens,
+                "output_tokens": completion_tokens,
                 "total_tokens": prompt_tokens + completion_tokens,
             },
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},

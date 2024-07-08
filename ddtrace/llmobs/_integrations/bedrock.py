@@ -6,14 +6,17 @@ from typing import Optional
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 
@@ -61,9 +64,9 @@ class BedrockIntegration(BaseLLMIntegration):
         if formatted_response and formatted_response.get("text"):
             prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
             completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
-            metrics["prompt_tokens"] = prompt_tokens
-            metrics["completion_tokens"] = completion_tokens
-            metrics["total_tokens"] = prompt_tokens + completion_tokens
+            metrics[INPUT_TOKENS_METRIC_KEY] = prompt_tokens
+            metrics[OUTPUT_TOKENS_METRIC_KEY] = completion_tokens
+            metrics[TOTAL_TOKENS_METRIC_KEY] = prompt_tokens + completion_tokens
         return metrics
 
     @staticmethod

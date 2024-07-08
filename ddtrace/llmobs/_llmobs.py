@@ -41,6 +41,7 @@ from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
@@ -560,7 +561,7 @@ class LLMObs(Service):
                 span.set_tag_str(OUTPUT_VALUE, output_text)
             else:
                 try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text))
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse output text. Output text must be JSON serializable.")
 
@@ -574,7 +575,7 @@ class LLMObs(Service):
                 span.set_tag_str(INPUT_VALUE, input_text)
             else:
                 try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text))
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse input text. Input text must be JSON serializable.")
         if output_documents is not None:
@@ -596,7 +597,7 @@ class LLMObs(Service):
                 span.set_tag_str(INPUT_VALUE, input_value)
             else:
                 try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value))
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse input value. Input value must be JSON serializable.")
         if output_value is not None:
@@ -604,7 +605,7 @@ class LLMObs(Service):
                 span.set_tag_str(OUTPUT_VALUE, output_value)
             else:
                 try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value))
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse output value. Output value must be JSON serializable.")
 
@@ -620,7 +621,7 @@ class LLMObs(Service):
             current_tags = span.get_tag(TAGS)
             if current_tags:
                 span_tags.update(json.loads(current_tags))
-            span.set_tag_str(TAGS, json.dumps(span_tags))
+            span.set_tag_str(TAGS, json.dumps(span_tags, default=_unserializable_default_repr))
         except TypeError:
             log.warning("Failed to parse span tags. Tag key-value pairs must be JSON serializable.")
 
@@ -631,7 +632,7 @@ class LLMObs(Service):
             log.warning("metadata must be a dictionary of string key-value pairs.")
             return
         try:
-            span.set_tag_str(METADATA, json.dumps(metadata))
+            span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
         except TypeError:
             log.warning("Failed to parse span metadata. Metadata key-value pairs must be JSON serializable.")
 
@@ -660,9 +661,9 @@ class LLMObs(Service):
 
         :param span_context: A dictionary containing the span_id and trace_id of interest.
         :param str label: The name of the evaluation metric.
-        :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "score".
         :param value: The value of the evaluation metric.
-                      Must be a string (categorical), integer (numerical/score), or float (numerical/score).
+                      Must be a string (categorical), integer (score), or float (score).
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         """
         if cls.enabled is False:
@@ -684,14 +685,24 @@ class LLMObs(Service):
         if not label:
             log.warning("label must be the specified name of the evaluation metric.")
             return
+
         if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score"):
-            log.warning("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+            log.warning("metric_type must be one of 'categorical' or 'score'.")
             return
+
+        metric_type = metric_type.lower()
+        if metric_type == "numerical":
+            log.warning(
+                "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+                "Converting `numerical` metric to `score` type."
+            )
+            metric_type = "score"
+
         if metric_type == "categorical" and not isinstance(value, str):
             log.warning("value must be a string for a categorical metric.")
             return
-        if metric_type in ("numerical", "score") and not isinstance(value, (int, float)):
-            log.warning("value must be an integer or float for a numerical/score metric.")
+        if metric_type == "score" and not isinstance(value, (int, float)):
+            log.warning("value must be an integer or float for a score metric.")
             return
         if tags is not None and not isinstance(tags, dict):
             log.warning("tags must be a dictionary of string key-value pairs.")
