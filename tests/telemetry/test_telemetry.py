@@ -103,7 +103,7 @@ import os
 import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 
-# Telemetry must be started before events are sent
+# To send events Telemetry must be started
 ddtrace.internal.telemetry.telemetry_writer.started = True
 
 if os.fork() > 0:
