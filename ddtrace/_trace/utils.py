@@ -75,16 +75,15 @@ def extract_DD_context_from_messages(messages, extract_from_message: Callable):
     ctx = None
     if len(messages) >= 1:
         message = messages[0]
+        print("Extracting from aws message")
         context_json = extract_from_message(message)
+        print(context_json)
         if context_json is not None:
             if "AWSTraceHeader" in context_json:
                 from opentelemetry.propagators.aws import AwsXRayPropagator
-                print(context_json)
-                (
-                    trace_id,
-                    span_id,
-                    sampled,
-                ) = AwsXRayPropagator._extract_span_properties(context_json["AWSTraceHeader"])
+                print("extracting from AWS")
+
+                (trace_id, span_id, sampled) = AwsXRayPropagator._extract_span_properties(context_json["AWSTraceHeader"])
 
                 print((trace_id, span_id, sampled))
 
@@ -92,7 +91,7 @@ def extract_DD_context_from_messages(messages, extract_from_message: Callable):
                     # DEV: Do not allow `0` for trace id or span id, use None instead
                     trace_id=int(trace_id) or None,
                     span_id=int(span_id) or None,  # type: ignore[arg-type]
-                    sampling_priority=int(sampled),  # type: ignore[arg-type]
+                    sampling_priority=float(sampled),  # type: ignore[arg-type]
                 )
                 print(child_of)
 
