@@ -416,6 +416,7 @@ async def test_non_llm_async_decorators(LLMObs, mock_llmobs_span_writer):
         ("agent", agent),
         ("retrieval", retrieval),
     ]:
+
         @decorator
         async def f():
             pass
@@ -428,6 +429,7 @@ async def test_non_llm_async_decorators(LLMObs, mock_llmobs_span_writer):
 async def test_llm_async_decorators(LLMObs, mock_llmobs_span_writer):
     """Test that decorators work with async functions."""
     for decorator_name, decorator in [("llm", llm), ("embedding", embedding)]:
+
         @decorator(model_name="test_model", model_provider="test_provider")
         async def f():
             pass
