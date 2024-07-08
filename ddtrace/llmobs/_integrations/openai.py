@@ -163,7 +163,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
 
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt")}
-        parameters["temperature"] = kwargs.get("temperature", 0)
         span.set_tag_str(METADATA, json.dumps(parameters))
 
         if err is not None:
@@ -190,7 +189,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
 
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
-        parameters["temperature"] = kwargs.get("temperature", 0)
         span.set_tag_str(METADATA, json.dumps(parameters))
 
         if err is not None:
