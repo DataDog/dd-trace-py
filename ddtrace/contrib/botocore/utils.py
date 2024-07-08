@@ -124,7 +124,7 @@ def modify_client_context(client_context_object, trace_headers):
 
 
 def extract_DD_json(message):
-    context_json = None
+    context_json = {}
     try:
         print(message)
         if message and message.get("Type") == "Notification":
@@ -134,39 +134,37 @@ def extract_DD_json(message):
                 and "_datadog" in message["MessageAttributes"]
                 and message["MessageAttributes"]["_datadog"]["Type"] == "Binary"
             ):
-                context_json = json.loads(base64.b64decode(message["MessageAttributes"]["_datadog"]["Value"]).decode())
-        elif (
+                context_json.update(json.loads(base64.b64decode(message["MessageAttributes"]["_datadog"]["Value"]).decode()))
+        if (
             "MessageAttributes" in message
             and "_datadog" in message["MessageAttributes"]
             and "StringValue" in message["MessageAttributes"]["_datadog"]
         ):
             # The message originated from SQS
-            context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
-        elif (
+            context_json.update(json.loads(message["MessageAttributes"]["_datadog"]["StringValue"]))
+        if (
             "MessageAttributes" in message
             and "_datadog" in message["MessageAttributes"]
             and "BinaryValue" in message["MessageAttributes"]["_datadog"]
         ):
             # Raw message delivery
-            context_json = json.loads(message["MessageAttributes"]["_datadog"]["BinaryValue"].decode())
-        elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
+            context_json.update(json.loads(message["MessageAttributes"]["_datadog"]["BinaryValue"].decode()))
+        if "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
             # The message originated from SQS
-            context_json = message["Attributes"]
+            context_json.update(message["Attributes"])
         # this is a kinesis message
-        elif "Data" in message:
+        if "Data" in message:
             # Raw message delivery
             _, data = get_kinesis_data_object(message["Data"])
             if "_datadog" in data:
-                context_json = data["_datadog"]
+                context_json.update(data["_datadog"])
 
-        if context_json is None:
-            # AWS SNS holds attributes within message body
-            if "Body" in message:
-                try:
-                    body = json.loads(message["Body"])
-                    return extract_DD_json(body)
-                except ValueError:
-                    log.debug("Unable to parse AWS message body.")
+        if "Body" in message:
+            try:
+                body = json.loads(message["Body"])
+                context_json.update(extract_DD_json(body))
+            except ValueError:
+                log.debug("Unable to parse AWS message body.")
     except Exception:
         log.debug("Unable to parse AWS message attributes for Datadog Context.")
     return context_json
