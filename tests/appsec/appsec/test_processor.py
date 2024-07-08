@@ -1,7 +1,6 @@
 import json
 import logging
 import os.path
-import sys
 
 import mock
 import pytest
@@ -42,7 +41,6 @@ def tracer_appsec(tracer):
 
 
 def _enable_appsec(tracer):
-    del sys.modules["ddtrace.appsec._processor"]
     tracer._asm_enabled = True
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")

@@ -129,8 +129,8 @@ def _get_rate_limiter() -> RateLimiter:
 @dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
     rules: str = dataclasses.field(default_factory=get_rules)
-    obfuscation_parameter_key_regexp: bytes = asm_config._asm_obfuscation_parameter_key_regexp
-    obfuscation_parameter_value_regexp: bytes = asm_config._asm_obfuscation_parameter_value_regexp
+    obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
+    obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
     _span_to_waf_ctx: weakref.WeakKeyDictionary = dataclasses.field(default_factory=weakref.WeakKeyDictionary)
@@ -141,6 +141,10 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def __post_init__(self) -> None:
         from ddtrace.appsec._ddwaf import DDWaf
+
+        self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp
+        self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp
+        assert isinstance(self.obfuscation_parameter_key_regexp, bytes)
 
         try:
             with open(self.rules, "r") as f:
