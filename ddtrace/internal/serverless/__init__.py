@@ -34,7 +34,6 @@ def in_gcp_function():
 def in_azure_function():
     # type: () -> bool
     """Returns whether the environment is an Azure Function.
-    This is accomplished by checking the presence of two Azure Function env vars.
     """
     return (
         os.environ.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and os.environ.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
