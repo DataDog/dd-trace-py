@@ -1,17 +1,15 @@
 import threading
 
 import grpc
-import pytest
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 import mock
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.ext import SpanTypes
 from tests.contrib.grpc.common import GrpcBaseTestCase
 from tests.contrib.grpc.hello_pb2 import HelloRequest
 from tests.contrib.grpc.hello_pb2_grpc import HelloStub
-from tests.utils import TracerTestCase, DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -41,7 +39,6 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                     res = stub1.SayHello(HelloRequest(name="test"))
                     assert hasattr(res, "message")
                     _check_test_range(res.message)
-
 
     def test_taint_iast_single_server(self):
         with override_global_config(dict(_iast_enabled=True)):
@@ -138,18 +135,6 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                 assert hasattr(res, "message")
                 _check_test_range(res.message)
 
-    # def test_address_server_data(self):
-    #     tracer = DummyTracer()
-    #     with override_global_config(dict(_iast_enabled=True)):
-    #         with _asm_request_context.asm_request_context_manager(), tracer.trace("test",
-    #                                                                               span_type=SpanTypes.GRPC) as span:
-    #                 with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel1:
-    #                     stub1 = HelloStub(channel1)
-    #                     requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
-    #                     res = stub1.SayHelloLast(requests_iterator)
-    #                     assert hasattr(res, "message")
-    #                     assert _asm_request_context.get_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_RESPONSE_MESSAGE)
-
     def test_taint_iast_patching_import_error(self):
         with mock.patch.dict("sys.modules", {"google._upb._message": None}), override_env({"DD_IAST_ENABLED": "True"}):
             from collections import UserDict
@@ -166,22 +151,18 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
 
             _custom_protobuf_getattribute(mutable_mapping, "data")
 
-
     def test_address_server_data(self):
-        from tests.appsec.appsec.test_processor import _enable_appsec
-
         with override_env({"DD_IAST_ENABLED": "True"}):
             with override_global_config(dict(_asm_enabled=True)):
-                tracer = DummyTracer()
-                _enable_appsec(tracer)
-                with tracer.trace("test", span_type=SpanTypes.GRPC):
-                    with self.override_config("grpc", dict(service_name="myclientsvc")):
-                        with self.override_config("grpc_server", dict(service_name="myserversvc")):
-                            # with _asm_request_context.asm_request_context_manager() as ctx:
+                with override_config("grpc", dict(service_name="myclientsvc")):
+                    with override_config("grpc_server", dict(service_name="myserversvc")):
+                        with mock.patch("ddtrace.appsec._asm_request_context.set_waf_address") as mock_set_waf_addr:
                             channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
                             stub1 = HelloStub(channel1)
                             res = stub1.SayHello(HelloRequest(name="test"))
                             assert hasattr(res, "message")
-                            # assert ctx.get_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_MESSAGE)
-                            # assert ctx.get_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_METHOD)
-                            # assert ctx.get_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA)
+                            mock_set_waf_addr.assert_any_call(SPAN_DATA_NAMES.GRPC_SERVER_RESPONSE_MESSAGE, mock.ANY)
+                            mock_set_waf_addr.assert_any_call(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, mock.ANY)
+                            mock_set_waf_addr.assert_any_call(
+                                SPAN_DATA_NAMES.GRPC_SERVER_METHOD, "/helloworld.Hello/SayHello"
+                            )
