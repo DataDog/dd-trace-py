@@ -469,7 +469,6 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
 
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
-    print("END")
 
     triggers = get_triggers(span)
     assert triggers
