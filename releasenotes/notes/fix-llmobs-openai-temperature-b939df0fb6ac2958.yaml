@@ -1,8 +1,6 @@
 ---
 fixes:
   - |
-    LLM Observability: This fix resolves an issue where the OpenAI integration was using the wrong default value of the ``temperature`` parameter 
-    to completions and chat completions calls. ``temperature`` is now not set in the metadata if not provided.
-  - |
-    LLM Observability: This fix removes ``temperature`` and ``max_tokens`` always being set on span metadata from the Anthropic integration. 
-    These parameters are now only set in the metadata if provided.
+    LLM Observability: This fix resolves an issue where the OpenAI, Anthropic, and AWS Bedrock integrations were always setting ``temperature`` and ``max_tokens`` 
+    parameters to LLM invocations. The OpenAI integration in particular was setting the wrong ``temperature`` default values. 
+    These parameters are now only set if provided in the request.
