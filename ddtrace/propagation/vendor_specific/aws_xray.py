@@ -74,7 +74,7 @@ class AwsParseTraceHeaderError(Exception):
         self.message = message
 
 
-class AwsXRayPropagator:
+class _AwsXRayPropagator:
     """Propagator for the AWS X-Ray Trace Header propagation protocol.
 
     See:
@@ -89,7 +89,7 @@ class AwsXRayPropagator:
             return None
 
         try:
-            trace_id, span_id, sampled = AwsXRayPropagator._extract_span_properties(trace_header)
+            trace_id, span_id, sampling_flag = _AwsXRayPropagator._extract_span_properties(trace_header)
         except AwsParseTraceHeaderError as err:
             _logger.debug(err.message)
             return None
@@ -97,7 +97,7 @@ class AwsXRayPropagator:
         context = Context(
             trace_id=trace_id,
             span_id=span_id,
-            sampled=sampled,
+            sampling_priority=sampling_flag,
         )
 
         return context
@@ -137,7 +137,7 @@ class AwsXRayPropagator:
     def _extract_span_properties(trace_header):
         trace_id = None
         span_id = None
-        sampled = False
+        sampling_flag = None
 
         for kv_pair_str in trace_header.split(KV_PAIR_DELIMITER):
             try:
@@ -148,38 +148,38 @@ class AwsXRayPropagator:
                     f"Error parsing X-Ray trace header. Invalid key value pair: {kv_pair_str}. Returning INVALID span context."
                 ) from ex
             if key == TRACE_ID_KEY:
-                if not AwsXRayPropagator._validate_trace_id(value):
+                if not _AwsXRayPropagator._validate_trace_id(value):
                     raise AwsParseTraceHeaderError(
                         f"Invalid TraceId in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
                     )
 
                 try:
-                    trace_id = AwsXRayPropagator._parse_trace_id(value)
+                    trace_id = _AwsXRayPropagator._parse_trace_id(value)
                 except ValueError as ex:
                     raise AwsParseTraceHeaderError(
                         f"Invalid TraceId in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
                     ) from ex
             elif key == PARENT_ID_KEY:
-                if not AwsXRayPropagator._validate_span_id(value):
+                if not _AwsXRayPropagator._validate_span_id(value):
                     raise AwsParseTraceHeaderError(
                         f"Invalid ParentId in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
                     )
 
                 try:
-                    span_id = AwsXRayPropagator._parse_span_id(value)
+                    span_id = _AwsXRayPropagator._parse_span_id(value)
                 except ValueError as ex:
                     raise AwsParseTraceHeaderError(
                         f"Invalid TraceId in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
                     ) from ex
             elif key == SAMPLED_FLAG_KEY:
-                if not AwsXRayPropagator._validate_sampled_flag(value):
+                if not _AwsXRayPropagator._validate_sampled_flag(value):
                     raise AwsParseTraceHeaderError(
                         f"Invalid Sampling flag in X-Ray trace header: '{TRACE_HEADER_KEY}' with value '{trace_header}'. Returning INVALID span context."
                     )
 
-                sampled = AwsXRayPropagator._parse_sampled_flag(value)
+                sampling_flag = _AwsXRayPropagator._parse_sampled_flag(value)
 
-        return trace_id, span_id, sampled
+        return trace_id, span_id, sampling_flag
 
     @staticmethod
     def _validate_trace_id(trace_id_str):
@@ -210,10 +210,10 @@ class AwsXRayPropagator:
 
     @staticmethod
     def _parse_sampled_flag(sampled_flag_str):
-        return sampled_flag_str[0] == IS_SAMPLED
+        return float(sampled_flag_str[0])
 
 
-class AwsXrayLambdaPropagator(AwsXRayPropagator):
+class AwsXrayLambdaPropagator(_AwsXRayPropagator):
     """Implementation of the AWS X-Ray Trace Header propagation protocol but
     with special handling for Lambda's ``_X_AMZN_TRACE_ID` environment
     variable.
