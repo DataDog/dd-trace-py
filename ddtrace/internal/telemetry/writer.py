@@ -232,10 +232,12 @@ class TelemetryWriter(PeriodicService):
     _sequence = itertools.count(1)
     _ORIGINAL_EXCEPTHOOK = sys.excepthook
     FLUSH_HEARTBEAT_COUNT = 6
+    # time (in seconds) between periodic invocations
+    PERIODIC_INTERVAL = 10
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
-        super(TelemetryWriter, self).__init__(interval=10)
+        super(TelemetryWriter, self).__init__(interval=self.PERIODIC_INTERVAL)
         # Decouples the aggregation and sending of the telemetry events
         self._periodic_count = 0
         self._is_periodic = is_periodic
