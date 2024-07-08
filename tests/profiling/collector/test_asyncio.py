@@ -18,7 +18,7 @@ async def test_lock_acquire_events():
     assert len(r.events[collector_asyncio.AsyncioLockAcquireEvent]) == 1
     assert len(r.events[collector_asyncio.AsyncioLockReleaseEvent]) == 0
     event = r.events[collector_asyncio.AsyncioLockAcquireEvent][0]
-    assert event.lock_name == "test_asyncio.py:16:lock"
+    assert event.lock_name == "test_asyncio.py:15:lock"
     assert event.thread_id == _thread.get_ident()
     assert event.wait_time_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
@@ -39,7 +39,7 @@ async def test_asyncio_lock_release_events():
     assert len(r.events[collector_asyncio.AsyncioLockAcquireEvent]) == 1
     assert len(r.events[collector_asyncio.AsyncioLockReleaseEvent]) == 1
     event = r.events[collector_asyncio.AsyncioLockReleaseEvent][0]
-    assert event.lock_name == "test_asyncio.py:38:lock"
+    assert event.lock_name == "test_asyncio.py:35:lock"
     assert event.thread_id == _thread.get_ident()
     assert event.locked_for_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
@@ -69,23 +69,27 @@ async def test_lock_events_tracer(tracer):
             pass
     events = r.reset()
     # The tracer might use locks, so we need to look into every event to assert we got ours
-    lock1_acquire, lock1_release, lock2_acquire, lock2_release = (
-        "test_asyncio.py:59:lock",
-        "test_asyncio.py:63:lock",
-        "test_asyncio.py:62:lock2",
-        "test_asyncio.py:65:lock2",
-    )
+    lock1_name = "test_asyncio.py:58:lock"
+    lock2_name = "test_asyncio.py:61:lock2"
+    lines_with_trace = [61, 63]
+    lines_without_trace = [59, 65]
     for event_type in (collector_asyncio.AsyncioLockAcquireEvent, collector_asyncio.AsyncioLockReleaseEvent):
         if event_type == collector_asyncio.AsyncioLockAcquireEvent:
-            assert {lock1_acquire, lock2_acquire}.issubset({e.lock_name for e in events[event_type]})
+            assert {lock1_name, lock2_name}.issubset({e.lock_name for e in events[event_type]})
         elif event_type == collector_asyncio.AsyncioLockReleaseEvent:
-            assert {lock1_release, lock2_release}.issubset({e.lock_name for e in events[event_type]})
+            assert {lock1_name, lock2_name}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
-            if event.lock_name in [lock1_acquire, lock2_release]:
-                assert event.span_id is None
-                assert event.trace_resource_container is None
-                assert event.trace_type is None
-            elif event.lock_name in [lock2_acquire, lock1_release]:
-                assert event.span_id == span_id
-                assert event.trace_resource_container[0] == t.resource
-                assert event.trace_type == t.span_type
+            if event.name in [lock1_name, lock2_name]:
+                file_name, lineno, function_name, class_name = event.frames[0]
+                assert file_name == __file__.replace(".pyc", ".py")
+                assert lineno in lines_with_trace + lines_without_trace
+                assert function_name == "test_lock_events_tracer"
+                assert class_name == ""
+                if lineno in lines_without_trace:
+                    assert event.span_id is None
+                    assert event.trace_resource_container is None
+                    assert event.trace_type is None
+                elif lineno in lines_with_trace:
+                    assert event.span_id == span_id
+                    assert event.trace_resource_container[0] == resource
+                    assert event.trace_type == span_type
