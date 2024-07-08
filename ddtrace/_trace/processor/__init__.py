@@ -392,12 +392,13 @@ class SpanAggregator(SpanProcessor):
             for s in t.spans
             if not s.finished
         ]
-        log.warning(
-            "Shutting down tracer with %d unfinished spans. "
-            "Spans that have not been terminated will not be sent to Datadog: %s",
-            len(unfinished_spans),
-            ", ".join(unfinished_spans),
-        )
+        if unfinished_spans:
+            log.warning(
+                "Shutting down tracer with %d unfinished spans. "
+                "Spans that have not been terminated will not be sent to Datadog: %s",
+                len(unfinished_spans),
+                ", ".join(unfinished_spans),
+            )
 
         try:
             self._writer.stop(timeout)
