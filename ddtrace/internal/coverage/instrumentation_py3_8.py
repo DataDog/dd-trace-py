@@ -293,7 +293,8 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
                     # of that jump.
                     if jump_instr.targets:
                         for target in jump_instr.targets:
-                            assert target.end is jump_instr
+                            if target.end is not jump_instr:
+                                raise (ValueError("Jump instruction is not the end of the branch"))
                             target.end = ext_instr
                         ext_instr.targets.extend(jump_instr.targets)
                         jump_instr.targets.clear()

@@ -87,7 +87,8 @@ def to_varint(value: int, set_begin_marker: bool = False) -> bytes:
     # Encode value as a varint on 7 bits (MSB should come first) and set
     # the begin marker if requested.
     temp = bytearray()
-    assert value >= 0
+    if value < 0:
+        raise ValueError("varint must be positive")
     while value:
         temp.insert(0, value & 63 | (64 if temp else 0))
         value >>= 6
@@ -373,7 +374,8 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
                     # of that jump.
                     if jump_instr.targets:
                         for target in jump_instr.targets:
-                            assert target.end is jump_instr
+                            if target.end is not jump_instr:
+                                raise (ValueError("Jump instruction is not the end of the branch"))
                             target.end = ext_instr
                         ext_instr.targets.extend(jump_instr.targets)
                         jump_instr.targets.clear()
