@@ -42,9 +42,9 @@ class BedrockIntegration(BaseLLMIntegration):
             span.set_tag(PARENT_ID_KEY, parent_id)
         parameters = {}
         if span.get_tag("bedrock.request.temperature"):
-            parameters["temperature"] = float(span.get_tag("bedrock.request.temperature"))
+            parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
         if span.get_tag("bedrock.request.max_tokens"):
-            parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
+            parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens") or 0)
         input_messages = self._extract_input_message(prompt)
 
         span.set_tag_str(SPAN_KIND, "llm")
