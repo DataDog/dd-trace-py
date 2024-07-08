@@ -55,6 +55,7 @@ from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
 from ..internal.utils.http import w3c_tracestate_add_p
 from ._utils import get_wsgi_header
+from .vendor_specific.aws_xray import AwsXRayPropagator
 
 
 log = get_logger(__name__)
@@ -892,6 +893,7 @@ _PROP_STYLES = {
     PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
     _PROPAGATION_STYLE_NONE: _NOP_Propagator,
+    "xray": AwsXRayPropagator
 }
 
 
@@ -1019,6 +1021,8 @@ class HTTPPropagator(object):
             _B3SingleHeader._inject(span_context, headers)
         if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
             _TraceContext._inject(span_context, headers)
+        if "xray" in config._propagation_style_inject:
+            _XRayHeader._inject(span_context, headers)
 
     @staticmethod
     def extract(headers):

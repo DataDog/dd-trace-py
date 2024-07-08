@@ -80,29 +80,9 @@ def extract_DD_context_from_messages(messages, extract_from_message: Callable):
         print("got aws extract from message context json")
         print(context_json)
         if context_json != {}:
-            if "AWSTraceHeader" in context_json:
-                from opentelemetry.propagators.aws import AwsXRayPropagator
-                print("extracting from AWS using OTel propagator")
-
-                (trace_id, span_id, sampled) = AwsXRayPropagator._extract_span_properties(context_json["AWSTraceHeader"])
-
-                print("got aws context")
-                print((trace_id, span_id, sampled))
-
-                child_of = Context(
-                    # DEV: Do not allow `0` for trace id or span id, use None instead
-                    trace_id=int(trace_id) or None,
-                    span_id=int(span_id) or None,  # type: ignore[arg-type]
-                    sampling_priority=float(sampled),  # type: ignore[arg-type]
-                )
-                print("got DataDog context")
-                print(child_of)
-
-                if child_of.trace_id is not None:
-                    ctx = child_of
-
-            if ctx is None:
-                child_of = HTTPPropagator.extract(context_json)
-                if child_of.trace_id is not None:
-                    ctx = child_of
+            child_of = HTTPPropagator.extract(context_json)
+            print("child_of")
+            print(child_of)
+            if child_of.trace_id is not None:
+                ctx = child_of
     return ctx

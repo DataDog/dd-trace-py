@@ -151,7 +151,7 @@ def extract_DD_json(message):
             context_json.update(json.loads(message["MessageAttributes"]["_datadog"]["BinaryValue"].decode()))
         if "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
             # The message originated from SQS
-            context_json.update(message["Attributes"])
+            context_json.update(message["Attributes"][ "AWSTraceHeader"])
         # this is a kinesis message
         if "Data" in message:
             # Raw message delivery
