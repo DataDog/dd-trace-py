@@ -159,8 +159,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             },
         }
         requests[0]["body"]["payload"]["configuration"].sort(key=lambda c: c["name"])
-        seq_id = requests[0]["body"]["seq_id"]
-        assert requests[0]["body"] == _get_request_body(payload, "app-started", seq_id)
+        assert requests[0]["body"] == _get_request_body(payload, "app-started", 1)
 
 
 @pytest.mark.parametrize(
@@ -519,6 +518,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
     """asserts that an app-heartbeat event is sent on the 6th invocation of periodic"""
+    assert telemetry_writer.FLUSH_HEARTBEAT_COUNT == 6
     for i in range(6):
         telemetry_writer.periodic()
         events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)

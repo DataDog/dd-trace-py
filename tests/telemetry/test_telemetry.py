@@ -121,7 +121,7 @@ if os.fork() > 0:
 
     # Allow test agent session to capture all heartbeat events
     app_heartbeats = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
-    assert len(app_heartbeats) >= 1
+    assert len(app_heartbeats) > 0
     for hb in app_heartbeats:
         assert hb["runtime_id"] == runtime_id
 
