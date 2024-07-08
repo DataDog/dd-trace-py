@@ -1,4 +1,7 @@
+# See ../ddup/__init__.py for some discussion on the is_available attribute.
+# The configuration for this feature is handled in ddtrace/settings/crashtracker.py.
 is_available = False
+failure_msg = ""
 
 
 try:
@@ -7,7 +10,4 @@ try:
     is_available = True
 
 except Exception as e:
-    from ddtrace.internal.logger import get_logger
-
-    LOG = get_logger(__name__)
-    LOG.warning("Failed to import _crashtracker: %s", e)
+    failure_msg = str(e)
