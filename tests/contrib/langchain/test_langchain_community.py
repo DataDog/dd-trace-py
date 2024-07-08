@@ -1257,4 +1257,4 @@ def test_lcecl_chain_non_dict_input(langchain_core):
     multiply_two = langchain_core.runnables.RunnableLambda(lambda x: x * 2)
     sequence = add_one | multiply_two
 
-    sequence.invoke(1) # no external LLM calls made
+    sequence.invoke(1)
