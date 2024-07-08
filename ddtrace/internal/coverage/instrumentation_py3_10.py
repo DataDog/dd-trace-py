@@ -9,7 +9,8 @@ from ddtrace.internal.injection import HookType
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
-assert (3, 10) <= sys.version_info < (3, 11)
+# NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
+assert sys.version_info >= (3, 10) and sys.version_info < (3, 11)  # nosec
 
 
 class JumpDirection(int, Enum):
