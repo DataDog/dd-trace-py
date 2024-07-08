@@ -1,5 +1,4 @@
 import base64
-import dataclasses
 from datetime import datetime
 import enum
 import hashlib
@@ -15,6 +14,8 @@ from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 import uuid
 
+import attr
+import cattr
 from envier import En
 
 import ddtrace
@@ -84,148 +85,100 @@ class RemoteConfigError(Exception):
     """
 
 
-@dataclasses.dataclass
-class ConfigMetadata:
+@attr.s
+class ConfigMetadata(object):
     """
     Configuration TUF target metadata
     """
 
-    id: str
-    product_name: str
-    sha256_hash: Optional[str]
-    length: Optional[int]
-    tuf_version: Optional[int]
-    apply_state: Optional[int] = dataclasses.field(default=1, compare=False)
-    apply_error: Optional[str] = dataclasses.field(default=None, compare=False)
+    id = attr.ib(type=str)
+    product_name = attr.ib(type=str)
+    sha256_hash = attr.ib(type=Optional[str])
+    length = attr.ib(type=Optional[int])
+    tuf_version = attr.ib(type=Optional[int])
+    apply_state = attr.ib(type=Optional[int], default=1, eq=False)
+    apply_error = attr.ib(type=Optional[str], default=None, eq=False)
 
 
-@dataclasses.dataclass
-class Signature:
-    keyid: str
-    sig: str
+@attr.s
+class Signature(object):
+    keyid = attr.ib(type=str)
+    sig = attr.ib(type=str)
 
 
-@dataclasses.dataclass
-class Key:
-    keytype: str
-    keyid_hash_algorithms: List[str]
-    keyval: Mapping
-    scheme: str
+@attr.s
+class Key(object):
+    keytype = attr.ib(type=str)
+    keyid_hash_algorithms = attr.ib(type=List[str])
+    keyval = attr.ib(type=Mapping)
+    scheme = attr.ib(type=str)
 
 
-@dataclasses.dataclass
-class Role:
-    keyids: List[str]
-    threshold: int
+@attr.s
+class Role(object):
+    keyids = attr.ib(type=List[str])
+    threshold = attr.ib(type=int)
 
 
-@dataclasses.dataclass
-class Root:
-    _type: str
-    spec_version: str
-    consistent_snapshot: bool
-    expires: datetime
-    keys: Mapping[str, Key]
-    roles: Mapping[str, Role]
-    version: int
-
-    def __post_init__(self):
-        if self._type != "root":
-            raise ValueError("Root: invalid root type")
-        if isinstance(self.expires, str):
-            self.expires = parse_isoformat(self.expires)
-        for k, v in self.keys.items():
-            if isinstance(v, dict):
-                self.keys[k] = Key(**v)
-        for k, v in self.roles.items():
-            if isinstance(v, dict):
-                self.roles[k] = Role(**v)
+@attr.s
+class Root(object):
+    _type = attr.ib(type=str, validator=attr.validators.in_(("root",)))
+    spec_version = attr.ib(type=str)
+    consistent_snapshot = attr.ib(type=bool)
+    expires = attr.ib(type=datetime, converter=parse_isoformat)
+    keys = attr.ib(type=Mapping[str, Key])
+    roles = attr.ib(type=Mapping[str, Role])
+    version = attr.ib(type=int)
 
 
-@dataclasses.dataclass
-class SignedRoot:
-    signatures: List[Signature]
-    signed: Root
-
-    def __post_init__(self):
-        for i in range(len(self.signatures)):
-            if isinstance(self.signatures[i], dict):
-                self.signatures[i] = Signature(**self.signatures[i])
-        if isinstance(self.signed, dict):
-            self.signed = Root(**self.signed)
+@attr.s
+class SignedRoot(object):
+    signatures = attr.ib(type=List[Signature])
+    signed = attr.ib(type=Root)
 
 
-@dataclasses.dataclass
-class TargetDesc:
-    length: int
-    hashes: Mapping[str, str]
-    custom: Mapping[str, Any]
+@attr.s
+class TargetDesc(object):
+    length = attr.ib(type=int)
+    hashes = attr.ib(type=Mapping[str, str])
+    custom = attr.ib(type=Mapping[str, Any])
 
 
-@dataclasses.dataclass
-class Targets:
-    _type: str
-    custom: Mapping[str, Any]
-    expires: datetime
-    spec_version: str
-    targets: Mapping[str, TargetDesc]
-    version: int
-
-    def __post_init__(self):
-        if self._type != "targets":
-            raise ValueError("Targets: invalid targets type")
-        if self.spec_version not in ("1.0", "1.0.0"):
-            raise ValueError("Targets: invalid spec version")
-        if isinstance(self.expires, str):
-            self.expires = parse_isoformat(self.expires)
-        for k, v in self.targets.items():
-            if isinstance(v, dict):
-                self.targets[k] = TargetDesc(**v)
+@attr.s
+class Targets(object):
+    _type = attr.ib(type=str, validator=attr.validators.in_(("targets",)))
+    custom = attr.ib(type=Mapping[str, Any])
+    expires = attr.ib(type=datetime, converter=parse_isoformat)
+    spec_version = attr.ib(type=str, validator=attr.validators.in_(("1.0", "1.0.0")))
+    targets = attr.ib(type=Mapping[str, TargetDesc])
+    version = attr.ib(type=int)
 
 
-@dataclasses.dataclass
-class SignedTargets:
-    signatures: List[Signature]
-    signed: Targets
-
-    def __post_init__(self):
-        for i in range(len(self.signatures)):
-            if isinstance(self.signatures[i], dict):
-                self.signatures[i] = Signature(**self.signatures[i])
-        if isinstance(self.signed, dict):
-            self.signed = Targets(**self.signed)
+@attr.s
+class SignedTargets(object):
+    signatures = attr.ib(type=List[Signature])
+    signed = attr.ib(type=Targets)
 
 
-@dataclasses.dataclass
-class TargetFile:
-    path: str
-    raw: str
+@attr.s
+class TargetFile(object):
+    path = attr.ib(type=str)
+    raw = attr.ib(type=str)
 
 
-@dataclasses.dataclass
-class AgentPayload:
-    roots: Optional[List[SignedRoot]] = None
-    targets: Optional[SignedTargets] = None
-    target_files: List[TargetFile] = dataclasses.field(default_factory=list)
-    client_configs: Set[str] = dataclasses.field(default_factory=set)
-
-    def __post_init__(self):
-        if self.roots is not None:
-            for i in range(len(self.roots)):
-                if isinstance(self.roots[i], str):
-                    self.roots[i] = SignedRoot(**json.loads(base64.b64decode(self.roots[i])))
-        if isinstance(self.targets, str):
-            self.targets = SignedTargets(**json.loads(base64.b64decode(self.targets)))
-        for i in range(len(self.target_files)):
-            if isinstance(self.target_files[i], dict):
-                self.target_files[i] = TargetFile(**self.target_files[i])
+@attr.s
+class AgentPayload(object):
+    roots = attr.ib(type=List[SignedRoot], default=None)
+    targets = attr.ib(type=SignedTargets, default=None)
+    target_files = attr.ib(type=List[TargetFile], default=[])
+    client_configs = attr.ib(type=Set[str], default=set())
 
 
 AppliedConfigType = Dict[str, ConfigMetadata]
 TargetsType = Dict[str, ConfigMetadata]
 
 
-class RemoteConfigClient:
+class RemoteConfigClient(object):
     """
     The Remote Configuration client regularly checks for updates on the agent
     and dispatches configurations to registered products.
@@ -268,6 +221,21 @@ class RemoteConfigClient:
             tags=[":".join(_) for _ in tags.items()],
         )
         self.cached_target_files = []  # type: List[AppliedConfigType]
+        self.converter = cattr.Converter()
+
+        # cattrs doesn't implement datetime converter in Py27, we should register
+        def date_to_fromisoformat(val, cls):
+            return val
+
+        self.converter.register_structure_hook(datetime, date_to_fromisoformat)
+
+        def base64_to_struct(val, cls):
+            raw = base64.b64decode(val)
+            obj = json.loads(raw)
+            return self.converter.structure_attrs_fromdict(obj, cls)
+
+        self.converter.register_structure_hook(SignedRoot, base64_to_struct)
+        self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
         self._products = dict()  # type: MutableMapping[str, PubSub]
         self._applied_configs = dict()  # type: AppliedConfigType
@@ -577,7 +545,7 @@ class RemoteConfigClient:
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
         try:
-            payload = AgentPayload(**data)
+            payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
         except Exception as e:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             msg = f"invalid agent payload received: {e}"
@@ -586,8 +554,6 @@ class RemoteConfigClient:
         self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
 
         # 1. Deserialize targets
-        if payload.targets is None:
-            return
         last_targets_version, backend_state, targets = self._process_targets(payload)
         if last_targets_version is None or targets is None:
             return

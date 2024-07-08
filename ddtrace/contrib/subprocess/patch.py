@@ -1,5 +1,4 @@
 import collections
-from dataclasses import dataclass
 from fnmatch import fnmatch
 import os
 import re
@@ -12,6 +11,8 @@ from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
+
+import attr
 
 from ddtrace import Pin
 from ddtrace import config
@@ -69,14 +70,14 @@ def patch():
     return patched
 
 
-@dataclass(eq=False)
+@attr.s(eq=False)
 class SubprocessCmdLineCacheEntry(object):
-    binary: str = None
-    arguments: List = None
-    truncated: bool = False
-    env_vars: List = None
-    as_list: List = None
-    as_string: str = None
+    binary = attr.ib(type=str, default=None)
+    arguments = attr.ib(type=List, default=None)
+    truncated = attr.ib(type=bool, default=False)
+    env_vars = attr.ib(type=List, default=None)
+    as_list = attr.ib(type=List, default=None)
+    as_string = attr.ib(type=str, default=None)
 
 
 class SubprocessCmdLine(object):

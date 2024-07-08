@@ -1,11 +1,11 @@
 # -*- encoding: utf-8 -*-
-from dataclasses import dataclass
-from dataclasses import field
 import logging
 from math import ceil
 import os
 import threading
 import typing  # noqa:F401
+
+import attr
 
 
 try:
@@ -24,32 +24,32 @@ from ddtrace.settings.profiling import config
 LOG = logging.getLogger(__name__)
 
 
-@dataclass(**compat.dataclass_slots())
+@event.event_class
 class MemoryAllocSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size: int = 0
+    size = attr.ib(default=0, type=int)
     """Allocation size in bytes."""
 
-    capture_pct: float = 0
+    capture_pct = attr.ib(default=None, type=float)
     """The capture percentage."""
 
-    nevents: int = 0
+    nevents = attr.ib(default=0, type=int)
     """The total number of allocation events sampled."""
 
 
-@dataclass(**compat.dataclass_slots())
+@event.event_class
 class MemoryHeapSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size: int = 0
+    size = attr.ib(default=0, type=int)
     """Allocation size in bytes."""
 
-    sample_size: int = 0
+    sample_size = attr.ib(default=0, type=int)
     """The sampling size."""
 
 
-@dataclass(**compat.dataclass_slots())
+@attr.s
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
@@ -57,14 +57,14 @@ class MemoryCollector(collector.PeriodicCollector):
     _DEFAULT_INTERVAL = 0.5
 
     # Arbitrary interval to empty the _memalloc event buffer
-    _interval: float = field(default=_DEFAULT_INTERVAL, repr=False)
+    _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
 
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-    _max_events: int = config.memory.events_buffer
-    max_nframe: int = config.max_frames
-    heap_sample_size: int = config.heap.sample_size
-    ignore_profiler: bool = config.ignore_profiler
-    _export_libdd_enabled: bool = config.export.libdd_enabled
+    _max_events = attr.ib(type=int, default=config.memory.events_buffer)
+    max_nframe = attr.ib(default=config.max_frames, type=int)
+    heap_sample_size = attr.ib(type=int, default=config.heap.sample_size)
+    ignore_profiler = attr.ib(default=config.ignore_profiler, type=bool)
+    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
 
     def _start_service(self):
         # type: (...) -> None

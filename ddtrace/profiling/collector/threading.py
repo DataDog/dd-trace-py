@@ -1,20 +1,20 @@
 from __future__ import absolute_import
 
-from dataclasses import dataclass
 import threading
 import typing  # noqa:F401
 
-from ddtrace.internal.compat import dataclass_slots
+import attr
 
+from .. import event
 from . import _lock
 
 
-@dataclass(**dataclass_slots())
+@event.event_class
 class ThreadingLockAcquireEvent(_lock.LockAcquireEvent):
     """A threading.Lock has been acquired."""
 
 
-@dataclass(**dataclass_slots())
+@event.event_class
 class ThreadingLockReleaseEvent(_lock.LockReleaseEvent):
     """A threading.Lock has been released."""
 
@@ -24,7 +24,7 @@ class _ProfiledThreadingLock(_lock._ProfiledLock):
     RELEASE_EVENT_CLASS = ThreadingLockReleaseEvent
 
 
-@dataclass
+@attr.s
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 

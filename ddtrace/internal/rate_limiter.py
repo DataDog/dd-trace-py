@@ -1,12 +1,12 @@
 from __future__ import division
 
-from dataclasses import dataclass
-from dataclasses import field
 import random
 import threading
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
+
+import attr
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
@@ -37,7 +37,7 @@ class RateLimitExceeded(Exception):
     pass
 
 
-@dataclass
+@attr.s
 class BudgetRateLimiterWithJitter(object):
     """A budget rate limiter with jitter.
 
@@ -61,17 +61,17 @@ class BudgetRateLimiterWithJitter(object):
     budget of ``1``.
     """
 
-    limit_rate: float
-    tau: float = 1.0
-    raise_on_exceed: bool = True
-    on_exceed: Optional[Callable[[], None]] = None
-    call_once: bool = False
-    budget: float = field(init=False)
-    max_budget: float = field(init=False)
-    last_time: float = field(init=False, default_factory=compat.monotonic)
-    _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
+    limit_rate = attr.ib(type=float)
+    tau = attr.ib(type=float, default=1.0)
+    raise_on_exceed = attr.ib(type=bool, default=True)
+    on_exceed = attr.ib(type=Callable, default=None)
+    call_once = attr.ib(type=bool, default=False)
+    budget = attr.ib(type=float, init=False)
+    max_budget = attr.ib(type=float, init=False)
+    last_time = attr.ib(type=float, init=False, factory=compat.monotonic)
+    _lock = attr.ib(type=threading.Lock, init=False, factory=threading.Lock)
 
-    def __post_init__(self):
+    def __attrs_post_init__(self):
         if self.limit_rate == float("inf"):
             self.budget = self.max_budget = float("inf")
         elif self.limit_rate:

@@ -1,10 +1,10 @@
-from dataclasses import dataclass
 import logging
+
+import attr
 
 import ddtrace
 from ddtrace import config
 
-from ...internal.compat import dataclass_slots
 from ...internal.utils import get_argument_value
 from ...vendor.wrapt import wrap_function_wrapper as _w
 from ..trace_utils import unwrap as _u
@@ -32,13 +32,13 @@ def get_version():
     return getattr(logging, "__version__", "")
 
 
-@dataclass(**dataclass_slots())
+@attr.s(slots=True)
 class DDLogRecord(object):
-    trace_id: int
-    span_id: int
-    service: str
-    version: str
-    env: str
+    trace_id = attr.ib(type=int)
+    span_id = attr.ib(type=int)
+    service = attr.ib(type=str)
+    version = attr.ib(type=str)
+    env = attr.ib(type=str)
 
 
 def _get_current_span(tracer=None):
