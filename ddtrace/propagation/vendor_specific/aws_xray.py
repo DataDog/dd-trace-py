@@ -118,15 +118,13 @@ class _AwsXRayPropagator:
 
         parent_id = f"{span_context.span_id:016x}"
 
-        sampling_flag = IS_SAMPLED if span_context.sampled else NOT_SAMPLED
-
         trace_header = KV_PAIR_DELIMITER.join(
             [
                 KEY_AND_VALUE_DELIMITER.join([key, value])
                 for key, value in [
                     (TRACE_ID_KEY, xray_trace_id),
                     (PARENT_ID_KEY, parent_id),
-                    (SAMPLED_FLAG_KEY, sampling_flag),
+                    (SAMPLED_FLAG_KEY, str(int(span_context.sampling_priority))),
                 ]
             ]
         )
