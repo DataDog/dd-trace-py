@@ -128,10 +128,10 @@ class ASMConfig(Env):
     )
 
     _asm_obfuscation_parameter_key_regexp = Env.var(
-        bytes, APPSEC.OBFUSCATION_PARAMETER_KEY_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+        str, APPSEC.OBFUSCATION_PARAMETER_KEY_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
     )
     _asm_obfuscation_parameter_value_regexp = Env.var(
-        bytes, APPSEC.OBFUSCATION_PARAMETER_VALUE_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
+        str, APPSEC.OBFUSCATION_PARAMETER_VALUE_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
     )
 
     _iast_redaction_enabled = Env.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)

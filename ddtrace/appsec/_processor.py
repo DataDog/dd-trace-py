@@ -142,8 +142,8 @@ class AppSecSpanProcessor(SpanProcessor):
     def __post_init__(self) -> None:
         from ddtrace.appsec._ddwaf import DDWaf
 
-        self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp
-        self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp
+        self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
+        self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
 
         try:
             with open(self.rules, "r") as f:

@@ -379,14 +379,14 @@ def test_ddwaf_not_raises_exception():
 
 
 def test_obfuscation_parameter_key_empty():
-    with override_global_config(dict(_asm_obfuscation_parameter_key_regexp=b"")):
+    with override_global_config(dict(_asm_obfuscation_parameter_key_regexp="")):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
 
 
 def test_obfuscation_parameter_value_empty():
-    with override_global_config(dict(_asm_obfuscation_parameter_value_regexp=b"")):
+    with override_global_config(dict(_asm_obfuscation_parameter_value_regexp="")):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
@@ -394,7 +394,7 @@ def test_obfuscation_parameter_value_empty():
 
 def test_obfuscation_parameter_key_and_value_empty():
     with override_global_config(
-        dict(_asm_obfuscation_parameter_key_regexp=b"", _asm_obfuscation_parameter_value_regexp=b"")
+        dict(_asm_obfuscation_parameter_key_regexp="", _asm_obfuscation_parameter_value_regexp="")
     ):
         processor = AppSecSpanProcessor()
 
@@ -402,14 +402,14 @@ def test_obfuscation_parameter_key_and_value_empty():
 
 
 def test_obfuscation_parameter_key_invalid_regex():
-    with override_global_config(dict(_asm_obfuscation_parameter_key_regexp=b"()")):
+    with override_global_config(dict(_asm_obfuscation_parameter_key_regexp="(")):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
 
 
 def test_obfuscation_parameter_invalid_regex():
-    with override_global_config(dict(_asm_obfuscation_parameter_value_regexp=b"()")):
+    with override_global_config(dict(_asm_obfuscation_parameter_value_regexp="(")):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
@@ -417,7 +417,7 @@ def test_obfuscation_parameter_invalid_regex():
 
 def test_obfuscation_parameter_key_and_value_invalid_regex():
     with override_global_config(
-        dict(_asm_obfuscation_parameter_key_regexp=b"(", _asm_obfuscation_parameter_value_regexp=b"(")
+        dict(_asm_obfuscation_parameter_key_regexp="(", _asm_obfuscation_parameter_value_regexp="(")
     ):
         processor = AppSecSpanProcessor()
 
@@ -464,7 +464,7 @@ def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec, key):
 
 
 def test_obfuscation_parameter_value_configured_not_matching(tracer):
-    with override_global_config(dict(_asm_enabled=True, _asm_obfuscation_parameter_value_regexp=b"token")):
+    with override_global_config(dict(_asm_enabled=True, _asm_obfuscation_parameter_value_regexp="token")):
         _enable_appsec(tracer)
 
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -485,7 +485,7 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
 
 
 def test_obfuscation_parameter_value_configured_matching(tracer):
-    with override_global_config(dict(_asm_enabled=True, _asm_obfuscation_parameter_value_regexp=b"token")):
+    with override_global_config(dict(_asm_enabled=True, _asm_obfuscation_parameter_value_regexp="token")):
         _enable_appsec(tracer)
 
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
