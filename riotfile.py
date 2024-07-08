@@ -2500,7 +2500,6 @@ venv = Venv(
                         "langchain-core": "==0.1.52",
                         "langchain-openai": "==0.1.6",
                         "langchain-anthropic": "==0.1.11",
-                        "langchain-pinecone": "==0.1.0",
                         "langchain-aws": "==0.1.3",
                         "langchain-cohere": "==0.1.4",
                         "openai": "==1.30.3",

@@ -1250,7 +1250,7 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
 
 
 @pytest.mark.snapshot
-def test_lcecl_chain_non_dict_input(langchain_core):
+def test_lcel_chain_non_dict_input(langchain_core):
     """
     Tests that non-dict inputs (specifically also non-string) are stringified properly
     """
@@ -1259,3 +1259,14 @@ def test_lcecl_chain_non_dict_input(langchain_core):
     sequence = add_one | multiply_two
 
     sequence.invoke(1)
+
+
+@pytest.mark.snapshot
+def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, request_vcr):
+    with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
+        faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
+            ["Quiet Platforms has 7 facilities across the USA"],
+            embedding=langchain_openai.OpenAIEmbeddings(),
+        )
+        retriever = faiss.as_retriever()
+        retriever.invoke("How many platforms does Quiet Platforms have in the US?")
