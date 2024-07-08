@@ -47,7 +47,7 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote", "trace_flags"]
+    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote"]
 
     def __init__(
         self,
@@ -69,7 +69,6 @@ class Context(object):
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
         self._is_remote = is_remote  # type: bool
-        self.trace_flags = True
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[ORIGIN_KEY] = dd_origin
@@ -281,8 +280,5 @@ class Context(object):
             self._baggage,
             self._is_remote,
         )
-
-    def is_valid(self):
-        return True
 
     __str__ = __repr__
