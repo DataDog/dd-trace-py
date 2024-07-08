@@ -5,20 +5,9 @@
 # considerable amount of binary size, # and it's cumbersome to set an RPATH on that dependency from a different location
 
 import os
-from functools import wraps
 
 from ..types import StringType
 from ..util import ensure_binary_or_empty
-
-
-def raise_if_unimplementable(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except ImportError:
-            raise NotImplementedError(f"{func.__name__} is not implemented")
-    return wrapper
 
 
 cdef extern from "<string_view>" namespace "std" nogil:
@@ -52,86 +41,71 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_start()
 
 
-@raise_if_unimplementable
 def set_url(url: StringType) -> None:
     url_bytes = ensure_binary_or_empty(url)
     crashtracker_set_url(string_view(<const char*>url_bytes, len(url_bytes)))
 
 
-@raise_if_unimplementable
 def set_service(service: StringType) -> None:
     service_bytes = ensure_binary_or_empty(service)
     crashtracker_set_service(string_view(<const char*>service_bytes, len(service_bytes)))
 
 
-@raise_if_unimplementable
 def set_env(env: StringType) -> None:
     env_bytes = ensure_binary_or_empty(env)
     crashtracker_set_env(string_view(<const char*>env_bytes, len(env_bytes)))
 
 
-@raise_if_unimplementable
 def set_version(version: StringType) -> None:
     version_bytes = ensure_binary_or_empty(version)
     crashtracker_set_version(string_view(<const char*>version_bytes, len(version_bytes)))
 
 
-@raise_if_unimplementable
 def set_runtime(runtime: StringType) -> None:
     runtime_bytes = ensure_binary_or_empty(runtime)
     crashtracker_set_runtime(string_view(<const char*>runtime_bytes, len(runtime_bytes)))
 
 
-@raise_if_unimplementable
 def set_runtime_version(runtime_version: StringType) -> None:
     runtime_version_bytes = ensure_binary_or_empty(runtime_version)
     crashtracker_set_runtime_version(string_view(<const char*>runtime_version_bytes, len(runtime_version_bytes)))
 
 
-@raise_if_unimplementable
 def set_library_version(library_version: StringType) -> None:
     library_version_bytes = ensure_binary_or_empty(library_version)
     crashtracker_set_library_version(string_view(<const char*>library_version_bytes, len(library_version_bytes)))
 
 
-@raise_if_unimplementable
 def set_stdout_filename(filename: StringType) -> None:
     filename_bytes = ensure_binary_or_empty(filename)
     crashtracker_set_stdout_filename(string_view(<const char*>filename_bytes, len(filename_bytes)))
 
 
-@raise_if_unimplementable
 def set_stderr_filename(filename: StringType) -> None:
     filename_bytes = ensure_binary_or_empty(filename)
     crashtracker_set_stderr_filename(string_view(<const char*>filename_bytes, len(filename_bytes)))
 
 
-@raise_if_unimplementable
 def set_alt_stack(alt_stack: bool) -> None:
     crashtracker_set_alt_stack(alt_stack)
 
 
-@raise_if_unimplementable
 def set_resolve_frames_disable() -> None:
     crashtracker_set_resolve_frames_disable()
 
 
-@raise_if_unimplementable
 def set_resolve_frames_fast() -> None:
     crashtracker_set_resolve_frames_fast()
 
 
-@raise_if_unimplementable
 def set_resolve_frames_full() -> None:
     crashtracker_set_resolve_frames_full()
 
 
-@raise_if_unimplementable
 def set_resolve_frames_safe() -> None:
     crashtracker_set_resolve_frames_safe()
 
 
-@raise_if_unimplementable
 def set_profiling_state_sampling(on: bool) -> None:
     if on:
         crashtracker_profiling_state_sampling_start()
@@ -139,7 +113,6 @@ def set_profiling_state_sampling(on: bool) -> None:
         crashtracker_profiling_state_sampling_stop()
 
 
-@raise_if_unimplementable
 def set_profiling_state_unwinding(on: bool) -> None:
     if on:
         crashtracker_profiling_state_unwinding_start()
@@ -147,7 +120,6 @@ def set_profiling_state_unwinding(on: bool) -> None:
         crashtracker_profiling_state_unwinding_stop()
 
 
-@raise_if_unimplementable
 def set_profiling_state_serializing(on: bool) -> None:
     if on:
         crashtracker_profiling_state_serializing_start()
@@ -155,7 +127,6 @@ def set_profiling_state_serializing(on: bool) -> None:
         crashtracker_profiling_state_serializing_stop()
 
 
-@raise_if_unimplementable
 def start() -> bool:
     # The file is "crashtracker_exe" in the same directory as the libdd_wrapper.so
     exe_dir = os.path.dirname(__file__)
