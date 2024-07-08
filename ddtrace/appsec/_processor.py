@@ -144,12 +144,10 @@ class AppSecSpanProcessor(SpanProcessor):
 
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp
-        assert isinstance(self.obfuscation_parameter_key_regexp, bytes)
 
         try:
             with open(self.rules, "r") as f:
                 rules = json.load(f)
-
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
                 log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules)
