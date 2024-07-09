@@ -152,11 +152,11 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
             _custom_protobuf_getattribute(mutable_mapping, "data")
 
     def test_address_server_data(self):
-        with override_env({"DD_IAST_ENABLED": "True"}):
-            with override_global_config(dict(_asm_enabled=True)):
-                with override_config("grpc", dict(service_name="myclientsvc")):
-                    with override_config("grpc_server", dict(service_name="myserversvc")):
-                        with mock.patch("ddtrace.appsec._asm_request_context.set_waf_address") as mock_set_waf_addr:
+        with override_env({"DD_IAST_ENABLED": "True"}), \
+             override_global_config(dict(_asm_enabled=True)), \
+             override_config("grpc", dict(service_name="myclientsvc")), \
+             override_config("grpc_server", dict(service_name="myserversvc")):
+            with mock.patch("ddtrace.appsec._asm_request_context.set_waf_address") as mock_set_waf_addr:
                             channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
                             stub1 = HelloStub(channel1)
                             res = stub1.SayHello(HelloRequest(name="test"))
