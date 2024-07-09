@@ -502,3 +502,5 @@ if PYTHON_VERSION_INFO >= (3, 10):
     import dataclasses
 else:
     from ddtrace.vendor import dataclasses  # type: ignore[no-redef]
+
+sys.modules["dataclasses"] = dataclasses
