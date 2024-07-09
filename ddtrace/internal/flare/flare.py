@@ -12,7 +12,7 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace._logger import _add_file_handler
-from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 
@@ -27,7 +27,7 @@ DEFAULT_TIMEOUT_SECONDS = 5
 log = get_logger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class FlareSendRequest:
     case_id: str
     hostname: str

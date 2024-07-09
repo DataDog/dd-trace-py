@@ -5,8 +5,7 @@ from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 
-from .internal.compat.dataclasses import dataclass
-from .internal.compat.dataclasses import field
+from .internal.compat import dataclasses
 from .internal.logger import get_logger
 
 
@@ -18,7 +17,7 @@ except ImportError:
 log = get_logger(__name__)
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class Hooks(object):
     """
     Hooks configuration object is used for registering and calling hook functions
@@ -30,7 +29,7 @@ class Hooks(object):
             pass
     """
 
-    _hooks: DefaultDict[str, Set] = field(init=False, default_factory=lambda: collections.defaultdict(set))
+    _hooks: DefaultDict[str, Set] = dataclasses.field(init=False, default_factory=lambda: collections.defaultdict(set))
 
     def __deepcopy__(self, memodict=None):
         hooks = Hooks()

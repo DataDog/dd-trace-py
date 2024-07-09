@@ -3,7 +3,7 @@ import logging
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
-from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
@@ -13,7 +13,7 @@ from ddtrace.settings.profiling import config
 LOG = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class Scheduler(periodic.PeriodicService):
     """Schedule export of recorded data."""
 
@@ -76,7 +76,7 @@ class Scheduler(periodic.PeriodicService):
             self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
 
 
-@dataclass
+@dataclasses.dataclass
 class ServerlessScheduler(Scheduler):
     """Serverless scheduler that works on, e.g., AWS Lambda.
 

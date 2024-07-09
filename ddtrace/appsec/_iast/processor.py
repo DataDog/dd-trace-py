@@ -7,7 +7,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.logger import get_logger
 
 from .._trace_utils import _asm_manual_keep
@@ -22,7 +22,7 @@ from .reporter import IastSpanReporter
 log = get_logger(__name__)
 
 
-@dataclass(eq=False)
+@dataclasses.dataclass(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
     @staticmethod
     def is_span_analyzed(span: Optional[Span] = None) -> bool:
