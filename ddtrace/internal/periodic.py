@@ -4,9 +4,9 @@ import typing  # noqa:F401
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal._threads import PeriodicThread
 from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal.compat import dataclasses
 
 
 @atexit.register
