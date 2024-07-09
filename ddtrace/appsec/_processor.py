@@ -67,16 +67,6 @@ def get_rules() -> str:
     return asm_config._asm_static_rule_file or DEFAULT.RULES
 
 
-def get_appsec_obfuscation_parameter_key_regexp() -> bytes:
-    return os.getenvb(b"DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
-
-
-def get_appsec_obfuscation_parameter_value_regexp() -> bytes:
-    return os.getenvb(
-        b"DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
-    )
-
-
 _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",
     "content-type",
@@ -139,12 +129,8 @@ def _get_rate_limiter() -> RateLimiter:
 @dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
     rules: str = dataclasses.field(default_factory=get_rules)
-    obfuscation_parameter_key_regexp: bytes = dataclasses.field(
-        default_factory=get_appsec_obfuscation_parameter_key_regexp
-    )
-    obfuscation_parameter_value_regexp: bytes = dataclasses.field(
-        default_factory=get_appsec_obfuscation_parameter_value_regexp
-    )
+    obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
+    obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
     _span_to_waf_ctx: weakref.WeakKeyDictionary = dataclasses.field(default_factory=weakref.WeakKeyDictionary)
@@ -156,10 +142,12 @@ class AppSecSpanProcessor(SpanProcessor):
     def __post_init__(self) -> None:
         from ddtrace.appsec._ddwaf import DDWaf
 
+        self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
+        self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
+
         try:
             with open(self.rules, "r") as f:
                 rules = json.load(f)
-
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
                 log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules)
