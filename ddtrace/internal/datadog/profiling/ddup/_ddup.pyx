@@ -3,7 +3,6 @@
 
 import platform
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -118,6 +117,7 @@ cdef int64_t clamp_to_int64_unsigned(value):
     if value > INT64_MAX:
         return INT64_MAX
     return value
+
 
 # Public API
 def config(
