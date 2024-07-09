@@ -25,6 +25,12 @@ class Sample
     SampleType type_mask;
     std::string errmsg;
 
+    // Timeline support works by endowing each sample with a timestamp. Collection of this data this data is cheap, but
+    // due to the underlying pprof format, timeline support increases the sample cardinality. Rather than switching
+    // around the frontend code too much, we push enablement down to whether or not timestamps get added to samples (a
+    // 0 value suppresses the tag). However, Sample objects are short-lived, so we make the flag static.
+    static inline bool timeline_enabled = false;
+
     // Keeps temporary buffer of frames in the stack
     std::vector<ddog_prof_Location> locations;
     size_t dropped_frames = 0;
@@ -37,7 +43,7 @@ class Sample
     std::vector<int64_t> values = {};
 
     // Additional metadata
-    int64_t endtime_ns = 0; // end time for the event
+    int64_t endtime_ns = 0; // end of the event
 
   public:
     // Helpers
@@ -68,6 +74,11 @@ class Sample
     bool push_trace_resource_container(std::string_view trace_resource_container);
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
     bool push_class_name(std::string_view class_name);
+    bool push_monotonic_ns(int64_t monotonic_ns);
+
+    // Interacts with static Sample state
+    bool is_timeline_enabled() const;
+    static void set_timeline(bool enabled);
 
     // Pytorch GPU metadata
     bool push_gpu_device_name(std::string_view device_name);

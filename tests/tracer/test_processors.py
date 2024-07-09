@@ -393,9 +393,9 @@ def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
     tracer = Tracer()
     # get processor
     for aggregator in tracer._deferred_processors:
-        if type(aggregator) == SpanAggregator:
+        if type(aggregator) is SpanAggregator:
             for processor in aggregator._trace_processors:
-                if type(processor) == TraceSamplingProcessor:
+                if type(processor) is TraceSamplingProcessor:
                     sampling_processor = processor
 
     assert sampling_processor.sampler is tracer._sampler
@@ -588,11 +588,11 @@ def assert_span_sampling_decision_tags(
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
     for aggregator in tracer._deferred_processors:
-        if type(aggregator) == SpanAggregator:
+        if type(aggregator) is SpanAggregator:
             i = 0
             while i < len(aggregator._trace_processors):
                 processor = aggregator._trace_processors[i]
-                if type(processor) == TraceSamplingProcessor:
+                if type(processor) is TraceSamplingProcessor:
                     aggregator._trace_processors[i] = sampling_processor
                     break
                 i += 1
@@ -692,3 +692,20 @@ def test_register_unregister_span_processor():
     with tracer.trace("test") as span:
         assert span.get_tag("on_start") is None
     assert span.get_tag("on_finish") is None
+
+
+def _stderr_contains_log(stderr: str) -> bool:
+    return "finished span not connected to a trace" in stderr
+
+
+@pytest.mark.subprocess(
+    err=_stderr_contains_log, env=dict(DD_TRACE_DEBUG="true", DD_API_KEY="test", DD_CIVISIBILITY_AGENTLESS_ENABLED=None)
+)
+def test_tracer_reconfigured_with_active_span_does_not_crash():
+    import ddtrace
+
+    with ddtrace.tracer.trace("regression1") as exploding_span:
+        # Reconfiguring the tracer clears active traces
+        # Calling .finish() manually bypasses the code that catches the exception
+        ddtrace.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=1)
+        exploding_span.finish()

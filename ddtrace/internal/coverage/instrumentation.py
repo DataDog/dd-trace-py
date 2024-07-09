@@ -2,7 +2,7 @@ from types import CodeType
 import typing as t
 
 from bytecode import Bytecode
-from bytecode import instr as bytecode_instr
+from bytecode import Instr
 
 from ddtrace.internal.injection import INJECTION_ASSEMBLY
 from ddtrace.internal.injection import HookType
@@ -15,7 +15,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
 
     last_lineno = None
     for i, instr in enumerate(abstract_code):
-        if isinstance(instr, bytecode_instr.Label):
+        if not isinstance(instr, Instr):
             continue
 
         try:

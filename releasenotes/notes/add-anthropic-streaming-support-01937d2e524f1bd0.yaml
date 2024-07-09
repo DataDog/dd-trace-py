@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Anthropic: Adds support for tracing synchronous and asynchronous message streaming.
+  - |
+    LLM Observability: Adds support for tracing synchronous and asynchronous message streaming.

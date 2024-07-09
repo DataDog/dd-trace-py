@@ -43,6 +43,7 @@ class APPSEC(metaclass=Constant_Class):
 
     ENV = "DD_APPSEC_ENABLED"
     STANDALONE_ENV = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
+    RULE_FILE = "DD_APPSEC_RULES"
     ENABLED = "_dd.appsec.enabled"
     JSON = "_dd.appsec.json"
     STRUCT = "appsec"
@@ -68,11 +69,15 @@ class APPSEC(metaclass=Constant_Class):
     AUTO_LOGIN_EVENTS_FAILURE_MODE = "_dd.appsec.events.users.login.failure.auto.mode"
     BLOCKED = "appsec.blocked"
     EVENT = "appsec.event"
-    AUTOMATIC_USER_EVENTS_TRACKING = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
+    AUTOMATIC_USER_EVENTS_TRACKING = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"  # DEPRECATED
+    AUTO_USER_INSTRUMENTATION_MODE = "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
+    AUTO_USER_INSTRUMENTATION_MODE_ENABLED = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"
     USER_MODEL_LOGIN_FIELD = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD = "DD_USER_MODEL_NAME_FIELD"
     PROPAGATION_HEADER = "_dd.p.appsec"
+    OBFUSCATION_PARAMETER_KEY_REGEXP = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
+    OBFUSCATION_PARAMETER_VALUE_REGEXP = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
 
 
 class IAST(metaclass=Constant_Class):
@@ -157,6 +162,10 @@ class SPAN_DATA_NAMES(metaclass=Constant_Class):
     RESPONSE_STATUS = "http.response.status"
     RESPONSE_HEADERS_NO_COOKIES = RESPONSE_HEADERS
     RESPONSE_BODY = "http.response.body"
+    GRPC_SERVER_REQUEST_MESSAGE = "grpc.server.request.message"
+    GRPC_SERVER_RESPONSE_MESSAGE = "grpc.server.response.message"
+    GRPC_SERVER_REQUEST_METADATA = "grpc.server.request.metadata"
+    GRPC_SERVER_METHOD = "grpc.server.method"
 
 
 class API_SECURITY(metaclass=Constant_Class):
@@ -217,17 +226,18 @@ class PRODUCTS(metaclass=Constant_Class):
 class LOGIN_EVENTS_MODE(metaclass=Constant_Class):
     """
     string identifier for the mode of the user login events. Can be:
-    DISABLED: automatic login events are disabled.
-    SAFE: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
+    DISABLED: automatic login events are disabled. Can still be enabled by Remote Config.
+    ANONYMIZATION: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
     EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
     email, ...).
     SDK: manually issued login events using the SDK.
     """
 
     DISABLED = "disabled"
-    SAFE = "safe"
-    EXTENDED = "extended"
+    IDENT = "identification"
+    ANON = "anonymization"
     SDK = "sdk"
+    AUTO = "auto"
 
 
 class DEFAULT(metaclass=Constant_Class):
@@ -236,15 +246,16 @@ class DEFAULT(metaclass=Constant_Class):
     TRACE_RATE_LIMIT = 100
     WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
-        rb"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?"
-        rb"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization"
+        r"(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer[_-]?"
+        r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\.net[_-]sessionid|sid|jwt"
     )
     APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
-        rb"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)"
-        rb"key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)"
-        rb'(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}'
-        rb"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
-        rb"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
+        r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
+        r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
+        r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
+        r'(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}'
+        r"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
+        r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
     )
 
 

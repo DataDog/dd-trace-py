@@ -117,6 +117,7 @@ class _ProfilerInstance(service.Service):
     agentless = attr.ib(type=bool, default=config.agentless)
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
     _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
+    _stack_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
     _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
     _pytorch_collector_enabled = attr.ib(type=bool, default=config.pytorch.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
@@ -172,14 +173,10 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
-        # Did the user request the libdd collector?  Better log it.
-        if self._export_libdd_enabled:
-            LOG.debug("The libdd collector is enabled")
-
         # Build the list of enabled Profiling features and send along as a tag
         configured_features = []
         if self._stack_collector_enabled:
-            if config.stack.v2_enabled:
+            if self._stack_v2_enabled:
                 configured_features.append("stack_v2")
             else:
                 configured_features.append("stack")
@@ -207,26 +204,17 @@ class _ProfilerInstance(service.Service):
         # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
         if self._export_libdd_enabled:
             try:
-                enabled_types = [""] + [
-                    collector
-                    for collector, enabled in [
-                        ("stack", self._stack_collector_enabled),
-                        ("lock", self._lock_collector_enabled),
-                        ("memory", self._memory_collector_enabled),
-                        ("pytorch", self._pytorch_collector_enabled),
-                    ]
-                    if enabled
-                ]
-
-                ddup.init(
+                ddup.config(
                     env=self.env,
                     service=self.service,
                     version=self.version,
                     tags=self.tags,  # type: ignore
                     max_nframes=config.max_frames,
                     url=endpoint,
-                    types=enabled_types,
+                    timeline_enabled=config.timeline_enabled,
                 )
+                ddup.start()
+
                 return []
             except Exception as e:
                 # If we're here, then the libdatadog upload failed to initialize.  This means we need to disable any
@@ -235,10 +223,16 @@ class _ProfilerInstance(service.Service):
                 self._export_libdd_enabled = False
                 config.export.libdd_enabled = False
 
-                # Now disable any other features
-                config.stack.v2_enabled = False
-                config.pytorch.enabled = False
-                self._pytorch_collector_enabled = False
+                # also disable other features that might be enabled
+                if self._stack_v2_enabled:
+                    LOG.error("Disabling stack_v2 as libdd collector failed to initialize")
+                    self._stack_v2_enabled = False
+                    config.stack.v2_enabled = False
+
+                # pytorch collector relies on libdd exporter
+                if self._pytorch_collector_enabled:
+                    config.pytorch.enabled = False
+                    self._pytorch_collector_enabled = False
 
         # DEV: Import this only if needed to avoid importing protobuf
         # unnecessarily

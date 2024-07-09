@@ -1,4 +1,9 @@
-from .utils import sanitize_string  # noqa: F401
+# This module supports an optional feature.  It may not even load on all platforms or configurations.
+# In ddtrace/settings/profiling.py, this module is imported and the is_available attribute is checked to determine
+# whether the feature is available. If not, then the feature is disabled and all downstream consumption is
+# suppressed.
+is_available = False
+failure_msg = ""
 
 
 try:
@@ -7,6 +12,7 @@ try:
     is_available = True
 
 except Exception as e:
+<<<<<<< HEAD
     from typing import Dict  # noqa:F401
     from typing import Optional  # noqa:F401
 
@@ -113,3 +119,6 @@ except Exception as e:
         @not_implemented
         def flush_sample(self):  # type: () -> None
             pass
+=======
+    failure_msg = str(e)
+>>>>>>> main

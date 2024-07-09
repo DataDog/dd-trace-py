@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import anthropic as anthropic_module
 import pytest
 
@@ -37,7 +39,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
 
 
 @pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
-def test_anthropic_llm_sync(anthropic, request_vcr):
+def test_anthropic_llm_sync_create(anthropic, request_vcr):
     llm = anthropic.Anthropic()
     with request_vcr.use_cassette("anthropic_completion.yaml"):
         llm.messages.create(
@@ -58,6 +60,37 @@ def test_anthropic_llm_sync(anthropic, request_vcr):
 
 
 @pytest.mark.snapshot(
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_create_image", ignores=["resource"]
+)
+def test_anthropic_llm_sync_create_image(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_create_image.yaml"):
+        llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Hello, what do you see in the following image?",
+                        },
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": Path(__file__).parent.joinpath("images/bits.png"),
+                            },
+                        },
+                    ],
+                },
+            ],
+        )
+
+
+@pytest.mark.snapshot(
     token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts", ignores=["resource"]
 )
 def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
@@ -67,12 +100,13 @@ def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
             model="claude-3-opus-20240229",
             max_tokens=15,
             system="Respond only in all caps.",
+            temperature=0.8,
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": "Hello, I am looking for information about some books!"},
-                        {"type": "text", "text": "Can you explain what Descartes meant by 'I think, therefore I am'?"},
+                        {"type": "text", "text": "What is the best selling book?"},
                     ],
                 }
             ],
@@ -147,6 +181,32 @@ def test_anthropic_llm_sync_stream(anthropic, request_vcr):
             pass
 
 
+@pytest.mark.snapshot(
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper", ignores=["resource"]
+)
+def test_anthropic_llm_sync_stream_helper(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
+        with llm.messages.stream(
+            max_tokens=15,
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                }
+            ],
+            model="claude-3-opus-20240229",
+        ) as stream:
+            for _ in stream.text_stream:
+                pass
+
+        message = stream.get_final_message()
+        assert message is not None
+
+        message = stream.get_final_text()
+        assert message is not None
+
+
 @pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"])
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
 def test_anthropic_llm_sync_tools(anthropic, request_vcr):
@@ -155,10 +215,50 @@ def test_anthropic_llm_sync_tools(anthropic, request_vcr):
         message = llm.messages.create(
             model="claude-3-opus-20240229",
             max_tokens=200,
-            messages=[{"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"}],
+            messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
             tools=tools,
         )
         assert message is not None
+
+
+@pytest.mark.snapshot(
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use", ignores=["resource"]
+)
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+def test_anthropic_llm_sync_tools_full_use(anthropic, request_vcr, snapshot_context):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_completion_tools.yaml"):
+        message = llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=200,
+            messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+            tools=tools,
+        )
+        assert message is not None
+
+    tool = next(c for c in message.content if c.type == "tool_use")
+    with request_vcr.use_cassette("anthropic_completion_tools_call_with_tool_result.yaml"):
+        if message.stop_reason == "tool_use":
+            response = llm.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=500,
+                messages=[
+                    {"role": "user", "content": "What is the weather in San Francisco, CA?"},
+                    {"role": "assistant", "content": message.content},
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool.id,
+                                "content": [{"type": "text", "text": "The weather is 73f"}],
+                            }
+                        ],
+                    },
+                ],
+                tools=tools,
+            )
+            assert response is not None
 
 
 # Async tests
@@ -192,10 +292,8 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
 
 
 @pytest.mark.asyncio
-async def test_anthropic_llm_async_basic(anthropic, request_vcr, snapshot_context):
-    with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_basic", ignores=["resource"]
-    ):
+async def test_anthropic_llm_async_create(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"]):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion.yaml"):
             await llm.messages.create(
@@ -227,6 +325,7 @@ async def test_anthropic_llm_async_multiple_prompts(anthropic, request_vcr, snap
                 model="claude-3-opus-20240229",
                 max_tokens=15,
                 system="Respond only in all caps.",
+                temperature=0.8,
                 messages=[
                     {
                         "role": "user",
@@ -234,7 +333,7 @@ async def test_anthropic_llm_async_multiple_prompts(anthropic, request_vcr, snap
                             {"type": "text", "text": "Hello, I am looking for information about some books!"},
                             {
                                 "type": "text",
-                                "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                                "text": "What is the best selling book?",
                             },
                         ],
                     }
@@ -316,7 +415,35 @@ async def test_anthropic_llm_async_stream(anthropic, request_vcr, snapshot_conte
                 pass
 
 
+@pytest.mark.asyncio
+async def test_anthropic_llm_async_stream_helper(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
+            async with llm.messages.stream(
+                max_tokens=15,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                    }
+                ],
+                model="claude-3-opus-20240229",
+            ) as stream:
+                async for _ in stream.text_stream:
+                    pass
+
+            message = await stream.get_final_message()
+            assert message is not None
+
+            message = await stream.get_final_text()
+            assert message is not None
+
+
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
 async def test_anthropic_llm_async_tools(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"]
@@ -326,7 +453,137 @@ async def test_anthropic_llm_async_tools(anthropic, request_vcr, snapshot_contex
             message = await llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=200,
-                messages=[{"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"}],
+                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
                 tools=tools,
             )
             assert message is not None
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
+async def test_anthropic_llm_async_tools_full_use(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools.yaml"):
+            message = await llm.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                tools=tools,
+            )
+            assert message is not None
+
+        tool = next(c for c in message.content if c.type == "tool_use")
+        with request_vcr.use_cassette("anthropic_completion_tools_call_with_tool_result.yaml"):
+            if message.stop_reason == "tool_use":
+                response = await llm.messages.create(
+                    model="claude-3-opus-20240229",
+                    max_tokens=500,
+                    messages=[
+                        {"role": "user", "content": "What is the weather in San Francisco, CA?"},
+                        {"role": "assistant", "content": message.content},
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool.id,
+                                    "content": [{"type": "text", "text": "The weather is 73f"}],
+                                }
+                            ],
+                        },
+                    ],
+                    tools=tools,
+                )
+                assert response is not None
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
+async def test_anthropic_llm_async_stream_tools(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_stream", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_stream.yaml"):
+            stream = await llm.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                tools=tools,
+                stream=True,
+            )
+            async for _ in stream:
+                pass
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
+async def test_anthropic_llm_async_stream_helper_tools(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_stream_helper", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_stream_helper.yaml"):
+            async with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                tools=tools,
+            ) as stream:
+                async for _ in stream.text_stream:
+                    pass
+
+            message = await stream.get_final_message()
+            assert message is not None
+
+            message = await stream.get_final_text()
+            assert message is not None
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
+async def test_anthropic_llm_async_tools_stream_full_use(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use_stream", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_stream_helper.yaml"):
+            async with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                tools=tools,
+            ) as stream:
+                async for _ in stream.text_stream:
+                    pass
+            message = await stream.get_final_message()
+            assert message is not None
+
+        tool = next(c for c in message.content if c.type == "tool_use")
+        with request_vcr.use_cassette("anthropic_completion_tools_call_with_tool_result_stream.yaml"):
+            if message.stop_reason == "tool_use":
+                stream = await llm.messages.create(
+                    model="claude-3-opus-20240229",
+                    max_tokens=500,
+                    messages=[
+                        {"role": "user", "content": "What is the weather in San Francisco, CA?"},
+                        {"role": "assistant", "content": message.content},
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool.id,
+                                    "content": [{"type": "text", "text": "The weather is 73f"}],
+                                }
+                            ],
+                        },
+                    ],
+                    tools=tools,
+                    stream=True,
+                )
+                async for _ in stream:
+                    pass

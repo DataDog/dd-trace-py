@@ -10,8 +10,15 @@ from ddtrace.internal.utils.formats import parse_tags_str
 logger = get_logger(__name__)
 
 
+# Stash the reason why a transitive dependency failed to load; since we try to load things safely in order to guide
+# configuration, these errors won't bubble up naturally.  All of these components should use the same pattern
+# in order to guarantee uniformity.
+ddup_failure_msg = ""
+stack_v2_failure_msg = ""
+
+
 def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 * 1024):
-    # type: (ProfilingConfig.Heap, int) -> int
+    # type: (ProfilingConfigHeap, int) -> int
     heap_sample_size = heap_config._sample_size
     if heap_sample_size is not None:
         return heap_sample_size
@@ -38,18 +45,24 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
 
 
 def _check_for_ddup_available():
+    global ddup_failure_msg
     ddup_is_available = False
     try:
         from ddtrace.internal.datadog.profiling import ddup
 
         ddup_is_available = ddup.is_available
+        ddup_failure_msg = ddup.failure_msg
     except Exception:
         pass  # nosec
     return ddup_is_available
 
 
 def _check_for_stack_v2_available():
+    global stack_v2_failure_msg
     stack_v2_is_available = False
+
+    # stack_v2 will use libdd; in order to prevent two separate collectors from running, it then needs to force
+    # libdd to be enabled as well; that means it depends on the libdd interface (ddup)
     if not _check_for_ddup_available():
         return False
 
@@ -57,13 +70,18 @@ def _check_for_stack_v2_available():
         from ddtrace.internal.datadog.profiling import stack_v2
 
         stack_v2_is_available = stack_v2.is_available
+        stack_v2_failure_msg = stack_v2.failure_msg
     except Exception:
         pass  # nosec
     return stack_v2_is_available
 
 
 def _is_libdd_required(config):
+<<<<<<< HEAD
     return config.stack.v2_enabled or config.pytorch.enabled or config.export._libdd_enabled
+=======
+    return config.stack.v2_enabled or config.export._libdd_enabled
+>>>>>>> main
 
 
 class ProfilingConfig(En):
@@ -168,6 +186,15 @@ class ProfilingConfig(En):
         help="The timeout in seconds before dropping events if the HTTP API does not reply",
     )
 
+    timeline_enabled = En.v(
+        bool,
+        "timeline_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to add timestamp information to captured samples.  Adds a small amount of "
+        "overhead to the profiler, but enables the use of the Timeline view in the UI.",
+    )
+
     tags = En.v(
         dict,
         "tags",
@@ -175,6 +202,14 @@ class ProfilingConfig(En):
         default={},
         help_type="Mapping",
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
+    )
+
+    enable_asserts = En.v(
+        bool,
+        "enable_asserts",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable debug assertions in the profiler code",
     )
 
 
@@ -197,7 +232,8 @@ class ProfilingConfigStack(En):
         help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
     )
 
-    v2_enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._v2_enabled)
+    # V2 can't be enabled if stack collection is disabled or if pre-requisites are not met
+    v2_enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._v2_enabled and c.enabled)
 
 
 class ProfilingConfigLock(En):
@@ -209,6 +245,15 @@ class ProfilingConfigLock(En):
         default=True,
         help_type="Boolean",
         help="Whether to enable the lock profiler",
+    )
+
+    name_inspect_dir = En.v(
+        bool,
+        "name_inspect_dir",
+        default=True,
+        help_type="Boolean",
+        help="Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
+        "With this enabled, the profiler finds the name of locks that are attributes of an object.",
     )
 
 
@@ -252,7 +297,6 @@ class ProfilingConfigHeap(En):
     )
     sample_size = En.d(int, _derive_default_heap_sample_size)
 
-
 class ProfilingConfigPytorch(En):
     __item__ = __prefix__ = "pytorch"
 
@@ -286,18 +330,19 @@ ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
-config.export.libdd_enabled = _is_libdd_required(config) and _check_for_ddup_available()
 
-# Certain features depend on libdd being enabled.  If it isn't for some reason, those features cannot be enabled.
+# Force the enablement of libdd if the user requested a feature which requires it; otherwise the user has to manage
+# configuration too intentionally and we'll need to change the API too much over time.
+config.export.libdd_enabled = _is_libdd_required(config)
+
+# Certain features depend on libdd being available.  If it isn't for some reason, those features cannot be enabled.
 if config.stack.v2_enabled and not config.export.libdd_enabled:
-    logger.warning("The v2 stack profiler was requested, but cannot be enabled (failed to load libdd)")
+    msg = ddup_failure_msg or "libdd not available"
+    logger.warning("The v2 stack profiler cannot be used (%s)", msg)
     config.stack.v2_enabled = False
 
-if config.pytorch.enabled and not config.export.libdd_enabled:
-    logger.warning("The PyTorch profiler was requested, but cannot be enabled (failed to load libdd)")
-    config.enabled = False
-
-# Certain features have native components that must be available
+# Loading stack_v2 can fail for similar reasons
 if config.stack.v2_enabled and not _check_for_stack_v2_available():
-    logger.warning("The v2 stack profiler was requested, but cannot be enabled (failed to load stack_v2)")
+    msg = stack_v2_failure_msg or "stack_v2 not available"
+    logger.warning("The v2 stack profiler cannot be used (%s)", msg)
     config.stack.v2_enabled = False

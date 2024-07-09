@@ -7,7 +7,7 @@ import mock
 import pytest
 
 from ddtrace import patch
-from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
+from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
@@ -17,14 +17,14 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
 
-if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
-    from langchain_core.messages import AIMessage
-    from langchain_core.messages import ChatMessage
-    from langchain_core.messages import HumanMessage
-else:
+if PATCH_LANGCHAIN_V0:
     from langchain.schema import AIMessage
     from langchain.schema import ChatMessage
     from langchain.schema import HumanMessage
+else:
+    from langchain_core.messages import AIMessage
+    from langchain_core.messages import ChatMessage
+    from langchain_core.messages import HumanMessage
 
 
 def _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role=None, mock_io=False):
@@ -87,10 +87,10 @@ class BaseTestLLMObsLangchain:
     def _invoke_llm(cls, llm, prompt, mock_tracer, cassette_name):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
-            if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
-                llm.invoke(prompt)
-            else:
+            if PATCH_LANGCHAIN_V0:
                 llm(prompt)
+            else:
+                llm.invoke(prompt)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
@@ -102,10 +102,10 @@ class BaseTestLLMObsLangchain:
                 messages = [HumanMessage(content=prompt)]
             else:
                 messages = [ChatMessage(content=prompt, role="custom")]
-            if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
-                chat_model.invoke(messages)
-            else:
+            if PATCH_LANGCHAIN_V0:
                 chat_model(messages)
+            else:
+                chat_model.invoke(messages)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
@@ -115,15 +115,15 @@ class BaseTestLLMObsLangchain:
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
             if batch:
                 chain.batch(inputs=prompt)
-            elif SHOULD_PATCH_LANGCHAIN_COMMUNITY:
-                chain.invoke(prompt)
-            else:
+            elif PATCH_LANGCHAIN_V0:
                 chain.run(prompt)
+            else:
+                chain.invoke(prompt)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
 
 
-@pytest.mark.skipif(SHOULD_PATCH_LANGCHAIN_COMMUNITY, reason="These tests are for langchain < 0.1.0")
+@pytest.mark.skipif(not PATCH_LANGCHAIN_V0, reason="These tests are for langchain < 0.1.0")
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain"
 
@@ -324,7 +324,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
 
 
-@pytest.mark.skipif(not SHOULD_PATCH_LANGCHAIN_COMMUNITY, reason="These tests are for langchain >= 0.1.0")
+@pytest.mark.skipif(PATCH_LANGCHAIN_V0, reason="These tests are for langchain >= 0.1.0")
 class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain_community"
 
@@ -339,6 +339,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
 
     def test_llmobs_cohere_llm(self, langchain_community, mock_llmobs_span_writer, mock_tracer):
+        if langchain_community is None:
+            pytest.skip("langchain-community not installed which is required for this test.")
         span = self._invoke_llm(
             llm=langchain_community.llms.Cohere(model="cohere.command-light-text-v14"),
             prompt="What is the secret Krabby Patty recipe?",
@@ -350,6 +352,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_ai21_llm(self, langchain_community, mock_llmobs_span_writer, mock_tracer):
+        if langchain_community is None:
+            pytest.skip("langchain-community not installed which is required for this test.")
         span = self._invoke_llm(
             llm=langchain_community.llms.AI21(),
             prompt="Why does everyone in Bikini Bottom hate Plankton?",
@@ -502,8 +506,19 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         )
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
 
+    def test_llmobs_anthropic_chat_model(self, langchain_anthropic, mock_llmobs_span_writer, mock_tracer):
+        chat = langchain_anthropic.ChatAnthropic(temperature=0, model="claude-3-opus-20240229", max_tokens=15)
+        span = self._invoke_chat(
+            chat_model=chat,
+            prompt="When do you use 'whom' instead of 'who'?",
+            mock_tracer=mock_tracer,
+            cassette_name="anthropic_chat_completion_sync.yaml",
+        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
-@pytest.mark.skipif(not SHOULD_PATCH_LANGCHAIN_COMMUNITY, reason="These tests are for langchain >= 0.1.0")
+
+@pytest.mark.skipif(PATCH_LANGCHAIN_V0, reason="These tests are for langchain >= 0.1.0")
 class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
@@ -517,6 +532,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
 
     openai_env_config = dict(
         OPENAI_API_KEY="testing",
+        DD_API_KEY="<not-a-real-key>",
+    )
+
+    anthropic_env_config = dict(
+        ANTHROPIC_API_KEY="testing",
         DD_API_KEY="<not-a-real-key>",
     )
 
@@ -578,6 +598,14 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
             llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
+    @staticmethod
+    def _call_anthropic_chat(Anthropic):
+        llm = Anthropic(model="claude-3-opus-20240229", max_tokens=15)
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette(
+            "anthropic_chat_completion_sync.yaml"
+        ):
+            llm.invoke("When do you use 'whom' instead of 'who'?")
+
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_chat_model_bedrock_enabled(self):
         from langchain_aws import ChatBedrock
@@ -606,7 +634,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     def test_llmobs_with_llm_model_bedrock_enabled(self):
         from langchain.chains import ConversationChain
         from langchain.memory import ConversationBufferMemory
-        from langchain_community.llms import Bedrock
+
+        try:
+            from langchain_community.llms import Bedrock
+        except (ImportError, ModuleNotFoundError):
+            self.skipTest("langchain-community not installed which is required for this test.")
 
         patch(langchain=True, botocore=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
@@ -617,7 +649,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     def test_llmobs_with_llm_model_bedrock_disabled(self):
         from langchain.chains import ConversationChain
         from langchain.memory import ConversationBufferMemory
-        from langchain_community.llms import Bedrock
+
+        try:
+            from langchain_community.llms import Bedrock
+        except (ImportError, ModuleNotFoundError):
+            self.skipTest("langchain-community not installed which is required for this test.")
 
         patch(langchain=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
@@ -641,4 +677,25 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
         self._call_openai_llm(OpenAI)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+
+    @run_in_subprocess(env_overrides=anthropic_env_config)
+    def test_llmobs_langchain_with_anthropic_enabled(self):
+        from langchain_anthropic import ChatAnthropic
+
+        patch(langchain=True, anthropic=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        self._call_anthropic_chat(ChatAnthropic)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=anthropic_env_config)
+    def test_llmobs_langchain_with_anthropic_disabled(self):
+        from langchain_anthropic import ChatAnthropic
+
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+
+        self._call_anthropic_chat(ChatAnthropic)
         self._assert_trace_structure_from_writer_call_args(["llm"])

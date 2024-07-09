@@ -203,7 +203,6 @@ Datadog::Profile::val()
 bool
 Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
 {
-    // TODO this should propagate some kind of timestamp for timeline support
     const std::lock_guard<std::mutex> lock(profile_mtx);
     auto res = ddog_prof_Profile_add(&cur_profile, sample, endtime_ns);
     if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)

@@ -336,7 +336,7 @@ def test_max_per_sec_with_is_allowed_check():
     tracer = DummyTracer(rule)
     while True:
         span = traced_function(rule, tracer)
-        if not rule._limiter.is_allowed(span.start_ns):
+        if not rule._limiter.is_allowed():
             break
         assert_sampling_decision_tags(span, limit=2)
 

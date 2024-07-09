@@ -29,11 +29,19 @@ class RateLimiter:
         :param time_window: The time window where the rate limit applies in nanoseconds. default value is 1 second.
         :type time_window: :obj:`float`
         """
-    def is_allowed(self, timestamp_ns: int) -> bool:
+    def is_allowed(self, timestamp_ns: typing.Optional[int] = None) -> bool:
         """
         Check whether the current request is allowed or not
 
         This method will also reduce the number of available tokens by 1
+
+        :param int timestamp_ns: timestamp in nanoseconds for the current request. [deprecated]
+        :returns: Whether the current request is allowed or not
+        :rtype: :obj:`bool`
+        """
+    def _is_allowed(self, timestamp_ns: int) -> bool:
+        """
+        Internal method to check whether the current request is allowed or not
 
         :param int timestamp_ns: timestamp in nanoseconds for the current request.
         :returns: Whether the current request is allowed or not

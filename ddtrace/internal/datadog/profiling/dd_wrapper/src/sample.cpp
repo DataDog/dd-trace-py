@@ -381,7 +381,25 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
         // Compute the difference.  We're after 1970, so epoch_ns will be larger
         return epoch_ns - monotonic_ns;
     }();
-    endtime_ns = _monotonic_ns + offset;
+
+    // If timeline is not enabled, then this is a no-op
+    if (is_timeline_enabled()) {
+        endtime_ns = _monotonic_ns + offset;
+    }
+
+    return true;
+}
+
+void
+Datadog::Sample::set_timeline(bool enabled)
+{
+    timeline_enabled = enabled;
+}
+
+bool
+Datadog::Sample::is_timeline_enabled() const
+{
+    return timeline_enabled;
 }
 
 ddog_prof_Profile&
