@@ -1251,6 +1251,18 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
         await chain.abatch(inputs=["chickens", "pigs"])
 
 
+@pytest.mark.snapshot
+def test_lcecl_chain_non_dict_input(langchain_core):
+    """
+    Tests that non-dict inputs (specifically also non-string) are stringified properly
+    """
+    add_one = langchain_core.runnables.RunnableLambda(lambda x: x + 1)
+    multiply_two = langchain_core.runnables.RunnableLambda(lambda x: x * 2)
+    sequence = add_one | multiply_two
+
+    sequence.invoke(1)
+
+
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="langchain_community_test")],
