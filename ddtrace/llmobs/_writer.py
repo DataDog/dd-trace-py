@@ -17,6 +17,7 @@ from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 logger = get_logger(__name__)
@@ -83,6 +84,9 @@ class BaseLLMObsWriter(PeriodicService):
             self._buffer.append(event)
 
     def periodic(self) -> None:
+        # Enable telemetry before the first LLMObs event is sent
+        telemetry_writer.app_started()
+
         with self._lock:
             if not self._buffer:
                 return
