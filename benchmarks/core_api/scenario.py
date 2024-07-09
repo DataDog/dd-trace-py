@@ -10,10 +10,10 @@ if not hasattr(core, "dispatch_with_results"):
 
 
 class CoreAPIScenario(bm.Scenario):
-    listeners: int = 0
-    all_listeners: int = 0
-    set_item_count: int = 100
-    get_item_exists: bool = False
+    listeners: int
+    all_listeners: int
+    set_item_count: int
+    get_item_exists: bool
 
     def run(self):
         # Activate a number of no-op listeners for known events
