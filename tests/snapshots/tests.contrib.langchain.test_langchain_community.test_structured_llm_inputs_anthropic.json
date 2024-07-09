@@ -1,0 +1,64 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_core.runnables.base.RunnableSequence",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "668d96c500000000",
+      "langchain.request.inputs.0": "Tell me a joke!",
+      "langchain.request.type": "chain",
+      "langchain.response.outputs.0": "setup='What did the tree wear to the pool party?' punchline='Swimming trunks!'",
+      "language": "python",
+      "runtime-id": "2990adb4134a447d90108161e8fbd21a"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 58323
+    },
+    "duration": 10935019000,
+    "start": 1720555205277577000
+  },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain_anthropic.chat_models.ChatAnthropic",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.anthropic.parameters.default_request_timeout": "None",
+         "langchain.request.anthropic.parameters.max_retries": "2",
+         "langchain.request.anthropic.parameters.max_tokens": "1024",
+         "langchain.request.anthropic.parameters.model": "claude-3-opus-20240229",
+         "langchain.request.anthropic.parameters.streaming": "False",
+         "langchain.request.anthropic.parameters.temperature": "1.0",
+         "langchain.request.anthropic.parameters.top_k": "None",
+         "langchain.request.anthropic.parameters.top_p": "None",
+         "langchain.request.api_key": "...key>",
+         "langchain.request.messages.0.0.content": "You are an amazing stand-up comedian, but only makes jokes about trees.",
+         "langchain.request.messages.0.0.message_type": "SystemMessage",
+         "langchain.request.messages.0.1.content": "Tell me a joke!",
+         "langchain.request.messages.0.1.message_type": "HumanMessage",
+         "langchain.request.model": "claude-3-opus-20240229",
+         "langchain.request.provider": "anthropic",
+         "langchain.request.type": "chat_model",
+         "langchain.response.completions.0.0.content": "<thinking>\\nThe available Joke tool looks very relevant to the user's request for a joke. It requires 2 parameters:\\nsetup: The ...",
+         "langchain.response.completions.0.0.message_type": "AIMessage"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 10927393000,
+       "start": 1720555205283213000
+     }]]

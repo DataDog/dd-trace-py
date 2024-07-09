@@ -2506,6 +2506,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": "==5.4.0",
+                        "anthropic": "==0.26.0",
                     }
                 ),
                 Venv(
@@ -2521,6 +2522,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
+                        "anthropic": "==0.26.0",
                     }
                 ),
                 Venv(
