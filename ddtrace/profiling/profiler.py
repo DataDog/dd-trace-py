@@ -119,7 +119,7 @@ class _ProfilerInstance(service.Service):
     agentless: bool = config.agentless
     _memory_collector_enabled: bool = config.memory.enabled
     _stack_collector_enabled: bool = config.stack.enabled
-    _stack_v2_enabled : bool = config.stack.v2_enabled
+    _stack_v2_enabled: bool = config.stack.v2_enabled
     _lock_collector_enabled: bool = config.lock.enabled
     enable_code_provenance: bool = config.code_provenance
     endpoint_collection_enabled: bool = config.endpoint_collection
