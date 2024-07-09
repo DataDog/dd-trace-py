@@ -1,11 +1,11 @@
 # -*- encoding: utf-8 -*-
 import collections
-from dataclasses import dataclass
-from dataclasses import field
 import threading
 import typing
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat.dataclasses import field
 from ddtrace.settings.profiling import config
 
 from . import event
@@ -27,7 +27,7 @@ class _defaultdictkey(dict):
 EventsType = typing.Dict[event.Event, typing.Sequence[event.Event]]
 
 
-@dataclass()
+@dataclass
 class Recorder:
     """An object that records program activity."""
 

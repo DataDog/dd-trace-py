@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import errno
 import os
 import re
@@ -6,7 +5,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-from ..compat import dataclass_slots
+from ..compat.dataclasses import dataclass
 from ..constants import CONTAINER_ID_HEADER_NAME
 from ..constants import ENTITY_ID_HEADER_NAME
 from ..logger import get_logger
@@ -15,7 +14,7 @@ from ..logger import get_logger
 log = get_logger(__name__)
 
 
-@dataclass(**dataclass_slots())
+@dataclass(slots=True)
 class CGroupInfo:
     id: Any = None
     groups: Any = None

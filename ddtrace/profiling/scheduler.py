@@ -1,9 +1,9 @@
 # -*- encoding: utf-8 -*-
-from dataclasses import dataclass
 import logging
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
+from ddtrace.internal.compat.dataclasses import dataclass
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter

@@ -5,14 +5,14 @@ import platform
 import sysconfig
 import typing
 
-from dataclasses import dataclass
-from dataclasses import field
 import six
 
 from ddtrace import ext
 from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat.dataclasses import field
 from ddtrace.internal.datadog.profiling.util import sanitize_string
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import config

@@ -1,6 +1,4 @@
 # -*- encoding: utf-8 -*-
-from dataclasses import dataclass
-from dataclasses import field
 import logging
 from math import ceil
 import os
@@ -14,6 +12,8 @@ except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal import compat
+from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat.dataclasses import field
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -24,7 +24,7 @@ from ddtrace.settings.profiling import config
 LOG = logging.getLogger(__name__)
 
 
-@dataclass(**compat.dataclass_slots())
+@dataclass(slots=True)
 class MemoryAllocSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
@@ -38,7 +38,7 @@ class MemoryAllocSampleEvent(event.StackBasedEvent):
     """The total number of allocation events sampled."""
 
 
-@dataclass(**compat.dataclass_slots())
+@dataclass(slots=True)
 class MemoryHeapSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
@@ -49,7 +49,7 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
     """The sampling size."""
 
 
-@dataclass(**compat.dataclass_slots())
+@dataclass(slots=True)
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 

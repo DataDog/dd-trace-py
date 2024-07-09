@@ -1,10 +1,9 @@
-from dataclasses import dataclass
 import logging
 
 import ddtrace
 from ddtrace import config
 
-from ...internal.compat import dataclass_slots
+from ...internal.compat.dataclasses import dataclass
 from ...internal.utils import get_argument_value
 from ...vendor.wrapt import wrap_function_wrapper as _w
 from ..trace_utils import unwrap as _u
@@ -32,8 +31,8 @@ def get_version():
     return getattr(logging, "__version__", "")
 
 
-@dataclass(**dataclass_slots())
-class DDLogRecord(object):
+@dataclass(slots=True)
+class DDLogRecord:
     trace_id: int
     span_id: int
     service: str

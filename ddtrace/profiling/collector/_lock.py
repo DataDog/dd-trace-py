@@ -2,8 +2,6 @@ from __future__ import absolute_import
 
 import _thread
 import abc
-from dataclasses import dataclass
-from dataclasses import field
 import os.path
 import sys
 import types
@@ -11,6 +9,8 @@ import typing
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
+from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat.dataclasses import field
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
@@ -26,7 +26,7 @@ from ddtrace.vendor import wrapt
 LOG = get_logger(__name__)
 
 
-@dataclass(**compat.dataclass_slots())
+@dataclass(slots=True)
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
@@ -34,14 +34,14 @@ class LockEventBase(event.StackBasedEvent):
     sampling_pct: int = 0
 
 
-@dataclass(**compat.dataclass_slots())
+@dataclass(slots=True)
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
     wait_time_ns: int = 0
 
 
-@dataclass(**compat.dataclass_slots())
+@dataclass(slots=True)
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 

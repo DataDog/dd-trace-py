@@ -1,4 +1,3 @@
-import dataclasses
 import errno
 import json
 from json.decoder import JSONDecodeError
@@ -37,6 +36,7 @@ from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.settings.asm import config as asm_config

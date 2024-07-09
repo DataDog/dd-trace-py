@@ -1,12 +1,11 @@
 # -*- encoding: utf-8 -*-
-from dataclasses import dataclass
-from dataclasses import field
 import typing  # noqa:F401
 from typing import Any
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
-from ddtrace.internal.compat import dataclass_slots
+from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat.dataclasses import field
 from ddtrace.settings.profiling import config
 
 from .. import event  # noqa:F401
@@ -34,7 +33,7 @@ class Collector(service.Service):
         """
 
 
-@dataclass(**dataclass_slots())
+@dataclass(slots=True)
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 

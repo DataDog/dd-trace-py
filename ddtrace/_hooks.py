@@ -1,13 +1,12 @@
 import collections
 from copy import deepcopy
-from dataclasses import dataclass
-from dataclasses import field
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 
-from .internal.compat import dataclass_slots
+from .internal.compat.dataclasses import dataclass
+from .internal.compat.dataclasses import field
 from .internal.logger import get_logger
 
 
@@ -19,7 +18,7 @@ except ImportError:
 log = get_logger(__name__)
 
 
-@dataclass(**dataclass_slots())
+@dataclass(slots=True)
 class Hooks(object):
     """
     Hooks configuration object is used for registering and calling hook functions

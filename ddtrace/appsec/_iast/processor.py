@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Optional
 
 from ddtrace._trace.processor import SpanProcessor
@@ -8,6 +7,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.compat.dataclasses import dataclass
 from ddtrace.internal.logger import get_logger
 
 from .._trace_utils import _asm_manual_keep

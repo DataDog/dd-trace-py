@@ -1,9 +1,9 @@
-from dataclasses import dataclass
-from dataclasses import field
 import gzip
 import os
 import typing  # noqa:F401
 
+from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat.dataclasses import field
 from ddtrace.profiling.exporter import pprof
 
 from .. import recorder  # noqa:F401

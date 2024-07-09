@@ -1,18 +1,17 @@
-from dataclasses import dataclass
 import typing  # noqa:F401
 
-from ddtrace.internal.compat import dataclass_slots
+from ddtrace.internal.compat.dataclasses import dataclass
 
 from .. import collector
 from . import _lock
 
 
-@dataclass(**dataclass_slots())
+@dataclass(slots=True)
 class AsyncioLockAcquireEvent(_lock.LockAcquireEvent):
     """An asyncio.Lock has been acquired."""
 
 
-@dataclass(**dataclass_slots())
+@dataclass(slots=True)
 class AsyncioLockReleaseEvent(_lock.LockReleaseEvent):
     """An asyncio.Lock has been released."""
 

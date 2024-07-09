@@ -1,5 +1,6 @@
-from dataclasses import dataclass
 import typing
+
+from ddtrace.internal.compat.dataclasses import dataclass
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
@@ -11,7 +12,7 @@ class ExportError(Exception):
 
 
 @dataclass
-class Exporter(object):
+class Exporter:
     """Exporter base class."""
 
     def export(

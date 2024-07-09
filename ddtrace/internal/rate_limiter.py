@@ -1,7 +1,5 @@
 from __future__ import division
 
-from dataclasses import dataclass
-from dataclasses import field
 import random
 import threading
 from typing import Any  # noqa:F401
@@ -12,6 +10,8 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import compat
+from ..internal.compat.dataclasses import dataclass
+from ..internal.compat.dataclasses import field
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .core import RateLimiter as _RateLimiter
 
@@ -38,7 +38,7 @@ class RateLimitExceeded(Exception):
 
 
 @dataclass
-class BudgetRateLimiterWithJitter(object):
+class BudgetRateLimiterWithJitter:
     """A budget rate limiter with jitter.
 
     The jitter is induced by a uniform distribution. The rate limit can be
