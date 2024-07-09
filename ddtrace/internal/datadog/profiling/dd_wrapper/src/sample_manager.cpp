@@ -30,15 +30,11 @@ Datadog::SampleManager::set_timeline(bool enable)
 Datadog::Sample*
 Datadog::SampleManager::start_sample()
 {
-    {
-        const std::lock_guard<std::mutex> lock(pool_mutex);
-        if (!sample_pool.empty()) {
-            // Reuse a sample from the pool
-            auto sample = sample_pool.back().release();
-            sample_pool.pop_back();
-            return sample;
-        }
+    auto sample_opt = sample_pool.get_sample();
+    if (sample_opt.has_value()) {
+        return sample_opt.value();
     }
+
     // Create a new sample if the pool is empty
     return new Datadog::Sample(type_mask, max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
 }
@@ -48,18 +44,12 @@ Datadog::SampleManager::drop_sample(Datadog::Sample* sample)
 {
     // Reset the sample's state
     sample->clear_buffers();
-
-    {
-        const std::lock_guard<std::mutex> lock(pool_mutex);
-        // Return the sample to the pool
-        sample_pool.emplace_back(sample); // NOLINT(cppcoreguidelines-owning-memory)
-    }
+    sample_pool.return_sample(sample);
 }
 
 void
 Datadog::SampleManager::postfork_child()
 {
-    pool_mutex.unlock();
     Datadog::Sample::postfork_child();
 }
 
