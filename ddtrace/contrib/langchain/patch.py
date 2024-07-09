@@ -198,7 +198,9 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration = langchain._datadog_integration
-    model = _extract_model_name(instance)
+    model = _extract_model_name(
+        instance,
+    )
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
