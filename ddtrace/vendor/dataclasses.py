@@ -1004,7 +1004,10 @@ def _process_class(cls, init, repr, eq, order, unsafe_hash, frozen, match_args, 
     # actual default value.  Pseudo-fields ClassVars and InitVars are
     # included, despite the fact that they're not real fields.  That's
     # dealt with later.
-    cls_annotations = inspect.get_annotations(cls)
+    #
+    ## DEV: Previously done as following:
+    # cls_annotations = inspect.get_annotations(cls)
+    cls_annotations = cls.__dict__.get('__annotations__', {})
 
     # Now find fields in our class.  While doing so, validate some
     # things, and set the default values (as class attributes) where
