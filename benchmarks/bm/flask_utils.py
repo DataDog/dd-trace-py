@@ -76,15 +76,6 @@ def create_app():
 
 
 class FlaskScenarioMixin:
-    name: str
-    tracer_enabled: bool
-    profiler_enabled: bool
-    debugger_enabled: bool
-    appsec_enabled: bool
-    iast_enabled: bool
-    post_request: bool
-    telemetry_metrics_enabled: bool
-
     def setup(self):
         # Setup the environment and enable Datadog features
         os.environ.update(
