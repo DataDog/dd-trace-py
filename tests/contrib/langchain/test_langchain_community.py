@@ -1301,3 +1301,13 @@ def test_structured_llm_inputs_anthropic(langchain, langchain_anthropic, request
     chain = prompt | structured_chat
     with request_vcr.use_cassette("structured_llm_inputs_anthropic.yaml"):
         chain.invoke("Tell me a joke!")
+@pytest.mark.snapshot
+def test_lcecl_chain_non_dict_input(langchain_core):
+    """
+    Tests that non-dict inputs (specifically also non-string) are stringified properly
+    """
+    add_one = langchain_core.runnables.RunnableLambda(lambda x: x + 1)
+    multiply_two = langchain_core.runnables.RunnableLambda(lambda x: x * 2)
+    sequence = add_one | multiply_two
+
+    sequence.invoke(1)
