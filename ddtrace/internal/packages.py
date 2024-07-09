@@ -77,7 +77,7 @@ def get_distributions():
     return pkgs
 
 
-@cached(maxsize=65536)
+@cached(maxsize=256)
 def get_version_for_package(name):
     # type: (str) -> str
     """returns the version of a package"""
@@ -194,7 +194,7 @@ def _third_party_packages() -> set:
     ) - tp_config.excludes
 
 
-@cached(maxsize=65536)
+@cached(maxsize=16384)
 def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
     mapping = _package_for_root_module_mapping()
     if mapping is None:
@@ -209,7 +209,7 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
         return None
 
 
-@cached(maxsize=65536)
+@cached(maxsize=256)
 def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
     """Returns the package distribution for a module"""
     module_origin = origin(module)
@@ -222,7 +222,7 @@ purelib_path = Path(sysconfig.get_path("purelib")).resolve()
 platlib_path = Path(sysconfig.get_path("platlib")).resolve()
 
 
-@cached(maxsize=65536)
+@cached(maxsize=256)
 def is_stdlib(path: Path) -> bool:
     rpath = path.resolve()
 
@@ -231,7 +231,6 @@ def is_stdlib(path: Path) -> bool:
     )
 
 
-@cached(maxsize=65536)
 def is_third_party(path: Path) -> bool:
     package = filename_to_package(str(path))
     if package is None:
@@ -240,12 +239,11 @@ def is_third_party(path: Path) -> bool:
     return package.name in _third_party_packages()
 
 
-@cached(maxsize=65536)
 def is_user_code(path: Path) -> bool:
     return not (is_stdlib(path) or is_third_party(path))
 
 
-@cached(maxsize=65536)
+@cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
     try:
