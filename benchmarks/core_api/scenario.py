@@ -10,7 +10,6 @@ if not hasattr(core, "dispatch_with_results"):
 
 
 class CoreAPIScenario(bm.Scenario):
-    name: str
     listeners: int = 0
     all_listeners: int = 0
     set_item_count: int = 100

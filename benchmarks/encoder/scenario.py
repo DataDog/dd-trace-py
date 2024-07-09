@@ -3,7 +3,6 @@ import utils
 
 
 class Encoder(bm.Scenario):
-    name: str
     ntraces: int
     nspans: int
     ntags: int

@@ -7,7 +7,6 @@ from ddtrace.propagation import http
 
 
 class HTTPPropagationInject(bm.Scenario):
-    name: str
     sampling_priority: str
     dd_origin: str
     meta: str

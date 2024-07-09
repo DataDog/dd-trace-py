@@ -4,7 +4,6 @@ import bm
 
 
 class RateLimiter(bm.Scenario):
-    name: str
     rate_limit: int
     time_window: int
     num_windows: int

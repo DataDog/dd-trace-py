@@ -45,7 +45,6 @@ DATA_GET = dict(
 
 
 class SetHttpMeta(Scenario):
-    name: str
     useragentvariant: str
     url: str
     querystring: str

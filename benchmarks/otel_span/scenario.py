@@ -16,7 +16,6 @@ otel_tracer = get_tracer(__name__)
 
 
 class OtelSpan(bm.Scenario):
-    name: str
     nspans: int
     ntags: int
     ltags: int

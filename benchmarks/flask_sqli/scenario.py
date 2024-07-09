@@ -5,7 +5,6 @@ from bm.flask_utils import FlaskScenarioMixin
 class FlaskSQLi(bm.Scenario, FlaskScenarioMixin):
     # DEV: These should better go in FlaskScenarioMixin
     # but then the logic to get them wouldn't work
-    name: str
     tracer_enabled: bool
     profiler_enabled: bool
     debugger_enabled: bool

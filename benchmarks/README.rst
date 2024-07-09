@@ -16,7 +16,7 @@ A scenario requires:
 
 The scenario class inherits from ``bm.Scenario`` and includes the configurable variables. The execution of the benchmark uses the ``run()`` generator function to yield a function that will handle the execution of a specified number of loops.
 
-Remember to include a ``name: str`` attribute, and keep in mind we use ``dataclasses`` underneath now instead of ``attrs``.
+Remember that the ``name: str`` attribute is inherited from ``bm.Scenario``, and keep in mind we use ``dataclasses`` underneath now instead of ``attrs``.
 
 Example
 ~~~~~~~

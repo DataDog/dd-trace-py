@@ -3,12 +3,12 @@ start: &base
   ntags: 0
   ltags: 0
   nmetrics: 0
-  finishspan: False
-  traceid128: False
-  telemetry: False
+  finishspan: false
+  traceid128: false
+  telemetry: false
 start-traceid128:
   <<: *base
-  traceid128: True
+  traceid128: true
 add-tags:
   <<: *base
   ntags: 100
@@ -18,12 +18,12 @@ add-metrics:
   nmetrics: 100
 start-finish:
   <<: *base
-  finishspan: True
+  finishspan: true
 start-finish-traceid128:
   <<: *base
-  finishspan: True
-  traceid128: True
+  finishspan: true
+  traceid128: true
 start-finish-telemetry:
   <<: *base
-  finishspan: True
-  telemetry: True
+  finishspan: true
+  telemetry: true

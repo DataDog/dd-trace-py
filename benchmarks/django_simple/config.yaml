@@ -1,22 +1,22 @@
 baseline: &baseline
-  tracer_enabled: False
-  profiler_enabled: False
-  appsec_enabled: False
-  iast_enabled: False
+  tracer_enabled: false
+  profiler_enabled: false
+  appsec_enabled: false
+  iast_enabled: false
 tracer:
   <<: *baseline
-  tracer_enabled: True
+  tracer_enabled: true
 profiler:
   <<: *baseline
-  profiler_enabled: True
+  profiler_enabled: true
 tracer-and-profiler:
   <<: *baseline
-  tracer_enabled: True
-  profiler_enabled: True
+  tracer_enabled: true
+  profiler_enabled: true
 appsec: &appsec
   <<: *baseline
-  tracer_enabled: True
-  appsec_enabled: True
+  tracer_enabled: true
+  appsec_enabled: true
 iast:
   <<: *appsec
-  iast_enabled: True
+  iast_enabled: true

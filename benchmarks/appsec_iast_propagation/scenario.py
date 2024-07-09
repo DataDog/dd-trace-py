@@ -68,7 +68,6 @@ def launch_function(enable_propagation, func, internal_loop, caller_loop):
 
 
 class IastPropagation(bm.Scenario):
-    name: str
     iast_enabled: int
     internal_loop: int
 

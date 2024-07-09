@@ -8,7 +8,6 @@ from ddtrace.propagation import http
 
 
 class HTTPPropagationExtract(bm.Scenario):
-    name: str
     headers: str
     extra_headers: int
     wsgi_style: bool

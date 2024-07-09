@@ -31,7 +31,6 @@ class NoopWriter(TraceWriter):
 
 
 class Threading(bm.Scenario):
-    name: str
     nthreads: int
     ntraces: int
     nspans: int

@@ -6,7 +6,6 @@ import bm
 
 
 class Startup(bm.Scenario):
-    name: str
     ddtrace_run: bool
     import_ddtrace: bool
     import_ddtrace_auto: bool

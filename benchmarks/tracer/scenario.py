@@ -3,7 +3,6 @@ import bm.utils as utils
 
 
 class Tracer(bm.Scenario):
-    name: str
     depth: int
 
     def run(self):

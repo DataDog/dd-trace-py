@@ -24,7 +24,6 @@ def iter_n(items, n):
 
 
 class SamplingRules(bm.Scenario):
-    name: str
     num_iterations: int
     num_services: int
     num_operations: int

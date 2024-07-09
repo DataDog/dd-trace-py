@@ -6,7 +6,6 @@ from ddtrace import tracer
 
 
 class Span(Scenario):
-    name: str
     nspans: int
     ntags: int
     ltags: int

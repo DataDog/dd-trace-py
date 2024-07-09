@@ -1,5 +1,4 @@
 import abc
-import ast
 import dataclasses
 import time
 
@@ -7,7 +6,7 @@ import pyperf
 
 
 def str_to_bool(_input):
-    return bool(ast.literal_eval(_input))
+    return _input in (True, "True", "true", "Yes", "yes", "Y", "y", "On", "on", "1", 1)
 
 
 def _register(scenario_cls):
@@ -38,8 +37,11 @@ def _register(scenario_cls):
     runner.bench_time_func(scenario.scenario_name, scenario._pyperf)
 
 
+@dataclasses.dataclass
 class Scenario:
     """The base class for specifying a benchmark."""
+
+    name: str
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
