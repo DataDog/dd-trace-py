@@ -1176,7 +1176,8 @@ def _process_class(cls, init, repr, eq, order, unsafe_hash, frozen, match_args, 
     if slots:
         cls = _add_slots(cls, frozen, weakref_slot)
 
-    abc.update_abstractmethods(cls)
+    if hasattr(abc, "update_abstractmethods"):
+        abc.update_abstractmethods(cls)
 
     return cls
 
