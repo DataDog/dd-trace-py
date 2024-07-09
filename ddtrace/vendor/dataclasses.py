@@ -240,10 +240,8 @@ _MODULE_IDENTIFIER_RE = re.compile(r"^(?:\s*(\w+)\s*\.)?\s*(\w+)")
 
 # Atomic immutable types which don't require any recursive handling and for which deepcopy
 # returns the same object. We can provide a fast-path for these types in asdict and astuple.
-_ATOMIC_TYPES = frozenset(
-    {
+types_ = [
         # Common JSON Serializable types
-        types.NoneType,
         bool,
         int,
         float,
@@ -251,17 +249,22 @@ _ATOMIC_TYPES = frozenset(
         # Other common types
         complex,
         bytes,
-        # Other types that are also unaffected by deepcopy
-        types.EllipsisType,
-        types.NotImplementedType,
         types.CodeType,
         types.BuiltinFunctionType,
         types.FunctionType,
         type,
         range,
         property,
-    }
-)
+]
+if sys.version_info >= (3, 10):
+    types_ += [
+        types.NoneType,
+        # Other types that are also unaffected by deepcopy
+        types.EllipsisType,
+        types.NotImplementedType,
+    ]
+
+_ATOMIC_TYPES = frozenset(types_)
 
 
 # This function's logic is copied from "recursive_repr" function in
