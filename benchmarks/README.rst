@@ -30,7 +30,6 @@ Example
 
 
   class MyScenario(bm.Scenario):
-      name: str
       size: int
 
       def run(self):
