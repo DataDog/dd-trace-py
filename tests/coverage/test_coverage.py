@@ -80,8 +80,26 @@ def test_coverage_import_time_function():
 
     from tests.coverage.included_path.import_time_callee import calls_function_imported_in_function
 
+    # from tests.coverage.included_path.import_time_callee import calls_function_imported_in_function_namespace
+    # from tests.coverage.included_path.namespacepackage.nested_namespace_lib import \
+    #   function_relative_imported_in_function_nested
+    # from tests.coverage.included_path.namespacepackage.next_nested_namespace_user_lib import \
+    #   function_relative_imported_in_function_using_next_namespace
+    # from tests.coverage.included_path.namespacepackage.parent_namespace_user import \
+    #   function_relative_imported_in_function_using_next_namespace_parent_user
+    # from tests.coverage.included_path.namespacepackage.tricky_next_namespace_user import \
+    #   tricky_next_namespace_parent_user
+    # from tests.coverage.included_path.namespacepackage.tricky_namespace_namespace_user import \
+    #     tricky_namespace_namespace_parent_user
+
     ModuleCodeCollector.start_coverage()
     calls_function_imported_in_function()
+    # calls_function_imported_in_function_namespace()
+    # function_relative_imported_in_function_using_next_namespace_parent_user()
+    # function_relative_imported_in_function_nested()
+    # function_relative_imported_in_function_using_next_namespace()
+    # tricky_next_namespace_parent_user()
+    # tricky_namespace_namespace_parent_user()
     ModuleCodeCollector.stop_coverage()
 
     lines = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
@@ -97,7 +115,7 @@ def test_coverage_import_time_function():
     expected_covered = {"tests/coverage/included_path/import_time_callee.py": {8, 10}}
     expected_covered_with_imports = {
         "tests/coverage/included_path/import_time_callee.py": {1, 7, 8, 10, 13},
-        "tests/coverage/included_path/imported_in_function_lib.py": {1, 7},
+        "tests/coverage/included_path/imported_in_function_lib.py": {1, 2, 3, 4, 7},
     }
 
     assert lines == expected_lines, f"Lines mismatch: expected={expected_lines} vs actual={lines}"

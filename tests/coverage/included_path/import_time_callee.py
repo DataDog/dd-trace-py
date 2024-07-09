@@ -13,3 +13,9 @@ def calls_function_imported_in_function():
 def _never_called():  # Should be covered due to import
     # Should not be covered because it is not called
     pass
+
+
+# def calls_function_imported_in_function_namespace():
+#     from .relative_import_time_callee import relative_module_level_constant
+#     return relative_module_level_constant
+#

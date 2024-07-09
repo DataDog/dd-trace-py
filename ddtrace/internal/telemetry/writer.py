@@ -230,7 +230,7 @@ class TelemetryWriter(PeriodicService):
     # of `itertools.count()` which is a CPython implementation detail. The sequence field in telemetry
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
-    _ORIGINAL_EXCEPTHOOK = sys.excepthook
+    _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None

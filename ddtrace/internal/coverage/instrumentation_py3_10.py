@@ -80,6 +80,7 @@ class ABranch(Branch):
 
 
 EXTENDED_ARG = dis.EXTENDED_ARG
+IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 
 
 def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
@@ -152,8 +153,7 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     )
 
 
-def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str,) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -186,7 +186,7 @@ def instrument_all_lines(
                 trap_instructions = trap_call(trap_index, len(new_consts))
                 traps[original_offset] = len(trap_instructions)
                 instructions.extend(trap_instructions)
-                new_consts.append((line, trap_arg))
+                new_consts.append((line, trap_arg, None))
 
                 line_map[original_offset] = trap_instructions[0]
 
@@ -198,6 +198,15 @@ def instrument_all_lines(
 
             # Propagate code
             instructions.append(Instruction(original_offset, opcode, arg))
+
+            # Track imports
+            if opcode == IMPORT_NAME:
+                import_arg = int.from_bytes([*ext, arg], "big", signed=False)
+                import_name = code.co_names[import_arg]
+                if import_name.startswith("."):
+                    import_name = f"{package}.{import_name}"
+                print("Imported:", import_name)
+                new_consts[-1] = (new_consts[-1][0], new_consts[-1][1], import_name)
 
             # Collect branching instructions for processing
             if opcode in AJump.__opcodes__:
@@ -299,7 +308,7 @@ def instrument_all_lines(
     # Instrument nested code objects recursively
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
-            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg)
+            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
             seen_lines.update(nested_lines)
 
     new_linetable = update_location_data(code, traps, [(instr.offset, s) for instr, s in exts])
