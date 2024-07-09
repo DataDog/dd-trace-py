@@ -77,11 +77,7 @@ def _check_for_stack_v2_available():
 
 
 def _is_libdd_required(config):
-<<<<<<< HEAD
-    return config.stack.v2_enabled or config.pytorch.enabled or config.export._libdd_enabled
-=======
-    return config.stack.v2_enabled or config.export._libdd_enabled
->>>>>>> main
+    return config.stack.v2_enabled or config.export._libdd_enabled or config.pytorch.enabled
 
 
 class ProfilingConfig(En):
@@ -296,6 +292,7 @@ class ProfilingConfigHeap(En):
         help="",
     )
     sample_size = En.d(int, _derive_default_heap_sample_size)
+
 
 class ProfilingConfigPytorch(En):
     __item__ = __prefix__ = "pytorch"
