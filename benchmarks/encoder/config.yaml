@@ -4,8 +4,8 @@ one-trace: &base_variant
   ntags: 0
   ltags: 0
   nmetrics: 0
-  encoding: "v0.4"
   dd_origin: false
+  encoding: "v0.4"
 many-traces:
   <<: *base_variant
   ntraces: 100

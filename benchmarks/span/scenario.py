@@ -1,27 +1,19 @@
-from dataclasses import dataclass
-from dataclasses import field
-
-from bm import Scenario
-from bm import var_bool
+import bm
 import bm.utils as utils
 
 from ddtrace import config
 from ddtrace import tracer
 
 
-@dataclass
-class SpanParent:
-    name: str
-    nspans: int
-    ntags: int
-    ltags: int
-    nmetrics: int
-    finishspan: bool = field(default_factory=var_bool)
-    traceid128: bool = field(default_factory=var_bool)
-    telemetry: bool = field(default_factory=var_bool)
+class Span(bm.Scenario):
+    nspans = bm.var(type=int)
+    ntags = bm.var(type=int)
+    ltags = bm.var(type=int)
+    nmetrics = bm.var(type=int)
+    finishspan = bm.var_bool()
+    traceid128 = bm.var_bool()
+    telemetry = bm.var_bool()
 
-
-class Span(SpanParent, Scenario):
     def run(self):
         # run scenario to also set tags on spans
         tags = utils.gen_tags(self)
@@ -53,17 +45,3 @@ class Span(SpanParent, Scenario):
                         s.finish()
 
         yield _
-
-
-# f = Span(
-#     name="Span",
-#     nspans=10,
-#     ntags=10,
-#     ltags=10,
-#     nmetrics=10,
-#     finishspan=True,
-#     traceid128=True,
-#     telemetry=True,
-#     # bases=tuple(),
-#     # namespace=dict(),
-# )

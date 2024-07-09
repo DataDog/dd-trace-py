@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import json
 
 import bm
@@ -7,15 +6,11 @@ from ddtrace._trace.context import Context
 from ddtrace.propagation import http
 
 
-@dataclass
-class HTTPPropagationInjectParent:
-    name: str
-    sampling_priority: str
-    dd_origin: str
-    meta: str
+class HTTPPropagationInject(bm.Scenario):
+    sampling_priority = bm.var(type=str)
+    dd_origin = bm.var(type=str)
+    meta = bm.var(type=str)
 
-
-class HTTPPropagationInject(HTTPPropagationInjectParent, bm.Scenario):
     def run(self):
         sampling_priority = None
         if self.sampling_priority != "":
