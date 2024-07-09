@@ -22,7 +22,7 @@ class CollectorUnavailable(CollectorError):
 class Collector(service.Service):
     """A profile collector."""
 
-    recorder: Any = dataclasses.field()
+    recorder: Any = None
 
     @staticmethod
     def snapshot():

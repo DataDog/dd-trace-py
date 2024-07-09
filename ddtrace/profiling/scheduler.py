@@ -17,8 +17,8 @@ LOG = logging.getLogger(__name__)
 class Scheduler(periodic.PeriodicService):
     """Schedule export of recorded data."""
 
-    recorder: object
-    exporters: object
+    recorder: object = None
+    exporters: object = None
     before_flush: object = None
     _interval: float = config.upload_interval
     _configured_interval: float = 0

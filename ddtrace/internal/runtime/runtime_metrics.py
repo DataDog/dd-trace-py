@@ -72,7 +72,7 @@ class RuntimeWorker(periodic.PeriodicService):
     _interval: float = dataclasses.field(default_factory=_get_interval_or_default)
     tracer: Optional[ddtrace.Tracer] = None
     dogstatsd_url: Optional[str] = None
-    _dogstatsd_client: Any = dataclasses.field(init=False, repr=False)
+    _dogstatsd_client: Any = dataclasses.field(default=None, init=False, repr=False)
     _runtime_metrics: Any = dataclasses.field(default_factory=RuntimeMetrics, repr=False)
     _services: Set[str] = dataclasses.field(init=False, default_factory=set)
 
@@ -141,7 +141,7 @@ class RuntimeWorker(periodic.PeriodicService):
         # type: () -> None
         # The constant tags for the dogstatsd client needs to updated with any new
         # service(s) that may have been added.
-        if self._services != self.tracer._services:
+        if self.tracer is not None and self._services != self.tracer._services:
             self._services = self.tracer._services
             self.update_runtime_tags()
 

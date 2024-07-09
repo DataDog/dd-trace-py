@@ -273,7 +273,7 @@ class _ProfilerInstance(service.Service):
             try:
                 self._collectors.append(
                     stack.StackCollector(
-                        r,
+                        recorder=r,
                         tracer=self.tracer,
                         endpoint_collection_enabled=self.endpoint_collection_enabled,
                     )  # type: ignore[call-arg]
@@ -313,7 +313,7 @@ class _ProfilerInstance(service.Service):
                 ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
-            self._collectors.append(memalloc.MemoryCollector(r))
+            self._collectors.append(memalloc.MemoryCollector(recorder=r))
 
         exporters = self._build_default_exporters()
 

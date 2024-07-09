@@ -33,11 +33,11 @@ def _():
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    interval: float
+    interval: float = 10
     _interval: float = dataclasses.field(default=10.0, init=False, repr=False)
     _worker: typing.Optional[PeriodicThread] = dataclasses.field(default=None, init=False, repr=False)
 
-    @property
+    @property  # type: ignore[no-redef]
     def interval(self) -> float:
         return self._interval
 
@@ -49,7 +49,7 @@ class PeriodicService(service.Service):
         self._interval = value
         # Update the interval of the PeriodicThread based on ours
         if self._worker:
-            self._worker.interval = value
+            self._worker.interval = value  # type: ignore[attr-defined]
 
     def _start_service(self, *args, **kwargs):
         # type: (typing.Any, typing.Any) -> None
@@ -65,14 +65,14 @@ class PeriodicService(service.Service):
     def _stop_service(self, *args, **kwargs):
         # type: (typing.Any, typing.Any) -> None
         """Stop the periodic collector."""
-        self._worker.stop()
+        if self._worker is not None:
+            self._worker.stop()
         super(PeriodicService, self)._stop_service(*args, **kwargs)
 
     def join(
         self,
-        timeout=None,  # type: typing.Optional[float]
+        timeout: typing.Optional[float] = None,
     ):
-        # type: (...) -> None
         if self._worker:
             self._worker.join(timeout)
 
@@ -90,4 +90,5 @@ class AwakeablePeriodicService(PeriodicService):
 
     def awake(self):
         # type: (...) -> None
-        self._worker.awake()
+        if self._worker is not None:
+            self._worker.awake()

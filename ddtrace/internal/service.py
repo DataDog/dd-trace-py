@@ -28,11 +28,13 @@ class ServiceStatusError(RuntimeError):
 
 
 @dataclasses.dataclass(eq=False)
-class Service:
+class Service(abc.ABC):
     """A service that can be started or stopped."""
 
-    status: ServiceStatus = dataclasses.field(default=ServiceStatus.STOPPED, compare=False)
-    _service_lock: typing.ContextManager = dataclasses.field(default_factory=forksafe.Lock, repr=False, compare=False)
+    status: ServiceStatus = dataclasses.field(default=ServiceStatus.STOPPED, init=False, compare=False)
+    _service_lock: typing.ContextManager = dataclasses.field(
+        default_factory=forksafe.Lock, init=False, repr=False, compare=False
+    )
 
     def __enter__(self):
         self.start()
