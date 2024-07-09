@@ -479,7 +479,7 @@ class StackCollector(collector.PeriodicCollector):
     _thread_time: _ThreadTime = field(init=False, repr=False, compare=False)
     _last_wall_time: int = field(init=False, repr=False, compare=False)
     _thread_span_links: typing.Optional[_ThreadSpanLinks] = None
-    _stack_collector_v2_enabled: bool = config.stack.v2.enabled
+    _stack_collector_v2_enabled: bool = config.stack.v2_enabled
 
     def __post_init__(self):
         if self.max_time_usage_pct <= 0 or self.max_time_usage_pct > 100:
@@ -497,7 +497,7 @@ class StackCollector(collector.PeriodicCollector):
         if config.export.libdd_enabled:
             set_use_libdd(True)
 
-        # If at the end of things, stack v2 is still enabled, then start the native thread running the v2 sampler
+        # If stack v2 is enabled, then use the v2 sampler
         if self._stack_collector_v2_enabled:
             LOG.debug("Starting the stack v2 sampler")
             stack_v2.start()
