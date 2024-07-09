@@ -205,7 +205,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
                 import_name = code.co_names[import_arg]
                 if import_name.startswith("."):
                     import_name = f"{package}.{import_name}"
-                print("Imported:", import_name)
                 new_consts[-1] = (new_consts[-1][0], new_consts[-1][1], import_name)
 
             # Collect branching instructions for processing

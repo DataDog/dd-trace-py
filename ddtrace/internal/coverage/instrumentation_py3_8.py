@@ -10,7 +10,7 @@ from ddtrace.internal.injection import HookType
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-assert sys.version_info >= (3, 8) and sys.version_info < (3, 9)  # nosec
+assert sys.version_info >= (3, 8) and sys.version_info < (3, 10)  # nosec
 
 
 class JumpDirection(int, Enum):
@@ -174,9 +174,7 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     )
 
 
-def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str
-) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[CodeType, t.Set[int]]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
