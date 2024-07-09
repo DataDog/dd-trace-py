@@ -10,7 +10,7 @@ import functools
 import itertools
 import abc
 import _thread
-from types import FunctionType, GenericAlias
+from types import FunctionType
 
 
 __all__ = [
@@ -375,7 +375,10 @@ class Field:
             # it.
             func(self.default, owner, name)
 
-    __class_getitem__ = classmethod(GenericAlias)
+    if sys.version_info >= (3, 9):
+        from types import GenericAlias
+
+        __class_getitem__ = classmethod(GenericAlias)
 
 
 class _DataclassParams:
@@ -1273,7 +1276,6 @@ def _add_slots(cls, is_frozen, weakref_slot):
 
 def dataclass(
     cls=None,
-    /,
     *,
     init=True,
     repr=True,
@@ -1575,6 +1577,8 @@ def make_dataclass(
                 module = sys._getframe(1).f_globals.get("__name__", "__main__")
             except (AttributeError, ValueError):
                 pass
+        except ValueError:
+            module = "__main__"
     if module is not None:
         cls.__module__ = module
 
@@ -1594,7 +1598,7 @@ def make_dataclass(
     )
 
 
-def replace(obj, /, **changes):
+def replace(obj, **changes):
     """Return a new object replacing specified fields with new values.
 
     This is especially useful for frozen classes.  Example usage::
