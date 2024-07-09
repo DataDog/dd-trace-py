@@ -1187,26 +1187,34 @@ def _dataclass_setstate(self, state):
 
 
 def _get_slots(cls):
-    match cls.__dict__.get("__slots__"):
+    slots = cls.__dict__.get("__slots__")
+
+    # Case: None
+    if slots is None:
         # `__dictoffset__` and `__weakrefoffset__` can tell us whether
         # the base type has dict/weakref slots, in a way that works correctly
         # for both Python classes and C extension types. Extension types
         # don't use `__slots__` for slot creation
-        case None:
-            slots = []
-            if getattr(cls, "__weakrefoffset__", -1) != 0:
-                slots.append("__weakref__")
-            if getattr(cls, "__dictrefoffset__", -1) != 0:
-                slots.append("__dict__")
-            yield from slots
-        case str(slot):
-            yield slot
-        # Slots may be any iterable, but we cannot handle an iterator
-        # because it will already be (partially) consumed.
-        case iterable if not hasattr(iterable, "__next__"):
-            yield from iterable
-        case _:
-            raise TypeError(f"Slots of '{cls.__name__}' cannot be determined")
+        result = []
+        if getattr(cls, "__weakrefoffset__", -1) != 0:
+            result.append("__weakref__")
+        if getattr(cls, "__dictrefoffset__", -1) != 0:
+            result.append("__dict__")
+        yield from result
+
+    # Case: str
+    elif isinstance(slots, str):
+        yield slots
+
+    # Case: iterable (but not iterator)
+    # Slots may be any iterable, but we cannot handle an iterator
+    # because it will already be (partially) consumed.
+    elif hasattr(slots, "__iter__") and not hasattr(slots, "__next__"):
+        yield from slots
+
+    # Default case
+    else:
+        raise TypeError(f"Slots of '{cls.__name__}' cannot be determined")
 
 
 def _add_slots(cls, is_frozen, weakref_slot):
