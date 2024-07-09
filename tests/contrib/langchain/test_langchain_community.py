@@ -1247,3 +1247,29 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
         await chain.abatch(inputs=["chickens", "pigs"])
+
+
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+def test_structured_llm_inputs_openai(langchain, langchain_openai, request_vcr):
+    """
+    Test LLMs and chat models enhanced with `with_structured_output` have their output
+    captured correctly.
+    """
+    import langchain.pydantic_v1 # noqa: F401
+
+    class Joke(langchain.pydantic_v1.BaseModel):
+        '''A joke with a setup and punchline'''
+        setup: str = langchain.pydantic_v1.Field(..., description="The setup for the joke")
+        punchline: str = langchain.pydantic_v1.Field(..., description="The punchline for the joke")
+
+    chat = langchain_openai.ChatOpenAI(model="gpt-4", temperature=1)
+    structured_chat = chat.with_structured_output(Joke)
+
+    prompt = langchain.prompts.ChatPromptTemplate.from_messages([
+        ("system", "You are an amazing stand-up comedian, but only makes jokes about trees."),
+        ("human", "{input}")
+    ])
+
+    chain = prompt | structured_chat
+    with request_vcr.use_cassette("structured_llm_inputs_openai.yaml"):
+        chain.invoke("Tell me a joke!")
