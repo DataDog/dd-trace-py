@@ -406,7 +406,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                     else:
                         for k, v in content.items():
                             span.set_tag_str(
-                                "langchain.response.completions.%d.%d.%s" % (message_set_idx, idx, k),
+                                "langchain.response.completions.%d.%d.content.%s" % (message_set_idx, idx, k),
                                 integration.trunc(str(v)),
                             )
                     span.set_tag_str(
@@ -521,7 +521,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                     else:
                         for k, v in content.items():
                             span.set_tag_str(
-                                "langchain.response.completions.%d.%d.%s" % (message_set_idx, idx, k),
+                                "langchain.response.completions.%d.%d.content.%s" % (message_set_idx, idx, k),
                                 integration.trunc(str(v)),
                             )
                     span.set_tag_str(
