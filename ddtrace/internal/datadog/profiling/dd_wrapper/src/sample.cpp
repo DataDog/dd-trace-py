@@ -361,7 +361,7 @@ Datadog::Sample::push_gpu_device_name(std::string_view device_name)
     return true;
 }
 
-void
+bool
 Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 {
     // Monotonic times have their epoch at the system start, so they need an

@@ -17,13 +17,12 @@ class SampleManager
 {
   private:
     static inline unsigned int max_nframes{ g_default_max_nframes };
-    static inline SampleType type_mask{ SampleType::Invalid };
+    static inline SampleType type_mask{ SampleType::All };
     static inline std::mutex init_mutex{};
 
   public:
     // Configuration
     static void add_type(unsigned int type);
-    static void add_type(SampleType type);
     static void set_max_nframes(unsigned int _max_nframes);
     static void set_timeline(bool enable);
 
