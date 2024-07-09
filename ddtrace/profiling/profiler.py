@@ -1,7 +1,4 @@
 # -*- encoding: utf-8 -*-
-from dataclasses import dataclass
-from dataclasses import field
-from dataclasses import fields
 import logging
 import os
 import typing
@@ -19,6 +16,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
@@ -100,7 +98,7 @@ class Profiler(object):
         return getattr(self._profiler, key)
 
 
-@dataclass
+@dataclasses.dataclass
 class _ProfilerInstance(service.Service):
     """A instance of the profiler.
 
@@ -110,12 +108,12 @@ class _ProfilerInstance(service.Service):
 
     # User-supplied values
     url: Optional[str] = None
-    service: Optional[str] = field(default_factory=lambda: os.environ.get("DD_SERVICE"))
-    tags: typing.Dict[str, str] = field(default_factory=dict)
-    env: Optional[str] = field(default_factory=lambda: os.environ.get("DD_ENV"))
-    version: Optional[str] = field(default_factory=lambda: os.environ.get("DD_VERSION"))
+    service: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_SERVICE"))
+    tags: typing.Dict[str, str] = dataclasses.field(default_factory=dict)
+    env: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_ENV"))
+    version: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_VERSION"))
     tracer: Tracer = ddtrace.tracer
-    api_key: Optional[str] = field(default_factory=lambda: os.environ.get("DD_API_KEY"))
+    api_key: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_API_KEY"))
     agentless: bool = config.agentless
     _memory_collector_enabled: bool = config.memory.enabled
     _stack_collector_enabled: bool = config.stack.enabled
@@ -124,11 +122,15 @@ class _ProfilerInstance(service.Service):
     enable_code_provenance: bool = config.code_provenance
     endpoint_collection_enabled: bool = config.endpoint_collection
 
-    _recorder: Any = field(init=False, default=None)
-    _collectors: Optional[List[Union[stack.StackCollector, memalloc.MemoryCollector]]] = field(init=False, default=None)
-    _collectors_on_import: Any = field(init=False, default=None, compare=False)
-    _scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = field(init=False, default=None)
-    _lambda_function_name: Optional[str] = field(
+    _recorder: Any = dataclasses.field(init=False, default=None)
+    _collectors: Optional[List[Union[stack.StackCollector, memalloc.MemoryCollector]]] = dataclasses.field(
+        init=False, default=None
+    )
+    _collectors_on_import: Any = dataclasses.field(init=False, default=None, compare=False)
+    _scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = dataclasses.field(
+        init=False, default=None
+    )
+    _lambda_function_name: Optional[str] = dataclasses.field(
         init=False,
         default_factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"),
     )
@@ -342,7 +344,7 @@ class _ProfilerInstance(service.Service):
         return self.__class__(
             **{
                 a.name: getattr(self, a.name)
-                for a in fields(self.__class__)
+                for a in dataclasses.fields(self.__class__)
                 if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
             }
         )
