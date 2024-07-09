@@ -1110,6 +1110,35 @@ def test_enable():
         assert not t2.enabled
 
 
+@pytest.mark.subprocess(
+    err=b"Shutting down tracer with 2 unfinished spans. "
+    b"Spans that have not been terminated will not be sent to Datadog: "
+    b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
+    b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
+    b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
+    b"resource=my_resource1 started=167232131231.0 sampling_priority=2\n"
+)
+def test_unfinished_span_warning_log():
+    """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
+    from ddtrace import tracer
+    from ddtrace.constants import MANUAL_KEEP_KEY
+
+    # Create two unfinished spans
+    span1 = tracer.trace("unfinished_span1", service="my_service", resource="my_resource1")
+    span2 = tracer.trace("unfinished_span2", service="my_service", resource="my_resource1")
+    # hardcode the trace_id, parent_id, span_id, sampling decision and start time to make the test deterministic
+    span1.trace_id = 123
+    span1.parent_id = 0
+    span1.span_id = 456
+    span1.start = 46121775360
+    span1.set_tag(MANUAL_KEEP_KEY)
+    span2.trace_id = 123
+    span2.parent_id = 456
+    span2.span_id = 666
+    span2.start = 167232131231
+    span2.set_tag(MANUAL_KEEP_KEY)
+
+
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
 def test_threaded_import():
     import threading
