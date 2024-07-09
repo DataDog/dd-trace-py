@@ -9,6 +9,7 @@ from ddtrace.internal.injection import HookType
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 assert sys.version_info >= (3, 12)  # nosec
 
+
 # Register the coverage tool with the low-impact monitoring system
 try:
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")  # noqa
@@ -33,9 +34,7 @@ else:
         sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line_event_handler
     )  # noqa
 
-    def instrument_all_lines(
-        code: CodeType, hook: HookType, path: str, collect_module_dependencies: bool = False
-    ) -> t.Tuple[CodeType, t.Set[int]]:
+    def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[CodeType, t.Set[int]]:
         # Enable local line events for the code object
         sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
 

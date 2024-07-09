@@ -1,5 +1,4 @@
 from collections import defaultdict
-from collections import deque
 from contextlib import AbstractContextManager
 from copy import deepcopy
 import json
@@ -28,36 +27,6 @@ ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
 def _get_ctx_covered_lines() -> t.DefaultDict[str, t.Set]:
     return ctx_covered.get()[-1] if ctx_coverage_enabled.get() else defaultdict(set)
-
-
-def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, t.Optional[CodeType]]]:
-    # Topological sorting
-    q = deque([code])
-    g = {}
-    p = {}
-    leaves: t.Deque[CodeType] = deque()
-
-    # Build the graph and the parent map
-    while q:
-        c = q.popleft()
-        new_codes = g[c] = {_ for _ in c.co_consts if isinstance(_, CodeType)}
-        if not new_codes:
-            leaves.append(c)
-            continue
-        for new_code in new_codes:
-            p[new_code] = c
-        q.extend(new_codes)
-
-    # Yield the code objects in topological order
-    while leaves:
-        c = leaves.popleft()
-        parent = p.get(c)
-        yield c, parent
-        if parent is not None:
-            children = g[parent]
-            children.remove(c)
-            if not children:
-                leaves.append(parent)
 
 
 class ModuleCodeCollector(BaseModuleWatchdog):
