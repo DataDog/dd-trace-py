@@ -119,17 +119,6 @@ cdef int64_t clamp_to_int64_unsigned(value):
         return INT64_MAX
     return value
 
-
-# Module lookups
-cdef dict enum_values = {
-    "invalid": Invalid,
-    "stack": CPU + Wall + ExceptionType,
-    "memory": Allocation + Heap,
-    "lock": LockAcquire + LockRelease,
-    "pytorch": GPUTime + GPUMemory + GPUFlops,
-}
-
-
 # Public API
 def config(
         service: StringType = None,
