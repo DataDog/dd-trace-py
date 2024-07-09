@@ -34,8 +34,9 @@ def gunicorn_server(
     tracer_enabled="true",
     appsec_standalone_enabled=None,
     token=None,
+    port=8000,
 ):
-    cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "tests.appsec.app:app"]
+    cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:%s" % port, "tests.appsec.app:app"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -43,6 +44,7 @@ def gunicorn_server(
         remote_configuration_enabled=remote_configuration_enabled,
         tracer_enabled=tracer_enabled,
         token=token,
+        port=port,
     )
 
 
@@ -57,6 +59,7 @@ def flask_server(
     token=None,
     app="tests/appsec/app.py",
     env=None,
+    port=8000,
 ):
     cmd = [python_cmd, app, "--no-reload"]
     yield from appsec_application_server(
@@ -68,6 +71,7 @@ def flask_server(
         tracer_enabled=tracer_enabled,
         token=token,
         env=env,
+        port=port,
     )
 
 
@@ -80,6 +84,7 @@ def appsec_application_server(
     appsec_standalone_enabled=None,
     token=None,
     env=None,
+    port=8000,
 ):
     env = _build_env(env)
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
@@ -99,6 +104,7 @@ def appsec_application_server(
     if tracer_enabled is not None:
         env["DD_TRACE_ENABLED"] = tracer_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
+    env["FLASK_RUN_PORT"] = str(port)
 
     server_process = subprocess.Popen(
         cmd,
@@ -108,7 +114,7 @@ def appsec_application_server(
         start_new_session=True,
     )
     try:
-        client = Client("http://0.0.0.0:8000")
+        client = Client("http://0.0.0.0:%s" % port)
 
         try:
             print("Waiting for server to start")

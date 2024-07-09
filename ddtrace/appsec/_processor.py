@@ -14,11 +14,9 @@ from typing import Tuple
 from typing import Union
 import weakref
 
-from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
@@ -66,17 +64,7 @@ def _transform_headers(data: Union[Dict[str, str], List[Tuple[str, str]]]) -> Di
 
 
 def get_rules() -> str:
-    return os.getenv("DD_APPSEC_RULES", default=DEFAULT.RULES)
-
-
-def get_appsec_obfuscation_parameter_key_regexp() -> bytes:
-    return os.getenvb(b"DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
-
-
-def get_appsec_obfuscation_parameter_value_regexp() -> bytes:
-    return os.getenvb(
-        b"DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
-    )
+    return asm_config._asm_static_rule_file or DEFAULT.RULES
 
 
 _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
@@ -141,12 +129,8 @@ def _get_rate_limiter() -> RateLimiter:
 @dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
     rules: str = dataclasses.field(default_factory=get_rules)
-    obfuscation_parameter_key_regexp: bytes = dataclasses.field(
-        default_factory=get_appsec_obfuscation_parameter_key_regexp
-    )
-    obfuscation_parameter_value_regexp: bytes = dataclasses.field(
-        default_factory=get_appsec_obfuscation_parameter_value_regexp
-    )
+    obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
+    obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
     _span_to_waf_ctx: weakref.WeakKeyDictionary = dataclasses.field(default_factory=weakref.WeakKeyDictionary)
@@ -158,10 +142,12 @@ class AppSecSpanProcessor(SpanProcessor):
     def __post_init__(self) -> None:
         from ddtrace.appsec._ddwaf import DDWaf
 
+        self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
+        self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
+
         try:
             with open(self.rules, "r") as f:
                 rules = json.load(f)
-
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
                 log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules)
@@ -204,7 +190,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
         result = False
-        if not _appsec_rc_file_is_not_static():
+        if asm_config._asm_static_rule_file is not None:
             return result
         try:
             result = self._ddwaf.update_rules(new_rules)
@@ -223,7 +209,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib import trace_utils
 
-        if span.span_type != SpanTypes.WEB:
+        if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
 
         if _asm_request_context.free_context_available():
@@ -246,8 +232,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
 
         _asm_request_context.set_waf_callback(waf_callable)
-        if config._telemetry_enabled:
-            _asm_request_context.add_context_callback(_set_waf_request_metrics)
+        _asm_request_context.add_context_callback(_set_waf_request_metrics)
         if headers is not None:
             _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
             _asm_request_context.set_waf_address(
@@ -283,7 +268,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP):
+        if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.GRPC):
             return None
 
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
@@ -412,7 +397,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span: Span) -> None:
         try:
-            if span.span_type == SpanTypes.WEB:
+            if span.span_type in {SpanTypes.WEB, SpanTypes.GRPC}:
                 # Force to set respond headers at the end
                 headers_res = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
                 if headers_res:
@@ -432,7 +417,7 @@ class AppSecSpanProcessor(SpanProcessor):
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
 
-            if span.span_type != SpanTypes.WEB:
+            if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
                 return
 
             to_delete = []

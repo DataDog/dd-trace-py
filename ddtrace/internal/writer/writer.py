@@ -19,6 +19,7 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
+from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -607,13 +608,8 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            if config._telemetry_enabled:
-                from ...internal import telemetry
-
-                if telemetry.telemetry_writer.started:
-                    return
-
-                telemetry.telemetry_writer._app_started_event()
+            if config._telemetry_enabled and not telemetry_writer.started:
+                telemetry_writer._app_started_event()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized

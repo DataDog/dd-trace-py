@@ -139,7 +139,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         self._enqueue(event)
 
     def _data(self, events: List[LLMObsSpanEvent]) -> Dict[str, Any]:
-        return {"ml_obs": {"stage": "raw", "type": "span", "spans": events}}
+        return {"_dd.stage": "raw", "event_type": "span", "spans": events}
 
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):

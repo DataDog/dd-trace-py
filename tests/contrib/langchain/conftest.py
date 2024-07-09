@@ -4,18 +4,13 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.langchain.patch import patch
+from ddtrace import patch
 from ddtrace.contrib.langchain.patch import unpatch
-from ddtrace.llmobs import LLMObs
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>"}
 
 
 @pytest.fixture
@@ -81,12 +76,11 @@ def mock_llmobs_span_writer():
         yield m
     finally:
         patcher.stop()
-        LLMObs.disable()
 
 
 @pytest.fixture
 def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
-    with override_global_config(default_global_config()):
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
         with override_config("langchain", ddtrace_config_langchain):
             with override_env(
                 dict(
@@ -97,7 +91,7 @@ def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
                     AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
                 )
             ):
-                patch()
+                patch(langchain=True)
                 import langchain
 
                 mock_logs.reset_mock()
@@ -108,29 +102,13 @@ def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
 
 
 @pytest.fixture
-def langchain_anthropic(ddtrace_config_langchain, mock_logs, mock_metrics):
-    with override_global_config(default_global_config()):
-        with override_config("langchain", ddtrace_config_langchain):
-            with override_env(
-                dict(
-                    ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-                )
-            ):
-                patch()
-                import langchain_anthropic
-
-                mock_logs.reset_mock()
-                mock_metrics.reset_mock()
-
-                yield langchain_anthropic
-                unpatch()
-
-
-@pytest.fixture
 def langchain_community(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
-    import langchain_community
+    try:
+        import langchain_community
 
-    yield langchain_community
+        yield langchain_community
+    except ImportError:
+        yield
 
 
 @pytest.fixture
@@ -148,6 +126,24 @@ def langchain_openai(ddtrace_config_langchain, mock_logs, mock_metrics, langchai
 
         yield langchain_openai
     except ImportError:
-        import langchain_community
+        yield
 
-        yield langchain_community
+
+@pytest.fixture
+def langchain_cohere(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+    try:
+        import langchain_cohere
+
+        yield langchain_cohere
+    except ImportError:
+        yield
+
+
+@pytest.fixture
+def langchain_anthropic(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+    try:
+        import langchain_anthropic
+
+        yield langchain_anthropic
+    except ImportError:
+        yield
