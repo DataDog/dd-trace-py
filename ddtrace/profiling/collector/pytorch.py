@@ -135,7 +135,7 @@ class TorchProfilerCollector(MLProfilerCollector):
         self, value  # type: typing.Any
     ):
         # type: (...) -> None
-        self._torch_module.profiler.profile = value  # type: ignore[misc]
+        self._torch_module.profiler.profile = value
 
 
 def handle_torch_trace(prof):
