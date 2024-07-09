@@ -53,10 +53,10 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
 
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
-    """asserts that _app_started_event() queues a valid telemetry request which is then sent by periodic()"""
+    """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         # queue an app started event
-        telemetry_writer._app_started_event()
+        telemetry_writer.app_started()
         # force a flush
         telemetry_writer.periodic(force_flush=True)
 
@@ -405,7 +405,7 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
     # app started event must be queued before any other telemetry event
-    telemetry_writer._app_started_event(register_app_shutdown=False)
+    telemetry_writer.app_started(register_app_shutdown=False)
     assert telemetry_writer.started
     # send app closed event
     telemetry_writer.app_shutdown()

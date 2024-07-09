@@ -419,7 +419,7 @@ class TelemetryWriter(PeriodicService):
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
 
-    def _app_started_event(self, register_app_shutdown=True):
+    def app_started(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
@@ -859,7 +859,7 @@ class TelemetryWriter(PeriodicService):
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             if self._enabled and not self.started:
-                self._app_started_event(False)
+                self.app_started(False)
 
             self.app_shutdown()
 
