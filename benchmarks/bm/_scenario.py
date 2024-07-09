@@ -1,6 +1,6 @@
 import abc
 import ast
-from dataclasses import fields
+import dataclasses
 import time
 
 import pyperf
@@ -15,21 +15,21 @@ def _register(scenario_cls):
 
     # This extends pyperf's runner by registering arguments for the scenario config
     def add_cmdline_args(cmd, args):
-        for _field in fields(scenario_cls):
+        for _field in dataclasses.fields(scenario_cls):
             if hasattr(args, _field.name):
                 cmd.extend(("--{}".format(_field.name), str(getattr(args, _field.name))))
 
     runner = pyperf.Runner(add_cmdline_args=add_cmdline_args)
     cmd = runner.argparser
 
-    for _field in fields(scenario_cls):
+    for _field in dataclasses.fields(scenario_cls):
         cmd.add_argument("--{}".format(_field.name), type=_field.type if _field.type is not bool else str_to_bool)
 
     parsed_args = runner.parse_args()
 
     config_dict = {
         _field.name: getattr(parsed_args, _field.name)
-        for _field in fields(scenario_cls)
+        for _field in dataclasses.fields(scenario_cls)
         if hasattr(parsed_args, _field.name)
     }
 
@@ -38,17 +38,13 @@ def _register(scenario_cls):
     runner.bench_time_func(scenario.scenario_name, scenario._pyperf)
 
 
-class ScenarioMeta(abc.ABCMeta):
-    def __new__(cls, name, bases, attrs):
-        cls = super().__new__(cls, name, bases, attrs)
-        # Do not register the base Scenario class
-        if hasattr(cls, "run") and not getattr(cls.run, "__isabstractmethod__", False):
-            _register(cls)
-        return cls
-
-
-class Scenario(metaclass=ScenarioMeta):
+class Scenario:
     """The base class for specifying a benchmark."""
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        dataclasses.dataclass(cls)
+        _register(cls)
 
     @property
     def scenario_name(self):

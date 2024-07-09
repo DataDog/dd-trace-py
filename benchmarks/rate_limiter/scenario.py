@@ -1,18 +1,14 @@
-from dataclasses import dataclass
 import math
 
 import bm
 
 
-@dataclass
-class RateLimiterParent:
+class RateLimiter(bm.Scenario):
     name: str
     rate_limit: int
     time_window: int
     num_windows: int
 
-
-class RateLimiter(RateLimiterParent, bm.Scenario):
     def run(self):
         from ddtrace.internal.compat import time_ns
         from ddtrace.internal.rate_limiter import RateLimiter

@@ -1,11 +1,8 @@
-from dataclasses import dataclass
-
 import bm
 import utils
 
 
-@dataclass
-class EncoderParent:
+class Encoder(bm.Scenario):
     name: str
     ntraces: int
     nspans: int
@@ -15,8 +12,6 @@ class EncoderParent:
     encoding: str
     dd_origin: bool
 
-
-class Encoder(EncoderParent, bm.Scenario):
     def run(self):
         encoder = utils.init_encoder(self.encoding)
         traces = utils.gen_traces(self)

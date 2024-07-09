@@ -1,5 +1,4 @@
 import concurrent.futures
-from dataclasses import dataclass
 import random
 from typing import Callable  # noqa:F401
 from typing import Generator  # noqa:F401
@@ -31,15 +30,12 @@ class NoopWriter(TraceWriter):
         pass
 
 
-@dataclass
-class ThreadingParent:
+class Threading(bm.Scenario):
     name: str
     nthreads: int
     ntraces: int
     nspans: int
 
-
-class Threading(ThreadingParent, bm.Scenario):
     def create_trace(self, tracer):
         # type: (Tracer) -> None
         with tracer.trace("root"):

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import os
 import subprocess
 import sys
@@ -6,8 +5,7 @@ import sys
 import bm
 
 
-@dataclass
-class DDtraceRunParent:
+class DDtraceRun(bm.Scenario):
     name: str
     ddtrace_run: bool
     http: bool
@@ -17,8 +15,6 @@ class DDtraceRunParent:
     appsec: bool
     tracing: bool
 
-
-class DDtraceRun(DDtraceRunParent, bm.Scenario):
     def run(self):
         # setup subprocess environment variables
         env = os.environ.copy()

@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 import bm
 
 from ddtrace.internal import core
@@ -9,16 +7,13 @@ if not hasattr(core, "dispatch_with_results"):
     core.dispatch_with_results = core.dispatch
 
 
-@dataclass
-class CoreAPIScenarioParent:
+class CoreAPIScenario(bm.Scenario):
     name: str
     listeners: int = 0
     all_listeners: int = 0
     set_item_count: int = 100
     get_item_exists: bool
 
-
-class CoreAPIScenario(CoreAPIScenarioParent, bm.Scenario):
     CUSTOM_EVENT_NAME = "CoreAPIScenario.event"
 
     def run(self):

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import itertools
 import random
 import string
@@ -24,8 +23,7 @@ def iter_n(items, n):
             i = 0
 
 
-@dataclass
-class SamplingRulesParent:
+class SamplingRules(bm.Scenario):
     name: str
     num_iterations: int
     num_services: int
@@ -33,8 +31,6 @@ class SamplingRulesParent:
     num_resources: int
     num_tags: int
 
-
-class SamplingRules(SamplingRulesParent, bm.Scenario):
     def run(self):
         # Generate random service and operation names for the counts we requested
         services = [rands() for _ in range(self.num_services)]

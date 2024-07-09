@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from bm import Scenario
 import bm.utils as utils
 
@@ -7,8 +5,7 @@ from ddtrace import config
 from ddtrace import tracer
 
 
-@dataclass
-class SpanParent:
+class Span(Scenario):
     name: str
     nspans: int
     ntags: int
@@ -18,8 +15,6 @@ class SpanParent:
     traceid128: bool
     telemetry: bool
 
-
-class Span(SpanParent, Scenario):
     def run(self):
         # run scenario to also set tags on spans
         tags = utils.gen_tags(self)

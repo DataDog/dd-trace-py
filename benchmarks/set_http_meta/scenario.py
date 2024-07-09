@@ -1,6 +1,5 @@
 from collections import defaultdict
 import copy
-from dataclasses import dataclass
 
 from bm import Scenario
 import bm.utils as utils
@@ -45,8 +44,7 @@ DATA_GET = dict(
 )
 
 
-@dataclass
-class SetHttpMetaParent:
+class SetHttpMeta(Scenario):
     name: str
     useragentvariant: str
     url: str
@@ -57,8 +55,6 @@ class SetHttpMetaParent:
     send_querystring_enabled: bool
     ip_enabled: bool
 
-
-class SetHttpMeta(SetHttpMetaParent, Scenario):
     def run(self):
         # run scenario to also set tags on spans
         if self.allenabled:

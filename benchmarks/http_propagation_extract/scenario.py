@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import json
 
 import bm
@@ -8,16 +7,13 @@ from ddtrace.propagation import _utils as utils
 from ddtrace.propagation import http
 
 
-@dataclass
-class HTTPPropagationExtractParent:
+class HTTPPropagationExtract(bm.Scenario):
     name: str
     headers: str
     extra_headers: int
     wsgi_style: bool
     styles: str
 
-
-class HTTPPropagationExtract(HTTPPropagationExtractParent, bm.Scenario):
     def generate_headers(self):
         headers = json.loads(self.headers)
         if self.wsgi_style:

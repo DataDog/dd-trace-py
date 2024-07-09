@@ -14,7 +14,7 @@ A scenario requires:
 * ``config.yaml``: specifies one or more sets of configuration variables for the benchmark
 * ``requirements_scenario.txt``: any additional dependencies
 
-The scenario class inherits from a dataclass parent that includes the configurable variables and ``bm.Scenario``. The execution of the benchmark uses the ``run()`` generator function to yield a function that will handle the execution of a specified number of loops.
+The scenario class inherits from  ``bm.Scenario`` and includes the configurable variables. The execution of the benchmark uses the ``run()`` generator function to yield a function that will handle the execution of a specified number of loops.
 
 Example
 ~~~~~~~
@@ -24,16 +24,12 @@ Example
 
 ::
 
-  from dataclasses import dataclass
   import bm
 
 
-  @dataclass
-  class MyScenarioParent:
+  class MyScenario(bm.Scenario):
       size: int
 
-
-  class MyScenario(MyScenarioParent, bm.Scenario):
       def run(self):
           size = self.size
 

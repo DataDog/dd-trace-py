@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import hashlib
 import os
 import random
@@ -76,7 +75,6 @@ def create_app():
     return app
 
 
-@dataclass
 class FlaskScenarioMixin:
     name: str
     tracer_enabled: bool

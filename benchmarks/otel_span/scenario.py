@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import os
 
 import bm
@@ -16,8 +15,7 @@ os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 otel_tracer = get_tracer(__name__)
 
 
-@dataclass
-class OtelSpanParent:
+class OtelSpan(bm.Scenario):
     name: str
     nspans: int
     ntags: int
@@ -26,8 +24,6 @@ class OtelSpanParent:
     finishspan: bool
     telemetry: bool
 
-
-class OtelSpan(OtelSpanParent, bm.Scenario):
     def run(self):
         # run scenario to also set tags on spans
         tags = utils.gen_tags(self)

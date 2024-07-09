@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from dataclasses import field
 import os
 import subprocess
@@ -6,16 +5,13 @@ import subprocess
 import bm
 
 
-@dataclass
-class StartupParent:
+class Startup(bm.Scenario):
     name: str
     ddtrace_run: bool
     import_ddtrace: bool
     import_ddtrace_auto: bool
     env: dict = field(default_factory=dict)
 
-
-class Startup(StartupParent, bm.Scenario):
     def run(self):
         env = os.environ.copy()
         env.update(self.env)
