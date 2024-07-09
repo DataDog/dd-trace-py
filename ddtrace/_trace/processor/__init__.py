@@ -387,7 +387,7 @@ class SpanAggregator(SpanProcessor):
         self._queue_span_count_metrics("spans_finished", "integration_name", 1)
         # Log a warning if the tracer is shutdown before spans are finished
         unfinished_spans = [
-            f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start}"  # noqa: E501
+            f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
             for t in self._traces.values()
             for s in t.spans
             if not s.finished
