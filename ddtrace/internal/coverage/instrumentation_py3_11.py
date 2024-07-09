@@ -243,8 +243,7 @@ SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
 def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, collect_module_dependencies: bool = False
-) -> t.Tuple[CodeType, t.Set[int]]:
+    code: CodeType, hook: HookType, path: str) -> t.Tuple[CodeType, t.Set[int]]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
