@@ -123,7 +123,7 @@ class RuntimeWorker(periodic.PeriodicService):
                 return
             if flush_interval is None:
                 flush_interval = _get_interval_or_default()
-            runtime_worker = cls(flush_interval, tracer, dogstatsd_url)  # type: ignore[arg-type]
+            runtime_worker = cls(interval=flush_interval, tracer=tracer, dogstatsd_url=dogstatsd_url)
             runtime_worker.start()
             # force an immediate update constant tags
             runtime_worker.update_runtime_tags()
