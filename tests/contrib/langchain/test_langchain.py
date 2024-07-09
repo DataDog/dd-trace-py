@@ -2,17 +2,19 @@ import os
 import re
 import sys
 
+import langchain as _langchain
 import mock
 import pytest
 
-from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
 from tests.utils import override_global_config
 
 
-pytestmark = pytest.mark.skipif(not PATCH_LANGCHAIN_V0, reason="This module only tests langchain < 0.1")
+pytestmark = pytest.mark.skipif(
+    parse_version(_langchain.__version__) >= (0, 1, 0), reason="This module only tests langchain < 0.1"
+)
 
 
 @pytest.fixture(scope="session")

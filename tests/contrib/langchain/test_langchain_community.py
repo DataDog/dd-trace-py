@@ -8,14 +8,14 @@ import langchain.prompts  # noqa: F401
 import mock
 import pytest
 
-from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
+from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.utils import flaky
 from tests.utils import override_global_config
 
 
 pytestmark = pytest.mark.skipif(
-    PATCH_LANGCHAIN_V0 or sys.version_info < (3, 10),
+    parse_version(langchain.__version__) < (0, 1, 0) and sys.version_info < (3, 10),
     reason="This module only tests langchain >= 0.1 and Python 3.10+",
 )
 
