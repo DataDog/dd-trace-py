@@ -354,7 +354,7 @@ def test_send_metric_flush_and_distributions_series_is_restarted(telemetry_write
 def test_send_log_metric_simple(telemetry_writer, test_agent_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1")
+        telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1")
         expected_payload = [
             {
                 "level": "WARN",
@@ -369,7 +369,7 @@ def test_send_log_metric_simple(telemetry_writer, test_agent_session, mock_time)
 def test_send_log_metric_simple_tags(telemetry_writer, test_agent_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1", tags={"a": "b", "c": "d"})
+        telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1", tags={"a": "b", "c": "d"})
         expected_payload = [
             {
                 "level": "WARN",
@@ -385,7 +385,7 @@ def test_send_log_metric_simple_tags(telemetry_writer, test_agent_session, mock_
 def test_send_multiple_log_metric(telemetry_writer, test_agent_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1", "Traceback:\nValueError", {"a": "b"})
+        telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1", "Traceback:\nValueError", {"a": "b"})
         expected_payload = [
             {
                 "level": "WARN",
@@ -398,7 +398,7 @@ def test_send_multiple_log_metric(telemetry_writer, test_agent_session, mock_tim
 
         _assert_logs(test_agent_session, expected_payload)
 
-        telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1", "Traceback:\nValueError", {"a": "b"})
+        telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1", "Traceback:\nValueError", {"a": "b"})
 
         _assert_logs(test_agent_session, expected_payload, seq_id=2)
 
@@ -406,7 +406,7 @@ def test_send_multiple_log_metric(telemetry_writer, test_agent_session, mock_tim
 def test_send_multiple_log_metric_no_duplicates(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         for _ in range(10):
-            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1", "Traceback:\nValueError", {"a": "b"})
+            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1", "Traceback:\nValueError", {"a": "b"})
 
         expected_payload = [
             {
@@ -424,7 +424,7 @@ def test_send_multiple_log_metric_no_duplicates(telemetry_writer, test_agent_ses
 def test_send_multiple_log_metric_no_duplicates_for_each_interval(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         for _ in range(10):
-            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1")
+            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1")
 
         expected_payload = [
             {
@@ -437,7 +437,7 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval(telemetry_writ
         _assert_logs(test_agent_session, expected_payload)
 
         for _ in range(10):
-            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1")
+            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1")
 
         _assert_logs(test_agent_session, expected_payload, seq_id=2)
 
@@ -446,7 +446,7 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval_check_time(tel
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         for _ in range(3):
             sleep(0.1)
-            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1")
+            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1")
 
         expected_payload = [
             {
@@ -460,6 +460,6 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval_check_time(tel
 
         for _ in range(3):
             sleep(0.1)
-            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1")
+            telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1")
 
         _assert_logs(test_agent_session, expected_payload, seq_id=2)

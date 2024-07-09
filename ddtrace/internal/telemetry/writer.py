@@ -640,7 +640,7 @@ class TelemetryWriter(PeriodicService):
             data = LogData(
                 {
                     "message": message,
-                    "level": level.name,
+                    "level": level.value,
                     "tracer_time": int(time.time()),
                 }
             )
