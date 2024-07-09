@@ -3,8 +3,7 @@ import typing
 
 from ddtrace._trace import span as ddspan  # noqa:F401
 from ddtrace.internal import compat
-from ddtrace.internal.compat.dataclasses import dataclass
-from ddtrace.internal.compat.dataclasses import field
+from ddtrace.internal.compat import dataclasses
 
 
 _T = typing.TypeVar("_T")
@@ -13,11 +12,11 @@ DDFrame = namedtuple("DDFrame", ["file_name", "lineno", "function_name", "class_
 StackTraceType = typing.List[DDFrame]
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class Event:
     """An event happening at a point in time."""
 
-    timestamp: int = field(default_factory=compat.time_ns)
+    timestamp: int = dataclasses.field(default_factory=compat.time_ns)
 
     @property
     def name(self):
@@ -26,21 +25,21 @@ class Event:
         return self.__class__.__name__
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class TimedEvent(Event):
     """An event that has a duration."""
 
     duration: typing.Optional[float] = None
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class SampleEvent(Event):
     """An event representing a sample gathered from the system."""
 
     sampling_period: typing.Optional[int] = None
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class StackBasedEvent(SampleEvent):
     thread_id: typing.Optional[int] = None
     thread_name: typing.Optional[str] = None

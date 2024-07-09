@@ -4,8 +4,7 @@ from typing import Any
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
-from ddtrace.internal.compat.dataclasses import dataclass
-from ddtrace.internal.compat.dataclasses import field
+from ddtrace.internal.compat import dataclasses
 from ddtrace.settings.profiling import config
 
 from .. import event  # noqa:F401
@@ -19,11 +18,11 @@ class CollectorUnavailable(CollectorError):
     pass
 
 
-@dataclass
+@dataclasses.dataclass
 class Collector(service.Service):
     """A profile collector."""
 
-    recorder: Any = field()
+    recorder: Any = dataclasses.field()
 
     @staticmethod
     def snapshot():
@@ -33,7 +32,7 @@ class Collector(service.Service):
         """
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
@@ -52,12 +51,12 @@ class PeriodicCollector(Collector, periodic.PeriodicService):
         raise NotImplementedError
 
 
-@dataclass
-class CaptureSampler(object):
+@dataclasses.dataclass
+class CaptureSampler:
     """Determine the events that should be captured based on a sampling percentage."""
 
     capture_pct: float = 100.0
-    _counter: int = field(default=0, init=False)
+    _counter: int = dataclasses.field(default=0, init=False)
 
     def capture(self):
         self._counter += self.capture_pct
@@ -71,10 +70,10 @@ class CaptureSampler(object):
             raise ValueError("Capture percentage should be between 0 and 100 included")
 
 
-@dataclass
+@dataclasses.dataclass
 class CaptureSamplerCollector(Collector):
     capture_pct: float = config.capture_pct
-    _capture_sampler: CaptureSampler = field(init=False, repr=False)
+    _capture_sampler: CaptureSampler = dataclasses.field(init=False, repr=False)
 
     def __post_init__(self):
         self._capture_sampler = CaptureSampler(self.capture_pct)

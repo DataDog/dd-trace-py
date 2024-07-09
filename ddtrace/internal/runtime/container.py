@@ -5,7 +5,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-from ..compat.dataclasses import dataclass
+from ..compat import dataclasses
 from ..constants import CONTAINER_ID_HEADER_NAME
 from ..constants import ENTITY_ID_HEADER_NAME
 from ..logger import get_logger
@@ -14,7 +14,7 @@ from ..logger import get_logger
 log = get_logger(__name__)
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class CGroupInfo:
     id: Any = None
     groups: Any = None

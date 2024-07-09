@@ -12,8 +12,7 @@ except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal import compat
-from ddtrace.internal.compat.dataclasses import dataclass
-from ddtrace.internal.compat.dataclasses import field
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -24,7 +23,7 @@ from ddtrace.settings.profiling import config
 LOG = logging.getLogger(__name__)
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class MemoryAllocSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
@@ -38,7 +37,7 @@ class MemoryAllocSampleEvent(event.StackBasedEvent):
     """The total number of allocation events sampled."""
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class MemoryHeapSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
@@ -49,7 +48,7 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
     """The sampling size."""
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
@@ -57,7 +56,7 @@ class MemoryCollector(collector.PeriodicCollector):
     _DEFAULT_INTERVAL = 0.5
 
     # Arbitrary interval to empty the _memalloc event buffer
-    _interval: float = field(default=_DEFAULT_INTERVAL, repr=False)
+    _interval: float = dataclasses.field(default=_DEFAULT_INTERVAL, repr=False)
 
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
     _max_events: int = config.memory.events_buffer

@@ -10,8 +10,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import compat
-from ..internal.compat.dataclasses import dataclass
-from ..internal.compat.dataclasses import field
+from ..internal.compat import dataclasses
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .core import RateLimiter as _RateLimiter
 
@@ -37,7 +36,7 @@ class RateLimitExceeded(Exception):
     pass
 
 
-@dataclass
+@dataclasses.dataclass
 class BudgetRateLimiterWithJitter:
     """A budget rate limiter with jitter.
 
@@ -66,10 +65,10 @@ class BudgetRateLimiterWithJitter:
     raise_on_exceed: bool = True
     on_exceed: Optional[Callable[[], None]] = None
     call_once: bool = False
-    budget: float = field(init=False)
-    max_budget: float = field(init=False)
-    last_time: float = field(init=False, default_factory=compat.monotonic)
-    _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
+    budget: float = dataclasses.field(init=False)
+    max_budget: float = dataclasses.field(init=False)
+    last_time: float = dataclasses.field(init=False, default_factory=compat.monotonic)
+    _lock: threading.Lock = dataclasses.field(init=False, default_factory=threading.Lock)
 
     def __post_init__(self):
         if self.limit_rate == float("inf"):

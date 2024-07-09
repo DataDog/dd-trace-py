@@ -1,6 +1,6 @@
 import typing
 
-from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat import dataclasses
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
@@ -11,7 +11,7 @@ class ExportError(Exception):
     pass
 
 
-@dataclass
+@dataclasses.dataclass
 class Exporter:
     """Exporter base class."""
 
@@ -31,7 +31,7 @@ class Exporter:
         raise NotImplementedError
 
 
-@dataclass
+@dataclasses.dataclass
 class NullExporter(Exporter):
     """Exporter that does nothing."""
 

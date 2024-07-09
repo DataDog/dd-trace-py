@@ -19,7 +19,7 @@ from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import shjoin
-from ddtrace.internal.compat.dataclasses import dataclass
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -69,7 +69,7 @@ def patch():
     return patched
 
 
-@dataclass(eq=False)
+@dataclasses.dataclass(eq=False)
 class SubprocessCmdLineCacheEntry(object):
     binary: str = None
     arguments: List = None

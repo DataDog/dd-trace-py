@@ -9,8 +9,7 @@ import typing
 import six
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
-from ddtrace.internal.compat.dataclasses import dataclass
-from ddtrace.internal.compat.dataclasses import field
+from ddtrace.internal.compat import dataclasses
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
 from ddtrace.internal import compat
@@ -425,7 +424,7 @@ else:
     _thread_span_links_base = _threading._ThreadLink
 
 
-@dataclass(slots=True, eq=False)
+@dataclasses.dataclass(slots=True, eq=False)
 class _ThreadSpanLinks(_thread_span_links_base):
 
     def link_span(
@@ -461,23 +460,23 @@ def _default_min_interval_time():
     return sys.getswitchinterval() * 2
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
     # This need to be a real OS thread in order to catch
     _real_thread = True
-    _interval: float = field(default_factory=_default_min_interval_time, init=False, repr=False)
+    _interval: float = dataclasses.field(default_factory=_default_min_interval_time, init=False, repr=False)
     # This is the minimum amount of time the thread will sleep between polling interval,
     # no matter how fast the computer is.
-    min_interval_time: float = field(default_factory=_default_min_interval_time, init=False)
+    min_interval_time: float = dataclasses.field(default_factory=_default_min_interval_time, init=False)
 
     max_time_usage_pct: float = config.max_time_usage_pct
     nframes: int = config.max_frames
     ignore_profiler: bool = config.ignore_profiler
     endpoint_collection_enabled: typing.Optional[bool] = None
     tracer: typing.Optional[ddtrace.Tracer] = None
-    _thread_time: _ThreadTime = field(init=False, repr=False, compare=False)
-    _last_wall_time: int = field(init=False, repr=False, compare=False)
+    _thread_time: _ThreadTime = dataclasses.field(init=False, repr=False, compare=False)
+    _last_wall_time: int = dataclasses.field(init=False, repr=False, compare=False)
     _thread_span_links: typing.Optional[_ThreadSpanLinks] = None
     _stack_collector_v2_enabled: bool = config.stack.v2_enabled
 

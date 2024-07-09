@@ -9,8 +9,7 @@ import typing
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
-from ddtrace.internal.compat.dataclasses import dataclass
-from ddtrace.internal.compat.dataclasses import field
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
@@ -26,7 +25,7 @@ from ddtrace.vendor import wrapt
 LOG = get_logger(__name__)
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
@@ -34,14 +33,14 @@ class LockEventBase(event.StackBasedEvent):
     sampling_pct: int = 0
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
     wait_time_ns: int = 0
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 
@@ -296,7 +295,7 @@ class FunctionWrapper(wrapt.FunctionWrapper):
         return self
 
 
-@dataclass
+@dataclasses.dataclass
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
@@ -306,7 +305,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     tracer: typing.Optional[Tracer] = None
 
-    _original: typing.Any = field(init=False, repr=False, compare=False)
+    _original: typing.Any = dataclasses.field(init=False, repr=False, compare=False)
 
     # Check if libdd is available, if not, disable the feature
     if export_libdd_enabled and not ddup.is_available:

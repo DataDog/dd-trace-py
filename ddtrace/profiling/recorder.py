@@ -4,8 +4,7 @@ import threading
 import typing
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat.dataclasses import dataclass
-from ddtrace.internal.compat.dataclasses import field
+from ddtrace.internal.compat import dataclasses
 from ddtrace.settings.profiling import config
 
 from . import event
@@ -27,18 +26,20 @@ class _defaultdictkey(dict):
 EventsType = typing.Dict[event.Event, typing.Sequence[event.Event]]
 
 
-@dataclass
+@dataclasses.dataclass
 class Recorder:
     """An object that records program activity."""
 
     default_max_events: int = config.spec.max_events.default
     """The maximum number of events for an event type if one is not specified."""
 
-    max_events: typing.Dict[typing.Type[event.Event], typing.Optional[int]] = field(default_factory=dict)
+    max_events: typing.Dict[typing.Type[event.Event], typing.Optional[int]] = dataclasses.field(default_factory=dict)
     """A dict of {event_type_class: max events} to limit the number of events to record."""
 
-    events: EventsType = field(init=False, repr=False, compare=False)
-    _events_lock: threading.RLock = field(init=False, repr=False, default_factory=threading.RLock, compare=False)
+    events: EventsType = dataclasses.field(init=False, repr=False, compare=False)
+    _events_lock: threading.RLock = dataclasses.field(
+        init=False, repr=False, default_factory=threading.RLock, compare=False
+    )
 
     def __post_init__(self):
         # type: (...) -> None

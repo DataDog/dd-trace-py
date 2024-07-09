@@ -20,8 +20,7 @@ from ddtrace.internal import agent
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
-from ddtrace.internal.compat.dataclasses import dataclass
-from ddtrace.internal.compat.dataclasses import field
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -37,7 +36,7 @@ PYTHON_IMPLEMENTATION = platform.python_implementation()
 PYTHON_VERSION = platform.python_version()
 
 
-@dataclass
+@dataclasses.dataclass
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
@@ -54,9 +53,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
     service: typing.Optional[str] = None
     env: typing.Optional[str] = None
     version: typing.Optional[str] = None
-    tags: typing.Dict[str, str] = field(default_factory=dict)
+    tags: typing.Dict[str, str] = dataclasses.field(default_factory=dict)
     max_retry_delay: typing.Optional[float] = None
-    _container_info: typing.Optional[container.CGroupInfo] = field(default_factory=container.get_container_info)
+    _container_info: typing.Optional[container.CGroupInfo] = dataclasses.field(
+        default_factory=container.get_container_info
+    )
     endpoint_path: str = "/profiling/v1/input"
 
     endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = None
