@@ -156,10 +156,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 for chat_completion in message_set:
                     chat_completion_msg = chat_completion.message
                     role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
-                    content = self.extract_chat_completion_output_content(chat_completion)
                     output_messages.append(
                         {
-                            "content": str(content) if not isinstance(content, dict) else {**content},
+                            "content": str(chat_completion.text),
                             "role": role,
                         }
                     )
@@ -251,32 +250,38 @@ class LangChainIntegration(BaseLLMIntegration):
             tags.append("%s:%s" % (ERROR_TYPE, err_type))
         return tags
 
-    def extract_chat_completion_output_content(self, chat_completion: Any) -> str:
+    def extract_chat_completion_output_content(self, chat_completion: Any) -> Union[str, Dict[str, Any]]:
         """
         Extracts the completion content from a chat completion object.
         This is handled differently for the different types of model providers
         that can be used with LangChain.
         """
 
-        text = chat_completion.text
-        if text:
-            return text
+        try:
+            text = chat_completion.text
+            if text:
+                return text
 
-        message = chat_completion.message
-        content = message.content
-        tool_calls = message.tool_calls
+            message = chat_completion.message
+            content = message.content
 
-        # for anthropic, langchain puts it on the content
-        if content:
-            if isinstance(content, str):
-                return content
-            elif isinstance(content, list):
-                return content[0]["input"]
+            tool_calls = message.tool_calls
 
-        # for openai, langchain utilizes tool_calls
-        if tool_calls:
-            if isinstance(tool_calls, list):
-                return tool_calls[0]["args"]
+            # for anthropic, langchain puts it on the content
+            if content:
+                if isinstance(content, str):
+                    return content
+                elif isinstance(content, list):
+                    return content[0].get("input")
+
+            # for openai, langchain utilizes tool_calls
+            if tool_calls:
+                if isinstance(tool_calls, list):
+                    return tool_calls[0].get("args")
+
+            return str(chat_completion)
+        except (AttributeError, KeyError, IndexError):
+            return str(chat_completion)
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage or self.metrics_enabled is False:
