@@ -300,7 +300,7 @@ class ProfilingConfigPytorch(En):
     enabled = En.v(
         bool,
         "enabled",
-        default=True,
+        default=False,
         help_type="Boolean",
         help="Whether to enable the PyTorch profiler",
     )
