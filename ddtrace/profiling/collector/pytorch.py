@@ -39,31 +39,18 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
         wrapped: typing.Any,
         recorder: Recorder,
         tracer: typing.Optional[Tracer],
-        max_nframes: int,
-        capture_sampler: collector.CaptureSampler,
-        endpoint_collection_enabled: bool,
     ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
         self.on_trace_ready = handle_torch_trace
         self._self_recorder = recorder
         self._self_tracer = tracer
-        self._self_max_nframes = max_nframes
-        self._self_capture_sampler = capture_sampler
-        self._self_endpoint_collection_enabled = endpoint_collection_enabled
-        frame = sys._getframe(2 if WRAPT_C_EXT else 3)
-        code = frame.f_code
-        self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
 
 @attr.s
 class MLProfilerCollector(collector.CaptureSamplerCollector):
     """Record ML framework (i.e. pytorch) profiler usage."""
 
-    nframes = attr.ib(type=int, default=config.max_frames)
-    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
-
     tracer = attr.ib(default=None)
-
     _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
 
     @abc.abstractmethod
@@ -108,9 +95,6 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
                 profiler,
                 self.recorder,
                 self.tracer,
-                self.nframes,
-                self._capture_sampler,
-                self.endpoint_collection_enabled,
             )
 
         self._set_original(wrapt.FunctionWrapper(self.original, profiler_init))
