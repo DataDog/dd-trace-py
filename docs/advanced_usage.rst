@@ -753,7 +753,7 @@ The requirements for using this feature are:
 It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and CPU overhead. This 
 is an experimental feature which should be run with caution as it can add significant overhead. Additionally, please note that running this feature in certain 
 configurations can conflict with other features. For instance, running the NSight Systems or NSight Compute profiler alongside the PyTorch profiler on the same machine at the same time will likely lead to
- errors as CUPTI generally does not support multiple concurrent readers.
+errors as CUPTI generally does not support multiple concurrent readers.
 
 
 Below is an example program using the well known `CIFAR-10 <https://www.cs.toronto.edu/~kriz/cifar.html>` dataset for image classification.
