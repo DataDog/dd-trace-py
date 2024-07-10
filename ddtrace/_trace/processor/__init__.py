@@ -394,8 +394,7 @@ class SpanAggregator(SpanProcessor):
         ]
         if unfinished_spans:
             log.warning(
-                "Shutting down tracer with %d unfinished spans. "
-                "Unfinished spans will not be sent to Datadog: %s",
+                "Shutting down tracer with %d unfinished spans. " "Unfinished spans will not be sent to Datadog: %s",
                 len(unfinished_spans),
                 ", ".join(unfinished_spans),
             )
