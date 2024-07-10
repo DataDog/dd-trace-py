@@ -437,10 +437,10 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                         log_chat_completions.append(
                             {
                                 "content": str(content) if not isinstance(content, dict) else {**content},
-                                "message_type": message.message.__class__.__name__,  
+                                "message_type": message.message.__class__.__name__,
                             }
                         )
-                        
+
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
@@ -552,7 +552,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                         log_chat_completions.append(
                             {
                                 "content": str(content) if not isinstance(content, dict) else {**content},
-                                "message_type": message.message.__class__.__name__,  
+                                "message_type": message.message.__class__.__name__,
                             }
                         )
             integration.log(

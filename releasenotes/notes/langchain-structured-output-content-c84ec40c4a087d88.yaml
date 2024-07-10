@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langchain: Fix chat model output not being tagged appropriately when using `with_structured_output`.

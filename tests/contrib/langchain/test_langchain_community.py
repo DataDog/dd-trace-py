@@ -1255,20 +1255,20 @@ def test_structured_llm_inputs_openai(langchain, langchain_openai, request_vcr):
     Test LLMs and chat models enhanced with `with_structured_output` have their output
     captured correctly.
     """
-    import langchain.pydantic_v1 # noqa: F401
+    import langchain.pydantic_v1  # noqa: F401
 
     class Joke(langchain.pydantic_v1.BaseModel):
-        '''A joke with a setup and punchline'''
+        """A joke with a setup and punchline"""
+
         setup: str = langchain.pydantic_v1.Field(..., description="The setup for the joke")
         punchline: str = langchain.pydantic_v1.Field(..., description="The punchline for the joke")
 
     chat = langchain_openai.ChatOpenAI(model="gpt-4", temperature=1)
     structured_chat = chat.with_structured_output(Joke)
 
-    prompt = langchain.prompts.ChatPromptTemplate.from_messages([
-        ("system", "You are an amazing stand-up comedian, but only makes jokes about trees."),
-        ("human", "{input}")
-    ])
+    prompt = langchain.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are an amazing stand-up comedian, but only makes jokes about trees."), ("human", "{input}")]
+    )
 
     chain = prompt | structured_chat
     with request_vcr.use_cassette("structured_llm_inputs_openai.yaml"):
@@ -1283,24 +1283,26 @@ def test_structured_llm_inputs_anthropic(langchain, langchain_anthropic, request
     """
     if langchain_anthropic is None:
         pytest.skip(f"Anthropic not compatible with langchain version {langchain.__version__}")
-    import langchain.pydantic_v1 # noqa: F401
+    import langchain.pydantic_v1  # noqa: F401
 
     class Joke(langchain.pydantic_v1.BaseModel):
-        '''A joke with a setup and punchline'''
+        """A joke with a setup and punchline"""
+
         setup: str = langchain.pydantic_v1.Field(..., description="The setup for the joke")
         punchline: str = langchain.pydantic_v1.Field(..., description="The punchline for the joke")
 
     chat = langchain_anthropic.ChatAnthropic(temperature=1, model_name="claude-3-opus-20240229")
     structured_chat = chat.with_structured_output(Joke)
 
-    prompt = langchain.prompts.ChatPromptTemplate.from_messages([
-        ("system", "You are an amazing stand-up comedian, but only makes jokes about trees."),
-        ("human", "{input}")
-    ])
+    prompt = langchain.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are an amazing stand-up comedian, but only makes jokes about trees."), ("human", "{input}")]
+    )
 
     chain = prompt | structured_chat
     with request_vcr.use_cassette("structured_llm_inputs_anthropic.yaml"):
         chain.invoke("Tell me a joke!")
+
+
 @pytest.mark.snapshot
 def test_lcecl_chain_non_dict_input(langchain_core):
     """

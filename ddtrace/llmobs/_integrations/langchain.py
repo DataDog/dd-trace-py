@@ -250,7 +250,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if err_type:
             tags.append("%s:%s" % (ERROR_TYPE, err_type))
         return tags
-    
+
     def extract_chat_completion_output_content(self, chat_completion: Any) -> str:
         """
         Extracts the completion content from a chat completion object.
@@ -272,12 +272,11 @@ class LangChainIntegration(BaseLLMIntegration):
                 return content
             elif isinstance(content, list):
                 return content[0]["input"]
-            
+
         # for openai, langchain utilizes tool_calls
         if tool_calls:
             if isinstance(tool_calls, list):
                 return tool_calls[0]["args"]
-
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage or self.metrics_enabled is False:
