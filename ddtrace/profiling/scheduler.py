@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
+import typing
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
@@ -9,6 +10,8 @@ from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
 
+from .recorder import Recorder
+from .exporter import Exporter
 
 LOG = logging.getLogger(__name__)
 
@@ -17,12 +20,12 @@ LOG = logging.getLogger(__name__)
 class Scheduler(periodic.PeriodicService):
     """Schedule export of recorded data."""
 
-    recorder: object = None
-    exporters: object = None
-    before_flush: object = None
+    recorder: typing.Optional[Recorder] = None
+    exporters: typing.Optional[typing.List[Exporter]] = None
+    before_flush: typing.Optional[typing.Callable] = None
     _interval: float = config.upload_interval
     _configured_interval: float = 0
-    _last_export: object = None
+    _last_export: typing.Optional[int] = None
     _export_libdd_enabled: bool = config.export.libdd_enabled
 
     def __post_init__(self):

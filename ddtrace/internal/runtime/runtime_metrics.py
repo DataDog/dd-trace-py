@@ -2,6 +2,7 @@ import itertools
 import os
 from typing import Any  # noqa:F401
 from typing import ClassVar  # noqa:F401
+from typing import ContextManager  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 
@@ -69,16 +70,17 @@ class RuntimeWorker(periodic.PeriodicService):
     client.
     """
 
-    _interval: float = dataclasses.field(default_factory=_get_interval_or_default)
+    enabled: ClassVar[bool] = False
+    _instance: ClassVar[Optional["RuntimeWorker"]] = None
+    _lock: ClassVar[ContextManager] = forksafe.Lock()
+
     tracer: Optional[ddtrace.Tracer] = None
     dogstatsd_url: Optional[str] = None
     _dogstatsd_client: Any = dataclasses.field(default=None, init=False, repr=False)
     _runtime_metrics: Any = dataclasses.field(default_factory=RuntimeMetrics, repr=False)
     _services: Set[str] = dataclasses.field(init=False, default_factory=set)
 
-    enabled: bool = False
-    _instance: ClassVar[Optional["RuntimeWorker"]] = None
-    _lock = forksafe.Lock()
+    interval: float = dataclasses.field(default_factory=_get_interval_or_default)
 
     def __post_init__(self):
         # type: () -> None
@@ -123,15 +125,15 @@ class RuntimeWorker(periodic.PeriodicService):
                 return
             if flush_interval is None:
                 flush_interval = _get_interval_or_default()
-            runtime_worker = cls(interval=flush_interval, tracer=tracer, dogstatsd_url=dogstatsd_url)
-            runtime_worker.start()
+
+            cls._instance = cls(interval=flush_interval, tracer=tracer, dogstatsd_url=dogstatsd_url)
+            cls._instance.start()
             # force an immediate update constant tags
-            runtime_worker.update_runtime_tags()
+            cls._instance.update_runtime_tags()
 
             forksafe.register(cls._restart)
             atexit.register(cls.disable)
 
-            cls._instance = runtime_worker
             cls.enabled = True
 
         # Report status to telemetry

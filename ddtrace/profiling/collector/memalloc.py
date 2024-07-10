@@ -30,7 +30,7 @@ class MemoryAllocSampleEvent(event.StackBasedEvent):
     size: int = 0
     """Allocation size in bytes."""
 
-    capture_pct: float = 0
+    capture_pct: typing.Optional[float] = None
     """The capture percentage."""
 
     nevents: int = 0

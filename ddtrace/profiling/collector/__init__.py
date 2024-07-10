@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import typing  # noqa:F401
-from typing import Any
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
@@ -8,6 +7,7 @@ from ddtrace.internal.compat import dataclasses
 from ddtrace.settings.profiling import config
 
 from .. import event  # noqa:F401
+from ..recorder import Recorder
 
 
 class CollectorError(Exception):
@@ -22,7 +22,7 @@ class CollectorUnavailable(CollectorError):
 class Collector(service.Service):
     """A profile collector."""
 
-    recorder: Any = None
+    recorder: typing.Optional[Recorder] = None
 
     @staticmethod
     def snapshot():
@@ -39,8 +39,9 @@ class PeriodicCollector(Collector, periodic.PeriodicService):
     def periodic(self):
         # type: (...) -> None
         """Collect events and push them into the recorder."""
-        for events in self.collect():
-            self.recorder.push_events(events)
+        if self.recorder is not None:
+            for events in self.collect():
+                self.recorder.push_events(events)
 
     def collect(self):
         # type: (...) -> typing.Iterable[typing.Iterable[event.Event]]
