@@ -1112,7 +1112,7 @@ def test_enable():
 
 @pytest.mark.subprocess(
     err=b"Shutting down tracer with 2 unfinished spans. "
-    b"Spans that have not been terminated will not be sent to Datadog: "
+    b"Unfinished spans will not be sent to Datadog: "
     b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
     b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
     b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
