@@ -76,6 +76,7 @@ def cleanup_loaded_modules():
             "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
+            "dataclasses",
             "google",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
         ]
