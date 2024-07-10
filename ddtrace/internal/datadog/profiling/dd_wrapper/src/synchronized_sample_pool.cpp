@@ -1,26 +1,23 @@
+#include "sample.hpp"
 #include "synchronized_sample_pool.hpp"
 
-#include "sample.hpp"
+#include "boost/lockfree/queue.hpp"
 
 namespace Datadog {
 std::optional<Sample*>
 SynchronizedSamplePool::get_sample()
 {
-    const std::lock_guard<std::mutex> lock(mutex);
-    if (!pool.empty()) {
-        // Reuse a sample from the pool
-        auto sample = pool.back().release();
-        pool.pop_back();
+    Sample* sample = nullptr;
+    if (pool.pop(sample)) {
         return sample;
     }
+
     return std::nullopt;
 }
 
 void
 SynchronizedSamplePool::return_sample(Sample* sample)
 {
-    const std::lock_guard<std::mutex> lock(mutex);
-    // Return the sample to the pool
-    pool.emplace_back(sample); // NOLINT(cppcoreguidelines-owning-memory)
+    pool.push(sample);
 }
 } // namespace Datadog

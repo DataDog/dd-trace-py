@@ -19,6 +19,32 @@ include(FindClangtidy)
 include(FindCppcheck)
 include(FindInfer)
 
+set(BOOST_ENABLE_CMAKE ON)
+set(BOOST_RUNTIME_LINK static)
+
+if(WIN32)
+    set(BOOST_URL "https://archives.boost.io/release/1.85.0/source/boost_1_85_0.zip")
+else()
+    set(BOOST_URL "https://archives.boost.io/release/1.85.0/source/boost_1_85_0.tar.bz2")
+endif()
+
+
+# Configure FetchContent to download Boost
+FetchContent_Declare(
+    Boost
+    URL ${BOOST_URL}
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+
+# Make boost available
+FetchContent_MakeAvailable(Boost)
+
+message("boost_SOURCE_DIR: ${boost_SOURCE_DIR}")
+
+add_library(Boost_lockfree INTERFACE)
+add_library(Boost::lockfree ALIAS Boost_lockfree)
+target_include_directories(Boost_lockfree SYSTEM INTERFACE ${boost_SOURCE_DIR})
+
 # Library sources
 add_library(dd_wrapper SHARED
     src/uploader_builder.cpp
@@ -40,10 +66,10 @@ target_compile_features(dd_wrapper PUBLIC cxx_std_17)
 
 target_include_directories(dd_wrapper PRIVATE
     include
-    ${Datadog_INCLUDE_DIRS}
+    ${Datadog_INCLUDE_DIRS} ${boost_INCLUDE_DIRS}
 )
 target_link_libraries(dd_wrapper PRIVATE
-    ${Datadog_LIBRARIES}
+    ${Datadog_LIBRARIES} Boost::lockfree
 )
 set_target_properties(dd_wrapper PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -52,13 +78,13 @@ set_target_properties(dd_wrapper PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # will handle the extension artifacts themselves, supplementary files like this one will be left uncopied.
 # One way around this is to propagate the original source dir of the extension, which can be used to deduce the
 # ideal install directory.
-if (INPLACE_LIB_INSTALL_DIR)
+if(INPLACE_LIB_INSTALL_DIR)
     set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
 endif()
 
 # If LIB_INSTALL_DIR is set, install the library.
 # Install one directory up--ddup, crashtracker, and stackv2 are set to the same relative level.
-if (LIB_INSTALL_DIR)
+if(LIB_INSTALL_DIR)
     install(TARGETS dd_wrapper
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}/..
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}/..
@@ -70,7 +96,7 @@ endif()
 add_cppcheck_target(dd_wrapper
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include
-            ${Datadog_INCLUDE_DIRS}
+    ${Datadog_INCLUDE_DIRS}
     SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
@@ -79,7 +105,7 @@ add_infer_target(dd_wrapper)
 add_clangtidy_target(dd_wrapper)
 
 # Add the tests
-if (BUILD_TESTING)
+if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
 endif()
