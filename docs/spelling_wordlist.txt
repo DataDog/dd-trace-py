@@ -287,3 +287,10 @@ hotspot
 CMake
 libdatadog
 importlib
+PyTorch
+CUPTI
+Perfetto
+Tensorboard
+CPU
+GPU
+NSight
