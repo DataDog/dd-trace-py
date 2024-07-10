@@ -53,8 +53,8 @@ class Sample
     void clear_buffers();
 
     // Add values
-    bool push_walltime(int64_t time, int64_t count);
-    bool push_cputime(int64_t time, int64_t count);
+    bool push_walltime(int64_t walltime, int64_t count);
+    bool push_cputime(int64_t cputime, int64_t count);
     bool push_acquire(int64_t acquire_time, int64_t count);
     bool push_release(int64_t lock_time, int64_t count);
     bool push_alloc(int64_t size, int64_t count);

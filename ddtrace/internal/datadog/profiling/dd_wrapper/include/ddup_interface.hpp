@@ -33,8 +33,8 @@ extern "C"
 
     // Proxy functions to the underlying sample
     Datadog::Sample* ddup_start_sample();
-    void ddup_push_walltime(Datadog::Sample* sample, int64_t time, int64_t count);
-    void ddup_push_cputime(Datadog::Sample* sample, int64_t time, int64_t count);
+    void ddup_push_walltime(Datadog::Sample* sample, int64_t walltime, int64_t count);
+    void ddup_push_cputime(Datadog::Sample* sample, int64_t cputime, int64_t count);
     void ddup_push_acquire(Datadog::Sample* sample, int64_t acquire_time, int64_t count);
     void ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count);
     void ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count);
