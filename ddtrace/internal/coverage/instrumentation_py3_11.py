@@ -62,13 +62,14 @@ class Branch:
 
 
 EXTENDED_ARG = dis.EXTENDED_ARG
+NO_OFFSET = -1
 
 
 def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
-    instructions = [Instruction(-1, opcode, arg & 0xFF)]
+    instructions = [Instruction(NO_OFFSET, opcode, arg & 0xFF)]
     arg >>= 8
     while arg:
-        instructions.insert(0, Instruction(-1, EXTENDED_ARG, arg & 0xFF))
+        instructions.insert(0, Instruction(NO_OFFSET, EXTENDED_ARG, arg & 0xFF))
         arg >>= 8
     return instructions
 
@@ -221,21 +222,22 @@ CACHE = dis.opmap["CACHE"]
 CALL = dis.opmap["CALL"]
 POP_TOP = dis.opmap["POP_TOP"]
 RESUME = dis.opmap["RESUME"]
+IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 
 
 def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     return (
-        Instruction(-1, PUSH_NULL, 0),
+        Instruction(NO_OFFSET, PUSH_NULL, 0),
         *instr_with_arg(LOAD_CONST, trap_index),
         *instr_with_arg(LOAD_CONST, arg_index),
-        Instruction(-1, PRECALL, 1),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, CALL, 1),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, POP_TOP, 0),
+        Instruction(NO_OFFSET, PRECALL, 1),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CALL, 1),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, POP_TOP, 0),
     )
 
 
@@ -243,7 +245,8 @@ SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
 def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str) -> t.Tuple[CodeType, t.Set[int]]:
+    code: CodeType, hook: HookType, path: str, package: t.Optional[str] = None
+) -> t.Tuple[CodeType, t.Set[int]]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -270,7 +273,7 @@ def instrument_all_lines(
     try:
         resume_offset = code.co_code[::2].index(RESUME) << 1
     except ValueError:
-        resume_offset = -1
+        resume_offset = NO_OFFSET
 
     try:
         code_iter = iter(enumerate(code.co_code))
@@ -291,7 +294,7 @@ def instrument_all_lines(
                     trap_instructions = trap_call(trap_index, len(new_consts))
                     traps[original_offset] = len(trap_instructions)
                     instructions.extend(trap_instructions)
-                    new_consts.append((line, trap_arg))
+                    new_consts.append((line, trap_arg, None))
 
                     line_map[original_offset] = trap_instructions[0]
 
@@ -303,6 +306,14 @@ def instrument_all_lines(
 
             # Propagate code
             instructions.append(Instruction(original_offset, opcode, arg))
+
+            # Track imports
+            if opcode == IMPORT_NAME:
+                import_arg = int.from_bytes([*ext, arg], "big", signed=False)
+                import_name = code.co_names[import_arg]
+                if import_name.startswith(".") and package is not None:
+                    import_name = f"{package}.{import_name}"
+                new_consts[-1] = (new_consts[-1][0], new_consts[-1][1], import_name)
 
             # Collect branching instructions for processing
             if opcode in RJump.__opcodes__:

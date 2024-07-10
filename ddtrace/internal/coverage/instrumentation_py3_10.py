@@ -80,14 +80,14 @@ class ABranch(Branch):
 
 
 EXTENDED_ARG = dis.EXTENDED_ARG
-IMPORT_NAME = dis.opmap["IMPORT_NAME"]
+NO_OFFSET = -1
 
 
 def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
-    instructions = [Instruction(-1, opcode, arg & 0xFF)]
+    instructions = [Instruction(NO_OFFSET, opcode, arg & 0xFF)]
     arg >>= 8
     while arg:
-        instructions.insert(0, Instruction(-1, EXTENDED_ARG, arg & 0xFF))
+        instructions.insert(0, Instruction(NO_OFFSET, EXTENDED_ARG, arg & 0xFF))
         arg >>= 8
     return instructions
 
@@ -142,18 +142,21 @@ def update_location_data(
 LOAD_CONST = dis.opmap["LOAD_CONST"]
 CALL = dis.opmap["CALL_FUNCTION"]
 POP_TOP = dis.opmap["POP_TOP"]
+IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 
 
 def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     return (
         *instr_with_arg(LOAD_CONST, trap_index),
         *instr_with_arg(LOAD_CONST, arg_index),
-        Instruction(-1, CALL, 1),
-        Instruction(-1, POP_TOP, 0),
+        Instruction(NO_OFFSET, CALL, 1),
+        Instruction(NO_OFFSET, POP_TOP, 0),
     )
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(
+    code: CodeType, hook: HookType, path: str, package: t.Optional[str] = None
+) -> t.Tuple[CodeType, t.Set[int]]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -203,7 +206,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             if opcode == IMPORT_NAME:
                 import_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 import_name = code.co_names[import_arg]
-                if import_name.startswith("."):
+                if import_name.startswith(".") and package is not None:
                     import_name = f"{package}.{import_name}"
                 new_consts[-1] = (new_consts[-1][0], new_consts[-1][1], import_name)
 

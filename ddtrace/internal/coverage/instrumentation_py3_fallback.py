@@ -12,7 +12,7 @@ def instrument_all_lines(
     code: CodeType,
     line_coverage_hook: HookType,
     path: str,
-    collect_module_dependencies: bool = False,
+    package: t.Optional[str] = None,
 ) -> t.Tuple[CodeType, t.Set[int]]:
     """Installs the relevant hook to collect coverage data for all lines in the code object.
     More advance module-level coverage exists to capture module-level imports and dependencies (if desired). To avoid
@@ -24,8 +24,6 @@ def instrument_all_lines(
     instrumented_abstract_code.clear()
 
     lines: t.Set[int] = set()
-
-    is_module = collect_module_dependencies and code.co_name == "<module>"
 
     previous_line_import: t.Optional[str] = None
     previous_line_instrs = []
@@ -54,7 +52,7 @@ def instrument_all_lines(
             # Don't inject the hook if the previous line was empty
             if previous_line_instrs and previous_line_number is not None:
                 to_inject = INJECTION_ASSEMBLY.bind(
-                    dict(hook=line_coverage_hook, arg=(path, previous_line_number, is_module, previous_line_import)),
+                    dict(hook=line_coverage_hook, arg=(path, previous_line_number, previous_line_import)),
                     lineno=previous_line_number,
                 )
                 instrumented_abstract_code.extend(to_inject)
@@ -75,7 +73,9 @@ def instrument_all_lines(
         if not isinstance(instr, Instr):
             continue
 
-        if instr.name == "IMPORT_NAME" and collect_module_dependencies:
+        if instr.name == "IMPORT_NAME":
             previous_line_import = instr.arg
+            if previous_line_import is not None and previous_line_import.startswith(".") and package is not None:
+                previous_line_import = f"{package}.{previous_line_import}"
 
     return instrumented_abstract_code.to_code(), lines
