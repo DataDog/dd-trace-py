@@ -70,17 +70,20 @@ class RuntimeWorker(periodic.PeriodicService):
     client.
     """
 
+    ## Class Variables
     enabled: ClassVar[bool] = False
     _instance: ClassVar[Optional["RuntimeWorker"]] = None
     _lock: ClassVar[ContextManager] = forksafe.Lock()
 
+    ## Instance Variables
     tracer: Optional[ddtrace.Tracer] = None
     dogstatsd_url: Optional[str] = None
     _dogstatsd_client: Any = dataclasses.field(default=None, init=False, repr=False)
     _runtime_metrics: Any = dataclasses.field(default_factory=RuntimeMetrics, repr=False)
     _services: Set[str] = dataclasses.field(init=False, default_factory=set)
 
-    interval: float = dataclasses.field(default_factory=_get_interval_or_default)
+    ## Parent Class Variables
+    _interval: float = dataclasses.field(default_factory=_get_interval_or_default)
 
     def __post_init__(self):
         # type: () -> None

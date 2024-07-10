@@ -33,9 +33,9 @@ def _():
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    interval: float = 10
     _interval: float = dataclasses.field(default=10.0, init=False, repr=False)
     _worker: typing.Optional[PeriodicThread] = dataclasses.field(default=None, init=False, repr=False)
+    interval: float = 10
 
     @property  # type: ignore[no-redef]
     def interval(self) -> float:

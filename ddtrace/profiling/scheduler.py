@@ -23,10 +23,12 @@ class Scheduler(periodic.PeriodicService):
     recorder: typing.Optional[Recorder] = None
     exporters: typing.Optional[typing.List[Exporter]] = None
     before_flush: typing.Optional[typing.Callable] = None
-    _interval: float = config.upload_interval
-    _configured_interval: float = 0
+    _configured_interval: typing.Optional[float] = dataclasses.field(init=False, default=None)
     _last_export: typing.Optional[int] = None
     _export_libdd_enabled: bool = config.export.libdd_enabled
+
+    ## Parent Class attributes
+    _interval: float = dataclasses.field(default=config.upload_interval, init=False, repr=False)
 
     def __post_init__(self):
         # Copy the value to use it later since we're going to adjust the real interval
@@ -93,8 +95,10 @@ class ServerlessScheduler(Scheduler):
     FORCED_INTERVAL = 1.0
     FLUSH_AFTER_INTERVALS = 60.0
 
-    _interval: float = FORCED_INTERVAL
     _profiled_intervals: int = 0
+
+    ## Parent Class attributes
+    _interval: float = FORCED_INTERVAL
 
     def periodic(self):
         # Check both the number of intervals and time frame to be sure we don't flush, e.g., empty profiles

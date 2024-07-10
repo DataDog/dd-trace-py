@@ -55,15 +55,16 @@ class MemoryCollector(collector.PeriodicCollector):
     _DEFAULT_MAX_EVENTS = 16
     _DEFAULT_INTERVAL = 0.5
 
-    # Arbitrary interval to empty the _memalloc event buffer
-    _interval: float = dataclasses.field(default=_DEFAULT_INTERVAL, repr=False)
-
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
     _max_events: int = config.memory.events_buffer
     max_nframe: int = config.max_frames
     heap_sample_size: int = config.heap.sample_size
     ignore_profiler: bool = config.ignore_profiler
     _export_libdd_enabled: bool = config.export.libdd_enabled
+
+    ## Parent Class Attributes
+    # Arbitrary interval to empty the _memalloc event buffer
+    _interval: float = dataclasses.field(default=_DEFAULT_INTERVAL, repr=False, init=False)
 
     def _start_service(self):
         # type: (...) -> None

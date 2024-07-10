@@ -465,7 +465,6 @@ class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
     # This need to be a real OS thread in order to catch
     _real_thread = True
-    _interval: float = dataclasses.field(default_factory=_default_min_interval_time, init=False, repr=False)
     # This is the minimum amount of time the thread will sleep between polling interval,
     # no matter how fast the computer is.
     min_interval_time: float = dataclasses.field(default_factory=_default_min_interval_time, init=False)
@@ -480,9 +479,13 @@ class StackCollector(collector.PeriodicCollector):
     _thread_span_links: typing.Optional[_ThreadSpanLinks] = None
     _stack_collector_v2_enabled: bool = config.stack.v2_enabled
 
+    ## Parent class variables
+    _interval: float = dataclasses.field(default_factory=_default_min_interval_time, init=False, repr=False)
+
     def __post_init__(self):
         if self.max_time_usage_pct <= 0 or self.max_time_usage_pct > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
+        self.interval = self.min_interval_time
 
     def _init(self):
         # type: (...) -> None
