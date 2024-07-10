@@ -3,7 +3,6 @@ from __future__ import absolute_import
 import abc
 import logging
 import os.path
-import sys
 import typing
 
 import attr
@@ -13,7 +12,6 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.recorder import Recorder
-from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
 
 
