@@ -10,8 +10,9 @@ from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
 
-from .recorder import Recorder
 from .exporter import Exporter
+from .recorder import Recorder
+
 
 LOG = logging.getLogger(__name__)
 
