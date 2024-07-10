@@ -23,9 +23,7 @@ def request_vcr():
 
 
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
-def test_global_tags(
-    ddtrace_config_langchain, langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, mock_tracer
-):
+def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metrics, mock_logs, mock_tracer):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -79,7 +77,7 @@ def test_global_tags(
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
-def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
+def test_openai_llm_sync(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync.yaml"):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
@@ -87,7 +85,7 @@ def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
 
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
-def test_openai_llm_sync_39(langchain, langchain_openai, request_vcr):
+def test_openai_llm_sync_39(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync_39.yaml"):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
@@ -95,7 +93,7 @@ def test_openai_llm_sync_39(langchain, langchain_openai, request_vcr):
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(ignores=["resource"])
-def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_vcr):
+def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
         llm.generate(
@@ -108,7 +106,7 @@ def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_v
 
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
 @pytest.mark.snapshot
-def test_openai_llm_sync_multiple_prompts_39(langchain, langchain_openai, request_vcr):
+def test_openai_llm_sync_multiple_prompts_39(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt_39.yaml"):
         llm.generate(
@@ -121,7 +119,7 @@ def test_openai_llm_sync_multiple_prompts_39(langchain, langchain_openai, reques
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["resource", "langchain.request.openai.parameters.request_timeout"])
-async def test_openai_llm_async(langchain, langchain_openai, request_vcr):
+async def test_openai_llm_async(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_async.yaml"
@@ -132,7 +130,7 @@ async def test_openai_llm_async(langchain, langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_llm_stream", ignores=["resource"])
-def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
+def test_openai_llm_sync_stream(langchain, request_vcr):
     llm = langchain.llms.OpenAI(streaming=True, model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync_stream.yaml"):
         llm("Why is Spongebob so bad at driving?")
@@ -143,14 +141,14 @@ def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
     token="tests.contrib.langchain.test_langchain.test_openai_llm_stream",
     ignores=["meta.langchain.response.completions.0.text"],
 )
-async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr):
+async def test_openai_llm_async_stream(langchain, request_vcr):
     llm = langchain.llms.OpenAI(streaming=True, model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_async_stream.yaml"):
         await llm.agenerate(["Why is Spongebob so bad at driving?"])
 
 
 @pytest.mark.snapshot(ignores=["meta.error.stack", "resource"])
-def test_openai_llm_error(langchain, langchain_openai, request_vcr):
+def test_openai_llm_error(langchain, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
     llm = langchain.llms.OpenAI(model="text-davinci-003")
@@ -193,7 +191,7 @@ def test_ai21_llm_sync(langchain, request_vcr):
         llm("Why does everyone in Bikini Bottom hate Plankton?")
 
 
-def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_sync.yaml"
@@ -228,9 +226,7 @@ def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metri
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
-def test_llm_logs(
-    langchain, langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
-):
+def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_sync.yaml"
@@ -672,7 +668,7 @@ def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["resource"])
-async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langchain_openai, request_vcr):
+async def test_openai_sequential_chain_with_multiple_llm_async(langchain, request_vcr):
     template = """Paraphrase this text:
 
         {input_text}
@@ -698,7 +694,7 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langch
         await sequential_chain.acall({"input_text": long_input_text})
 
 
-def test_openai_chain_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_math_chain_sync.yaml"
