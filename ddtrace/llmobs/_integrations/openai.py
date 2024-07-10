@@ -199,6 +199,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         output_messages = []
         for idx, choice in enumerate(resp.choices):
+            tool_calls_info = []
             content = getattr(choice.message, "content", "")
             if getattr(choice.message, "function_call", None):
                 function_call_info = {
@@ -207,7 +208,6 @@ class OpenAIIntegration(BaseLLMIntegration):
                 }
                 content = {"function_call": function_call_info}
             elif getattr(choice.message, "tool_calls", None):
-                tool_calls_info = []
                 for tool_call in choice.message.tool_calls:
                     tool_call_info = {
                         "name": getattr(tool_call.function, "name", ""),
