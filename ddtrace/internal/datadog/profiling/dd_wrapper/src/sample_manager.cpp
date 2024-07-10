@@ -1,6 +1,8 @@
 #include "sample_manager.hpp"
 #include "types.hpp"
 
+#include "boost/lockfree/queue.hpp"
+
 void
 Datadog::SampleManager::add_type(unsigned int type)
 {
