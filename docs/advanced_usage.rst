@@ -741,12 +741,14 @@ To avoid such duplicate log entries from ``ddtrace``, you can remove the automat
 PyTorch Profiling
 -----------------
 
-The PyTorch profiler can be used to trace CPU and GPU events that occur when running inference or training of a PyTorch model.
-The PyTorch profiler as it's `typically used <https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html>`, will output a trace json file to
-local disk that can be loaded in a visualization tool like Tensorboard or Perfetto. With the dd-trace-py PyTorch profiler integration, we instrument the `profiler API <https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>`
+The PyTorch profiler can be used to trace CPU and GPU events that occur when running inference or training on a PyTorch model.
+The PyTorch profiler as it's `typically used <https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html>`__, will output a trace json file to
+
+local disk that can be loaded in a visualization tool like Tensorboard or Perfetto. With the dd-trace-py PyTorch profiler integration, we instrument the `profiler API <https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>`__
 to automatically export this data to Datadog for visualization without having to manually copy files between servers.
 
 The requirements for using this feature are:
+
 - must be using the `torch.profiler` module which was introduced in PyTorch version `1.8.1`.
 - must set the environment variable `DD_PROFILING_PYTORCH_ENABLED=true` and also enable our new exporter with the environment variable `DD_PROFILING_EXPORT_LIBDD_ENABLED=true`.
 
@@ -756,7 +758,7 @@ configurations can conflict with other features. For instance, running the NSigh
 errors as CUPTI generally does not support multiple concurrent readers.
 
 
-Below is an example program using the well known `CIFAR-10 <https://www.cs.toronto.edu/~kriz/cifar.html>` dataset for image classification.
+Below is an example program using the well known `CIFAR-10 <https://www.cs.toronto.edu/~kriz/cifar.html>`__ dataset for image classification.
 This can be run through the command line (assuming that a Datadog agent is running in the same environment) with `DD_SERVICE=test-pytorch-service DD_PROFILING_PYTORCH_ENABLED=true DD_PROFILING_EXPORT_LIBDD_ENABLED=true DD_PROFILING_ENABLED=true ddtrace-run python cifar10.py`.
 
 .. code-block:: python
