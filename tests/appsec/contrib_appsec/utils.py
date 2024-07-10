@@ -311,7 +311,7 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("headers", "blocked", "body", "content_type"),
         [
-            ({"X-Real-Ip": rules._IP.BLOCKED}, True, "BLOCKED_RESPONSE_JSON", "text/json"),
+            ({"X-Real-Ip": rules._IP.BLOCKED}, True, "BLOCKED_RESPONSE_JSON", "application/json"),
             (
                 {"X-Real-Ip": rules._IP.BLOCKED, "Accept": "text/html"},
                 True,
@@ -413,9 +413,10 @@ class Contrib_TestClass_For_Threats:
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered("tst-037-006", root_span)
                 assert (
-                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                    == "application/json"
                 )
-                assert self.headers(response)["content-type"] == "text/json"
+                assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
@@ -445,9 +446,10 @@ class Contrib_TestClass_For_Threats:
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered("tst-037-002", root_span)
                 assert (
-                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                    == "application/json"
                 )
-                assert self.headers(response)["content-type"] == "text/json"
+                assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 404
                 assert get_tag(http.STATUS_CODE) == "404"
@@ -507,9 +509,10 @@ class Contrib_TestClass_For_Threats:
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered("tst-037-007", root_span)
                 assert (
-                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                    == "application/json"
                 )
-                assert self.headers(response)["content-type"] == "text/json"
+                assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
@@ -550,9 +553,10 @@ class Contrib_TestClass_For_Threats:
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered("tst-037-001", root_span)
                 assert (
-                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                    == "application/json"
                 )
-                assert self.headers(response)["content-type"] == "text/json"
+                assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
@@ -588,9 +592,10 @@ class Contrib_TestClass_For_Threats:
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered("tst-037-004", root_span)
                 assert (
-                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                    == "application/json"
                 )
-                assert self.headers(response)["content-type"] == "text/json"
+                assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
@@ -626,9 +631,10 @@ class Contrib_TestClass_For_Threats:
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered("tst-037-008", root_span)
                 assert (
-                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                    == "application/json"
                 )
-                assert self.headers(response)["content-type"] == "text/json"
+                assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
@@ -668,9 +674,10 @@ class Contrib_TestClass_For_Threats:
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered(blocked, root_span)
                 assert (
-                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                    == "application/json"
                 )
-                assert self.headers(response)["content-type"] == "text/json"
+                assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == status
                 assert get_tag(http.STATUS_CODE) == str(status)
@@ -710,9 +717,10 @@ class Contrib_TestClass_For_Threats:
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered(blocked, root_span)
                 assert (
-                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                    == "application/json"
                 )
-                assert self.headers(response)["content-type"] == "text/json"
+                assert self.headers(response)["content-type"] == "application/json"
                 for k in headers:
                     assert k not in self.headers(response)
             else:
@@ -735,8 +743,8 @@ class Contrib_TestClass_For_Threats:
         [
             # json body must be blocked
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
-            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "text/json", "tst-037-003"),
-            (json.dumps(LARGE_BODY), "text/json", "tst-037-003"),
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
+            (json.dumps(LARGE_BODY), "application/json", "tst-037-003"),
             # xml body must be blocked
             (
                 '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
@@ -780,9 +788,10 @@ class Contrib_TestClass_For_Threats:
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered(blocked, root_span)
                 assert (
-                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                    == "application/json"
                 )
-                assert self.headers(response)["content-type"] == "text/json"
+                assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
@@ -802,11 +811,22 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     @pytest.mark.parametrize(
-        "headers",
-        [{"Accept": "text/html"}, {"Accept": "text/json"}, {}],
+        ["headers", "use_html"],
+        [({"Accept": "text/html"}, True), ({"Accept": "application/json"}, False), ({}, False)],
     )
     def test_request_suspicious_request_block_custom_actions(
-        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, query, status, rule_id, action, headers
+        self,
+        interface: Interface,
+        get_tag,
+        asm_enabled,
+        metastruct,
+        root_span,
+        query,
+        status,
+        rule_id,
+        action,
+        headers,
+        use_html,
     ):
         from ddtrace.ext import http
         import ddtrace.internal.utils.http as http_cache
@@ -840,16 +860,14 @@ class Contrib_TestClass_For_Threats:
 
                     if action == "blocked":
                         content_type = (
-                            "text/html"
-                            if "html" in query or ("auto" in query) and headers.get("Accept") == "text/html"
-                            else "text/json"
+                            "text/html" if "html" in query or (("auto" in query) and use_html) else "application/json"
                         )
                         assert (
                             get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                             == content_type
                         )
                         assert self.headers(response)["content-type"] == content_type
-                        if content_type == "text/json":
+                        if content_type == "application/json":
                             assert json.loads(self.body(response)) == {
                                 "errors": [{"title": "You've been blocked", "detail": "Custom content"}]
                             }
