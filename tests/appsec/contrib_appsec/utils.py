@@ -819,6 +819,7 @@ class Contrib_TestClass_For_Threats:
             ({"Accept": "text/*"}, True),
             ({"Accept": "text/*;q=0.8, application/*;q=0.7, */*;q=0.9"}, True),
             ({"Accept": "text/*;q=0.7, application/*;q=0.8, */*;q=0.9"}, False),
+            ({"Accept": "text/html;q=0.9, text/*;q=0.8, application/json;q=0.85, */*;q=0.9"}, True),
         ],
     )
     def test_request_suspicious_request_block_custom_actions(
