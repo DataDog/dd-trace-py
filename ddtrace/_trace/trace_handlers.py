@@ -166,7 +166,7 @@ def _use_html(headers) -> bool:
     json_score = 0.0
     ctypes = ctype.split(",")
     for ct in ctypes:
-        m = re.match(r"([\w*]+/[\w*]+)(?:;q=([01](?:\.?[0-9]+)?))?", ct.strip())
+        m = re.match(r"([^/;]+/[^/;]+)(?:;q=([01](?:\.\d*)?))?", ct.strip())
         if m:
             if m.group(1) == "text/html":
                 html_score = min(1.0, float(1.0 if m.group(2) is None else m.group(2)))
