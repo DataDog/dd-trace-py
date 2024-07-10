@@ -290,8 +290,9 @@ importlib
 PyTorch
 CUPTI
 Perfetto
-Tensorboard
+TensorBoard
 CPU
 GPU
 NSight
 dataset
+Timeseries

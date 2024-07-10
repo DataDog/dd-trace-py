@@ -744,7 +744,7 @@ PyTorch Profiling
 The PyTorch profiler can be used to trace CPU and GPU events that occur when running inference or training on a PyTorch model.
 The PyTorch profiler as it's `typically used <https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html>`__, will output a trace json file to
 
-local disk that can be loaded in a visualization tool like Tensorboard or Perfetto. With the dd-trace-py PyTorch profiler integration, we instrument the `profiler API <https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>`__
+local disk that can be loaded in a visualization tool like TensorBoard or Perfetto. With the dd-trace-py PyTorch profiler integration, we instrument the `profiler API <https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>`__
 to automatically export this data to Datadog for visualization without having to manually copy files between servers.
 
 The requirements for using this feature are:
@@ -814,7 +814,7 @@ This can be run through the command line (assuming that a Datadog agent is runni
     if __name__ == "__main__":
         cifar()
 
-The profiling data is then visible under the timeseries tab in the profiling page. For instance, the GPU Time by Kernel Name metric is shown below
+The profiling data is then visible under the Timeseries tab in the profiling page. For instance, the GPU Time by Kernel Name metric is shown below
 for an application serving inference with an LLM through PyTorch:
 
 .. image:: pytorch_metric.png
