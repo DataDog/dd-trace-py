@@ -55,7 +55,7 @@ class PeriodicService(service.Service):
         # type: (typing.Any, typing.Any) -> None
         """Start the periodic service."""
         self._worker = PeriodicThread(
-            interval=self.interval,
+            interval=self._interval,
             target=self.periodic,
             name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
             on_shutdown=self.on_shutdown,
