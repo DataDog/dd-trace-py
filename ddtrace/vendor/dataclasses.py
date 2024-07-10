@@ -241,20 +241,20 @@ _MODULE_IDENTIFIER_RE = re.compile(r"^(?:\s*(\w+)\s*\.)?\s*(\w+)")
 # Atomic immutable types which don't require any recursive handling and for which deepcopy
 # returns the same object. We can provide a fast-path for these types in asdict and astuple.
 types_ = [
-        # Common JSON Serializable types
-        bool,
-        int,
-        float,
-        str,
-        # Other common types
-        complex,
-        bytes,
-        types.CodeType,
-        types.BuiltinFunctionType,
-        types.FunctionType,
-        type,
-        range,
-        property,
+    # Common JSON Serializable types
+    bool,
+    int,
+    float,
+    str,
+    # Other common types
+    complex,
+    bytes,
+    types.CodeType,
+    types.BuiltinFunctionType,
+    types.FunctionType,
+    type,
+    range,
+    property,
 ]
 if sys.version_info >= (3, 10):
     types_ += [
@@ -875,10 +875,15 @@ def _get_field(cls, a_name, a_type, default_kw_only):
         if f.kw_only is not MISSING:
             raise TypeError(f"field {f.name} is a ClassVar but specifies " "kw_only")
 
-    # For real fields, disallow mutable defaults.  Use unhashable as a proxy
-    # indicator for mutability.  Read the __hash__ attribute from the class,
-    # not the instance.
-    if f._field_type is _FIELD and f.default.__class__.__hash__ is None:
+    ### DEV: Reverted to Python 3.10 behavior
+    ### Previously was:
+    ## For real fields, disallow mutable defaults.  Use unhashable as a proxy
+    ## indicator for mutability.  Read the __hash__ attribute from the class,
+    ## not the instance.
+    # if f._field_type is _FIELD and f.default.__class__.__hash__ is None:
+
+    # For real fields, disallow mutable defaults for known types.
+    if f._field_type is _FIELD and isinstance(f.default, (list, dict, set)):
         raise ValueError(
             f"mutable default {type(f.default)} for field " f"{f.name} is not allowed: use default_factory"
         )
@@ -1007,7 +1012,7 @@ def _process_class(cls, init, repr, eq, order, unsafe_hash, frozen, match_args, 
     #
     ## DEV: Previously done as following:
     # cls_annotations = inspect.get_annotations(cls)
-    cls_annotations = cls.__dict__.get('__annotations__', {})
+    cls_annotations = cls.__dict__.get("__annotations__", {})
 
     # Now find fields in our class.  While doing so, validate some
     # things, and set the default values (as class attributes) where
