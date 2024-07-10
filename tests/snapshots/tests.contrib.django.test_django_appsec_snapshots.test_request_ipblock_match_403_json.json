@@ -34,7 +34,7 @@
       "http.request.headers.host": "localhost:8000",
       "http.request.headers.user-agent": "python-requests/2.31.0",
       "http.request.headers.x-real-ip": "8.8.4.4",
-      "http.response.headers.content-length": "167",
+      "http.response.headers.content-length": "163",
       "http.response.headers.content-type": "text/json",
       "http.route": "^$",
       "http.status_code": "403",
