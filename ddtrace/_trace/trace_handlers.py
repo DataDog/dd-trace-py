@@ -166,16 +166,16 @@ def _use_html(headers) -> bool:
     json_score = 0.0
     ctypes = ctype.split(",")
     for ct in ctypes:
-        m = re.match(r"(\w+/\w+)(?:;q=([01](?:\.?[0-9]+)?))?", ct)
+        m = re.match(r"([\w*]+/[\w*]+)(?:;q=([01](?:\.?[0-9]+)?))?", ct.strip())
         if m:
             if m.group(1) == "text/html":
-                html_score = min(1.0, float(m.group(2)) or 1.0)
+                html_score = min(1.0, float(1.0 if m.group(2) is None else m.group(2)))
             elif m.group(1) == "text/*":
-                json_score = min(1.0, float(m.group(2)) or 0.2)
+                html_score = min(1.0, float(0.2 if m.group(2) is None else m.group(2)))
             elif m.group(1) == "application/json":
-                json_score = min(1.0, float(m.group(2)) or 1.0)
+                json_score = min(1.0, float(1.0 if m.group(2) is None else m.group(2)))
             elif m.group(1) == "application/*":
-                json_score = min(1.0, float(m.group(2)) or 0.2)
+                json_score = min(1.0, float(0.2 if m.group(2) is None else m.group(2)))
     return html_score > json_score
 
 
