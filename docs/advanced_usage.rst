@@ -750,9 +750,9 @@ The requirements for using this feature are:
 - You must be using the `torch.profiler` module which was introduced in PyTorch version `1.8.1`.
 - You must enable explicitly using the environment variable `DD_PROFILING_PYTORCH_ENABLED=true` and also enable our new exporter with the environment variable `DD_PROFILING_EXPORT_LIBDD_ENABLED=true`.
 
-It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and cpu overhead. This 
+It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and CPU overhead. This 
 is an experimental feature which should be run with caution as it can add significant overhead. Additionally, please note that running this feature in certain 
-configurations can conflict with other features. For instance, if you run the NSight Systems or NSight Compute profilers while running the PyTorch profiler on the same machine at the same time, you will likely run into
+configurations can conflict with other features. For instance, if you run the NSight Systems or NSight Compute profiler while running the PyTorch profiler on the same machine at the same time, you will likely run into
 errors as CUPTI generally does not support multiple concurrent readers.
 
 
