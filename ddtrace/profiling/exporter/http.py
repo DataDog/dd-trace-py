@@ -235,7 +235,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         return profile, libs
 
     def _upload(self, client, path, body, headers):
-        # Enable telemetry before the first Trace is sent
+        # Enable telemetry before the first profile is sent
         telemetry_writer.app_started()
         try:
             client.request("POST", path, body=body, headers=headers)

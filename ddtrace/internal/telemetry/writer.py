@@ -750,9 +750,7 @@ class TelemetryWriter(PeriodicService):
             self._generate_logs_event(logs_metrics)
 
         # Telemetry metrics and logs should be aggregated into payloads every time periodic is called.
-        # This ensures metrics and logs are submitted in 0 to 10 second time buckets.
-        # Optimization: All other events should be aggregated using `config._telemetry_heartbeat_interval`.
-        # Telemetry payloads will be submitted according to `config._telemetry_heartbeat_interval`.
+        # This ensures metrics and logs are submitted in 10 second time buckets.
         if self._is_periodic and force_flush is False:
             if self._periodic_count < self._periodic_threshold:
                 self._periodic_count += 1
