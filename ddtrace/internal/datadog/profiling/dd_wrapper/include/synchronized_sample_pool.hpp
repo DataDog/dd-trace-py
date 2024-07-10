@@ -3,20 +3,20 @@
 #include "sample.hpp"
 
 #include <memory>
+#include <mutex>
 #include <optional>
-
-#include "boost/lockfree/queue.hpp"
+#include <vector>
 
 namespace Datadog {
 
 class SynchronizedSamplePool
 {
   private:
-    boost::lockfree::queue<Sample*> pool;
+    std::mutex mutex;
+    std::vector<std::unique_ptr<Sample>> pool;
 
   public:
-    SynchronizedSamplePool()
-      : pool(128) {};
+    SynchronizedSamplePool() = default;
 
     std::optional<Sample*> get_sample();
     void return_sample(Sample* sample);
