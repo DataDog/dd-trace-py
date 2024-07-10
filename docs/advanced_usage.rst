@@ -742,18 +742,18 @@ PyTorch Profiling
 -----------------
 
 The PyTorch profiler can be used to trace CPU and GPU events that occur when running inference or training of a PyTorch model.
-If you are using the PyTorch profiler as it's `typically used <https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html>`, it will output a trace json file to local disk 
-that can be loaded in a visualization tool like Tensorboard or Perfetto. With our PyTorch profiler integration, we instrument the `profiler API <https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>` 
-to automatically export this data to Datadog so that you can visualize it there without having to manually copy files to and from disk.
+The PyTorch profiler as it's `typically used <https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html>`, will output a trace json file to
+local disk that can be loaded in a visualization tool like Tensorboard or Perfetto. With the dd-trace-py PyTorch profiler integration, we instrument the `profiler API <https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>`
+to automatically export this data to Datadog for visualization without having to manually copy files between servers.
 
 The requirements for using this feature are:
-- You must be using the `torch.profiler` module which was introduced in PyTorch version `1.8.1`.
-- You must enable explicitly using the environment variable `DD_PROFILING_PYTORCH_ENABLED=true` and also enable our new exporter with the environment variable `DD_PROFILING_EXPORT_LIBDD_ENABLED=true`.
+- must be using the `torch.profiler` module which was introduced in PyTorch version `1.8.1`.
+- must set the environment variable `DD_PROFILING_PYTORCH_ENABLED=true` and also enable our new exporter with the environment variable `DD_PROFILING_EXPORT_LIBDD_ENABLED=true`.
 
 It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and CPU overhead. This 
 is an experimental feature which should be run with caution as it can add significant overhead. Additionally, please note that running this feature in certain 
-configurations can conflict with other features. For instance, if you run the NSight Systems or NSight Compute profiler while running the PyTorch profiler on the same machine at the same time, you will likely run into
-errors as CUPTI generally does not support multiple concurrent readers.
+configurations can conflict with other features. For instance, running the NSight Systems or NSight Compute profiler alongside the PyTorch profiler on the same machine at the same time will likely lead to
+ errors as CUPTI generally does not support multiple concurrent readers.
 
 
 Below is an example program using the well known `CIFAR-10 <https://www.cs.toronto.edu/~kriz/cifar.html>` dataset for image classification.
