@@ -432,17 +432,16 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
             log_chat_completions = []
             if chat_completions is not None:
                 for messages in chat_completions.generations:
-                    messages = []
+                    log_messages = []
                     for message in messages:
                         content = integration.extract_chat_completion_output_content(message)
-                        messages.append(
+                        log_messages.append(
                             {
                                 "content": str(content) if not isinstance(content, dict) else {**content},
                                 "message_type": message.message.__class__.__name__,
                             }
                         )
-                    log_chat_completions.append(messages)
-
+                    log_chat_completions.append(log_messages)
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
@@ -549,16 +548,16 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
             log_chat_completions = []
             if chat_completions is not None:
                 for messages in chat_completions.generations:
-                    messages = []
+                    log_messages = []
                     for message in messages:
                         content = integration.extract_chat_completion_output_content(message)
-                        messages.append(
+                        log_messages.append(
                             {
                                 "content": str(content) if not isinstance(content, dict) else {**content},
                                 "message_type": message.message.__class__.__name__,
                             }
                         )
-                    log_chat_completions.append(messages)
+                    log_chat_completions.append(log_messages)
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
