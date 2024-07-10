@@ -812,7 +812,14 @@ class Contrib_TestClass_For_Threats:
     )
     @pytest.mark.parametrize(
         ["headers", "use_html"],
-        [({"Accept": "text/html"}, True), ({"Accept": "application/json"}, False), ({}, False)],
+        [
+            ({"Accept": "text/html"}, True),
+            ({"Accept": "application/json"}, False),
+            ({}, False),
+            ({"Accept": "text/*"}, True),
+            ({"Accept": "text/*;q=0.8, application/*;q=0.7, */*;q=0.9"}, True),
+            ({"Accept": "text/*;q=0.7, application/*;q=0.8, */*;q=0.9"}, False),
+        ],
     )
     def test_request_suspicious_request_block_custom_actions(
         self,

@@ -1,4 +1,5 @@
 import functools
+import re
 import sys
 from typing import Any
 from typing import Callable
@@ -153,6 +154,40 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
         )
 
 
+def _use_html(headers) -> bool:
+    """decide if the response should be html or json.
+
+    Add support for quality values in the Accept header.
+    """
+    ctype = headers.get("Accept", headers.get("accept", ""))
+    if not ctype:
+        return False
+    html_score = 0.0
+    json_score = 0.0
+    ctypes = ctype.split(",")
+    for ct in ctypes:
+        m = re.match(r"(\w+/\w+)(?:;q=([01](?:\.?[0-9]+)?))?", ct)
+        if m:
+            if m.group(1) == "text/html":
+                html_score = min(1.0, float(m.group(2)) or 1.0)
+            elif m.group(1) == "text/*":
+                json_score = min(1.0, float(m.group(2)) or 0.2)
+            elif m.group(1) == "application/json":
+                json_score = min(1.0, float(m.group(2)) or 1.0)
+            elif m.group(1) == "application/*":
+                json_score = min(1.0, float(m.group(2)) or 0.2)
+    return html_score > json_score
+
+
+def _ctype_from_headers(block_config, headers) -> str:
+    """compute MIME type of the blocked response."""
+    desired_type = block_config.get("type", "auto")
+    if desired_type == "auto":
+        return "text/html" if _use_html(headers) else "application/json"
+    else:
+        return "text/html" if block_config["type"] == "html" else "application/json"
+
+
 def _wsgi_make_block_content(ctx, construct_url):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
@@ -167,10 +202,7 @@ def _wsgi_make_block_content(ctx, construct_url):
         content = ""
         resp_headers = [("content-type", "text/plain; charset=utf-8"), ("location", block_config.get("location", ""))]
     else:
-        if desired_type == "auto":
-            ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-        else:
-            ctype = "text/" + block_config["type"]
+        ctype = _ctype_from_headers(block_config, headers)
         content = http_utils._get_blocked_template(ctype).encode("UTF-8")
         resp_headers = [("content-type", ctype)]
     status = block_config.get("status_code", 403)
@@ -213,12 +245,7 @@ def _asgi_make_block_content(ctx, url):
             (b"location", block_config.get("location", "").encode()),
         ]
     else:
-        if desired_type == "auto":
-            ctype = (
-                "text/html" if "text/html" in headers.get("Accept", headers.get("accept", "")).lower() else "text/json"
-            )
-        else:
-            ctype = "text/" + block_config["type"]
+        ctype = _ctype_from_headers(block_config, headers)
         content = http_utils._get_blocked_template(ctype).encode("UTF-8")
         # ctype = f"{ctype}; charset=utf-8" can be considered at some point
         resp_headers = [(b"content-type", ctype.encode())]
