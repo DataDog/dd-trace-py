@@ -41,7 +41,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "langchain.request.api_key": "...nLKZ",
+         "langchain.request.api_key": "...key>",
          "langchain.request.messages.0.0.content": "You are an amazing stand-up comedian, but only makes jokes about trees.",
          "langchain.request.messages.0.0.message_type": "SystemMessage",
          "langchain.request.messages.0.1.content": "Tell me a joke!",
