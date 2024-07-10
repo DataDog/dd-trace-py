@@ -6,4 +6,4 @@ features:
     profiler API (https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html)
     so that GPU profiling data can be sent to Datadog for visualization.
     This feature requires the environment variable ``DD_PROFILING_EXPORT_LIBDD_ENABLED=true``
-    and supports torch version >= 1.9.0. 
+    and supports torch version >= 1.8.1. 
