@@ -426,13 +426,15 @@ def patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
 def patched_add_url_rule(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.add_url_rule to wrap all views attached to this app"""
 
-    def _wrap(rule, endpoint=None, view_func=None, **kwargs):
+    def _wrap(rule, endpoint=None, view_func=None, provide_automatic_options=None, **kwargs):
         if view_func:
             # TODO: `if hasattr(view_func, 'view_class')` then this was generated from a `flask.views.View`
             #   should we do something special with these views? Change the name/resource? Add tags?
             view_func = wrap_view(instance, view_func, name=endpoint, resource=rule)
 
-        return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
+        return wrapped(
+            rule, endpoint=endpoint, view_func=view_func, provide_automatic_options=provide_automatic_options, **kwargs
+        )
 
     return _wrap(*args, **kwargs)
 
