@@ -772,7 +772,7 @@ class TelemetryWriter(PeriodicService):
             if newly_imported_deps:
                 self._app_dependencies_loaded_event(newly_imported_deps)
 
-        # app-closing event should only be the last event sent
+        # app-closing event should always be the last event sent
         if shutting_down:
             self._app_closing_event()
 
