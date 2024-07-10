@@ -1769,7 +1769,7 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
             model_provider="openai",
             input_messages=[{"content": "Hello world"}],
             output_messages=[{"content": expected_completion}],
-            metadata={"temperature": 0},
+            metadata={},
             token_metrics={"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
             tags={"ml_app": "<ml-app-name>"},
         ),
@@ -1809,7 +1809,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
-            metadata={"temperature": 0},
+            metadata={},
             token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -1851,7 +1851,7 @@ def test_llmobs_chat_completion_stream(openai_vcr, openai, ddtrace_global_config
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"content": expected_completion, "role": "assistant"}],
-            metadata={"temperature": 0},
+            metadata={},
             token_metrics={"prompt_tokens": 8, "completion_tokens": 8, "total_tokens": 16},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -1888,7 +1888,7 @@ def test_llmobs_chat_completion_function_call(
             model_provider="openai",
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
             output_messages=[{"content": expected_output, "role": "assistant"}],
-            metadata={"temperature": 0},
+            metadata={},
             token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -1926,7 +1926,7 @@ def test_llmobs_chat_completion_tool_call(openai_vcr, openai, ddtrace_global_con
                     "role": "assistant",
                 }
             ],
-            metadata={"temperature": 0},
+            metadata={},
             token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -2001,7 +2001,7 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config,
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"content": ""}],
-            metadata={"temperature": 0},
+            metadata={},
             token_metrics={},
             error="openai.AuthenticationError",
             error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
