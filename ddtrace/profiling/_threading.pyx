@@ -9,7 +9,6 @@ from six.moves import _thread
 
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
-from ddtrace.internal.compat import dataclasses
 
 
 from cpython cimport PyLong_FromLong
@@ -104,7 +103,7 @@ else:
     _weakref_type = typing.Any
 
 
-@dataclasses.dataclass(slots=True, eq=False)
+@attr.s(slots=True, eq=False)
 class _ThreadLink(_thread_link_base):
     """Link a thread with an object.
 
@@ -113,7 +112,7 @@ class _ThreadLink(_thread_link_base):
 
     # Key is a thread_id
     # Value is a weakref to an object
-    _thread_id_to_object: typing.Dict[int, _weakref_type] = dataclasses.field(default_factory=dict, repr=False, init=False)
+    _thread_id_to_object = attr.ib(factory=dict, repr=False, init=False, type=typing.Dict[int, _weakref_type])
 
     def link_object(
             self,

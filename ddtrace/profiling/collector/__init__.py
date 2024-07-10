@@ -22,7 +22,7 @@ class CollectorUnavailable(CollectorError):
 class Collector(service.Service):
     """A profile collector."""
 
-    recorder: typing.Optional[Recorder] = None
+    recorder: Recorder
 
     @staticmethod
     def snapshot():
@@ -33,15 +33,14 @@ class Collector(service.Service):
 
 
 @dataclasses.dataclass(slots=True)
-class PeriodicCollector(Collector, periodic.PeriodicService):
+class PeriodicCollector(periodic.PeriodicService, Collector):
     """A collector that needs to run periodically."""
 
     def periodic(self):
         # type: (...) -> None
         """Collect events and push them into the recorder."""
-        if self.recorder is not None:
-            for events in self.collect():
-                self.recorder.push_events(events)
+        for events in self.collect():
+            self.recorder.push_events(events)
 
     def collect(self):
         # type: (...) -> typing.Iterable[typing.Iterable[event.Event]]

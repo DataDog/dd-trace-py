@@ -31,10 +31,12 @@ class ServiceStatusError(RuntimeError):
 class Service(abc.ABC):
     """A service that can be started or stopped."""
 
-    status: ServiceStatus = dataclasses.field(default=ServiceStatus.STOPPED, init=False, compare=False)
-    _service_lock: typing.ContextManager = dataclasses.field(
-        default_factory=forksafe.Lock, init=False, repr=False, compare=False
-    )
+    status: ServiceStatus = dataclasses.field(init=False, compare=False)
+    _service_lock: typing.ContextManager = dataclasses.field(init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        self.status = ServiceStatus.STOPPED
+        self._service_lock = forksafe.Lock()
 
     def __enter__(self):
         self.start()
