@@ -759,7 +759,11 @@ errors as CUPTI generally does not support multiple concurrent readers.
 
 
 Below is an example program using the well known `CIFAR-10 <https://www.cs.toronto.edu/~kriz/cifar.html>`__ dataset for image classification.
-This can be run through the command line (assuming that a Datadog agent is running in the same environment) with `DD_SERVICE=test-pytorch-service DD_PROFILING_PYTORCH_ENABLED=true DD_PROFILING_EXPORT_LIBDD_ENABLED=true DD_PROFILING_ENABLED=true ddtrace-run python cifar10.py`.
+This can be run through the command line (assuming that a Datadog agent is running in the same environment) with:
+
+.. code-block:: bash
+
+    DD_SERVICE=test-pytorch-service DD_PROFILING_PYTORCH_ENABLED=true DD_PROFILING_EXPORT_LIBDD_ENABLED=true DD_PROFILING_ENABLED=true ddtrace-run python cifar10.py
 
 .. code-block:: python
     
@@ -810,3 +814,9 @@ This can be run through the command line (assuming that a Datadog agent is runni
     if __name__ == "__main__":
         cifar()
 
+The profiling data is then visible under the timeseries tab in the profiling page. For instance, the GPU Time by Kernel Name metric is shown below
+for an application serving inference with an LLM through PyTorch:
+
+.. image:: pytorch_metric.png
+  :width: 600
+  :alt: Alternative text
