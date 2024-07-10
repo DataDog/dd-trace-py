@@ -3,7 +3,6 @@ import utils
 
 
 class DjangoSimple(bm.Scenario):
-    name: str
     tracer_enabled: bool
     profiler_enabled: bool
     appsec_enabled: bool

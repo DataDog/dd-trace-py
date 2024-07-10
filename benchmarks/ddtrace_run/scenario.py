@@ -6,7 +6,6 @@ import bm
 
 
 class DDtraceRun(bm.Scenario):
-    name: str
     ddtrace_run: bool
     http: bool
     runtimemetrics: bool
