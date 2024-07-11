@@ -32,6 +32,37 @@ IAST_DENYLIST = (
     "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
+    "asyncpg.pgproto",
+    "blinker",
+    "bytecode",
+    "cattrs",
+    "click",
+    "ddsketch",
+    "ddtrace",
+    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "envier",
+    "exceptiongroup",
+    "freezegun",  # Testing utilities for time manipulation
+    "hypothesis",
+    "importlib_metadata",
+    "inspect",  # this package is used to get the stack frames, propagation is not needed
+    "itsdangerous",
+    "moto",  # used for mocking AWS, propagation is not needed
+    "moto[all]",
+    "moto[ec2",
+    "moto[s3]",
+    "opentelemetry-api",
+    "packaging",
+    "pip",
+    "pkg_resources",
+    "pluggy",
+    "protobuf",
+    "pycparser",  # this package is called when a module is imported, propagation is not needed
+    "pytest",  # Testing framework
+    "setuptools",
+    "sklearn",  # Machine learning library
+    "tomli",
+    "typing_extensions",
     "unittest.mock",
     "pytest",  # Testing framework
     "freezegun",  # Testing utilities for time manipulation
