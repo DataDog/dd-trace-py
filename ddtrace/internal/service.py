@@ -27,16 +27,23 @@ class ServiceStatusError(RuntimeError):
         )
 
 
-@dataclasses.dataclass(eq=False)
 class Service(abc.ABC):
     """A service that can be started or stopped."""
 
-    status: ServiceStatus = dataclasses.field(init=False, compare=False)
-    _service_lock: typing.ContextManager = dataclasses.field(init=False, repr=False, compare=False)
+    status: ServiceStatus
+    _service_lock: typing.ContextManager
 
-    def __post_init__(self):
-        self.status = ServiceStatus.STOPPED
-        self._service_lock = forksafe.Lock()
+    def __init__(self):
+        self.status: ServiceStatus = ServiceStatus.STOPPED
+        self._service_lock: typing.ContextManager = forksafe.Lock()
+
+    def __eq__(self, other):
+        # We're explicitly not implementing equality
+        return NotImplemented
+
+    def __repr__(self):
+        # Custom repr that excludes _service_lock
+        return f"{self.__class__.__name__}(status={self.status!r})"
 
     def __enter__(self):
         self.start()

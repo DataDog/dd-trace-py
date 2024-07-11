@@ -18,32 +18,36 @@ class CollectorUnavailable(CollectorError):
     pass
 
 
-@dataclasses.dataclass
 class Collector(service.Service):
     """A profile collector."""
 
-    recorder: Recorder
+    def __init__(self, recorder: Recorder):
+        super().__init__()
+        self.recorder = recorder
 
     @staticmethod
-    def snapshot():
+    def snapshot() -> typing.List:
         """Take a snapshot of collected data.
 
         :return: A list of sample list to push in the recorder.
         """
 
 
-@dataclasses.dataclass(slots=True)
 class PeriodicCollector(periodic.PeriodicService, Collector):
     """A collector that needs to run periodically."""
 
-    def periodic(self):
-        # type: (...) -> None
+    __slots__ = ()
+
+    def __init__(self, recorder: Recorder, interval: float):
+        periodic.PeriodicService.__init__(self, interval=interval)
+        Collector.__init__(self, recorder)
+
+    def periodic(self) -> None:
         """Collect events and push them into the recorder."""
         for events in self.collect():
             self.recorder.push_events(events)
 
-    def collect(self):
-        # type: (...) -> typing.Iterable[typing.Iterable[event.Event]]
+    def collect(self) -> typing.Iterable[typing.Iterable[event.Event]]:
         """Collect the actual data.
 
         :return: A list of event list to push in the recorder.
@@ -70,11 +74,11 @@ class CaptureSampler:
             raise ValueError("Capture percentage should be between 0 and 100 included")
 
 
-@dataclasses.dataclass
 class CaptureSamplerCollector(Collector):
-    capture_pct: float = config.capture_pct
-    _capture_sampler: CaptureSampler = dataclasses.field(init=False, repr=False)
-
-    def __post_init__(self):
-        super().__post_init__()
+    def __init__(self, recorder, capture_pct=config.capture_pct):
+        super().__init__(recorder)
+        self.capture_pct = capture_pct
         self._capture_sampler = CaptureSampler(self.capture_pct)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(recorder={self.recorder!r}, capture_pct={self.capture_pct})"

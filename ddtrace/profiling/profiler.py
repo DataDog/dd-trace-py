@@ -98,45 +98,72 @@ class Profiler(object):
         return getattr(self._profiler, key)
 
 
-@dataclasses.dataclass
 class _ProfilerInstance(service.Service):
     """A instance of the profiler.
 
     Each process must manage its own instance.
-
     """
 
-    # User-supplied values
-    url: Optional[str] = None
-    service: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_SERVICE"))
-    tags: typing.Dict[str, str] = dataclasses.field(default_factory=dict)
-    env: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_ENV"))
-    version: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_VERSION"))
-    tracer: Tracer = ddtrace.tracer
-    api_key: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_API_KEY"))
-    agentless: bool = config.agentless
-    _memory_collector_enabled: bool = config.memory.enabled
-    _stack_collector_enabled: bool = config.stack.enabled
-    _stack_v2_enabled: bool = config.stack.v2_enabled
-    _lock_collector_enabled: bool = config.lock.enabled
-    enable_code_provenance: bool = config.code_provenance
-    endpoint_collection_enabled: bool = config.endpoint_collection
-
-    _recorder: Any = dataclasses.field(init=False, default=None)
-    _collectors: Optional[List[Union[stack.StackCollector, memalloc.MemoryCollector]]] = dataclasses.field(
-        init=False, default=None
-    )
-    _collectors_on_import: Any = dataclasses.field(init=False, default=None, compare=False)
-    _scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = dataclasses.field(
-        init=False, default=None
-    )
-    _lambda_function_name: Optional[str] = dataclasses.field(
-        init=False,
-        default_factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"),
-    )
-    _export_libdd_enabled: bool = config.export.libdd_enabled
-
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
+
+    def __init__(
+        self,
+        url: Optional[str] = None,
+        service: Optional[str] = None,
+        tags: typing.Dict[str, str] = None,
+        env: Optional[str] = None,
+        version: Optional[str] = None,
+        tracer: Tracer = ddtrace.tracer,
+        api_key: Optional[str] = None,
+        agentless: bool = config.agentless,
+        memory_collector_enabled: bool = config.memory.enabled,
+        stack_collector_enabled: bool = config.stack.enabled,
+        stack_v2_enabled: bool = config.stack.v2_enabled,
+        lock_collector_enabled: bool = config.lock.enabled,
+        enable_code_provenance: bool = config.code_provenance,
+        endpoint_collection_enabled: bool = config.endpoint_collection,
+    ):
+        super().__init__()
+        self.url = url
+        self.service = service or os.environ.get("DD_SERVICE")
+        self.tags = tags or {}
+        self.env = env or os.environ.get("DD_ENV")
+        self.version = version or os.environ.get("DD_VERSION")
+        self.tracer = tracer
+        self.api_key = api_key or os.environ.get("DD_API_KEY")
+        self.agentless = agentless
+        self._memory_collector_enabled = memory_collector_enabled
+        self._stack_collector_enabled = stack_collector_enabled
+        self._stack_v2_enabled = stack_v2_enabled
+        self._lock_collector_enabled = lock_collector_enabled
+        self.enable_code_provenance = enable_code_provenance
+        self.endpoint_collection_enabled = endpoint_collection_enabled
+
+        self._recorder: Any = None
+        self._collectors: Optional[List[Union[stack.StackCollector, memalloc.MemoryCollector]]] = None
+        self._collectors_on_import: Any = None
+        self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
+        self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._export_libdd_enabled: bool = config.export.libdd_enabled
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"url={self.url!r}, "
+            f"service={self.service!r}, "
+            f"tags={self.tags!r}, "
+            f"env={self.env!r}, "
+            f"version={self.version!r}, "
+            f"tracer={self.tracer!r}, "
+            f"api_key={'*****' if self.api_key else None}, "
+            f"agentless={self.agentless!r}, "
+            f"memory_collector_enabled={self._memory_collector_enabled!r}, "
+            f"stack_collector_enabled={self._stack_collector_enabled!r}, "
+            f"stack_v2_enabled={self._stack_v2_enabled!r}, "
+            f"lock_collector_enabled={self._lock_collector_enabled!r}, "
+            f"enable_code_provenance={self.enable_code_provenance!r}, "
+            f"endpoint_collection_enabled={self.endpoint_collection_enabled!r})"
+        )
 
     def _build_default_exporters(self):
         # type: (...) -> List[exporter.Exporter]

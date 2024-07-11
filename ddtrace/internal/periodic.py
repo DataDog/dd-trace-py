@@ -6,7 +6,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._threads import PeriodicThread
 from ddtrace.internal._threads import periodic_threads
-from ddtrace.internal.compat import dataclasses
 
 
 @atexit.register
@@ -29,27 +28,28 @@ def _():
     periodic_threads.clear()
 
 
-@dataclasses.dataclass(eq=False)
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    _interval: float = dataclasses.field(default=10.0, init=False, repr=False)
-    _worker: typing.Optional[PeriodicThread] = dataclasses.field(default=None, init=False, repr=False)
-    interval: float = 10
+    def __init__(self, interval=10):
+        super().__init__()
+        self._worker: typing.Optional[PeriodicThread] = None
+        self.interval = interval  # This will call the setter
 
-    @property  # type: ignore[no-redef]
+    @property
     def interval(self) -> float:
         return self._interval
 
     @interval.setter
-    def interval(
-        self,
-        value: float,
-    ):
+    def interval(self, value: float):
         self._interval = value
         # Update the interval of the PeriodicThread based on ours
         if self._worker:
-            self._worker.interval = value  # type: ignore[attr-defined]
+            self._worker.interval = value
+
+    def __repr__(self):
+        # Custom repr that excludes _interval and _worker
+        return f"{self.__class__.__name__}(status={self.status!r}, interval={self.interval})"
 
     def _start_service(self, *args, **kwargs):
         # type: (typing.Any, typing.Any) -> None

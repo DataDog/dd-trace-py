@@ -17,24 +17,40 @@ from .recorder import Recorder
 LOG = logging.getLogger(__name__)
 
 
-@dataclasses.dataclass
 class Scheduler(periodic.PeriodicService):
     """Schedule export of recorded data."""
 
-    recorder: typing.Optional[Recorder] = None
-    exporters: typing.Optional[typing.List[Exporter]] = None
-    before_flush: typing.Optional[typing.Callable] = None
-    _configured_interval: typing.Optional[float] = dataclasses.field(init=False, default=None)
-    _last_export: typing.Optional[int] = None
-    _export_libdd_enabled: bool = config.export.libdd_enabled
+    def __init__(
+        self,
+        recorder: typing.Optional[Recorder] = None,
+        exporters: typing.Optional[typing.List[Exporter]] = None,
+        before_flush: typing.Optional[typing.Callable] = None,
+    ):
+        super().__init__()
+        self.recorder = recorder
+        self.exporters = exporters
+        self.before_flush = before_flush
+        self._configured_interval: typing.Optional[float] = None
+        self._last_export: typing.Optional[int] = None
+        self._export_libdd_enabled: bool = config.export.libdd_enabled
 
-    ## Parent Class attributes
-    _interval: float = dataclasses.field(default=config.upload_interval, repr=False)
+        # Set the interval using the property setter
+        self.interval = config.upload_interval
 
-    def __post_init__(self):
         # Copy the value to use it later since we're going to adjust the real interval
-        super().__post_init__()
         self._configured_interval = self.interval
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"status={self.status!r}, "
+            f"interval={self.interval}, "
+            f"recorder={self.recorder!r}, "
+            f"exporters={self.exporters!r}, "
+            f"before_flush={self.before_flush!r}, "
+            f"_last_export={self._last_export!r}, "
+            f"_export_libdd_enabled={self._export_libdd_enabled!r})"
+        )
 
     def _start_service(self):
         # type: (...) -> None
