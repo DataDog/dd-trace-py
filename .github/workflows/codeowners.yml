@@ -32,6 +32,4 @@ jobs:
           message: |
             `CODEOWNERS` have been resolved as:
 
-            ```
             ${{ steps.codeowners_resolved.outputs.results }}
-            ```
