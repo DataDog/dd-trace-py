@@ -24,13 +24,64 @@ from .visitor import AstVisitor
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
 IAST_DENYLIST = (
+    "flask",
+    "werkzeug",
+    "crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "deprecated",
+    "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
+    "api_pb2_grpc",  # ditto
+    "asyncpg.pgproto",
+    "blinker",
+    "bytecode",
+    "cattrs",
+    "click",
+    "ddsketch",
     "ddtrace",
-    "pkg_resources",
     "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "envier",
+    "exceptiongroup",
+    "freezegun",  # Testing utilities for time manipulation
+    "hypothesis",
+    "importlib_metadata",
     "inspect",  # this package is used to get the stack frames, propagation is not needed
+    "itsdangerous",
+    "moto",  # used for mocking AWS, propagation is not needed
+    "moto[all]",
+    "moto[ec2",
+    "moto[s3]",
+    "opentelemetry-api",
+    "packaging",
+    "pip",
+    "pkg_resources",
+    "pluggy",
+    "protobuf",
     "pycparser",  # this package is called when a module is imported, propagation is not needed
-    "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "pytest",  # Testing framework
+    "setuptools",
+    "sklearn",  # Machine learning library
+    "tomli",
+    "typing_extensions",
+    "unittest.mock",
+    "uvloop",
+    "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
+    "wrapt",
+    "zipp",
+    ## This is a workaround for Sanic failures:
+    "websocket",
+    "h11",
+    "aioquic",
+    "httptools",
+    "sniffio",
+    "py",
+    "sanic",
+    "rich",
+    "httpx",
+    "websockets",
+    "uvicorn",
+    "anyio",
+    "httpcore",
 )  # type: tuple[str, ...]
+
 
 if IAST.PATCH_MODULES in os.environ:
     IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
