@@ -30,7 +30,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
     _enable = True
 
     def __init__(self):
-        super(RemoteConfigPoller, self).__init__(_interval=get_poll_interval_seconds())
+        super(RemoteConfigPoller, self).__init__(interval=get_poll_interval_seconds())
         self._client = RemoteConfigClient()
         self._state = self._agent_check
         self._parent_id = os.getpid()

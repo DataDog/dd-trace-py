@@ -53,7 +53,7 @@ class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
-        super(BaseLLMObsWriter, self).__init__(_interval=interval)
+        super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]
         self._buffer_limit = 1000

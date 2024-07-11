@@ -467,7 +467,7 @@ class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
     # This need to be a real OS thread in order to catch
     _real_thread: bool = dataclasses.field(default=True, init=False, repr=False)
-    _interval: float = dataclasses.field(default_factory=_default_min_interval_time, init=False, repr=False)
+    interval: float = dataclasses.field(default_factory=_default_min_interval_time, init=False, repr=False)
     # This is the minimum amount of time the thread will sleep between polling interval,
     # no matter how fast the computer is.
     min_interval_time: float = dataclasses.field(default_factory=_default_min_interval_time, init=False)
@@ -485,7 +485,7 @@ class StackCollector(collector.PeriodicCollector):
 
     __annotations__ = {
         '_real_thread': bool,
-        '_interval': float,
+        'interval': float,
         'min_interval_time': float,
 
         'max_time_usage_pct': float,

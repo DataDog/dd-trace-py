@@ -95,7 +95,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         # type: (str, Optional[float], float, int) -> None
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-        super(SpanStatsProcessorV06, self).__init__(_interval=interval)
+        super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self._agent_url = agent_url
         self._endpoint = "/v0.6/stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
