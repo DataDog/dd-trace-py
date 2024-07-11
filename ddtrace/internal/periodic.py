@@ -2,11 +2,12 @@
 import atexit
 import typing  # noqa:F401
 
+import attr
+
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._threads import PeriodicThread
 from ddtrace.internal._threads import periodic_threads
-from ddtrace.internal.compat import dataclasses
 
 
 @atexit.register
@@ -29,15 +30,14 @@ def _():
     periodic_threads.clear()
 
 
-@dataclasses.dataclass(eq=False)
+@attr.s(eq=False)
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    _interval: float = dataclasses.field(default=10.0, init=False, repr=False)
-    _worker: typing.Optional[PeriodicThread] = dataclasses.field(default=None, init=False, repr=False)
-    interval: float = 10
+    _interval = attr.ib(type=float)
+    _worker = attr.ib(default=None, init=False, repr=False)
 
-    @property  # type: ignore[no-redef]
+    @property
     def interval(self) -> float:
         return self._interval
 
@@ -49,7 +49,7 @@ class PeriodicService(service.Service):
         self._interval = value
         # Update the interval of the PeriodicThread based on ours
         if self._worker:
-            self._worker.interval = value  # type: ignore[attr-defined]
+            self._worker.interval = value
 
     def _start_service(self, *args, **kwargs):
         # type: (typing.Any, typing.Any) -> None

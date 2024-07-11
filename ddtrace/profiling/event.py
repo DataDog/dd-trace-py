@@ -1,9 +1,10 @@
 from collections import namedtuple
 import typing
 
+import attr
+
 from ddtrace._trace import span as ddspan  # noqa:F401
 from ddtrace.internal import compat
-from ddtrace.internal.compat import dataclasses
 
 
 _T = typing.TypeVar("_T")
@@ -12,11 +13,18 @@ DDFrame = namedtuple("DDFrame", ["file_name", "lineno", "function_name", "class_
 StackTraceType = typing.List[DDFrame]
 
 
-@dataclasses.dataclass(slots=True)
-class Event:
+def event_class(
+    klass,  # type: typing.Type[_T]
+):
+    # type: (...) -> typing.Type[_T]
+    return attr.s(slots=True)(klass)
+
+
+@event_class
+class Event(object):
     """An event happening at a point in time."""
 
-    timestamp: int = dataclasses.field(default_factory=compat.time_ns)
+    timestamp = attr.ib(factory=compat.time_ns)
 
     @property
     def name(self):
@@ -25,33 +33,33 @@ class Event:
         return self.__class__.__name__
 
 
-@dataclasses.dataclass(slots=True)
+@event_class
 class TimedEvent(Event):
     """An event that has a duration."""
 
-    duration: typing.Optional[float] = None
+    duration = attr.ib(default=None)
 
 
-@dataclasses.dataclass(slots=True)
+@event_class
 class SampleEvent(Event):
     """An event representing a sample gathered from the system."""
 
-    sampling_period: typing.Optional[int] = None
+    sampling_period = attr.ib(default=None)
 
 
-@dataclasses.dataclass(slots=True)
+@event_class
 class StackBasedEvent(SampleEvent):
-    thread_id: typing.Optional[int] = None
-    thread_name: typing.Optional[str] = None
-    thread_native_id: typing.Optional[int] = None
-    task_id: typing.Optional[int] = None
-    task_name: typing.Optional[str] = None
-    frames: typing.Optional[StackTraceType] = None
-    nframes: int = 0
-    local_root_span_id: typing.Optional[int] = None
-    span_id: typing.Optional[int] = None
-    trace_type: typing.Optional[str] = None
-    trace_resource_container: typing.Optional[typing.List[str]] = None
+    thread_id = attr.ib(default=None, type=typing.Optional[int])
+    thread_name = attr.ib(default=None, type=typing.Optional[str])
+    thread_native_id = attr.ib(default=None, type=typing.Optional[int])
+    task_id = attr.ib(default=None, type=typing.Optional[int])
+    task_name = attr.ib(default=None, type=typing.Optional[str])
+    frames = attr.ib(default=None, type=StackTraceType)
+    nframes = attr.ib(default=0, type=int)
+    local_root_span_id = attr.ib(default=None, type=typing.Optional[int])
+    span_id = attr.ib(default=None, type=typing.Optional[int])
+    trace_type = attr.ib(default=None, type=typing.Optional[str])
+    trace_resource_container = attr.ib(default=None, type=typing.List[str])
 
     def set_trace_info(
         self,

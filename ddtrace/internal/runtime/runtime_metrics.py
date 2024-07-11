@@ -87,7 +87,6 @@ class RuntimeWorker(periodic.PeriodicService):
 
     def __post_init__(self):
         # type: () -> None
-        super().__post_init__()
         self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
         self.tracer = self.tracer or ddtrace.tracer
 
@@ -130,7 +129,7 @@ class RuntimeWorker(periodic.PeriodicService):
             if flush_interval is None:
                 flush_interval = _get_interval_or_default()
 
-            cls._instance = cls(interval=flush_interval, tracer=tracer, dogstatsd_url=dogstatsd_url)
+            cls._instance = cls(_interval=flush_interval, tracer=tracer, dogstatsd_url=dogstatsd_url)
             cls._instance.start()
             # force an immediate update constant tags
             cls._instance.update_runtime_tags()

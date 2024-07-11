@@ -1,39 +1,33 @@
 # -*- encoding: utf-8 -*-
 import logging
-import typing
+
+import attr
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
 
-from .exporter import Exporter
-from .recorder import Recorder
-
 
 LOG = logging.getLogger(__name__)
 
 
-@dataclasses.dataclass
+@attr.s
 class Scheduler(periodic.PeriodicService):
     """Schedule export of recorded data."""
 
-    recorder: typing.Optional[Recorder] = None
-    exporters: typing.Optional[typing.List[Exporter]] = None
-    before_flush: typing.Optional[typing.Callable] = None
-    _configured_interval: typing.Optional[float] = dataclasses.field(init=False, default=None)
-    _last_export: typing.Optional[int] = None
-    _export_libdd_enabled: bool = config.export.libdd_enabled
+    recorder = attr.ib()
+    exporters = attr.ib()
+    before_flush = attr.ib(default=None, eq=False)
+    _interval = attr.ib(type=float, default=config.upload_interval)
+    _configured_interval = attr.ib(init=False)
+    _last_export = attr.ib(init=False, default=None, eq=False)
+    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
 
-    ## Parent Class attributes
-    _interval: float = dataclasses.field(default=config.upload_interval, repr=False)
-
-    def __post_init__(self):
+    def __attrs_post_init__(self):
         # Copy the value to use it later since we're going to adjust the real interval
-        super().__post_init__()
         self._configured_interval = self.interval
 
     def _start_service(self):
@@ -83,7 +77,7 @@ class Scheduler(periodic.PeriodicService):
             self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
 
 
-@dataclasses.dataclass
+@attr.s
 class ServerlessScheduler(Scheduler):
     """Serverless scheduler that works on, e.g., AWS Lambda.
 
@@ -97,10 +91,8 @@ class ServerlessScheduler(Scheduler):
     FORCED_INTERVAL = 1.0
     FLUSH_AFTER_INTERVALS = 60.0
 
-    _profiled_intervals: int = 0
-
-    ## Parent Class attributes
-    _interval: float = FORCED_INTERVAL
+    _interval = attr.ib(default=FORCED_INTERVAL, type=float)
+    _profiled_intervals = attr.ib(init=False, default=0)
 
     def periodic(self):
         # Check both the number of intervals and time frame to be sure we don't flush, e.g., empty profiles
