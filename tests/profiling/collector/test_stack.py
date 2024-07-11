@@ -61,7 +61,7 @@ def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1):
 
 def test_collect_truncate():
     r = recorder.Recorder()
-    c = stack.StackCollector(recorder=r, nframes=5)
+    c = stack.StackCollector(r, nframes=5)
     c.start()
     func1()
     while not r.events[stack_event.StackSampleEvent]:
@@ -77,7 +77,7 @@ def test_collect_truncate():
 
 def test_collect_once():
     r = recorder.Recorder()
-    s = stack.StackCollector(recorder=r)
+    s = stack.StackCollector(r)
     s._init()
     all_events = s.collect()
     assert len(all_events) == 2
@@ -131,7 +131,7 @@ def test_collect_once_with_class():
             return False
 
     r = recorder.Recorder()
-    s = stack.StackCollector(recorder=r)
+    s = stack.StackCollector(r)
 
     with s:
         assert SomeClass.sleep_class()
@@ -156,7 +156,7 @@ def test_collect_once_with_class_not_right_type():
                 time.sleep(1)
             return False
 
-    s = stack.StackCollector(recorder=r)
+    s = stack.StackCollector(r)
 
     with s:
         assert SomeClass.sleep_class(123)
@@ -196,7 +196,7 @@ def test_collect_gevent_thread_task():
             return _fib(n - 1) + _fib(n - 2)
 
     r = recorder.Recorder()
-    s = stack.StackCollector(recorder=r)
+    s = stack.StackCollector(r)
 
     # Start some (green)threads
 
@@ -231,13 +231,13 @@ def test_collect_gevent_thread_task():
 def test_max_time_usage():
     r = recorder.Recorder()
     with pytest.raises(ValueError):
-        stack.StackCollector(recorder=r, max_time_usage_pct=0)
+        stack.StackCollector(r, max_time_usage_pct=0)
 
 
 def test_max_time_usage_over():
     r = recorder.Recorder()
     with pytest.raises(ValueError):
-        stack.StackCollector(recorder=r, max_time_usage_pct=200)
+        stack.StackCollector(r, max_time_usage_pct=200)
 
 
 def test_ignore_profiler_single():
@@ -321,12 +321,12 @@ def test_repr():
 
 def test_new_interval():
     r = recorder.Recorder()
-    c = stack.StackCollector(recorder=r, max_time_usage_pct=2)
+    c = stack.StackCollector(r, max_time_usage_pct=2)
     new_interval = c._compute_new_interval(1000000)
     assert new_interval == 0.049
     new_interval = c._compute_new_interval(2000000)
     assert new_interval == 0.098
-    c = stack.StackCollector(recorder=r, max_time_usage_pct=10)
+    c = stack.StackCollector(r, max_time_usage_pct=10)
     new_interval = c._compute_new_interval(200000)
     assert new_interval == 0.01
     new_interval = c._compute_new_interval(1)
@@ -429,7 +429,7 @@ def test_exception_collection_threads():
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
 def test_exception_collection():
     r = recorder.Recorder()
-    c = stack.StackCollector(recorder=r)
+    c = stack.StackCollector(r)
     with c:
         try:
             raise ValueError("hello")
@@ -456,7 +456,7 @@ def test_exception_collection_trace(
 ):
     # type: (...) -> None
     r = recorder.Recorder()
-    c = stack.StackCollector(recorder=r, tracer=tracer)
+    c = stack.StackCollector(r, tracer=tracer)
     with c:
         with tracer.trace("test123") as span:
             for _ in range(100):
@@ -489,7 +489,7 @@ def test_exception_collection_trace(
 @pytest.fixture
 def tracer_and_collector(tracer):
     r = recorder.Recorder()
-    c = stack.StackCollector(recorder=r, endpoint_collection_enabled=True, tracer=tracer)
+    c = stack.StackCollector(r, endpoint_collection_enabled=True, tracer=tracer)
     c.start()
     try:
         yield tracer, c
@@ -595,7 +595,7 @@ def test_collect_span_resource_after_finish(tracer_and_collector):
 
 def test_resource_not_collected(monkeypatch, tracer):
     r = recorder.Recorder()
-    collector = stack.StackCollector(recorder=r, endpoint_collection_enabled=False, tracer=tracer)
+    collector = stack.StackCollector(r, endpoint_collection_enabled=False, tracer=tracer)
     collector.start()
     try:
         resource = str(uuid.uuid4())
@@ -706,7 +706,7 @@ def test_collect_gevent_threads():
 
     # type: (...) -> None
     r = recorder.Recorder()
-    s = stack.StackCollector(recorder=r, max_time_usage_pct=100)
+    s = stack.StackCollector(r, max_time_usage_pct=100)
 
     iteration = 100
     sleep_time = 0.01
@@ -777,7 +777,7 @@ def test_collect_ensure_all_frames_gc():
         pass
 
     r = recorder.Recorder()
-    s = stack.StackCollector(recorder=r)
+    s = stack.StackCollector(r)
 
     with s:
         for _ in range(100):
