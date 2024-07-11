@@ -6,6 +6,11 @@ container](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
 which allows users to easily instrument Python applications without requiring
 changes to the application image.
 
+This Library Injection functionality can be used independently of `ddtrace-run`, `ddtrace.auto`,
+and any other "manual" instrumentation mechanism.
+
+## Technical Details
+
 The `Dockerfile` defines the image that is published for `ddtrace` which is used
 as a Kubernetes InitContainer. Kubernetes runs it before deployment pods start.
 It is responsible for providing the files necessary to run `ddtrace` in an

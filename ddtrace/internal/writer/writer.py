@@ -19,6 +19,7 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
+from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -32,7 +33,7 @@ from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
-from ..serverless import in_azure_function_consumption_plan
+from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
@@ -482,7 +483,7 @@ class AgentWriter(HTTPWriter):
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
 
         default_api_version = "v0.5"
-        if is_windows or in_gcp_function() or in_azure_function_consumption_plan() or asm_config._asm_enabled:
+        if is_windows or in_gcp_function() or in_azure_function() or asm_config._asm_enabled:
             default_api_version = "v0.4"
 
         self._api_version = api_version or config._trace_api or default_api_version
@@ -607,13 +608,8 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            if config._telemetry_enabled:
-                from ...internal import telemetry
-
-                if telemetry.telemetry_writer.started:
-                    return
-
-                telemetry.telemetry_writer._app_started_event()
+            if config._telemetry_enabled and not telemetry_writer.started:
+                telemetry_writer._app_started_event()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized

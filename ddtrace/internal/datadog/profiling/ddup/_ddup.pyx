@@ -7,14 +7,12 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace.internal.compat import ensure_binary
+from ..types import StringType
+from ..util import ensure_binary_or_empty
+from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.datadog.profiling.ddup.utils import sanitize_string
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
-
-
-StringType = Union[str, bytes, None]
 
 
 cdef extern from "stdint.h":
@@ -31,7 +29,7 @@ cdef extern from "sample.hpp" namespace "Datadog":
     ctypedef struct Sample:
         pass
 
-cdef extern from "interface.hpp":
+cdef extern from "ddup_interface.hpp":
     void ddup_config_env(string_view env)
     void ddup_config_service(string_view service)
     void ddup_config_version(string_view version)
@@ -45,7 +43,7 @@ cdef extern from "interface.hpp":
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
 
-    void ddup_init()
+    void ddup_start()
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -98,14 +96,6 @@ cdef call_ddup_config_user_tag(bytes key, bytes val):
 
 
 # Conversion functions
-def ensure_binary_or_empty(s: StringType) -> bytes:
-    try:
-        return ensure_binary(s)
-    except Exception:
-        pass
-    return b""
-
-
 cdef uint64_t clamp_to_uint64_unsigned(value):
     # This clamps a Python int to the nonnegative range of an unsigned 64-bit integer.
     # The name is redundant, but consistent with the other clamping function.
@@ -126,7 +116,7 @@ cdef int64_t clamp_to_int64_unsigned(value):
 
 
 # Public API
-def init(
+def config(
         service: StringType = None,
         env: StringType = None,
         version: StringType = None,
@@ -139,8 +129,7 @@ def init(
     service = service or DEFAULT_SERVICE_NAME
     call_ddup_config_service(ensure_binary_or_empty(service))
 
-    # If otherwise no values are provided, the uploader will omit the fields
-    # and they will be auto-populated in the backend
+    # Empty values are auto-populated in the backend (omitted in client)
     if env:
         call_ddup_config_env(ensure_binary_or_empty(env))
     if version:
@@ -159,9 +148,13 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
+
     if timeline_enabled is True:
         ddup_config_timeline(True)
-    ddup_init()
+
+
+def start() -> None:
+    ddup_start()
 
 
 def upload() -> None:

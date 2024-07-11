@@ -1,34 +1,13 @@
+# See ../ddup/__init__.py for some discussion on the is_available attribute.
+# This component is also loaded in ddtrace/settings/profiling.py
 is_available = False
-
-
-# Decorator for not-implemented
-def not_implemented(func):
-    def wrapper(*args, **kwargs):
-        raise NotImplementedError("{} is not implemented on this platform".format(func.__name__))
-
-
-@not_implemented
-def start(*args, **kwargs):
-    pass
-
-
-@not_implemented
-def stop(*args, **kwargs):
-    pass
-
-
-@not_implemented
-def set_interval(*args, **kwargs):
-    pass
+failure_msg = ""
 
 
 try:
-    from ._stack_v2 import *  # noqa: F401, F403
+    from ._stack_v2 import *  # noqa: F403, F401
 
     is_available = True
+
 except Exception as e:
-    from ddtrace.internal.logger import get_logger
-
-    LOG = get_logger(__name__)
-
-    LOG.debug("Failed to import _stack_v2: %s", e)
+    failure_msg = str(e)
