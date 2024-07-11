@@ -150,16 +150,20 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         elif isinstance(content, list):
             for completion in content:
+                tool_calls_info = []
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
                     output_messages.append({"content": text, "role": role})
                 else:
                     if _get_attr(completion, "type", None) == "tool_use":
-                        name = _get_attr(completion, "name", "")
-                        inputs = _get_attr(completion, "input", "")
-                        output_messages.append(
-                            {"content": "[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
-                        )
+                        tool_call_info = {
+                            "name": _get_attr(completion, "name", ""),
+                            "arguments": _get_attr(completion, "input", ""),
+                            "tool_id": _get_attr(completion, "id", ""),
+                            "type": _get_attr(completion, "type", ""),
+                        }
+                        tool_calls_info.append(tool_call_info)
+                        output_messages.append({"content": "", "role": role, "tool_calls": tool_calls_info})
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
