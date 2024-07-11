@@ -446,6 +446,7 @@
             "@core",
             "@remoteconfig",
             "@symbol_db",
+            "@tracing",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
