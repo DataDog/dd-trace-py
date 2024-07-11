@@ -66,7 +66,7 @@ class ASMConfig(Env):
         _asm_static_rule_file = None
     _iast_enabled = Env.var(bool, IAST_ENV, default=False)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
-    _use_metastruct_for_triggers = False
+    _use_metastruct_for_triggers = True
 
     _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="", parser=str.lower)
     # Deprecation phase, to be removed in ddtrace 3.0.0
