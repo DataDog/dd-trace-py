@@ -746,6 +746,16 @@ PACKAGES = [
         "",
         import_name="OpenSSL.SSL",
     ),
+    PackageForTesting(
+        "moto[s3]",
+        "5.0.11",
+        "some_bucket",
+        "right_result",
+        "",
+        import_name="moto.s3.models",
+        test_e2e=True,
+        extras=[("boto3", "1.34.143")],
+    ),
     PackageForTesting("decorator", "5.1.1", "World", "Decorated result: Hello, World!", ""),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
     PackageForTesting(
@@ -779,7 +789,7 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 # Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
 # Remember to set to False before pushing it!
-_DEBUG_MODE = False
+_DEBUG_MODE = True  # JJJ
 
 
 @pytest.fixture(scope="module")
@@ -811,8 +821,8 @@ def template_venv():
     yield venv_dir
 
     # Cleanup: Remove the virtual environment directory after tests
-    if not _DEBUG_MODE:
-        shutil.rmtree(venv_dir)
+    # if not _DEBUG_MODE:
+    #     shutil.rmtree(venv_dir)  # JJJ
 
 
 @pytest.fixture()
