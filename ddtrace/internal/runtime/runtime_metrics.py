@@ -4,13 +4,13 @@ from typing import ClassVar  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 
-import attr
-
 import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import telemetry
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
@@ -63,24 +63,24 @@ def _get_interval_or_default():
     return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
 
-@attr.s(eq=False)
+@dataclasses.dataclass(eq=False)
 class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd
     client.
     """
 
-    _interval = attr.ib(type=float, factory=_get_interval_or_default)
-    tracer = attr.ib(type=ddtrace.Tracer, default=None)
-    dogstatsd_url = attr.ib(type=Optional[str], default=None)
-    _dogstatsd_client = attr.ib(init=False, repr=False)
-    _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
-    _services = attr.ib(type=Set[str], init=False, factory=set)
+    _interval: float = dataclasses.field(default_factory=_get_interval_or_default)
+    tracer: Optional[ddtrace.Tracer] = None
+    dogstatsd_url: Optional[str] = None
+    _dogstatsd_client: DogStatsd = dataclasses.field(init=False, repr=False)
+    _runtime_metrics: RuntimeMetrics = dataclasses.field(default_factory=RuntimeMetrics, repr=False)
+    _services: Set[str] = dataclasses.field(init=False, default_factory=set)
 
     enabled = False
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = forksafe.Lock()
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         # type: () -> None
         self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
         self.tracer = self.tracer or ddtrace.tracer
@@ -141,7 +141,7 @@ class RuntimeWorker(periodic.PeriodicService):
         # type: () -> None
         # The constant tags for the dogstatsd client needs to updated with any new
         # service(s) that may have been added.
-        if self._services != self.tracer._services:
+        if self.tracer and self._services != self.tracer._services:
             self._services = self.tracer._services
             self.update_runtime_tags()
 
