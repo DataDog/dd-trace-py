@@ -267,7 +267,7 @@ class _ProfilerInstance(service.Service):
             try:
                 self._collectors.append(
                     stack.StackCollector(
-                        recorder=r,
+                        r,
                         tracer=self.tracer,
                         endpoint_collection_enabled=self.endpoint_collection_enabled,
                     )  # type: ignore[call-arg]

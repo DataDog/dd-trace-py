@@ -38,14 +38,16 @@ class PeriodicService(service.Service):
     _worker = attr.ib(default=None, init=False, repr=False)
 
     @property
-    def interval(self) -> float:
+    def interval(self):
+        # type: (...) -> float
         return self._interval
 
     @interval.setter
     def interval(
         self,
-        value: float,
+        value,  # type: float
     ):
+        # type: (...) -> None
         self._interval = value
         # Update the interval of the PeriodicThread based on ours
         if self._worker:
@@ -55,7 +57,7 @@ class PeriodicService(service.Service):
         # type: (typing.Any, typing.Any) -> None
         """Start the periodic service."""
         self._worker = PeriodicThread(
-            interval=self._interval,
+            self.interval,
             target=self.periodic,
             name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
             on_shutdown=self.on_shutdown,
@@ -65,14 +67,14 @@ class PeriodicService(service.Service):
     def _stop_service(self, *args, **kwargs):
         # type: (typing.Any, typing.Any) -> None
         """Stop the periodic collector."""
-        if self._worker is not None:
-            self._worker.stop()
+        self._worker.stop()
         super(PeriodicService, self)._stop_service(*args, **kwargs)
 
     def join(
         self,
-        timeout: typing.Optional[float] = None,
+        timeout=None,  # type: typing.Optional[float]
     ):
+        # type: (...) -> None
         if self._worker:
             self._worker.join(timeout)
 
@@ -90,5 +92,4 @@ class AwakeablePeriodicService(PeriodicService):
 
     def awake(self):
         # type: (...) -> None
-        if self._worker is not None:
-            self._worker.awake()
+        self._worker.awake()

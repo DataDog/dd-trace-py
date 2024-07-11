@@ -480,11 +480,6 @@ class StackCollector(collector.PeriodicCollector):
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
     _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
 
-    def __attrs_post_init__(self):
-        # type: (...) -> None
-        if hasattr(super(), "__post_init__"):
-            super().__post_init__()
-
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
         if value <= 0 or value > 100:
