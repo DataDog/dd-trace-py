@@ -3,6 +3,7 @@ import typing
 
 from ddtrace._trace import span as ddspan  # noqa:F401
 from ddtrace.internal import compat
+from ddtrace.internal.compat import dataclasses
 
 
 _T = typing.TypeVar("_T")

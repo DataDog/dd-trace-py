@@ -20,6 +20,7 @@ from ddtrace.internal import agent
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.formats import parse_tags_str

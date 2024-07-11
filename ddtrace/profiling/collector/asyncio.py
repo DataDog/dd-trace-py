@@ -1,6 +1,6 @@
 import typing  # noqa:F401
 
-import attr
+from ddtrace.internal.compat import dataclasses
 
 from .. import collector
 from . import _lock
@@ -23,7 +23,7 @@ class _ProfiledAsyncioLock(_lock._ProfiledLock):
     RELEASE_EVENT_CLASS = AsyncioLockReleaseEvent
 
 
-@attr.s
+@dataclasses.dataclass
 class AsyncioLockCollector(_lock.LockCollector):
     """Record asyncio.Lock usage."""
 

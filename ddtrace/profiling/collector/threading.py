@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import threading
 import typing  # noqa:F401
 
-import attr
+from ddtrace.internal.compat import dataclasses
 
 from . import _lock
 
@@ -25,7 +25,7 @@ class _ProfiledThreadingLock(_lock._ProfiledLock):
     RELEASE_EVENT_CLASS = ThreadingLockReleaseEvent
 
 
-@attr.s
+@dataclasses.dataclass
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 

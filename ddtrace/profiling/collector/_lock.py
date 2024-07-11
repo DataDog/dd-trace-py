@@ -7,10 +7,9 @@ import sys
 import types
 import typing
 
-import attr
-
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
@@ -305,17 +304,17 @@ class FunctionWrapper(wrapt.FunctionWrapper):
         return self
 
 
-@attr.s
+@dataclasses.dataclass
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes = attr.ib(type=int, default=config.max_frames)
-    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
-    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    nframes: int = config.max_frames
+    endpoint_collection_enabled: bool = config.endpoint_collection
+    export_libdd_enabled: bool = config.export.libdd_enabled
 
-    tracer = attr.ib(default=None)
+    tracer: typing.Optional[Tracer] = None
 
-    _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
+    _original: typing.Any = dataclasses.field(init=False, repr=False, compare=False, default=None)
 
     # Check if libdd is available, if not, disable the feature
     if export_libdd_enabled and not ddup.is_available:
