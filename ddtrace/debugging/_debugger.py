@@ -26,7 +26,7 @@ from ddtrace.debugging._config import di_config
 from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
-from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+from ddtrace.debugging._exception.auto_instrument import SpanExceptionHandler
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
@@ -271,7 +271,7 @@ class DebuggerWrappingContext(WrappingContext):
 class Debugger(Service):
     _instance: Optional["Debugger"] = None
     _probe_meter = _probe_metrics.get_meter("probe")
-    _span_processor: Optional[SpanExceptionProcessor] = None
+    _span_exc_handler: Optional[SpanExceptionHandler] = None
 
     __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
@@ -328,8 +328,7 @@ class Debugger(Service):
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
 
-        if cls._instance._span_processor:
-            cls._instance._span_processor.unregister()
+        # TODO: Currently there is no way of disabling a core event handler
 
         cls._instance.stop(join=join)
         cls._instance = None
@@ -370,12 +369,12 @@ class Debugger(Service):
         )
 
         if ed_config.enabled:
-            from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+            from ddtrace.debugging._exception.auto_instrument import SpanExceptionHandler
 
-            self._span_processor = SpanExceptionProcessor(collector=self._collector)
-            self._span_processor.register()
+            self._span_exc_handler = SpanExceptionHandler(collector=self._collector)
+            self._span_exc_handler.install()
         else:
-            self._span_processor = None
+            self._span_exc_handler = None
 
         if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable

@@ -29,6 +29,7 @@ Dynamic Instrumentation.
 """
 
 from ddtrace.debugging._debugger import Debugger as DynamicInstrumentation
+from ddtrace.debugging._exception.auto_instrument import capture_exception
 
 
-__all__ = ["DynamicInstrumentation"]
+__all__ = ["capture_exception", "DynamicInstrumentation"]
