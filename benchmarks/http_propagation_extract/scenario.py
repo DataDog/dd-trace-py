@@ -8,10 +8,10 @@ from ddtrace.propagation import http
 
 
 class HTTPPropagationExtract(bm.Scenario):
-    headers = bm.var(type=str)
-    extra_headers = bm.var(type=int)
-    wsgi_style = bm.var(type=bool)
-    styles = bm.var(type=str)
+    headers: str
+    extra_headers: int
+    wsgi_style: bool
+    styles: str
 
     def generate_headers(self):
         headers = json.loads(self.headers)

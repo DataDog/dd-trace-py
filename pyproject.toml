@@ -29,7 +29,6 @@ dependencies = [
     "bytecode>=0.15.0; python_version>='3.12'",
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
-    "cattrs",
     "ddsketch>=3.0.0",
     "envier~=0.5",
     "importlib_metadata<=6.5.0; python_version<'3.8'",
@@ -99,6 +98,7 @@ exclude = '''
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
+  | ddtrace/internal/datadog/profiling/crashtracker/_crashtracker.pyx$
   | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
   | ddtrace/vendor/
   | ddtrace/appsec/_iast/_taint_tracking/_vendor/

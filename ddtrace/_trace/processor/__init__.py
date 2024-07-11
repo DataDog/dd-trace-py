@@ -18,6 +18,7 @@ from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
+from ddtrace.internal import telemetry
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -25,12 +26,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
 
-
-if config._telemetry_enabled:
-    from ddtrace.internal import telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 
 try:
     from typing import DefaultDict  # noqa:F401
@@ -314,8 +312,7 @@ class SpanAggregator(SpanProcessor):
             #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
                 log_msg = "finished span not connected to a trace"
-                if config._telemetry_enabled:
-                    telemetry.telemetry_writer.add_log("ERROR", log_msg)
+                telemetry.telemetry_writer.add_log("ERROR", log_msg)
                 log.debug("%s: %s", log_msg, span)
                 return
 
@@ -339,8 +336,7 @@ class SpanAggregator(SpanProcessor):
                 trace.num_finished -= num_finished
                 if trace.num_finished != 0:
                     log_msg = "unexpected finished span count"
-                    if config._telemetry_enabled:
-                        telemetry.telemetry_writer.add_log("ERROR", log_msg)
+                    telemetry.telemetry_writer.add_log("ERROR", log_msg)
                     log.debug("%s (%s) for span %s", log_msg, num_finished, span)
                     trace.num_finished = 0
 
@@ -383,16 +379,25 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if config._telemetry_enabled and (self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]):
-            telemetry.telemetry_writer._is_periodic = False
-            telemetry.telemetry_writer._enabled = True
-            # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-            # before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_created", "integration_name", 1)
-            # on_span_finish(...) queues span finish metrics in batches of 100.
-            # This ensures all remaining counts are sent before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_finished", "integration_name", 1)
-            telemetry.telemetry_writer.periodic(True)
+        # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+        # before the tracer is shutdown.
+        self._queue_span_count_metrics("spans_created", "integration_name", 1)
+        # on_span_finish(...) queues span finish metrics in batches of 100.
+        # This ensures all remaining counts are sent before the tracer is shutdown.
+        self._queue_span_count_metrics("spans_finished", "integration_name", 1)
+        # Log a warning if the tracer is shutdown before spans are finished
+        unfinished_spans = [
+            f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
+            for t in self._traces.values()
+            for s in t.spans
+            if not s.finished
+        ]
+        if unfinished_spans:
+            log.warning(
+                "Shutting down tracer with %d unfinished spans. " "Unfinished spans will not be sent to Datadog: %s",
+                len(unfinished_spans),
+                ", ".join(unfinished_spans),
+            )
 
         try:
             self._writer.stop(timeout)
