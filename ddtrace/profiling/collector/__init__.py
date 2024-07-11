@@ -76,4 +76,5 @@ class CaptureSamplerCollector(Collector):
     _capture_sampler: CaptureSampler = dataclasses.field(init=False, repr=False)
 
     def __post_init__(self):
+        super().__post_init__()
         self._capture_sampler = CaptureSampler(self.capture_pct)

@@ -29,10 +29,11 @@ class Scheduler(periodic.PeriodicService):
     _export_libdd_enabled: bool = config.export.libdd_enabled
 
     ## Parent Class attributes
-    _interval: float = dataclasses.field(default=config.upload_interval, init=False, repr=False)
+    _interval: float = dataclasses.field(default=config.upload_interval, repr=False)
 
     def __post_init__(self):
         # Copy the value to use it later since we're going to adjust the real interval
+        super().__post_init__()
         self._configured_interval = self.interval
 
     def _start_service(self):

@@ -12,6 +12,7 @@ from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.compat import dataclasses
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
@@ -473,7 +474,7 @@ class StackCollector(collector.PeriodicCollector):
     nframes: int = config.max_frames
     ignore_profiler: bool = config.ignore_profiler
     endpoint_collection_enabled: typing.Optional[bool] = None
-    tracer: typing.Optional[ddtrace.Tracer] = None
+    tracer: typing.Optional[Tracer] = None
     _thread_time: _ThreadTime = dataclasses.field(init=False, repr=False, compare=False)
     _last_wall_time: int = dataclasses.field(init=False, repr=False, compare=False)
     _thread_span_links: typing.Optional[_ThreadSpanLinks] = None
@@ -481,6 +482,24 @@ class StackCollector(collector.PeriodicCollector):
 
     ## Parent class variables
     _interval: float = dataclasses.field(default_factory=_default_min_interval_time, init=False, repr=False)
+
+    __annotations__ = {
+        min_interval_time: float,
+
+        max_time_usage_pct: float,
+        nframes: int,
+        ignore_profiler: bool,
+        endpoint_collection_enabled: typing.Optional[bool],
+        tracer: typing.Optional[Tracer],
+        _thread_time: _ThreadTime,
+        _last_wall_time: int,
+        _thread_span_links: typing.Optional[_ThreadSpanLinks],
+        _stack_collector_v2_enabled: bool,
+
+        _interval: float,
+
+    }
+
 
     def __post_init__(self):
         if self.max_time_usage_pct <= 0 or self.max_time_usage_pct > 100:

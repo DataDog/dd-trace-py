@@ -251,6 +251,7 @@ class _ProfilerInstance(service.Service):
     def __post_init__(self):
         # type: (...) -> None
         # Allow to store up to 10 threads for 60 seconds at 50 Hz
+        super().__post_init__()
         max_stack_events = 10 * 60 * 50
         r = self._recorder = recorder.Recorder(
             max_events={
