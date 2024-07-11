@@ -2,18 +2,19 @@ import gzip
 import os
 import typing  # noqa:F401
 
-from ddtrace.internal.compat import dataclasses
+import attr
+
 from ddtrace.profiling.exporter import pprof
 
 from .. import recorder  # noqa:F401
 
 
-@dataclasses.dataclass
+@attr.s
 class PprofFileExporter(pprof.PprofExporter):
     """PProf file exporter."""
 
-    prefix: str = "profile"
-    _increment: int = dataclasses.field(default=1, init=False, repr=False)
+    prefix = attr.ib(default="profile", type=str)
+    _increment = attr.ib(default=1, init=False, repr=False, type=int)
 
     def export(
         self,
