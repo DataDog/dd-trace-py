@@ -156,8 +156,8 @@ class SpanExceptionHandler:
     def on_span_exception(
         self, span: Span, _exc_type: t.Type[BaseException], exc: BaseException, _tb: t.Optional[TracebackType]
     ) -> None:
-        if not can_capture(span):
-            # No budget to capture
+        if span.get_tag(DEBUG_INFO_TAG) == "true" or not can_capture(span):
+            # Debug info for span already captured or no budget to capture
             return
 
         chain, exc_id = unwind_exception_chain(exc, _tb)
@@ -221,7 +221,7 @@ def capture_exception() -> None:
 
     try:
         span = tracer.current_span()
-        if span is not None:
+        if span is not None and not span.error:
             span.set_exc_info(*sys.exc_info())
     except Exception:
         log.exception("error capturing exception")

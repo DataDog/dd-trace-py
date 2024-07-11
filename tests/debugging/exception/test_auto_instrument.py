@@ -174,6 +174,8 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                     raise ValueError("hello", v)
                 except Exception:
                     capture_exception()
+                    # Check that we don't capture multiple times
+                    capture_exception()
 
         def b():
             with self.trace("b"):
