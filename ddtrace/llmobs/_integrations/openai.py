@@ -22,6 +22,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs.utils import Document
 from ddtrace.pin import Pin
 
@@ -161,12 +162,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         if isinstance(prompt, str):
             prompt = [prompt]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
-        parameters = {}
-        if kwargs.get("temperature"):
-            parameters["temperature"] = kwargs.get("temperature")
-        if kwargs.get("max_tokens"):
-            parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(METADATA, json.dumps(parameters))
+
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt")}
+        span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
+
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
@@ -189,12 +188,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                 continue
             input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
-        parameters = {}
-        if kwargs.get("temperature"):
-            parameters["temperature"] = kwargs.get("temperature")
-        if kwargs.get("max_tokens"):
-            parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(METADATA, json.dumps(parameters))
+
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
+        span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
+
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
