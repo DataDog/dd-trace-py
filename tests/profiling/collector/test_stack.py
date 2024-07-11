@@ -46,7 +46,7 @@ def func5():
     return time.sleep(1)
 
 
-def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1):
+def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1.5):
     for _ in range(retries):
         events = list(collector.recorder.events[stack_event.StackSampleEvent])
         matched = list(filter(cond, events))

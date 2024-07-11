@@ -478,7 +478,7 @@ class StackCollector(collector.PeriodicCollector):
     tracer: typing.Optional[Tracer] = None
     _thread_time: _ThreadTime = dataclasses.field(init=False, repr=False, compare=False)
     _last_wall_time: int = dataclasses.field(init=False, repr=False, compare=False)
-    _thread_span_links: typing.Optional[_ThreadSpanLinks] = dataclasses.field(init=False, repr=False, compare=False)
+    _thread_span_links: typing.Optional[_ThreadSpanLinks] = dataclasses.field(default=None, init=False, repr=False, compare=False,)
     _stack_collector_v2_enabled: bool = config.stack.v2_enabled
 
     ## Parent class variables
