@@ -342,7 +342,7 @@ def instrument_all_lines(
         code.replace(
             co_code=bytes(new_code),
             co_consts=tuple(new_consts),
-            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+            co_stacksize=code.co_stacksize + 0,  # TODO: Compute the value!
             co_lnotab=update_location_data(code, traps, ext_arg_offsets),
         ),
         seen_lines,

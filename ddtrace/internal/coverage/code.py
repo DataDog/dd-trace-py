@@ -1,6 +1,7 @@
 from collections import defaultdict
 from contextlib import AbstractContextManager
 from copy import deepcopy
+from inspect import getmodule
 import json
 import os
 from types import CodeType
@@ -57,7 +58,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             pass
 
     @classmethod
-    def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_module_dependencies: bool = False):
+    def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_import_time_coverage: bool = False):
         if ModuleCodeCollector.is_installed():
             return
 
@@ -71,7 +72,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             include_paths = [Path(os.getcwd())]
 
         cls._instance._include_paths = include_paths
-        cls._instance._collect_import_coverage = collect_module_dependencies
+        cls._instance._collect_import_coverage = collect_import_time_coverage
 
     def hook(self, arg):
         line, path, import_name = arg
@@ -286,10 +287,12 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         code_path = Path(code.co_filename)
         if _module is None:
+            # print(f"RETURNING CODE {code} FOR MODULE {_module}")
             return code
 
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument
+            # print(f"SKIPPING CODE {code} IN CODEPATH {code_path} FOR MODULE {_module} BECAUSE NOT IN INCLUDE")
             return code
 
         if any(code_path.is_relative_to(_) for _ in (stdlib_path, purelib_path)):
@@ -304,6 +307,12 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             module_context = self.CollectInContext(is_import_coverage=True)
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
+
+        if "breakme" in code.co_filename:
+            print(f"TRANSFORMED")
+            import dis
+            dis.dis(retval)
+            print("STACKSIZE", retval.co_stacksize)
 
         return retval
 
@@ -335,8 +344,12 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         # The pytest module loader doesn't implement a get_code method so we
         # need to intercept the loading of test modules by wrapping around the
         # exec built-in function.
+
+        _module = getmodule(_object)
+        print(f"PYTEST MODULE {_module}")
+
         new_object = (
-            self.transform(_object, None)
+            self.transform(_object, _module)
             if isinstance(_object, CodeType) and _object.co_name == "<module>"
             else _object
         )

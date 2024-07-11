@@ -22,7 +22,7 @@ def test_coverage_import_time_lib():
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
 
-    install(include_paths=[include_path], collect_module_dependencies=True)
+    install(include_paths=[include_path], collect_import_time_coverage=True)
 
     from tests.coverage.included_path.import_time_callee import called_in_session_import_time
 
@@ -71,7 +71,7 @@ def test_coverage_import_time_function():
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
 
-    install(include_paths=[include_path], collect_module_dependencies=True)
+    install(include_paths=[include_path], collect_import_time_coverage=True)
 
     # The following constant is imported, but not used, so that, by the time it is also imported in
     # calls_function_imported_in_function , it will be only be covered if the include_imported flag
