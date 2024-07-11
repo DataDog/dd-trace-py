@@ -210,7 +210,7 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
     for id_try in range(max_retries):
         results = _multi_requests(client, debug_mode)
         check = all(
-            response.status_code == 403 and response.content.startswith(b'{"errors": [{"title": "You\'ve been blocked"')
+            response.status_code == 403 and response.content.startswith(b'{"errors":[{"title":"You\'ve been blocked"')
             for response in results
         )
         if check:
