@@ -466,7 +466,7 @@ def _default_min_interval_time():
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
     # This need to be a real OS thread in order to catch
-    _real_thread = True
+    _real_thread: bool = dataclasses.field(default=True, init=False, repr=False)
     # This is the minimum amount of time the thread will sleep between polling interval,
     # no matter how fast the computer is.
     min_interval_time: float = dataclasses.field(default_factory=_default_min_interval_time, init=False)
@@ -478,7 +478,7 @@ class StackCollector(collector.PeriodicCollector):
     tracer: typing.Optional[Tracer] = None
     _thread_time: _ThreadTime = dataclasses.field(init=False, repr=False, compare=False)
     _last_wall_time: int = dataclasses.field(init=False, repr=False, compare=False)
-    _thread_span_links: typing.Optional[_ThreadSpanLinks] = None
+    _thread_span_links: typing.Optional[_ThreadSpanLinks] = dataclasses.field(init=False, repr=False, compare=False)
     _stack_collector_v2_enabled: bool = config.stack.v2_enabled
 
     ## Parent class variables
