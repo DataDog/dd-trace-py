@@ -1247,3 +1247,15 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
         await chain.abatch(inputs=["chickens", "pigs"])
+
+
+@pytest.mark.snapshot
+def test_lcecl_chain_non_dict_input(langchain_core):
+    """
+    Tests that non-dict inputs (specifically also non-string) are stringified properly
+    """
+    add_one = langchain_core.runnables.RunnableLambda(lambda x: x + 1)
+    multiply_two = langchain_core.runnables.RunnableLambda(lambda x: x * 2)
+    sequence = add_one | multiply_two
+
+    sequence.invoke(1)

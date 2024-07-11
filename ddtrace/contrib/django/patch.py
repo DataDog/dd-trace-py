@@ -14,6 +14,7 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.trace_handlers import _ctype_from_headers
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
@@ -499,10 +500,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 if location:
                     response["location"] = location
             else:
-                if desired_type == "auto":
-                    ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
-                else:
-                    ctype = "text/" + desired_type
+                ctype = _ctype_from_headers(block_config, request_headers)
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
@@ -763,25 +761,13 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
 @trace_utils.with_traced_module
 def traced_login(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
-
+    mode = asm_config._user_event_mode
+    if mode == "disabled":
+        return
     try:
-        mode = asm_config._automatic_login_events_mode
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
-
-        if mode == "disabled":
-            return
-
-        core.dispatch(
-            "django.login",
-            (
-                pin,
-                request,
-                user,
-                mode,
-                _DjangoUserInfoRetriever(user),
-            ),
-        )
+        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user)))
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
@@ -789,24 +775,15 @@ def traced_login(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
+    mode = asm_config._user_event_mode
+    if mode == "disabled":
+        return result_user
     try:
-        mode = asm_config._automatic_login_events_mode
-        if mode == "disabled":
-            return result_user
-
         result = core.dispatch_with_results(
-            "django.auth",
-            (
-                result_user,
-                mode,
-                kwargs,
-                pin,
-                _DjangoUserInfoRetriever(result_user, credentials=kwargs),
-            ),
+            "django.auth", (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs))
         ).user
         if result and result.value[0]:
             return result.value[1]
-
     except Exception:
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
 
