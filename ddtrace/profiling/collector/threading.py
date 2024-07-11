@@ -5,17 +5,16 @@ import typing  # noqa:F401
 
 import attr
 
-from ddtrace.internal.compat import dataclasses
-
+from .. import event
 from . import _lock
 
 
-@dataclasses.dataclass(slots=True)
+@event.event_class
 class ThreadingLockAcquireEvent(_lock.LockAcquireEvent):
     """A threading.Lock has been acquired."""
 
 
-@dataclasses.dataclass(slots=True)
+@event.event_class
 class ThreadingLockReleaseEvent(_lock.LockReleaseEvent):
     """A threading.Lock has been released."""
 

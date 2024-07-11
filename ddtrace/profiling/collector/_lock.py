@@ -11,7 +11,6 @@ import attr
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
@@ -27,26 +26,26 @@ from ddtrace.vendor import wrapt
 LOG = get_logger(__name__)
 
 
-@dataclasses.dataclass(slots=True)
+@event.event_class
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
-    lock_name: str = "<unknown lock name>"
-    sampling_pct: int = 0
+    lock_name = attr.ib(default="<unknown lock name>", type=str)
+    sampling_pct = attr.ib(default=0, type=int)
 
 
-@dataclasses.dataclass(slots=True)
+@event.event_class
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
-    wait_time_ns: int = 0
+    wait_time_ns = attr.ib(default=0, type=int)
 
 
-@dataclasses.dataclass(slots=True)
+@event.event_class
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 
-    locked_for_ns: int = 0
+    locked_for_ns = attr.ib(default=0, type=int)
 
 
 def _current_thread():

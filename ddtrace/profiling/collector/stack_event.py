@@ -1,21 +1,22 @@
 import typing
 
-from ddtrace.internal.compat import dataclasses
+import attr
+
 from ddtrace.profiling import event
 
 
-@dataclasses.dataclass(slots=True)
+@event.event_class
 class StackSampleEvent(event.StackBasedEvent):
     """A sample storing executions frames for a thread."""
 
     # Wall clock
-    wall_time_ns: int = 0
+    wall_time_ns = attr.ib(default=0, type=int)
     # CPU time in nanoseconds
-    cpu_time_ns: int = 0
+    cpu_time_ns = attr.ib(default=0, type=int)
 
 
-@dataclasses.dataclass(slots=True)
+@event.event_class
 class StackExceptionSampleEvent(event.StackBasedEvent):
     """A a sample storing raised exceptions and their stack frames."""
 
-    exc_type: typing.Optional[str] = None
+    exc_type = attr.ib(default=None, type=typing.Optional[str])
