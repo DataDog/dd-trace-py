@@ -21,7 +21,7 @@ log = get_logger(__name__)
 class RemoteConfigSubscriber(PeriodicService):
     def __init__(self, data_connector, callback, name):
         # type: (PublisherSubscriberConnector, Callable, str) -> None
-        super().__init__(interval=get_poll_interval_seconds() / 2)
+        super().__init__(get_poll_interval_seconds() / 2)
 
         self._data_connector = data_connector
         self._callback = callback
