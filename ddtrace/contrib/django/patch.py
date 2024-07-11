@@ -14,6 +14,7 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.trace_handlers import _ctype_from_headers
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
@@ -499,10 +500,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 if location:
                     response["location"] = location
             else:
-                if desired_type == "auto":
-                    ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
-                else:
-                    ctype = "text/" + desired_type
+                ctype = _ctype_from_headers(block_config, request_headers)
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
