@@ -13,23 +13,12 @@ from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.vendor import wrapt
+from ddtrace.settings.profiling import config
 
 
 LOG = logging.getLogger(__name__)
 
-# We need to know if wrapt is compiled in C or not. If it's not using the C module, then the wrappers function will
-# appear in the stack trace and we need to hide it.
-if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
-    WRAPT_C_EXT = False
-else:
-    try:
-        import ddtrace.vendor.wrapt._wrappers as _w  # noqa: F401
-    except ImportError:
-        WRAPT_C_EXT = False
-    else:
-        WRAPT_C_EXT = True
-        del _w
-
+pytorch_events_limit = config.pytorch.events_limit or 1_000_000
 
 class _WrappedTorchProfiler(wrapt.ObjectProxy):
     def __init__(
@@ -42,7 +31,6 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
         self.on_trace_ready = handle_torch_trace
         self._self_recorder = recorder
         self._self_tracer = tracer
-
 
 @attr.s
 class MLProfilerCollector(collector.CaptureSamplerCollector):
@@ -124,15 +112,15 @@ def handle_torch_trace(prof):
     NANOS_PER_MICROSECOND = 1e3
     LOG.debug("handle_torch_trace called")
     # need an upper bound of events collected, can be adjusted based on profile size
-    single_profile_event_limit = 1_000_000
-    num_events_collected = min(len(prof.events()), single_profile_event_limit)
+    num_events_collected = min(len(prof.events()), pytorch_events_limit)
     trace_start_us = prof.profiler.kineto_results.trace_start_us()
-    for i, e in enumerate(prof.events()[:num_events_collected]):
+    for e in prof.events()[:num_events_collected]:
         device_name = "cuda " + str(e.device_index)
-        end_time_us = int(trace_start_us + e.time_range.end)
-        event_duration_us = e.time_range.elapsed_us()
+
         if str(e.device_type).startswith("DeviceType.CUDA"):
             # gpu time sample
+            end_time_us = int(trace_start_us + e.time_range.end)
+            event_duration_us = e.time_range.elapsed_us()
             handle = ddup.SampleHandle()
             handle.push_gpu_gputime(int(event_duration_us * NANOS_PER_MICROSECOND), 1)
             handle.push_gpu_device_name(device_name)

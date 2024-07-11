@@ -305,6 +305,14 @@ class ProfilingConfigPytorch(En):
         help="Whether to enable the PyTorch profiler",
     )
 
+    events_limit = En.v(
+        int,
+        "events_limit",
+        default=1_000_000,
+        help_type="Integer",
+        help="How many events the PyTorch profiler records each collection",
+    )
+
 
 class ProfilingConfigExport(En):
     __item__ = __prefix__ = "export"
