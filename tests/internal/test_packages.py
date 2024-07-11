@@ -52,6 +52,8 @@ def test_get_distributions():
             importlib_pkgs.add("typing-extensions")
         elif pkg.name == "pkgutil_resolve_name" and "pkgutil-resolve-name" in pkg_resources_ws:
             importlib_pkgs.add("pkgutil-resolve-name")
+        elif pkg.name == "importlib_metadata" and "importlib-metadata" in pkg_resources_ws:
+            importlib_pkgs.add("importlib-metadata")
         else:
             importlib_pkgs.add(pkg.name)
 

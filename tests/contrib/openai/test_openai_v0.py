@@ -1935,7 +1935,6 @@ with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
 )
 def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for completion endpoints when configured.
-
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
     with openai_vcr.use_cassette("completion.yaml"):
@@ -1990,7 +1989,6 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
 )
 def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
-
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
     if not hasattr(openai, "ChatCompletion"):
@@ -2033,7 +2031,6 @@ async def test_llmobs_chat_completion_stream(
     openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
 ):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
-
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
     if not hasattr(openai, "ChatCompletion"):

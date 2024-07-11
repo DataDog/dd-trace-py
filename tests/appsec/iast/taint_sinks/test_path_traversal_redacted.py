@@ -1,14 +1,15 @@
 import os
 
+from mock.mock import ANY
 import pytest
 
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
-from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability
-from ddtrace.appsec._iast.taint_sinks.path_traversal import PathTraversal
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,19 +30,25 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     ],
 )
 def test_path_traversal_redact_exclude(file_path):
-    ev = Evidence(
-        valueParts=[
-            {"value": file_path, "source": 0},
-        ]
-    )
+    file_path = taint_pyobject(pyobject=file_path, source_name="path_traversal", source_value=file_path)
+    ev = Evidence(value=file_path)
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_PATH_TRAVERSAL, evidence=ev, location=loc)
-    s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
-    report = IastSpanReporter([s], {v})
+    report = IastSpanReporter(vulnerabilities={v})
+    report.add_ranges_to_evidence_and_extract_sources(v)
+    result = report.build_and_scrub_value_parts()
 
-    redacted_report = PathTraversal._redact_report(report)
-    for v in redacted_report.vulnerabilities:
-        assert v.evidence.valueParts == [{"source": 0, "value": file_path}]
+    assert result == {
+        "sources": [{"name": "path_traversal", "origin": OriginType.PARAMETER, "value": file_path}],
+        "vulnerabilities": [
+            {
+                "evidence": {"valueParts": [{"source": 0, "value": file_path}]},
+                "hash": ANY,
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
+                "type": VULN_PATH_TRAVERSAL,
+            }
+        ],
+    }
 
 
 @pytest.mark.parametrize(
@@ -75,33 +82,45 @@ def test_path_traversal_redact_exclude(file_path):
     ],
 )
 def test_path_traversal_redact_rel_paths(file_path):
-    ev = Evidence(
-        valueParts=[
-            {"value": file_path, "source": 0},
-        ]
-    )
+    file_path = taint_pyobject(pyobject=file_path, source_name="path_traversal", source_value=file_path)
+    ev = Evidence(value=file_path)
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_PATH_TRAVERSAL, evidence=ev, location=loc)
-    s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
-    report = IastSpanReporter([s], {v})
+    report = IastSpanReporter(vulnerabilities={v})
+    report.add_ranges_to_evidence_and_extract_sources(v)
+    result = report.build_and_scrub_value_parts()
 
-    redacted_report = PathTraversal._redact_report(report)
-    for v in redacted_report.vulnerabilities:
-        assert v.evidence.valueParts == [{"source": 0, "value": file_path}]
+    assert result == {
+        "sources": [{"name": "path_traversal", "origin": OriginType.PARAMETER, "value": file_path}],
+        "vulnerabilities": [
+            {
+                "evidence": {"valueParts": [{"source": 0, "value": file_path}]},
+                "hash": ANY,
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
+                "type": VULN_PATH_TRAVERSAL,
+            }
+        ],
+    }
 
 
 def test_path_traversal_redact_abs_paths():
     file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "path_traversal_test_file.txt")
-    ev = Evidence(
-        valueParts=[
-            {"value": file_path, "source": 0},
-        ]
-    )
+    file_path = taint_pyobject(pyobject=file_path, source_name="path_traversal", source_value=file_path)
+    ev = Evidence(value=file_path)
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_PATH_TRAVERSAL, evidence=ev, location=loc)
-    s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
-    report = IastSpanReporter([s], {v})
+    report = IastSpanReporter(vulnerabilities={v})
+    report.add_ranges_to_evidence_and_extract_sources(v)
+    result = report.build_and_scrub_value_parts()
 
-    redacted_report = PathTraversal._redact_report(report)
-    for v in redacted_report.vulnerabilities:
-        assert v.evidence.valueParts == [{"source": 0, "value": file_path}]
+    assert result == {
+        "sources": [{"name": "path_traversal", "origin": OriginType.PARAMETER, "value": file_path}],
+        "vulnerabilities": [
+            {
+                "evidence": {"valueParts": [{"source": 0, "value": file_path}]},
+                "hash": ANY,
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
+                "type": VULN_PATH_TRAVERSAL,
+            }
+        ],
+    }

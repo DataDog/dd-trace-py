@@ -47,7 +47,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -739,7 +738,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
             if not isinstance(inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
-                if isinstance(inp, str):
+                if not isinstance(inp, dict):
                     span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
                 else:
                     for k, v in inp.items():
@@ -786,7 +785,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
             if not isinstance(inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
-                if isinstance(inp, str):
+                if not isinstance(inp, dict):
                     span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
                 else:
                     for k, v in inp.items():
@@ -884,9 +883,6 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 def patch():
     if getattr(langchain, "_datadog_patch", False):
         return
-
-    if config._llmobs_enabled:
-        LLMObs.enable()
 
     langchain._datadog_patch = True
 
@@ -994,9 +990,6 @@ def patch():
 def unpatch():
     if not getattr(langchain, "_datadog_patch", False):
         return
-
-    if LLMObs.enabled:
-        LLMObs.disable()
 
     langchain._datadog_patch = False
 

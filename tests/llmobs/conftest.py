@@ -69,6 +69,6 @@ def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_glob
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         yield llmobs_service
         llmobs_service.disable()

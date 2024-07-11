@@ -17,6 +17,7 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.pin import Pin
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -43,6 +44,11 @@ class OpenAIIntegration(BaseLLMIntegration):
     def user_api_key(self, value: str) -> None:
         # Match the API key representation that OpenAI uses in their UI.
         self._user_api_key = "sk-...%s" % value[-4:]
+
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+        if operation_id.endswith("Completion"):
+            submit_to_llmobs = True
+        return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         span.set_tag_str(COMPONENT, self.integration_config.integration_name)

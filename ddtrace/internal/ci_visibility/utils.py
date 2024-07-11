@@ -79,7 +79,7 @@ def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.Span):
         log.warning("Tried to add total covered percentage to session span but no data was found")
         return
     lines_pct_value = coverage_data[PCT_COVERED_KEY]
-    if type(lines_pct_value) != float:
+    if not isinstance(lines_pct_value, float):
         log.warning("Tried to add total covered percentage to session span but the format was unexpected")
         return
     span.set_tag(test.TEST_LINES_PCT, lines_pct_value)

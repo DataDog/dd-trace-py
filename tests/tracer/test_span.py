@@ -235,6 +235,32 @@ class SpanTestCase(TracerTestCase):
             stack = s.get_tag(ERROR_STACK)
             assert len(stack.splitlines()) == tb_length_limit * 2, "stacktrace should contain two lines per entry"
 
+    def test_custom_traceback_size_with_error(self):
+        tb_length_limit = 2
+        with override_global_config(dict(_span_traceback_max_size=tb_length_limit)):
+            s = Span("test.span")
+
+            def divide_by_zero():
+                1 / 0
+
+            # Wrapper function to generate a larger traceback
+            def wrapper():
+                divide_by_zero()
+
+            try:
+                wrapper()
+            except ZeroDivisionError:
+                s.set_traceback()
+            else:
+                assert 0, "should have failed"
+
+            stack = s.get_tag(ERROR_STACK)
+            # one header "Traceback (most recent call last):" and one footer "ZeroDivisionError: division by zero"
+            header_and_footer_lines = 2
+            assert (
+                len(stack.splitlines()) == tb_length_limit * 2 + header_and_footer_lines
+            ), "stacktrace should contain two lines per entry"
+
     def test_ctx_mgr(self):
         s = Span("bar")
         assert not s.duration
