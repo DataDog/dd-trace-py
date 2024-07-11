@@ -14,6 +14,7 @@ except ImportError:
 from ddtrace.internal import compat
 from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
@@ -68,6 +69,7 @@ class MemoryCollector(collector.PeriodicCollector):
     ## Parent Class Attributes
     # Arbitrary interval to empty the _memalloc event buffer
     _interval: float = dataclasses.field(default=_DEFAULT_INTERVAL, repr=False, init=False)
+    status: ServiceStatus = dataclasses.field(default=ServiceStatus.STOPPED, init=False, compare=False)
 
     def _start_service(self):
         # type: (...) -> None

@@ -6,12 +6,13 @@ import logging
 import sys
 import typing
 
-import attr
 import six
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
+from ddtrace.internal.compat import dataclasses
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
@@ -461,30 +462,45 @@ def _default_min_interval_time():
     return sys.getswitchinterval() * 2
 
 
-@attr.s(slots=True)
+@dataclasses.dataclass(slots=True)
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
     # This need to be a real OS thread in order to catch
     _real_thread = True
-    _interval = attr.ib(factory=_default_min_interval_time, init=False, repr=False)
     # This is the minimum amount of time the thread will sleep between polling interval,
     # no matter how fast the computer is.
-    min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
+    min_interval_time: float = dataclasses.field(default_factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct = attr.ib(type=float, default=config.max_time_usage_pct)
-    nframes = attr.ib(type=int, default=config.max_frames)
-    ignore_profiler = attr.ib(type=bool, default=config.ignore_profiler)
-    endpoint_collection_enabled = attr.ib(default=None)
-    tracer = attr.ib(default=None)
-    _thread_time = attr.ib(init=False, repr=False, eq=False)
-    _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
-    _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
-    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
+    max_time_usage_pct: float = config.max_time_usage_pct
+    nframes: int = config.max_frames
+    ignore_profiler: bool = config.ignore_profiler
+    endpoint_collection_enabled: typing.Optional[bool] = None
+    tracer: typing.Optional[Tracer] = None
+    _thread_time: _ThreadTime = dataclasses.field(init=False, repr=False, compare=False)
+    _last_wall_time: int = dataclasses.field(init=False, repr=False, compare=False)
+    _thread_span_links: typing.Optional[_ThreadSpanLinks] = None
+    _stack_collector_v2_enabled: bool = config.stack.v2_enabled
 
-    @max_time_usage_pct.validator
-    def _check_max_time_usage(self, attribute, value):
-        if value <= 0 or value > 100:
-            raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
+    ## Parent class variables
+    _interval: float = dataclasses.field(default_factory=_default_min_interval_time, init=False, repr=False)
+
+    __annotations__ = {
+        '_real_thread': bool,
+        'min_interval_time': float,
+
+        'max_time_usage_pct': float,
+        'nframes': int,
+        'ignore_profiler': bool,
+        'endpoint_collection_enabled': typing.Optional[bool],
+        'tracer': typing.Optional[Tracer],
+        '_thread_time': _ThreadTime,
+        '_last_wall_time': int,
+        '_thread_span_links': typing.Optional[_ThreadSpanLinks],
+        '_stack_collector_v2_enabled': bool,
+
+        '_interval': float,
+    }
+
 
     def _init(self):
         # type: (...) -> None

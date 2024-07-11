@@ -10,6 +10,7 @@ import six
 from ddtrace import ext
 from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
+from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.datadog.profiling.util import sanitize_string
 from ddtrace.internal.logger import get_logger
@@ -189,6 +190,15 @@ class _PprofConverter(object):
         self._location_values: typing.DefaultDict[_Location_Key_T, typing.DefaultDict[str, int]] = collections.defaultdict(
             lambda: collections.defaultdict(lambda: 0)
         )
+
+    __annotations__ = {
+        '_functions': typing.Dict[typing.Tuple[str, typing.Optional[str]], pprof_FunctionType],
+        '_locations': typing.Dict[typing.Tuple[str, int, str], pprof_LocationType],
+        '_string_table': _StringTable,
+        '_last_location_id': itertools.count,
+        '_last_func_id': itertools.count,
+        '_location_values': typing.DefaultDict[_Location_Key_T, typing.DefaultDict[str, int]]
+    }
 
     def _to_Function(
         self,
@@ -559,12 +569,25 @@ StackExceptionEventGroupKey = typing.NamedTuple(
     ],
 )
 
+<<<<<<< HEAD
 class PprofExporter(exporter.Exporter):
     """Export recorder events to pprof format."""
 
     def __init__(self, enable_code_provenance=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.enable_code_provenance = enable_code_provenance
+=======
+
+@dataclasses.dataclass
+class PprofExporter(exporter.Exporter):
+    """Export recorder events to pprof format."""
+
+    enable_code_provenance: bool = dataclasses.field(default=True)
+
+    __annotations__ = {
+        'enable_code_provenance': bool
+    }
+>>>>>>> 58d84570c (cython files too)
 
     def _stack_event_group_key(self, event: event.StackBasedEvent) -> StackEventGroupKey:
         return StackEventGroupKey(

@@ -41,7 +41,7 @@ class Recorder(object):
         init=False, repr=False, default_factory=threading.RLock, compare=False
     )
 
-    def _post_init__(self):
+    def __post_init__(self):
         # type: (...) -> None
         self._reset_events()
         forksafe.register(self._after_fork)

@@ -2,12 +2,11 @@
 import atexit
 import typing  # noqa:F401
 
-import attr
-
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._threads import PeriodicThread
 from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal.compat import dataclasses
 
 
 @atexit.register
@@ -30,34 +29,18 @@ def _():
     periodic_threads.clear()
 
 
-@attr.s(eq=False)
+@dataclasses.dataclass(eq=False)
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    _interval = attr.ib(type=float)
-    _worker = attr.ib(default=None, init=False, repr=False)
-
-    @property
-    def interval(self):
-        # type: (...) -> float
-        return self._interval
-
-    @interval.setter
-    def interval(
-        self,
-        value,  # type: float
-    ):
-        # type: (...) -> None
-        self._interval = value
-        # Update the interval of the PeriodicThread based on ours
-        if self._worker:
-            self._worker.interval = value
+    interval: float = dataclasses.field(default=10.0, repr=False)
+    _worker: typing.Optional[PeriodicThread] = dataclasses.field(default=None, init=False, repr=False)
 
     def _start_service(self, *args, **kwargs):
         # type: (typing.Any, typing.Any) -> None
         """Start the periodic service."""
         self._worker = PeriodicThread(
-            self.interval,
+            interval=self.interval,
             target=self.periodic,
             name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
             on_shutdown=self.on_shutdown,
@@ -67,12 +50,13 @@ class PeriodicService(service.Service):
     def _stop_service(self, *args, **kwargs):
         # type: (typing.Any, typing.Any) -> None
         """Stop the periodic collector."""
-        self._worker.stop()
+        if self._worker:
+            self._worker.stop()
         super(PeriodicService, self)._stop_service(*args, **kwargs)
 
     def join(
         self,
-        timeout=None,  # type: typing.Optional[float]
+        timeout: typing.Optional[float] = None,
     ):
         # type: (...) -> None
         if self._worker:
@@ -92,4 +76,5 @@ class AwakeablePeriodicService(PeriodicService):
 
     def awake(self):
         # type: (...) -> None
-        self._worker.awake()
+        if self._worker:
+            self._worker.awake()

@@ -33,7 +33,7 @@ class Collector(service.Service):
 
 
 @dataclasses.dataclass(slots=True)
-class PeriodicCollector(Collector, periodic.PeriodicService):
+class PeriodicCollector(periodic.PeriodicService, Collector):
     """A collector that needs to run periodically."""
 
     def periodic(self):

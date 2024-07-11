@@ -123,7 +123,9 @@ class _ProfilerInstance(service.Service):
     endpoint_collection_enabled: bool = config.endpoint_collection
 
     _recorder: Any = dataclasses.field(init=False, default=None)
-    _collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = dataclasses.field(init=False, default=[])
+    _collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = dataclasses.field(
+        init=False, default_factory=list
+    )
     _collectors_on_import: Any = dataclasses.field(init=False, default=None, compare=False)
     _scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = dataclasses.field(
         init=False, default=None

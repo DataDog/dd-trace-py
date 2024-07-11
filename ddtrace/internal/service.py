@@ -2,7 +2,7 @@ import abc
 import enum
 import typing  # noqa:F401
 
-import attr
+from ddtrace.internal.compat import dataclasses
 
 from . import forksafe
 
@@ -27,12 +27,14 @@ class ServiceStatusError(RuntimeError):
         )
 
 
-@attr.s(eq=False)
-class Service(metaclass=abc.ABCMeta):
+@dataclasses.dataclass(eq=False)
+class Service(abc.ABC):
     """A service that can be started or stopped."""
 
-    status = attr.ib(default=ServiceStatus.STOPPED, type=ServiceStatus, init=False, eq=False)
-    _service_lock = attr.ib(factory=forksafe.Lock, repr=False, init=False, eq=False)
+    status: ServiceStatus = dataclasses.field(default=ServiceStatus.STOPPED, init=False, compare=False)
+    _service_lock: typing.ContextManager = dataclasses.field(
+        default_factory=forksafe.Lock, repr=False, init=False, compare=False
+    )
 
     def __enter__(self):
         self.start()

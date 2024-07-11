@@ -539,7 +539,7 @@ class AgentWriter(HTTPWriter):
         # type: () -> HTTPWriter
         return self.__class__(
             agent_url=self.agent_url,
-            processing_interval=self._interval,
+            processing_interval=self.interval,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
             timeout=self._timeout,

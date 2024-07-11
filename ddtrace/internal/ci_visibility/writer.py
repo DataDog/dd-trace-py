@@ -141,7 +141,7 @@ class CIVisibilityWriter(HTTPWriter):
         # type: () -> HTTPWriter
         return self.__class__(
             intake_url=self.intake_url,
-            processing_interval=self._interval,
+            processing_interval=self.interval,
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
