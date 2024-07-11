@@ -47,7 +47,6 @@ def _traced_user_function(get_user_function, args, kwargs):
     # resrouce name = function name
     # service name = should be azure.functions as default
     # span name =
-    
     def wrapped_user_func(*wrapped_args, **wrapped_kwargs):
         with tracer.trace("top-level-span"):
             return get_user_function(*wrapped_args, **wrapped_kwargs)
