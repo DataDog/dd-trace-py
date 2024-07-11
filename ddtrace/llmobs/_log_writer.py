@@ -49,7 +49,7 @@ class V2LogWriter(PeriodicService):
 
     def __init__(self, site, api_key, interval, timeout):
         # type: (str, str, float, float) -> None
-        super(V2LogWriter, self).__init__(interval=interval)
+        super(V2LogWriter, self).__init__(_interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: List[V2LogEvent]
         # match the API limit

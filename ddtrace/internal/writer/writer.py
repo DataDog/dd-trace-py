@@ -166,7 +166,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = config._agent_timeout_seconds
-        super(HTTPWriter, self).__init__(interval=processing_interval)
+        super(HTTPWriter, self).__init__(_interval=processing_interval)
         self.intake_url = intake_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
@@ -539,7 +539,7 @@ class AgentWriter(HTTPWriter):
         # type: () -> HTTPWriter
         return self.__class__(
             agent_url=self.agent_url,
-            processing_interval=self.interval,
+            processing_interval=self._interval,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
             timeout=self._timeout,

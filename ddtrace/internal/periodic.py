@@ -33,15 +33,21 @@ def _():
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    interval: float = dataclasses.field(default=0, repr=False)
+    _interval: float = 0.0
     _worker: typing.Optional[PeriodicThread] = dataclasses.field(default=None, init=False, repr=False)
 
-    def set_interval(
+    @property
+    def interval(self):
+        # type: (...) -> float
+        return self._interval
+
+    @interval.setter
+    def interval(
         self,
         value,  # type: float
     ):
         # type: (...) -> None
-        self.interval = value
+        self._interval = value
         # Update the interval of the PeriodicThread based on ours
         if self._worker:
             self._worker.interval = value
@@ -50,7 +56,7 @@ class PeriodicService(service.Service):
         # type: (typing.Any, typing.Any) -> None
         """Start the periodic service."""
         self._worker = PeriodicThread(
-            self.interval,
+            self._interval,
             target=self.periodic,
             name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
             on_shutdown=self.on_shutdown,

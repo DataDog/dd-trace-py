@@ -100,7 +100,7 @@ class DataStreamsProcessor(PeriodicService):
         # type: (str, Optional[float], float, int) -> None
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-        super(DataStreamsProcessor, self).__init__(interval=interval)
+        super(DataStreamsProcessor, self).__init__(_interval=interval)
         self._agent_url = agent_url
         self._endpoint = "/v0.1/pipeline_stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
