@@ -71,7 +71,7 @@ async def _run_redis_command_async(ctx: core.ExecutionContext, func, args, kwarg
     try:
         result = await func(*args, **kwargs)
         return result
-    except Exception:
+    except BaseException:
         rowcount = 0
         raise
     finally:
