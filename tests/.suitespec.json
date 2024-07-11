@@ -449,7 +449,7 @@
             "@tracing",
             "tests/internal/*",
             "tests/submod/*",
-            "tests/cache/*" 
+            "tests/cache/*"
         ],
         "ddtracerun": [
             "@contrib",
