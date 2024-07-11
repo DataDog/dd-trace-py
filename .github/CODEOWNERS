@@ -1,7 +1,7 @@
 # Order matters, the last matched is what is used
 
 # APM Core Python is the default owner of all files
-*                                   @DataDog/apm-core-python
+# *                                   @DataDog/apm-core-python
 
 # Framework Integrations
 ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-idm-python
