@@ -1263,6 +1263,8 @@ def test_lcel_chain_non_dict_input(langchain_core):
 
 @pytest.mark.snapshot
 def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, request_vcr):
+    if langchain_community is None:
+        pytest.skip("langchain-community not installed which is required for this test.")
     with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
         faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
             ["Quiet Platforms has 7 facilities across the USA"],
