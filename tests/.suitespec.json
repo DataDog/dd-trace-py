@@ -37,6 +37,7 @@
         "core": [
             "ddtrace/internal/__init__.py",
             "ddtrace/internal/_exceptions.py",
+            "ddtrace/internal/_file_queue.py",
             "ddtrace/internal/_rand.pyi",
             "ddtrace/internal/_rand.pyx",
             "ddtrace/internal/_stdint.h",
@@ -445,6 +446,7 @@
             "@core",
             "@remoteconfig",
             "@symbol_db",
+            "@tracing",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
@@ -482,6 +484,7 @@
             "@llmobs",
             "@serverless",
             "@remoteconfig",
+            "@futures",
             "tests/tracer/*",
             "tests/snapshots/test_*"
         ],
@@ -655,6 +658,7 @@
             "@core",
             "@telemetry",
             "@settings",
+            "@profiling",
             "tests/telemetry/*",
             "tests/snapshots/tests.telemetry.*"
         ],
@@ -766,7 +770,7 @@
             "@contrib",
             "@tracing",
             "@dbapi",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "asyncpg": [
             "@bootstrap",
@@ -776,7 +780,7 @@
             "@pg",
             "tests/contrib/asyncpg/*",
             "tests/snapshots/tests.contrib.{suite}.*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aiohttp": [
             "@bootstrap",
@@ -1231,7 +1235,7 @@
             "@mysql",
             "tests/contrib/aiomysql/*",
             "tests/snapshots/tests.contrib.{suite}.*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aiopg": [
             "@bootstrap",
@@ -1242,7 +1246,7 @@
             "@pg",
             "@aiopg",
             "tests/contrib/aiopg/*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aredis": [
             "@bootstrap",
@@ -1277,6 +1281,7 @@
             "@contrib",
             "@tracing",
             "@tornado",
+            "@futures",
             "tests/contrib/tornado/*"
         ],
         "rediscluster": [

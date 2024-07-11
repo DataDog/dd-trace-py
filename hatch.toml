@@ -14,7 +14,7 @@ dependencies = [
     "bandit==1.7.5",
     "mypy==0.991",
     "coverage==7.3.0",
-    "envier==0.5.1",
+    "envier==0.5.2",
     "types-attrs==19.1.0",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
@@ -184,7 +184,7 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 template = "appsec_threats_django"
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
     "django{matrix:django}"
@@ -192,12 +192,12 @@ dependencies = [
 
 [envs.appsec_threats_django.scripts]
 test = [
+    "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
 ]
 
-# python 3.12 should replace 3.11 in this list, but installation is failing on 3.12
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_django.matrix]]
@@ -213,11 +213,11 @@ python = ["3.8", "3.10"]
 django = ["==4.0.10"]
 
 [[envs.appsec_threats_django.matrix]]
-python = ["3.8", "3.10", "3.11"]
+python = ["3.8", "3.10", "3.12"]
 django = ["~=4.2"]
 
 [[envs.appsec_threats_django.matrix]]
-python = ["3.10", "3.11"]
+python = ["3.10", "3.12"]
 django = ["~=5.0"]
 
 
@@ -227,7 +227,7 @@ django = ["~=5.0"]
 template = "appsec_threats_flask"
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
     "MarkupSafe{matrix:markupsafe:}",
@@ -237,12 +237,12 @@ dependencies = [
 
 [envs.appsec_threats_flask.scripts]
 test = [
+    "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
 ]
 
-# python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_flask.matrix]]
@@ -256,11 +256,11 @@ flask = ["==2.1.3"]
 werkzeug = ["<3.0"]
 
 [[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.9", "3.11"]
+python = ["3.8", "3.9", "3.12"]
 flask = ["~=2.3"]
 
 [[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.10", "3.11"]
+python = ["3.8", "3.10", "3.12"]
 flask = ["~=3.0"]
 
 ## ASM FastAPI
@@ -269,7 +269,7 @@ flask = ["~=3.0"]
 template = "appsec_threats_fastapi"
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
     "httpx",
@@ -279,12 +279,12 @@ dependencies = [
 
 [envs.appsec_threats_fastapi.scripts]
 test = [
+    "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 
-# python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_fastapi.matrix]]
@@ -293,9 +293,33 @@ fastapi = ["==0.86.0"]
 anyio = ["==3.7.1"]
 
 [[envs.appsec_threats_fastapi.matrix]]
-python = ["3.7", "3.9", "3.11"]
+python = ["3.7", "3.9", "3.12"]
 fastapi = ["==0.94.1"]
 
 [[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.11"]
+python = ["3.8", "3.10", "3.12"]
 fastapi = ["~=0.109"]
+
+## Unit Tests
+
+[envs.ddtrace_unit_tests]
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+]
+
+[envs.ddtrace_unit_tests.env-vars]
+DD_IAST_ENABLED = "false"
+DD_REMOTE_CONFIGURATION_ENABLED = "false"
+
+[envs.ddtrace_unit_tests.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/internal/service_name/test_extra_services_names.py -vvv -s",
+]
+
+[[envs.ddtrace_unit_tests.matrix]]
+python = ["3.12", "3.10", "3.7"]
