@@ -231,6 +231,7 @@ class _ProfilerInstance(service.Service):
 
                 # pytorch collector relies on libdd exporter
                 if self._pytorch_collector_enabled:
+                    LOG.error("Disabling pytorch profiler as libdd collector failed to initialize")
                     config.pytorch.enabled = False
                     self._pytorch_collector_enabled = False
 

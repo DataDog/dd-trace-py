@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import abc
 import logging
-import os.path
 import typing
 
 import attr
@@ -12,13 +11,14 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.recorder import Recorder
-from ddtrace.vendor import wrapt
 from ddtrace.settings.profiling import config
+from ddtrace.vendor import wrapt
 
 
 LOG = logging.getLogger(__name__)
 
 pytorch_events_limit = config.pytorch.events_limit or 1_000_000
+
 
 class _WrappedTorchProfiler(wrapt.ObjectProxy):
     def __init__(
@@ -31,6 +31,7 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
         self.on_trace_ready = handle_torch_trace
         self._self_recorder = recorder
         self._self_tracer = tracer
+
 
 @attr.s
 class MLProfilerCollector(collector.CaptureSamplerCollector):
