@@ -24,12 +24,10 @@ from .visitor import AstVisitor
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
 IAST_DENYLIST = (
-    "ddtrace",
-    "pkg_resources",
-    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
-    "inspect",  # this package is used to get the stack frames, propagation is not needed
-    "pycparser",  # this package is called when a module is imported, propagation is not needed
-    "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "flask",
+    "werkzeug",
+    "crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "deprecated",
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
     "asyncpg.pgproto",
@@ -64,9 +62,24 @@ IAST_DENYLIST = (
     "tomli",
     "typing_extensions",
     "unittest.mock",
-    "pytest",  # Testing framework
-    "freezegun",  # Testing utilities for time manipulation
-    "sklearn",  # Machine learning library
+    "uvloop",
+    "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
+    "wrapt",
+    "zipp",
+    ## This is a workaround for Sanic failures:
+    "websocket",
+    "h11",
+    "aioquic",
+    "httptools",
+    "sniffio",
+    "py",
+    "sanic",
+    "rich",
+    "httpx",
+    "websockets",
+    "uvicorn",
+    "anyio",
+    "httpcore",
 )  # type: tuple[str, ...]
 
 
