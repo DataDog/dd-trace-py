@@ -45,7 +45,7 @@ class PeriodicService(service.Service):
         self._interval = value
         # Update the interval of the PeriodicThread based on ours
         if self._worker:
-            self._worker.interval = value
+            self._worker.interval = value  # type: ignore[attr-defined]
 
     def __repr__(self):
         # Custom repr that excludes _interval and _worker

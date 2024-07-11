@@ -16,7 +16,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
@@ -110,7 +109,7 @@ class _ProfilerInstance(service.Service):
         self,
         url: Optional[str] = None,
         service: Optional[str] = None,
-        tags: typing.Dict[str, str] = None,
+        tags: Optional[typing.Dict[str, str]] = None,
         env: Optional[str] = None,
         version: Optional[str] = None,
         tracer: Tracer = ddtrace.tracer,
@@ -145,6 +144,7 @@ class _ProfilerInstance(service.Service):
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
         self._export_libdd_enabled: bool = config.export.libdd_enabled
+        self.__post_init__()
 
     def __repr__(self):
         return (
@@ -278,7 +278,6 @@ class _ProfilerInstance(service.Service):
     def __post_init__(self):
         # type: (...) -> None
         # Allow to store up to 10 threads for 60 seconds at 50 Hz
-        super().__post_init__()
         max_stack_events = 10 * 60 * 50
         r = self._recorder = recorder.Recorder(
             max_events={
@@ -366,16 +365,23 @@ class _ProfilerInstance(service.Service):
             except Exception:
                 LOG.error("Error while snapshoting collector %r", c, exc_info=True)
 
-    _COPY_IGNORE_ATTRIBUTES = {"status"}
-
     def copy(self):
-        return self.__class__(
-            **{
-                a.name: getattr(self, a.name)
-                for a in dataclasses.fields(self.__class__)
-                if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
-            }
-        )
+        attributes_to_copy = [
+            "url",
+            "service",
+            "tags",
+            "env",
+            "version",
+            "tracer",
+            "api_key",
+            "agentless",
+            "enable_code_provenance",
+            "endpoint_collection_enabled",
+        ]
+
+        copied_attributes = {attr: getattr(self, attr) for attr in attributes_to_copy}
+
+        return self.__class__(**copied_attributes)
 
     def _start_service(self):
         # type: (...) -> None

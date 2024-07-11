@@ -10,7 +10,6 @@ import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import telemetry
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 
 from .. import periodic
@@ -64,32 +63,38 @@ def _get_interval_or_default():
     return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
 
-@dataclasses.dataclass(eq=False)
 class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd
     client.
     """
 
-    ## Class Variables
-    enabled: ClassVar[bool] = False
-    _instance: ClassVar[Optional["RuntimeWorker"]] = None
-    _lock: ClassVar[ContextManager] = forksafe.Lock()
+    # Class Variables
+    enabled = False
+    _instance = None
+    _lock = forksafe.Lock()
 
-    ## Instance Variables
-    tracer: Optional[ddtrace.Tracer] = None
-    dogstatsd_url: Optional[str] = None
-    _dogstatsd_client: Any = dataclasses.field(default=None, init=False, repr=False)
-    _runtime_metrics: Any = dataclasses.field(default_factory=RuntimeMetrics, repr=False)
-    _services: Set[str] = dataclasses.field(init=False, default_factory=set)
+    def __init__(self, interval=_get_interval_or_default(), tracer=None, dogstatsd_url=None):
+        super().__init__(interval=interval)
+        self.tracer = tracer
+        self.dogstatsd_url = dogstatsd_url
+        self._dogstatsd_client = None
+        self._runtime_metrics = RuntimeMetrics()
+        self._services = set()
 
-    ## Parent Class Variables
-    _interval: float = dataclasses.field(default_factory=_get_interval_or_default)
-
-    def __post_init__(self):
-        # type: () -> None
-        super().__post_init__()
         self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
         self.tracer = self.tracer or ddtrace.tracer
+
+    def __eq__(self, other):
+        return NotImplemented
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"tracer={self.tracer!r}, "
+            f"dogstatsd_url={self.dogstatsd_url!r}, "
+            f"_services={self._services!r}, "
+            f"_interval={self._interval!r})"
+        )
 
     @classmethod
     def disable(cls):

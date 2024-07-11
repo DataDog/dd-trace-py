@@ -48,23 +48,42 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
     """The sampling size."""
 
 
-@dataclasses.dataclass(slots=True)
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
+
+    __slots__ = (
+        "_max_events",
+        "max_nframe",
+        "heap_sample_size",
+        "ignore_profiler",
+        "_export_libdd_enabled",
+        "_interval",
+    )
 
     _DEFAULT_MAX_EVENTS = 16
     _DEFAULT_INTERVAL = 0.5
 
-    # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-    _max_events: int = config.memory.events_buffer
-    max_nframe: int = config.max_frames
-    heap_sample_size: int = config.heap.sample_size
-    ignore_profiler: bool = config.ignore_profiler
-    _export_libdd_enabled: bool = config.export.libdd_enabled
+    def __init__(self, recorder, interval=_DEFAULT_INTERVAL):
+        super().__init__(recorder, interval)
+        # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
+        self._max_events = config.memory.events_buffer
+        self.max_nframe = config.max_frames
+        self.heap_sample_size = config.heap.sample_size
+        self.ignore_profiler = config.ignore_profiler
+        self._export_libdd_enabled = config.export.libdd_enabled
+        # Arbitrary interval to empty the _memalloc event buffer
+        self._interval = self._DEFAULT_INTERVAL
 
-    ## Parent Class Attributes
-    # Arbitrary interval to empty the _memalloc event buffer
-    _interval: float = dataclasses.field(default=_DEFAULT_INTERVAL, repr=False, init=False)
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"recorder={self.recorder!r}, "
+            f"_max_events={self._max_events}, "
+            f"max_nframe={self.max_nframe}, "
+            f"heap_sample_size={self.heap_sample_size}, "
+            f"ignore_profiler={self.ignore_profiler}, "
+            f"_export_libdd_enabled={self._export_libdd_enabled})"
+        )
 
     def _start_service(self):
         # type: (...) -> None

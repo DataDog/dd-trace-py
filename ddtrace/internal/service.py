@@ -2,8 +2,6 @@ import abc
 import enum
 import typing  # noqa:F401
 
-from ddtrace.internal.compat import dataclasses
-
 from . import forksafe
 
 

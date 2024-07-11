@@ -4,7 +4,6 @@ import typing
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
@@ -99,24 +98,31 @@ class Scheduler(periodic.PeriodicService):
             self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
 
 
-@dataclasses.dataclass
 class ServerlessScheduler(Scheduler):
     """Serverless scheduler that works on, e.g., AWS Lambda.
 
     The idea with this scheduler is to not sleep 60s, but to sleep 1s and flush out profiles after 60 sleeping period.
     As the service can be frozen a few seconds after flushing out a profile, we want to make sure the next flush is not
-    > 60s later, but after at least 60 periods of 1s.
-
+    > 60s later, but after at least 60 periods of 1s.
     """
 
-    # We force this interval everywhere
     FORCED_INTERVAL = 1.0
     FLUSH_AFTER_INTERVALS = 60.0
 
-    _profiled_intervals: int = 0
+    def __init__(self, recorder, exporters, interval=FORCED_INTERVAL, before_flush=None):
+        super().__init__(recorder, exporters, before_flush)
+        self._interval = interval
+        self._profiled_intervals = 0
 
-    ## Parent Class attributes
-    _interval: float = FORCED_INTERVAL
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"recorder={self.recorder!r}, "
+            f"exporters={self.exporters!r}, "
+            f"before_flush={self.before_flush!r}, "
+            f"_interval={self._interval}, "
+            f"_profiled_intervals={self._profiled_intervals})"
+        )
 
     def periodic(self):
         # Check both the number of intervals and time frame to be sure we don't flush, e.g., empty profiles

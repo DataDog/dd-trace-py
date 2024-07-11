@@ -26,7 +26,7 @@ class Collector(service.Service):
         self.recorder = recorder
 
     @staticmethod
-    def snapshot() -> typing.List:
+    def snapshot():
         """Take a snapshot of collected data.
 
         :return: A list of sample list to push in the recorder.
