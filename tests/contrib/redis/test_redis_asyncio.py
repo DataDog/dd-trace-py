@@ -1,3 +1,4 @@
+import asyncio
 import typing
 from unittest import mock
 
@@ -233,3 +234,12 @@ async def test_client_name(snapshot_context):
         with tracer.trace("web-request", service="test"):
             redis_client = get_redis_instance(10, client_name="testing-client-name")
             await redis_client.get("blah")
+
+
+@pytest.mark.asyncio
+async def test_asyncio_task_cancelled(redis_client):
+    with mock.patch.object(
+        redis.asyncio.connection.ConnectionPool, "get_connection", side_effect=asyncio.CancelledError
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await redis_client.get("foo")
