@@ -69,9 +69,9 @@ def test_request_block_request_callable(client, test_spans, tracer):
         assert root.get_tag(http.URL) == "http://testserver/appsec/block/"
         assert root.get_tag(http.METHOD) == "GET"
         assert root.get_tag(http.USER_AGENT) == "fooagent"
-        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
         if hasattr(result, "headers"):
-            assert result.headers["content-type"] == "text/json"
+            assert result.headers["content-type"] == "application/json"
 
 
 _BLOCKED_USER = "123456"
@@ -98,9 +98,9 @@ def test_request_userblock_403(client, test_spans, tracer):
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/checkuser/%s/" % _BLOCKED_USER
         assert root.get_tag(http.METHOD) == "GET"
-        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
         if hasattr(result, "headers"):
-            assert result.headers["content-type"] == "text/json"
+            assert result.headers["content-type"] == "application/json"
 
 
 @pytest.mark.django_db

@@ -161,7 +161,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         if isinstance(prompt, str):
             prompt = [prompt]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
+        parameters = {}
+        if kwargs.get("temperature"):
+            parameters["temperature"] = kwargs.get("temperature")
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         span.set_tag_str(METADATA, json.dumps(parameters))
@@ -187,7 +189,9 @@ class OpenAIIntegration(BaseLLMIntegration):
                 continue
             input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
+        parameters = {}
+        if kwargs.get("temperature"):
+            parameters["temperature"] = kwargs.get("temperature")
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         span.set_tag_str(METADATA, json.dumps(parameters))

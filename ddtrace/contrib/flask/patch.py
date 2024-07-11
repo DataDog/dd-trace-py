@@ -4,6 +4,7 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
+from ddtrace._trace.trace_handlers import _ctype_from_headers
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -125,10 +126,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     if desired_type == "none":
                         response_headers = []
                     else:
-                        if block_config.get("type", "auto") == "auto":
-                            ctype = "text/html" if "text/html" in headers_from_context else "text/json"
-                        else:
-                            ctype = "text/" + block_config["type"]
+                        ctype = _ctype_from_headers(block_config, headers_from_context)
                         response_headers = [("content-type", ctype)]
                     result = start_response(str(status), response_headers)
                 core.dispatch("flask.start_response.blocked", (ctx, config.flask, response_headers, status))
@@ -513,7 +511,7 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
 def _block_request_callable(call):
     core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
     core.dispatch("flask.blocked_request_callable", (call,))
-    ctype = "text/html" if "text/html" in flask.request.headers.get("Accept", "").lower() else "text/json"
+    ctype = _ctype_from_headers(STATUS_403_TYPE_AUTO, flask.request.headers)
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
 

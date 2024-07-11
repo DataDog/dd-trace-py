@@ -59,10 +59,11 @@ class AnthropicIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
 
-        parameters = {
-            "temperature": float(kwargs.get("temperature", 1.0)),
-            "max_tokens": float(kwargs.get("max_tokens", 0)),
-        }
+        parameters = {}
+        if kwargs.get("temperature"):
+            parameters["temperature"] = kwargs.get("temperature")
+        if kwargs.get("max_tokens"):
+            parameters["max_tokens"] = kwargs.get("max_tokens")
         messages = kwargs.get("messages")
         system_prompt = kwargs.get("system")
         input_messages = self._extract_input_message(messages, system_prompt)
