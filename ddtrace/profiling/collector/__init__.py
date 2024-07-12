@@ -20,8 +20,8 @@ class CollectorUnavailable(CollectorError):
 class Collector(service.Service):
     """A profile collector."""
 
-    def __init__(self, recorder: Recorder):
-        super(Collector, self).__init__()
+    def __init__(self, recorder: Recorder, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.recorder = recorder
 
     @staticmethod
@@ -36,8 +36,7 @@ class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
     def __init__(self, recorder: Recorder, interval=0.0):
-        super(PeriodicCollector, self).__init__(recorder)
-        periodic.PeriodicService.__init__(self, interval=interval)
+        super().__init__(recorder=recorder, interval=interval)
 
     def periodic(self):
         # type: (...) -> None
@@ -79,6 +78,6 @@ class CaptureSampler(object):
 
 class CaptureSamplerCollector(Collector):
     def __init__(self, recorder, capture_pct=None):
-        super(CaptureSamplerCollector, self).__init__(recorder=recorder)
+        super().__init__(recorder=recorder)
         self.capture_pct = capture_pct if capture_pct else config.capture_pct
         self._capture_sampler = CaptureSampler(self.capture_pct)

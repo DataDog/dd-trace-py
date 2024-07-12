@@ -9,7 +9,6 @@ import typing
 import six
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
-from ddtrace.internal.compat import dataclasses
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
 from ddtrace._trace.tracer import Tracer
@@ -475,13 +474,12 @@ class StackCollector(collector.PeriodicCollector):
                  endpoint_collection_enabled: typing.Optional[bool] = None,
                  tracer: typing.Optional[Tracer] = None,
                  _stack_collector_v2_enabled: bool = config.stack.v2_enabled):
-        super(StackCollector, self).__init__(recorder)
+        super().__init__(recorder, interval= _default_min_interval_time())
         if max_time_usage_pct <= 0 or max_time_usage_pct > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
         # This need to be a real OS thread in order to catch
         self._real_thread: bool = True
-        self._interval = _default_min_interval_time()
         self.min_interval_time: float = _default_min_interval_time()
 
         self.max_time_usage_pct: float = max_time_usage_pct

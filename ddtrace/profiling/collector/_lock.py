@@ -316,7 +316,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         export_libdd_enabled=config.export.libdd_enabled,
         tracer=None,
     ):
-        super(LockCollector, self).__init__(recorder=recorder, capture_pct=capture_pct)
+        super().__init__(recorder=recorder, capture_pct=capture_pct)
         self.nframes = nframes
         self.endpoint_collection_enabled = endpoint_collection_enabled
         self.export_libdd_enabled = export_libdd_enabled

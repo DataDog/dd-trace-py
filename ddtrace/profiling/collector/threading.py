@@ -30,7 +30,7 @@ class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 
     def __init__(self, recorder: Recorder, capture_pct=None, tracer=None):
-        super(ThreadingLockCollector, self).__init__(recorder=recorder, capture_pct=capture_pct, tracer=tracer)
+        super().__init__(recorder=recorder, capture_pct=capture_pct, tracer=tracer)
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 

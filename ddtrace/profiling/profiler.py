@@ -15,7 +15,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
@@ -104,6 +103,8 @@ class _ProfilerInstance(service.Service):
 
     """
 
+    ENDPOINT_TEMPLATE = "https://intake.profile.{}"
+
     def __init__(
         self,
         url: Optional[str] = None,
@@ -121,7 +122,7 @@ class _ProfilerInstance(service.Service):
         enable_code_provenance: bool = config.code_provenance,
         endpoint_collection_enabled: bool = config.endpoint_collection,
     ):
-        super(_ProfilerInstance, self).__init__()
+        super().__init__()
         # User-supplied values
         self.url: Optional[str] = url
         self.service: Optional[str] = service if service is not None else os.environ.get("DD_SERVICE")
@@ -148,7 +149,13 @@ class _ProfilerInstance(service.Service):
 
         self.__post_init__()
 
-    ENDPOINT_TEMPLATE = "https://intake.profile.{}"
+    def __eq__(self, other):
+        for k, v in vars(self).items():
+            if k.startswith("_") or k in self._COPY_IGNORE_ATTRIBUTES:
+                continue
+            if v != getattr(other, k, None):
+                return False
+        return True
 
     def _build_default_exporters(self):
         # type: (...) -> List[exporter.Exporter]
@@ -352,9 +359,9 @@ class _ProfilerInstance(service.Service):
     def copy(self):
         return self.__class__(
             **{
-                a.name: getattr(self, a.name)
-                for a in dataclasses.fields(self.__class__)
-                if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
+                key: value
+                for key, value in vars(self).items()
+                if not key.startswith("_") and key not in self._COPY_IGNORE_ATTRIBUTES
             }
         )
 

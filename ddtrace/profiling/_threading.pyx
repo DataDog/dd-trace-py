@@ -6,7 +6,6 @@ import weakref
 
 from six.moves import _thread
 
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 
