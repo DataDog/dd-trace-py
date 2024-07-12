@@ -31,9 +31,9 @@ class NoopWriter(TraceWriter):
 
 
 class Threading(bm.Scenario):
-    nthreads = bm.var(type=int)
-    ntraces = bm.var(type=int)
-    nspans = bm.var(type=int)
+    nthreads: int
+    ntraces: int
+    nspans: int
 
     def create_trace(self, tracer):
         # type: (Tracer) -> None

@@ -260,7 +260,7 @@ import ddtrace.auto
             {"name": env_var, "origin": "env_var", "value": expected_value},
             {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
             {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
-            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},

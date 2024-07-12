@@ -1,0 +1,4 @@
+
+features:
+  - |
+   azure: Removes the restrictions on the tracer to only run the mini-agent on the consumption plan. The mini-agent now runs regardless of the hosting plan
