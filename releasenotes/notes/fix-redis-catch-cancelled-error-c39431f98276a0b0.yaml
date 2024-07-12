@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    redis: This fix resolves an issue in the redis exception handling where an UnboundLocalError 
+    was raised instead of the expected BaseException.

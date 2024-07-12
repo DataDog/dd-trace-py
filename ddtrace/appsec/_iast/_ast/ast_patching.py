@@ -45,6 +45,10 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "importlib_metadata",
     "inspect",  # this package is used to get the stack frames, propagation is not needed
     "itsdangerous",
+    "moto",  # used for mocking AWS, propagation is not needed
+    "moto[all]",
+    "moto[ec2]",
+    "moto[s3]",
     "opentelemetry-api",
     "packaging",
     "pip",
