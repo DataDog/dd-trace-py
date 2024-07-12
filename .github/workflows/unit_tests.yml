@@ -1,0 +1,44 @@
+name: UnitTests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  unit-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+         - os: ubuntu-latest
+           archs: x86_64 i686
+         #- os: arm-4core-linux
+         #  archs: aarch64
+         - os: windows-latest
+           archs: AMD64 x86
+         - os: macos-latest
+           archs: arm64
+    steps:
+      - uses: actions/checkout@v4
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        name: Install Python
+        with:
+          python-version: '3.12'
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install latest stable toolchain and rustfmt
+        run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
+
+      - name: Install hatch
+        run: pip install hatch
+
+      - name: Run tests
+        run: hatch run ddtrace_unit_tests:test
