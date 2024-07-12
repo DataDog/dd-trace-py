@@ -18,9 +18,9 @@ PYTHON_VERSION = sys.version_info[:2]
 
 # Add modules in the denylist that must be tested anyway
 if IAST.PATCH_MODULES in os.environ:
-    os.environ[IAST.PATCH_MODULES] += IAST.SEP_MODULES + IAST.SEP_MODULES.join(
+    os.environ[IAST.PATCH_MODULES] += (IAST.SEP_MODULES + IAST.SEP_MODULES.join(
         ["moto", "moto[all]", "moto[ec2]", "moto[s3]"]
-    )
+    ))
 else:
     os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(["moto", "moto[all]", "moto[ec2]", "moto[s3]"])
 
