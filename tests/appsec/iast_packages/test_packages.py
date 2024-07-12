@@ -8,12 +8,21 @@ import uuid
 import clonevirtualenv
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_env
 
 
 PYTHON_VERSION = sys.version_info[:2]
+
+# Add modules in the denylist that must be tested anyway
+if IAST.PATCH_MODULES in os.environ:
+    os.environ[IAST.PATCH_MODULES] += IAST.SEP_MODULES + IAST.SEP_MODULES.join(
+        ["moto", "moto[all]", "moto[ec2]", "moto[s3]"]
+    )
+else:
+    os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(["moto", "moto[all]", "moto[ec2]", "moto[s3]"])
 
 
 class PackageForTesting:
@@ -756,6 +765,16 @@ PACKAGES = [
         "Certificate: replaced_cert; Private Key: replaced_priv_key",
         "",
         import_name="OpenSSL.SSL",
+    ),
+    PackageForTesting(
+        "moto[s3]",
+        "5.0.11",
+        "some_bucket",
+        "right_result",
+        "",
+        import_name="moto.s3.models",
+        test_e2e=True,
+        extras=[("boto3", "1.34.143")],
     ),
     PackageForTesting("decorator", "5.1.1", "World", "Decorated result: Hello, World!", ""),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
