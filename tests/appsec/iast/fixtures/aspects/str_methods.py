@@ -15,7 +15,7 @@ from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 
-from six import StringIO
+from io import StringIO
 
 
 if TYPE_CHECKING:  # pragma: no cover

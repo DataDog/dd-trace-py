@@ -9,8 +9,8 @@ import time
 import mock
 import msgpack
 import pytest
-from six.moves import BaseHTTPServer
-from six.moves import socketserver
+import http.server
+import socketserver
 
 import ddtrace
 from ddtrace import config
@@ -479,7 +479,7 @@ def test_humansize():
     assert _human_size(1000000000) == "1GB"
 
 
-class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+class _BaseHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     error_message_format = "%(message)s\n"
     error_content_type = "text/plain"
 
@@ -514,9 +514,9 @@ _TIMEOUT_PORT = _PORT + 1
 _RESET_PORT = _TIMEOUT_PORT + 1
 
 
-class UDSHTTPServer(socketserver.UnixStreamServer, BaseHTTPServer.HTTPServer):
+class UDSHTTPServer(socketserver.UnixStreamServer, http.server.HTTPServer):
     def server_bind(self):
-        BaseHTTPServer.HTTPServer.server_bind(self)
+        http.server.HTTPServer.server_bind(self)
 
 
 def _make_uds_server(path, request_handler):
@@ -556,7 +556,7 @@ def endpoint_uds_server():
 
 
 def _make_server(port, request_handler):
-    server = BaseHTTPServer.HTTPServer((_HOST, port), request_handler)
+    server = http.server.HTTPServer((_HOST, port), request_handler)
     t = threading.Thread(target=server.serve_forever)
     # Set daemon just in case something fails
     t.daemon = True

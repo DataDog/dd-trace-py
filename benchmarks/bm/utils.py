@@ -5,7 +5,7 @@ import os
 import random
 import string
 
-from six import BytesIO
+from io import BytesIO
 
 from ddtrace import __version__ as ddtrace_version
 from ddtrace._trace.span import Span

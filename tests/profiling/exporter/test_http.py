@@ -8,7 +8,7 @@ import threading
 import time
 
 import pytest
-from six.moves import BaseHTTPServer
+import http.server
 
 import ddtrace
 from ddtrace.internal import compat
@@ -32,7 +32,7 @@ _API_KEY = "my-api-key"
 _ENDPOINT_COUNTS = {"a": 1, "b": 2}
 
 
-class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
+class _APIEndpointRequestHandlerTest(http.server.BaseHTTPRequestHandler):
     error_message_format = "%(message)s\n"
     error_content_type = "text/plain"
     path_prefix = "/profiling/v1"
@@ -129,7 +129,7 @@ _UNKNOWN_ENDPOINT = "http://localhost:%d" % _UNKNOWN_PORT
 
 
 def _make_server(port, request_handler):
-    server = BaseHTTPServer.HTTPServer(("localhost", port), request_handler)
+    server = http.server.HTTPServer(("localhost", port), request_handler)
     t = threading.Thread(target=server.serve_forever)
     # Set daemon just in case something fails
     t.daemon = True

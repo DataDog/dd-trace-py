@@ -10,7 +10,7 @@ import typing  # noqa:F401
 import uuid
 
 import pytest
-from six.moves import _thread
+import _thread
 
 import ddtrace  # noqa:F401
 from ddtrace.profiling import _threading
@@ -346,9 +346,7 @@ exec(
     try:
       raise ValueError('test')
     except Exception:
-      time.sleep(2)""".format(
-        MAX_FN_NUM=MAX_FN_NUM
-    )
+      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
 )
 
 

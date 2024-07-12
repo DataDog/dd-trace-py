@@ -6,7 +6,6 @@ import sys
 
 import mock
 import pytest
-import six
 
 from ddtrace import Tracer
 from ddtrace.internal.atexit import register_on_exit_signal
@@ -71,8 +70,8 @@ def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_i
 import ddtrace
 """.lstrip()
     )
-    assert err == six.b("")
-    assert out == six.b("")
+    assert err == b""
+    assert out == b""
     assert status == 0
 
 
@@ -89,8 +88,8 @@ t.start()
 t.join()
 """.lstrip()
     )
-    assert err == six.b("")
-    assert out == six.b("")
+    assert err == b""
+    assert out == b""
     assert status == 0
 
 
@@ -650,9 +649,7 @@ s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
-""".format(
-            str(patch_logging)
-        )
+""".format(str(patch_logging))
 
         env = os.environ.copy()
         env.update(

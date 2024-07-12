@@ -7,7 +7,6 @@ import sys
 import typing
 
 import attr
-import six
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace._trace import context

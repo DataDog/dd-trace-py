@@ -5,7 +5,7 @@ import uuid
 
 import mock
 import pytest
-from six.moves import _thread
+import _thread
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
