@@ -63,7 +63,7 @@ class BudgetRateLimiterWithJitter:
     limit_rate: float
     tau: float = 1.0
     raise_on_exceed: bool = True
-    on_exceed: Optional[Callable[[], None]] = None
+    on_exceed: Optional[Callable] = None
     call_once: bool = False
     budget: float = dataclasses.field(init=False)
     max_budget: float = dataclasses.field(init=False)
