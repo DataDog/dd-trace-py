@@ -28,6 +28,8 @@ class ServiceStatusError(RuntimeError):
 class Service(metaclass=abc.ABCMeta):
     """A service that can be started or stopped."""
 
+    __slots__ = ("status", "_service_lock")
+
     def __init__(self):
         self.status: ServiceStatus = ServiceStatus.STOPPED
         self._service_lock: typing.ContextManager = forksafe.Lock()

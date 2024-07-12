@@ -466,6 +466,20 @@ def _default_min_interval_time():
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
 
+    __slots__ = (
+        "_real_thread",
+        "min_interval_time",
+        "max_time_usage_pct",
+        "nframes",
+        "ignore_profiler",
+        "endpoint_collection_enabled",
+        "tracer",
+        "_thread_time",
+        "_last_wall_time",
+        "_thread_span_links",
+        "_stack_collector_v2_enabled",
+    )
+
     def __init__(self,
                  recorder: Recorder,
                  max_time_usage_pct: float = config.max_time_usage_pct,
