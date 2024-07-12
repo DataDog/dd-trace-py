@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import dataclasses
 import logging
 from math import ceil
 import os
@@ -12,7 +13,6 @@ except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal import compat
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector

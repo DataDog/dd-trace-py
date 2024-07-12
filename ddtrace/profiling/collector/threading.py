@@ -1,9 +1,8 @@
 from __future__ import absolute_import
 
+import dataclasses
 import threading
 import typing  # noqa:F401
-
-from ddtrace.internal.compat import dataclasses
 
 from ..recorder import Recorder
 from . import _lock

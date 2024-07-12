@@ -1,3 +1,4 @@
+import dataclasses
 import typing
 
 from ddtrace.profiling import event

@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import _thread
 import abc
+import dataclasses
 import os.path
 import sys
 import types
@@ -9,7 +10,6 @@ import typing
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading

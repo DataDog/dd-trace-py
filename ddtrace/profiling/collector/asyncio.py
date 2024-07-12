@@ -1,6 +1,5 @@
+import dataclasses
 import typing  # noqa:F401
-
-from ddtrace.internal.compat import dataclasses
 
 from .. import collector
 from . import _lock
