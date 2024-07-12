@@ -87,6 +87,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_functions": True,  # patch only in AWS Lambda environments
     "tornado": False,
     "openai": True,
     "langchain": True,
