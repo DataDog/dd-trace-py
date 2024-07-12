@@ -4,7 +4,6 @@ import threading
 import typing
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat import dataclasses
 from ddtrace.settings.profiling import config
 
 from . import event
@@ -26,25 +25,26 @@ class _defaultdictkey(dict):
 EventsType = typing.Dict[event.Event, typing.Sequence[event.Event]]
 
 
-@dataclasses.dataclass
 class Recorder(object):
     """An object that records program activity."""
 
-    default_max_events: int = config.spec.max_events.default
-    """The maximum number of events for an event type if one is not specified."""
+    def __init__(
+        self,
+        default_max_events=config.spec.max_events.default,
+        max_events: typing.Dict[typing.Type[event.Event], typing.Optional[int]] = dict(),
+    ):
+        self.default_max_events = default_max_events
+        self.max_events = max_events
+        self.events: EventsType = _defaultdictkey(self._get_deque_for_event_type)
+        self._events_lock: threading.RLock = threading.RLock()
 
-    max_events: typing.Dict[typing.Type[event.Event], typing.Optional[int]] = dataclasses.field(default_factory=dict)
-    """A dict of {event_type_class: max events} to limit the number of events to record."""
-
-    events: EventsType = dataclasses.field(init=False, repr=False, compare=False)
-    _events_lock: threading.RLock = dataclasses.field(
-        init=False, repr=False, default_factory=threading.RLock, compare=False
-    )
-
-    def __post_init__(self):
-        # type: (...) -> None
-        self._reset_events()
         forksafe.register(self._after_fork)
+
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+        return f"<{class_name}({attrs_str})>"
 
     def _after_fork(self):
         # type: (...) -> None

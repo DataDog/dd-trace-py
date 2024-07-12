@@ -3,8 +3,6 @@ import typing  # noqa:F401
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
-from ddtrace.internal.compat import dataclasses
-from ddtrace.settings.profiling import config
 
 from .. import event  # noqa:F401
 from ..recorder import Recorder
@@ -18,11 +16,11 @@ class CollectorUnavailable(CollectorError):
     pass
 
 
-@dataclasses.dataclass
 class Collector(service.Service):
     """A profile collector."""
 
-    recorder: Recorder
+    def __init__(self, recorder: Recorder):
+        self.recorder = recorder
 
     @staticmethod
     def snapshot():
@@ -32,8 +30,7 @@ class Collector(service.Service):
         """
 
 
-@dataclasses.dataclass(slots=True)
-class PeriodicCollector(periodic.PeriodicService, Collector):
+class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
     def periodic(self):
@@ -51,12 +48,20 @@ class PeriodicCollector(periodic.PeriodicService, Collector):
         raise NotImplementedError
 
 
-@dataclasses.dataclass
 class CaptureSampler(object):
     """Determine the events that should be captured based on a sampling percentage."""
 
-    capture_pct: float = 100.0
-    _counter: int = dataclasses.field(default=0, init=False)
+    def __init__(self, capture_pct: float = 100.0):
+        if capture_pct < 0 or capture_pct > 100:
+            raise ValueError("Capture percentage should be between 0 and 100 included")
+        self.capture_pct: float = capture_pct
+        self._counter: int = 0
+
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+        return f"<{class_name}({attrs_str})>"
 
     def capture(self):
         self._counter += self.capture_pct
@@ -65,15 +70,7 @@ class CaptureSampler(object):
             return True
         return False
 
-    def __post_init__(self):
-        if self.capture_pct < 0 or self.capture_pct > 100:
-            raise ValueError("Capture percentage should be between 0 and 100 included")
 
-
-@dataclasses.dataclass
 class CaptureSamplerCollector(Collector):
-    capture_pct: float = config.capture_pct
-    _capture_sampler: CaptureSampler = dataclasses.field(default_factory=CaptureSampler, init=False, repr=False)
-
-    def __post_init__(self):
-        self._capture_sampler.capture_pct = self.capture_pct
+    def __init__(self, capture_pct):
+        self._capture_sampler = CaptureSampler(capture_pct)

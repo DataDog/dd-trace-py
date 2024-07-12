@@ -108,8 +108,7 @@ class _ThreadLink(_thread_link_base):
 
     Object is removed when the thread disappears.
     """
-
-    __slots__ = ('_thread_id_to_object',)
+    __slots__ = ("_thread_id_to_object",)
 
     def __init__(self):
         # Key is a thread_id

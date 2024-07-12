@@ -304,21 +304,24 @@ class FunctionWrapper(wrapt.FunctionWrapper):
         return self
 
 
-@dataclasses.dataclass
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes: int = config.max_frames
-    endpoint_collection_enabled: bool = config.endpoint_collection
-    export_libdd_enabled: bool = config.export.libdd_enabled
-
-    tracer: typing.Optional[Tracer] = None
-
-    _original: typing.Any = dataclasses.field(init=False, repr=False, compare=False, default=None)
-
-    # Check if libdd is available, if not, disable the feature
-    if export_libdd_enabled and not ddup.is_available:
-        export_libdd_enabled = False
+    def __init__(
+        self,
+        nframes=config.max_nframes,
+        endpoint_collection_enabled=config.endpoint_collection,
+        export_libdd_enabled=config.export.libdd_enabled,
+        tracer=None,
+    ):
+        self.nframes = nframes
+        self.endpoint_collection_enabled = endpoint_collection_enabled
+        self.export_libdd_enabled = export_libdd_enabled
+        self.tracer = None
+        self._original = None
+        # Check if libdd is available, if not, disable the feature
+        if self.export_libdd_enabled and not ddup.is_available:
+            self.export_libdd_enabled = False
 
     @abc.abstractmethod
     def _get_original(self):

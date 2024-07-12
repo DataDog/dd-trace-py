@@ -1,15 +1,14 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
-import typing
 from typing import Any
+from typing import Dict
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Type  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
-from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
@@ -94,11 +93,10 @@ class Profiler(object):
         self,
         key,  # type: str
     ):
-        # type: (...) -> typing.Any
+        # type: (...) -> Any
         return getattr(self._profiler, key)
 
 
-@dataclasses.dataclass
 class _ProfilerInstance(service.Service):
     """A instance of the profiler.
 
@@ -106,35 +104,46 @@ class _ProfilerInstance(service.Service):
 
     """
 
-    # User-supplied values
-    url: Optional[str] = None
-    service: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_SERVICE"))
-    tags: typing.Dict[str, str] = dataclasses.field(default_factory=dict)
-    env: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_ENV"))
-    version: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_VERSION"))
-    tracer: Tracer = ddtrace.tracer
-    api_key: Optional[str] = dataclasses.field(default_factory=lambda: os.environ.get("DD_API_KEY"))
-    agentless: bool = config.agentless
-    _memory_collector_enabled: bool = config.memory.enabled
-    _stack_collector_enabled: bool = config.stack.enabled
-    _stack_v2_enabled: bool = config.stack.v2_enabled
-    _lock_collector_enabled: bool = config.lock.enabled
-    enable_code_provenance: bool = config.code_provenance
-    endpoint_collection_enabled: bool = config.endpoint_collection
+    def __init__(
+        self,
+        url: Optional[str] = None,
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        env: Optional[str] = None,
+        version: Optional[str] = None,
+        tracer: Any = ddtrace.tracer,
+        api_key: Optional[str] = None,
+        agentless: bool = config.agentless,
+        _memory_collector_enabled: bool = config.memory.enabled,
+        _stack_collector_enabled: bool = config.stack.enabled,
+        _stack_v2_enabled: bool = config.stack.v2_enabled,
+        _lock_collector_enabled: bool = config.lock.enabled,
+        enable_code_provenance: bool = config.code_provenance,
+        endpoint_collection_enabled: bool = config.endpoint_collection,
+    ):
+        # User-supplied values
+        self.url: Optional[str] = url
+        self.service: Optional[str] = service if service is not None else os.environ.get("DD_SERVICE")
+        self.tags: Dict[str, str] = tags if tags is not None else {}
+        self.env: Optional[str] = env if env is not None else os.environ.get("DD_ENV")
+        self.version: Optional[str] = version if version is not None else os.environ.get("DD_VERSION")
+        self.tracer: Any = tracer
+        self.api_key: Optional[str] = api_key if api_key is not None else os.environ.get("DD_API_KEY")
+        self.agentless: bool = agentless
+        self._memory_collector_enabled: bool = _memory_collector_enabled
+        self._stack_collector_enabled: bool = _stack_collector_enabled
+        self._stack_v2_enabled: bool = _stack_v2_enabled
+        self._lock_collector_enabled: bool = _lock_collector_enabled
+        self.enable_code_provenance: bool = enable_code_provenance
+        self.endpoint_collection_enabled: bool = endpoint_collection_enabled
 
-    _recorder: Any = dataclasses.field(init=False, default=None)
-    _collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = dataclasses.field(
-        init=False, default_factory=list
-    )
-    _collectors_on_import: Any = dataclasses.field(init=False, default=None, compare=False)
-    _scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = dataclasses.field(
-        init=False, default=None
-    )
-    _lambda_function_name: Optional[str] = dataclasses.field(
-        init=False,
-        default_factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"),
-    )
-    _export_libdd_enabled: bool = config.export.libdd_enabled
+        # Non-user-supplied values
+        self._recorder: Any = None
+        self._collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = []
+        self._collectors_on_import: Any = None
+        self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
+        self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._export_libdd_enabled: bool = config.export.libdd_enabled
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 

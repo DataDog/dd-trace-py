@@ -23,7 +23,6 @@ class _ProfiledAsyncioLock(_lock._ProfiledLock):
     RELEASE_EVENT_CLASS = AsyncioLockReleaseEvent
 
 
-@dataclasses.dataclass
 class AsyncioLockCollector(_lock.LockCollector):
     """Record asyncio.Lock usage."""
 

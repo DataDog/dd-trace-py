@@ -8,7 +8,6 @@ import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import telemetry
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -63,27 +62,23 @@ def _get_interval_or_default():
     return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
 
-@dataclasses.dataclass(eq=False)
 class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd
     client.
     """
 
-    _interval: float = dataclasses.field(default_factory=_get_interval_or_default)
-    tracer: Optional[ddtrace.Tracer] = None
-    dogstatsd_url: Optional[str] = None
-    _dogstatsd_client: DogStatsd = dataclasses.field(init=False, repr=False)
-    _runtime_metrics: RuntimeMetrics = dataclasses.field(default_factory=RuntimeMetrics, repr=False)
-    _services: Set[str] = dataclasses.field(init=False, default_factory=set)
-
-    enabled = False
-    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
-    _lock = forksafe.Lock()
-
-    def __post_init__(self):
-        # type: () -> None
-        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
-        self.tracer = self.tracer or ddtrace.tracer
+    def __init__(self, interval=None, tracer=None, dogstatsd_url=None):
+        self._interval: float = interval if interval else _get_interval_or_default()
+        self.tracer: Optional[ddtrace.Tracer] = tracer if tracer else ddtrace.Tracer
+        self.dogstatsd_url: Optional[str] = dogstatsd_url
+        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
+            self.dogstatsd_url or ddtrace.internal.agent.get_stats_url()
+        )
+        self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
+        self._services: Set[str] = set()
+        self.enabled = False
+        self._instance = None
+        self._lock = forksafe.Lock()
 
     @classmethod
     def disable(cls):
@@ -123,7 +118,7 @@ class RuntimeWorker(periodic.PeriodicService):
                 return
             if flush_interval is None:
                 flush_interval = _get_interval_or_default()
-            runtime_worker = cls(flush_interval, tracer, dogstatsd_url)  # type: ignore[arg-type]
+            runtime_worker = cls(flush_interval, tracer, dogstatsd_url)
             runtime_worker.start()
             # force an immediate update constant tags
             runtime_worker.update_runtime_tags()

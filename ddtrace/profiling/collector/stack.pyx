@@ -462,46 +462,33 @@ def _default_min_interval_time():
     return sys.getswitchinterval() * 2
 
 
-@dataclasses.dataclass(slots=True)
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
-    # This need to be a real OS thread in order to catch
-    _real_thread: bool = dataclasses.field(default=True, init=False, repr=False)
-    interval: float = dataclasses.field(default_factory=_default_min_interval_time, init=False, repr=False)
-    # This is the minimum amount of time the thread will sleep between polling interval,
-    # no matter how fast the computer is.
-    min_interval_time: float = dataclasses.field(default_factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct: float = config.max_time_usage_pct
-    nframes: int = config.max_frames
-    ignore_profiler: bool = config.ignore_profiler
-    endpoint_collection_enabled: typing.Optional[bool] = None
-    tracer: typing.Optional[Tracer] = None
-    _thread_time: _ThreadTime = dataclasses.field(init=False, repr=False, compare=False)
-    _last_wall_time: int = dataclasses.field(init=False, repr=False, compare=False)
-    _thread_span_links: typing.Optional[_ThreadSpanLinks] = dataclasses.field(default=None, init=False, repr=False, compare=False,)
-    _stack_collector_v2_enabled: bool = config.stack.v2_enabled
-
-
-    __annotations__ = {
-        '_real_thread': bool,
-        'interval': float,
-        'min_interval_time': float,
-
-        'max_time_usage_pct': float,
-        'nframes': int,
-        'ignore_profiler': bool,
-        'endpoint_collection_enabled': typing.Optional[bool],
-        'tracer': typing.Optional[Tracer],
-        '_thread_time': _ThreadTime,
-        '_last_wall_time': int,
-        '_thread_span_links': typing.Optional[_ThreadSpanLinks],
-        '_stack_collector_v2_enabled': bool,
-    }
-
-    def __post_init__(self):
-        if self.max_time_usage_pct <= 0 or self.max_time_usage_pct > 100:
+    def __init__(self,
+                 max_time_usage_pct: float = config.max_time_usage_pct,
+                 nframes: int = config.max_frames,
+                 ignore_profiler: bool = config.ignore_profiler,
+                 endpoint_collection_enabled: typing.Optional[bool] = None,
+                 tracer: typing.Optional[Tracer] = None,
+                 _stack_collector_v2_enabled: bool = config.stack.v2_enabled):
+        if max_time_usage_pct <= 0 or max_time_usage_pct > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
+
+        # This need to be a real OS thread in order to catch
+        self._real_thread: bool = self._DEFAULT_REAL_THREAD
+        self.interval: float = self._DEFAULT_MIN_INTERVAL_TIME
+        self.min_interval_time: float = self._DEFAULT_MIN_INTERVAL_TIME
+
+        self.max_time_usage_pct: float = max_time_usage_pct
+        self.nframes: int = nframes
+        self.ignore_profiler: bool = ignore_profiler
+        self.endpoint_collection_enabled: typing.Optional[bool] = endpoint_collection_enabled
+        self.tracer: typing.Optional[Tracer] = tracer
+        self._thread_time: _ThreadTime = _ThreadTime()
+        self._last_wall_time: int = 0  # Placeholder for initial value
+        self._thread_span_links: typing.Optional[_ThreadSpanLinks] = None
+        self._stack_collector_v2_enabled: bool = _stack_collector_v2_enabled
 
 
     def _init(self):
@@ -520,7 +507,6 @@ class StackCollector(collector.PeriodicCollector):
         if self._stack_collector_v2_enabled:
             LOG.debug("Starting the stack v2 sampler")
             stack_v2.start()
-
 
     def _start_service(self):
         # type: (...) -> None

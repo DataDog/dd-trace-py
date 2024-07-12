@@ -25,7 +25,6 @@ class _ProfiledThreadingLock(_lock._ProfiledLock):
     RELEASE_EVENT_CLASS = ThreadingLockReleaseEvent
 
 
-@dataclasses.dataclass
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 

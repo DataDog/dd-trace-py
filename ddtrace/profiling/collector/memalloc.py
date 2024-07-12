@@ -14,11 +14,12 @@ except ImportError:
 from ddtrace.internal import compat
 from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.service import ServiceStatus
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.settings.profiling import config
+
+from ..recorder import Recorder
 
 
 LOG = logging.getLogger(__name__)
@@ -53,23 +54,27 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
         """The sampling size."""
 
 
-@dataclasses.dataclass
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
     _DEFAULT_MAX_EVENTS = 16
     _DEFAULT_INTERVAL = 0.5
 
-    _max_events: int = config.memory.events_buffer
-    max_nframe: int = config.max_frames
-    heap_sample_size: int = config.heap.sample_size
-    ignore_profiler: bool = config.ignore_profiler
-    _export_libdd_enabled: bool = config.export.libdd_enabled
-
-    ## Parent Class Attributes
-    # Arbitrary interval to empty the _memalloc event buffer
-    _interval: float = dataclasses.field(default=_DEFAULT_INTERVAL, repr=False, init=False)
-    status: ServiceStatus = dataclasses.field(default=ServiceStatus.STOPPED, init=False, compare=False)
+    def __init__(
+        self,
+        recorder: Recorder,
+        _max_events: int = config.memory.events_buffer,
+        max_nframe: int = config.max_frames,
+        heap_sample_size: int = config.heap.sample_size,
+        ignore_profiler: bool = config.ignore_profiler,
+        _export_libdd_enabled: bool = config.export.libdd_enabled,
+    ):
+        super(MemoryCollector, self).__init__(recorder)
+        self._max_events: int = _max_events
+        self.max_nframe: int = max_nframe
+        self.heap_sample_size: int = heap_sample_size
+        self.ignore_profiler: bool = ignore_profiler
+        self._export_libdd_enabled: bool = _export_libdd_enabled
 
     def _start_service(self):
         # type: (...) -> None

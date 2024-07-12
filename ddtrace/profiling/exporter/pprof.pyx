@@ -569,25 +569,16 @@ StackExceptionEventGroupKey = typing.NamedTuple(
     ],
 )
 
-<<<<<<< HEAD
 class PprofExporter(exporter.Exporter):
     """Export recorder events to pprof format."""
 
     def __init__(self, enable_code_provenance=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.enable_code_provenance = enable_code_provenance
-=======
-
-@dataclasses.dataclass
-class PprofExporter(exporter.Exporter):
-    """Export recorder events to pprof format."""
-
-    enable_code_provenance: bool = dataclasses.field(default=True)
 
     __annotations__ = {
         'enable_code_provenance': bool
     }
->>>>>>> 58d84570c (cython files too)
 
     def _stack_event_group_key(self, event: event.StackBasedEvent) -> StackEventGroupKey:
         return StackEventGroupKey(
