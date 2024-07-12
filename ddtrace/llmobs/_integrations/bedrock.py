@@ -6,14 +6,17 @@ from typing import Optional
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 
@@ -37,10 +40,11 @@ class BedrockIntegration(BaseLLMIntegration):
         if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
             parent_id = _get_llmobs_parent_id(span) or "undefined"
             span.set_tag(PARENT_ID_KEY, parent_id)
-        parameters = {"temperature": float(span.get_tag("bedrock.request.temperature") or 0.0)}
-        max_tokens = int(span.get_tag("bedrock.request.max_tokens") or 0)
-        if max_tokens:
-            parameters["max_tokens"] = max_tokens
+        parameters = {}
+        if span.get_tag("bedrock.request.temperature"):
+            parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
+        if span.get_tag("bedrock.request.max_tokens"):
+            parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens") or 0)
         input_messages = self._extract_input_message(prompt)
 
         span.set_tag_str(SPAN_KIND, "llm")
@@ -61,9 +65,9 @@ class BedrockIntegration(BaseLLMIntegration):
         if formatted_response and formatted_response.get("text"):
             prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
             completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
-            metrics["prompt_tokens"] = prompt_tokens
-            metrics["completion_tokens"] = completion_tokens
-            metrics["total_tokens"] = prompt_tokens + completion_tokens
+            metrics[INPUT_TOKENS_METRIC_KEY] = prompt_tokens
+            metrics[OUTPUT_TOKENS_METRIC_KEY] = completion_tokens
+            metrics[TOTAL_TOKENS_METRIC_KEY] = prompt_tokens + completion_tokens
         return metrics
 
     @staticmethod

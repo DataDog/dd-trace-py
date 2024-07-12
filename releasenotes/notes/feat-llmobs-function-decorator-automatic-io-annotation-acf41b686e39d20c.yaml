@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: This introduces automatic input/output annotation for task/tool/workflow/agent/retrieval spans traced by function decorators. 
+    Note that manual annotations for input/output values will override automatic annotations.

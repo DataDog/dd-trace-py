@@ -153,8 +153,6 @@ class CIVisibility(Service):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
         super(CIVisibility, self).__init__()
 
-        telemetry.telemetry_writer.enable()
-
         if tracer:
             self.tracer = tracer
         else:
@@ -341,6 +339,8 @@ class CIVisibility(Service):
                 log.debug("Cannot make request to setting endpoint if API key is not set")
                 return _error_return_value
             url = "https://api." + self._dd_site + SETTING_ENDPOINT
+            if ddconfig._ci_visibility_agentless_url:
+                url = ddconfig._ci_visibility_agentless_url + SETTING_ENDPOINT
             _headers = {
                 AGENTLESS_API_KEY_HEADER_NAME: self._api_key,
                 "Content-Type": "application/json",
@@ -479,6 +479,8 @@ class CIVisibility(Service):
             }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
+            if ddconfig._ci_visibility_agentless_url:
+                url = ddconfig._ci_visibility_agentless_url + SKIPPABLE_ENDPOINT
         else:
             log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
             return

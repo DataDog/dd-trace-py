@@ -420,11 +420,6 @@ def remote_config_worker():
 
 
 @pytest.fixture
-def filter_heartbeat_events():
-    yield True
-
-
-@pytest.fixture
 def telemetry_writer():
     # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
     # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
@@ -444,11 +439,9 @@ def telemetry_writer():
 
 
 class TelemetryTestSession(object):
-    def __init__(self, token, telemetry_writer, filter_heartbeats) -> None:
+    def __init__(self, token, telemetry_writer) -> None:
         self.token = token
         self.telemetry_writer = telemetry_writer
-        self.filter_heartbeats = filter_heartbeats
-        self.gotten_events = dict()
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
@@ -475,10 +468,9 @@ class TelemetryTestSession(object):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to clear session: %s" % self.token)
-        self.gotten_events = dict()
         return True
 
-    def get_requests(self, request_type=None):
+    def get_requests(self, request_type=None, filter_heartbeats=True):
         """Get a list of the requests sent to the test agent
 
         Results are in reverse order by ``seq_id``
@@ -489,44 +481,35 @@ class TelemetryTestSession(object):
             pytest.fail("Failed to fetch session requests: %s %s %s" % (self.create_connection(), status, self.token))
         requests = []
         for req in json.loads(body.decode("utf-8")):
-            body_str = base64.b64decode(req["body"]).decode("utf-8")
-            req["body"] = json.loads(body_str)
+            if "api/v2/apmtelemetry" not in req["url"]:
+                # /test/session/requests captures non telemetry payloads, ignore these requests
+                continue
+            req["body"] = json.loads(base64.b64decode(req["body"]))
             # filter heartbeat requests to reduce noise
-            if req["body"]["request_type"] == "app-heartbeat" and self.filter_heartbeats:
+            if req["body"]["request_type"] == "app-heartbeat" and filter_heartbeats:
                 continue
             if request_type is None or req["body"]["request_type"] == request_type:
                 requests.append(req)
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_events(self, event_type=None):
+    def get_events(self, event_type=None, filter_heartbeats=True):
         """Get a list of the event payloads sent to the test agent
 
         Results are in reverse order by ``seq_id``
         """
-        status, body = self._request("GET", "/test/session/apmtelemetry?test_session_token=%s" % self.token)
-        if status != 200:
-            pytest.fail("Failed to fetch session events: %s" % self.token)
-
-        for req in json.loads(body.decode("utf-8")):
-            # filter heartbeat events to reduce noise
-            if req.get("request_type") == "app-heartbeat" and self.filter_heartbeats:
-                continue
-            if (req["tracer_time"], req["seq_id"]) in self.gotten_events:
-                continue
-            if event_type is None or req["request_type"] == event_type:
-                self.gotten_events[(req["tracer_time"], req["seq_id"])] = req
-        return sorted(self.gotten_events.values(), key=lambda e: e["seq_id"], reverse=True)
+        requests = self.get_requests(event_type, filter_heartbeats)
+        return [req["body"] for req in requests]
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, filter_heartbeat_events, request):
-    # type: (TelemetryWriter, bool, Any) -> Generator[TelemetryTestSession, None, None]
+def test_agent_session(telemetry_writer, request):
+    # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
-    requests = TelemetryTestSession(token, telemetry_writer, filter_heartbeat_events)
+    requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
     MAX_RETRY = 9
@@ -542,7 +525,14 @@ def test_agent_session(telemetry_writer, filter_heartbeat_events, request):
             time.sleep(pow(exp_time, try_nb))
         finally:
             conn.close()
+
+    p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
     try:
+        # The default environment for the telemetry writer tests disables agentless mode
+        # because the behavior is identical except for the trace URL, endpoint, and
+        # presence of an API key header.
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "0"
         yield requests
     finally:
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()
