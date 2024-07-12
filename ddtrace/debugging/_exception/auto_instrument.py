@@ -14,9 +14,10 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
-from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
@@ -146,7 +147,7 @@ def can_capture(span: Span) -> bool:
 
 @attr.s
 class SpanExceptionProcessor(SpanProcessor):
-    collector = attr.ib(type=SignalCollector)
+    __uploader__ = LogsIntakeUploaderV1
 
     def on_span_start(self, span: Span) -> None:
         pass
@@ -194,7 +195,7 @@ class SpanExceptionProcessor(SpanProcessor):
                         snapshot.line()
 
                         # Collect
-                        self.collector.push(snapshot)
+                        self.__uploader__.get_collector().push(snapshot)
 
                         # Memoize
                         frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
@@ -210,3 +211,13 @@ class SpanExceptionProcessor(SpanProcessor):
 
             span.set_tag_str(DEBUG_INFO_TAG, "true")
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
+
+    def register(self) -> None:
+        super().register()
+
+        self.__uploader__.register(UploaderProduct.EXCEPTION_REPLAY)
+
+    def unregister(self) -> None:
+        self.__uploader__.unregister(UploaderProduct.EXCEPTION_REPLAY)
+
+        return super().unregister()
