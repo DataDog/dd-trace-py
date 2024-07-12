@@ -90,9 +90,6 @@ class PeriodicService(service.Service):
 class AwakeablePeriodicService(PeriodicService):
     """A service that runs periodically but that can also be awakened on demand."""
 
-    def __init__(self, interval):
-        super().__init__(interval=interval)
-
     def awake(self):
         # type: (...) -> None
         if self._worker:

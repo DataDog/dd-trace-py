@@ -99,9 +99,6 @@ def test_awakeable_periodic_service():
     queue = []
 
     class AwakeMe(periodic.AwakeablePeriodicService):
-        def __init__(self, interval):
-            super().__init__(interval=interval)
-
         def periodic(self):
             queue.append(len(queue))
 
