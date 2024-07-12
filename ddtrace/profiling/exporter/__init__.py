@@ -1,8 +1,6 @@
 import typing
 
-
-if typing.TYPE_CHECKING:  # pragma: no cover
-    from .. import recorder
+from .. import recorder
 
 
 class ExportError(Exception):
