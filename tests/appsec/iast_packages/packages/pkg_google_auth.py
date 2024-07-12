@@ -14,7 +14,7 @@ pkg_google_auth = Blueprint("pkg_google_auth", __name__)
 
 
 @pkg_google_auth.route("/google-auth")
-def pkg_google_auth():
+def pkg_google_auth_view():
     param = request.args.get("package_param")
     response = ResultResponse(param)
 
