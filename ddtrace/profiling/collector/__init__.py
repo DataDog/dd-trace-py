@@ -3,6 +3,7 @@ import typing  # noqa:F401
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
+from ddtrace.settings.profiling import config
 
 from .. import event  # noqa:F401
 from ..recorder import Recorder
@@ -66,7 +67,7 @@ class CaptureSampler(object):
         class_name = self.__class__.__name__
         attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
         attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
-        return f"<{class_name}({attrs_str})>"
+        return f"{class_name}({attrs_str})"
 
     def capture(self):
         self._counter += self.capture_pct
@@ -77,5 +78,7 @@ class CaptureSampler(object):
 
 
 class CaptureSamplerCollector(Collector):
-    def __init__(self, capture_pct):
-        self._capture_sampler = CaptureSampler(capture_pct)
+    def __init__(self, recorder, capture_pct=config.capture_pct):
+        super(CaptureSamplerCollector, self).__init__(recorder=recorder)
+        self.capture_pct = capture_pct
+        self._capture_sampler = CaptureSampler(self.capture_pct)

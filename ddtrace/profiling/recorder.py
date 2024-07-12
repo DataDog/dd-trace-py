@@ -44,7 +44,7 @@ class Recorder(object):
         class_name = self.__class__.__name__
         attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
         attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
-        return f"<{class_name}({attrs_str})>"
+        return f"{class_name}({attrs_str})"
 
     def _after_fork(self):
         # type: (...) -> None

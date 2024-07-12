@@ -5,6 +5,7 @@ import typing  # noqa:F401
 
 from ddtrace.internal.compat import dataclasses
 
+from ..recorder import Recorder
 from . import _lock
 
 
@@ -27,6 +28,9 @@ class _ProfiledThreadingLock(_lock._ProfiledLock):
 
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
+
+    def __init__(self, recorder: Recorder):
+        super(ThreadingLockCollector, self).__init__(recorder=recorder)
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
