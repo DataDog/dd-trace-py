@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 import collections
 import email.parser
-import http.server
+import http.server as http_server
 import json
 import platform
 import sys
@@ -32,7 +32,7 @@ _API_KEY = "my-api-key"
 _ENDPOINT_COUNTS = {"a": 1, "b": 2}
 
 
-class _APIEndpointRequestHandlerTest(http.server.BaseHTTPRequestHandler):
+class _APIEndpointRequestHandlerTest(http_server.BaseHTTPRequestHandler):
     error_message_format = "%(message)s\n"
     error_content_type = "text/plain"
     path_prefix = "/profiling/v1"
@@ -129,7 +129,7 @@ _UNKNOWN_ENDPOINT = "http://localhost:%d" % _UNKNOWN_PORT
 
 
 def _make_server(port, request_handler):
-    server = http.server.HTTPServer(("localhost", port), request_handler)
+    server = http_server.HTTPServer(("localhost", port), request_handler)
     t = threading.Thread(target=server.serve_forever)
     # Set daemon just in case something fails
     t.daemon = True
