@@ -146,6 +146,8 @@ class _ProfilerInstance(service.Service):
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
         self._export_libdd_enabled: bool = config.export.libdd_enabled
 
+        self.__post_init__()
+
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
     def _build_default_exporters(self):
