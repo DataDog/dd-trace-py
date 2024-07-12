@@ -1,7 +1,3 @@
-import azure.functions
-from azure.functions import __version__
-from azure.functions.decorators.function_app import Function
-
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace.internal.schema import schematize_service_name
@@ -19,10 +15,13 @@ config._add(
 
 
 def get_version():
+    from azure import __version__
     return str(__version__)
 
 
 def patch():
+    import azure.functions
+    from azure.functions.decorators.function_app import Function
     print("starting patch")
     # Check to see if we have patched azure.functions yet or not
     if getattr(azure.functions, "_datadog_patch", False):
@@ -36,6 +35,8 @@ def patch():
 
 
 def unpatch():
+    import azure.functions
+    from azure.functions.decorators.function_app import Function
     print("in unpatch")
     # Undo the monkey patching that patch() did here
     if getattr(azure.functions, "_datadog_patch", False):
@@ -52,10 +53,10 @@ def _traced_user_function(get_user_function, args, kwargs):
     # resrouce name = function name
     # service name = should be azure.functions as default
     # span name =
-    def wrapped_user_func(*wrapped_args, **wrapped_kwargs):
+    def wrapped_user_func():
         print("in wrapper user func")
         with tracer.trace("top-level-span"):
             print("starting span context")
-            return get_user_function(*wrapped_args, **wrapped_kwargs)
+            return get_user_function()
 
     return wrapped_user_func
