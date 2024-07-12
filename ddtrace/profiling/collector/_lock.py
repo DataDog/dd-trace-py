@@ -310,16 +310,17 @@ class LockCollector(collector.CaptureSamplerCollector):
     def __init__(
         self,
         recorder: Recorder,
+        capture_pct: float,
         nframes=config.max_frames,
         endpoint_collection_enabled=config.endpoint_collection,
         export_libdd_enabled=config.export.libdd_enabled,
         tracer=None,
     ):
-        super(LockCollector, self).__init__(recorder=recorder)
+        super(LockCollector, self).__init__(recorder=recorder, capture_pct=capture_pct)
         self.nframes = nframes
         self.endpoint_collection_enabled = endpoint_collection_enabled
         self.export_libdd_enabled = export_libdd_enabled
-        self.tracer = None
+        self.tracer = tracer
         self._original = None
         # Check if libdd is available, if not, disable the feature
         if self.export_libdd_enabled and not ddup.is_available:
