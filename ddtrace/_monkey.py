@@ -137,6 +137,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_functions": ("azure.functions",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
 }

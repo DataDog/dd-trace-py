@@ -14,7 +14,7 @@ Use :func:`patch() <ddtrace.patch>` to manually enable the integration::
 from ...internal.utils.importlib import require_modules
 
 
-required_modules = ["azure_function"]
+required_modules = ["azure.functions"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
