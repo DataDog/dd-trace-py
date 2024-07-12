@@ -738,7 +738,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
             if not isinstance(inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
-                if isinstance(inp, str):
+                if not isinstance(inp, dict):
                     span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
                 else:
                     for k, v in inp.items():
@@ -785,7 +785,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
             if not isinstance(inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
-                if isinstance(inp, str):
+                if not isinstance(inp, dict):
                     span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
                 else:
                     for k, v in inp.items():
