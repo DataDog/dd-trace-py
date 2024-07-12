@@ -29,6 +29,7 @@ from tests.appsec.iast_packages.packages.pkg_exceptiongroup import pkg_exception
 from tests.appsec.iast_packages.packages.pkg_filelock import pkg_filelock
 from tests.appsec.iast_packages.packages.pkg_frozenlist import pkg_frozenlist
 from tests.appsec.iast_packages.packages.pkg_fsspec import pkg_fsspec
+from tests.appsec.iast_packages.packages.pkg_google_auth import pkg_google_auth
 from tests.appsec.iast_packages.packages.pkg_google_api_core import pkg_google_api_core
 from tests.appsec.iast_packages.packages.pkg_google_api_python_client import pkg_google_api_python_client
 from tests.appsec.iast_packages.packages.pkg_idna import pkg_idna

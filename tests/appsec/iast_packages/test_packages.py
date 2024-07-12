@@ -241,12 +241,14 @@ PACKAGES = [
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
     PackageForTesting(
         "google-auth",
-        "2.32.0",
+        "2.29.0",
         "",
         "",
         "",
-        import_name="",
-        import_module_to_validate="google.auth.crypt",
+        import_name="google.auth.crypt.rsa",
+        # import_name="google",
+        # test_e2e=False,
+        import_module_to_validate="google.auth.crypt.rsa",
     ),
     PackageForTesting(
         "google-api-core",
