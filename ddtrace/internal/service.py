@@ -25,7 +25,7 @@ class ServiceStatusError(RuntimeError):
         )
 
 
-class Service(abc.ABC):
+class Service(metaclass=abc.ABCMeta):
     """A service that can be started or stopped."""
 
     def __init__(self):
