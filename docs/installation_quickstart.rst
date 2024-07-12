@@ -55,9 +55,9 @@ are recognized and that the tracer will be able to connect to the Datadog agent 
 Note: ``--info`` only reflects configurations set via environment variables, not those set within code.
 
 
-If ``ddtrace-run`` cannot be used, a similar start-up behavior can be achieved
-by importing ``ddtrace.auto``. This command should normally be imported as the
-first step during the application start-up.
+When ``ddtrace-run`` cannot be used, a similar start-up behavior can be achieved
+with the import of ``ddtrace.auto``. This should normally be imported as the
+first thing during the application start-up.
 
 If neither ``ddtrace-run`` nor ``import ddtrace.auto`` are suitable for your application, then
 :py:func:`ddtrace.patch_all` can be used to configure the tracer::
