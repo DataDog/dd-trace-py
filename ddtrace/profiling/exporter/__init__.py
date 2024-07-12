@@ -1,27 +1,23 @@
 import typing
 
-from ddtrace.internal.compat import dataclasses
-
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from .. import recorder  # noqa:F401
+    from .. import recorder
 
 
 class ExportError(Exception):
     pass
 
 
-@dataclasses.dataclass
 class Exporter:
     """Exporter base class."""
 
     def export(
         self,
-        events,  # type: recorder.EventsType
-        start_time_ns,  # type: int
-        end_time_ns,  # type: int
-    ):
-        # type: (...) -> typing.Any
+        events: recorder.EventsType,
+        start_time_ns: int,
+        end_time_ns: int,
+    ) -> typing.Any:
         """Export events.
 
         :param events: List of events to export.
@@ -31,16 +27,14 @@ class Exporter:
         raise NotImplementedError
 
 
-@dataclasses.dataclass
 class NullExporter(Exporter):
     """Exporter that does nothing."""
 
     def export(
         self,
-        events,  # type: recorder.EventsType
-        start_time_ns,  # type: int
-        end_time_ns,  # type: int
+        events: recorder.EventsType,
+        start_time_ns: int,
+        end_time_ns: int,
     ):
-        # type: (...) -> None
         """Discard events."""
         pass
