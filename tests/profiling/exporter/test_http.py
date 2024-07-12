@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import collections
 import email.parser
+import http.server
 import json
 import platform
 import sys
@@ -8,7 +9,6 @@ import threading
 import time
 
 import pytest
-import http.server
 
 import ddtrace
 from ddtrace.internal import compat

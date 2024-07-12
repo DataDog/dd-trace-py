@@ -3,11 +3,11 @@ import logging
 import os
 import re
 import time
+from urllib.parse import quote as url_quote
 
 import cherrypy
 from cherrypy.test import helper
 import pytest
-from urllib.parse import quote as url_quote
 
 import ddtrace
 from ddtrace import config
@@ -576,7 +576,9 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """.format(
+        expected_service_name
+    )
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -633,7 +635,9 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """.format(
+        expected_operation_name
+    )
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version

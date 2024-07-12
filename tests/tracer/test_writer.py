@@ -1,6 +1,8 @@
 import contextlib
+import http.server
 import os
 import socket
+import socketserver
 import sys
 import tempfile
 import threading
@@ -9,8 +11,6 @@ import time
 import mock
 import msgpack
 import pytest
-import http.server
-import socketserver
 
 import ddtrace
 from ddtrace import config

@@ -1,3 +1,4 @@
+import _thread
 import os
 import sys
 import threading
@@ -5,7 +6,6 @@ import uuid
 
 import mock
 import pytest
-import _thread
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock

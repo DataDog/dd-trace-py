@@ -649,7 +649,9 @@ s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
-""".format(str(patch_logging))
+""".format(
+            str(patch_logging)
+        )
 
         env = os.environ.copy()
         env.update(

@@ -4,6 +4,7 @@ import functools
 from http.client import HTTPConnection
 from http.server import HTTPServer as HTTPServer
 from http.server import SimpleHTTPRequestHandler
+from io import StringIO
 import json
 import operator
 import os
@@ -14,8 +15,6 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
-
-from io import StringIO
 
 
 if TYPE_CHECKING:  # pragma: no cover
