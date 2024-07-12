@@ -369,8 +369,8 @@
             "ddtrace/contrib/aws_lambda/*",
             "ddtrace/ext/aws.py"
         ],
-        "azure_functions": [
-            "ddtrace/contrib/azure_functions/*"
+        "azure": [
+            "ddtrace/contrib/azure/*"
         ],
         "aiohttp": [
             "ddtrace/contrib/aiohttp/*",
@@ -621,13 +621,13 @@
             "tests/contrib/aws_lambda/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ],
-        "azure_functions": [
+        "azure": [
             "@bootstrap",
             "@core",
             "@contrib",
             "@tracing",
-            "@azure_functions",
-            "tests/contrib/azure_functions/*",
+            "@azure",
+            "tests/contrib/azure/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "datastreams": [

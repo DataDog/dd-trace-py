@@ -2627,8 +2627,8 @@ venv = Venv(
             },
         ),
         Venv(
-            name="azure_functions",
-            command="pytest {cmdargs} tests/contrib/azure_functions",
+            name="azure",
+            command="pytest {cmdargs} tests/contrib/azure",
             # pys=select_pys(min_version="3.8", max_version="3.11"),
             pys=select_pys("3.11"),
             pkgs={

@@ -10,10 +10,10 @@ from ddtrace.internal.wrapping import wrap
 
 
 config._add(
-    "azure_functions",
+    "azure",
     {
         "distributed_tracing": True,
-        "_default_service": schematize_service_name("azure_functions"),
+        "_default_service": schematize_service_name("azure"),
     },
 )
 

@@ -88,7 +88,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
-    "azure_functions": True,  # patch only in AWS Lambda environments
+    "azure": True,  # patch only in AWS Lambda environments
     "tornado": False,
     "openai": True,
     "langchain": True,
@@ -137,7 +137,6 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
-    "azure_functions": ("azure.functions",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
 }

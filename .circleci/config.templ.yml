@@ -556,11 +556,11 @@ jobs:
           pattern: 'aws_lambda'
           snapshot: true
 
-   azure_functions:
+   azure:
     <<: *machine_executor
     steps:
       - run_test:
-          pattern: 'azure_functions'
+          pattern: 'azure'
           snapshot: true
 
   internal:

@@ -6,10 +6,10 @@ import subprocess
 from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
 
-from ddtrace.contrib.azure_functions import patch
-from ddtrace.contrib.azure_functions import unpatch
+from ddtrace.contrib.azure import patch
+from ddtrace.contrib.azure import unpatch
 @pytest.mark.snapshot
-def test_azure_functions():
+def test_azure():
     pass
 
 
@@ -20,7 +20,7 @@ def start_command():
 
 
 @pytest.fixture(autouse=True)
-def patch_azure_functions():
+def patch_azure():
     patch()
     yield
     unpatch()
