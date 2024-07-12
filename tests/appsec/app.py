@@ -42,6 +42,7 @@ from tests.appsec.iast_packages.packages.pkg_jsonschema import pkg_jsonschema
 from tests.appsec.iast_packages.packages.pkg_lxml import pkg_lxml
 from tests.appsec.iast_packages.packages.pkg_markupsafe import pkg_markupsafe
 from tests.appsec.iast_packages.packages.pkg_more_itertools import pkg_more_itertools
+from tests.appsec.iast_packages.packages.pkg_moto import pkg_moto
 from tests.appsec.iast_packages.packages.pkg_multidict import pkg_multidict
 from tests.appsec.iast_packages.packages.pkg_numpy import pkg_numpy
 from tests.appsec.iast_packages.packages.pkg_oauthlib import pkg_oauthlib
@@ -118,6 +119,7 @@ app.register_blueprint(pkg_jsonschema)
 app.register_blueprint(pkg_lxml)
 app.register_blueprint(pkg_markupsafe)
 app.register_blueprint(pkg_more_itertools)
+app.register_blueprint(pkg_moto)
 app.register_blueprint(pkg_multidict)
 app.register_blueprint(pkg_numpy)
 app.register_blueprint(pkg_oauthlib)
