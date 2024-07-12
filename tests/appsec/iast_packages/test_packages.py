@@ -8,12 +8,21 @@ import uuid
 import clonevirtualenv
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_env
 
 
 PYTHON_VERSION = sys.version_info[:2]
+
+# Add modules in the denylist that must be tested anyway
+if IAST.PATCH_MODULES in os.environ:
+    os.environ[IAST.PATCH_MODULES] += IAST.SEP_MODULES + IAST.SEP_MODULES.join(
+        ["moto", "moto[all]", "moto[ec2]", "moto[s3]"]
+    )
+else:
+    os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(["moto", "moto[all]", "moto[ec2]", "moto[s3]"])
 
 
 class PackageForTesting:
