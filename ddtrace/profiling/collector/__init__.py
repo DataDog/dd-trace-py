@@ -35,9 +35,9 @@ class Collector(service.Service):
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
-    def __init__(self, recorder: Recorder):
+    def __init__(self, recorder: Recorder, interval=0.0):
         super(PeriodicCollector, self).__init__(recorder)
-        periodic.PeriodicService.__init__(self)
+        periodic.PeriodicService.__init__(self, interval=interval)
 
     def periodic(self):
         # type: (...) -> None
