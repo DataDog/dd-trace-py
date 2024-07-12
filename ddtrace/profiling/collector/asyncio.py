@@ -28,6 +28,9 @@ class AsyncioLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledAsyncioLock
 
+    def __init__(self, recorder: collector.Recorder, capture_pct=None, tracer=None):
+        super(AsyncioLockCollector, self).__init__(recorder=recorder, capture_pct=capture_pct, tracer=tracer)
+
     def _start_service(self):
         # type: (...) -> None
         """Start collecting lock usage."""
