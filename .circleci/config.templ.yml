@@ -586,6 +586,15 @@ jobs:
           pattern: "ci_visibility"
           snapshot: true
 
+  dd_coverage:
+    <<: *machine_executor
+    parallelism: 6
+    steps:
+      - run_hatch_env_test:
+          env: 'dd_coverage'
+          snapshot: true
+
+
   llmobs:
     <<: *contrib_job
     steps:

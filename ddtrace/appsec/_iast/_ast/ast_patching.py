@@ -47,7 +47,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "itsdangerous",
     "moto",  # used for mocking AWS, propagation is not needed
     "moto[all]",
-    "moto[ec2",
+    "moto[ec2]",
     "moto[s3]",
     "opentelemetry-api",
     "packaging",
