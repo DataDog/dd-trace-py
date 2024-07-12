@@ -9,17 +9,11 @@ class AsyncioLockAcquireEvent(_lock.LockAcquireEvent):
 
     __slots__ = ()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
 
 class AsyncioLockReleaseEvent(_lock.LockReleaseEvent):
     """An asyncio.Lock has been released."""
 
     __slots__ = ()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
 
 class _ProfiledAsyncioLock(_lock._ProfiledLock):
@@ -31,9 +25,6 @@ class AsyncioLockCollector(_lock.LockCollector):
     """Record asyncio.Lock usage."""
 
     PROFILED_LOCK_CLASS = _ProfiledAsyncioLock
-
-    def __init__(self, recorder: collector.Recorder, capture_pct=None, tracer=None):
-        super().__init__(recorder=recorder, capture_pct=capture_pct, tracer=tracer)
 
     def _start_service(self):
         # type: (...) -> None
