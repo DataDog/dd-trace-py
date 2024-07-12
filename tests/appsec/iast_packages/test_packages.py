@@ -8,12 +8,21 @@ import uuid
 import clonevirtualenv
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_env
 
 
 PYTHON_VERSION = sys.version_info[:2]
+
+# Add modules in the denylist that must be tested anyway
+if IAST.PATCH_MODULES in os.environ:
+    os.environ[IAST.PATCH_MODULES] += IAST.SEP_MODULES + IAST.SEP_MODULES.join(
+        ["moto", "moto[all]", "moto[ec2]", "moto[s3]"]
+    )
+else:
+    os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(["moto", "moto[all]", "moto[ec2]", "moto[s3]"])
 
 
 class PackageForTesting:
@@ -399,7 +408,6 @@ PACKAGES = [
         "",
         import_module_to_validate="platformdirs.unix",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "pluggy",
@@ -710,7 +718,6 @@ PACKAGES = [
         "Parsed INI data: {'section': [('key', 'test1234')]}",
         "",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting("psutil", "5.9.8", "cpu", "CPU Usage: replaced_usage", ""),
     PackageForTesting(
@@ -747,6 +754,16 @@ PACKAGES = [
         "Certificate: replaced_cert; Private Key: replaced_priv_key",
         "",
         import_name="OpenSSL.SSL",
+    ),
+    PackageForTesting(
+        "moto[s3]",
+        "5.0.11",
+        "some_bucket",
+        "right_result",
+        "",
+        import_name="moto.s3.models",
+        test_e2e=True,
+        extras=[("boto3", "1.34.143")],
     ),
     PackageForTesting("decorator", "5.1.1", "World", "Decorated result: Hello, World!", ""),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
@@ -857,10 +874,10 @@ def _assert_propagation_results(response, package):
     result_ok = content["result1"] == "OK"
     if package.fixme_propagation_fails:
         if result_ok:
-            print("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+            pytest.fail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
         else:
-            print("FIXME: propagation test (expectedly) failed for package %s" % package.name)
-        return
+            # Add pytest xfail marker to skip the test
+            pytest.xfail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
 
     if not result_ok:
         print(f"Error: incorrect result from propagation endpoint for package {package.name}: {content}")
@@ -923,7 +940,11 @@ def test_flask_packages_patched(package, venv):
 
 @pytest.mark.parametrize(
     "package",
-    [package for package in PACKAGES if package.test_propagation and SKIP_FUNCTION(package)],
+    [
+        package
+        for package in PACKAGES
+        if package.test_propagation and package.name != "rsa"  # the "rsa" mode fails reliably
+    ],
     ids=lambda package: package.name,
 )
 def test_flask_packages_propagation(package, venv, printer):

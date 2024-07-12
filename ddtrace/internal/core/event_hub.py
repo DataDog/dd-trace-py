@@ -68,18 +68,24 @@ def on_all(callback: Callable[..., Any]) -> None:
         _all_listeners.insert(0, callback)
 
 
-def reset(event_id: Optional[str] = None) -> None:
+def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]] = None) -> None:
     """Remove all registered listeners. If an event_id is provided, only clear those
-    event listeners.
+    event listeners. If a callback is provided, then only the listeners for that callback are removed.
     """
     global _listeners
     global _all_listeners
 
-    if not event_id:
-        _listeners.clear()
-        _all_listeners.clear()
-    elif event_id in _listeners:
-        del _listeners[event_id]
+    if callback:
+        if not event_id:
+            _all_listeners = [cb for cb in _all_listeners if cb != callback]
+        elif event_id in _listeners:
+            _listeners[event_id] = {name: cb for name, cb in _listeners[event_id].items() if cb != callback}
+    else:
+        if not event_id:
+            _listeners.clear()
+            _all_listeners.clear()
+        elif event_id in _listeners:
+            del _listeners[event_id]
 
 
 def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
