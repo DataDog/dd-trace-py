@@ -4,14 +4,6 @@
 using namespace Datadog;
 
 void
-DdogProfExporterDeleter::operator()(ddog_prof_Exporter* ptr) const
-{
-    // According to the rust docs, the `cancel()` call is synchronous
-    // https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html#method.cancel
-    ddog_prof_Exporter_drop(ptr);
-}
-
-void
 DdogCancellationTokenDeleter::operator()(ddog_CancellationToken* ptr) const
 {
     if (ptr != nullptr) {
@@ -23,7 +15,8 @@ DdogCancellationTokenDeleter::operator()(ddog_CancellationToken* ptr) const
 Datadog::Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
   : url{ _url }
   , ddog_exporter{ _ddog_exporter }
-{}
+{
+}
 
 bool
 Datadog::Uploader::upload(ddog_prof_Profile& profile)
@@ -55,6 +48,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                                       ddog_prof_Exporter_Slice_File_empty(),
                                                       { .ptr = &file, .len = 1 },
                                                       &tags,
+                                                      nullptr,
                                                       nullptr,
                                                       nullptr,
                                                       max_timeout_ms);

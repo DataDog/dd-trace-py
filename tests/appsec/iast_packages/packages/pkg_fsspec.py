@@ -1,6 +1,5 @@
 """
 fsspec==2024.5.0
-
 https://pypi.org/project/fsspec/
 """
 from flask import Blueprint

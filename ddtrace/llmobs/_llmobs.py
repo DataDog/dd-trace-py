@@ -40,17 +40,25 @@ from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
 
 
-SUPPORTED_LLMOBS_INTEGRATIONS = {"bedrock": "botocore", "openai": "openai", "langchain": "langchain"}
+SUPPORTED_LLMOBS_INTEGRATIONS = {
+    "anthropic": "anthropic",
+    "bedrock": "botocore",
+    "openai": "openai",
+    "langchain": "langchain",
+}
 
 
 class LLMObs(Service):
@@ -107,8 +115,8 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        _tracer=None,
-    ):
+        _tracer: Optional[ddtrace.Tracer] = None,
+    ) -> None:
         """
         Enable LLM Observability tracing.
 
@@ -131,9 +139,12 @@ class LLMObs(Service):
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
-        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config.env = env or config.env
         config.service = service or config.service
+        if os.getenv("DD_LLMOBS_APP_NAME"):
+            log.warning("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
+            config._llmobs_ml_app = ml_app or os.getenv("DD_LLMOBS_APP_NAME")
+        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
         if not config._dd_api_key:
@@ -148,7 +159,7 @@ class LLMObs(Service):
             )
         if not config._llmobs_ml_app:
             raise ValueError(
-                "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
+                "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
 
@@ -176,7 +187,7 @@ class LLMObs(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def _integration_is_enabled(cls, integration):
+    def _integration_is_enabled(cls, integration: str) -> bool:
         if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
             return False
         return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
@@ -195,7 +206,7 @@ class LLMObs(Service):
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
-    def flush(cls):
+    def flush(cls) -> None:
         """
         Flushes any remaining spans and evaluation metrics to the LLMObs backend.
         """
@@ -276,7 +287,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
@@ -286,7 +297,7 @@ class LLMObs(Service):
                                    If not provided, a default value of "custom" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -303,16 +314,14 @@ class LLMObs(Service):
         )
 
     @classmethod
-    def tool(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    def tool(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
         """
         Trace a call to an external interface or API.
 
         :param str name: The name of the traced operation. If not provided, a default value of "tool" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -321,16 +330,14 @@ class LLMObs(Service):
         return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
-    def task(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    def task(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
         """
         Trace a standalone non-LLM operation which does not involve an external request.
 
         :param str name: The name of the traced operation. If not provided, a default value of "task" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -339,16 +346,14 @@ class LLMObs(Service):
         return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
-    def agent(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    def agent(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
         """
         Trace a dynamic workflow in which an embedded language model (agent) decides what sequence of actions to take.
 
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -359,14 +364,14 @@ class LLMObs(Service):
     @classmethod
     def workflow(
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace a predefined or static sequence of operations.
 
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -382,7 +387,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace a call to an embedding model or function to create an embedding.
 
@@ -392,7 +397,7 @@ class LLMObs(Service):
                                    If not provided, a default value of "custom" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -416,14 +421,14 @@ class LLMObs(Service):
     @classmethod
     def retrieval(
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace a vector search operation involving a list of documents being returned from an external knowledge base.
 
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -556,7 +561,7 @@ class LLMObs(Service):
                 span.set_tag_str(OUTPUT_VALUE, output_text)
             else:
                 try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text))
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse output text. Output text must be JSON serializable.")
 
@@ -570,7 +575,7 @@ class LLMObs(Service):
                 span.set_tag_str(INPUT_VALUE, input_text)
             else:
                 try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text))
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse input text. Input text must be JSON serializable.")
         if output_documents is not None:
@@ -592,7 +597,7 @@ class LLMObs(Service):
                 span.set_tag_str(INPUT_VALUE, input_value)
             else:
                 try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value))
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse input value. Input value must be JSON serializable.")
         if output_value is not None:
@@ -600,7 +605,7 @@ class LLMObs(Service):
                 span.set_tag_str(OUTPUT_VALUE, output_value)
             else:
                 try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value))
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value, default=_unserializable_default_repr))
                 except TypeError:
                     log.warning("Failed to parse output value. Output value must be JSON serializable.")
 
@@ -616,7 +621,7 @@ class LLMObs(Service):
             current_tags = span.get_tag(TAGS)
             if current_tags:
                 span_tags.update(json.loads(current_tags))
-            span.set_tag_str(TAGS, json.dumps(span_tags))
+            span.set_tag_str(TAGS, json.dumps(span_tags, default=_unserializable_default_repr))
         except TypeError:
             log.warning("Failed to parse span tags. Tag key-value pairs must be JSON serializable.")
 
@@ -627,7 +632,7 @@ class LLMObs(Service):
             log.warning("metadata must be a dictionary of string key-value pairs.")
             return
         try:
-            span.set_tag_str(METADATA, json.dumps(metadata))
+            span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
         except TypeError:
             log.warning("Failed to parse span metadata. Metadata key-value pairs must be JSON serializable.")
 
@@ -656,9 +661,9 @@ class LLMObs(Service):
 
         :param span_context: A dictionary containing the span_id and trace_id of interest.
         :param str label: The name of the evaluation metric.
-        :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "score".
         :param value: The value of the evaluation metric.
-                      Must be a string (categorical), integer (numerical/score), or float (numerical/score).
+                      Must be a string (categorical), integer (score), or float (score).
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         """
         if cls.enabled is False:
@@ -680,14 +685,24 @@ class LLMObs(Service):
         if not label:
             log.warning("label must be the specified name of the evaluation metric.")
             return
+
         if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score"):
-            log.warning("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+            log.warning("metric_type must be one of 'categorical' or 'score'.")
             return
+
+        metric_type = metric_type.lower()
+        if metric_type == "numerical":
+            log.warning(
+                "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+                "Converting `numerical` metric to `score` type."
+            )
+            metric_type = "score"
+
         if metric_type == "categorical" and not isinstance(value, str):
             log.warning("value must be a string for a categorical metric.")
             return
-        if metric_type in ("numerical", "score") and not isinstance(value, (int, float)):
-            log.warning("value must be an integer or float for a numerical/score metric.")
+        if metric_type == "score" and not isinstance(value, (int, float)):
+            log.warning("value must be an integer or float for a score metric.")
             return
         if tags is not None and not isinstance(tags, dict):
             log.warning("tags must be a dictionary of string key-value pairs.")
@@ -696,7 +711,7 @@ class LLMObs(Service):
         # initialize tags with default values that will be overridden by user-provided tags
         evaluation_tags = {
             "ddtrace.version": ddtrace.__version__,
-            "ml_app": config._llmobs_ml_app if config._llmobs_ml_app else "unknown",
+            "ml_app": config._llmobs_ml_app or "unknown",
         }
 
         if tags:
@@ -716,6 +731,48 @@ class LLMObs(Service):
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
         )
+
+    @classmethod
+    def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
+        """Injects the span's distributed context into the given request headers."""
+        if cls.enabled is False:
+            log.warning(
+                "LLMObs.inject_distributed_headers() called when LLMObs is not enabled. "
+                "Distributed context will not be injected."
+            )
+            return request_headers
+        if not isinstance(request_headers, dict):
+            log.warning("request_headers must be a dictionary of string key-value pairs.")
+            return request_headers
+        if span is None:
+            span = cls._instance.tracer.current_span()
+        if span is None:
+            log.warning("No span provided and no currently active span found.")
+            return request_headers
+        _inject_llmobs_parent_id(span.context)
+        HTTPPropagator.inject(span.context, request_headers)
+        return request_headers
+
+    @classmethod
+    def activate_distributed_headers(cls, request_headers: Dict[str, str]) -> None:
+        """
+        Activates distributed tracing headers for the current request.
+
+        :param request_headers: A dictionary containing the headers for the current request.
+        """
+        if cls.enabled is False:
+            log.warning(
+                "LLMObs.activate_distributed_headers() called when LLMObs is not enabled. "
+                "Distributed context will not be activated."
+            )
+            return
+        context = HTTPPropagator.extract(request_headers)
+        if context.trace_id is None or context.span_id is None:
+            log.warning("Failed to extract trace ID or span ID from request headers.")
+            return
+        if PROPAGATED_PARENT_ID_KEY not in context._meta:
+            log.warning("Failed to extract LLMObs parent ID from request headers.")
+        cls._instance.tracer.context_provider.activate(context)
 
 
 # initialize the default llmobs instance

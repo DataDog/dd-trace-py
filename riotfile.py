@@ -180,6 +180,7 @@ venv = Venv(
                 "requests": latest,
                 "astunparse": latest,
                 "flask": "~=3.0",
+                "virtualenv-clone": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -202,7 +203,7 @@ venv = Venv(
                 "peewee": latest,
                 "requests": latest,
                 "six": ">=1.12.0",
-                "envier": "==0.5.1",
+                "envier": "==0.5.2",
                 "cattrs": "<23.1.1",
                 "ddsketch": ">=3.0.0",
                 "protobuf": ">=3",
@@ -315,8 +316,8 @@ venv = Venv(
                     pys=MAX_PYTHON_VERSION,
                 ),
                 Venv(
-                    name="tracer-legacy-atrrs",
-                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
+                    name="tracer-legacy-attrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==22.1.0"},
                     # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
                     pys=MIN_PYTHON_VERSION,
                 ),
@@ -660,7 +661,7 @@ venv = Venv(
                     pkgs={
                         "pytest": "~=4.0",
                         "celery": [
-                            "~=4.4",  # most recent 4.x
+                            latest,  # most recent 4.x
                         ],
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
@@ -673,18 +674,18 @@ venv = Venv(
                         Venv(pys="3.7", pkgs={"exceptiongroup": latest}),
                     ],
                 ),
-                Venv(
-                    # celery added support for Python 3.9 in 4.x
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={
-                        "pytest": "~=4.0",
-                        "celery": [
-                            "~=4.4",  # most recent 4.x
-                        ],
-                        "redis": "~=3.5",
-                        "kombu": "~=4.4",
-                    },
-                ),
+                # Venv(
+                #     # celery added support for Python 3.9 in 4.x
+                #     pys=select_pys(min_version="3.8", max_version="3.9"),
+                #     pkgs={
+                #         "pytest": "~=4.0",
+                #         "celery": [
+                #             "latest",  # most recent 4.x
+                #         ],
+                #         "redis": "~=3.5",
+                #         "kombu": "~=4.4",
+                #     },
+                # ),
                 # Celery 5.x wants Python 3.6+
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
@@ -901,7 +902,7 @@ venv = Venv(
                 # that we currently have no reasons for expanding this matrix.
                 "django": "==2.2.1",
                 "sqlalchemy": "~=1.2.18",
-                "celery": "~=5.0.5",
+                "celery": latest,
                 "gevent": latest,
                 "requests": latest,
                 "typing-extensions": latest,
@@ -995,6 +996,7 @@ venv = Venv(
                 "urllib3": "~=1.0",
                 "pytest-randomly": latest,
                 "importlib_metadata": latest,
+                "flask-openapi3": latest,
             },
             venvs=[
                 # Flask 1.x.x
@@ -1130,20 +1132,6 @@ venv = Venv(
                     },
                 ),
             ],
-        ),
-        Venv(
-            name="flask_login",
-            command="pytest {cmdargs} tests/contrib/flask_login",
-            pys="3.11",
-            pkgs={
-                "pytest-randomly": latest,
-                "flask": "~=1.0.4",
-                "flask-login": "~=0.6.2",
-                "Jinja2": "~=2.11.0",
-                "markupsafe": "<2.0",
-                "itsdangerous": "<2.0",
-                "werkzeug": "<2.0",
-            },
         ),
         Venv(
             name="mako",
@@ -1582,6 +1570,7 @@ venv = Venv(
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
+                        "httpx": latest,
                     },
                     venvs=[
                         Venv(
@@ -1609,6 +1598,7 @@ venv = Venv(
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
+                        "httpx": latest,
                     },
                 ),
             ],
@@ -2491,6 +2481,7 @@ venv = Venv(
                 "psutil": latest,
                 "pytest-randomly": latest,
                 "numexpr": latest,
+                "greenlet": "==3.0.3",
             },
             venvs=[
                 Venv(
@@ -2508,12 +2499,28 @@ venv = Venv(
                         "langchain-community": "==0.0.38",
                         "langchain-core": "==0.1.52",
                         "langchain-openai": "==0.1.6",
+                        "langchain-anthropic": "==0.1.11",
                         "langchain-pinecone": "==0.1.0",
-                        "langsmith": "==0.1.58",
+                        "langchain-aws": "==0.1.3",
+                        "langchain-cohere": "==0.1.4",
                         "openai": "==1.30.3",
                         "pinecone-client": latest,
                         "botocore": latest,
+                        "cohere": "==5.4.0",
+                    }
+                ),
+                Venv(
+                    pkgs={
+                        "langchain": "==0.2.0",
+                        "langchain-core": "==0.2.0",
+                        "langchain-openai": latest,
+                        "langchain-pinecone": latest,
+                        "langchain-anthropic": latest,
                         "langchain-aws": latest,
+                        "langchain-cohere": latest,
+                        "openai": latest,
+                        "pinecone-client": latest,
+                        "botocore": latest,
                         "cohere": latest,
                     }
                 ),
@@ -2524,15 +2531,26 @@ venv = Venv(
                         "langchain-core": latest,
                         "langchain-openai": latest,
                         "langchain-pinecone": latest,
-                        "langsmith": latest,
+                        "langchain-anthropic": latest,
+                        "langchain-aws": latest,
+                        "langchain-cohere": latest,
                         "openai": latest,
                         "pinecone-client": latest,
                         "botocore": latest,
-                        "langchain-aws": latest,
                         "cohere": latest,
                     }
                 ),
             ],
+        ),
+        Venv(
+            name="anthropic",
+            command="pytest {cmdargs} tests/contrib/anthropic",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "anthropic": [latest, "~=0.28"],
+            },
         ),
         Venv(
             name="logbook",
@@ -2605,7 +2623,7 @@ venv = Venv(
                 "datadog-lambda": [">=4.66.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
-                "envier": "==0.5.1",
+                "envier": "==0.5.2",
             },
         ),
         Venv(
@@ -2619,7 +2637,7 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility tests/coverage",
             pys=select_pys(),
             pkgs={
                 "msgpack": latest,
@@ -2639,13 +2657,16 @@ venv = Venv(
         Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
-            pkgs={"vcrpy": latest},
+            pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+            env={
+                "DD_PROFILING_ENABLE_ASSERTS": "1",
+            },
             pkgs={
                 "gunicorn": latest,
                 #
@@ -2657,6 +2678,13 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
+                Venv(
+                    name="profile-wrapt-disabled",
+                    pys=select_pys(),
+                    env={
+                        "WRAPT_DISABLE_EXTENSIONS": "1",
+                    },
+                ),
                 # Python 3.7
                 Venv(
                     pys="3.7",

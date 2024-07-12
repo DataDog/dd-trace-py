@@ -92,7 +92,10 @@ random_range(uint64_t max)
         pfx##_array_splice(arr, pos, 1, NULL, 0);                                                                      \
         return res;                                                                                                    \
     }                                                                                                                  \
-    static inline size_type pfx##_array_indexof(pfx##_array_t* arr, type_t* e) { return e - arr->tab; }                \
+    static inline size_type pfx##_array_indexof(pfx##_array_t* arr, type_t* e)                                         \
+    {                                                                                                                  \
+        return e - arr->tab;                                                                                           \
+    }                                                                                                                  \
     static inline type_t pfx##_array_remove(pfx##_array_t* arr, type_t* e)                                             \
     {                                                                                                                  \
         return pfx##_array_take(arr, pfx##_array_indexof(arr, e));                                                     \
@@ -100,7 +103,10 @@ random_range(uint64_t max)
 
 #define ARRAY_FUNCS(type_t, pfx, size_type, dtor)                                                                      \
     ARRAY_COMMON_FUNCS(type_t, pfx, size_type, dtor)                                                                   \
-    static inline void pfx##_array_push(pfx##_array_t* arr, type_t e) { pfx##_array_splice(arr, 0, 0, &e, 1); }        \
+    static inline void pfx##_array_push(pfx##_array_t* arr, type_t e)                                                  \
+    {                                                                                                                  \
+        pfx##_array_splice(arr, 0, 0, &e, 1);                                                                          \
+    }                                                                                                                  \
     static inline void pfx##_array_append(pfx##_array_t* arr, type_t e)                                                \
     {                                                                                                                  \
         pfx##_array_splice(arr, arr->count, 0, &e, 1);                                                                 \

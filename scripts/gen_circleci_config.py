@@ -114,16 +114,6 @@ def gen_conftests(template: dict) -> None:
         template["workflows"]["test"]["jobs"].append({"conftests": template["requires_pre_check"]})
 
 
-def gen_c_check(template: dict) -> None:
-    """Include C code checks if C code has changed."""
-    from needs_testrun import pr_matches_patterns
-
-    if pr_matches_patterns({"docker", "*.c", "*.h", "*.cpp", "*.hpp", "*.cc", "*.hh"}):
-        template["requires_pre_check"]["requires"].append("ccheck")
-        template["requires_base_venvs"]["requires"].append("ccheck")
-        template["workflows"]["test"]["jobs"].append("ccheck")
-
-
 def extract_git_commit_selections(git_commit_message: str) -> dict:
     """Extract the selected suites from git commit message."""
     suites = set()

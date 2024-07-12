@@ -1,6 +1,5 @@
 """
 s3fs==2024.5.0
-
 https://pypi.org/project/s3fs/
 """
 from flask import Blueprint

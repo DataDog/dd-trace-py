@@ -8,7 +8,6 @@ import logging
 import multiprocessing
 import os
 from os import getpid
-import sys
 import threading
 from unittest.case import SkipTest
 import weakref
@@ -35,9 +34,9 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
-from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
+from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
@@ -1051,7 +1050,7 @@ def test_tracer_runtime_tags_fork():
     q = multiprocessing.Queue()
     p = multiprocessing.Process(target=_test_tracer_runtime_tags_fork_task, args=(tracer, q))
     p.start()
-    p.join()
+    p.join(60)
 
     children_tag = q.get()
     assert children_tag != span.get_tag("runtime-id")
@@ -1111,6 +1110,35 @@ def test_enable():
         assert not t2.enabled
 
 
+@pytest.mark.subprocess(
+    err=b"Shutting down tracer with 2 unfinished spans. "
+    b"Unfinished spans will not be sent to Datadog: "
+    b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
+    b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
+    b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
+    b"resource=my_resource1 started=167232131231.0 sampling_priority=2\n"
+)
+def test_unfinished_span_warning_log():
+    """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
+    from ddtrace import tracer
+    from ddtrace.constants import MANUAL_KEEP_KEY
+
+    # Create two unfinished spans
+    span1 = tracer.trace("unfinished_span1", service="my_service", resource="my_resource1")
+    span2 = tracer.trace("unfinished_span2", service="my_service", resource="my_resource1")
+    # hardcode the trace_id, parent_id, span_id, sampling decision and start time to make the test deterministic
+    span1.trace_id = 123
+    span1.parent_id = 0
+    span1.span_id = 456
+    span1.start = 46121775360
+    span1.set_tag(MANUAL_KEEP_KEY)
+    span2.trace_id = 123
+    span2.parent_id = 456
+    span2.span_id = 666
+    span2.start = 167232131231
+    span2.set_tag(MANUAL_KEEP_KEY)
+
+
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
 def test_threaded_import():
     import threading
@@ -1120,7 +1148,7 @@ def test_threaded_import():
 
     t = threading.Thread(target=thread_target)
     t.start()
-    t.join()
+    t.join(60)
 
 
 def test_runtime_id_parent_only():
@@ -1765,7 +1793,7 @@ def test_closing_other_context_spans_single_span(tracer, test_spans):
     assert tracer.current_span() is span
     t1 = threading.Thread(target=_target, args=(span,))
     t1.start()
-    t1.join()
+    t1.join(60)
     assert tracer.current_span() is None
 
     spans = test_spans.pop()
@@ -1788,7 +1816,7 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     assert tracer.current_span() is span
     t1 = threading.Thread(target=_target, args=(span,))
     t1.start()
-    t1.join()
+    t1.join(60)
     assert tracer.current_span() is root
     root.finish()
 
@@ -1961,17 +1989,6 @@ def test_ctx_api():
     assert core.get_items(["appsec.key"]) == [None]
 
 
-def test_installed_excepthook():
-    telemetry.install_excepthook()
-    assert sys.excepthook is telemetry._excepthook
-    telemetry.uninstall_excepthook()
-    assert sys.excepthook is not telemetry._excepthook
-    telemetry.install_excepthook()
-    assert sys.excepthook is telemetry._excepthook
-    # Reset exception hooks
-    telemetry.uninstall_excepthook()
-
-
 @pytest.mark.subprocess(parametrize={"IMPORT_DDTRACE_TRACER": ["true", "false"]})
 def test_import_ddtrace_tracer_not_module():
     import os
@@ -1985,3 +2002,20 @@ def test_import_ddtrace_tracer_not_module():
     from ddtrace import tracer
 
     assert isinstance(tracer, Tracer)
+
+
+def test_asm_standalone_configuration():
+    tracer = ddtrace.Tracer()
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    assert tracer._asm_enabled is True
+    assert tracer._appsec_standalone_enabled is True
+    assert tracer._apm_opt_out is True
+    assert tracer.enabled is False
+
+    assert isinstance(tracer._sampler.limiter, RateLimiter)
+    assert tracer._sampler.limiter.rate_limit == 1
+    assert tracer._sampler.limiter.time_window == 60e9
+
+    assert tracer._compute_stats is False
+    # reset tracer values
+    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)

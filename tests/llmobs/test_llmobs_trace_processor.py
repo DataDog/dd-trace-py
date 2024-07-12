@@ -172,7 +172,7 @@ def test_session_id_propagates_ignore_non_llmobs_spans():
 
 
 def test_ml_app_tag_defaults_to_env_var():
-    """Test that no ml_app defaults to the environment variable DD_LLMOBS_APP_NAME."""
+    """Test that no ml_app defaults to the environment variable DD_LLMOBS_ML_APP."""
     dummy_tracer = DummyTracer()
     with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
@@ -184,7 +184,7 @@ def test_ml_app_tag_defaults_to_env_var():
 
 
 def test_ml_app_tag_overrides_env_var():
-    """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_APP_NAME."""
+    """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_ML_APP."""
     dummy_tracer = DummyTracer()
     with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:

@@ -392,7 +392,7 @@ def create_notebook(dd_repo, name, rn, base):
     # change the text inside of our template to include release notes
     data["data"]["attributes"]["cells"][1]["attributes"]["definition"][
         "text"
-    ] = f"# Relenv \n - [ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n# Release notes to test {notebook_rns}\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n"  # noqa
+    ] = f"# Dogweb CI \n - [ ] Dogweb CI passes with this RC [how to trigger it](https://datadoghq.atlassian.net/wiki/spaces/APMPY/pages/2870870705/Testing+any+ddtracepy+git+ref+in+dogweb+staging#Testing-any-ddtracepy-git-ref-in-dogweb-CI)\n# Relenv \n - [ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n# Release notes to test {notebook_rns}\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n"  # noqa
 
     # grab the latest commit id on the latest branch to mark the rc notebook with
     main_branch = dd_repo.get_branch(branch=DEFAULT_BRANCH)

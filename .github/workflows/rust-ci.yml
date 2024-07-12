@@ -1,0 +1,30 @@
+name: "Rust CI"
+on:
+  push:
+  pull_request:
+    paths:
+      - src/**
+
+jobs:
+  check:
+    name: Rust CI
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        extension: ["src/core"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install latest stable toolchain and rustfmt
+        run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
+      - name: Run cargo build
+        run: cargo build
+        working-directory: ${{ matrix.extension }}
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+        working-directory: ${{ matrix.extension }}
+      - name: Run cargo clippy
+        run: cargo clippy -- -D warnings
+        working-directory: ${{ matrix.extension }}
+      - name: Run cargo test
+        run: cargo test --no-fail-fast --locked
+        working-directory: ${{ matrix.extension }}
