@@ -121,6 +121,7 @@ class _ProfilerInstance(service.Service):
         enable_code_provenance: bool = config.code_provenance,
         endpoint_collection_enabled: bool = config.endpoint_collection,
     ):
+        super(_ProfilerInstance, self).__init__()
         # User-supplied values
         self.url: Optional[str] = url
         self.service: Optional[str] = service if service is not None else os.environ.get("DD_SERVICE")

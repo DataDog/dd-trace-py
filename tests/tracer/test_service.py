@@ -4,6 +4,9 @@ from ddtrace.internal import service
 
 
 class MyService(service.Service):
+    def __init__(self):
+        super(MyService, self).__init__()
+
     def _start_service(self):
         pass
 

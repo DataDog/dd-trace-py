@@ -25,6 +25,8 @@ from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
 from ddtrace.settings.profiling import config
 
+from ..recorder import Recorder
+
 
 LOG = logging.getLogger(__name__)
 
@@ -466,19 +468,21 @@ class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
 
     def __init__(self,
+                 recorder: Recorder,
                  max_time_usage_pct: float = config.max_time_usage_pct,
                  nframes: int = config.max_frames,
                  ignore_profiler: bool = config.ignore_profiler,
                  endpoint_collection_enabled: typing.Optional[bool] = None,
                  tracer: typing.Optional[Tracer] = None,
                  _stack_collector_v2_enabled: bool = config.stack.v2_enabled):
+        super(StackCollector, self).__init__(recorder)
         if max_time_usage_pct <= 0 or max_time_usage_pct > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
         # This need to be a real OS thread in order to catch
-        self._real_thread: bool = self._DEFAULT_REAL_THREAD
-        self.interval: float = self._DEFAULT_MIN_INTERVAL_TIME
-        self.min_interval_time: float = self._DEFAULT_MIN_INTERVAL_TIME
+        self._real_thread: bool = True
+        self._interval = _default_min_interval_time()
+        self.min_interval_time: float = _default_min_interval_time()
 
         self.max_time_usage_pct: float = max_time_usage_pct
         self.nframes: int = nframes

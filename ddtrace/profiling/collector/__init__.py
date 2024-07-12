@@ -20,6 +20,7 @@ class Collector(service.Service):
     """A profile collector."""
 
     def __init__(self, recorder: Recorder):
+        super(Collector, self).__init__()
         self.recorder = recorder
 
     @staticmethod
@@ -32,6 +33,10 @@ class Collector(service.Service):
 
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
+
+    def __init__(self, recorder: Recorder):
+        super(PeriodicCollector, self).__init__(recorder)
+        periodic.PeriodicService.__init__(self)
 
     def periodic(self):
         # type: (...) -> None

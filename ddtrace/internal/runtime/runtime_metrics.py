@@ -68,6 +68,7 @@ class RuntimeWorker(periodic.PeriodicService):
     """
 
     def __init__(self, interval=None, tracer=None, dogstatsd_url=None):
+        super(RuntimeWorker, self).__init__()
         self._interval: float = interval if interval else _get_interval_or_default()
         self.tracer: Optional[ddtrace.Tracer] = tracer if tracer else ddtrace.Tracer
         self.dogstatsd_url: Optional[str] = dogstatsd_url

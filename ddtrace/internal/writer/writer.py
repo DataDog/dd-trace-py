@@ -161,6 +161,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         report_metrics=True,  # type: bool
     ):
         # type: (...) -> None
+        super(HTTPWriter, self).__init__()
+        TraceWriter.__init__(self)
 
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
