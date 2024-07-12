@@ -10,17 +10,18 @@ from flask import request
 from .utils import ResultResponse
 
 
-pkg_google_auth = Blueprint("package_google_auth", __name__)
+pkg_google_auth = Blueprint("pkg_google_auth", __name__)
 
 
 @pkg_google_auth.route("/google-auth")
 def pkg_google_auth():
-    response = ResultResponse(request.args.get("package_param"))
+    param = request.args.get("package_param")
+    response = ResultResponse(param)
 
     try:
         from google.auth.crypt import rsa
 
-        rsa.RSASigner.sign("test")
+        rsa.RSASigner.sign(param)
     except Exception as e:
         response.result1 = str(e)
 
