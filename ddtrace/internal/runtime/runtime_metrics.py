@@ -67,6 +67,10 @@ class RuntimeWorker(periodic.PeriodicService):
     client.
     """
 
+    enabled = False
+    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
+    _lock = forksafe.Lock()
+
     def __init__(self, interval=None, tracer=None, dogstatsd_url=None):
         super().__init__(interval=interval if interval else _get_interval_or_default())
         self.tracer: Optional[ddtrace.Tracer] = tracer if tracer else ddtrace.Tracer
@@ -76,9 +80,6 @@ class RuntimeWorker(periodic.PeriodicService):
         )
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
         self._services: Set[str] = set()
-        self.enabled = False
-        self._instance = None
-        self._lock = forksafe.Lock()
 
     @classmethod
     def disable(cls):
