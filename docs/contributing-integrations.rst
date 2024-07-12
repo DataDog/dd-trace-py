@@ -111,7 +111,7 @@ What are "snapshot tests"?
 
 Many of the tests are based on "snapshots": saved copies of actual traces sent to the
 `APM test agent <../README.md#use-the-apm-test-agent>`_. When an integration is added or modified, the snapshots
-(if they exist) should be updated to reflect the new expected output.
+(if they exist) should be updated to match the new expected output.
 
 1. Update the library and test code to generate new traces.
 2. Delete the snapshot file corresponding to your test at ``tests/snapshots/<snapshot_file>`` (if applicable).
