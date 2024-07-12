@@ -240,6 +240,15 @@ PACKAGES = [
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
     PackageForTesting(
+        "google-auth",
+        "2.32.0",
+        "",
+        "",
+        "",
+        import_name="",
+        import_module_to_validate="google.auth.crypt",
+    ),
+    PackageForTesting(
         "google-api-core",
         "2.19.0",
         "",
