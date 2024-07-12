@@ -1739,7 +1739,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
             input_messages=[{"content": "Hello world"}],
             output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
             metadata={"temperature": 0.8, "max_tokens": 10},
-            token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
+            token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -1770,7 +1770,7 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
             input_messages=[{"content": "Hello world"}],
             output_messages=[{"content": expected_completion}],
             metadata={},
-            token_metrics={"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
+            token_metrics={"input_tokens": 2, "output_tokens": 2, "total_tokens": 4},
             tags={"ml_app": "<ml-app-name>"},
         ),
     )
@@ -1810,7 +1810,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_
             input_messages=input_messages,
             output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
             metadata={},
-            token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
+            token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -1852,7 +1852,7 @@ def test_llmobs_chat_completion_stream(openai_vcr, openai, ddtrace_global_config
             input_messages=input_messages,
             output_messages=[{"content": expected_completion, "role": "assistant"}],
             metadata={},
-            token_metrics={"prompt_tokens": 8, "completion_tokens": 8, "total_tokens": 16},
+            token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -1889,7 +1889,7 @@ def test_llmobs_chat_completion_function_call(
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
             output_messages=[{"content": expected_output, "role": "assistant"}],
             metadata={},
-            token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+            token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -1927,7 +1927,7 @@ def test_llmobs_chat_completion_tool_call(openai_vcr, openai, ddtrace_global_con
                 }
             ],
             metadata={},
-            token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+            token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
