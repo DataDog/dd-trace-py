@@ -218,7 +218,8 @@ class _ImportHookChainedLoader:
         pre_exec_hook = None
 
         _get_code = getattr(self.loader, "get_code", None)
-        if _get_code is not None:
+        # DEV: avoid recursively wrapping the loader's get_code method (eg: in case of nested imporlib.reload() calls)
+        if _get_code is not None and not getattr(_get_code, "_dd_get_code", False):
 
             def get_code(_loader, fullname):
                 code = _get_code(fullname)
@@ -227,6 +228,8 @@ class _ImportHookChainedLoader:
                     code = callback(code, module)
 
                 return code
+
+            get_code.__setattr__("_dd_get_code", True)
 
             self.loader.get_code = get_code.__get__(self.loader, type(self.loader))  # type: ignore[union-attr]
 
