@@ -41,7 +41,7 @@ Tracing
 Getting started for tracing is as easy as prefixing your python entry-point
 command with ``ddtrace-run``.
 
-For example, if you start your application with ``python app.py``, run (replacing
+For example, if you start your application with ``python app.py`` then run (replacing
 placeholders with actual values for your environment variables)::
 
     DD_SERVICE=<app_name> DD_ENV=<environment> DD_VERSION=<version> ddtrace-run python app.py
@@ -50,8 +50,8 @@ For more advanced usage of ``ddtrace-run`` refer to the documentation
 :ref:`here<ddtracerun>`.
 
 To verify the environment configuration for your application run the command ``ddtrace-run --info``.
-This command provides useful information for debugging, ensuring that your environment variable configurations
-are correctly recognized and that the tracer will be able to connect to the Datadog agent with them.
+This command prints useful information for debugging, ensuring that your environment variable configurations
+are recognized and that the tracer will be able to connect to the Datadog agent with them.
 Note: ``--info`` only reflects configurations set via environment variables, not those set within code.
 
 
