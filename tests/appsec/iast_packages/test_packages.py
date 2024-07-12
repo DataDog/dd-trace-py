@@ -255,8 +255,6 @@ PACKAGES = [
         "",
         "",
         import_name="google.auth.crypt.rsa",
-        # import_name="google",
-        # test_e2e=False,
         import_module_to_validate="google.auth.crypt.rsa",
     ),
     PackageForTesting(
