@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.9.1
+
+
+### Deprecation Notes
+
+- Removes the deprecated sqlparse dependency.
+
+
+---
+
 ## 2.9.0
 
 ### New Features
@@ -92,7 +102,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - ASM: Resolves an issue where lfi attack on request path was not always detected with `flask` and `uwsgi`.
 - ASM: Removes non-required API security metrics.
 - instrumentation: Fixes crashes that could occur in certain integrations with packages that use non-integer components in their version specifiers
-
 
 
 ---
