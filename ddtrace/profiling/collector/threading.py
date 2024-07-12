@@ -13,11 +13,17 @@ class ThreadingLockAcquireEvent(_lock.LockAcquireEvent):
 
     __slots__ = ()
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
 
 class ThreadingLockReleaseEvent(_lock.LockReleaseEvent):
     """A threading.Lock has been released."""
 
     __slots__ = ()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class _ProfiledThreadingLock(_lock._ProfiledLock):

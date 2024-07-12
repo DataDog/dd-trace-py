@@ -1,4 +1,3 @@
-import dataclasses
 import typing  # noqa:F401
 
 from .. import collector
@@ -10,11 +9,17 @@ class AsyncioLockAcquireEvent(_lock.LockAcquireEvent):
 
     __slots__ = ()
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
 
 class AsyncioLockReleaseEvent(_lock.LockReleaseEvent):
     """An asyncio.Lock has been released."""
 
     __slots__ = ()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class _ProfiledAsyncioLock(_lock._ProfiledLock):

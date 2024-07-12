@@ -20,8 +20,6 @@ class CollectorUnavailable(CollectorError):
 class Collector(service.Service):
     """A profile collector."""
 
-    __slots__ = ("recorder",)
-
     def __init__(self, recorder: Recorder, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.recorder = recorder
@@ -36,8 +34,6 @@ class Collector(service.Service):
 
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
-
-    __slots__ = ()
 
     def __init__(self, recorder: Recorder, interval=0.0):
         super().__init__(recorder=recorder, interval=interval)

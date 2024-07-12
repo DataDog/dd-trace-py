@@ -31,8 +31,6 @@ def _():
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    __slots__ = ("_interval", "_worker")
-
     def __init__(self, interval=0.0):
         super().__init__()
         self._interval = interval if interval else 0.0

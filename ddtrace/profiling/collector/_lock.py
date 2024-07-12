@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import _thread
 import abc
-import dataclasses
 import os.path
 import sys
 import types
