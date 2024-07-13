@@ -68,7 +68,7 @@ class MemoryCollector(collector.PeriodicCollector):
         ignore_profiler: bool = config.ignore_profiler,
         _export_libdd_enabled: bool = config.export.libdd_enabled,
     ):
-        super().__init__(recorder)
+        super().__init__(recorder=recorder)
         self._max_events: int = _max_events
         self.max_nframe: int = max_nframe
         self.heap_sample_size: int = heap_sample_size

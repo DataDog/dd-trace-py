@@ -507,6 +507,17 @@ class StackCollector(collector.PeriodicCollector):
         self._stack_collector_v2_enabled: bool = _stack_collector_v2_enabled
 
 
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+
+        slot_attrs = {slot: getattr(self, slot) for slot in self.__slots__ if not slot.startswith("_")}
+        slot_attrs_str = ", ".join(f"{k}={v!r}" for k, v in slot_attrs.items())
+
+        return f"{class_name}({attrs_str}, {slot_attrs_str})"
+
+
     def _init(self):
         # type: (...) -> None
         self._thread_time = _ThreadTime()

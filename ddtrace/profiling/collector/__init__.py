@@ -35,8 +35,7 @@ class Collector(service.Service):
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
-    def __init__(self, recorder: Recorder, interval=0.0):
-        super().__init__(recorder=recorder, interval=interval)
+    __slots__ = ()
 
     def periodic(self):
         # type: (...) -> None
@@ -77,7 +76,7 @@ class CaptureSampler(object):
 
 
 class CaptureSamplerCollector(Collector):
-    def __init__(self, recorder, capture_pct=None):
-        super().__init__(recorder=recorder)
+    def __init__(self, recorder, capture_pct=None, *args, **kwargs):
+        super().__init__(recorder=recorder, *args, **kwargs)
         self.capture_pct = capture_pct if capture_pct else config.capture_pct
         self._capture_sampler = CaptureSampler(self.capture_pct)

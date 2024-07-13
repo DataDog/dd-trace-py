@@ -293,7 +293,7 @@ class _ProfilerInstance(service.Service):
                         r,
                         tracer=self.tracer,
                         endpoint_collection_enabled=self.endpoint_collection_enabled,
-                    )  # type: ignore[call-arg]
+                    )
                 )
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:

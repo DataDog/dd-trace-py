@@ -13,17 +13,11 @@ class ThreadingLockAcquireEvent(_lock.LockAcquireEvent):
 
     __slots__ = ()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
 
 class ThreadingLockReleaseEvent(_lock.LockReleaseEvent):
     """A threading.Lock has been released."""
 
     __slots__ = ()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
 
 class _ProfiledThreadingLock(_lock._ProfiledLock):
@@ -34,8 +28,8 @@ class _ProfiledThreadingLock(_lock._ProfiledLock):
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 
-    def __init__(self, recorder: Recorder, capture_pct=None, tracer=None):
-        super().__init__(recorder=recorder, capture_pct=capture_pct, tracer=tracer)
+    def __init__(self, recorder: Recorder, *args, **kwargs):
+        super().__init__(recorder=recorder, *args, **kwargs)
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
