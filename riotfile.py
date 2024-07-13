@@ -2482,7 +2482,6 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "numexpr": latest,
                 "greenlet": "==3.0.3",
-                "faiss-cpu": latest,
             },
             venvs=[
                 Venv(
@@ -2508,6 +2507,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": "==5.4.0",
+                        "faiss-cpu": "==1.8.0",
                     }
                 ),
                 Venv(
