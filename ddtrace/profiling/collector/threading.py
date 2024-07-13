@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-import dataclasses
 import threading
 import typing  # noqa:F401
 
@@ -28,8 +27,8 @@ class _ProfiledThreadingLock(_lock._ProfiledLock):
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 
-    def __init__(self, recorder: Recorder, *args, **kwargs):
-        super().__init__(recorder=recorder, *args, **kwargs)
+    def __init__(self, recorder: Recorder, capture_pct=None, tracer=None):
+        super().__init__(recorder=recorder, capture_pct=capture_pct, tracer=tracer)
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
