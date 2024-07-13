@@ -285,7 +285,7 @@ def test_llm_annotate(LLMObs, mock_llmobs_span_writer):
             input_data=[{"content": "test_prompt"}],
             output_data=[{"content": "test_response"}],
             tags={"custom_tag": "tag_value"},
-            metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
         )
 
     f()
@@ -299,7 +299,7 @@ def test_llm_annotate(LLMObs, mock_llmobs_span_writer):
             input_messages=[{"content": "test_prompt"}],
             output_messages=[{"content": "test_response"}],
             parameters={"temperature": 0.9, "max_tokens": 50},
-            token_metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            token_metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
             tags={"custom_tag": "tag_value"},
             session_id="test_session_id",
         )
@@ -314,7 +314,7 @@ def test_llm_annotate_raw_string_io(LLMObs, mock_llmobs_span_writer):
             input_data="test_prompt",
             output_data="test_response",
             tags={"custom_tag": "tag_value"},
-            metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
         )
 
     f()
@@ -328,7 +328,7 @@ def test_llm_annotate_raw_string_io(LLMObs, mock_llmobs_span_writer):
             input_messages=[{"content": "test_prompt"}],
             output_messages=[{"content": "test_response"}],
             parameters={"temperature": 0.9, "max_tokens": 50},
-            token_metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            token_metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
             tags={"custom_tag": "tag_value"},
             session_id="test_session_id",
         )
