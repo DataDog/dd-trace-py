@@ -816,7 +816,9 @@ def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
             vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(
+    ignores=["metrics.langchain.tokens.total_cost", "meta.langchain.response.outputs.input_documents"]
+)
 def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
     """
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
