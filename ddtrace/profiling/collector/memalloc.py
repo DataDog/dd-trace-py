@@ -62,6 +62,7 @@ class MemoryCollector(collector.PeriodicCollector):
     def __init__(
         self,
         recorder: Recorder,
+        _interval: float = _DEFAULT_INTERVAL,
         _max_events: int = config.memory.events_buffer,
         max_nframe: int = config.max_frames,
         heap_sample_size: int = config.heap.sample_size,
@@ -69,6 +70,8 @@ class MemoryCollector(collector.PeriodicCollector):
         _export_libdd_enabled: bool = config.export.libdd_enabled,
     ):
         super().__init__(recorder=recorder)
+        self._interval: float = _interval
+        # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
         self._max_events: int = _max_events
         self.max_nframe: int = max_nframe
         self.heap_sample_size: int = heap_sample_size
