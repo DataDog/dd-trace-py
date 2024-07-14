@@ -190,15 +190,6 @@ class _PprofConverter(object):
             lambda: collections.defaultdict(lambda: 0)
         )
 
-    __annotations__ = {
-        '_functions': typing.Dict[typing.Tuple[str, typing.Optional[str]], pprof_FunctionType],
-        '_locations': typing.Dict[typing.Tuple[str, int, str], pprof_LocationType],
-        '_string_table': _StringTable,
-        '_last_location_id': itertools.count,
-        '_last_func_id': itertools.count,
-        '_location_values': typing.DefaultDict[_Location_Key_T, typing.DefaultDict[str, int]]
-    }
-
     def _to_Function(
         self,
         filename,  # type: str
@@ -574,10 +565,6 @@ class PprofExporter(exporter.Exporter):
     def __init__(self, enable_code_provenance=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.enable_code_provenance = enable_code_provenance
-
-    __annotations__ = {
-        'enable_code_provenance': bool
-    }
 
     def _stack_event_group_key(self, event: event.StackBasedEvent) -> StackEventGroupKey:
         return StackEventGroupKey(
