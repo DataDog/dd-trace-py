@@ -12,8 +12,6 @@ import typing
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 
-import attr
-
 import ddtrace
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
@@ -37,29 +35,44 @@ PYTHON_IMPLEMENTATION = platform.python_implementation()
 PYTHON_VERSION = platform.python_version()
 
 
-@attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
     RETRY_ATTEMPTS = 3
 
-    # repeat this to please mypy
-    enable_code_provenance = attr.ib(default=True, type=bool)
+    def __init__(
+        self,
+        enable_code_provenance: bool = True,
+        endpoint: typing.Optional[str] = None,
+        api_key: typing.Optional[str] = None,
+        timeout: float = config.api_timeout,
+        service: typing.Optional[str] = None,
+        env: typing.Optional[str] = None,
+        version: typing.Optional[str] = None,
+        tags: typing.Optional[typing.Dict[str, str]] = None,
+        max_retry_delay: typing.Optional[float] = None,
+        endpoint_path: str = "/profiling/v1/input",
+        endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = None,
+    ):
+        super().__init__()
+        self.enable_code_provenance: bool = enable_code_provenance
+        self.endpoint: str = endpoint if endpoint is not None else agent.get_trace_url()
+        self.api_key: typing.Optional[str] = api_key
+        # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
+        # backend is not as fast as the tracer one.
+        self.timeout: float = timeout
+        self.service: typing.Optional[str] = service
+        self.env: typing.Optional[str] = env
+        self.version: typing.Optional[str] = version
+        self.tags: typing.Dict[str, str] = tags if tags is not None else {}
+        self.max_retry_delay: typing.Optional[float] = max_retry_delay
+        self._container_info: typing.Optional[container.CGroupInfo] = container.get_container_info()
+        self.endpoint_path: str = endpoint_path
+        self.endpoint_call_counter_span_processor: typing.Optional[
+            EndpointCallCounterProcessor
+        ] = endpoint_call_counter_span_processor
 
-    endpoint = attr.ib(type=str, factory=agent.get_trace_url)
-    api_key = attr.ib(default=None, type=typing.Optional[str])
-    # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
-    # backend is not as fast as the tracer one.
-    timeout = attr.ib(default=config.api_timeout, type=float)
-    service = attr.ib(default=None, type=typing.Optional[str])
-    env = attr.ib(default=None, type=typing.Optional[str])
-    version = attr.ib(default=None, type=typing.Optional[str])
-    tags = attr.ib(factory=dict, type=typing.Dict[str, str])
-    max_retry_delay = attr.ib(default=None)
-    _container_info = attr.ib(factory=container.get_container_info, repr=False)
-    endpoint_path = attr.ib(default="/profiling/v1/input")
-
-    endpoint_call_counter_span_processor = attr.ib(default=None, type=EndpointCallCounterProcessor)
+        self.__post_init__()
 
     def _update_git_metadata_tags(self, tags):
         """
@@ -76,7 +89,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
             tags[MAIN_PACKAGE] = main_package
         return tags
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         if self.max_retry_delay is None:
             self.max_retry_delay = self.timeout * 3
 
