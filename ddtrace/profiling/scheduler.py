@@ -28,7 +28,7 @@ class Scheduler(periodic.PeriodicService):
         before_flush: Optional[Callable] = None,
         interval: Optional[float] = None,
     ):
-        super(Scheduler, self).__init__(interval=interval)
+        super(Scheduler, self).__init__(interval=interval if interval else config.upload_interval)
         self.recorder: Optional[Recorder] = recorder
         self.exporters: Optional[List[Exporter]] = exporters
         self.before_flush: Optional[Callable] = before_flush
