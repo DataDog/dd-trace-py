@@ -239,6 +239,7 @@ class DdtraceRunTest(BaseTestCase):
         assert six.b("debug mode has been enabled for the ddtrace logger") in p.stderr.read()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Profiler not yet compatible with Python 3.11")
 def test_env_profiling_enabled(monkeypatch):
     """DD_PROFILING_ENABLED allows enabling the global profiler."""
     # Off by default
