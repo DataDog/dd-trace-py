@@ -53,8 +53,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
         max_retry_delay: typing.Optional[float] = None,
         endpoint_path: str = "/profiling/v1/input",
         endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = None,
+        *args,
+        **kwargs,
     ):
-        super().__init__()
+        super().__init__(*args, **kwargs)
+        # repeat this to please mypy
         self.enable_code_provenance: bool = enable_code_provenance
         self.endpoint: str = endpoint if endpoint is not None else agent.get_trace_url()
         self.api_key: typing.Optional[str] = api_key
@@ -68,9 +71,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         self.max_retry_delay: typing.Optional[float] = max_retry_delay
         self._container_info: typing.Optional[container.CGroupInfo] = container.get_container_info()
         self.endpoint_path: str = endpoint_path
-        self.endpoint_call_counter_span_processor: typing.Optional[
-            EndpointCallCounterProcessor
-        ] = endpoint_call_counter_span_processor
+        self.endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = (
+            endpoint_call_counter_span_processor
+        )
 
         self.__post_init__()
 

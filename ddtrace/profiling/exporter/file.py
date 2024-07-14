@@ -10,8 +10,8 @@ from .. import recorder  # noqa:F401
 class PprofFileExporter(pprof.PprofExporter):
     """PProf file exporter."""
 
-    def __init__(self, prefix="profile"):
-        super().__init__()
+    def __init__(self, prefix="profile", *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.prefix = prefix
         self._increment = 1
 

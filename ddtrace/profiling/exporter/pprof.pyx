@@ -562,9 +562,9 @@ StackExceptionEventGroupKey = typing.NamedTuple(
 class PprofExporter(exporter.Exporter):
     """Export recorder events to pprof format."""
 
-    def __init__(self):
-        super().__init__()
-        self.enable_code_provenance = True
+    def __init__(self, enable_code_provenance=True, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.enable_code_provenance = enable_code_provenance
 
     def _stack_event_group_key(self, event: event.StackBasedEvent) -> StackEventGroupKey:
         return StackEventGroupKey(
