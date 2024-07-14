@@ -71,9 +71,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         self.max_retry_delay: typing.Optional[float] = max_retry_delay
         self._container_info: typing.Optional[container.CGroupInfo] = container.get_container_info()
         self.endpoint_path: str = endpoint_path
-        self.endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = (
-            endpoint_call_counter_span_processor
-        )
+        self.endpoint_call_counter_span_processor: typing.Optional[
+            EndpointCallCounterProcessor
+        ] = endpoint_call_counter_span_processor
 
         self.__post_init__()
 
