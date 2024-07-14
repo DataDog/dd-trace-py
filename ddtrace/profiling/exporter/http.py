@@ -39,6 +39,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
     RETRY_ATTEMPTS = 3
+    # List of attributes to ignore when comparing two exporters for equality
+    # _upload is a function, which is dynamically added to the class, so we need
+    # to ignore it in __eq__.
+    EQ_IGNORE_ATTRS = ["_upload"]
 
     def __init__(
         self,
@@ -76,6 +80,17 @@ class PprofHTTPExporter(pprof.PprofExporter):
         ] = endpoint_call_counter_span_processor
 
         self.__post_init__()
+
+    def __eq__(self, other):
+        # Exporter class used to be decorated with @attr.s which implements __eq__, using only the attributes defined
+        # in the class. However, the _upload attribute is added dynamically to the class, so we need to ignore it when
+        # comparing two exporters for equality.
+
+        if isinstance(other, self.__class__):
+            self_dict = {k: v for k, v in self.__dict__.items() if k not in self.EQ_IGNORE_ATTRS}
+            other_dict = {k: v for k, v in other.__dict__.items() if k not in self.EQ_IGNORE_ATTRS}
+            return self_dict == other_dict
+        return False
 
     def _update_git_metadata_tags(self, tags):
         """
