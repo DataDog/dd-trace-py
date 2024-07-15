@@ -250,7 +250,7 @@ venv = Venv(
                 ),
                 # Flask 2.x.x
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
                         "flask": "~=2.2",
                     },
@@ -2435,7 +2435,7 @@ venv = Venv(
                     env={"TIKTOKEN_AVAILABLE": "True"},
                     venvs=[
                         Venv(
-                            pys=select_pys(min_version="3.8", max_version="3.12"), pkgs={"pytest-asyncio": "==0.21.1"}
+                            pys=select_pys(min_version="3.8", max_version="3.12"), pkgs={"pytest-asyncio": "==0.23.7"}
                         ),
                     ],
                 ),
