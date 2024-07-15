@@ -2402,7 +2402,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/openai",
             pkgs={
                 "vcrpy": latest,
-                "urllib3": latest,
+                "urllib3": "<2.0",
                 "pytest-randomly": latest,
                 "pillow": latest,
             },
