@@ -287,12 +287,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         code_path = Path(code.co_filename)
         if _module is None:
-            # print(f"RETURNING CODE {code} FOR MODULE {_module}")
             return code
 
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument
-            # print(f"SKIPPING CODE {code} IN CODEPATH {code_path} FOR MODULE {_module} BECAUSE NOT IN INCLUDE")
             return code
 
         if any(code_path.is_relative_to(_) for _ in (stdlib_path, purelib_path)):
@@ -307,12 +305,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             module_context = self.CollectInContext(is_import_coverage=True)
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
-
-        if "breakme" in code.co_filename:
-            print(f"TRANSFORMED")
-            import dis
-            dis.dis(retval)
-            print("STACKSIZE", retval.co_stacksize)
 
         return retval
 
@@ -346,7 +338,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         # exec built-in function.
 
         _module = getmodule(_object)
-        print(f"PYTEST MODULE {_module}")
 
         new_object = (
             self.transform(_object, _module)

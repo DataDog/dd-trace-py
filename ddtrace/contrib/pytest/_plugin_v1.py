@@ -899,6 +899,5 @@ class _PytestDDTracePluginV1:
                 ModuleCodeCollector.report(workspace_path)
                 try:
                     ModuleCodeCollector.write_json_report_to_file("dd_coverage.json", workspace_path)
-                    breakpoint()
                 except Exception:
                     log.debug("Failed to write coverage report to file", exc_info=True)
