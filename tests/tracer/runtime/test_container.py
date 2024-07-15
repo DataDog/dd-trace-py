@@ -32,7 +32,7 @@ def test_cgroup_info_init():
         (
             "    13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860    ",
             CGroupInfo(
-                id_="13",
+                id="13",
                 groups="name=systemd",
                 controllers=["name=systemd"],
                 path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
@@ -44,7 +44,7 @@ def test_cgroup_info_init():
         (
             "\r\n13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860\r\n",
             CGroupInfo(
-                id_="13",
+                id="13",
                 groups="name=systemd",
                 controllers=["name=systemd"],
                 path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
@@ -56,7 +56,7 @@ def test_cgroup_info_init():
         (
             "1:name=systemd:/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
             CGroupInfo(
-                id_="1",
+                id="1",
                 groups="name=systemd",
                 controllers=["name=systemd"],
                 path="/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
@@ -68,7 +68,7 @@ def test_cgroup_info_init():
         (
             "10:freezer:/garden/6f265890-5165-7fab-6b52-18d1",
             CGroupInfo(
-                id_="10",
+                id="10",
                 groups="freezer",
                 controllers=["freezer"],
                 path="/garden/6f265890-5165-7fab-6b52-18d1",
@@ -81,7 +81,7 @@ def test_cgroup_info_init():
             # One character too short
             "13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f86986",
             CGroupInfo(
-                id_="13",
+                id="13",
                 groups="name=systemd",
                 controllers=["name=systemd"],
                 path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f86986",
@@ -93,7 +93,7 @@ def test_cgroup_info_init():
             # Non-hex
             "13:name=systemd:/docker/3726184226f5d3147c25fzyxw5b60097e378e8a720503a5e19ecfdf29f869860",
             CGroupInfo(
-                id_="13",
+                id="13",
                 groups="name=systemd",
                 controllers=["name=systemd"],
                 path="/docker/3726184226f5d3147c25fzyxw5b60097e378e8a720503a5e19ecfdf29f869860",
@@ -117,7 +117,7 @@ def test_cgroup_info_init():
             # empty
             "13::/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
             CGroupInfo(
-                id_="13",
+                id="13",
                 groups="",
                 controllers=[],
                 path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",

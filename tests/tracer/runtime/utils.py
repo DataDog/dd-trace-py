@@ -48,7 +48,7 @@ def cgroup_line_valid_test_cases():
         (
             ":".join([id_, ",".join(groups), path.format(container_id, pod_id)]),
             CGroupInfo(
-                id_=id_,
+                id=id_,
                 groups=",".join(groups),
                 path=path.format(container_id, pod_id),
                 controllers=groups,
