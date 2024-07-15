@@ -1439,7 +1439,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
-                    pkgs={"botocore": ["~=1.13", latest]},
+                    pkgs={"botocore": ["~=1.13", "==1.34.126"]},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.12"),
@@ -2401,8 +2401,8 @@ venv = Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
             pkgs={
-                "vcrpy": "==4.2.1",
-                "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
+                "vcrpy": latest,
+                "urllib3": latest,
                 "pytest-randomly": latest,
                 "pillow": latest,
             },
@@ -2420,7 +2420,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
-                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.30.1"],
+                        "openai[embeddings,datalib]": ["==1.1.1", "==1.30.1"],
                     },
                     venvs=[
                         Venv(pys=select_pys(min_version="3.7", max_version="3.7"), pkgs={"pytest-asyncio": "==0.21.1"}),
