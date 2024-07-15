@@ -817,7 +817,11 @@ def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot(
-    ignores=["metrics.langchain.tokens.total_cost", "meta.langchain.response.outputs.input_documents"]
+    ignores=[
+        "metrics.langchain.tokens.total_cost",
+        "meta.langchain.response.outputs.input_documents",
+        "meta.langchain.request.inputs.input_documents",
+    ]
 )
 def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
     """
