@@ -164,10 +164,11 @@ class _DDWSGIMiddlewareBase(object):
                 "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
             ).traced_iterable
 
-            if stop_iteration_exception and result.value:
-                # Close the request and app spans
-                result.value._finish_spans()
-                core.dispatch("wsgi.app.success", (ctx, closing_iterable))
+            if stop_iteration_exception:
+                if result.value:
+                    # Close the request and app spans
+                    result.value._finish_spans()
+                    core.dispatch("wsgi.app.success", (ctx, closing_iterable))
                 raise stop_iteration_exception
             return result.value if result else []
 
