@@ -415,7 +415,11 @@ pyexport_taintrange(py::module& m)
 
     m.def("get_ranges", &api_get_ranges, "string_input"_a, py::return_value_policy::take_ownership);
 
-    m.def("get_range_by_hash", &get_range_by_hash, "range_hash"_a, "taint_ranges"_a, py::return_value_policy::take_ownership);
+    m.def("get_range_by_hash",
+          &get_range_by_hash,
+          "range_hash"_a,
+          "taint_ranges"_a,
+          py::return_value_policy::take_ownership);
 
     // Fake constructor, used to force calling allocate_taint_range for performance reasons
     m.def(
