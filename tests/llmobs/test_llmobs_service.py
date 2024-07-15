@@ -159,6 +159,37 @@ def test_start_span_while_disabled_logs_warning(LLMObs, mock_logs):
     mock_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
 
 
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_ml_app="test_app_name", _llmobs_ml_app_version="1.2.3")],
+)
+def test_ml_app_version_via_config(LLMObs, ddtrace_global_config, mock_llmobs_span_writer):
+    with LLMObs.llm(model_name="test_model", model_provider="test_provider"):
+        pass
+    span_event = mock_llmobs_span_writer.enqueue.call_args[0][0]
+    assert "ml_app_version:1.2.3" in span_event["tags"]
+
+
+def test_ml_app_version_via_enable_sets_config_value(mock_llmobs_span_writer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer, ml_app_version="1.2.3")
+        llmobs_instance = llmobs_service._instance
+        with llmobs_instance.llm(model_name="test_model", model_provider="test_provider"):
+            pass
+        span_event = mock_llmobs_span_writer.enqueue.call_args[0][0]
+        assert "ml_app_version:1.2.3" in span_event["tags"]
+        llmobs_service.disable()
+
+
+def test_no_ml_app_version_set(LLMObs, mock_llmobs_span_writer):
+    with LLMObs.llm(model_name="test_model", model_provider="test_provider"):
+        pass
+    span_event = mock_llmobs_span_writer.enqueue.call_args[0][0]
+    for tag in span_event["tags"]:
+        assert not tag.startswith("ml_app_version")
+
+
 def test_start_span_uses_kind_as_default_name(LLMObs):
     with LLMObs.llm(model_name="test_model", model_provider="test_provider") as span:
         assert span.name == "llm"

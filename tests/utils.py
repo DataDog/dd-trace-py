@@ -148,6 +148,7 @@ def override_global_config(values):
         "_llmobs_enabled",
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
+        "_llmobs_ml_app_version",
     ]
 
     asm_config_keys = asm_config._asm_config_keys

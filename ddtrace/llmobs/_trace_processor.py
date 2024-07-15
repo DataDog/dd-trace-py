@@ -117,8 +117,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "metrics": metrics,
         }
 
-    @staticmethod
-    def _llmobs_tags(span: Span, ml_app: str, session_id: str) -> List[str]:
+    def _llmobs_tags(self, span: Span, ml_app: str, session_id: str) -> List[str]:
         tags = {
             "version": config.version or "",
             "env": config.env or "",
@@ -129,6 +128,8 @@ class LLMObsTraceProcessor(TraceProcessor):
             "ddtrace.version": ddtrace.__version__,
             "error": span.error,
         }
+        if config._llmobs_ml_app_version is not None:
+            tags["ml_app_version"] = config._llmobs_ml_app_version
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
