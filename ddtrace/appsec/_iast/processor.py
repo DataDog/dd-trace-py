@@ -1,5 +1,6 @@
-import dataclasses
 from typing import Optional
+
+import attr
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
@@ -22,7 +23,7 @@ from .reporter import IastSpanReporter
 log = get_logger(__name__)
 
 
-@dataclasses.dataclass(eq=False)
+@attr.s(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
     @staticmethod
     def is_span_analyzed(span: Optional[Span] = None) -> bool:

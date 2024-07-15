@@ -1,5 +1,6 @@
-import dataclasses
 import typing
+
+import attr
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span  # noqa:F401
@@ -11,13 +12,11 @@ from ddtrace.internal.compat import ensure_text
 EndpointCountsType = typing.Dict[str, int]
 
 
-@dataclasses.dataclass(eq=False)
+@attr.s(eq=False)
 class EndpointCallCounterProcessor(SpanProcessor):
-    endpoint_counts: EndpointCountsType = dataclasses.field(default_factory=dict, init=False, repr=False, compare=False)
-    _endpoint_counts_lock: typing.ContextManager = dataclasses.field(
-        default_factory=forksafe.Lock, init=False, repr=False, compare=False
-    )
-    _enabled: bool = dataclasses.field(default=False, repr=False, compare=False)
+    endpoint_counts = attr.ib(init=False, repr=False, type=EndpointCountsType, factory=lambda: {}, eq=False)
+    _endpoint_counts_lock = attr.ib(init=False, repr=False, factory=forksafe.Lock, eq=False)
+    _enabled = attr.ib(default=False, repr=False, eq=False)
 
     def enable(self):
         # type: () -> None
