@@ -49,9 +49,8 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
     @staticmethod
-    def _span_to_dict(span):
-        # type: (Span) -> Dict[str, Any]
-        d = {
+    def _span_to_dict(span: Span) -> Dict[str, Any]:
+        d: Dict[str, Any] = {
             "trace_id": span._trace_id_64bits,
             "parent_id": span.parent_id,
             "span_id": span.span_id,
