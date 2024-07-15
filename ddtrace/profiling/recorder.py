@@ -1,8 +1,9 @@
 # -*- encoding: utf-8 -*-
 import collections
-import dataclasses
 import threading
 import typing
+
+import attr
 
 from ddtrace.internal import forksafe
 from ddtrace.settings.profiling import config
@@ -26,22 +27,20 @@ class _defaultdictkey(dict):
 EventsType = typing.Dict[event.Event, typing.Sequence[event.Event]]
 
 
-@dataclasses.dataclass
-class Recorder:
+@attr.s
+class Recorder(object):
     """An object that records program activity."""
 
-    default_max_events: int = config.spec.max_events.default
+    default_max_events = attr.ib(default=config.spec.max_events.default, type=int)
     """The maximum number of events for an event type if one is not specified."""
 
-    max_events: typing.Dict[typing.Type[event.Event], typing.Optional[int]] = dataclasses.field(default_factory=dict)
+    max_events = attr.ib(factory=dict, type=typing.Dict[typing.Type[event.Event], typing.Optional[int]])
     """A dict of {event_type_class: max events} to limit the number of events to record."""
 
-    events: EventsType = dataclasses.field(init=False, repr=False, compare=False)
-    _events_lock: threading.RLock = dataclasses.field(
-        init=False, repr=False, default_factory=threading.RLock, compare=False
-    )
+    events = attr.ib(init=False, repr=False, eq=False, type=EventsType)
+    _events_lock = attr.ib(init=False, repr=False, factory=threading.RLock, eq=False)
 
-    def __post_init__(self):
+    def __attrs_post_init__(self):
         # type: (...) -> None
         self._reset_events()
         forksafe.register(self._after_fork)
