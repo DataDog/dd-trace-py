@@ -323,3 +323,22 @@ test = [
 
 [[envs.ddtrace_unit_tests.matrix]]
 python = ["3.12", "3.10", "3.7"]
+
+# Internal coverage (dd_coverage to distinguish from regular coverage) has version-specific code so tests are run
+# across all supported versions
+[envs.dd_coverage]
+template = "dd_coverage"
+dependencies = [
+    "hypothesis",
+    "pytest",
+    "pytest-cov",
+]
+
+[envs.dd_coverage.scripts]
+test = [
+    "pip freeze",
+    "pytest tests/coverage -s --no-cov",
+]
+
+[[envs.dd_coverage.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]

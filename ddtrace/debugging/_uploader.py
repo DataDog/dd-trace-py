@@ -1,9 +1,14 @@
+from enum import Enum
+from typing import Any
 from typing import Optional
+from typing import Set
 from urllib.parse import quote
 
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._encoding import BufferedEncoder
+from ddtrace.debugging._encoding import LogSignalJsonEncoder
+from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._metrics import metrics
+from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import AwakeablePeriodicService
@@ -16,6 +21,13 @@ log = get_logger(__name__)
 meter = metrics.get_meter("uploader")
 
 
+class UploaderProduct(str, Enum):
+    """Uploader products."""
+
+    DEBUGGER = "dynamic_instrumentation"
+    EXCEPTION_REPLAY = "exception_replay"
+
+
 class LogsIntakeUploaderV1(AwakeablePeriodicService):
     """Logs intake uploader.
 
@@ -23,13 +35,21 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
     the debugger and the events platform.
     """
 
+    _instance: Optional["LogsIntakeUploaderV1"] = None
+    _products: Set[UploaderProduct] = set()
+
+    __queue__ = SignalQueue
+    __collector__ = SignalCollector
+
     ENDPOINT = di_config._intake_endpoint
 
     RETRY_ATTEMPTS = 3
 
-    def __init__(self, queue: BufferedEncoder, interval: Optional[float] = None) -> None:
-        super().__init__(interval or di_config.upload_flush_interval)
-        self._queue = queue
+    def __init__(self, interval: Optional[float] = None) -> None:
+        super().__init__(interval if interval is not None else di_config.upload_flush_interval)
+
+        self._queue = self.__queue__(encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full)
+        self._collector = self.__collector__(self._queue)
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
@@ -74,6 +94,9 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
 
+    def _on_buffer_full(self, _item: Any, _encoded: bytes) -> None:
+        self.upload()
+
     def upload(self) -> None:
         """Upload request."""
         self.awake()
@@ -91,3 +114,32 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
                     log.debug("Cannot upload logs payload", exc_info=True)
 
     on_shutdown = periodic
+
+    @classmethod
+    def get_collector(cls) -> SignalCollector:
+        if cls._instance is None:
+            raise RuntimeError("No products registered with the uploader")
+
+        return cls._instance._collector
+
+    @classmethod
+    def register(cls, product: UploaderProduct) -> None:
+        if product in cls._products:
+            return
+
+        cls._products.add(product)
+
+        if cls._instance is None:
+            cls._instance = cls()
+            cls._instance.start()
+
+    @classmethod
+    def unregister(cls, product: UploaderProduct) -> None:
+        if product not in cls._products:
+            return
+
+        cls._products.remove(product)
+
+        if not cls._products and cls._instance is not None:
+            cls._instance.stop()
+            cls._instance = None

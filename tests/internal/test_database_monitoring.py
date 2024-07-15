@@ -37,21 +37,20 @@ def test_get_dbm_comment_disabled_mode():
     from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
 
-    dbspan = tracer.trace("dbspan", service="orders-db")
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        # when dbm propagation mode is disabled sqlcomments should NOT be generated
+        dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
+        sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
+        assert sqlcomment is None
 
-    # when dbm propagation mode is disabled sqlcomments should NOT be generated
-    dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
-    sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
-    assert sqlcomment is None
+        # when dbm propagation mode is disabled dbm_popagator.inject should NOT add dbm tags to args/kwargs
+        args, kwargs = ("SELECT * from table;",), {}
+        new_args, new_kwargs = dbm_popagator.inject(dbspan, args, kwargs)
+        assert new_kwargs == kwargs
+        assert new_args == args
 
-    # when dbm propagation mode is disabled dbm_popagator.inject should NOT add dbm tags to args/kwargs
-    args, kwargs = ("SELECT * from table;",), {}
-    new_args, new_kwargs = dbm_popagator.inject(dbspan, args, kwargs)
-    assert new_kwargs == kwargs
-    assert new_args == args
-
-    # when dbm propagation is disabled dbm tags should not be set
-    assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
+        # when dbm propagation is disabled dbm tags should not be set
+        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
 
 
 @pytest.mark.subprocess(
@@ -66,21 +65,20 @@ def test_dbm_propagation_service_mode():
     from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
 
-    dbspan = tracer.trace("dbname", service="orders-db")
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        # when dbm propagation is service mode sql comments should be generated with dbm tags
+        dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
+        sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
+        assert sqlcomment == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
 
-    # when dbm propagation is service mode sql comments should be generated with dbm tags
-    dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
-    sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
-    assert sqlcomment == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
+        # when dbm propagation mode is service dbm_popagator.inject SHOULD add dbm tags to args/kwargs
+        args, kwargs = ("SELECT * from table;",), {}
+        new_args, new_kwargs = dbm_popagator.inject(dbspan, args, kwargs.copy())
+        assert new_kwargs == {}
+        assert new_args == (sqlcomment + args[0],)
 
-    # when dbm propagation mode is service dbm_popagator.inject SHOULD add dbm tags to args/kwargs
-    args, kwargs = ("SELECT * from table;",), {}
-    new_args, new_kwargs = dbm_popagator.inject(dbspan, args, kwargs.copy())
-    assert new_kwargs == {}
-    assert new_args == (sqlcomment + args[0],)
-
-    # ensure that dbm tag is not set (only required in full mode)
-    assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
+        # ensure that dbm tag is not set (only required in full mode)
+        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
 
 
 @pytest.mark.subprocess(
@@ -95,32 +93,31 @@ def test_dbm_propagation_full_mode():
     from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
 
-    dbspan = tracer.trace("dbname", service="orders-db")
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        # since inject() below will call the sampler we just call the sampler here
+        # so sampling priority will align in the traceparent
+        tracer.sample(dbspan._local_root)
 
-    # since inject() below will call the sampler we just call the sampler here
-    # so sampling priority will align in the traceparent
-    tracer.sample(dbspan._local_root)
+        # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
+        dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
+        sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
+        # assert tags sqlcomment contains the correct value
+        assert (
+            sqlcomment
+            == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
+            % (dbspan.context._traceparent,)
+        )
 
-    # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
-    dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
-    sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
-    # assert tags sqlcomment contains the correct value
-    assert (
-        sqlcomment
-        == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
-        % (dbspan.context._traceparent,)
-    )
+        # when dbm propagation mode is full dbm_popagator.inject SHOULD add dbm tags and traceparent to args/kwargs
+        args, kwargs = tuple(), {"procedure": "SELECT * from table;"}
+        new_args, new_kwargs = dbm_popagator.inject(dbspan, args, kwargs.copy())
+        # assert that keyword was updated
+        assert new_kwargs == {"procedure": sqlcomment + kwargs["procedure"]}
+        # assert that args remain unchanged
+        assert new_args == args
 
-    # when dbm propagation mode is full dbm_popagator.inject SHOULD add dbm tags and traceparent to args/kwargs
-    args, kwargs = tuple(), {"procedure": "SELECT * from table;"}
-    new_args, new_kwargs = dbm_popagator.inject(dbspan, args, kwargs.copy())
-    # assert that keyword was updated
-    assert new_kwargs == {"procedure": sqlcomment + kwargs["procedure"]}
-    # assert that args remain unchanged
-    assert new_args == args
-
-    # ensure that dbm tag is set (required for full mode)
-    assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
+        # ensure that dbm tag is set (required for full mode)
+        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
 
 
 @pytest.mark.subprocess(
@@ -136,29 +133,28 @@ def test_dbm_dddbs_peer_service_enabled():
     from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
 
-    dbspan_no_service = tracer.trace("dbname")
+    with tracer.trace("dbname") as dbspan_no_service:
+        # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
+        dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
+        sqlcomment = dbm_popagator._get_dbm_comment(dbspan_no_service)
+        # assert tags sqlcomment contains the correct value
+        assert (
+            sqlcomment
+            == "/*dddbs='orders-app',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
+            % (dbspan_no_service.context._traceparent,)
+        ), sqlcomment
 
-    # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
-    dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
-    sqlcomment = dbm_popagator._get_dbm_comment(dbspan_no_service)
-    # assert tags sqlcomment contains the correct value
-    assert (
-        sqlcomment
-        == "/*dddbs='orders-app',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
-        % (dbspan_no_service.context._traceparent,)
-    ), sqlcomment
+        with tracer.trace("dbname") as dbspan_with_peer_service:
+            dbspan_with_peer_service.set_tag_str("db.name", "db-name-test")
 
-    dbspan_with_peer_service = tracer.trace("dbname")
-    dbspan_with_peer_service.set_tag_str("db.name", "db-name-test")
-
-    # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
-    dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
-    sqlcomment = dbm_popagator._get_dbm_comment(dbspan_with_peer_service)
-    # assert tags sqlcomment contains the correct value
-    assert (
-        sqlcomment == "/*dddb='db-name-test',dddbs='db-name-test',dde='staging',ddps='orders-app',"
-        "ddpv='v7343437-d7ac743',traceparent='%s'*/ " % (dbspan_with_peer_service.context._traceparent,)
-    ), sqlcomment
+            # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
+            dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
+            sqlcomment = dbm_popagator._get_dbm_comment(dbspan_with_peer_service)
+            # assert tags sqlcomment contains the correct value
+            assert (
+                sqlcomment == "/*dddb='db-name-test',dddbs='db-name-test',dde='staging',ddps='orders-app',"
+                "ddpv='v7343437-d7ac743',traceparent='%s'*/ " % (dbspan_with_peer_service.context._traceparent,)
+            ), sqlcomment
 
 
 @pytest.mark.subprocess(
@@ -173,31 +169,31 @@ def test_dbm_peer_entity_tags():
     from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
 
-    dbspan = tracer.trace("dbname")
-    dbspan.set_tag("out.host", "some-hostname")
-    dbspan.set_tag("db.name", "some-db")
+    with tracer.trace("dbname") as dbspan:
+        dbspan.set_tag("out.host", "some-hostname")
+        dbspan.set_tag("db.name", "some-db")
 
-    # since inject() below will call the sampler we just call the sampler here
-    # so sampling priority will align in the traceparent
-    tracer.sample(dbspan._local_root)
+        # since inject() below will call the sampler we just call the sampler here
+        # so sampling priority will align in the traceparent
+        tracer.sample(dbspan._local_root)
 
-    # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
-    dbm_propagator = _database_monitoring._DBM_Propagator(0, "procedure")
-    sqlcomment = dbm_propagator._get_dbm_comment(dbspan)
-    # assert tags sqlcomment contains the correct value
-    assert (
-        sqlcomment == "/*dddb='some-db',dddbs='orders-app',dde='staging',ddh='some-hostname',"
-        "ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ " % (dbspan.context._traceparent,)
-    ), sqlcomment
+        # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
+        dbm_propagator = _database_monitoring._DBM_Propagator(0, "procedure")
+        sqlcomment = dbm_propagator._get_dbm_comment(dbspan)
+        # assert tags sqlcomment contains the correct value
+        assert (
+            sqlcomment == "/*dddb='some-db',dddbs='orders-app',dde='staging',ddh='some-hostname',"
+            "ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ " % (dbspan.context._traceparent,)
+        ), sqlcomment
 
-    # when dbm propagation mode is service dbm_popagator.inject SHOULD add dbm tags to args/kwargs
-    args, kwargs = ("SELECT * from table;",), {}
-    new_args, new_kwargs = dbm_propagator.inject(dbspan, args, kwargs.copy())
-    assert new_kwargs == {}
-    assert new_args == (sqlcomment + args[0],)
+        # when dbm propagation mode is service dbm_popagator.inject SHOULD add dbm tags to args/kwargs
+        args, kwargs = ("SELECT * from table;",), {}
+        new_args, new_kwargs = dbm_propagator.inject(dbspan, args, kwargs.copy())
+        assert new_kwargs == {}
+        assert new_args == (sqlcomment + args[0],)
 
-    # ensure that dbm tag is set (required in full mode)
-    assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is not None
+        # ensure that dbm tag is set (required in full mode)
+        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is not None
 
 
 def test_default_sql_injector(caplog):
