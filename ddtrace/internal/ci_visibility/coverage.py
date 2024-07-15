@@ -62,8 +62,7 @@ def _initialize_coverage(root_dir):
 def _start_coverage(root_dir: str):
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
-        ctx = ModuleCodeCollector.CollectInContext()
-        return ctx
+        pass
     coverage = _initialize_coverage(root_dir)
     coverage.start()
     return coverage
@@ -72,8 +71,7 @@ def _start_coverage(root_dir: str):
 def _stop_coverage(module):
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
-        module._dd_coverage.__exit__()
-        return
+        pass
     if _module_has_dd_coverage_enabled(module):
         module._dd_coverage.stop()
         module._dd_coverage.erase()

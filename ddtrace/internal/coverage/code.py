@@ -1,5 +1,4 @@
 from collections import defaultdict
-from contextlib import AbstractContextManager
 from copy import deepcopy
 from inspect import getmodule
 import json
@@ -13,7 +12,7 @@ from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
-from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.vendor.contextvars import ContextVar
@@ -30,7 +29,7 @@ def _get_ctx_covered_lines() -> t.DefaultDict[str, t.Set]:
     return ctx_covered.get()[-1] if ctx_coverage_enabled.get() else defaultdict(set)
 
 
-class ModuleCodeCollector(BaseModuleWatchdog):
+class ModuleCodeCollector(ModuleWatchdog):
     _instance: t.Optional["ModuleCodeCollector"] = None
 
     def __init__(self) -> None:
@@ -197,7 +196,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
                     if dependency_path not in visited_paths:
                         to_visit_paths.add(dependency_path)
 
-    class CollectInContext(AbstractContextManager):
+    class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):
             self.is_import_coverage = is_import_coverage
             if ctx_covered.get() is None:
@@ -306,7 +305,18 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
 
+        ModuleCodeCollector.register_import_exception_hook(lambda x: True, self._exit_context_on_exception_hook)
+
         return retval
+
+    def _exit_context_on_exception_hook(self, _, _module: ModuleType) -> None:
+        if hasattr(_module, "__file__") and _module.__file__ in self._import_time_contexts:
+            collector = self._import_time_contexts[_module.__file__]
+            covered_lines = collector.get_covered_lines()
+            collector.__exit__()
+            self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+
+            del self._import_time_contexts[_module.__file__]
 
     def after_import(self, _module: ModuleType) -> None:
         if not self._collect_import_coverage:
@@ -337,10 +347,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         # need to intercept the loading of test modules by wrapping around the
         # exec built-in function.
 
-        _module = getmodule(_object)
+        module = getmodule(_object)
 
         new_object = (
-            self.transform(_object, _module)
+            self.transform(_object, module)
             if isinstance(_object, CodeType) and _object.co_name == "<module>"
             else _object
         )
