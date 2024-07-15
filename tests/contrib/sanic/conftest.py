@@ -8,6 +8,7 @@ from tests.utils import DummyTracer
 
 @pytest.fixture
 def tracer():
+    print("hello world")
     original_tracer = ddtrace.tracer
     tracer = DummyTracer()
     ddtrace.tracer = tracer
