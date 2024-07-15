@@ -38,7 +38,6 @@ __all__ = [
     "urlencode",
     "parse",
     "maybe_stringify",
-    "dataclasses",
 ]
 
 PYTHON_VERSION_INFO = sys.version_info

@@ -5,7 +5,6 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-from ..compat import dataclasses
 from ..constants import CONTAINER_ID_HEADER_NAME
 from ..constants import ENTITY_ID_HEADER_NAME
 from ..logger import get_logger
@@ -14,15 +13,14 @@ from ..logger import get_logger
 log = get_logger(__name__)
 
 
-@dataclasses.dataclass(slots=True)
 class CGroupInfo:
-    id: Any = None
-    groups: Any = None
-    path: Any = None
-    container_id: Any = None
-    controllers: Any = None
-    pod_id: Any = None
-    node_inode: Any = None
+    id_: Any
+    groups: Any
+    path: Any
+    container_id: Any
+    controllers: Any
+    pod_id: Any
+    node_inode: Any
 
     # The second part is the PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
     # See https://github.com/DataDog/datadog-agent/blob/7.40.x/pkg/util/cgroups/reader.go#L50
@@ -37,6 +35,24 @@ class CGroupInfo:
     CONTAINER_RE = re.compile(
         r"(?:.+)?({0}|{1}|{2})(?:\.scope)?$".format(UUID_SOURCE_PATTERN, CONTAINER_SOURCE_PATTERN, TASK_PATTERN)
     )
+
+    def __init__(
+        self,
+        id_=None,
+        groups=None,
+        path=None,
+        container_id=None,
+        controllers=None,
+        pod_id=None,
+        node_inode=None,
+    ):
+        self.id_ = id_
+        self.groups = groups
+        self.path = path
+        self.container_id = container_id
+        self.controllers = controllers
+        self.pod_id = pod_id
+        self.node_inode = node_inode
 
     @classmethod
     def from_line(cls, line):
@@ -89,7 +105,7 @@ class CGroupInfo:
             node_inode = None
 
         return cls(
-            id=id_,
+            id_=id_,
             groups=groups,
             path=path,
             container_id=container_id,

@@ -1,4 +1,5 @@
 import binascii
+import dataclasses
 import io
 import json
 import logging
@@ -12,7 +13,6 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace._logger import _add_file_handler
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 

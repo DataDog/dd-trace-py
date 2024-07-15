@@ -1,4 +1,5 @@
 import collections
+import dataclasses
 from fnmatch import fnmatch
 import os
 import re
@@ -19,7 +20,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import dataclasses
 from ddtrace.internal.compat import shjoin
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config

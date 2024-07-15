@@ -1,10 +1,10 @@
 # -*- encoding: utf-8 -*-
 import collections
+import dataclasses
 import threading
 import typing
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat import dataclasses
 from ddtrace.settings.profiling import config
 
 from . import event

@@ -1,5 +1,6 @@
 from __future__ import division
 
+import dataclasses
 import random
 import threading
 from typing import Any  # noqa:F401
@@ -10,7 +11,6 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import compat
-from ..internal.compat import dataclasses
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .core import RateLimiter as _RateLimiter
 
