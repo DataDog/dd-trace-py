@@ -496,11 +496,3 @@ def get_mp_context():
     import multiprocessing
 
     return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")
-
-
-if PYTHON_VERSION_INFO >= (3, 10):
-    import dataclasses
-else:
-    from ddtrace.vendor import dataclasses  # type: ignore[no-redef]
-
-sys.modules["dataclasses"] = dataclasses
