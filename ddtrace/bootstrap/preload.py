@@ -54,10 +54,15 @@ if symdb_config.enabled:
 
     symbol_db.bootstrap()
 
-if di_config.enabled or ed_config.enabled:
+if di_config.enabled:  # Dynamic Instrumentation
     from ddtrace.debugging import DynamicInstrumentation
 
     DynamicInstrumentation.enable()
+
+if ed_config.enabled:  # Exception Replay
+    from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+
+    SpanExceptionProcessor().register()
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
