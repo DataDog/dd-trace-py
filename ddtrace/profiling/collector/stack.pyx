@@ -501,7 +501,7 @@ class StackCollector(collector.PeriodicCollector):
         self.ignore_profiler: bool = ignore_profiler
         self.endpoint_collection_enabled: typing.Optional[bool] = endpoint_collection_enabled
         self.tracer: typing.Optional[Tracer] = tracer
-        self._thread_time: _ThreadTime = _ThreadTime()
+        self._thread_time: typing.Optional[_ThreadTime] = None
         self._last_wall_time: int = 0  # Placeholder for initial value
         self._thread_span_links: typing.Optional[_ThreadSpanLinks] = None
         self._stack_collector_v2_enabled: bool = _stack_collector_v2_enabled
