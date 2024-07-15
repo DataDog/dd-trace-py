@@ -333,7 +333,7 @@ def instrument_all_lines(
     # Instrument nested code objects recursively
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
-            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg)
+            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
             seen_lines.update(nested_lines)
 
     ext_arg_offsets = [(instr.offset, s) for instr, s in exts]

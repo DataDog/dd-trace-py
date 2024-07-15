@@ -1,5 +1,4 @@
 from abc import ABC
-from dataclasses import dataclass
 import dis
 from enum import Enum
 import sys
@@ -11,7 +10,7 @@ from ddtrace.internal.injection import HookType
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-assert sys.version_info >= (3, 11) and sys.version_info < (3, 12)  # nosec
+assert sys.version_info >= (3, 7) and sys.version_info < (3, 8)  # nosec
 
 
 class JumpDirection(int, Enum):
@@ -24,11 +23,20 @@ class JumpDirection(int, Enum):
 
 
 class Jump(ABC):
+    # NOTE: in Python 3.9, jump arguments are offsets, vs instruction numbers (ie offsets/2) in Python 3.10
     def __init__(self, start: int, argbytes: t.List[int]) -> None:
         self.start = start
-        self.end: t.Optional[int] = None
+        self.end: int
         self.arg = int.from_bytes(argbytes, "big", signed=False)
         self.argsize = len(argbytes)
+
+
+class AJump(Jump):
+    __opcodes__ = set(dis.hasjabs)
+
+    def __init__(self, start: int, arg: t.List[int]) -> None:
+        super().__init__(start, arg)
+        self.end = self.arg
 
 
 class RJump(Jump):
@@ -36,9 +44,8 @@ class RJump(Jump):
 
     def __init__(self, start: int, arg: t.List[int], direction: JumpDirection) -> None:
         super().__init__(start, arg)
-
         self.direction = direction
-        self.end = start + (self.arg << 1) * self.direction + 2
+        self.end = start + (self.arg) * self.direction + 2
 
 
 class Instruction:
@@ -51,14 +58,26 @@ class Instruction:
         self.targets: t.List["Branch"] = []
 
 
-class Branch:
+class Branch(ABC):
     def __init__(self, start: Instruction, end: Instruction) -> None:
         self.start = start
         self.end = end
 
     @property
     def arg(self) -> int:
+        raise NotImplementedError
+
+
+class RBranch(Branch):
+    @property
+    def arg(self) -> int:
         return abs(self.end.offset - self.start.offset - 2) >> 1
+
+
+class ABranch(Branch):
+    @property
+    def arg(self) -> int:
+        return self.end.offset >> 1
 
 
 EXTENDED_ARG = dis.EXTENDED_ARG
@@ -66,7 +85,7 @@ NO_OFFSET = -1
 
 
 def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
-    instructions = [Instruction(NO_OFFSET, opcode, arg & 0xFF)]
+    instructions = [Instruction(-1, opcode, arg & 0xFF)]
     arg >>= 8
     while arg:
         instructions.insert(0, Instruction(NO_OFFSET, EXTENDED_ARG, arg & 0xFF))
@@ -74,174 +93,87 @@ def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
     return instructions
 
 
-def from_varint(iterator: t.Iterator[int]) -> int:
-    b = next(iterator)
-    val = b & 63
-    while b & 64:
-        val <<= 6
-        b = next(iterator)
-        val |= b & 63
-    return val
-
-
-def to_varint(value: int, set_begin_marker: bool = False) -> bytes:
-    # Encode value as a varint on 7 bits (MSB should come first) and set
-    # the begin marker if requested.
-    temp = bytearray()
-    if value < 0:
-        raise ValueError("Invalid value for varint")
-    while value:
-        temp.insert(0, value & 63 | (64 if temp else 0))
-        value >>= 6
-    temp = temp or bytearray([0])
-    if set_begin_marker:
-        temp[0] |= 128
-    return bytes(temp)
-
-
-def consume_varint(stream: t.Iterable[int]) -> bytes:
-    a = bytearray()
-
-    b = next(stream)
-    a.append(b)
-
-    value = b & 0x3F
-    while b & 0x40:
-        b = next(stream)
-        a.append(b)
-
-        value = (value << 6) | (b & 0x3F)
-
-    return bytes(a)
-
-
-consume_signed_varint = consume_varint  # They are the same thing for our purposes
-
-
 def update_location_data(
     code: CodeType, trap_map: t.Dict[int, int], ext_arg_offsets: t.List[t.Tuple[int, int]]
 ) -> bytes:
+    # Some code objects do not have co_lnotab data (eg: certain lambdas)
+    if code.co_lnotab == b"":
+        return code.co_lnotab
+
     # DEV: We expect the original offsets in the trap_map
     new_data = bytearray()
+    data = code.co_lnotab
 
-    data = code.co_linetable
-    data_iter = iter(data)
     ext_arg_offset_iter = iter(sorted(ext_arg_offsets))
     ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
 
-    original_offset = offset = 0
-    while True:
-        try:
-            chunk = bytearray()
+    current_orig_offset = 0  # Cumulative offset used to compare against trap offsets
 
-            b = next(data_iter)
+    # 3.8 to 3.9: all instructions have to have line numbers, so the first instructions of the trap call must mark the
+    # beginning of the line. The subsequent offsets need to be incremented by the size of the trap call instructions
+    # plus any extended args.
 
-            chunk.append(b)
+    # Set the first trap size:
+    current_new_offset = accumulated_new_offset = trap_map[0] << 1
 
-            offset_delta = ((b & 7) + 1) << 1
-            loc_code = (b >> 3) & 0xF
+    for i in range(0, len(data), 2):
+        orig_offset_delta = data[i]
+        line_delta = data[i + 1]
 
-            if loc_code == 14:
-                chunk.extend(consume_signed_varint(data_iter))
-                for _ in range(3):
-                    chunk.extend(consume_varint(data_iter))
-            elif loc_code == 13:
-                chunk.extend(consume_signed_varint(data_iter))
-            elif 10 <= loc_code <= 12:
-                for _ in range(2):
-                    chunk.append(next(data_iter))
-            elif 0 <= loc_code <= 9:
-                chunk.append(next(data_iter))
+        # For each original offset, we compute how many offsets have been added in the new code, this includes:
+        # - the size of the trap at the previous offset
+        # - the amount of extended args added since the previous offset
 
-            if original_offset in trap_map:
-                # No location info for the trap bytecode
-                trap_size = trap_map[original_offset]
-                n, r = divmod(trap_size, 8)
-                for _ in range(n):
-                    new_data.append(0x80 | (0xF << 3) | 7)
-                if r:
-                    new_data.append(0x80 | (0xF << 3) | r - 1)
-                offset += trap_size << 1
+        current_new_offset += orig_offset_delta
+        current_orig_offset += orig_offset_delta
+        accumulated_new_offset += orig_offset_delta
 
-            # Extend the line table record if we added any EXTENDED_ARGs
-            original_offset += offset_delta
-            offset += offset_delta
-            if ext_arg_offset is not None and offset > ext_arg_offset:
-                room = 7 - offset_delta
-                chunk[0] += min(room, t.cast(int, ext_arg_size))
-                if room < t.cast(int, ext_arg_size):
-                    chunk.append(0x80 | (0xF << 3) | t.cast(int, ext_arg_size) - room)
-                offset += ext_arg_size << 1
+        # If the current offset is 255, just increment:
+        if orig_offset_delta == 255:
+            continue
 
-                ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
+        # If the current offset is 0, it means we are only incrementing the amount of lines jumped by the previous
+        # non-zero offset
+        if orig_offset_delta == 0:
+            new_data.append(0)
+            new_data.append(line_delta)
+            continue
 
-            new_data.extend(chunk)
-        except StopIteration:
-            break
+        while ext_arg_offset is not None and ext_arg_size is not None and current_new_offset > ext_arg_offset:
+            accumulated_new_offset += ext_arg_size << 1
+            current_new_offset += ext_arg_size << 1
+            ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
+
+        # If the current line delta changes, flush accumulated data:
+        if line_delta != 0:
+            while accumulated_new_offset > 255:
+                new_data.append(255)
+                new_data.append(0)
+                accumulated_new_offset -= 255
+
+            new_data.append(accumulated_new_offset)
+            new_data.append(line_delta)
+
+            # Also add the current trap size to the accumulated offset
+            accumulated_new_offset = trap_map[current_orig_offset] << 1
+            current_new_offset += accumulated_new_offset
 
     return bytes(new_data)
 
 
-@dataclass
-class ExceptionTableEntry:
-    start: t.Union[int, Instruction]
-    end: t.Union[int, Instruction]
-    target: t.Union[int, Instruction]
-    depth_lasti: int
-
-
-def parse_exception_table(code: CodeType):
-    iterator = iter(code.co_exceptiontable)
-    try:
-        while True:
-            start = from_varint(iterator) << 1
-            length = from_varint(iterator) << 1
-            end = start + length - 2  # Present as inclusive, not exclusive
-            target = from_varint(iterator) << 1
-            dl = from_varint(iterator)
-            yield ExceptionTableEntry(start, end, target, dl)
-    except StopIteration:
-        return
-
-
-def compile_exception_table(exc_table: t.List[ExceptionTableEntry]) -> bytes:
-    table = bytearray()
-    for entry in exc_table:
-        size = entry.end.offset - entry.start.offset + 2
-        table.extend(to_varint(entry.start.offset >> 1, True))
-        table.extend(to_varint(size >> 1))
-        table.extend(to_varint(entry.target.offset >> 1))
-        table.extend(to_varint(entry.depth_lasti))
-    return bytes(table)
-
-
-PUSH_NULL = dis.opmap["PUSH_NULL"]
 LOAD_CONST = dis.opmap["LOAD_CONST"]
-PRECALL = dis.opmap["PRECALL"]
-CACHE = dis.opmap["CACHE"]
-CALL = dis.opmap["CALL"]
+CALL = dis.opmap["CALL_FUNCTION"]
 POP_TOP = dis.opmap["POP_TOP"]
-RESUME = dis.opmap["RESUME"]
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 
 
 def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     return (
-        Instruction(NO_OFFSET, PUSH_NULL, 0),
         *instr_with_arg(LOAD_CONST, trap_index),
         *instr_with_arg(LOAD_CONST, arg_index),
-        Instruction(NO_OFFSET, PRECALL, 1),
-        Instruction(NO_OFFSET, CACHE, 0),
         Instruction(NO_OFFSET, CALL, 1),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
         Instruction(NO_OFFSET, POP_TOP, 0),
     )
-
-
-SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
 def instrument_all_lines(
@@ -258,8 +190,6 @@ def instrument_all_lines(
 
     seen_lines = set()
 
-    exc_table = list(parse_exception_table(code))
-    exc_table_offsets = {_ for e in exc_table for _ in (e.start, e.end, e.target)}
     offset_map = {}
 
     # Collect all the original jumps
@@ -268,35 +198,23 @@ def instrument_all_lines(
     line_map = {}
     line_starts = dict(dis.findlinestarts(code))
 
-    # Find the offset of the RESUME opcode. We should not add any
-    # instrumentation before this point.
-    try:
-        resume_offset = code.co_code[::2].index(RESUME) << 1
-    except ValueError:
-        resume_offset = NO_OFFSET
-
     try:
         code_iter = iter(enumerate(code.co_code))
-        ext: list[bytes] = []
+        ext: list[int] = []
         while True:
             original_offset, opcode = next(code_iter)
 
-            if original_offset in exc_table_offsets:
-                offset_map[original_offset] = len(instructions) << 1
-
-            if original_offset in line_starts and original_offset > resume_offset:
+            if original_offset in line_starts:
+                # Inject trap call at the beginning of the line. Keep track
+                # of location and size of the trap call instructions. We
+                # need this to adjust the location table.
                 line = line_starts[original_offset]
-                if code.co_code[original_offset] not in SKIP_LINES:
-                    # Inject trap call at the beginning of the line. Keep
-                    # track of location and size of the trap call
-                    # instructions. We need this to adjust the location
-                    # table.
-                    trap_instructions = trap_call(trap_index, len(new_consts))
-                    traps[original_offset] = len(trap_instructions)
-                    instructions.extend(trap_instructions)
-                    new_consts.append((line, trap_arg, None))
+                trap_instructions = trap_call(trap_index, len(new_consts))
+                traps[original_offset] = len(trap_instructions)
+                instructions.extend(trap_instructions)
+                new_consts.append((line, trap_arg, None))
 
-                    line_map[original_offset] = trap_instructions[0]
+                line_map[original_offset] = trap_instructions[0]
 
                 seen_lines.add(line)
 
@@ -316,7 +234,9 @@ def instrument_all_lines(
                 new_consts[-1] = (new_consts[-1][0], new_consts[-1][1], import_name)
 
             # Collect branching instructions for processing
-            if opcode in RJump.__opcodes__:
+            if opcode in AJump.__opcodes__:
+                jumps[offset] = AJump(original_offset, [*ext, arg])
+            elif opcode in RJump.__opcodes__:
                 jumps[offset] = RJump(original_offset, [*ext, arg], JumpDirection.from_opcode(opcode))
 
             if opcode is EXTENDED_ARG:
@@ -333,7 +253,7 @@ def instrument_all_lines(
     # jumps
     for index, instr in enumerate(instructions):
         new_offset = index << 1
-        if instr.offset in jump_targets or instr.offset in offset_map:
+        if instr.offset in jump_targets:
             offset_map[instr.offset] = new_offset
         instr.offset = new_offset
 
@@ -346,16 +266,14 @@ def instrument_all_lines(
         # If we are jumping at the beginning of a line, jump to the
         # beginning of the trap call instead
         target_instr = line_map.get(jump.end, instructions[new_end >> 1])
-        branch = Branch(instructions[new_start >> 1], target_instr)
+        branch: Branch = (
+            RBranch(instructions[new_start >> 1], target_instr)
+            if isinstance(jump, RJump)
+            else ABranch(instructions[new_start >> 1], target_instr)
+        )
         target_instr.targets.append(branch)
 
         branches.append(branch)
-
-    # Resolve the exception table
-    for e in exc_table:
-        e.start = instructions[offset_map[e.start] >> 1]
-        e.end = instructions[offset_map[e.end] >> 1]
-        e.target = instructions[offset_map[e.target] >> 1]
 
     # Process all the branching instructions to adjust the arguments. We
     # need to add EXTENDED_ARGs if the argument is too large.
@@ -365,7 +283,7 @@ def instrument_all_lines(
         process_branches = False
         for branch in branches:
             jump_instr = branch.start
-            new_arg = branch.arg
+            new_arg = branch.arg << 1  # 3.9 uses offsets, not instruction numbers
             jump_instr.arg = new_arg & 0xFF
             new_arg >>= 8
             c = 0
@@ -418,18 +336,25 @@ def instrument_all_lines(
             new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
             seen_lines.update(nested_lines)
 
-    new_linetable = update_location_data(code, traps, [(instr.offset, s) for instr, s in exts])
-    new_exceptiontable = compile_exception_table(exc_table)
-
-    replace = code.replace(
-        co_code=bytes(new_code),
-        co_consts=tuple(new_consts),
-        co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-        co_linetable=new_linetable,
-        co_exceptiontable=new_exceptiontable,
-    )
+    ext_arg_offsets = [(instr.offset, s) for instr, s in exts]
 
     return (
-        replace,
+        CodeType(
+            code.co_argcount,
+            code.co_kwonlyargcount,
+            code.co_nlocals,
+            code.co_stacksize + 4,
+            code.co_flags,
+            bytes(new_code),
+            tuple(new_consts),
+            code.co_names,
+            code.co_varnames,
+            code.co_filename,
+            code.co_name,
+            code.co_firstlineno,
+            update_location_data(code, traps, ext_arg_offsets),
+            code.co_freevars,
+            code.co_cellvars,
+        ),
         seen_lines,
     )
