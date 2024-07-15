@@ -95,6 +95,7 @@ tests/llmobs                                        @DataDog/ml-observability
 tests/contrib/openai                                @DataDog/ml-observability
 tests/contrib/langchain                             @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock.py              @DataDog/ml-observability
+tests/contrib/botocore/test_bedrock_llmobs.py       @DataDog/ml-observability
 tests/contrib/botocore/bedrock_cassettes            @DataDog/ml-observability
 tests/contrib/anthropic                             @DataDog/ml-observability
 
@@ -119,6 +120,7 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 .github/ISSUE_TEMPLATE.md           @DataDog/python-guild  @DataDog/apm-core-python
 .github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
 .github/workflows/system-tests.yml  @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 tests/utils.py                      @DataDog/python-guild

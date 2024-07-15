@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Function decorators now support tracing asynchronous functions.

@@ -48,15 +48,15 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 sh = 3
                 b(foo << sh)
 
-        with exception_debugging() as d:
+        with exception_debugging() as uploader:
             with with_rate_limiter(RateLimiter(limit_rate=1, raise_on_exceed=False)):
                 with pytest.raises(ValueError):
                     c()
 
             self.assert_span_count(3)
-            assert len(d.test_queue) == 3
+            assert len(uploader.collector.queue) == 3
 
-            snapshots = {str(s.uuid): s for s in d.test_queue}
+            snapshots = {str(s.uuid): s for s in uploader.collector.queue}
 
             for n, span in enumerate(self.spans):
                 assert span.get_tag("error.debug_info_captured") == "true"
@@ -107,7 +107,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 sh = 3
                 b_chain(foo << sh)
 
-        with exception_debugging() as d:
+        with exception_debugging() as uploader:
             rate_limiter = RateLimiter(
                 limit_rate=0.1,  # one trace per second
                 tau=10,
@@ -118,9 +118,9 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                     c()
 
             self.assert_span_count(3)
-            assert len(d.test_queue) == 3
+            assert len(uploader.collector.queue) == 3
 
-            snapshots = {str(s.uuid): s for s in d.test_queue}
+            snapshots = {str(s.uuid): s for s in uploader.collector.queue}
 
             stacks = [["b_chain", "a", "c", "b_chain"], ["b_chain", "a"], ["a"]]
             number_of_exc_ids = 1
@@ -163,4 +163,4 @@ class ExceptionDebuggingTestCase(TracerTestCase):
 
             self.assert_span_count(6)
             # no new snapshots
-            assert len(d.test_queue) == 3
+            assert len(uploader.collector.queue) == 3

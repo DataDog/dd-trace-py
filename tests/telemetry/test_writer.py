@@ -9,8 +9,6 @@ import mock
 import pytest
 
 from ddtrace.internal.module import origin
-from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.service import ServiceStatusError
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
@@ -262,7 +260,7 @@ import ddtrace.auto
             {"name": env_var, "origin": "env_var", "value": expected_value},
             {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
             {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
-            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},
@@ -406,14 +404,17 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
+    # app started event must be queued before any other telemetry event
+    telemetry_writer._app_started_event(register_app_shutdown=False)
+    assert telemetry_writer.started
     # send app closed event
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer.app_shutdown()
+    telemetry_writer.app_shutdown()
 
-        requests = test_agent_session.get_requests("app-closing")
-        assert len(requests) == 1
-        # ensure a valid request body was sent
-        assert requests[0]["body"] == _get_request_body({}, "app-closing")
+    requests = test_agent_session.get_requests("app-closing")
+    assert len(requests) == 1
+    # ensure a valid request body was sent
+    totel_events = len(test_agent_session.get_events())
+    assert requests[0]["body"] == _get_request_body({}, "app-closing", totel_events)
 
 
 def test_add_integration(telemetry_writer, test_agent_session, mock_time):
@@ -507,29 +508,12 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 telemetry_writer.periodic(force_flush=True)
                 # asserts unsuccessful status code was logged
                 log.debug.assert_called_with(
-                    "failed to send telemetry to the %s at %s. response: %s",
-                    "Datadog Agent",
+                    "failed to send telemetry to %s. response: %s",
                     telemetry_writer._client.url,
                     mock_status,
                 )
             # ensure one failing request was sent
             assert len(httpretty.latest_requests()) == 1
-
-
-def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        try:
-            telemetry_writer.start()
-        except ServiceStatusError:
-            telemetry_writer.status = ServiceStatus.STOPPED
-            telemetry_writer.start()
-        telemetry_writer.stop()
-        # mocks calling sys.atexit hooks
-        telemetry_writer.app_shutdown()
-
-        events = test_agent_session.get_events("app-closing")
-        assert len(events) == 1
-        assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
@@ -583,24 +567,28 @@ def test_telemetry_writer_agent_setup():
         {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": False}
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._client._is_agentless is False
-        assert new_telemetry_writer._client._is_disabled is False
+        assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
         assert new_telemetry_writer._client._telemetry_url == "http://localhost:9126"
         assert "dd-api-key" not in new_telemetry_writer._client._headers
 
 
 @pytest.mark.parametrize(
-    "env_agentless,arg_agentless,expected_agentless",
-    [(True, True, True), (True, False, False), (False, True, True), (False, False, False)],
+    "env_agentless,arg_agentless,expected_endpoint",
+    [
+        (True, True, "api/v2/apmtelemetry"),
+        (True, False, "telemetry/proxy/api/v2/apmtelemetry"),
+        (False, True, "api/v2/apmtelemetry"),
+        (False, False, "telemetry/proxy/api/v2/apmtelemetry"),
+    ],
 )
-def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless, arg_agentless, expected_agentless):
+def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless, arg_agentless, expected_endpoint):
     with override_global_config(
         {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": env_agentless}
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=arg_agentless)
         # Note: other tests are checking whether values bet set properly, so we're only looking at agentlessness here
-        assert new_telemetry_writer._client._is_agentless == expected_agentless
+        assert new_telemetry_writer._client._endpoint == expected_endpoint
 
 
 def test_telemetry_writer_agentless_setup():
@@ -608,8 +596,7 @@ def test_telemetry_writer_agentless_setup():
         {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": True}
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._client._is_agentless is True
-        assert new_telemetry_writer._client._is_disabled is False
+        assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
         assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
         assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
@@ -620,8 +607,7 @@ def test_telemetry_writer_agentless_setup_eu():
         {"_dd_site": "datadoghq.eu", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": True}
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._client._is_agentless is True
-        assert new_telemetry_writer._client._is_disabled is False
+        assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
         assert (
             new_telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
@@ -634,8 +620,7 @@ def test_telemetry_writer_agentless_disabled_without_api_key():
         {"_dd_site": "datad0g.com", "_dd_api_key": None, "_ci_visibility_agentless_enabled": True}
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._client._is_agentless is True
-        assert new_telemetry_writer._client._is_disabled is True
+        assert not new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
         assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
         assert "dd-api-key" not in new_telemetry_writer._client._headers

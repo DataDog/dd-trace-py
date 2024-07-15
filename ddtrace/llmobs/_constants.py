@@ -24,6 +24,7 @@ SPAN_START_WHILE_DISABLED_WARNING = (
 )
 
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
+OPENAI_APM_SPAN_NAME = "openai.request"
 
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
