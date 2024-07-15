@@ -546,10 +546,6 @@ class Span(object):
         if issubclass(exc_type, SystemExit) and exc_val.code == 0:
             return
 
-        # StopIteration should not mark span as an error: https://github.com/miguelgrinberg/flask-sock/issues/64
-        if exc_type is StopIteration:
-            return
-
         if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa:F401
             return
 
