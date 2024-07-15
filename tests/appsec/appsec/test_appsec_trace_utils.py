@@ -18,7 +18,7 @@ from ddtrace.internal import core
 from tests.appsec.appsec.test_processor import tracer_appsec  # noqa: F401
 import tests.appsec.rules as rules
 from tests.utils import TracerTestCase
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 class EventsSDKTestCase(TracerTestCase):
@@ -47,7 +47,7 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert root_span.get_tag("appsec.events.users.login.success.track") == "true"
             assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
             assert not root_span.get_tag("%s.track" % failure_prefix)
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
@@ -79,7 +79,7 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert user_span.get_tag("%s.track" % success_prefix) == "true"
             assert user_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
-            assert user_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
+            assert user_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
             assert not user_span.get_tag("%s.track" % failure_prefix)
             assert user_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
@@ -103,14 +103,14 @@ class EventsSDKTestCase(TracerTestCase):
                 scope="test_scope",
                 role="boss",
                 session_id="test_session_id",
-                login_events_mode=LOGIN_EVENTS_MODE.SAFE,
+                login_events_mode=LOGIN_EVENTS_MODE.ANON,
             )
 
             root_span = self.tracer.current_root_span()
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
             assert not root_span.get_tag("_dd.appsec.events.users.login.success.sdk")
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.SAFE)
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.ANON)
 
     def test_track_user_login_event_success_auto_mode_extended(self):
         with self.trace("test_success1"):
@@ -123,14 +123,14 @@ class EventsSDKTestCase(TracerTestCase):
                 scope="test_scope",
                 role="boss",
                 session_id="test_session_id",
-                login_events_mode=LOGIN_EVENTS_MODE.EXTENDED,
+                login_events_mode=LOGIN_EVENTS_MODE.IDENT,
             )
 
             root_span = self.tracer.current_root_span()
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
             assert not root_span.get_tag("_dd.appsec.events.users.login.success.sdk")
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.EXTENDED)
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.IDENT)
 
     def test_track_user_login_event_success_with_metadata(self):
         with self.trace("test_success2"):
@@ -138,7 +138,7 @@ class EventsSDKTestCase(TracerTestCase):
             root_span = self.tracer.current_root_span()
             assert root_span.get_tag("appsec.events.users.login.success.track") == "true"
             assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
             assert root_span.get_tag("%s.success.foo" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC) == "bar"
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
@@ -167,7 +167,7 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert root_span.get_tag("%s.track" % failure_prefix) == "true"
             assert root_span.get_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == "safe"
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.IDENT
             assert not root_span.get_tag("%s.track" % success_prefix)
             assert not root_span.get_tag("_dd.appsec.events.users.login.success.sdk")
             assert not root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE)
@@ -217,7 +217,7 @@ class EventsSDKTestCase(TracerTestCase):
 
     def test_set_user_blocked(self):
         tracer = self._tracer_appsec
-        with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled="true", _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             tracer.configure(api_version="v0.4")
             with tracer.trace("fake_span", span_type=SpanTypes.WEB) as span:
                 set_user(

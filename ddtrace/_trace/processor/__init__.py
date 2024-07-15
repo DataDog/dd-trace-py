@@ -14,9 +14,11 @@ from ddtrace import config
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _is_top_level
+from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
+from ddtrace.internal import telemetry
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -24,12 +26,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
 
-
-if config._telemetry_enabled:
-    from ddtrace.internal import telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 
 try:
     from typing import DefaultDict  # noqa:F401
@@ -148,6 +147,7 @@ class TraceSamplingProcessor(TraceProcessor):
     _compute_stats_enabled = attr.ib(type=bool)
     sampler = attr.ib()
     single_span_rules = attr.ib(type=List[SpanSamplingRule])
+    apm_opt_out = attr.ib(type=bool)
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
@@ -156,12 +156,15 @@ class TraceSamplingProcessor(TraceProcessor):
             chunk_root = trace[0]
             root_ctx = chunk_root._context
 
+            if self.apm_opt_out:
+                chunk_root.set_metric(MK_APM_ENABLED, 0)
+
             # only trace sample if we haven't already sampled
             if root_ctx and root_ctx.sampling_priority is None:
                 self.sampler.sample(trace[0])
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
-            if self._compute_stats_enabled:
+            if self._compute_stats_enabled and not self.apm_opt_out:
                 priority = root_ctx.sampling_priority if root_ctx is not None else None
                 if priority is not None and priority <= 0:
                     # When any span is marked as keep by a single span sampling
@@ -292,8 +295,7 @@ class SpanAggregator(SpanProcessor):
         type=Dict[str, DefaultDict],
     )
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
@@ -304,6 +306,16 @@ class SpanAggregator(SpanProcessor):
         # type: (Span) -> None
         with self._lock:
             self._span_metrics["spans_finished"][span._span_api] += 1
+
+            # Calling finish on a span that we did not see the start for
+            # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
+            #      e.g. `tracer.configure()` is called after starting a span
+            if span.trace_id not in self._traces:
+                log_msg = "finished span not connected to a trace"
+                telemetry.telemetry_writer.add_log("ERROR", log_msg)
+                log.debug("%s: %s", log_msg, span)
+                return
+
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
             should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
@@ -321,15 +333,25 @@ class SpanAggregator(SpanProcessor):
                     finished = trace_spans
 
                 num_finished = len(finished)
+                trace.num_finished -= num_finished
+                if trace.num_finished != 0:
+                    log_msg = "unexpected finished span count"
+                    telemetry.telemetry_writer.add_log("ERROR", log_msg)
+                    log.debug("%s (%s) for span %s", log_msg, num_finished, span)
+                    trace.num_finished = 0
 
+                # If we have removed all spans from this trace, then delete the trace from the traces dict
+                if len(trace.spans) == 0:
+                    del self._traces[span.trace_id]
+
+                # No spans to process, return early
+                if not finished:
+                    return
+
+                # Set partial flush tag on the first span
                 if should_partial_flush:
                     log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
-
-                trace.num_finished -= num_finished
-
-                if len(trace.spans) == 0:
-                    del self._traces[span.trace_id]
 
                 spans = finished  # type: Optional[List[Span]]
                 for tp in self._trace_processors:
@@ -357,16 +379,25 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if config._telemetry_enabled and (self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]):
-            telemetry.telemetry_writer._is_periodic = False
-            telemetry.telemetry_writer._enabled = True
-            # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-            # before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_created", "integration_name", 1)
-            # on_span_finish(...) queues span finish metrics in batches of 100.
-            # This ensures all remaining counts are sent before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_finished", "integration_name", 1)
-            telemetry.telemetry_writer.periodic(True)
+        # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+        # before the tracer is shutdown.
+        self._queue_span_count_metrics("spans_created", "integration_name", 1)
+        # on_span_finish(...) queues span finish metrics in batches of 100.
+        # This ensures all remaining counts are sent before the tracer is shutdown.
+        self._queue_span_count_metrics("spans_finished", "integration_name", 1)
+        # Log a warning if the tracer is shutdown before spans are finished
+        unfinished_spans = [
+            f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
+            for t in self._traces.values()
+            for s in t.spans
+            if not s.finished
+        ]
+        if unfinished_spans:
+            log.warning(
+                "Shutting down tracer with %d unfinished spans. " "Unfinished spans will not be sent to Datadog: %s",
+                len(unfinished_spans),
+                ", ".join(unfinished_spans),
+            )
 
         try:
             self._writer.stop(timeout)

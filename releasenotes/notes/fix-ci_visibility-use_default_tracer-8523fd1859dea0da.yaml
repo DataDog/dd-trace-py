@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes that traces were not properly being sent in agentless mode, and were otherwise not properly attached to the test that started them

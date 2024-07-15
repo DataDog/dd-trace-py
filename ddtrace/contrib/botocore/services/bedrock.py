@@ -317,16 +317,18 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     params = function_vars.get("params")
     pin = function_vars.get("pin")
     model_provider, model_name = params.get("modelId").split(".")
+    integration = function_vars.get("integration")
+    submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,
         span_name=function_vars.get("trace_operation"),
         service=schematize_service_name("{}.{}".format(pin.service, function_vars.get("endpoint_name"))),
         resource=function_vars.get("operation"),
-        span_type=SpanTypes.LLM if "embed" not in model_name else None,
+        span_type=SpanTypes.LLM if submit_to_llmobs else None,
         call_key="instrumented_bedrock_call",
         call_trace=True,
-        bedrock_integration=function_vars.get("integration"),
+        bedrock_integration=integration,
         params=params,
         model_provider=model_provider,
         model_name=model_name,

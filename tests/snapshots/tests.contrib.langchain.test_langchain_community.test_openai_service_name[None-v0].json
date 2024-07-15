@@ -6,7 +6,7 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "llm",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
@@ -50,7 +50,7 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "llm",
+       "type": "",
        "error": 0,
        "meta": {
          "component": "openai",
@@ -97,7 +97,7 @@
             "http.method": "POST",
             "http.status_code": "200",
             "http.url": "https://api.openai.com/v1/completions",
-            "http.useragent": "OpenAI/Python 1.12.0",
+            "http.useragent": "OpenAI/Python 1.30.3",
             "out.host": "api.openai.com",
             "span.kind": "client"
           },

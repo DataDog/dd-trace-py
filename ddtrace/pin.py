@@ -143,7 +143,7 @@ class Pin(object):
     def enabled(self):
         # type: () -> bool
         """Return true if this pin's tracer is enabled."""
-        return bool(self.tracer) and self.tracer.enabled
+        return bool(self.tracer) and (self.tracer.enabled or self.tracer._apm_opt_out)
 
     def onto(self, obj, send=True):
         # type: (Any, bool) -> None

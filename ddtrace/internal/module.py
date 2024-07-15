@@ -63,6 +63,19 @@ def _patch_run_code() -> None:
         runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
 
 
+def register_run_module_transformer(transformer: TransformerType) -> None:
+    """Register a run module transformer."""
+    _run_module_transformers.append(transformer)
+
+
+def unregister_run_module_transformer(transformer: TransformerType) -> None:
+    """Unregister a run module transformer.
+
+    If the transformer was not registered, a ``ValueError`` exception is raised.
+    """
+    _run_module_transformers.remove(transformer)
+
+
 def register_post_run_module_hook(hook: ModuleHookType) -> None:
     """Register a post run module hook.
 
@@ -173,6 +186,16 @@ class _ImportHookChainedLoader:
         self.transformers[key] = transformer
 
     def call_back(self, module: ModuleType) -> None:
+        # Restore the original loader
+        try:
+            module.__loader__ = self.loader
+        except AttributeError:
+            pass
+        try:
+            module.spec.loader = self.loader
+        except AttributeError:
+            pass
+
         if module.__name__ == "pkg_resources":
             # DEV: pkg_resources support to prevent errors such as
             # NotImplementedError: Can't perform this operation for unregistered

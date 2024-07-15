@@ -1,4 +1,4 @@
-#include "interface.hpp"
+#include "ddup_interface.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "sample.hpp"
@@ -99,10 +99,17 @@ ddup_config_sample_type(unsigned int _type) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::add_type(_type);
 }
+
 void
 ddup_config_max_nframes(int max_nframes) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::set_max_nframes(max_nframes);
+}
+
+void
+ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
+{
+    Datadog::SampleManager::set_timeline(enabled);
 }
 
 bool
@@ -112,7 +119,7 @@ ddup_is_initialized() // cppcheck-suppress unusedFunction
 }
 
 void
-ddup_init() // cppcheck-suppress unusedFunction
+ddup_start() // cppcheck-suppress unusedFunction
 {
     std::call_once(ddup_init_flag, []() {
         // Perform any one-time startup operations
@@ -178,10 +185,10 @@ ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name) // cppc
 }
 
 void
-ddup_push_threadinfo(Datadog::Sample* sample,
+ddup_push_threadinfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                      int64_t thread_id,
                      int64_t thread_native_id,
-                     std::string_view thread_name) // cppcheck-suppress unusedFunction
+                     std::string_view thread_name)
 {
     sample->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
@@ -217,16 +224,16 @@ ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type) // cp
 }
 
 void
-ddup_push_trace_resource_container(Datadog::Sample* sample,
-                                   std::string_view trace_resource_container) // cppcheck-suppress unusedFunction
+ddup_push_trace_resource_container(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
+                                   std::string_view trace_resource_container)
 {
     sample->push_trace_resource_container(trace_resource_container);
 }
 
 void
-ddup_push_exceptioninfo(Datadog::Sample* sample,
+ddup_push_exceptioninfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                         std::string_view exception_type,
-                        int64_t count) // cppcheck-suppress unusedFunction
+                        int64_t count)
 {
     sample->push_exceptioninfo(exception_type, count);
 }
@@ -245,6 +252,12 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 int64_t line)
 {
     sample->push_frame(_name, _filename, address, line);
+}
+
+void
+ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppcheck-suppress unusedFunction
+{
+    sample->push_monotonic_ns(monotonic_ns);
 }
 
 void

@@ -14,6 +14,7 @@ from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...internal import core
 from .. import trace_utils
 from . import constants
 from .utils import set_grpc_method_meta
@@ -50,6 +51,8 @@ def _handle_server_exception(server_context, span):
 def _wrap_response_iterator(response_iterator, server_context, span):
     try:
         for response in response_iterator:
+            if response is not None:
+                core.dispatch("grpc.server.response.message", (response,))
             yield response
     except Exception:
         span.set_traceback()
@@ -68,6 +71,21 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def _fn(self, method_kind, behavior, args, kwargs):
         tracer = self._pin.tracer
         headers = dict(self._handler_call_details.invocation_metadata)
+        request_message = None
+        if len(args):
+            # Check if it's a GPRC request message. They have no parent class, so we use some duck typing
+            if hasattr(args[0], "DESCRIPTOR") and hasattr(args[0].DESCRIPTOR, "fields"):
+                request_message = args[0]
+
+        core.dispatch(
+            "grpc.server.data",
+            (
+                headers,
+                request_message,
+                self._handler_call_details.method,
+                self._handler_call_details.invocation_metadata,
+            ),
+        )
 
         trace_utils.activate_distributed_headers(tracer, int_config=config.grpc_server, request_headers=headers)
 
@@ -104,6 +122,10 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
             if self.__wrapped__.response_streaming:
                 response_or_iterator = _wrap_response_iterator(response_or_iterator, server_context, span)
+            else:
+                # not iterator
+                if response_or_iterator is not None:
+                    core.dispatch("grpc.server.response.message", (response_or_iterator,))
         except Exception:
             span.set_traceback()
             _handle_server_exception(server_context, span)

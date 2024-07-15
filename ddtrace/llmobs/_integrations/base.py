@@ -124,9 +124,9 @@ class BaseLLMIntegration:
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
-        if submit_to_llmobs:
+        if submit_to_llmobs and self.llmobs_enabled:
             span.span_type = SpanTypes.LLM
-            if self.llmobs_enabled and span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
+            if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
                 # For non-distributed traces or spans in the first service of a distributed trace,
                 # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
                 # in these cases to avoid conflicting with the later propagated tags.

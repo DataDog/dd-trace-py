@@ -92,7 +92,9 @@ def gen_build_docs(template: dict) -> None:
     """Include the docs build step if the docs have changed."""
     from needs_testrun import pr_matches_patterns
 
-    if pr_matches_patterns({"docker", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*"}):
+    if pr_matches_patterns(
+        {"docker", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
+    ):
         template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
 
 
@@ -110,16 +112,6 @@ def gen_conftests(template: dict) -> None:
 
     if pr_matches_patterns({"docker", "tests/*conftest.py", "tests/meta/*"}):
         template["workflows"]["test"]["jobs"].append({"conftests": template["requires_pre_check"]})
-
-
-def gen_c_check(template: dict) -> None:
-    """Include C code checks if C code has changed."""
-    from needs_testrun import pr_matches_patterns
-
-    if pr_matches_patterns({"docker", "*.c", "*.h", "*.cpp", "*.hpp", "*.cc", "*.hh"}):
-        template["requires_pre_check"]["requires"].append("ccheck")
-        template["requires_base_venvs"]["requires"].append("ccheck")
-        template["workflows"]["test"]["jobs"].append("ccheck")
 
 
 def extract_git_commit_selections(git_commit_message: str) -> dict:

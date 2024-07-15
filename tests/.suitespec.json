@@ -30,11 +30,14 @@
             "tests/lib-injection/dd-lib-python-init-test-django-no-perms/*",
             "tests/lib-injection/dd-lib-python-init-test-django-pre-installed/*",
             "tests/lib-injection/dd-lib-python-init-test-django-unsupported-python/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package-force/*",
             "tests/lib-injection/dd-lib-python-init-test-django-uvicorn/*"
         ],
         "core": [
             "ddtrace/internal/__init__.py",
             "ddtrace/internal/_exceptions.py",
+            "ddtrace/internal/_file_queue.py",
             "ddtrace/internal/_rand.pyi",
             "ddtrace/internal/_rand.pyx",
             "ddtrace/internal/_stdint.h",
@@ -71,7 +74,8 @@
             "ddtrace/__init__.py",
             "ddtrace/py.typed",
             "ddtrace/version.py",
-            "ddtrace/settings/config.py"
+            "ddtrace/settings/config.py",
+            "src/core/*"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
@@ -245,6 +249,9 @@
         ],
         "langchain": [
             "ddtrace/contrib/langchain/*"
+        ],
+        "anthropic": [
+            "ddtrace/contrib/anthropic/*"
         ],
         "subprocess": [
             "ddtrace/contrib/subprocess/*"
@@ -439,6 +446,7 @@
             "@core",
             "@remoteconfig",
             "@symbol_db",
+            "@tracing",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
@@ -473,8 +481,10 @@
             "@bootstrap",
             "@core",
             "@contrib",
+            "@llmobs",
             "@serverless",
             "@remoteconfig",
+            "@futures",
             "tests/tracer/*",
             "tests/snapshots/test_*"
         ],
@@ -616,17 +626,20 @@
             "tests/datastreams/*"
         ],
         "ci_visibility": [
-            "@bootstrap",
-            "@core",
-            "@tracing",
             "@ci_visibility",
             "@ci",
             "@coverage",
-            "@dd_coverage",
             "@git",
             "@pytest",
             "@codeowners",
             "tests/ci_visibility/*"
+        ],
+        "dd_coverage": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@dd_coverage",
+            "tests/coverage/*"
         ],
         "llmobs": [
             "@bootstrap",
@@ -647,6 +660,7 @@
             "@core",
             "@telemetry",
             "@settings",
+            "@profiling",
             "tests/telemetry/*",
             "tests/snapshots/tests.telemetry.*"
         ],
@@ -758,7 +772,7 @@
             "@contrib",
             "@tracing",
             "@dbapi",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "asyncpg": [
             "@bootstrap",
@@ -768,7 +782,7 @@
             "@pg",
             "tests/contrib/asyncpg/*",
             "tests/snapshots/tests.contrib.{suite}.*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aiohttp": [
             "@bootstrap",
@@ -931,7 +945,6 @@
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
-            "tests/contrib/flask_login/*",
             "tests/snapshots/tests.contrib.flask.*"
         ],
         "gevent": [
@@ -1224,7 +1237,7 @@
             "@mysql",
             "tests/contrib/aiomysql/*",
             "tests/snapshots/tests.contrib.{suite}.*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aiopg": [
             "@bootstrap",
@@ -1235,7 +1248,7 @@
             "@pg",
             "@aiopg",
             "tests/contrib/aiopg/*",
-            "tests/contrib/shared_tests.py"
+            "tests/contrib/shared_tests_async.py"
         ],
         "aredis": [
             "@bootstrap",
@@ -1270,6 +1283,7 @@
             "@contrib",
             "@tracing",
             "@tornado",
+            "@futures",
             "tests/contrib/tornado/*"
         ],
         "rediscluster": [
@@ -1377,6 +1391,17 @@
             "@llmobs",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
+        ],
+        "anthropic": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@anthropic",
+            "@requests",
+            "@llmobs",
+            "tests/contrib/anthropic/*",
+            "tests/snapshots/tests.contrib.anthropic.*"
         ],
         "runtime": [
             "@core",

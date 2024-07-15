@@ -1,0 +1,184 @@
+[[
+  {
+    "name": "op",
+    "service": "my-svc",
+    "resource": "/users/list",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  }],
+[
+  {
+    "name": "op",
+    "service": "my-svc",
+    "resource": "/users/list",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.origin": "synthetics",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  }],
+[
+  {
+    "name": "op",
+    "service": "my-svc",
+    "resource": "/users/list",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "http.status_code": "200",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  }],
+[
+  {
+    "name": "op",
+    "service": "my-svc",
+    "resource": "/users/view",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  }],
+[
+  {
+    "name": "op",
+    "service": "diff-svc",
+    "resource": "/users/list",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  }],
+[
+  {
+    "name": "diff-op",
+    "service": "my-svc",
+    "resource": "/users/list",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  }],
+[
+  {
+    "name": "diff-op",
+    "service": "my-svc",
+    "resource": "/users/list",
+    "trace_id": 6,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "db",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6670642000000000",
+      "language": "python",
+      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4319
+    },
+    "duration": 999999999,
+    "start": 1
+  }]]

@@ -6,9 +6,16 @@ SCRIPTNAME=$(basename $0)
 if [[ $# -lt 3 ]]; then
     cat << EOF
 Usage: ${SCRIPTNAME} <scenario> <version> <version> [artifacts]
+
+Versions can be specified in the following formats:
+    - "ddtrace==0.51.0" - to install a specific version from PyPI
+    - "Datadog/dd-trace-py@v0.51.0 - to install a specific version from GitHub
+    - "." - to install the current local version
+
 Examples:
     ${SCRIPTNAME} span ddtrace==0.51.0 ddtrace==0.50.0
     ${SCRIPTNAME} span Datadog/dd-trace-py@v0.51.0 Datadog/dd-trace-py@v0.50.0
+    ${SCRIPTNAME} span ddtrace==2.8.4 .
     ${SCRIPTNAME} span ddtrace==0.51.0 ddtrace==0.50.0 ./artifacts/
 
 EOF
@@ -21,6 +28,11 @@ function expand_git_version {
 
     if [[ $version =~ $gitpattern ]]; then
         version="git+https://github.com/${version}"
+    fi
+
+    # If the user provides "." they want the local version, which gets mapped to `/src/` in the container
+    if [[ $version == "." ]]; then
+        version="/src/"
     fi
     echo $version
 }
@@ -48,12 +60,18 @@ if [[ -n ${ARTIFACTS} ]]; then
    ARTIFACTS="$(echo $ARTIFACTS | python -c 'import os,sys; print(os.path.abspath(sys.stdin.read()))')"
    mkdir -p ${ARTIFACTS}
    docker run -it --rm \
-          -v ${ARTIFACTS}:/artifacts/ \
+          --network host \
+          -v "${ARTIFACTS}:/artifacts/" \
+          -v "$(pwd):/src/" \
+          -e PROFILE_BENCHMARKS=${PROFILE_BENCHMARKS:-0} \
           -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
           -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
           $TAG
 else
    docker run -it --rm \
+          --network host \
+          -v "$(pwd):/src/" \
+          -e PROFILE_BENCHMARKS=${PROFILE_BENCHMARKS:-0} \
           -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
           -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
           $TAG

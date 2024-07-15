@@ -131,7 +131,7 @@ def test_capture_exc_info():
 
     assert serialized is not None
     assert serialized["type"] == "ValueError"
-    assert [_["function"] for _ in serialized["stacktrace"][:3]] == ["a", "b", "c"]
+    assert [_["function"] for _ in serialized["stacktrace"][-3:]] == ["c", "b", "a"]
     assert serialized["message"] == "'bad'"
 
 

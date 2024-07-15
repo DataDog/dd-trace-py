@@ -7,7 +7,6 @@ from ddtrace.ext import http
 from ddtrace.internal import constants
 import tests.appsec.rules as rules
 from tests.contrib.flask import BaseFlaskTestCase
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -44,7 +43,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             return block_request()
 
-        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/block", headers={"X-REAL-IP": rules._IP.DEFAULT})
             # Should not block by IP but since the route is calling block_request it will be blocked
@@ -55,7 +54,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.URL) == "http://localhost/block"
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).lower().startswith("werkzeug/")
-            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+            assert (
+                root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
+            )
 
     def test_flask_userblock_json(self):
         @self.app.route("/checkuser/<user_id>")
@@ -65,7 +66,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             block_request_if_user_blocked(tracer, user_id)
             return "Ok", 200
 
-        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER)
             assert resp.status_code == 403
@@ -75,7 +76,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).lower().startswith("werkzeug/")
-            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+            assert (
+                root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
+            )
 
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 403

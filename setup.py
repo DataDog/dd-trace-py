@@ -9,6 +9,8 @@ import sysconfig
 import tarfile
 
 import cmake
+from setuptools_rust import Binding
+from setuptools_rust import RustExtension
 
 
 from setuptools import Extension, find_packages, setup  # isort: skip
@@ -40,19 +42,20 @@ HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
-# stack_v2 profiling extensions are optional, unless they are made explicitly required by this environment variable
-STACK_V2_REQUIRED = "DD_STACK_V2_REQUIRED" in os.environ
-
 IS_PYSTON = hasattr(sys, "pyston_version_info")
+IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
+CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
 CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.18.0"
+
+RUST_MINIMUM_VERSION = "1.71"  # Safe guess:  1.71 is about a year old as of 2024-07-03
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
@@ -231,6 +234,13 @@ class LibDDWafDownload(LibraryDownload):
 
 class LibraryDownloader(BuildPyCommand):
     def run(self):
+        # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
+        # is set to True when the package is being installed in editable mode, which we need to know
+        # for some extensions
+        global IS_EDITABLE
+        if self.editable_mode:
+            IS_EDITABLE = True
+
         CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
@@ -312,6 +322,13 @@ class CMakeBuild(build_ext):
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
 
+        # If this is an inplace build, propagate this fact to CMake in case it's helpful
+        # In particular, this is needed for build products which are not otherwise managed
+        # by setuptools/distutils, such libdd_wrapper.so
+        if IS_EDITABLE:
+            # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
+            cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(ext.source_dir))
+
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
         build_args += ["--config {}".format(ext.build_type)]
@@ -371,6 +388,34 @@ class CMakeExtension(Extension):
         self.optional = optional  # If True, cmake errors are ignored
 
 
+def check_rust_toolchain():
+    try:
+        rustc_res = subprocess.run(["rustc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        cargo_res = subprocess.run(["cargo", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if rustc_res.returncode != 0:
+            raise EnvironmentError("rustc required to build Rust extensions")
+        if cargo_res.returncode != 0:
+            raise EnvironmentError("cargo required to build Rust extensions")
+
+        # Now check valid minimum versions.  These are hardcoded for now, but should be canonized in some other way
+        rustc_ver = rustc_res.stdout.decode().split(" ")[1]
+        cargo_ver = cargo_res.stdout.decode().split(" ")[1]
+        if rustc_ver < RUST_MINIMUM_VERSION:
+            raise EnvironmentError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
+        if cargo_ver < RUST_MINIMUM_VERSION:
+            raise EnvironmentError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
+    except FileNotFoundError:
+        raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
+
+
+# Before adding any extensions, check that system pre-requisites are satisfied
+try:
+    check_rust_toolchain()
+except EnvironmentError as e:
+    print(f"{e}")
+    sys.exit(1)
+
+
 def get_exts_for(name):
     try:
         mod = load_module_from_project_file(
@@ -426,7 +471,7 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
-            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
         ),
         Extension(
             "ddtrace.internal.coverage._native",
@@ -460,7 +505,20 @@ if not IS_PYSTON:
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
                     "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
                 ],
-                optional=not STACK_V2_REQUIRED,
+                optional=False,
+            )
+        )
+
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
+                source_dir=CRASHTRACKER_DIR,
+                cmake_args=[
+                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
+                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
+                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
+                ],
+                optional=False,
             )
         )
 
@@ -470,7 +528,7 @@ if not IS_PYSTON:
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
-                    optional=not STACK_V2_REQUIRED,
+                    optional=False,
                 ),
             )
 
@@ -487,6 +545,7 @@ setup(
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
+        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -496,7 +555,7 @@ setup(
         "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -561,4 +620,13 @@ setup(
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),
+    rust_extensions=[
+        RustExtension(
+            "ddtrace.internal.core._core",
+            path="src/core/Cargo.toml",
+            py_limited_api="auto",
+            binding=Binding.PyO3,
+            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+        ),
+    ],
 )

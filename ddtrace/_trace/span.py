@@ -30,6 +30,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal._rand import rand64bits as _rand64bits
 from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
@@ -549,16 +550,10 @@ class Span(object):
             return
 
         self.error = 1
-        self._set_exc_tags(exc_type, exc_val, exc_tb)
-
-    def _set_exc_tags(self, exc_type, exc_val, exc_tb):
-        limit = config._span_traceback_max_size
-        if limit is None:
-            limit = 30
 
         # get the traceback
         buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
         tb = buff.getvalue()
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
@@ -567,6 +562,8 @@ class Span(object):
         self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
+
+        core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
 
     def _pprint(self):
         # type: () -> str
