@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: This introduces a new environment variable ``DD_LLMOBS_ML_APP_VERSION`` that can be set to specify the version 
+    of the ML application to be tagged on spans sent to LLM Observability. 
+    Alternatively, this can be set inline using the ``LLMObs.enable(ml_app_version="...")`` method.
