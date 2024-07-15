@@ -15,7 +15,7 @@ def get_mock_open(read_data=None):
 def test_cgroup_info_init():
     # Assert default all attributes to `None`
     info = CGroupInfo()
-    for attr in ("id_", "groups", "path", "container_id", "controllers", "pod_id"):
+    for attr in ("id", "groups", "path", "container_id", "controllers", "pod_id"):
         assert getattr(info, attr) is None
 
     # Assert init with property sets property
@@ -147,7 +147,7 @@ def test_cgroup_info_from_line(line, expected_info):
     if expected_info is None:
         assert info is None, line
     else:
-        for attr in ("id_", "groups", "path", "container_id", "controllers", "pod_id"):
+        for attr in ("id", "groups", "path", "container_id", "controllers", "pod_id"):
             assert getattr(info, attr) == getattr(expected_info, attr), line
 
 

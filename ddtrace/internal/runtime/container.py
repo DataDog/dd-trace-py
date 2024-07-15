@@ -14,7 +14,7 @@ log = get_logger(__name__)
 
 
 class CGroupInfo:
-    id_: Any
+    id: Any
     groups: Any
     path: Any
     container_id: Any
@@ -38,7 +38,7 @@ class CGroupInfo:
 
     def __init__(
         self,
-        id_=None,
+        id=None,  # noqa: A002
         groups=None,
         path=None,
         container_id=None,
@@ -46,7 +46,7 @@ class CGroupInfo:
         pod_id=None,
         node_inode=None,
     ):
-        self.id_ = id_
+        self.id = id
         self.groups = groups
         self.path = path
         self.container_id = container_id
@@ -105,7 +105,7 @@ class CGroupInfo:
             node_inode = None
 
         return cls(
-            id_=id_,
+            id=id_,
             groups=groups,
             path=path,
             container_id=container_id,
