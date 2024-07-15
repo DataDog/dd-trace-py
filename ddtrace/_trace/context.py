@@ -222,7 +222,7 @@ class Context(object):
         """
         self._baggage[key] = value
 
-    def _with_baggage_item(self, key: str, value: Any) -> Context:
+    def _with_baggage_item(self, key: str, value: Any) -> "Context":
         """Returns a copy of this span with a new baggage item.
         Useful for instantiating new child span contexts.
         """

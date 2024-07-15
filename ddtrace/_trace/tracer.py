@@ -5,7 +5,6 @@ import os
 from os import environ
 from os import getpid
 from threading import RLock
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict

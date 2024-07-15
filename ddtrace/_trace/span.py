@@ -3,7 +3,7 @@ import pprint
 import sys
 import traceback
 from types import TracebackType
-from typing import Any, cast
+from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -11,6 +11,7 @@ from typing import Optional
 from typing import Text
 from typing import Type
 from typing import Union
+from typing import cast
 
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink

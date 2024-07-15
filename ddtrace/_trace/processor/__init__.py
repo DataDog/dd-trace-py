@@ -23,13 +23,12 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
-
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.samplers import DatadogSampler
+from ddtrace.sampler import BaseSampler
 
 
 try:
@@ -139,7 +138,7 @@ class TraceSamplingProcessor(TraceProcessor):
     """
 
     _compute_stats_enabled: bool = attr.ib(type=bool)
-    sampler: DatadogSampler = attr.ib(type=DatadogSampler)
+    sampler: BaseSampler = attr.ib(type=BaseSampler)
     single_span_rules: List[SpanSamplingRule] = attr.ib(type=List[SpanSamplingRule])
     apm_opt_out: bool = attr.ib(type=bool)
 
