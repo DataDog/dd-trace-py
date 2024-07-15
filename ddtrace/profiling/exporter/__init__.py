@@ -1,21 +1,27 @@
 import typing
 
-from .. import recorder
+import attr
+
+
+if typing.TYPE_CHECKING:  # pragma: no cover
+    from .. import recorder  # noqa:F401
 
 
 class ExportError(Exception):
     pass
 
 
-class Exporter:
+@attr.s
+class Exporter(object):
     """Exporter base class."""
 
     def export(
         self,
-        events: recorder.EventsType,
-        start_time_ns: int,
-        end_time_ns: int,
-    ) -> typing.Any:
+        events,  # type: recorder.EventsType
+        start_time_ns,  # type: int
+        end_time_ns,  # type: int
+    ):
+        # type: (...) -> typing.Any
         """Export events.
 
         :param events: List of events to export.
@@ -25,14 +31,16 @@ class Exporter:
         raise NotImplementedError
 
 
+@attr.s
 class NullExporter(Exporter):
     """Exporter that does nothing."""
 
     def export(
         self,
-        events: recorder.EventsType,
-        start_time_ns: int,
-        end_time_ns: int,
+        events,  # type: recorder.EventsType
+        start_time_ns,  # type: int
+        end_time_ns,  # type: int
     ):
+        # type: (...) -> None
         """Discard events."""
         pass
