@@ -21,6 +21,7 @@ class CGroupInfo:
     controllers: Any
     pod_id: Any
     node_inode: Any
+    __slots__ = ("id", "groups", "path", "container_id", "controllers", "pod_id", "node_inode")
 
     # The second part is the PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
     # See https://github.com/DataDog/datadog-agent/blob/7.40.x/pkg/util/cgroups/reader.go#L50
