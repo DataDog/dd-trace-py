@@ -76,7 +76,7 @@ class CaptureSampler(object):
 
 
 class CaptureSamplerCollector(Collector):
-    def __init__(self, recorder, capture_pct=None, *args, **kwargs):
-        super().__init__(recorder=recorder, *args, **kwargs)
-        self.capture_pct = capture_pct if capture_pct else config.capture_pct
+    def __init__(self, recorder, capture_pct=config.capture_pct, *args, **kwargs):
+        super().__init__(recorder, *args, **kwargs)
+        self.capture_pct = capture_pct
         self._capture_sampler = CaptureSampler(self.capture_pct)

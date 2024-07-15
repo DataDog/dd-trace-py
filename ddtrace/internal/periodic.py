@@ -33,7 +33,7 @@ class PeriodicService(service.Service):
 
     def __init__(self, interval=0.0):
         super().__init__()
-        self._interval = interval if interval else 0.0
+        self._interval = interval
         self._worker: typing.Optional[PeriodicThread] = None
 
     @property
@@ -72,7 +72,7 @@ class PeriodicService(service.Service):
 
     def join(
         self,
-        timeout: typing.Optional[float] = None,
+        timeout=None,  # type: typing.Optional[float]
     ):
         # type: (...) -> None
         if self._worker:

@@ -26,9 +26,9 @@ class Scheduler(periodic.PeriodicService):
         recorder: Optional[Recorder] = None,
         exporters: Optional[List[Exporter]] = None,
         before_flush: Optional[Callable] = None,
-        interval: Optional[float] = None,
+        interval: float = config.upload_interval,
     ):
-        super(Scheduler, self).__init__(interval=interval if interval else config.upload_interval)
+        super(Scheduler, self).__init__(interval=interval)
         self.recorder: Optional[Recorder] = recorder
         self.exporters: Optional[List[Exporter]] = exporters
         self.before_flush: Optional[Callable] = before_flush
@@ -96,12 +96,8 @@ class ServerlessScheduler(Scheduler):
     FORCED_INTERVAL = 1.0
     FLUSH_AFTER_INTERVALS = 60.0
 
-    def __init__(
-        self, recorder: Recorder, exporters: Optional[List[Exporter]], before_flush: Optional[Callable] = None
-    ):
-        super(ServerlessScheduler, self).__init__(
-            recorder=recorder, exporters=exporters, before_flush=before_flush, interval=self.FORCED_INTERVAL
-        )
+    def __init__(self, *args, **kwargs):
+        super(ServerlessScheduler, self).__init__(interval=self.FORCED_INTERVAL, *args, **kwargs)
         self._profiled_intervals: int = 0
 
     def periodic(self):
