@@ -502,3 +502,14 @@ def test_module_watchdog_importlib_resources_files():
     import importlib.resources as r
 
     assert isinstance(r.files("namespace_test"), MultiplexedPath)
+
+
+@pytest.mark.subprocess
+def test_module_watchdog_does_not_rewrap():
+    """Ensures that self.loader.get_code() does not get re-wrapped (leading to a deeper stack)"""
+    from importlib import reload
+
+    from ddtrace import internal
+
+    for _ in range(10000):
+        reload(internal)
