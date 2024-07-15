@@ -217,7 +217,6 @@ tracer.trace("hello").finish()
     ]["message"]
 
 
-@pytest.mark.skip(reason="We don't have a way to capture unhandled errors in bootstrap before telemetry is loaded")
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
