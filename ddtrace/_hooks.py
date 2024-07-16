@@ -5,6 +5,8 @@ from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 
+import attr
+
 from .internal.logger import get_logger
 
 
@@ -16,7 +18,8 @@ except ImportError:
 log = get_logger(__name__)
 
 
-class Hooks:
+@attr.s(slots=True)
+class Hooks(object):
     """
     Hooks configuration object is used for registering and calling hook functions
 
@@ -27,11 +30,7 @@ class Hooks:
             pass
     """
 
-    _hooks: DefaultDict[str, Set]
-    __slots__ = ("_hooks",)
-
-    def __init__(self):
-        self._hooks = collections.defaultdict(set)
+    _hooks = attr.ib(init=False, factory=lambda: collections.defaultdict(set), type=DefaultDict[str, Set])
 
     def __deepcopy__(self, memodict=None):
         hooks = Hooks()

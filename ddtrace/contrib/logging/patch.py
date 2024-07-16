@@ -1,5 +1,7 @@
 import logging
 
+import attr
+
 import ddtrace
 from ddtrace import config
 
@@ -30,20 +32,13 @@ def get_version():
     return getattr(logging, "__version__", "")
 
 
-class DDLogRecord:
-    trace_id: int
-    span_id: int
-    service: str
-    version: str
-    env: str
-    __slots__ = ("trace_id", "span_id", "service", "version", "env")
-
-    def __init__(self, trace_id: int, span_id: int, service: str, version: str, env: str):
-        self.trace_id = trace_id
-        self.span_id = span_id
-        self.service = service
-        self.version = version
-        self.env = env
+@attr.s(slots=True)
+class DDLogRecord(object):
+    trace_id = attr.ib(type=int)
+    span_id = attr.ib(type=int)
+    service = attr.ib(type=str)
+    version = attr.ib(type=str)
+    env = attr.ib(type=str)
 
 
 def _get_current_span(tracer=None):
