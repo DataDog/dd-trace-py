@@ -432,6 +432,30 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "s3.command"
 
     @mock_s3
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_service_name_override(self):
+        s3 = self.session.create_client("s3", region_name="us-west-2")
+        Pin.get_from(s3).clone(tracer=self.tracer).onto(s3)
+
+        s3.list_buckets()
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.service == "aws.s3", "Expected 'aws.s3' but got {}".format(span.service)
+        assert span.name == "s3.command"
+        cfg = config.get_from(self.session)
+        cfg['service'] = "boto-service"
+        s3.list_buckets()
+
+        # Get spans again
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+
+        assert span.service == "boto-service", "Expected 'boto-service' but got {}".format(span.service)
+
+    @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_s3_client_v0(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
