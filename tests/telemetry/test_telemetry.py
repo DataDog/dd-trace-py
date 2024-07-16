@@ -217,7 +217,7 @@ tracer.trace("hello").finish()
     ]["message"]
 
 
-def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
 
@@ -238,9 +238,9 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in app_starteds[0]["payload"]["error"]["message"]
 
 
-def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_subprocess):
+def test_telemetry_with_unhandled_application_exception(test_agent_session, run_python_code_in_subprocess):
     _, stderr, status, _ = run_python_code_in_subprocess(
-        "import ddtrace; ddtrace.tracer.trace('moon').finish(); raise Exception('bad_code')"
+        "import ddtrace; raise Exception('bad_code')"
     )
     assert status == 1, stderr
     assert b"bad_code" in stderr
@@ -249,8 +249,9 @@ def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_
 
     app_starteds = test_agent_session.get_events("app-started")
     assert len(app_starteds) == 1
-    # app-started does not capture exceptions raised in application code
-    assert app_starteds[0]["payload"]["error"]["code"] == 0
+    # app-started captures unhandled exceptions raised in application code
+    assert app_starteds[0]["payload"]["error"]["code"] == 1
+    assert "/test.py:1: bad_code" in app_starteds[0]["payload"]["error"]["message"]
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
