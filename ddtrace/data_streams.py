@@ -1,5 +1,5 @@
 import ddtrace
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
+from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 
 
 def set_consume_checkpoint(typ, source, carrier_get):
@@ -13,8 +13,8 @@ def set_consume_checkpoint(typ, source, carrier_get):
     """
     if ddtrace.config._data_streams_enabled:
         processor = ddtrace.tracer.data_streams_processor
-        processor.decode_pathway_b64(carrier_get(PROPAGATION_KEY_BASE_64))
-        return processor.set_checkpoint(["type:" + typ, "topic:" + source, "direction:in", "manual_checkpoint:true"])
+        ctx = DsmPathwayCodec.decode(carrier_get, processor)
+        return ctx.set_checkpoint(["type:" + typ, "topic:" + source, "direction:in", "manual_checkpoint:true"])
 
 
 def set_produce_checkpoint(typ, target, carrier_set):
@@ -28,9 +28,8 @@ def set_produce_checkpoint(typ, target, carrier_set):
     :returns DataStreamsCtx | None
     """
     if ddtrace.config._data_streams_enabled:
-        pathway = ddtrace.tracer.data_streams_processor.set_checkpoint(
+        ctx = ddtrace.tracer.data_streams_processor.set_checkpoint(
             ["type:" + typ, "topic:" + target, "direction:out", "manual_checkpoint:true"]
         )
-        if pathway is not None:
-            carrier_set(PROPAGATION_KEY_BASE_64, pathway.encode_b64())
-        return pathway
+        DsmPathwayCodec.encode(ctx, carrier_set)
+        return ctx
