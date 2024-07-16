@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - erikayasuda/framework-test-fix
   pull_request:
 
 concurrency:
