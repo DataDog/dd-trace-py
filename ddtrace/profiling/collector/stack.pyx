@@ -424,8 +424,9 @@ else:
     _thread_span_links_base = _threading._ThreadLink
 
 
-@attr.s(slots=True, eq=False)
 class _ThreadSpanLinks(_thread_span_links_base):
+
+    __slots__ = ()
 
     def link_span(
             self,
