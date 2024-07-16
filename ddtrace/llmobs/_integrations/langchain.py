@@ -10,7 +10,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_MESSAGES, INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -88,6 +88,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error, is_workflow=is_workflow)
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
+        elif operation == "embedding":
+            self._llmobs_set_meta_tags_from_embedding(span, inputs, response, error, is_workflow=is_workflow)
         span.set_tag_str(METRICS, json.dumps({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
@@ -202,6 +204,42 @@ class LangChainIntegration(BaseLLMIntegration):
                     span.set_tag_str(OUTPUT_VALUE, json.dumps(self.format_io(outputs)))
             except TypeError:
                 log.warning("Failed to serialize chain output data to JSON")
+
+    def _llmobs_set_meta_tags_from_embedding(
+            self,
+            span: Span,
+            input_texts: Union[str, List[str]],
+            embeddings: Union[List[float], List[List[float]], None],
+            error: bool = False,
+            is_workflow: bool = False,
+    ) -> None:
+        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "embedding")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
+        input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
+        output_tag_key = OUTPUT_VALUE
+
+        if input_texts is not None:
+            try:
+                formatted_inputs = self.format_io(input_texts)
+                if isinstance(input_texts, str):
+                    span.set_tag_str(input_tag_key, formatted_inputs)
+                else:
+                    span.set_tag_str(input_tag_key, json.dumps(self.format_io(input_texts)))
+            except TypeError:
+                log.warning("Failed to serialize embedding input data to JSON")
+        if error:
+            span.set_tag_str(OUTPUT_VALUE, "")
+        elif embeddings is not None:
+            try:
+                formatted_outputs = self.format_io(embeddings)
+                if isinstance(formatted_outputs, str):
+                    span.set_tag_str(output_tag_key, formatted_outputs)
+                else:
+                    span.set_tag_str(output_tag_key, json.dumps(self.format_io(embeddings)))
+            except TypeError:
+                log.warning("Failed to serialize embedding output data to JSON")
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
