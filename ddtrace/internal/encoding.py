@@ -1,9 +1,10 @@
 import json
-from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+
+from ddtrace._trace.span import Span
 
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
@@ -13,10 +14,6 @@ from .logger import get_logger
 
 
 __all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
 
 
 log = get_logger(__name__)
