@@ -882,6 +882,7 @@ def _assert_propagation_results(response, package):
             else:
                 pytest.xfail("FIXME: Test passed unexpectedly for package %s" % package.name)
         else:
+            # result not OK, so propagation is not yet working for the package
             pytest.xfail("FIXME: Test failed expectedly for package %s" % package.name)
 
     if not result_ok:
