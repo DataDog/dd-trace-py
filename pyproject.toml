@@ -29,7 +29,6 @@ dependencies = [
     "bytecode>=0.15.0; python_version>='3.12'",
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
-    "ddsketch>=3.0.0",
     "envier~=0.5",
     "importlib_metadata<=6.5.0; python_version<'3.8'",
     "opentelemetry-api>=1",

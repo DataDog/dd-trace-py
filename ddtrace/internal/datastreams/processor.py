@@ -15,14 +15,12 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddsketch import LogCollapsingLowestDenseDDSketch
-from ddsketch.pb.proto import DDSketchProto
-
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.core import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb
@@ -76,9 +74,9 @@ class PathwayStats(object):
     __slots__ = ("full_pathway_latency", "edge_latency", "payload_size")
 
     def __init__(self):
-        self.full_pathway_latency = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
-        self.edge_latency = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
-        self.payload_size = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
+        self.full_pathway_latency = DDSketch()
+        self.edge_latency = DDSketch()
+        self.payload_size = DDSketch()
 
 
 PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int)])
@@ -133,7 +131,7 @@ class DataStreamsProcessor(PeriodicService):
     def on_checkpoint_creation(
         self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec, payload_size=0
     ):
-        # type: (int, int, List[str], float, float, float, Optional[int]) -> None
+        # type: (int, int, List[str], float, float, float, int) -> None
         """
         on_checkpoint_creation is called every time a new checkpoint is created on a pathway. It records the
         latency to the previous checkpoint in the pathway (edge latency),
@@ -198,8 +196,8 @@ class DataStreamsProcessor(PeriodicService):
                     "EdgeTags": [compat.ensure_text(tag) for tag in edge_tags.split(",")],
                     "Hash": hash_value,
                     "ParentHash": parent_hash,
-                    "PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
-                    "EdgeLatency": DDSketchProto.to_proto(stat_aggr.edge_latency).SerializeToString(),
+                    "PathwayLatency": stat_aggr.full_pathway_latency.to_proto(),
+                    "EdgeLatency": stat_aggr.edge_latency.to_proto(),
                 }
                 bucket_aggr_stats.append(serialized_bucket)
             for consumer_key, offset in bucket.latest_commit_offsets.items():

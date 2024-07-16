@@ -42,7 +42,6 @@ cryptography,<39
 daphne,0
 databases,0
 datadog-lambda,>=4.66.0
-ddsketch,>=3.0.0
 django,>=2.2
 django-pylibmc,>=0.6
 django-q,0

@@ -68,7 +68,6 @@ RUN python3.12 -m pip install -U pip \
     attrs>=20 \
     bytecode>=0.14.0 \
     cattrs \
-    ddsketch>=3.0.0 \
     envier~=0.5 \
     opentelemetry-api>=1 \
     protobuf>=3 \

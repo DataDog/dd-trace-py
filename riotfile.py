@@ -205,7 +205,6 @@ venv = Venv(
                 "six": ">=1.12.0",
                 "envier": "==0.5.2",
                 "cattrs": "<23.1.1",
-                "ddsketch": ">=3.0.0",
                 "protobuf": ">=3",
                 "attrs": ">=20",
                 "typing_extensions": latest,
