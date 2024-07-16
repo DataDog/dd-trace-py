@@ -3,6 +3,8 @@ import re
 import threading
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Text
 from typing import Tuple
@@ -30,8 +32,8 @@ _ContextState = Tuple[
     Optional[int],  # span_id
     _MetaDictType,  # _meta
     _MetricDictType,  # _metrics
-    list[SpanLink],  #  span_links
-    dict[str, Any],  # baggage
+    List[SpanLink],  #  span_links
+    Dict[str, Any],  # baggage
     bool,  # is_remote
 ]
 
@@ -57,13 +59,13 @@ class Context(object):
         meta: Optional[_MetaDictType] = None,
         metrics: Optional[_MetricDictType] = None,
         lock: Optional[threading.RLock] = None,
-        span_links: Optional[list[SpanLink]] = None,
-        baggage: Optional[dict[str, Any]] = None,
+        span_links: Optional[List[SpanLink]] = None,
+        baggage: Optional[Dict[str, Any]] = None,
         is_remote: bool = True,
     ):
         self._meta: _MetaDictType = meta if meta is not None else {}
         self._metrics: _MetricDictType = metrics if metrics is not None else {}
-        self._baggage: dict[str, Any] = baggage if baggage is not None else {}
+        self._baggage: Dict[str, Any] = baggage if baggage is not None else {}
 
         self.trace_id: Optional[int] = trace_id
         self.span_id: Optional[int] = span_id
