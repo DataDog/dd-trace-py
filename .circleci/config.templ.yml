@@ -572,6 +572,7 @@ jobs:
           pattern: "datastreams"
 
   tracer:
+    parallelism: 10
     <<: *contrib_job_large
     steps:
       - run_test:
