@@ -28,7 +28,7 @@ except ValueError:
 else:
     RESUME = dis.opmap["RESUME"]
 
-    _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, str]]] = {}
+    _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, str]]]] = {}
 
     def _line_event_handler(code: CodeType, line: int) -> t.Any:
         hook, path, import_names = _CODE_HOOKS[code]
@@ -50,7 +50,7 @@ else:
         linestarts = dict(dis.findlinestarts(code))
 
         lines = set()
-        import_names: t.Dict[int, str] = {}
+        import_names: t.Dict[int, t.Tuple[str, str]] = {}
 
         line = 0
 
@@ -71,9 +71,7 @@ else:
                 if opcode == IMPORT_NAME:
                     import_arg = int.from_bytes([*ext, arg], "big", signed=False)
                     import_name = code.co_names[import_arg]
-                    if import_name.startswith(".") and package is not None:
-                        import_name = f"{package}.{import_name}"
-                    import_names[line] = import_name
+                    import_names[line] = (package, import_name)
 
                     # Accumulate extended args IMPORT_NAME arguments
                 if opcode is EXTENDED_ARG:
@@ -93,6 +91,6 @@ else:
 
         # Special case for empty modules (eg: __init__.py ):
         if not lines and code.co_name == "<module>" and code.co_code == bytes([151, 0, 121, 0]):
-            lines.add(1)
+            lines.add(0)
 
         return code, lines

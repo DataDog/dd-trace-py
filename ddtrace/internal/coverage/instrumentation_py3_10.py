@@ -206,9 +206,7 @@ def instrument_all_lines(
             if opcode == IMPORT_NAME:
                 import_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 import_name = code.co_names[import_arg]
-                if import_name.startswith(".") and package is not None:
-                    import_name = f"{package}.{import_name}"
-                new_consts[-1] = (new_consts[-1][0], new_consts[-1][1], import_name)
+                new_consts[-1] = (new_consts[-1][0], new_consts[-1][1], (package, import_name))
 
             # Collect branching instructions for processing
             if opcode in AJump.__opcodes__:

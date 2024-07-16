@@ -34,7 +34,7 @@ class ModuleCodeCollector(ModuleWatchdog):
 
     def __init__(self) -> None:
         super().__init__()
-        self.seen: t.Set = set()
+        self.seen: t.Set[t.Tuple[CodeType, str]] = set()
         self._collect_import_coverage: bool = False
         self._coverage_enabled: bool = False
         self.lines: t.DefaultDict[str, t.Set] = defaultdict(set)
@@ -72,6 +72,11 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         cls._instance._include_paths = include_paths
         cls._instance._collect_import_coverage = collect_import_time_coverage
+
+        if collect_import_time_coverage:
+            ModuleCodeCollector.register_import_exception_hook(
+                lambda x: True, cls._instance._exit_context_on_exception_hook
+            )
 
     def hook(self, arg):
         line, path, import_name = arg
@@ -186,15 +191,35 @@ class ModuleCodeCollector(ModuleWatchdog):
             path = to_visit_paths.pop()
             visited_paths.add(path)
 
-            imported_module_lines = self._import_time_covered.get(path)
+            if path not in self._import_time_covered:
+                continue
+
+            imported_module_lines = self._import_time_covered[path]
             covered_lines[path] |= imported_module_lines
 
             # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
             for dependency in self._import_names_by_path.get(path, set()):
-                if dependency in self._import_time_name_to_path:
-                    dependency_path = self._import_time_name_to_path[dependency]
+                package, module = dependency
+                dep_fqdn = f"{package}.{module}" if package else module
+                dep_name = dep_fqdn if dep_fqdn in self._import_time_name_to_path else module
+                if dep_name in self._import_time_name_to_path:
+                    dependency_path = self._import_time_name_to_path[dep_name]
                     if dependency_path not in visited_paths:
                         to_visit_paths.add(dependency_path)
+
+                # Since modules can import from packages below them in the hierarchy, we may also need to find packages
+                # that were imported (eg: identifying __init__.py files). We do this by working our way from the module
+                # name to the package name "one dot at a time"
+                parent_package = dep_fqdn.split(".")[:-1]
+                while parent_package:
+                    parent_package_str = ".".join(parent_package)
+                    if parent_package_str in self._import_time_name_to_path:
+                        dependency_path = self._import_time_name_to_path[parent_package_str]
+                        if dependency_path not in visited_paths:
+                            to_visit_paths.add(dependency_path)
+                    if parent_package_str == package:
+                        break
+                    parent_package = parent_package[:-1]
 
     class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):
@@ -305,8 +330,6 @@ class ModuleCodeCollector(ModuleWatchdog):
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
 
-        ModuleCodeCollector.register_import_exception_hook(lambda x: True, self._exit_context_on_exception_hook)
-
         return retval
 
     def _exit_context_on_exception_hook(self, _, _module: ModuleType) -> None:
@@ -314,7 +337,8 @@ class ModuleCodeCollector(ModuleWatchdog):
             collector = self._import_time_contexts[_module.__file__]
             covered_lines = collector.get_covered_lines()
             collector.__exit__()
-            self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+            if covered_lines[_module.__file__]:
+                self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
 
             del self._import_time_contexts[_module.__file__]
 
@@ -326,17 +350,19 @@ class ModuleCodeCollector(ModuleWatchdog):
             collector = self._import_time_contexts[_module.__file__]
             covered_lines = collector.get_covered_lines()
             collector.__exit__()
-            self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+            if covered_lines[_module.__file__]:
+                self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
 
             del self._import_time_contexts[_module.__file__]
 
     def instrument_code(self, code: CodeType, package) -> CodeType:
         # Avoid instrumenting the same code object multiple times
-        if code in self.seen:
+        if (code, code.co_filename) in self.seen:
             return code
-        self.seen.add(code)
+        self.seen.add((code, code.co_filename))
+
         new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, package)
-        self.seen.add(new_code)
+        self.seen.add((new_code, code.co_filename))
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
         self.lines[code.co_filename] |= lines

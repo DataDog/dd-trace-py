@@ -30,13 +30,13 @@ def test_coverage_import_time_lib():
     called_in_session_import_time()
     ModuleCodeCollector.stop_coverage()
 
-    lines = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
+    executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
         cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
     )
 
-    expected_lines = {
+    expected_executable = {
         "tests/coverage/included_path/import_time_callee.py": {1, 2, 4, 7, 8, 10, 13, 15},
         "tests/coverage/included_path/import_time_lib.py": {1, 3, 6, 7, 8},
         "tests/coverage/included_path/nested_import_time_lib.py": {1, 4, 5, 6},
@@ -52,7 +52,158 @@ def test_coverage_import_time_lib():
         "tests/coverage/included_path/nested_import_time_lib.py": {1, 4},
     }
 
-    assert lines == expected_lines, f"Lines mismatch: expected={expected_lines} vs actual={lines}"
+    assert (
+        executable == expected_executable
+    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports == expected_covered_with_imports
+    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+
+
+@pytest.mark.subprocess
+def test_coverage_namespace_import_normal():
+    """This test validates that namespace packages are correctly covered when imported normally"""
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    # Functions are done prior to importing coverage so test that import-time dependencies are covered
+    from tests.coverage.included_path.imports_ns_dot import imports_ns_dot_normal
+
+    ModuleCodeCollector.start_coverage()
+    imports_ns_dot_normal()
+    ModuleCodeCollector.stop_coverage()
+
+    executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
+    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
+    covered_with_imports = _get_relpath_dict(
+        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
+    )
+
+    expected_executable = {
+        "tests/coverage/included_path/imports_ns_dot.py": {1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 15, 16, 18},
+        "tests/coverage/included_path/normal_import_const.py": {1},
+        "tests/coverage/included_path/nsa/normal_import_const.py": {1},
+        "tests/coverage/included_path/nsa/nsb/normal_import_const.py": {1},
+        "tests/coverage/included_path/nsb/normal_import_const.py": {1},
+    }
+    expected_covered = {
+        "tests/coverage/included_path/imports_ns_dot.py": {8},
+    }
+    expected_covered_with_imports = {
+        "tests/coverage/included_path/imports_ns_dot.py": {1, 2, 3, 4, 7, 8, 11},
+        "tests/coverage/included_path/normal_import_const.py": {1},
+        "tests/coverage/included_path/nsa/normal_import_const.py": {1},
+        "tests/coverage/included_path/nsa/nsb/normal_import_const.py": {1},
+        "tests/coverage/included_path/nsb/normal_import_const.py": {1},
+    }
+
+    from pprint import pprint
+
+    print("\n\nExecutable lines:")
+    pprint(executable)
+    print("\n\nExpected executable:")
+    pprint(expected_executable)
+    print("\n\nImport time coverage:")
+    pprint(ModuleCodeCollector._instance._import_time_covered)
+    print("\n\nImport time names:")
+    pprint(ModuleCodeCollector._instance._import_time_name_to_path)
+    print("\n\nImport names by path:")
+    pprint(ModuleCodeCollector._instance._import_names_by_path)
+    print("\n\nExpected imports")
+    pprint(expected_covered_with_imports)
+    print("\n\nActual imports")
+    pprint(covered_with_imports)
+    print("\n\n")
+
+    assert (
+        executable == expected_executable
+    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
+    assert (
+        covered_with_imports == expected_covered_with_imports
+    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+
+
+@pytest.mark.subprocess
+def test_coverage_regular_package_import_normal():
+    """This test validates that namespace packages are correctly covered when imported normally"""
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    # Functions are done prior to importing coverage so test that import-time dependencies are covered
+    from tests.coverage.included_path.imports_rp_dot import imports_rp_dot_normal
+
+    ModuleCodeCollector.start_coverage()
+    imports_rp_dot_normal()
+    ModuleCodeCollector.stop_coverage()
+
+    executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
+    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
+    covered_with_imports = _get_relpath_dict(
+        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
+    )
+
+    expected_executable = {
+        "tests/coverage/included_path/imports_rp_dot.py": {1, 2, 3, 4, 7, 8, 10, 11, 12, 13, 14, 15, 16, 18},
+        "tests/coverage/included_path/normal_import_const.py": {1},
+        "tests/coverage/included_path/rpa/__init__.py": {1},
+        "tests/coverage/included_path/rpa/normal_import_const.py": {1},
+        "tests/coverage/included_path/rpa/rpb/__init__.py": {1},
+        "tests/coverage/included_path/rpa/rpb/normal_import_const.py": {1},
+        "tests/coverage/included_path/rpb/__init__.py": {1},
+        "tests/coverage/included_path/rpb/normal_import_const.py": {1},
+    }
+    expected_covered = {
+        "tests/coverage/included_path/imports_dot.py": {8},
+    }
+    expected_covered_with_imports = {
+        "tests/coverage/included_path/imports_dot.py": {1, 2, 3, 4, 7, 8, 10},
+        "tests/coverage/included_path/normal_import_const.py": {1},
+        "tests/coverage/included_path/rpa/normal_import_const.py": {1},
+        "tests/coverage/included_path/rpa/nsb/normal_import_const.py": {1},
+        "tests/coverage/included_path/rpb/normal_import_const.py": {1},
+    }
+
+    from pprint import pprint
+
+    print("\n\nExecutable lines:")
+    pprint(executable)
+    print("\n\nExpected executable:")
+    pprint(expected_executable)
+    print("\n\nImport time coverage:")
+    pprint(ModuleCodeCollector._instance._import_time_covered)
+    print("\n\nImport time names:")
+    pprint(ModuleCodeCollector._instance._import_time_name_to_path)
+    print("\n\nImport names by path:")
+    pprint(ModuleCodeCollector._instance._import_names_by_path)
+    print("\n\nExpected imports")
+    pprint(expected_covered_with_imports)
+    print("\n\nActual imports")
+    pprint(covered_with_imports)
+    print("\n\n")
+
+    assert (
+        executable == expected_executable
+    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
         covered_with_imports == expected_covered_with_imports
@@ -80,26 +231,8 @@ def test_coverage_import_time_function():
 
     from tests.coverage.included_path.import_time_callee import calls_function_imported_in_function
 
-    # from tests.coverage.included_path.import_time_callee import calls_function_imported_in_function_namespace
-    # from tests.coverage.included_path.namespacepackage.nested_namespace_lib import \
-    #   function_relative_imported_in_function_nested
-    # from tests.coverage.included_path.namespacepackage.next_nested_namespace_user_lib import \
-    #   function_relative_imported_in_function_using_next_namespace
-    # from tests.coverage.included_path.namespacepackage.parent_namespace_user import \
-    #   function_relative_imported_in_function_using_next_namespace_parent_user
-    # from tests.coverage.included_path.namespacepackage.tricky_next_namespace_user import \
-    #   tricky_next_namespace_parent_user
-    # from tests.coverage.included_path.namespacepackage.tricky_namespace_namespace_user import \
-    #     tricky_namespace_namespace_parent_user
-
     ModuleCodeCollector.start_coverage()
     calls_function_imported_in_function()
-    # calls_function_imported_in_function_namespace()
-    # function_relative_imported_in_function_using_next_namespace_parent_user()
-    # function_relative_imported_in_function_nested()
-    # function_relative_imported_in_function_using_next_namespace()
-    # tricky_next_namespace_parent_user()
-    # tricky_namespace_namespace_parent_user()
     ModuleCodeCollector.stop_coverage()
 
     lines = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
@@ -118,8 +251,13 @@ def test_coverage_import_time_function():
         "tests/coverage/included_path/imported_in_function_lib.py": {1, 2, 3, 4, 7},
     }
 
-    assert lines == expected_lines, f"Lines mismatch: expected={expected_lines} vs actual={lines}"
+    assert lines == expected_lines, f"Executable lines mismatch: expected={expected_lines} vs actual={lines}"
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert (
         covered_with_imports == expected_covered_with_imports
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+
+
+@pytest.mark.subprocess
+def test_coverage_namespace_import_late():
+    """This test validates that namespace packages are correctly covered when imported late (eg: inside functions)"""

@@ -1,4 +1,4 @@
-from .next_namespacepackage.json import JSON_CONST
+from .next_namespacepackage.late_import_const import JSON_CONST
 
 
 def tricky_next_namespace_parent_user():
