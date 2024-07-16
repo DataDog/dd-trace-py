@@ -2,6 +2,8 @@
 #include "crashtracker.hpp"
 
 #include <pthread.h>
+#include <signal.h>
+#include <unistd.h>
 
 // A global instance of the crashtracker is created here.
 Datadog::Crashtracker crashtracker;
@@ -109,12 +111,31 @@ crashtracker_set_receiver_binary_path(std::string_view path) // cppcheck-suppres
     return crashtracker.set_receiver_binary_path(path);
 }
 
+// Store the old segfault handler (uses sigaction prototype)
+void (*old_sigsegv_handler)(int, siginfo_t*, void*) = nullptr;
+
+// Trap sigsegv JUST to suppress stderr
+void trap_sigsegv(int signo, siginfo_t* info, void* context)
+{
+    close(2);
+    if (old_sigsegv_handler) {
+        old_sigsegv_handler(signo, info, context);
+    }
+    _exit(1);
+}
+
 void
 crashtracker_start() // cppcheck-suppress unusedFunction
 {
     // This is a one-time start pattern to ensure that the crashtracker is only started once.
     const static bool initialized = []() {
+        // Set up the signal handler to suppress stderr output on SIGSEGV
         crashtracker.start();
+        struct sigaction sa;
+        sa.sa_sigaction = trap_sigsegv;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_SIGINFO;
+        sigaction(SIGSEGV, &sa, nullptr);
         crashtracker_initialized = true;
 
         // Also install the post-fork handler for the child process
