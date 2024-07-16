@@ -17,7 +17,7 @@ crashtracker_receiver_entry() // cppcheck-suppress unusedFunction
 {
     // Assumes that this will be called only in the receiver binary, which is a
     // fresh process
-    ddog_prof_CrashtrackerResult new_result = ddog_prof_Crashtracker_receiver_entry_point();
+    ddog_prof_CrashtrackerResult new_result = ddog_prof_Crashtracker_receiver_entry_point_stdin();
     if (new_result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) {
         ddog_CharSlice message = ddog_Error_message(&new_result.err);
 
