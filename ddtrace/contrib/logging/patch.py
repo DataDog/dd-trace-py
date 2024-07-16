@@ -38,7 +38,7 @@ class DDLogRecord:
     env: str
     __slots__ = ("trace_id", "span_id", "service", "version", "env")
 
-    def __init__(self, trace_id, span_id, service, version, env):
+    def __init__(self, trace_id: int, span_id: int, service: str, version: str, env: str):
         self.trace_id = trace_id
         self.span_id = span_id
         self.service = service
