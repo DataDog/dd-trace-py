@@ -5,18 +5,19 @@ import typing  # noqa:F401
 
 import attr
 
-from .. import event
 from . import _lock
 
 
-@event.event_class
 class ThreadingLockAcquireEvent(_lock.LockAcquireEvent):
     """A threading.Lock has been acquired."""
 
+    __slots__ = ()
 
-@event.event_class
+
 class ThreadingLockReleaseEvent(_lock.LockReleaseEvent):
     """A threading.Lock has been released."""
+
+    __slots__ = ()
 
 
 class _ProfiledThreadingLock(_lock._ProfiledLock):
