@@ -505,11 +505,35 @@ def test_module_watchdog_importlib_resources_files():
 
 
 @pytest.mark.subprocess
-def test_module_watchdog_does_not_rewrap():
-    """Ensures that self.loader.get_code() does not get re-wrapped (leading to a deeper stack)"""
+def test_module_watchdog_does_not_rewrap_get_code():
+    """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
     from importlib import reload
+
+    from tests.internal.namespace_test import ns_module
+
+    # Check that the loader's get_code is wrapped:
+    assert ns_module.__loader__.get_code._dd_get_code is True
+    initial_get_code = ns_module.__loader__.get_code
+
+    # Reload module a couple of times and check that the loader's get_code is still the same as the original
+    reload(ns_module)
+    reload(ns_module)
+    new_get_code = ns_module.__loader__.get_code
+    assert (
+        new_get_code is initial_get_code
+    ), f"module loader get_code (id: {id(new_get_code)}is not initial get_code (id: {id(initial_get_code)})"
+
+
+@pytest.mark.subprocess
+def test_module_watchdog_reloads_dont_cause_errors():
+    """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
+    from importlib import reload
+    import sys
 
     from ddtrace import internal
 
-    for _ in range(10000):
+    # Since this test is running in a subprocess, the odds that the recursionlimit gets modified are low, so we set it
+    # to a reasonably low number, but still loop higher to make sure we don't hit the limit.
+    sys.setrecursionlimit(1000)
+    for _ in range(sys.getrecursionlimit() * 2):
         reload(internal)
