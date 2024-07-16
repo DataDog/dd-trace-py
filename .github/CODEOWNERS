@@ -108,13 +108,13 @@ setup.py                            @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 pyproject.toml                      @DataDog/python-guild
 hatch.toml                          @DataDog/python-guild
-.readthedocs.yml                    @DataDog/python-guild @DataDog/apm-core-python
-README.md                           @DataDog/python-guild @DataDog/apm-core-python
-mypy.ini                            @DataDog/python-guild @DataDog/apm-core-python
-.circleci/                          @DataDog/python-guild @DataDog/apm-core-python
-.github/                            @DataDog/python-guild @DataDog/apm-core-python
-.gitlab/                            @DataDog/python-guild @DataDog/apm-core-python
+.readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
+README.md                           @DataDog/python-guild  @DataDog/apm-core-python
+mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
+.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
+.github/                            @DataDog/python-guild  @DataDog/apm-core-python
+.gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
-ddtrace/internal/compat.py          @DataDog/python-guild @DataDog/apm-core-python
+ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 tests/utils.py                      @DataDog/python-guild
