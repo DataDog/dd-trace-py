@@ -299,8 +299,20 @@ class TestLLMObsAnthropic:
                     {
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
+                        "tool_calls": [],
                     },
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
@@ -391,8 +403,20 @@ class TestLLMObsAnthropic:
                     {
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
+                        "tool_calls": [],
                     },
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {
+                        "content": "", 
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
