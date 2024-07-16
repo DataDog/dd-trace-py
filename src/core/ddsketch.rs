@@ -18,6 +18,11 @@ impl DDSketchPy {
         }
     }
 
+    #[getter]
+    fn count(&self) -> f64 {
+        self.ddsketch.count()
+    }
+
     fn add(&mut self, value: f64) -> PyResult<()> {
         match self.ddsketch.add(value) {
             Ok(_) => Ok(()),
