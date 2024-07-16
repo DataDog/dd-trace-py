@@ -3,18 +3,19 @@ import typing  # noqa:F401
 import attr
 
 from .. import collector
-from .. import event
 from . import _lock
 
 
-@event.event_class
 class AsyncioLockAcquireEvent(_lock.LockAcquireEvent):
     """An asyncio.Lock has been acquired."""
 
+    __slots__ = ()
 
-@event.event_class
+
 class AsyncioLockReleaseEvent(_lock.LockReleaseEvent):
     """An asyncio.Lock has been released."""
+
+    __slots__ = ()
 
 
 class _ProfiledAsyncioLock(_lock._ProfiledLock):
