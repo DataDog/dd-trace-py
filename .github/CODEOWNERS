@@ -119,4 +119,4 @@ ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 tests/utils.py                      @DataDog/python-guild
 tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
-tests/suitespec.py
+tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
