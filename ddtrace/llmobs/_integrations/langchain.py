@@ -43,10 +43,10 @@ ROLE_MAPPING = {
 }
 
 SUPPORTED_OPERATIONS = ["llm",
-              "chat",
-              "chain",
-              "embedding"
-]
+                        "chat",
+                        "chain",
+                        "embedding"
+                        ]
 
 
 class LangChainIntegration(BaseLLMIntegration):
@@ -209,7 +209,7 @@ class LangChainIntegration(BaseLLMIntegration):
             self,
             span: Span,
             input_texts: Union[str, List[str]],
-            embeddings: Union[List[float], List[List[float]], None],
+            output_embedding: Union[List[float], List[List[float]], None],
             error: bool = False,
             is_workflow: bool = False,
     ) -> None:
@@ -230,16 +230,14 @@ class LangChainIntegration(BaseLLMIntegration):
             except TypeError:
                 log.warning("Failed to serialize embedding input data to JSON")
         if error:
-            span.set_tag_str(OUTPUT_VALUE, "")
-        elif embeddings is not None:
-            try:
-                formatted_outputs = self.format_io(embeddings)
-                if isinstance(formatted_outputs, str):
-                    span.set_tag_str(output_tag_key, formatted_outputs)
-                else:
-                    span.set_tag_str(output_tag_key, json.dumps(self.format_io(embeddings)))
-            except TypeError:
-                log.warning("Failed to serialize embedding output data to JSON")
+            span.set_tag_str(output_tag_key, "")
+        elif output_embedding is not None:
+            if not isinstance(output_embedding[0], list):
+                output_embedding = [output_embedding]
+            embedding_dim = len(output_embedding[0])
+            span.set_tag_str(
+                output_tag_key, "[{} embedding(s) returned with size {}]".format(len(output_embedding), embedding_dim)
+            )
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
