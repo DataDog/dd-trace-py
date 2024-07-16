@@ -445,12 +445,24 @@ venv = Venv(
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
-                "pytest-asyncio": "~=0.21.1",
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
             },
-            pys=select_pys(min_version="3.7", max_version="3.12"),
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.7"),
+                    pkgs={
+                        "pytest-asyncio": "~=0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pkgs={
+                        "pytest-asyncio": "~=0.23.7",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="gevent",
