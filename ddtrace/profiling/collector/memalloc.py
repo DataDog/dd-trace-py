@@ -24,29 +24,33 @@ from ddtrace.settings.profiling import config
 LOG = logging.getLogger(__name__)
 
 
-@event.event_class
 class MemoryAllocSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size = attr.ib(default=0, type=int)
-    """Allocation size in bytes."""
+    __slots__ = ("size", "capture_pct", "nevents")
 
-    capture_pct = attr.ib(default=None, type=float)
-    """The capture percentage."""
+    def __init__(self, size=0, capture_pct=None, nevents=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.size = size
+        """Allocation size in bytes."""
+        self.capture_pct = capture_pct
+        """The capture percentage."""
+        self.nevents = nevents
+        """The total number of allocation events sampled."""
 
-    nevents = attr.ib(default=0, type=int)
-    """The total number of allocation events sampled."""
 
-
-@event.event_class
 class MemoryHeapSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size = attr.ib(default=0, type=int)
-    """Allocation size in bytes."""
+    __slots__ = ("size", "sample_size")
 
-    sample_size = attr.ib(default=0, type=int)
-    """The sampling size."""
+    def __init__(self, size=0, sample_size=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.size: int = size
+        """Allocation size in bytes."""
+
+        self.sample_size: int = sample_size
+        """The sampling size."""
 
 
 @attr.s
