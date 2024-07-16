@@ -224,7 +224,7 @@ PACKAGES = [
         "",
         import_module_to_validate="cryptography.fernet",
         test_propagation=True,
-        fixme_propagation_fails=True,
+        fixme_propagation_fails=False,
     ),
     PackageForTesting(
         "distlib", "0.3.8", "", "Name: example-package\nVersion: 0.1", "", import_module_to_validate="distlib.util"
@@ -489,7 +489,7 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
-        fixme_propagation_fails=True,
+        fixme_propagation_fails=False,
     ),
     PackageForTesting(
         "sqlalchemy",
@@ -872,12 +872,17 @@ def _assert_propagation_results(response, package):
     assert response.status_code == 200
     content = json.loads(response.content)
     result_ok = content["result1"] == "OK"
-    if package.fixme_propagation_fails:
+    if package.fixme_propagation_fails is not None:
         if result_ok:
-            pytest.fail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+            if package.fixme_propagation_fails:  # For packages that are reliably failing
+                pytest.fail(
+                    "FIXME: Test passed unexpectedly, consider changing to fixme_propagation_fails=False for package %s"
+                    % package.name
+                )
+            else:
+                pytest.xfail("FIXME: Test passed unexpectedly for package %s" % package.name)
         else:
-            # Add pytest xfail marker to skip the test
-            pytest.xfail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+            pytest.xfail("FIXME: Test failed expectedly for package %s" % package.name)
 
     if not result_ok:
         print(f"Error: incorrect result from propagation endpoint for package {package.name}: {content}")
@@ -940,11 +945,7 @@ def test_flask_packages_patched(package, venv):
 
 @pytest.mark.parametrize(
     "package",
-    [
-        package
-        for package in PACKAGES
-        if package.test_propagation and package.name != "rsa"  # the "rsa" mode fails reliably
-    ],
+    [package for package in PACKAGES if package.test_propagation],
     ids=lambda package: package.name,
 )
 def test_flask_packages_propagation(package, venv, printer):
