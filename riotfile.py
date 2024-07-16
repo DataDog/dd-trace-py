@@ -2405,7 +2405,6 @@ venv = Venv(
                 "urllib3": "~=1.26",
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
-                "pillow": "==10.1.0",
             },
             venvs=[
                 Venv(
@@ -2416,12 +2415,14 @@ venv = Venv(
                     pkgs={
                         "openai": "==0.26.5",
                         "scikit-learn": "==1.0.2",
+                        "pillow": "==9.5.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
                         "openai[embeddings,datalib]": ["==1.1.1", "==1.30.1"],
+                        "pillow": "==9.5.0",
                     },
                 ),
                 Venv(
@@ -2429,6 +2430,7 @@ venv = Venv(
                     pkgs={
                         "openai[datalib]": ["==1.30.1"],
                         "tiktoken": latest,
+                        "pillow": "==10.1.0",
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
                 ),
@@ -2603,8 +2605,8 @@ venv = Venv(
                 "ai21": latest,
                 "exceptiongroup": latest,
                 "psutil": latest,
-                "pytest-randomly": latest,
-                "numexpr": latest,
+                "pytest-randomly": "==3.10.1",
+                "numexpr": "==2.8.5",
                 "greenlet": "==3.0.3",
                 "pytest-asyncio": "==0.23.7",
             },
@@ -2631,7 +2633,8 @@ venv = Venv(
                         "langchain-cohere": "==0.1.4",
                         "openai": "==1.30.3",
                         "pinecone-client": latest,
-                        "botocore": "==1.34.6",
+                        "botocore": "==1.34.51",
+                        "boto3": "==1.34.51",
                         "cohere": "==5.4.0",
                     },
                     pys=select_pys(min_version="3.9", max_version="3.11"),
@@ -2647,7 +2650,8 @@ venv = Venv(
                         "langchain-cohere": latest,
                         "openai": latest,
                         "pinecone-client": latest,
-                        "botocore": "==1.34.6",
+                        "botocore": "==1.34.51",
+                        "boto3": "==1.34.51",
                         "cohere": latest,
                     },
                     pys=select_pys(min_version="3.9", max_version="3.12"),
