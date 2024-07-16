@@ -68,6 +68,28 @@ PathwayAggrKey = typing.Tuple[
 ]
 
 
+class SumCount:
+    """Helper class to keep track of sum and count of values."""
+
+    __slots__ = ("_sum", "_count")
+
+    def __init__(self):
+        self._sum: float = 0.0
+        self._count: int = 0
+
+    def add(self, value: float) -> None:
+        self._sum += value
+        self._count += 1
+
+    @property
+    def sum(self) -> float:
+        return self._sum
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+
 class PathwayStats(object):
     """Aggregated pathway statistics."""
 
@@ -76,7 +98,7 @@ class PathwayStats(object):
     def __init__(self):
         self.full_pathway_latency = DDSketch()
         self.edge_latency = DDSketch()
-        self.payload_size = DDSketch()
+        self.payload_size = SumCount()
 
 
 PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int)])

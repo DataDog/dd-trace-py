@@ -409,7 +409,7 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     first = list(buckets.values())[0].pathway_stats
     for _bucket_name, bucket in first.items():
         assert bucket.payload_size.count >= 1
-        assert bucket.payload_size._sum == expected_payload_size
+        assert bucket.payload_size.sum == expected_payload_size
 
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
