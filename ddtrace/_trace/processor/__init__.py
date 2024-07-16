@@ -137,10 +137,10 @@ class TraceSamplingProcessor(TraceProcessor):
       Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
     """
 
-    _compute_stats_enabled: bool = attr.ib(type=bool)
-    sampler: BaseSampler = attr.ib(type=BaseSampler)
-    single_span_rules: List[SpanSamplingRule] = attr.ib(type=List[SpanSamplingRule])
-    apm_opt_out: bool = attr.ib(type=bool)
+    _compute_stats_enabled: bool = attr.ib()
+    sampler: BaseSampler = attr.ib()
+    single_span_rules: List[SpanSamplingRule] = attr.ib()
+    apm_opt_out: bool = attr.ib()
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -257,22 +257,21 @@ class SpanAggregator(SpanProcessor):
     @attr.s
     class _Trace(object):
         spans: List[Span] = attr.ib(default=attr.Factory(list))
-        num_finished: int = attr.ib(type=int, default=0)
+        num_finished: int = attr.ib(default=0)
 
-    _partial_flush_enabled: bool = attr.ib(type=bool)
-    _partial_flush_min_spans: int = attr.ib(type=int)
-    _trace_processors: Iterable[TraceProcessor] = attr.ib(type=Iterable[TraceProcessor])
-    _writer: TraceWriter = attr.ib(type=TraceWriter)
+    _partial_flush_enabled: bool = attr.ib()
+    _partial_flush_min_spans: int = attr.ib()
+    _trace_processors: Iterable[TraceProcessor] = attr.ib()
+    _writer: TraceWriter = attr.ib()
     _traces: DefaultDict[int, "_Trace"] = attr.ib(
         factory=lambda: defaultdict(lambda: SpanAggregator._Trace()),
         init=False,
-        type=DefaultDict[int, "_Trace"],
         repr=False,
     )
     if config._span_aggregator_rlock:
-        _lock: Union[RLock, Lock] = attr.ib(init=False, factory=RLock, repr=False, type=Union[RLock, Lock])
+        _lock: Union[RLock, Lock] = attr.ib(init=False, factory=RLock, repr=False)
     else:
-        _lock: Union[RLock, Lock] = attr.ib(init=False, factory=Lock, repr=False, type=Union[RLock, Lock])  # type: ignore[no-redef]
+        _lock: Union[RLock, Lock] = attr.ib(init=False, factory=Lock, repr=False)  # type: ignore[no-redef]
     # Tracks the number of spans created and tags each count with the api that was used
     # ex: otel api, opentracing api, datadog api
     _span_metrics: Dict[str, DefaultDict] = attr.ib(
@@ -281,7 +280,6 @@ class SpanAggregator(SpanProcessor):
             "spans_created": defaultdict(int),
             "spans_finished": defaultdict(int),
         },
-        type=Dict[str, DefaultDict],
     )
 
     def on_span_start(self, span: Span) -> None:
