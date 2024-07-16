@@ -1439,7 +1439,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
-                    pkgs={"botocore": ["~=1.13", "==1.34.126"]},
+                    pkgs={"botocore": ["~=1.13", "==1.34.6"]},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.12"),
@@ -2401,8 +2401,9 @@ venv = Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
             pkgs={
-                "vcrpy": latest,
-                "urllib3": "<2.0",
+                "vcrpy": "==4.2.1",
+                "urllib3": "~=1.26",
+                "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "pillow": latest,
             },
@@ -2415,31 +2416,21 @@ venv = Venv(
                     pkgs={
                         "openai": "==0.26.5",
                         "scikit-learn": "==1.0.2",
-                        "pytest-asyncio": "==0.21.1",
                     },
                 ),
                 Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings,datalib]": ["==1.1.1", "==1.30.1"],
+                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.30.1"],
                     },
-                    venvs=[
-                        Venv(pys=select_pys(min_version="3.7", max_version="3.7"), pkgs={"pytest-asyncio": "==0.21.1"}),
-                        Venv(
-                            pys=select_pys(min_version="3.8", max_version="3.11"), pkgs={"pytest-asyncio": "==0.23.7"}
-                        ),
-                    ],
                 ),
                 Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "openai[datalib]": ["==1.30.1"],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.8", max_version="3.11"), pkgs={"pytest-asyncio": "==0.23.7"}
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -2649,23 +2640,6 @@ venv = Venv(
                     pkgs={
                         "langchain": "==0.2.0",
                         "langchain-core": "==0.2.0",
-                        "langchain-openai": latest,
-                        "langchain-pinecone": latest,
-                        "langchain-anthropic": latest,
-                        "langchain-aws": latest,
-                        "langchain-cohere": latest,
-                        "openai": latest,
-                        "pinecone-client": latest,
-                        "botocore": latest,
-                        "cohere": latest,
-                    },
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
-                ),
-                Venv(
-                    pkgs={
-                        "langchain": latest,
-                        "langchain-community": latest,
-                        "langchain-core": latest,
                         "langchain-openai": latest,
                         "langchain-pinecone": latest,
                         "langchain-anthropic": latest,
