@@ -91,4 +91,8 @@ else:
         # Register the hook and argument for the code object
         _CODE_HOOKS[code] = (hook, path, import_names)
 
+        # Special case for empty modules (eg: __init__.py ):
+        if not lines and code.co_name == "<module>" and code.co_code == bytes([151, 0, 121, 0]):
+            lines.add(1)
+
         return code, lines
