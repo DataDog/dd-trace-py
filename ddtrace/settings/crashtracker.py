@@ -80,3 +80,6 @@ class CrashtrackerConfig(En):
         " and 'full'.  The default value is 'none' (no stack traces).",
     )
     stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)
+
+
+config = CrashtrackerConfig()

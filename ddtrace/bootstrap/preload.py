@@ -2,12 +2,15 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+
 import os  # noqa:I001
 
 from ddtrace import config  # noqa:F401
+from ddtrace import version
 from ddtrace.debugging._config import di_config  # noqa:F401
 from ddtrace.debugging._config import ed_config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
+from ddtrace.internal import agent
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
@@ -15,6 +18,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
 
@@ -40,6 +44,34 @@ def register_post_preload(func: t.Callable) -> None:
 
 
 log = get_logger(__name__)
+
+# DEV: We want to start the crashtracker as early as possible
+if crashtracker_config.enabled:
+    log.debug("crashtracker enabled via environment variable")
+    try:
+        from ddtrace.internal.datadog.profiling import crashtracker
+
+        crashtracker.set_url(agent.get_trace_url())
+        crashtracker.set_service(config.service)
+        crashtracker.set_version(config.version)
+        crashtracker.set_env(config.env)
+        crashtracker.set_runtime("python")
+        crashtracker.set_runtime_version("3.12.0")
+        crashtracker.set_library_version(version.get_version())
+        crashtracker.set_alt_stack(bool(crashtracker_config.alt_stack))
+        if crashtracker_config.stacktrace_resolver == "fast":
+            crashtracker.set_resolve_frames_fast()
+        elif crashtracker_config.stacktrace_resolver == "full":
+            crashtracker.set_resolve_frames_full()
+        else:
+            crashtracker.set_resolve_frames_disable()
+
+        crashtracker.start()
+
+        # DEV: We have to set runtime id after we start the crashtracker
+        # crashtracker.set_runtime_id(get_runtime_id())
+    except Exception:
+        log.error("failed to enable crashtracker", exc_info=True)
 
 
 if profiling_config.enabled:

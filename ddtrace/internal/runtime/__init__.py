@@ -1,6 +1,8 @@
 import typing as t
 import uuid
 
+# from ..datadog.profiling import crashtracker
+from ...settings.crashtracker import config as crashtracker_config
 from .. import forksafe
 
 
@@ -26,6 +28,9 @@ def _set_runtime_id():
         _ANCESTOR_RUNTIME_ID = _RUNTIME_ID
 
     _RUNTIME_ID = _generate_runtime_id()
+    if crashtracker_config.enabled:
+        # crashtracker.set_runtime_id(_RUNTIME_ID)
+        pass
 
 
 def get_runtime_id():
