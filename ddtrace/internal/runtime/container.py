@@ -55,6 +55,18 @@ class CGroupInfo:
         self.pod_id = pod_id
         self.node_inode = node_inode
 
+    def __eq__(self, other):
+        return (
+            isinstance(other, CGroupInfo)
+            and self.id == other.id
+            and self.groups == other.groups
+            and self.path == other.path
+            and self.container_id == other.container_id
+            and self.controllers == other.controllers
+            and self.pod_id == other.pod_id
+            and self.node_inode == other.node_inode
+        )
+
     @classmethod
     def from_line(cls, line):
         # type: (str) -> Optional[CGroupInfo]
