@@ -142,28 +142,28 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _extract_output_message(self, response):
         """Extract output messages from the stored response."""
         output_messages = []
-        content = _get_attr(response, "content", None)
+        content = _get_attr(response, "content", "")
         role = _get_attr(response, "role", "")
 
         if isinstance(content, str):
-            return [{"content": content, "role": role}]
+            return [{"content": content, "role": role, "tool_calls": []}]
 
         elif isinstance(content, list):
             for completion in content:
                 tool_calls_info = []
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
-                    output_messages.append({"content": text, "role": role})
+                    output_messages.append({"content": text, "role": role, "tool_calls": tool_calls_info})
                 else:
                     if _get_attr(completion, "type", None) == "tool_use":
                         tool_call_info = {
                             "name": _get_attr(completion, "name", ""),
-                            "arguments": _get_attr(completion, "input", ""),
+                            "arguments": _get_attr(completion, "input", {}),
                             "tool_id": _get_attr(completion, "id", ""),
                             "type": _get_attr(completion, "type", ""),
                         }
                         tool_calls_info.append(tool_call_info)
-                        output_messages.append({"content": "", "role": role, "tool_calls": tool_calls_info})
+                        output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
