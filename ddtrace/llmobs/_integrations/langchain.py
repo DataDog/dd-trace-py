@@ -42,21 +42,30 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
+SUPPORTED_OPERATIONS = ["llm",
+              "chat",
+              "chain",
+              "embedding"
+]
+
 
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
     def llmobs_set_tags(
-        self,
-        operation: str,  # oneof "llm","chat","chain"
-        span: Span,
-        inputs: Any,
-        response: Any = None,
-        error: bool = False,
+            self,
+            operation: str,  # oneof "llm","chat","chain","embedding"
+            span: Span,
+            inputs: Any,
+            response: Any = None,
+            error: bool = False,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
+        if operation not in SUPPORTED_OPERATIONS:
+            log.warning("Unsupported operation : %s" % operation)
+
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
