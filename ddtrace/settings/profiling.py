@@ -142,10 +142,10 @@ class ProfilingConfig(En):
     capture_pct = En.v(
         float,
         "capture_pct",
-        default=1.0,
+        default=100.0,
         help_type="Float",
-        help="The percentage of events that should be captured (e.g. memory "
-        "allocation). Greater values reduce the program execution speed. Must be "
+        help="The percentage of events that should be captured (e.g. lock "
+        "acquire/release). Greater values reduce the program execution speed. Must be "
         "greater than 0 lesser or equal to 100",
     )
 
