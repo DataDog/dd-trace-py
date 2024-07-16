@@ -1,6 +1,7 @@
 #include "crashtracker_interface.hpp"
 #include "crashtracker.hpp"
 
+#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
@@ -113,15 +114,17 @@ crashtracker_set_receiver_binary_path(std::string_view path) // cppcheck-suppres
 
 // Store the old segfault handler (uses sigaction prototype)
 void (*old_sigsegv_handler)(int, siginfo_t*, void*) = nullptr;
+void (*old_sigbus_handler)(int, siginfo_t*, void*) = nullptr;
 
 // Trap sigsegv JUST to suppress stderr
-void trap_sigsegv(int signo, siginfo_t* info, void* context)
+void
+close_stderr_chainer(int signo, siginfo_t* info, void* context)
 {
-    close(2);
     if (old_sigsegv_handler) {
+        close(STDERR_FILENO);
         old_sigsegv_handler(signo, info, context);
     }
-    _exit(1);
+    _exit(0);
 }
 
 void
@@ -129,14 +132,23 @@ crashtracker_start() // cppcheck-suppress unusedFunction
 {
     // This is a one-time start pattern to ensure that the crashtracker is only started once.
     const static bool initialized = []() {
-        // Set up the signal handler to suppress stderr output on SIGSEGV
         crashtracker.start();
-        struct sigaction sa;
-        sa.sa_sigaction = trap_sigsegv;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = SA_SIGINFO;
-        sigaction(SIGSEGV, &sa, nullptr);
         crashtracker_initialized = true;
+
+        // v11.0 of crashtracker has a bug where it prints erroneously to stderr
+        // If any handle is detected on the signals (sigsegv/sigbus) crashtracker attaches to,
+        // we suppress stderr
+        struct sigaction sa;
+        sigaction(SIGSEGV, nullptr, &sa);
+        old_sigsegv_handler = sa.sa_sigaction;
+        sa.sa_sigaction = close_stderr_chainer;
+        sigaction(SIGSEGV, &sa, nullptr);
+
+        // Handle sigbus
+        sigaction(SIGBUS, nullptr, &sa);
+        old_sigbus_handler = sa.sa_sigaction;
+        sa.sa_sigaction = close_stderr_chainer;
+        sigaction(SIGBUS, &sa, nullptr);
 
         // Also install the post-fork handler for the child process
         pthread_atfork(nullptr, nullptr, crashtracker_postfork_child);
