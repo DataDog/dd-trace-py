@@ -575,6 +575,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
         interface_type="embedding",
         provider=provider,
         model=_extract_model_name(instance),
@@ -603,6 +604,14 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "embedding",
+                span,
+                input_texts=input_texts,
+                embeddings=func(*args, **kwargs),
+                error=bool(span.error),
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
