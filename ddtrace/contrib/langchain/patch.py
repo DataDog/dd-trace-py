@@ -609,7 +609,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
                 "embedding",
                 span,
                 input_texts=input_texts,
-                embeddings=func(*args, **kwargs),
+                output_embedding=func(*args, **kwargs),
                 error=bool(span.error),
             )
         span.finish()
