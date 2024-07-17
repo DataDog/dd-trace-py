@@ -5,7 +5,6 @@
 # considerable amount of binary size, # and it's cumbersome to set an RPATH on that dependency from a different location
 
 import os
-import platform
 
 from ..types import StringType
 from ..util import ensure_binary_or_empty
@@ -41,6 +40,7 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_profiling_state_serializing_start()
     void crashtracker_profiling_state_serializing_stop()
     void crashtracker_start()
+    bint crashtracker_is_started()
 
 
 def set_url(url: StringType) -> None:
@@ -139,13 +139,15 @@ def start() -> bool:
     exe_dir = os.path.dirname(__file__)
     crashtracker_path = os.path.join(exe_dir, "crashtracker_exe")
     crashtracker_path_bytes = ensure_binary_or_empty(crashtracker_path)
-    set_runtime(platform.python_implementation())
-    set_runtime_version(platform.python_version())
     bin_exists = crashtracker_set_receiver_binary_path(
         string_view(<const char*>crashtracker_path_bytes, len(crashtracker_path_bytes))
     )
 
     # We don't have a good place to report on the failure for now.
     if bin_exists:
-        crashtracker_start()
+        return crashtracker_start()
     return bin_exists
+
+
+def is_started() -> bool:
+    return crashtracker_is_started()

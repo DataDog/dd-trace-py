@@ -47,7 +47,7 @@ class Crashtracker
     std::string url;
 
     static constexpr std::string_view family{ g_language_name };
-    static constexpr std::string_view library_name { g_library_name };
+    static constexpr std::string_view library_name{ g_library_name };
 
     // Helpers for initialization/restart
     ddog_Vec_Tag get_tags();

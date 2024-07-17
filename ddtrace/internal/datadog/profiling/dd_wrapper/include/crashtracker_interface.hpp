@@ -31,6 +31,7 @@ extern "C"
     void crashtracker_profiling_state_serializing_start();
     void crashtracker_profiling_state_serializing_stop();
     void crashtracker_start();
+    bool crashtracker_is_started();
 #ifdef __cplusplus
 } // extern "C"
 #endif

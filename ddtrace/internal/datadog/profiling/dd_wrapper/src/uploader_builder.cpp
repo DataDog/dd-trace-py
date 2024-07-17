@@ -36,7 +36,7 @@ void
 Datadog::UploaderBuilder::set_runtime(std::string_view _runtime)
 {
     if (!_runtime.empty()) {
-        runtime= _runtime;
+        runtime = _runtime;
     }
 }
 

@@ -48,6 +48,8 @@ def test_crashtracker_config_bytes():
         crashtracker.set_url(b"http://localhost:1234")
         crashtracker.set_service(b"my_favorite_service")
         crashtracker.set_version(b"v0.0.0.0.0.0.1")
+        crashtracker.set_runtime(b"shmython")
+        crashtracker.set_runtime_version(b"v9001")
         crashtracker.set_runtime_id(b"0")
         crashtracker.set_library_version(b"v2.7.1.8")
         crashtracker.set_stdout_filename(b"stdout.log")
