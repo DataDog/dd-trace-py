@@ -18,7 +18,18 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 
 
+ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
+
+
+class NotNoneDict(dict):
+    def __init__(self, args):
+        new_args = []
+        for k, v in args:
+            if v is not None and k not in ATTRS_TO_SKIP:
+                new_args.append((k, v))
+        args = new_args
+        super().__init__(args)
 
 
 @dataclasses.dataclass(eq=False)
@@ -45,14 +56,6 @@ class Evidence:
 
     def __eq__(self, other):
         return self.value == other.value and self._valueParts_hash() == other._valueParts_hash()
-
-    def _to_dict(self):
-        res = {}
-        if self.valueParts:
-            res["valueParts"] = self.valueParts
-        elif self.value:
-            res["value"] = self.value
-        return res
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -86,14 +89,6 @@ class Vulnerability:
     def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"
 
-    def _to_dict(self):
-        return {
-            "type": self.type,
-            "evidence": self.evidence._to_dict(),
-            "location": self.location._to_dict(),
-            "hash": self.hash,
-        }
-
 
 @dataclasses.dataclass
 class Source:
@@ -113,19 +108,6 @@ class Source:
         :return:
         """
         return hash((self.origin, self.name))
-
-    def _to_dict(self) -> Dict[str, Any]:
-        res: Dict[str, Any] = {
-            "origin": self.origin,
-            "name": self.name,
-        }
-        if self.redacted is not None:
-            res["redacted"] = self.redacted
-        if self.value is not None:
-            res["value"] = self.value
-        if self.pattern is not None:
-            res["pattern"] = self.pattern
-        return res
 
 
 @dataclasses.dataclass
@@ -203,7 +185,7 @@ class IastSpanReporter:
                     vuln.evidence.value, vuln.evidence._ranges, self.sources
                 )
                 vuln.evidence.value = None
-        return self._to_dict()
+        return dataclasses.asdict(self, dict_factory=NotNoneDict)
 
     def get_unredacted_value_parts(self, evidence_value: str, ranges: List[dict], sources: List[Any]) -> List[dict]:
         """
@@ -237,18 +219,6 @@ class IastSpanReporter:
 
         return value_parts
 
-    def _to_dict(self) -> Dict[str, Any]:
-        """
-        Converts the IAST span reporter to a dictionary.
-
-        Returns:
-        - Dict[str, Any]: Dictionary representation of the IAST span reporter.
-        """
-        return {
-            "vulnerabilities": [v._to_dict() for v in self.vulnerabilities],
-            "sources": [s._to_dict() for s in self.sources],
-        }
-
     def _to_str(self) -> str:
         """
         Converts the IAST span reporter to a JSON string.
@@ -269,8 +239,8 @@ class IastSpanReporter:
                 elif hasattr(obj, "_to_dict"):
                     return obj._to_dict()
                 elif dataclasses.is_dataclass(obj):
-                    return dataclasses.asdict(obj)
+                    return dataclasses.asdict(obj, dict_factory=NotNoneDict)
 
                 return json.JSONEncoder.default(self, obj)
 
-        return json.dumps(self._to_dict(), cls=OriginTypeEncoder)
+        return json.dumps(dataclasses.asdict(self, dict_factory=NotNoneDict), cls=OriginTypeEncoder)
