@@ -451,7 +451,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.7"),
+                    pys="3.7",
                     pkgs={
                         "pytest-asyncio": "~=0.21.1",
                     },
