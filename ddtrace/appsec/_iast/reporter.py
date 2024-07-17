@@ -46,12 +46,25 @@ class Evidence:
     def __eq__(self, other):
         return self.value == other.value and self._valueParts_hash() == other._valueParts_hash()
 
+    def _to_dict(self):
+        res = {}
+        if self.valueParts:
+            res["valueParts"] = self.valueParts
+        elif self.value:
+            res["value"] = self.value
+        if self.dialect:
+            res["dialect"] = self.dialect
+        return res
+
 
 @dataclasses.dataclass(unsafe_hash=True)
 class Location:
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
     path: Optional[str] = None
     line: Optional[int] = None
+
+    def __repr__(self):
+        return f"Location(path='{self.path}', line={self.line})"
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -65,7 +78,12 @@ class Vulnerability:
         self.hash = zlib.crc32(repr(self).encode())
 
     def __repr__(self):
-        return f"Vulnerability(type={self.type}, location={self.location})"
+        return f"Vulnerability(type='{self.type}', location={self.location})"
+
+    def _to_dict(self):
+        res = dataclasses.asdict(self)
+        res["evidence"] = self.evidence._to_dict()
+        return res
 
 
 @dataclasses.dataclass
@@ -216,7 +234,7 @@ class IastSpanReporter:
         - Dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
         res = {}
-        res["vulnerabilities"] = [dataclasses.asdict(v) for v in self.vulnerabilities]
+        res["vulnerabilities"] = [v._to_dict() for v in self.vulnerabilities]
         res["sources"] = [s._to_dict() for s in self.sources]
         return res
 
