@@ -59,12 +59,13 @@ class TraceProcessor(metaclass=abc.ABCMeta):
 class SpanProcessor(metaclass=abc.ABCMeta):
     """A Processor is used to process spans as they are created and finished by a tracer."""
 
+    __processors__: List["SpanProcessor"] = []
+
     def __init__(self):
         # type: () -> None
         """Default post initializer which logs the representation of the
         Processor at the ``logging.DEBUG`` level.
         """
-        self.__processors__: List["SpanProcessor"] = []
         log.debug("initialized processor %r", self)
 
     @abc.abstractmethod
@@ -125,15 +126,15 @@ class TraceSamplingProcessor(TraceProcessor):
 
     def __init__(
         self,
-        compute_stats_enabled: Optional[bool] = None,
-        sampler: Any = None,
-        single_span_rules: Optional[List[SpanSamplingRule]] = None,
-        apm_opt_out: Optional[bool] = None,
+        compute_stats_enabled: bool,
+        sampler: Any,
+        single_span_rules: List[SpanSamplingRule],
+        apm_opt_out: bool,
     ):
         super(TraceSamplingProcessor, self).__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.sampler = sampler
-        self.single_span_rules = single_span_rules if single_span_rules is not None else []
+        self.single_span_rules = single_span_rules
         self.apm_opt_out = apm_opt_out
 
     def process_trace(self, trace):
@@ -294,8 +295,7 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics["spans_created"][span._span_api] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         with self._lock:
             self._span_metrics["spans_finished"][span._span_api] += 1
 
@@ -361,8 +361,7 @@ class SpanAggregator(SpanProcessor):
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
 
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
+    def shutdown(self, timeout: Optional[float]) -> None:
         """
         This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
         used for tracing after this method has been called. A new tracer instance is required to continue tracing.
@@ -397,8 +396,7 @@ class SpanAggregator(SpanProcessor):
             # It's possible the writer never got started in the first place :(
             pass
 
-    def _queue_span_count_metrics(self, metric_name, tag_name, min_count=100):
-        # type: (str, str, int) -> None
+    def _queue_span_count_metrics(self, metric_name: str, tag_name: str, min_count: int = 100) -> None:
         """Queues a telemetry count metric for span created and span finished"""
         # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
         # We should avoid calling this method on every invocation of span finish and span start.
