@@ -863,7 +863,9 @@ class TelemetryWriter(PeriodicService):
 
             self.app_shutdown()
 
-        return self._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
+        result = self._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
+        print(f"Exception HOOK CALLED!!!!!!! result={result}")
+        return result
 
     def install_excepthook(self):
         """Install a hook that intercepts unhandled exception and send metrics about them."""
