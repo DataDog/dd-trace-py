@@ -3,10 +3,10 @@ from functools import reduce
 import json
 import operator
 import os
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Set
 from typing import Tuple
 import zlib
@@ -16,10 +16,6 @@ from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Optional  # noqa:F401
 
 
 ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
@@ -99,7 +95,7 @@ class Source:
 
 
 class IastSpanReporter:
-    def __init__(self):
+    def __init__(self) -> None:
         self.sources: List[Source] = []
         self.vulnerabilities: Set[Vulnerability] = set()
         self._evidences_with_no_sources = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
