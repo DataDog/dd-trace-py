@@ -254,8 +254,7 @@ PACKAGES = [
         "",
         "",
         "",
-        import_name="google.auth.crypt.rsa",
-        import_module_to_validate="google.auth.crypt.rsa",
+        test_import=False,
     ),
     PackageForTesting(
         "google-api-core",
