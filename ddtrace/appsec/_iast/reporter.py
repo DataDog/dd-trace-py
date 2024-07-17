@@ -60,7 +60,7 @@ class Location:
         return self.spanId == other.spanId and self.path == other.path and self.line == other.line
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(unsafe_hash=True)
 class Vulnerability:
     type: str
     evidence: Evidence
