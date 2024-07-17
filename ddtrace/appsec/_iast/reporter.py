@@ -18,13 +18,13 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 
 
-ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
+EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
 
 @dataclasses.dataclass(eq=False)
 class Evidence:
-    dialect: Optional[str]
-    value: Optional[str]
+    dialect: Optional[str] = None
+    value: Optional[str] = None
     _ranges: List[Dict] = dataclasses.field(default_factory=list)
     valueParts: Optional[List] = None
 
@@ -52,8 +52,6 @@ class Evidence:
             res["valueParts"] = self.valueParts
         elif self.value:
             res["value"] = self.value
-        if self.dialect:
-            res["dialect"] = self.dialect
         return res
 
 
@@ -81,9 +79,12 @@ class Vulnerability:
         return f"Vulnerability(type='{self.type}', location={self.location})"
 
     def _to_dict(self):
-        res = dataclasses.asdict(self)
-        res["evidence"] = self.evidence._to_dict()
-        return res
+        return {
+            "type": self.type,
+            "evidence": self.evidence._to_dict(),
+            "location": dataclasses.asdict(self.location),
+            "hash": self.hash,
+        }
 
 
 @dataclasses.dataclass
@@ -106,13 +107,16 @@ class Source:
         return hash((self.origin, self.name))
 
     def _to_dict(self) -> Dict[str, Any]:
-        res = dataclasses.asdict(self)
-        if self.redacted is None:
-            del res["redacted"]
-        if self.value is None:
-            del res["value"]
-        if self.pattern is None:
-            del res["pattern"]
+        res: Dict[str, Any] = {
+            "origin": self.origin,
+            "name": self.name,
+        }
+        if self.redacted is not None:
+            res["redacted"] = self.redacted
+        if self.value is not None:
+            res["value"] = self.value
+        if self.pattern is not None:
+            res["pattern"] = self.pattern
         return res
 
 
@@ -120,7 +124,6 @@ class Source:
 class IastSpanReporter:
     sources: List[Source] = dataclasses.field(default_factory=list)
     vulnerabilities: Set[Vulnerability] = dataclasses.field(default_factory=set)
-    _evidences_with_no_sources = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
     def __hash__(self) -> int:
         """
@@ -187,7 +190,7 @@ class IastSpanReporter:
                         source.value = None
                 vuln.evidence.valueParts = redacted_value_parts
                 vuln.evidence.value = None
-            elif vuln.evidence.value is not None and vuln.type not in self._evidences_with_no_sources:
+            elif vuln.evidence.value is not None and vuln.type not in EVIDENCES_WITH_NO_SOURCES:
                 vuln.evidence.valueParts = self.get_unredacted_value_parts(
                     vuln.evidence.value, vuln.evidence._ranges, self.sources
                 )
@@ -233,10 +236,10 @@ class IastSpanReporter:
         Returns:
         - Dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
-        res = {}
-        res["vulnerabilities"] = [v._to_dict() for v in self.vulnerabilities]
-        res["sources"] = [s._to_dict() for s in self.sources]
-        return res
+        return {
+            "vulnerabilities": [v._to_dict() for v in self.vulnerabilities],
+            "sources": [s._to_dict() for s in self.sources],
+        }
 
     def _to_str(self) -> str:
         """
@@ -253,6 +256,13 @@ class IastSpanReporter:
                 if isinstance(obj, OriginType):
                     # if the obj is uuid, we simply return the value of uuid
                     return origin_to_str(obj)
+                elif isinstance(obj, set):
+                    return list(obj)
+                elif hasattr(obj, "_to_dict"):
+                    return obj._to_dict()
+                elif dataclasses.is_dataclass(obj):
+                    return dataclasses.asdict(obj)
+
                 return json.JSONEncoder.default(self, obj)
 
         return json.dumps(self._to_dict(), cls=OriginTypeEncoder)
