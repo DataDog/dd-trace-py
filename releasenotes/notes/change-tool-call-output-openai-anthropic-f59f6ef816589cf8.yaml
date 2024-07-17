@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tool_calls: This fix resolves an issue where the previous tool call response format 
+    caused bad UI display. The response format has been updated better formatting of
+    tool calls responses from LLM in JSON dictionary format stored in tool_calls for
+    both providers (Anthropic and OpenAI).
