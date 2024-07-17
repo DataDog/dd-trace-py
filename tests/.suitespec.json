@@ -660,6 +660,7 @@
             "@bootstrap",
             "@core",
             "@telemetry",
+            "@tracing",
             "@settings",
             "@profiling",
             "tests/telemetry/*",
