@@ -1,4 +1,5 @@
 from typing import Callable
+
 from ddtrace.internal import agent
 from ddtrace.internal.datadog.profiling import crashtracker
 from ddtrace.internal.runtime import get_runtime_id
