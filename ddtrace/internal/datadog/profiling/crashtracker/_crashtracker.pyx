@@ -5,6 +5,7 @@
 # considerable amount of binary size, # and it's cumbersome to set an RPATH on that dependency from a different location
 
 import os
+import platform
 
 from ..types import StringType
 from ..util import ensure_binary_or_empty
@@ -22,6 +23,7 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_set_env(string_view env)
     void crashtracker_set_version(string_view version)
     void crashtracker_set_runtime(string_view runtime)
+    void crashtracker_set_runtime_id(string_view runtime_id)
     void crashtracker_set_runtime_version(string_view runtime_version)
     void crashtracker_set_library_version(string_view profiler_version)
     void crashtracker_set_stdout_filename(string_view filename)
@@ -69,6 +71,11 @@ def set_runtime(runtime: StringType) -> None:
 def set_runtime_version(runtime_version: StringType) -> None:
     runtime_version_bytes = ensure_binary_or_empty(runtime_version)
     crashtracker_set_runtime_version(string_view(<const char*>runtime_version_bytes, len(runtime_version_bytes)))
+
+
+def set_runtime_id(runtime_id: StringType) -> None:
+    runtime_id_bytes = ensure_binary_or_empty(runtime_id)
+    crashtracker_set_runtime_id(string_view(<const char*>runtime_id_bytes, len(runtime_id_bytes)))
 
 
 def set_library_version(library_version: StringType) -> None:
@@ -132,6 +139,8 @@ def start() -> bool:
     exe_dir = os.path.dirname(__file__)
     crashtracker_path = os.path.join(exe_dir, "crashtracker_exe")
     crashtracker_path_bytes = ensure_binary_or_empty(crashtracker_path)
+    set_runtime(platform.python_implementation())
+    set_runtime_version(platform.python_version())
     bin_exists = crashtracker_set_receiver_binary_path(
         string_view(<const char*>crashtracker_path_bytes, len(crashtracker_path_bytes))
     )
