@@ -239,9 +239,7 @@ def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_py
 
 
 def test_telemetry_with_unhandled_application_exception(test_agent_session, run_python_code_in_subprocess):
-    _, stderr, status, _ = run_python_code_in_subprocess(
-        "import ddtrace; raise Exception('bad_code')"
-    )
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace; raise Exception('bad_code')")
     assert status == 1, stderr
     assert b"bad_code" in stderr
     # Regression test for python3.12 support
