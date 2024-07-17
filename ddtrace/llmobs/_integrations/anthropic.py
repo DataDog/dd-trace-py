@@ -147,14 +147,14 @@ class AnthropicIntegration(BaseLLMIntegration):
         role = _get_attr(response, "role", "")
 
         if isinstance(content, str):
-            return [{"content": content, "role": role, "tool_calls": []}]
+            return [{"content": content, "role": role}]
 
         elif isinstance(content, list):
             for completion in content:
                 tool_calls_info = []
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
-                    output_messages.append({"content": text, "role": role, "tool_calls": tool_calls_info})
+                    output_messages.append({"content": text, "role": role})
                 else:
                     if _get_attr(completion, "type", None) == "tool_use":
                         tool_call_info = {

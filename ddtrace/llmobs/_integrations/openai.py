@@ -223,7 +223,11 @@ class OpenAIIntegration(BaseLLMIntegration):
                         "type": getattr(tool_call, "type", ""),
                     }
                     tool_calls_info.append(tool_call_info)
-            output_messages.append({"content": content, "role": choice.message.role, "tool_calls": tool_calls_info})
+                if content is None:
+                    content = ""
+                output_messages.append({"content": content, "role": choice.message.role, "tool_calls": tool_calls_info})
+            else:
+                output_messages.append({"content": content, "role": choice.message.role})
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
