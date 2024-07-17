@@ -42,18 +42,6 @@ def register_post_preload(func: t.Callable) -> None:
 log = get_logger(__name__)
 
 
-# Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
-if config._telemetry_enabled:
-    from ddtrace.internal import telemetry
-
-    telemetry.install_excepthook()
-    # In order to support 3.12, we start the writer upon initialization.
-    # See https://github.com/python/cpython/pull/104826.
-    # Telemetry events will only be sent after the `app-started` is queued.
-    # This will occur when the agent writer starts.
-    telemetry.telemetry_writer.enable()
-
-
 if profiling_config.enabled:
     log.debug("profiler enabled via environment variable")
     try:
@@ -66,10 +54,15 @@ if symdb_config.enabled:
 
     symbol_db.bootstrap()
 
-if di_config.enabled or ed_config.enabled:
+if di_config.enabled:  # Dynamic Instrumentation
     from ddtrace.debugging import DynamicInstrumentation
 
     DynamicInstrumentation.enable()
+
+if ed_config.enabled:  # Exception Replay
+    from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+
+    SpanExceptionProcessor().register()
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()

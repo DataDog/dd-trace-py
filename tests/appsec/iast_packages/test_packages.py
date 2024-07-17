@@ -8,12 +8,21 @@ import uuid
 import clonevirtualenv
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_env
 
 
 PYTHON_VERSION = sys.version_info[:2]
+
+# Add modules in the denylist that must be tested anyway
+if IAST.PATCH_MODULES in os.environ:
+    os.environ[IAST.PATCH_MODULES] += IAST.SEP_MODULES + IAST.SEP_MODULES.join(
+        ["moto", "moto[all]", "moto[ec2]", "moto[s3]"]
+    )
+else:
+    os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(["moto", "moto[all]", "moto[ec2]", "moto[s3]"])
 
 
 class PackageForTesting:
@@ -215,7 +224,7 @@ PACKAGES = [
         "",
         import_module_to_validate="cryptography.fernet",
         test_propagation=True,
-        fixme_propagation_fails=True,
+        fixme_propagation_fails=False,
     ),
     PackageForTesting(
         "distlib", "0.3.8", "", "Name: example-package\nVersion: 0.1", "", import_module_to_validate="distlib.util"
@@ -239,6 +248,15 @@ PACKAGES = [
     ),
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
+    PackageForTesting(
+        "google-auth",
+        "2.29.0",
+        "",
+        "",
+        "",
+        import_name="google.auth.crypt.rsa",
+        import_module_to_validate="google.auth.crypt.rsa",
+    ),
     PackageForTesting(
         "google-api-core",
         "2.19.0",
@@ -480,7 +498,7 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
-        fixme_propagation_fails=True,
+        fixme_propagation_fails=False,
     ),
     PackageForTesting(
         "sqlalchemy",
@@ -746,6 +764,16 @@ PACKAGES = [
         "",
         import_name="OpenSSL.SSL",
     ),
+    PackageForTesting(
+        "moto[s3]",
+        "5.0.11",
+        "some_bucket",
+        "right_result",
+        "",
+        import_name="moto.s3.models",
+        test_e2e=True,
+        extras=[("boto3", "1.34.143")],
+    ),
     PackageForTesting("decorator", "5.1.1", "World", "Decorated result: Hello, World!", ""),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
     PackageForTesting(
@@ -853,12 +881,18 @@ def _assert_propagation_results(response, package):
     assert response.status_code == 200
     content = json.loads(response.content)
     result_ok = content["result1"] == "OK"
-    if package.fixme_propagation_fails:
+    if package.fixme_propagation_fails is not None:
         if result_ok:
-            pytest.fail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+            if package.fixme_propagation_fails:  # For packages that are reliably failing
+                pytest.fail(
+                    "FIXME: Test passed unexpectedly, consider changing to fixme_propagation_fails=False for package %s"
+                    % package.name
+                )
+            else:
+                pytest.xfail("FIXME: Test passed unexpectedly for package %s" % package.name)
         else:
-            # Add pytest xfail marker to skip the test
-            pytest.xfail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+            # result not OK, so propagation is not yet working for the package
+            pytest.xfail("FIXME: Test failed expectedly for package %s" % package.name)
 
     if not result_ok:
         print(f"Error: incorrect result from propagation endpoint for package {package.name}: {content}")
@@ -921,11 +955,7 @@ def test_flask_packages_patched(package, venv):
 
 @pytest.mark.parametrize(
     "package",
-    [
-        package
-        for package in PACKAGES
-        if package.test_propagation and package.name != "rsa"  # the "rsa" mode fails reliably
-    ],
+    [package for package in PACKAGES if package.test_propagation],
     ids=lambda package: package.name,
 )
 def test_flask_packages_propagation(package, venv, printer):

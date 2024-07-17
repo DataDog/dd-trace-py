@@ -127,6 +127,13 @@ class ASMConfig(Env):
         help="Timeout in milliseconds for WAF computations",
     )
 
+    _asm_obfuscation_parameter_key_regexp = Env.var(
+        str, APPSEC.OBFUSCATION_PARAMETER_KEY_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+    )
+    _asm_obfuscation_parameter_value_regexp = Env.var(
+        str, APPSEC.OBFUSCATION_PARAMETER_VALUE_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
+    )
+
     _iast_redaction_enabled = Env.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)
     _iast_redaction_name_pattern = Env.var(
         str,
@@ -163,6 +170,8 @@ class ASMConfig(Env):
         "_asm_enabled",
         "_asm_can_be_enabled",
         "_asm_static_rule_file",
+        "_asm_obfuscation_parameter_key_regexp",
+        "_asm_obfuscation_parameter_value_regexp",
         "_appsec_standalone_enabled",
         "_iast_enabled",
         "_ep_enabled",

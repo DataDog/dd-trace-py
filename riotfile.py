@@ -203,7 +203,7 @@ venv = Venv(
                 "peewee": latest,
                 "requests": latest,
                 "six": ">=1.12.0",
-                "envier": "==0.5.1",
+                "envier": "==0.5.2",
                 "cattrs": "<23.1.1",
                 "ddsketch": ">=3.0.0",
                 "protobuf": ">=3",
@@ -1027,6 +1027,7 @@ venv = Venv(
                 "urllib3": "~=1.0",
                 "pytest-randomly": latest,
                 "importlib_metadata": latest,
+                "flask-openapi3": latest,
             },
             venvs=[
                 # Flask 1.x.x
@@ -2747,7 +2748,7 @@ venv = Venv(
                 "datadog-lambda": [">=4.66.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
-                "envier": "==0.5.1",
+                "envier": "==0.5.2",
             },
         ),
         Venv(
@@ -2781,13 +2782,16 @@ venv = Venv(
         Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
-            pkgs={"vcrpy": latest},
+            pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+            env={
+                "DD_PROFILING_ENABLE_ASSERTS": "1",
+            },
             pkgs={
                 "gunicorn": latest,
                 #
@@ -2799,6 +2803,13 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
+                Venv(
+                    name="profile-wrapt-disabled",
+                    pys=select_pys(),
+                    env={
+                        "WRAPT_DISABLE_EXTENSIONS": "1",
+                    },
+                ),
                 # Python 3.7
                 Venv(
                     pys="3.7",
