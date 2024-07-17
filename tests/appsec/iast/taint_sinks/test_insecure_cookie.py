@@ -1,6 +1,6 @@
+import dataclasses
 import json
 
-import attr
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -20,9 +20,18 @@ def _iast_report_to_str(data):
             if isinstance(obj, OriginType):
                 # if the obj is uuid, we simply return the value of uuid
                 return origin_to_str(obj)
+            elif isinstance(obj, set):
+                return list(obj)
+            elif hasattr(obj, "_to_dict"):
+                return obj._to_dict()
             return json.JSONEncoder.default(self, obj)
 
-    return json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder)
+    class NotNoneDict(dict):
+        def __setitem__(self, key, value):
+            if value is not None:
+                super().__setitem__(key, value)
+
+    return json.dumps(dataclasses.asdict(data, dict_factory=NotNoneDict), cls=OriginTypeEncoder)
 
 
 def test_insecure_cookies(iast_span_defaults):
