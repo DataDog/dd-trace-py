@@ -31,6 +31,7 @@ from tests.appsec.iast_packages.packages.pkg_frozenlist import pkg_frozenlist
 from tests.appsec.iast_packages.packages.pkg_fsspec import pkg_fsspec
 from tests.appsec.iast_packages.packages.pkg_google_api_core import pkg_google_api_core
 from tests.appsec.iast_packages.packages.pkg_google_api_python_client import pkg_google_api_python_client
+from tests.appsec.iast_packages.packages.pkg_google_auth import pkg_google_auth
 from tests.appsec.iast_packages.packages.pkg_idna import pkg_idna
 from tests.appsec.iast_packages.packages.pkg_importlib_resources import pkg_importlib_resources
 from tests.appsec.iast_packages.packages.pkg_iniconfig import pkg_iniconfig
@@ -106,6 +107,7 @@ app.register_blueprint(pkg_exceptiongroup)
 app.register_blueprint(pkg_filelock)
 app.register_blueprint(pkg_frozenlist)
 app.register_blueprint(pkg_fsspec)
+app.register_blueprint(pkg_google_auth)
 app.register_blueprint(pkg_google_api_core)
 app.register_blueprint(pkg_google_api_python_client)
 app.register_blueprint(pkg_idna)
