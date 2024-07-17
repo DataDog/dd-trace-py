@@ -233,12 +233,12 @@ class TestLLMObsOpenaiV0:
                         "major": "computer science",
                         "school": "Stanford University",
                         "grades": 3.8,
-                        "clubs": ["Chess Club", "South Asian Student Association"]
+                        "clubs": ["Chess Club", "South Asian Student Association"],
                     },
                     "tool_id": "call_ukwJcJsOt7gOrv9xGRAntkZQ",
-                    "type": "function"
+                    "type": "function",
                 }
-            ]
+            ],
         }
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -521,12 +521,12 @@ class TestLLMObsOpenaiV1:
                         "major": "computer science",
                         "school": "Stanford University",
                         "grades": 3.8,
-                        "clubs": ["Chess Club", "South Asian Student Association"]
+                        "clubs": ["Chess Club", "South Asian Student Association"],
                     },
                     "tool_id": "call_ukwJcJsOt7gOrv9xGRAntkZQ",
-                    "type": "function"
+                    "type": "function",
                 }
-            ]
+            ],
         }
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
