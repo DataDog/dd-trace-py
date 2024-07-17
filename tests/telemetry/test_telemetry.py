@@ -270,7 +270,9 @@ raise Exception('bad_code')
     assert len(app_starteds) == 1
     # app-started captures unhandled exceptions raised in application code
     assert app_starteds[0]["payload"]["error"]["code"] == 1
-    assert "/test.py:1: bad_code" in app_starteds[0]["payload"]["error"]["message"]
+    assert re.search(r"test\.py:\d+:\sbad_code$", app_starteds[0]["payload"]["error"]["message"]), app_starteds[0][
+        "payload"
+    ]["error"]["message"]
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
