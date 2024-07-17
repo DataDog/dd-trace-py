@@ -223,6 +223,7 @@ CALL = dis.opmap["CALL"]
 POP_TOP = dis.opmap["POP_TOP"]
 RESUME = dis.opmap["RESUME"]
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
+EMPTY_BYTECODE = bytes([151, 0, 100, 0, 83, 0])
 
 
 def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
@@ -268,12 +269,17 @@ def instrument_all_lines(
     line_map = {}
     line_starts = dict(dis.findlinestarts(code))
 
-    # Find the offset of the RESUME opcode. We should not add any
-    # instrumentation before this point.
-    try:
-        resume_offset = code.co_code[::2].index(RESUME) << 1
-    except ValueError:
-        resume_offset = NO_OFFSET
+    # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
+    resume_offset = NO_OFFSET
+    for i in range(0, len(code.co_code), 2):
+        if code.co_code[i] == RESUME:
+            resume_offset = i
+            break
+
+    # If we are looking at an empty module, we trick ourselves into instrumenting line 0 by skipping the RESUME at index
+    # and instrumenting the second offset:
+    if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
+        line_starts = {2: 0}
 
     try:
         code_iter = iter(enumerate(code.co_code))
