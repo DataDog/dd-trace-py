@@ -11,7 +11,6 @@ from typing import Set
 from typing import Tuple
 import zlib
 
-
 from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
@@ -30,7 +29,7 @@ class Evidence:
     def __init__(self, dialect: Optional[str] = None, value: Optional[str] = None):
         self.dialect: Optional[str] = dialect
         self.value: Optional[str] = value
-        self._ranges: dict = {}
+        self._ranges: List[Dict] = []
         self.valueParts: Optional[List] = None
 
     def _valueParts_hash(self):
@@ -70,7 +69,7 @@ class Vulnerability:
     type: str
     evidence: Evidence
     location: Location
-    hash: int = dataclasses.field(init=False, eq=False, hash="PYTEST_CURRENT_TEST" in os.environ, repr=False)
+    hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
 
     def __post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())
@@ -216,10 +215,7 @@ class IastSpanReporter:
         Returns:
         - Dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
-        return attr.asdict(
-            self,
-            filter=lambda attr, x: x is not None and attr.name not in ATTRS_TO_SKIP,
-        )
+        return {k: v for k, v in dataclasses.asdict(self) if k not in ATTRS_TO_SKIP}  # type: ignore
 
     def _to_str(self) -> str:
         """
