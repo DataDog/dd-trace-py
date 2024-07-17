@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import random
 import time
 
 import confluent_kafka
@@ -842,6 +843,28 @@ if __name__ == "__main__":
     env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
+
+
+def test_context_header_injection_works_no_client_added_headers(kafka_topic, producer, consumer):
+    with override_config("kafka", dict(distributed_tracing_enabled=True)):
+        # use a random int in this string to prevent reading a message produced by a previous test run
+        test_string = "context propagation enabled test " + str(random.randint(0, 1000))
+        test_key = "context propagation key " + str(random.randint(0, 1000))
+        PAYLOAD = bytes(test_string, encoding="utf-8")
+
+        producer.produce(kafka_topic, PAYLOAD, key=test_key)
+        producer.flush()
+
+        message = None
+        while message is None or str(message.value()) != str(PAYLOAD):
+            message = consumer.poll()
+
+        propagation_asserted = False
+        for header in message.headers():
+            if header[0] == "x-datadog-trace-id":
+                propagation_asserted = True
+
+        assert propagation_asserted is True
 
 
 def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):

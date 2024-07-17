@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
@@ -17,9 +18,12 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs.utils import Document
 from ddtrace.pin import Pin
 
 
@@ -49,7 +53,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        if operation_id.endswith("Completion"):
+        if operation_id.endswith("Completion") or operation_id == "createEmbedding":
             submit_to_llmobs = True
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
@@ -124,7 +128,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def llmobs_set_tags(
         self,
-        record_type: str,
+        operation: str,  # oneof "completion", "chat", "embedding"
         resp: Any,
         span: Span,
         kwargs: Dict[str, Any],
@@ -134,14 +138,17 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
-        span.set_tag_str(SPAN_KIND, "llm")
+        span_kind = "embedding" if operation == "embedding" else "llm"
+        span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
         span.set_tag_str(MODEL_NAME, model_name or "")
         span.set_tag_str(MODEL_PROVIDER, "openai")
-        if record_type == "completion":
+        if operation == "completion":
             self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_completions, span)
-        elif record_type == "chat":
+        elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_completions, span)
+        elif operation == "embedding":
+            self._llmobs_set_meta_tags_from_embedding(resp, err, kwargs, span)
         span.set_tag_str(
             METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None))
         )
@@ -155,10 +162,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         if isinstance(prompt, str):
             prompt = [prompt]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
-        if kwargs.get("max_tokens"):
-            parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(METADATA, json.dumps(parameters))
+
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt")}
+        span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
+
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
@@ -181,10 +188,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                 continue
             input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
-        if kwargs.get("max_tokens"):
-            parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(METADATA, json.dumps(parameters))
+
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
+        span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
+
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
@@ -220,6 +227,33 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
+    def _llmobs_set_meta_tags_from_embedding(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span) -> None:
+        """Extract prompt tags from an embedding and set them as temporary "_ml_obs.meta.*" tags."""
+        encoding_format = kwargs.get("encoding_format") or "float"
+        metadata = {"encoding_format": encoding_format}
+        if kwargs.get("dimensions"):
+            metadata["dimensions"] = kwargs.get("dimensions")
+        span.set_tag_str(METADATA, json.dumps(metadata))
+
+        embedding_inputs = kwargs.get("input", "")
+        if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
+            embedding_inputs = [embedding_inputs]
+        input_documents = []
+        for doc in embedding_inputs:
+            input_documents.append(Document(text=str(doc)))
+        span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents))
+
+        if err is not None:
+            return
+        if encoding_format == "float":
+            embedding_dim = len(resp.data[0].embedding)
+            span.set_tag_str(
+                OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
+            )
+            return
+        span.set_tag_str(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
+
+    @staticmethod
     def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed: bool = False) -> Dict[str, Any]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         metrics = {}
@@ -234,11 +268,13 @@ class OpenAIIntegration(BaseLLMIntegration):
                 }
             )
         elif resp:
+            prompt_tokens = getattr(resp.usage, "prompt_tokens", 0)
+            completion_tokens = getattr(resp.usage, "completion_tokens", 0)
             metrics.update(
                 {
-                    INPUT_TOKENS_METRIC_KEY: resp.usage.prompt_tokens,
-                    OUTPUT_TOKENS_METRIC_KEY: resp.usage.completion_tokens,
-                    TOTAL_TOKENS_METRIC_KEY: resp.usage.prompt_tokens + resp.usage.completion_tokens,
+                    INPUT_TOKENS_METRIC_KEY: prompt_tokens,
+                    OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
+                    TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
                 }
             )
         return metrics

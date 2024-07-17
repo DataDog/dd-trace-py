@@ -7,6 +7,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
+from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
@@ -40,6 +41,8 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
 def _get_span_name(span: Span) -> str:
     if span.name == LANGCHAIN_APM_SPAN_NAME and span.resource != "":
         return span.resource
+    elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
+        return "openai.{}".format(span.resource)
     return span.name
 
 

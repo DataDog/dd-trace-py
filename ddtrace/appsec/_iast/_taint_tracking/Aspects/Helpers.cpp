@@ -441,9 +441,21 @@ has_pyerr()
 void
 pyexport_aspect_helpers(py::module& m)
 {
-    m.def("common_replace", &api_common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
-    m.def("common_replace", &api_common_replace<py::str>, "string_method"_a, "candidate_text"_a);
-    m.def("common_replace", &api_common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace",
+          &api_common_replace<py::bytes>,
+          "string_method"_a,
+          "candidate_text"_a,
+          py::return_value_policy::move);
+    m.def("common_replace",
+          &api_common_replace<py::str>,
+          "string_method"_a,
+          "candidate_text"_a,
+          py::return_value_policy::move);
+    m.def("common_replace",
+          &api_common_replace<py::bytearray>,
+          "string_method"_a,
+          "candidate_text"_a,
+          py::return_value_policy::move);
     m.def("set_ranges_on_splitted",
           &api_set_ranges_on_splitted<py::bytes>,
           "source_str"_a,
@@ -500,15 +512,18 @@ pyexport_aspect_helpers(py::module& m)
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text<py::bytes>,
           "taint_escaped_text"_a,
-          "ranges_orig"_a);
+          "ranges_orig"_a,
+          py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text<py::str>,
           "taint_escaped_text"_a,
-          "ranges_orig"_a);
+          "ranges_orig"_a,
+          py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text_ba,
           "taint_escaped_text"_a,
-          "ranges_orig"_a);
+          "ranges_orig"_a,
+          py::return_value_policy::move);
     m.def("parse_params", &parse_params);
     m.def("has_pyerr", &has_pyerr);
 }

@@ -28,7 +28,10 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
 
 class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
     def __init__(self, size=1 << 10, interval=1):
-        super(ActiveBatchJsonEncoder, self).__init__(SignalQueue(None, size, self.on_full), interval=interval)
+        super(ActiveBatchJsonEncoder, self).__init__(interval)
+
+        # Override the signal queue
+        self._queue = SignalQueue(None, size, self.on_full)
 
     def on_full(self, item, encoded):
         self.periodic()

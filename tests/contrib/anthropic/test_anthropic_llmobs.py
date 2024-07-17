@@ -314,7 +314,7 @@ class TestLLMObsAnthropic:
                         ],
                     },
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 200.0},
+                metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -367,7 +367,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 500.0},
+                metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -418,7 +418,7 @@ class TestLLMObsAnthropic:
                         ],
                     },
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 200.0},
+                metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -471,7 +471,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 500.0},
+                metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -520,7 +520,7 @@ class TestLLMObsAnthropic:
                     {"content": message[0]["text"], "role": "assistant"},
                     {"content": message[1]["text"], "role": "assistant"},
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 200.0},
+                metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 135, "total_tokens": 734},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -570,7 +570,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 500.0},
+                metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 33, "total_tokens": 795},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -614,7 +614,7 @@ class TestLLMObsAnthropic:
                     {"content": message.content[0].text, "role": "assistant"},
                     {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 200.0},
+                metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -666,7 +666,7 @@ class TestLLMObsAnthropic:
                 output_messages=[
                     {"content": "\n\nThe current weather in San Francisco, CA is 73°F.", "role": "assistant"}
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 500.0},
+                metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 18, "total_tokens": 780},
                 tags={"ml_app": "<ml-app-name>"},
             )
