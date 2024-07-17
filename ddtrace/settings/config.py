@@ -8,6 +8,7 @@ from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -373,14 +374,14 @@ class Config(object):
                     return True
             return False
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Must map Otel configurations to Datadog configurations before creating the config object.
         _otel_remapping()
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
 
         # Use a dict as underlying storing mechanism for integration configs
-        self._integration_configs = {}
+        self._integration_configs: dict = {}
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
@@ -414,7 +415,7 @@ class Config(object):
 
         self._trace_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
         self._trace_agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
-        self._trace_agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+        self._trace_agent_url: str = os.environ.get("DD_TRACE_AGENT_URL", "")
 
         self._stats_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
         self._stats_agent_port = os.getenv("DD_DOGSTATSD_PORT")
@@ -444,7 +445,7 @@ class Config(object):
         if self.service is None and in_azure_function():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
-        self._extra_services = set()
+        self._extra_services: Set = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
@@ -545,7 +546,7 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
-        self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
+        self._subscriptions: List[Tuple[List[str], Callable[[Config, List[str]], None]]] = []
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")

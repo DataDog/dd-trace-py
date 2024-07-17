@@ -147,7 +147,7 @@ class JSONTree:
                 for child in self.children[::-1]:
                     yield from child.leaves
 
-    def __init__(self, data):
+    def __init__(self, data: str) -> None:
         self._iter = enumerate(data)
         self._stack: List["JSONTree.Node"] = []  # TODO: deque
         self.root = None
@@ -249,7 +249,10 @@ class LogSignalJsonEncoder(Encoder):
 
         tree = JSONTree(log_signal_json)
 
-        delta = len(tree.root) - self.MAX_SIGNAL_SIZE
+        if tree.root is None:
+            delta = 0 - self.MAX_SIGNAL_SIZE
+        else:
+            delta = len(tree.root) - self.MAX_SIGNAL_SIZE
         nodes, s = {}, 0
 
         leaves = [_ for _ in tree.leaves if _.level >= self.MIN_LEVEL]

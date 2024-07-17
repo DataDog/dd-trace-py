@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from time import monotonic
+import typing
 
 from ddtrace.settings.asm import config as asm_config
 
@@ -11,7 +12,7 @@ class deduplication:
     _time_lapse = 3600  # 1 hour
     _max_cache_size = 256
 
-    def __init__(self, func):
+    def __init__(self, func: typing.Callable) -> None:
         self.func = func
         self.reported_logs: OrderedDict[int, float] = OrderedDict()
 

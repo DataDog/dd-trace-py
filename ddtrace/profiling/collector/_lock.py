@@ -52,7 +52,7 @@ class LockReleaseEvent(LockEventBase):
 
     __slots__ = ("locked_for_ns",)
 
-    def __init__(self, locked_for_ns=0, *args, **kwargs):
+    def __init__(self, locked_for_ns: int = 0, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.locked_for_ns: int = locked_for_ns
 

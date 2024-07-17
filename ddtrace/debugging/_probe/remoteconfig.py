@@ -261,7 +261,9 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     events that can be handled easily by the debugger.
     """
 
-    def __init__(self, data_connector, callback, name, status_logger):
+    def __init__(
+        self, data_connector: PublisherSubscriberConnector, callback: Callable, name: str, status_logger
+    ) -> None:
         super().__init__(data_connector, callback, name)
         self._configs: Dict[str, Dict[str, Probe]] = {}
         self._status_timestamp_sequence = count(

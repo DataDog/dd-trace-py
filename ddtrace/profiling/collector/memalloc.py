@@ -44,7 +44,7 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
 
     __slots__ = ("size", "sample_size")
 
-    def __init__(self, size=0, sample_size=0, *args, **kwargs):
+    def __init__(self, size: int = 0, sample_size: int = 0, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.size: int = size
         """Allocation size in bytes."""

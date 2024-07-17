@@ -21,6 +21,6 @@ class StackExceptionSampleEvent(event.StackBasedEvent):
 
     __slots__ = ("exc_type",)
 
-    def __init__(self, exc_type=None, *args, **kwargs):
+    def __init__(self, exc_type: typing.Optional[str] = None, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.exc_type: typing.Optional[str] = exc_type

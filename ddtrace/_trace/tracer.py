@@ -769,6 +769,7 @@ class Tracer(object):
             else:
                 service = config.service
 
+        assert isinstance(service, str)
         # Update the service name based on any mapping
         service = config.service_mapping.get(service, service)
 

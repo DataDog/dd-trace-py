@@ -402,10 +402,10 @@ class TelemetryWriter(PeriodicService):
             value = "true" if item.value() else "false"
         elif cfg_name == "trace_http_header_tags":
             name = "trace_header_tags"
-            value = ",".join(":".join(x) for x in item.value().items())
+            value = ",".join(":".join(x) for x in item.value().items())  # type: ignore
         elif cfg_name == "tags":
             name = "trace_tags"
-            value = ",".join(":".join(x) for x in item.value().items())
+            value = ",".join(":".join(x) for x in item.value().items())  # type: ignore
         elif cfg_name == "_tracing_enabled":
             name = "trace_enabled"
             value = "true" if item.value() else "false"
@@ -453,8 +453,20 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
-                (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
-                (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
+                (
+                    TELEMETRY_PROPAGATION_STYLE_INJECT,
+                    ",".join(config._propagation_style_inject)
+                    if config._propagation_style_inject is not None
+                    else "unknown",
+                    "unknown",
+                ),
+                (
+                    TELEMETRY_PROPAGATION_STYLE_EXTRACT,
+                    ",".join(config._propagation_style_extract)
+                    if config._propagation_style_extract is not None
+                    else "unknown",
+                    "unknown",
+                ),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),

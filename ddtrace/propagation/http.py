@@ -1013,6 +1013,8 @@ class HTTPPropagator(object):
 
             _inject_llmobs_parent_id(span_context)
 
+        if config._propagation_style_inject is None:
+            return
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
@@ -1052,7 +1054,7 @@ class HTTPPropagator(object):
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
             # tracer configured to extract first only
-            if config._propagation_extract_first:
+            if config._propagation_extract_first and config._propagation_style_extract is not None:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
