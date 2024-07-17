@@ -235,7 +235,7 @@ class TestLLMObsOpenaiV0:
                         "grades": 3.8,
                         "clubs": ["Chess Club", "South Asian Student Association"]
                     },
-                    "tool_id": "",
+                    "tool_id": "call_ukwJcJsOt7gOrv9xGRAntkZQ",
                     "type": "function"
                 }
             ]
@@ -523,7 +523,7 @@ class TestLLMObsOpenaiV1:
                         "grades": 3.8,
                         "clubs": ["Chess Club", "South Asian Student Association"]
                     },
-                    "tool_id": "",
+                    "tool_id": "call_ukwJcJsOt7gOrv9xGRAntkZQ",
                     "type": "function"
                 }
             ]

@@ -25,22 +25,6 @@ WEATHER_OUTPUT_MESSAGE_2_Modified = [
 ]
 WEATHER_OUTPUT_MESSAGE_3 = "Based on the result from the get_weather tool, the current weather in San \
 Francisco, CA is 73°F."
-WEATHER_OUTPUT_MESSAGE_2_Stream = [
-    {
-        "name": "get_weather",
-        "arguments": {"location": "San Francisco, CA"},
-        "tool_id": "toolu_01LktqwpwQ8XKE8D17BffC65",
-        "type": "tool_use",
-    }
-]
-WEATHER_OUTPUT_MESSAGE_2_Helper = [
-    {
-        "name": "get_weather",
-        "arguments": {"location": "San Francisco, CA"},
-        "tool_id": "toolu_01UiyhG7tywQKaqdgxyqa8z9",
-        "type": "tool_use",
-    }
-]
 
 
 @pytest.mark.parametrize(
@@ -525,7 +509,7 @@ class TestLLMObsAnthropic:
                 + " the location is fully specified. We can proceed with calling the get_weather tool.\n</thinking>",
                 "type": "text",
             },
-            {"text": WEATHER_OUTPUT_MESSAGE_2_Stream, "type": "text"},
+            {"text": WEATHER_OUTPUT_MESSAGE_2_Modified, "type": "text"},
         ]
 
         traces = mock_tracer.pop_traces()
@@ -558,7 +542,7 @@ class TestLLMObsAnthropic:
                         "content": [
                             {
                                 "type": "tool_result",
-                                "tool_use_id": "toolu_01LktqwpwQ8XKE8D17BffC65",
+                                "tool_use_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
                                 "content": [{"type": "text", "text": "The weather is 73f"}],
                             }
                         ],
@@ -633,7 +617,7 @@ class TestLLMObsAnthropic:
                 input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
                     {"content": message.content[0].text, "role": "assistant", "tool_calls": []},
-                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_Helper},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_Modified},
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
@@ -653,7 +637,7 @@ class TestLLMObsAnthropic:
                         "content": [
                             {
                                 "type": "tool_result",
-                                "tool_use_id": "toolu_01UiyhG7tywQKaqdgxyqa8z9",
+                                "tool_use_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
                                 "content": [{"type": "text", "text": "The weather is 73f"}],
                             }
                         ],
@@ -681,7 +665,7 @@ class TestLLMObsAnthropic:
                 input_messages=[
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message.content[0].text, "role": "assistant"},
-                    {"content": WEATHER_OUTPUT_MESSAGE_2_Helper, "role": "assistant"},
+                    {"content": WEATHER_OUTPUT_MESSAGE_2_Modified, "role": "assistant"},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
