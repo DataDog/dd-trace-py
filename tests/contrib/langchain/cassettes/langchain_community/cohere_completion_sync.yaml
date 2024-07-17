@@ -1,61 +1,93 @@
 interactions:
 - request:
-    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
-      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
-      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
-      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
-      "logit_bias": {}, "stream": false}'
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75, "stop_sequences":
+      null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0}'
     headers:
-      Accept:
+      accept:
       - '*/*'
-      Accept-Encoding:
+      accept-encoding:
       - gzip, deflate
-      Connection:
+      connection:
       - keep-alive
-      Content-Length:
-      - '363'
-      Content-Type:
+      content-length:
+      - '234'
+      content-type:
       - application/json
-      Request-Source:
-      - python-sdk-4.11.2
-      User-Agent:
-      - python-requests/2.31.0
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.0
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
     method: POST
     uri: https://api.cohere.ai/v1/generate
   response:
-    body:
-      string: '{"id":"2178266f-e279-4645-915e-ece297fad232","generations":[{"id":"5edd6cea-359a-4eef-bfbe-608f02832227","text":"\nThe
-        secret Krabby Patty recipe is a closely guarded trade secret, known only to
-        a select few people at the Krusty Krab restaurant."}],"prompt":"What is the
-        secret Krabby Patty recipe?","meta":{"api_version":{"version":"1"}}}'
+    content: '{"id":"5750d279-acdc-4a87-aeb6-7f68c00e0a21","generations":[{"id":"88fa8678-9400-4995-82fb-a2b90ea7db6c","text":"
+      The secret Krabby Patty recipe has been kept under strict security measures
+      and has never been publicly revealed. While there is no definitive answer to
+      what the secret recipe consists of, it is believed to contain a combination
+      of unique ingredients that give the Krabby Patties their distinctive taste and
+      flavor. \n\nIn the SpongeBob SquarePants animated series, the recipe is depicted
+      as a secret formula protected by the owner of the restaurant, Mr. Krabs. The
+      formula is said to be written on a piece of paper and kept in a secret safe
+      located behind the cafeteria grill. The ingredients listed in the recipe have
+      never been fully disclosed, adding to the mystery and allure of the Krabby Patties.
+      \n\nThe secret recipe has become an integral part of the Krabby Patty''s popularity
+      and has played a significant role in fueling customers'' curiosity and appetites.
+      The mystery surrounding the recipe has also become a running joke and source
+      of comedic moments throughout the SpongeBob SquarePants series. \n\nWhile the
+      exact components of the secret Krabby Patty recipe may never be officially revealed,
+      fans of the show can continue to speculate and imagine the delicious combination
+      of ingredients that make these burgers so irresistible. ","finish_reason":"COMPLETE"}],"prompt":"What
+      is the secret Krabby Patty recipe?","meta":{"api_version":{"version":"1"},"billed_units":{"input_tokens":10,"output_tokens":244}}}'
     headers:
       Alt-Svc:
       - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '1535'
       Via:
       - 1.1 google
-      content-length:
-      - '339'
+      access-control-expose-headers:
+      - X-Debug-Trace-ID
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
       content-type:
       - application/json
       date:
-      - Thu, 29 Jun 2023 13:40:32 GMT
+      - Tue, 16 Jul 2024 16:32:03 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
       num_chars:
-      - '170'
+      - '1279'
+      num_tokens:
+      - '254'
+      pragma:
+      - no-cache
+      server:
+      - envoy
       vary:
       - Origin
+      x-accel-expires:
+      - '0'
+      x-api-warning:
+      - 'unknown field: parameter model is not a valid field'
+      x-debug-trace-id:
+      - e642ea61ecf73e8def23f3a5a0de1dfc
       x-endpoint-monthly-call-limit:
-      - '5000'
-      x-ratelimit-limit:
-      - '10000000'
-      x-ratelimit-remaining:
-      - '9999998'
-      x-ratelimit-reset:
-      - '1684403260'
+      - '1000'
+      x-envoy-upstream-service-time:
+      - '7106'
       x-trial-endpoint-call-limit:
-      - '5'
+      - '40'
       x-trial-endpoint-call-remaining:
-      - '4'
-    status:
-      code: 200
-      message: OK
+      - '39'
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

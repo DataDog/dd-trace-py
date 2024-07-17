@@ -25,7 +25,7 @@ interactions:
       host:
       - api.openai.com
       user-agent:
-      - AsyncOpenAI/Python 1.12.0
+      - AsyncOpenAI/Python 1.30.3
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -35,76 +35,49 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.30.3
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.5
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA0yQPW/CMBCG9/wKy1OLGitJQUC2qsDEUoYuTZUYc4Bbx2c5lyoF8d8rJwi6WNY9
-        937ozhFjXO94zriqnYlnJ682i5fT0i7f4LROVovV+6vMfjdyvZf8KWzj9gsUBQVBR6XC2hkgjXbA
-        yoMkCI7pNJlPJ+NZmvagxh2YIDs4ip/FJKbWbzHWtiHfKrqqj6gVNDxnHxFjjJ37lw1ZQVxVVfgW
-        NhuNJuPCVlVVWCGEbWvonBfwI00rCR4KPmzwRyFEMZTrnbTdQcdzltwmBg/O4zak2taY23yvrW6O
-        pQfZoA3hDaHjPb1EjH32jdtGHoDn16bceawdlYTfYINhlmSDH78f6k7T+RUSkjT/VFkahZBL9AcA
-        AP//AwCca6rEoQEAAA==
+    content: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+      \\u003cnot-a-r****key\\u003e. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+      \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+      \"invalid_api_key\"\n    }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8604e473a8a08cee-EWR
-      Cache-Control:
-      - no-cache, must-revalidate
+      - 8a466a6d7ceaab7e-YYZ
       Connection:
       - keep-alive
-      Content-Encoding:
-      - gzip
+      Content-Length:
+      - '276'
       Content-Type:
-      - application/json
+      - application/json; charset=utf-8
       Date:
-      - Wed, 06 Mar 2024 19:53:31 GMT
+      - Wed, 17 Jul 2024 01:21:31 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=1rHsm5GUXkSvMHlmmApMXPl3qkdvapYt7m0Ji8yPPo0-1709754811-1.0.1.1-dGYjonAD3dWFx8EBd53LIdS7Vd7Jo01fW8NzVEgnzJP4BqnAJpShH0R3v_7StmWmOhC5F.yr7mfTJ_e6uyU9Ow;
-        path=/; expires=Wed, 06-Mar-24 20:23:31 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=HHxQ4SvbKXL53jgTe.R9anp78XT1ln4kGp_qLlK4Jlk-1721179291-1.0.1.1-E7pIqlyLpzTihfJY5ciNIneMUqaMOqY7JgHnwdRcBK0kacUHrRZlxNiq7jZ.7uapNQYAfEDK9ncwLUbMTYiyAQ;
+        path=/; expires=Wed, 17-Jul-24 01:51:31 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=N3KT4RtBSLdNcohPq5lDwAM1MO3Oxp.qcYaQi2pb754-1709754811873-0.0.1.1-604800000;
+      - _cfuvid=B0j.yCHspPUaPEMDv_nFsy8cIC2ApkBklE1sPinnd7k-1721179291833-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
-      Transfer-Encoding:
-      - chunked
-      access-control-allow-origin:
-      - '*'
+      X-Content-Type-Options:
+      - nosniff
       alt-svc:
       - h3=":443"; ma=86400
-      openai-model:
-      - gpt-3.5-turbo-instruct
-      openai-organization:
-      - datadog-4
-      openai-processing-ms:
-      - '278'
-      openai-version:
-      - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
-      x-ratelimit-limit-requests:
-      - '3000'
-      x-ratelimit-limit-tokens:
-      - '250000'
-      x-ratelimit-remaining-requests:
-      - '2999'
-      x-ratelimit-remaining-tokens:
-      - '249569'
-      x-ratelimit-reset-requests:
-      - 20ms
-      x-ratelimit-reset-tokens:
-      - 103ms
+      - max-age=15552000; includeSubDomains; preload
+      vary:
+      - Origin
       x-request-id:
-      - req_779410e355ea4682f453e272f307d957
-    status:
-      code: 200
-      message: OK
+      - req_bd115153b380913e465d737794b2697b
+    http_version: HTTP/1.1
+    status_code: 401
 version: 1

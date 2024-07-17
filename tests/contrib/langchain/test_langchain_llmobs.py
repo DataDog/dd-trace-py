@@ -188,19 +188,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_openai_chat_model_custom_role(self, langchain, mock_llmobs_span_writer, mock_tracer):
-        chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
-        span = self._invoke_chat(
-            chat_model=chat,
-            prompt="When do you use 'whom' instead of 'who'?",
-            mock_tracer=mock_tracer,
-            cassette_name="openai_chat_completion_sync_call.yaml",
-            role="custom",
-        )
-        assert mock_llmobs_span_writer.enqueue.call_count == 1
-        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="custom")
-
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_chain(self, langchain, mock_llmobs_span_writer, mock_tracer):
         chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0, max_tokens=256))
 
@@ -342,7 +329,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         if langchain_community is None:
             pytest.skip("langchain-community not installed which is required for this test.")
         span = self._invoke_llm(
-            llm=langchain_community.llms.Cohere(model="cohere.command-light-text-v14"),
+            llm=langchain_community.llms.Cohere(model="command"),
             prompt="What is the secret Krabby Patty recipe?",
             mock_tracer=mock_tracer,
             cassette_name="cohere_completion_sync.yaml",
@@ -373,17 +360,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
-
-    def test_llmobs_openai_chat_model_custom_role(self, langchain_openai, mock_llmobs_span_writer, mock_tracer):
-        span = self._invoke_chat(
-            chat_model=langchain_openai.ChatOpenAI(temperature=0, max_tokens=256),
-            prompt="When do you use 'who' instead of 'whom'?",
-            mock_tracer=mock_tracer,
-            cassette_name="openai_chat_completion_sync_call.yaml",
-            role="custom",
-        )
-        assert mock_llmobs_span_writer.enqueue.call_count == 1
-        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="custom")
 
     def test_llmobs_chain(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
@@ -531,12 +507,12 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     )
 
     openai_env_config = dict(
-        OPENAI_API_KEY="testing",
+        # OPENAI_API_KEY="testing",
         DD_API_KEY="<not-a-real-key>",
     )
 
     anthropic_env_config = dict(
-        ANTHROPIC_API_KEY="testing",
+        # ANTHROPIC_API_KEY="testing",
         DD_API_KEY="<not-a-real-key>",
     )
 

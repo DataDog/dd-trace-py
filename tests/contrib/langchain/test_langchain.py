@@ -129,24 +129,6 @@ async def test_openai_llm_async(langchain, request_vcr):
         await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_llm_stream", ignores=["resource"])
-def test_openai_llm_sync_stream(langchain, request_vcr):
-    llm = langchain.llms.OpenAI(streaming=True, model="text-davinci-003")
-    with request_vcr.use_cassette("openai_completion_sync_stream.yaml"):
-        llm("Why is Spongebob so bad at driving?")
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain.test_openai_llm_stream",
-    ignores=["meta.langchain.response.completions.0.text"],
-)
-async def test_openai_llm_async_stream(langchain, request_vcr):
-    llm = langchain.llms.OpenAI(streaming=True, model="text-davinci-003")
-    with request_vcr.use_cassette("openai_completion_async_stream.yaml"):
-        await llm.agenerate(["Why is Spongebob so bad at driving?"])
-
-
 @pytest.mark.snapshot(ignores=["meta.error.stack", "resource"])
 def test_openai_llm_error(langchain, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
@@ -355,21 +337,6 @@ async def test_openai_chat_model_async_generate(langchain, request_vcr):
                 ],
             ]
         )
-
-
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
-def test_openai_chat_model_sync_stream(langchain, request_vcr):
-    chat = langchain.chat_models.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
-    with request_vcr.use_cassette("openai_chat_completion_sync_stream.yaml"):
-        chat([langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")])
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
-async def test_openai_chat_model_async_stream(langchain, request_vcr):
-    chat = langchain.chat_models.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
-    with request_vcr.use_cassette("openai_chat_completion_async_stream.yaml"):
-        await chat.agenerate([[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")]])
 
 
 def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):

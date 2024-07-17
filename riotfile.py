@@ -2472,7 +2472,7 @@ venv = Venv(
             # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
-                "vcrpy": latest,
+                "vcrpy": "==5.1.0",
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
                 "huggingface-hub": latest,
