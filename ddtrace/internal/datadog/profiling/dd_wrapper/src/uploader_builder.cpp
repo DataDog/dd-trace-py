@@ -1,69 +1,132 @@
 #include "uploader_builder.hpp"
 #include "libdatadog_helpers.hpp"
 
-#include <mutex>
 #include <numeric>
-#include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 void
-Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
+Datadog::UploaderBuilder::set_env(std::string_view _env)
 {
-    if (!_dd_env.empty()) {
-        dd_env = _dd_env;
+    if (!_env.empty()) {
+        profile_metadata.env = _env;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_service(std::string_view _service)
 {
     if (!_service.empty()) {
-        service = _service;
+        profile_metadata.service = _service;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_version(std::string_view _version)
 {
     if (!_version.empty()) {
-        version = _version;
+        profile_metadata.version = _version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_runtime(std::string_view _runtime)
 {
     if (!_runtime.empty()) {
-        runtime = _runtime;
+        profile_metadata.runtime = _runtime;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
 {
     if (!_runtime_version.empty()) {
-        runtime_version = _runtime_version;
+        profile_metadata.runtime_version = _runtime_version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
 {
     if (!_profiler_version.empty()) {
-        profiler_version = _profiler_version;
+        profile_metadata.profiler_version = _profiler_version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_url(std::string_view _url)
 {
     if (!_url.empty()) {
-        url = _url;
+        profile_metadata.url = _url;
     }
 }
+
+void
+Datadog::UploaderBuilder::clear_url()
+{
+    profile_metadata.url = "";
+}
+
+bool
+Datadog::UploaderBuilder::set_dir(std::string_view _dir)
+{
+    if (_dir.empty()) {
+        return false;
+    }
+
+    // Given a directory, we need to ensure that it
+    // - Exists
+    // - Is writable by the current user
+    // We'll do this by attempting to create a file in the directory
+    // and then deleting it.  If we can't do that, we'll throw an error.
+    const char *file_cstr = ".dd_test_file";
+    const char *dir_cstr = _dir.data();
+
+    // this will be a real file and not a FIFO, so we don't need to check EINTR
+    int dirfd = open(dir_cstr, O_DIRECTORY);
+    if (dirfd == -1) {
+        return false;
+    }
+    int fd = openat(dirfd, file_cstr, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+    close(dirfd);
+    unlink(file_cstr);
+    if (fd == -1) {
+        return false;
+    }
+
+    // Usually just creating a file is sufficient, but SELinux is a thing, so write too.
+    size_t bytes_written = 0;
+    do {
+        bytes_written = write(fd, "test", 4);
+    } while (errno == EINTR);
+    close(fd);
+
+    if (bytes_written != 4) {
+        return false;
+    }
+
+    // If we're here, we can write to the directory, so we'll save it.
+    profile_metadata.dir = _dir;
+    return true;
+}
+
+void
+Datadog::UploaderBuilder::clear_dir()
+{
+    profile_metadata.dir = "";
+}
+
 void
 Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 {
 
     if (!_key.empty() && !_val.empty()) {
         const std::lock_guard<std::mutex> lock(tag_mutex);
-        user_tags[std::string(_key)] = std::string(_val);
+        profile_metadata.user_tags[std::string(_key)] = std::string(_val);
     }
 }
 
@@ -71,7 +134,12 @@ void
 Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
 {
     if (!_runtime_id.empty()) {
-        runtime_id = _runtime_id;
+        // If the runtime_id is the same, we don't need to do anything.
+        // if it's different, change and also reset the upload counter (new runtime, new sequence)
+        if (profile_metadata.runtime_id != _runtime_id) {
+            profile_metadata.runtime_id = _runtime_id;
+            upload_seq.store(0);
+        }
     }
 }
 
@@ -96,6 +164,10 @@ join(const std::vector<std::string>& vec, const std::string& delim)
 std::variant<Datadog::Uploader, std::string>
 Datadog::UploaderBuilder::build()
 {
+    // Increment the upload sequence number every time we build an uploader; in the current
+    // code Uploaders are use-once-and-destroy, so this pans out.
+    upload_seq++;
+
     // Setup the ddog_Exporter
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
 
@@ -104,13 +176,13 @@ Datadog::UploaderBuilder::build()
     // tags, so we'll just collect all the reasons and report them all at once.
     std::vector<std::string> reasons{};
     const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
-        { ExportTagKey::dd_env, dd_env },
-        { ExportTagKey::service, service },
-        { ExportTagKey::version, version },
-        { ExportTagKey::language, language },
-        { ExportTagKey::runtime, runtime },
-        { ExportTagKey::runtime_version, runtime_version },
-        { ExportTagKey::profiler_version, profiler_version },
+        { ExportTagKey::dd_env, profile_metadata.env },
+        { ExportTagKey::service, profile_metadata.service },
+        { ExportTagKey::version, profile_metadata.version },
+        { ExportTagKey::language, profile_metadata.family },
+        { ExportTagKey::runtime, profile_metadata.runtime },
+        { ExportTagKey::runtime_version, profile_metadata.runtime_version },
+        { ExportTagKey::profiler_version, profile_metadata.profiler_version },
     };
 
     for (const auto& [tag, data] : tag_data) {
@@ -123,7 +195,7 @@ Datadog::UploaderBuilder::build()
     }
 
     // Add the user-defined tags, if any.
-    for (const auto& tag : user_tags) {
+    for (const auto& tag : profile_metadata.user_tags) {
         std::string errmsg;
         if (!add_tag(tags, tag.first, tag.second, errmsg)) {
             reasons.push_back(std::string(tag.first) + ": " + errmsg);
@@ -137,10 +209,10 @@ Datadog::UploaderBuilder::build()
 
     // If we're here, the tags are good, so we can initialize the exporter
     ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
-                                                              to_slice(profiler_version),
-                                                              to_slice(family),
+                                                              to_slice(profile_metadata.profiler_version),
+                                                              to_slice(profile_metadata.family),
                                                               &tags,
-                                                              ddog_prof_Endpoint_agent(to_slice(url)));
+                                                              ddog_prof_Endpoint_agent(to_slice(profile_metadata.url)));
     ddog_Vec_Tag_drop(tags);
 
     auto ddog_exporter_result = Datadog::get_newexporter_result(res);
@@ -154,5 +226,7 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    return Datadog::Uploader{ url, ddog_exporter };
+    auto uploader = Datadog::Uploader{ ddog_exporter, profile_metadata };
+    uploader.upload_seq = upload_seq.load();
+    return "hello";
 }
