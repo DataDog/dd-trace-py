@@ -238,8 +238,20 @@ def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_py
     assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in app_starteds[0]["payload"]["error"]["message"]
 
 
-def test_telemetry_with_unhandled_application_exception(test_agent_session, run_python_code_in_subprocess):
-    out, stderr, status, _ = run_python_code_in_subprocess("import ddtrace; raise Exception('bad_code')")
+def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
+    out, stderr, status, _ = run_python_code_in_subprocess(
+"""
+def my_except_hook(exctype, value, traceback):
+    pass
+
+import sys
+sys.excepthook = my_except_hook
+
+import ddtrace
+raise Exception('bad_code')
+
+"""
+)
     assert status == 1, stderr
     assert b"bad_code" in stderr
     # Regression test for python3.12 support
@@ -251,7 +263,7 @@ def test_telemetry_with_unhandled_application_exception(test_agent_session, run_
     assert app_starteds[0]["payload"]["error"]["code"] == 1
     assert "/test.py:1: bad_code" in app_starteds[0]["payload"]["error"]["message"]
     # Assert that the exception hook was called
-    assert out == b"Exception HOOK CALLED!!!!!!! result=None\n"
+    assert b"TypeError: my_except_hook() takes 3 positional arguments but 4 were given" in stderr
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
