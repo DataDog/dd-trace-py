@@ -263,13 +263,12 @@ class SpanAggregator(SpanProcessor):
         trace_processors: Iterable[TraceProcessor],
         writer: TraceWriter,
     ):
-        super(SpanAggregator, self).__init__()
         self._partial_flush_enabled = partial_flush_enabled
         self._partial_flush_min_spans = partial_flush_min_spans
         self._trace_processors = trace_processors
         self._writer = writer
-        self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
 
+        self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: Union[RLock, Lock] = RLock() if config._span_aggregator_rlock else Lock()
 
         # Tracks the number of spans created and tags each count with the api that was used
@@ -278,6 +277,7 @@ class SpanAggregator(SpanProcessor):
             "spans_created": defaultdict(int),
             "spans_finished": defaultdict(int),
         }
+        super(SpanAggregator, self).__init__()
 
     def __repr__(self):
         return (
