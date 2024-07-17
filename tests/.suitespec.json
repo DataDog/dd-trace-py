@@ -447,6 +447,7 @@
             "@remoteconfig",
             "@symbol_db",
             "@tracing",
+            "ddtrace/internal/*",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
