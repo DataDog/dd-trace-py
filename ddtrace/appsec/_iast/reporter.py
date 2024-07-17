@@ -64,6 +64,14 @@ class Location:
     def __repr__(self):
         return f"Location(path='{self.path}', line={self.line})"
 
+    def _to_dict(self):
+        res = {"spanId": self.spanId}
+        if self.path is not None:
+            res["path"] = self.path
+        if self.line is not None:
+            res["line"] = self.line
+        return res
+
 
 @dataclasses.dataclass(unsafe_hash=True)
 class Vulnerability:
@@ -82,7 +90,7 @@ class Vulnerability:
         return {
             "type": self.type,
             "evidence": self.evidence._to_dict(),
-            "location": dataclasses.asdict(self.location),
+            "location": self.location._to_dict(),
             "hash": self.hash,
         }
 
