@@ -159,7 +159,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                     if _get_attr(completion, "type", None) == "tool_use":
                         tool_call_info = {
                             "name": _get_attr(completion, "name", ""),
-                            "arguments": _get_attr(completion, "input", {}),
+                            "arguments": json.loads(_get_attr(completion, "input", "")),
                             "tool_id": _get_attr(completion, "id", ""),
                             "type": _get_attr(completion, "type", ""),
                         }
