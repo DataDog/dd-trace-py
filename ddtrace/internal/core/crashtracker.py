@@ -1,0 +1,44 @@
+from typing import Callable
+from ddtrace.internal import agent
+from ddtrace.internal.datadog.profiling import crashtracker
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.runtime import on_runtime_id_change
+from ddtrace.settings.crashtracker import config as crashtracker_config
+from ddtrace import config
+from ddtrace import version
+
+
+is_available: bool = crashtracker.is_available
+failure_msg: str = crashtracker.failure_msg
+is_started: Callable[[], bool] = crashtracker.is_started
+
+
+@on_runtime_id_change
+def _update_runtime_id(runtime_id: str) -> None:
+    if is_available:
+        crashtracker.set_runtime_id(runtime_id)
+
+
+def start() -> bool:
+    # Always configure, even if we aren't going to start it
+    if not is_available:
+        return False
+
+    crashtracker.set_url(agent.get_trace_url())
+    crashtracker.set_service(config.service)
+    crashtracker.set_version(config.version)
+    crashtracker.set_env(config.env)
+    crashtracker.set_runtime_id(get_runtime_id())
+    crashtracker.set_library_version(version.get_version())
+    crashtracker.set_alt_stack(bool(crashtracker_config.alt_stack))
+    if crashtracker_config.stacktrace_resolver == "fast":
+        crashtracker.set_resolve_frames_fast()
+    elif crashtracker_config.stacktrace_resolver == "full":
+        crashtracker.set_resolve_frames_full()
+    else:
+        crashtracker.set_resolve_frames_disable()
+
+    # Only start if it is enabled
+    if crashtracker_config.enabled:
+        return crashtracker.start()
+    return False

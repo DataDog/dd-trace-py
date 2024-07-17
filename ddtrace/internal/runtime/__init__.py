@@ -1,8 +1,6 @@
 import typing as t
 import uuid
 
-# from ..datadog.profiling import crashtracker
-from ...settings.crashtracker import config as crashtracker_config
 from .. import forksafe
 
 
@@ -11,12 +9,22 @@ __all__ = [
 ]
 
 
-def _generate_runtime_id():
+def _generate_runtime_id() -> str:
     return uuid.uuid4().hex
 
 
-_RUNTIME_ID = _generate_runtime_id()
+_RUNTIME_ID: str = _generate_runtime_id()
 _ANCESTOR_RUNTIME_ID: t.Optional[str] = None
+_ON_RUNTIME_ID_CHANGE: t.Set[t.Callable[[str], None]] = []
+
+
+def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
+    """Register a callback to be called when the runtime ID changes.
+
+    This can happen after a fork.
+    """
+    global _ON_RUNTIME_ID_CHANGE
+    _ON_RUNTIME_ID_CHANGE.add(cb)
 
 
 @forksafe.register
@@ -28,9 +36,8 @@ def _set_runtime_id():
         _ANCESTOR_RUNTIME_ID = _RUNTIME_ID
 
     _RUNTIME_ID = _generate_runtime_id()
-    if crashtracker_config.enabled:
-        # crashtracker.set_runtime_id(_RUNTIME_ID)
-        pass
+    for cb in _ON_RUNTIME_ID_CHANGE:
+        cb(_RUNTIME_ID)
 
 
 def get_runtime_id():
