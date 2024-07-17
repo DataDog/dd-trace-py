@@ -457,7 +457,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
                     },
@@ -505,15 +505,13 @@ venv = Venv(
                             },
                         ),
                         Venv(
-                            # gevent added support for Python 3.11 in 22.8.0
                             pys="3.11",
                             pkgs={
                                 "gevent": ["~=22.10.0", latest],
                             },
                         ),
                         Venv(
-                            # gevent added support for Python 3.11 in 22.8.0
-                            pys="3.12",
+                            pys=select_pys(min_version="3.12"),
                             pkgs={
                                 "gevent": [latest],
                             },
@@ -1157,7 +1155,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.11"),
                         ),
-                        Venv(pys="3.12", pkgs={"redis": latest}),
+                        Venv(pys=select_pys(min_version="3.12"), pkgs={"redis": latest}),
                     ],
                 ),
                 Venv(
@@ -1169,7 +1167,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.11"),
                         ),
-                        Venv(pys="3.12", pkgs={"redis": latest}),
+                        Venv(pys=select_pys(min_version="3.12"), pkgs={"redis": latest}),
                     ],
                 ),
             ],
@@ -1205,8 +1203,7 @@ venv = Venv(
                     pkgs={"mysql-connector-python": ["~=8.0.31", latest]},
                 ),
                 Venv(
-                    # mysql-connector-python added support for Python 3.11 in 8.0.31
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"mysql-connector-python": latest},
                 ),
             ],
@@ -1247,7 +1244,7 @@ venv = Venv(
                             },
                         ),
                         Venv(
-                            pys="3.12",
+                            pys=select_pys(min_version="3.12"),
                             pkgs={
                                 "pytest-asyncio": "==0.23.7",
                             },
@@ -1327,7 +1324,7 @@ venv = Venv(
                     pkgs={"starlette": ["~=0.21.0", "~=0.33.0", latest]},
                 ),
                 Venv(
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"starlette": latest},
                 ),
             ],
@@ -1350,7 +1347,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
                         "sqlalchemy": ["~=1.3.0", latest],
                         "psycopg2-binary": latest,
@@ -1419,7 +1416,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={
                         "requests": [
                             latest,
@@ -1451,7 +1448,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
                 ),
             ],
@@ -1552,7 +1549,7 @@ venv = Venv(
                 Venv(
                     # pyramid added support for Python 3.10/3.11 in 2.1
                     # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={
                         "pyramid": [latest],
                     },
@@ -1575,7 +1572,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"aiobotocore": latest},
                 ),
             ],
@@ -1776,7 +1773,7 @@ venv = Venv(
                 ),
                 Venv(
                     # grpcio added support for Python 3.12 in 1.59
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={
                         "grpcio": ["~=1.59.0", latest],
                         "pytest-asyncio": "==0.23.7",
@@ -1937,7 +1934,7 @@ venv = Venv(
                 ),
                 Venv(
                     # Support added for Python 3.12 in 2.0.0
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"urllib3": ["==2.0.0", latest]},
                 ),
             ],
@@ -1978,7 +1975,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
                         "aiopg": ["~=1.0", "~=1.4.0"],
                     },
@@ -2005,7 +2002,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
                     },
@@ -2036,7 +2033,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
                     },
@@ -2115,8 +2112,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # redis added support for Python 3.11 in 4.3
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
@@ -2206,7 +2202,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={
                         "sanic": [latest],
                         "sanic-testing": "~=22.3.0",
@@ -2281,7 +2277,7 @@ venv = Venv(
                     pkgs={"asyncpg": ["~=0.27", latest]},
                 ),
                 Venv(
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"asyncpg": [latest]},
                 ),
             ],
@@ -2393,7 +2389,7 @@ venv = Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
             # FIXME: this test suite breaks on 3.7
-            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pys=select_pys(min_version="3.8"),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -2493,7 +2489,7 @@ venv = Venv(
                             pkgs={"gevent": "~=22.8.0"},
                         ),
                         Venv(
-                            pys="3.12",
+                            pys=select_pys(min_version="3.12"),
                             pkgs={"gevent": "~=23.9.0"},
                         ),
                     ],
@@ -2568,7 +2564,7 @@ venv = Venv(
                         "kombu": [">=5.2,<5.3", latest],
                     },
                 ),
-                Venv(pys="3.12", pkgs={"kombu": latest}),
+                Venv(pys=select_pys(min_version="3.12"), pkgs={"kombu": latest}),
             ],
         ),
         Venv(
@@ -2663,14 +2659,14 @@ venv = Venv(
                         "boto3": "==1.34.51",
                         "cohere": latest,
                     },
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pys=select_pys(min_version="3.9"),
                 ),
             ],
         ),
         Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
-            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pys=select_pys(min_version="3.8"),
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
@@ -2783,7 +2779,7 @@ venv = Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
             pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
-            pys=select_pys(min_version="3.7", max_version="3.12"),
+            pys=select_pys(min_version="3.7"),
         ),
         Venv(
             name="profile",
