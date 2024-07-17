@@ -5,8 +5,6 @@ import os
 import threading
 import typing  # noqa:F401
 
-import attr
-
 
 try:
     from ddtrace.profiling.collector import _memalloc
@@ -19,6 +17,8 @@ from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.settings.profiling import config
+
+from ..recorder import Recorder
 
 
 LOG = logging.getLogger(__name__)
@@ -53,22 +53,30 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
         """The sampling size."""
 
 
-@attr.s
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
     _DEFAULT_MAX_EVENTS = 16
     _DEFAULT_INTERVAL = 0.5
 
-    # Arbitrary interval to empty the _memalloc event buffer
-    _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
-
-    # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-    _max_events = attr.ib(type=int, default=config.memory.events_buffer)
-    max_nframe = attr.ib(default=config.max_frames, type=int)
-    heap_sample_size = attr.ib(type=int, default=config.heap.sample_size)
-    ignore_profiler = attr.ib(default=config.ignore_profiler, type=bool)
-    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    def __init__(
+        self,
+        recorder: Recorder,
+        _interval: float = _DEFAULT_INTERVAL,
+        _max_events: int = config.memory.events_buffer,
+        max_nframe: int = config.max_frames,
+        heap_sample_size: int = config.heap.sample_size,
+        ignore_profiler: bool = config.ignore_profiler,
+        _export_libdd_enabled: bool = config.export.libdd_enabled,
+    ):
+        super().__init__(recorder=recorder)
+        self._interval: float = _interval
+        # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
+        self._max_events: int = _max_events
+        self.max_nframe: int = max_nframe
+        self.heap_sample_size: int = heap_sample_size
+        self.ignore_profiler: bool = ignore_profiler
+        self._export_libdd_enabled: bool = _export_libdd_enabled
 
     def _start_service(self):
         # type: (...) -> None
