@@ -164,6 +164,8 @@ class AnthropicIntegration(BaseLLMIntegration):
                             "type": _get_attr(completion, "type", ""),
                         }
                         tool_calls_info.append(tool_call_info)
+                        if content is None:
+                            content = ""
                         output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
         return output_messages
 
