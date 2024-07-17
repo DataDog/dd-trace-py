@@ -21,12 +21,12 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 
 
+@dataclasses.dataclass(eq=False)
 class Evidence:
-    def __init__(self, dialect: Optional[str] = None, value: Optional[str] = None):
-        self.dialect: Optional[str] = dialect
-        self.value: Optional[str] = value
-        self._ranges: List[Dict] = []
-        self.valueParts: Optional[List] = None
+    dialect: Optional[str]
+    value: Optional[str]
+    _ranges: List[Dict] = dataclasses.field(default_factory=list)
+    valueParts: Optional[List] = None
 
     def _valueParts_hash(self):
         if not self.valueParts:
@@ -47,17 +47,11 @@ class Evidence:
         return self.value == other.value and self._valueParts_hash() == other._valueParts_hash()
 
 
+@dataclasses.dataclass(unsafe_hash=True)
 class Location:
-    def __init__(self, spanId: int, path: Optional[str] = None, line: Optional[int] = None):
-        self.spanId = spanId
-        self.path = path
-        self.line = line
-
-    def __hash__(self):
-        return hash((self.spanId, self.path, self.line))
-
-    def __eq__(self, other):
-        return self.spanId == other.spanId and self.path == other.path and self.line == other.line
+    spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
+    path: Optional[str] = None
+    line: Optional[int] = None
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -93,12 +87,22 @@ class Source:
         """
         return hash((self.origin, self.name))
 
+    def _to_dict(self) -> Dict[str, Any]:
+        res = dataclasses.asdict(self)
+        if self.redacted is None:
+            del res["redacted"]
+        if self.value is None:
+            del res["value"]
+        if self.pattern is None:
+            del res["pattern"]
+        return res
 
+
+@dataclasses.dataclass
 class IastSpanReporter:
-    def __init__(self) -> None:
-        self.sources: List[Source] = []
-        self.vulnerabilities: Set[Vulnerability] = set()
-        self._evidences_with_no_sources = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
+    sources: List[Source] = dataclasses.field(default_factory=list)
+    vulnerabilities: Set[Vulnerability] = dataclasses.field(default_factory=set)
+    _evidences_with_no_sources = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
     def __hash__(self) -> int:
         """
@@ -211,7 +215,10 @@ class IastSpanReporter:
         Returns:
         - Dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
-        return {k: v for k, v in dataclasses.asdict(self) if k not in ATTRS_TO_SKIP}  # type: ignore
+        res = {}
+        res["vulnerabilities"] = [dataclasses.asdict(v) for v in self.vulnerabilities]
+        res["sources"] = [s._to_dict() for s in self.sources]
+        return res
 
     def _to_str(self) -> str:
         """
