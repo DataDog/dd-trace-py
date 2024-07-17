@@ -64,9 +64,7 @@ class TestLLMObsAnthropic:
                     {"content": "Hello, I am looking for information about some books!", "role": "user"},
                     {"content": "What is the best selling book?", "role": "user"},
                 ],
-                output_messages=[
-                    {"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}
-                ],
+                output_messages=[{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}],
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
                 token_metrics={"input_tokens": 32, "output_tokens": 15, "total_tokens": 47},
                 tags={"ml_app": "<ml-app-name>"},
