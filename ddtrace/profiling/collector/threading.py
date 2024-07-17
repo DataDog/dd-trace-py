@@ -3,8 +3,6 @@ from __future__ import absolute_import
 import threading
 import typing  # noqa:F401
 
-import attr
-
 from . import _lock
 
 
@@ -25,7 +23,6 @@ class _ProfiledThreadingLock(_lock._ProfiledLock):
     RELEASE_EVENT_CLASS = ThreadingLockReleaseEvent
 
 
-@attr.s
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 
