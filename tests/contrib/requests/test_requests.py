@@ -6,7 +6,6 @@ import requests
 from requests import Session
 from requests.exceptions import InvalidURL
 from requests.exceptions import MissingSchema
-import six
 
 from ddtrace import Pin
 from ddtrace import config
@@ -696,8 +695,8 @@ session.get("http://httpbin.org/status/200")
         cwd=str(tmpdir),
     )
     p.wait()
-    assert p.stderr.read() == six.b("")
-    assert p.stdout.read() == six.b("")
+    assert p.stderr.read() == b""
+    assert p.stdout.read() == b""
     assert p.returncode == 0
 
 

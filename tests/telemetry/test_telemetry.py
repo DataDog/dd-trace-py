@@ -208,9 +208,13 @@ tracer.trace("hello").finish()
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
     assert app_started_events[0]["payload"]["error"]["code"] == 1
-    assert "error applying processor FailingFilture()" in app_started_events[0]["payload"]["error"]["message"]
+    assert (
+        "error applying processor <__main__.FailingFilture object at"
+        in app_started_events[0]["payload"]["error"]["message"]
+    )
     pattern = re.compile(
-        ".*ddtrace/_trace/processor/__init__.py/__init__.py:[0-9]+: error applying processor FailingFilture()"
+        ".*ddtrace/_trace/processor/__init__.py/__init__.py:[0-9]+: "
+        "error applying processor <__main__.FailingFilture object at 0x[0-9a-f]+>"
     )
     assert pattern.match(app_started_events[0]["payload"]["error"]["message"]), app_started_events[0]["payload"][
         "error"

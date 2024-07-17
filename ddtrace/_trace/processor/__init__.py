@@ -2,13 +2,12 @@ import abc
 from collections import defaultdict
 from threading import Lock
 from threading import RLock
+from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
-
-import attr
 
 from ddtrace import config
 from ddtrace._trace.span import Span  # noqa:F401
@@ -38,26 +37,15 @@ except ImportError:
 log = get_logger(__name__)
 
 
-@attr.s
 class TraceProcessor(metaclass=abc.ABCMeta):
-    def __attrs_post_init__(self):
-        # type: () -> None
+    def __init__(self) -> None:
         """Default post initializer which logs the representation of the
         TraceProcessor at the ``logging.DEBUG`` level.
-
-        The representation can be modified with the ``repr`` argument to the
-        attrs attribute::
-
-            @attr.s
-            class MyTraceProcessor(TraceProcessor):
-                field_to_include = attr.ib(repr=True)
-                field_to_exclude = attr.ib(repr=False)
         """
         log.debug("initialized trace processor %r", self)
 
     @abc.abstractmethod
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         """Processes a trace.
 
         ``None`` can be returned to prevent the trace from being further
@@ -66,30 +54,19 @@ class TraceProcessor(metaclass=abc.ABCMeta):
         pass
 
 
-@attr.s
 class SpanProcessor(metaclass=abc.ABCMeta):
     """A Processor is used to process spans as they are created and finished by a tracer."""
 
-    __processors__ = []  # type: List["SpanProcessor"]
+    __processors__: List["SpanProcessor"] = []
 
-    def __attrs_post_init__(self):
-        # type: () -> None
+    def __init__(self) -> None:
         """Default post initializer which logs the representation of the
         Processor at the ``logging.DEBUG`` level.
-
-        The representation can be modified with the ``repr`` argument to the
-        attrs attribute::
-
-            @attr.s
-            class MyProcessor(Processor):
-                field_to_include = attr.ib(repr=True)
-                field_to_exclude = attr.ib(repr=False)
         """
         log.debug("initialized processor %r", self)
 
     @abc.abstractmethod
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         """Called when a span is started.
 
         This method is useful for making upfront decisions on spans.
@@ -100,8 +77,7 @@ class SpanProcessor(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         """Called with the result of any previous processors or initially with
         the finishing span when a span finishes.
 
@@ -110,21 +86,18 @@ class SpanProcessor(metaclass=abc.ABCMeta):
         """
         pass
 
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
+    def shutdown(self, timeout: Optional[float]) -> None:
         """Called when the processor is done being used.
 
         Any clean-up or flushing should be performed with this method.
         """
         pass
 
-    def register(self):
-        # type: () -> None
+    def register(self) -> None:
         """Register the processor with the global list of processors."""
         SpanProcessor.__processors__.append(self)
 
-    def unregister(self):
-        # type: () -> None
+    def unregister(self) -> None:
         """Unregister the processor from the global list of processors."""
         try:
             SpanProcessor.__processors__.remove(self)
@@ -132,7 +105,6 @@ class SpanProcessor(metaclass=abc.ABCMeta):
             raise ValueError("Span processor %r not registered" % self)
 
 
-@attr.s
 class TraceSamplingProcessor(TraceProcessor):
     """Processor that runs both trace and span sampling rules.
 
@@ -144,14 +116,20 @@ class TraceSamplingProcessor(TraceProcessor):
       Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
     """
 
-    _compute_stats_enabled = attr.ib(type=bool)
-    sampler = attr.ib()
-    single_span_rules = attr.ib(type=List[SpanSamplingRule])
-    apm_opt_out = attr.ib(type=bool)
+    def __init__(
+        self,
+        compute_stats_enabled: bool,
+        sampler: Any,
+        single_span_rules: List[SpanSamplingRule],
+        apm_opt_out: bool,
+    ):
+        super(TraceSamplingProcessor, self).__init__()
+        self._compute_stats_enabled = compute_stats_enabled
+        self.sampler = sampler
+        self.single_span_rules = single_span_rules
+        self.apm_opt_out = apm_opt_out
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
-
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
             chunk_root = trace[0]
             root_ctx = chunk_root._context
@@ -194,7 +172,6 @@ class TraceSamplingProcessor(TraceProcessor):
         return None
 
 
-@attr.s
 class TopLevelSpanProcessor(SpanProcessor):
     """Processor marks spans as top level
 
@@ -207,17 +184,15 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     """
 
-    def on_span_start(self, _):
-        # type: (Span) -> None
+    def on_span_start(self, _: Span) -> None:
         pass
 
-    def on_span_finish(self, span):
+    def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
         if _is_top_level(span):
             span.set_metric("_dd.top_level", 1)
 
 
-@attr.s
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
@@ -230,8 +205,7 @@ class TraceTagsProcessor(TraceProcessor):
         if main_package:
             chunk_root.set_tag_str("_dd.python_main_package", main_package)
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
             return trace
 
@@ -254,7 +228,12 @@ class TraceTagsProcessor(TraceProcessor):
         return trace
 
 
-@attr.s
+class _Trace:
+    def __init__(self, spans=None, num_finished=0):
+        self.spans = spans if spans is not None else []
+        self.num_finished = num_finished
+
+
 class SpanAggregator(SpanProcessor):
     """Processor that aggregates spans together by trace_id and writes the
     spans to the provided writer when:
@@ -265,35 +244,37 @@ class SpanAggregator(SpanProcessor):
           finished in the collection and ``partial_flush_enabled`` is True.
     """
 
-    @attr.s
-    class _Trace(object):
-        spans = attr.ib(default=attr.Factory(list))  # type: List[Span]
-        num_finished = attr.ib(type=int, default=0)  # type: int
+    def __init__(
+        self,
+        partial_flush_enabled: bool,
+        partial_flush_min_spans: int,
+        trace_processors: Iterable[TraceProcessor],
+        writer: TraceWriter,
+    ):
+        self._partial_flush_enabled = partial_flush_enabled
+        self._partial_flush_min_spans = partial_flush_min_spans
+        self._trace_processors = trace_processors
+        self._writer = writer
 
-    _partial_flush_enabled = attr.ib(type=bool)
-    _partial_flush_min_spans = attr.ib(type=int)
-    _trace_processors = attr.ib(type=Iterable[TraceProcessor])
-    _writer = attr.ib(type=TraceWriter)
-    _traces = attr.ib(
-        factory=lambda: defaultdict(lambda: SpanAggregator._Trace()),
-        init=False,
-        type=DefaultDict[int, "_Trace"],
-        repr=False,
-    )
-    if config._span_aggregator_rlock:
-        _lock = attr.ib(init=False, factory=RLock, repr=False, type=Union[RLock, Lock])
-    else:
-        _lock = attr.ib(init=False, factory=Lock, repr=False, type=Union[RLock, Lock])
-    # Tracks the number of spans created and tags each count with the api that was used
-    # ex: otel api, opentracing api, datadog api
-    _span_metrics = attr.ib(
-        init=False,
-        factory=lambda: {
+        self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
+        self._lock: Union[RLock, Lock] = RLock() if config._span_aggregator_rlock else Lock()
+
+        # Tracks the number of spans created and tags each count with the api that was used
+        # ex: otel api, opentracing api, datadog api
+        self._span_metrics: Dict[str, DefaultDict] = {
             "spans_created": defaultdict(int),
             "spans_finished": defaultdict(int),
-        },
-        type=Dict[str, DefaultDict],
-    )
+        }
+        super(SpanAggregator, self).__init__()
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"{self._partial_flush_enabled}, "
+            f"{self._partial_flush_min_spans}, "
+            f"{self._trace_processors}, "
+            f"{self._writer})"
+        )
 
     def on_span_start(self, span: Span) -> None:
         with self._lock:
@@ -302,8 +283,7 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics["spans_created"][span._span_api] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         with self._lock:
             self._span_metrics["spans_finished"][span._span_api] += 1
 
@@ -353,7 +333,7 @@ class SpanAggregator(SpanProcessor):
                     log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
-                spans = finished  # type: Optional[List[Span]]
+                spans: Optional[List[Span]] = finished
                 for tp in self._trace_processors:
                     try:
                         if spans is None:
@@ -369,8 +349,7 @@ class SpanAggregator(SpanProcessor):
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
 
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
+    def shutdown(self, timeout: Optional[float]) -> None:
         """
         This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
         used for tracing after this method has been called. A new tracer instance is required to continue tracing.
@@ -405,8 +384,7 @@ class SpanAggregator(SpanProcessor):
             # It's possible the writer never got started in the first place :(
             pass
 
-    def _queue_span_count_metrics(self, metric_name, tag_name, min_count=100):
-        # type: (str, str, int) -> None
+    def _queue_span_count_metrics(self, metric_name: str, tag_name: str, min_count: int = 100) -> None:
         """Queues a telemetry count metric for span created and span finished"""
         # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
         # We should avoid calling this method on every invocation of span finish and span start.
