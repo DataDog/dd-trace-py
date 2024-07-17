@@ -145,7 +145,7 @@ def start() -> bool:
 
     # We don't have a good place to report on the failure for now.
     if bin_exists:
-        return crashtracker_start()
+        crashtracker_start()
     return bin_exists
 
 
