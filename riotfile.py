@@ -933,7 +933,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pys=select_pys(min_version="3.12"),
                     pkgs={
                         "sqlalchemy": latest,
                         "django": latest,
