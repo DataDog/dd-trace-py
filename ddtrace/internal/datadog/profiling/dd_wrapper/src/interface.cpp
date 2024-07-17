@@ -179,6 +179,24 @@ ddup_push_heap(Datadog::Sample* sample, int64_t size) // cppcheck-suppress unuse
 }
 
 void
+ddup_push_gpu_gputime(Datadog::Sample* sample, int64_t time, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_gputime(time, count);
+}
+
+void
+ddup_push_gpu_memory(Datadog::Sample* sample, int64_t size, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_memory(size, count);
+}
+
+void
+ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_flops(flops, count);
+}
+
+void
 ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name) // cppcheck-suppress unusedFunction
 {
     sample->push_lock_name(lock_name);
@@ -242,6 +260,12 @@ void
 ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name) // cppcheck-suppress unusedFunction
 {
     sample->push_class_name(class_name);
+}
+
+void
+ddup_push_gpu_device_name(Datadog::Sample* sample, std::string_view gpu_device_name) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_device_name(gpu_device_name);
 }
 
 void

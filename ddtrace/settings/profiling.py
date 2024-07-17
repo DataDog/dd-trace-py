@@ -77,7 +77,7 @@ def _check_for_stack_v2_available():
 
 
 def _is_libdd_required(config):
-    return config.stack.v2_enabled or config.export._libdd_enabled
+    return config.stack.v2_enabled or config.export._libdd_enabled or config.pytorch.enabled
 
 
 class ProfilingConfig(En):
@@ -294,6 +294,26 @@ class ProfilingConfigHeap(En):
     sample_size = En.d(int, _derive_default_heap_sample_size)
 
 
+class ProfilingConfigPytorch(En):
+    __item__ = __prefix__ = "pytorch"
+
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable the PyTorch profiler",
+    )
+
+    events_limit = En.v(
+        int,
+        "events_limit",
+        default=1_000_000,
+        help_type="Integer",
+        help="How many events the PyTorch profiler records each collection",
+    )
+
+
 class ProfilingConfigExport(En):
     __item__ = __prefix__ = "export"
 
@@ -311,6 +331,7 @@ ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
+ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
