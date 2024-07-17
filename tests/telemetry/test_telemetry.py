@@ -240,30 +240,33 @@ def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_py
 
 def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
     out, stderr, status, _ = run_python_code_in_subprocess(
-"""
-def my_except_hook(exctype, value, traceback):
-    pass
-
+        """
 import sys
-sys.excepthook = my_except_hook
+
+old_exc_hook = sys.excepthook
+def pre_ddtrace_exc_hook(exctype, value, traceback):
+    print("pre_ddtrace_exc_hook called")
+    return old_exc_hook(exctype, value, traceback)
+
+sys.excepthook = pre_ddtrace_exc_hook
 
 import ddtrace
 raise Exception('bad_code')
-
 """
-)
+    )
+    assert b"pre_ddtrace_exc_hook called" in out
     assert status == 1, stderr
     assert b"bad_code" in stderr
     # Regression test for python3.12 support
     assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
+    # Regression test for invalid number of arguments in wrapped exception hook
+    assert b"TypeError: pre_ddtrace_exc_hook() takes 3 positional arguments but 4 were given" not in stderr
 
     app_starteds = test_agent_session.get_events("app-started")
     assert len(app_starteds) == 1
     # app-started captures unhandled exceptions raised in application code
     assert app_starteds[0]["payload"]["error"]["code"] == 1
     assert "/test.py:1: bad_code" in app_starteds[0]["payload"]["error"]["message"]
-    # Assert that the exception hook was called
-    assert b"TypeError: my_except_hook() takes 3 positional arguments but 4 were given" in stderr
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
