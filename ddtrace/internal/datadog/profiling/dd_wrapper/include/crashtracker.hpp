@@ -40,13 +40,14 @@ class Crashtracker
     std::string env;
     std::string service;
     std::string version;
-    std::string runtime;
-    std::string runtime_version{ "0.0.0" };
-    const std::string library_name{ "dd-trace-py" };
-    const std::string family{ "python" };
+    std::string runtime{ g_runtime_name };
+    std::string runtime_id;
+    std::string runtime_version;
     std::string library_version;
     std::string url;
-    std::string runtime_id;
+
+    static constexpr std::string_view family{ g_language_name };
+    static constexpr std::string_view library_name{ g_library_name };
 
     // Helpers for initialization/restart
     ddog_Vec_Tag get_tags();
@@ -60,10 +61,10 @@ class Crashtracker
     void set_service(std::string_view _service);
     void set_version(std::string_view _version);
     void set_runtime(std::string_view _runtime);
+    void set_runtime_id(std::string_view _runtime_id);
     void set_runtime_version(std::string_view _runtime_version);
     void set_library_version(std::string_view _library_version);
     void set_url(std::string_view _url);
-    void set_runtime_id(std::string_view _runtime_id);
 
     void set_create_alt_stack(bool _create_alt_stack);
     void set_stderr_filename(std::string_view _stderr_filename);
