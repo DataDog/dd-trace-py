@@ -5,7 +5,6 @@ import platform
 import sysconfig
 import typing
 
-import attr
 
 from ddtrace import ext
 from ddtrace.internal import packages
