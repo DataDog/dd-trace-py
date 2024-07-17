@@ -1,3 +1,4 @@
+import dataclasses
 from functools import reduce
 import json
 import operator
@@ -10,7 +11,6 @@ from typing import Set
 from typing import Tuple
 import zlib
 
-import attr
 
 from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
@@ -23,19 +23,15 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa:F401
 
 
-def _only_if_true(value):
-    return value if value else None
-
-
 ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 
 
-@attr.s(eq=False, hash=False)
-class Evidence(object):
-    dialect = attr.ib(type=str, default=None)  # type: Optional[str]
-    value = attr.ib(type=str, default=None)  # type: Optional[str]
-    _ranges = attr.ib(type=dict, default={})  # type: Any
-    valueParts = attr.ib(type=list, default=None)  # type: Any
+class Evidence:
+    def __init__(self, dialect: Optional[str] = None, value: Optional[str] = None):
+        self.dialect: Optional[str] = dialect
+        self.value: Optional[str] = value
+        self._ranges: dict = {}
+        self.valueParts: Optional[List] = None
 
     def _valueParts_hash(self):
         if not self.valueParts:
@@ -56,31 +52,40 @@ class Evidence(object):
         return self.value == other.value and self._valueParts_hash() == other._valueParts_hash()
 
 
-@attr.s(eq=True, hash=True)
-class Location(object):
-    spanId = attr.ib(type=int, eq=False, hash=False, repr=False)  # type: int
-    path = attr.ib(type=str, default=None)  # type: Optional[str]
-    line = attr.ib(type=int, default=None)  # type: Optional[int]
+class Location:
+    def __init__(self, spanId: int, path: Optional[str] = None, line: Optional[int] = None):
+        self.spanId = spanId
+        self.path = path
+        self.line = line
+
+    def __hash__(self):
+        return hash((self.spanId, self.path, self.line))
+
+    def __eq__(self, other):
+        return self.spanId == other.spanId and self.path == other.path and self.line == other.line
 
 
-@attr.s(eq=True, hash=True)
-class Vulnerability(object):
-    type = attr.ib(type=str)  # type: str
-    evidence = attr.ib(type=Evidence, repr=False)  # type: Evidence
-    location = attr.ib(type=Location, hash="PYTEST_CURRENT_TEST" in os.environ)  # type: Location
-    hash = attr.ib(init=False, eq=False, hash=False, repr=False)  # type: int
+@dataclasses.dataclass
+class Vulnerability:
+    type: str
+    evidence: Evidence
+    location: Location
+    hash: int = dataclasses.field(init=False, eq=False, hash="PYTEST_CURRENT_TEST" in os.environ, repr=False)
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())
 
+    def __repr__(self):
+        return f"Vulnerability(type={self.type}, location={self.location})"
 
-@attr.s(eq=True, hash=False)
-class Source(object):
-    origin = attr.ib(type=str)  # type: str
-    name = attr.ib(type=str)  # type: str
-    redacted = attr.ib(type=bool, default=False, converter=_only_if_true)  # type: bool
-    value = attr.ib(type=str, default=None)  # type: Optional[str]
-    pattern = attr.ib(type=str, default=None)  # type: Optional[str]
+
+@dataclasses.dataclass
+class Source:
+    origin: str
+    name: str
+    redacted: Optional[bool] = dataclasses.field(default=None, repr=False)
+    value: Optional[str] = dataclasses.field(default=None, repr=False)
+    pattern: Optional[str] = dataclasses.field(default=None, repr=False)
 
     def __hash__(self):
         """origin & name serve as hashes. This approach aims to mitigate false positives when searching for
@@ -94,15 +99,11 @@ class Source(object):
         return hash((self.origin, self.name))
 
 
-@attr.s(eq=False, hash=False)
-class IastSpanReporter(object):
-    """
-    Class representing an IAST span reporter.
-    """
-
-    sources = attr.ib(type=List[Source], factory=list)  # type: List[Source]
-    vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)  # type: Set[Vulnerability]
-    _evidences_with_no_sources = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
+class IastSpanReporter:
+    def __init__(self):
+        self.sources: List[Source] = []
+        self.vulnerabilities: Set[Vulnerability] = set()
+        self._evidences_with_no_sources = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
     def __hash__(self) -> int:
         """
