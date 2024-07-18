@@ -188,5 +188,4 @@ def test_stacktrace_memory_random_string_check():
 
         file_name, line_number = frame_info
         assert file_name == ""
-        # FIXME: https://datadoghq.atlassian.net/browse/APPSEC-54114
-        # assert line_number == 0
+        assert line_number == -1
