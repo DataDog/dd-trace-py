@@ -22,18 +22,24 @@ ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
 
-class NotNoneDict(dict):
-    def __init__(self, args):
-        new_args = []
-        for k, v in args:
-            if v is not None and k not in ATTRS_TO_SKIP:
+def not_none_dict(args):
+    new_args = []
+    for k, v in args:
+        if v is not None and k not in ATTRS_TO_SKIP:
+            if isinstance(v, set):
+                new_args.append((k, [i._to_dict() if hasattr(i, "_to_dict") else i for i in v]))
+            else:
                 new_args.append((k, v))
-        args = new_args
-        super().__init__(args)
+    return dict(new_args)
+
+
+class NotNoneDictable:
+    def _to_dict(self):
+        return dataclasses.asdict(self, dict_factory=not_none_dict)
 
 
 @dataclasses.dataclass(eq=False)
-class Evidence:
+class Evidence(NotNoneDictable):
     dialect: Optional[str] = None
     value: Optional[str] = None
     _ranges: List[Dict] = dataclasses.field(default_factory=list)
@@ -59,7 +65,7 @@ class Evidence:
 
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Location:
+class Location(NotNoneDictable):
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
     path: Optional[str] = None
     line: Optional[int] = None
@@ -67,17 +73,9 @@ class Location:
     def __repr__(self):
         return f"Location(path='{self.path}', line={self.line})"
 
-    def _to_dict(self):
-        res = {"spanId": self.spanId}
-        if self.path is not None:
-            res["path"] = self.path
-        if self.line is not None:
-            res["line"] = self.line
-        return res
-
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Vulnerability:
+class Vulnerability(NotNoneDictable):
     type: str
     evidence: Evidence
     location: Location
@@ -91,7 +89,7 @@ class Vulnerability:
 
 
 @dataclasses.dataclass
-class Source:
+class Source(NotNoneDictable):
     origin: str
     name: str
     redacted: Optional[bool] = dataclasses.field(default=None, repr=False)
@@ -111,7 +109,7 @@ class Source:
 
 
 @dataclasses.dataclass
-class IastSpanReporter:
+class IastSpanReporter(NotNoneDictable):
     sources: List[Source] = dataclasses.field(default_factory=list)
     vulnerabilities: Set[Vulnerability] = dataclasses.field(default_factory=set)
 
@@ -185,7 +183,7 @@ class IastSpanReporter:
                     vuln.evidence.value, vuln.evidence._ranges, self.sources
                 )
                 vuln.evidence.value = None
-        return dataclasses.asdict(self, dict_factory=NotNoneDict)
+        return self._to_dict()
 
     def get_unredacted_value_parts(self, evidence_value: str, ranges: List[dict], sources: List[Any]) -> List[dict]:
         """
@@ -234,13 +232,9 @@ class IastSpanReporter:
                 if isinstance(obj, OriginType):
                     # if the obj is uuid, we simply return the value of uuid
                     return origin_to_str(obj)
-                elif isinstance(obj, set):
-                    return list(obj)
                 elif hasattr(obj, "_to_dict"):
                     return obj._to_dict()
-                elif dataclasses.is_dataclass(obj):
-                    return dataclasses.asdict(obj, dict_factory=NotNoneDict)
 
                 return json.JSONEncoder.default(self, obj)
 
-        return json.dumps(dataclasses.asdict(self, dict_factory=NotNoneDict), cls=OriginTypeEncoder)
+        return json.dumps(self._to_dict(), cls=OriginTypeEncoder)
