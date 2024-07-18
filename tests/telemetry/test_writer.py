@@ -1,4 +1,5 @@
 import os
+import sys
 import sysconfig
 import time
 from typing import Any  # noqa:F401
@@ -129,7 +130,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
                     {"name": "crashtracker_alt_stack", "origin": "unknown", "value": False},
-                    {"name": "crashtracker_available", "origin": "unknown", "value": False},
+                    {"name": "crashtracker_available", "origin": "unknown", "value": sys.platform == "linux"},
                     {"name": "crashtracker_debug_url", "origin": "unknown", "value": "None"},
                     {"name": "crashtracker_enabled", "origin": "unknown", "value": False},
                     {"name": "crashtracker_stacktrace_resolver", "origin": "unknown", "value": "None"},
@@ -319,7 +320,7 @@ import ddtrace.auto
             {"name": "data_streams_enabled", "origin": "env_var", "value": "true"},
             {"name": "appsec_enabled", "origin": "env_var", "value": "true"},
             {"name": "crashtracker_alt_stack", "origin": "unknown", "value": False},
-            {"name": "crashtracker_available", "origin": "unknown", "value": False},
+            {"name": "crashtracker_available", "origin": "unknown", "value": sys.platform == "linux"},
             {"name": "crashtracker_debug_url", "origin": "unknown", "value": "None"},
             {"name": "crashtracker_enabled", "origin": "unknown", "value": False},
             {"name": "crashtracker_stacktrace_resolver", "origin": "unknown", "value": "None"},
