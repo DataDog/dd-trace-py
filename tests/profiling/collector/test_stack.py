@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import _thread
 import gc
 import os
 import sys
@@ -10,7 +11,6 @@ import typing  # noqa:F401
 import uuid
 
 import pytest
-from six.moves import _thread
 
 import ddtrace  # noqa:F401
 from ddtrace.profiling import _threading
@@ -314,8 +314,7 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=16384, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None, "
-        "_stack_collector_v2_enabled=False)",
+        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None)",
     )
 
 
