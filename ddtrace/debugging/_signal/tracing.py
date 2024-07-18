@@ -55,7 +55,7 @@ class DynamicSpan(Signal):
         )
         span = self._span_cm.__enter__()
 
-        span.set_tags(probe.tags)
+        span.set_tags(probe.tags)  # type: ignore[arg-type]
         span.set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)
         span.set_tag_str(ORIGIN_KEY, "di")
 
