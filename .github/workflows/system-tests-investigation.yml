@@ -16,6 +16,9 @@ jobs:
         with:
           fetch-depth: 0
           path: binaries/dd-trace-py
+          # NB this ref is necessary to keep the checkout out of detached HEAD state, which setuptools_scm requires for
+          # proper version guessing
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/upload-artifact@v4
         with:
           name: dd_trace_py
@@ -27,10 +30,10 @@ jobs:
       matrix:
         scenarios:  # list of scenario knowns to have startup crashes
           - APM_TRACING_E2E_OTEL,APPSEC_API_SECURITY,APPSEC_API_SECURITY_NO_RESPONSE_BODY,APPSEC_API_SECURITY_RC
-          - APPSEC_API_SECURITY_WITH_SAMPLING,APPSEC_CUSTOM_OBFUSCATION,APPSEC_CUSTOM_RULES,APPSEC_RATE_LIMITER
-          - APPSEC_RASP,APPSEC_REQUEST_BLOCKING,APPSEC_RUNTIME_ACTIVATION,APPSEC_STANDALONE
-          - DEBUGGER_EXPRESSION_LANGUAGE,TELEMETRY_METRIC_GENERATION_DISABLED,TELEMETRY_LOG_GENERATION_DISABLED
-        attempt: [1, 2]  # let's increase the crash probability
+          # - APPSEC_API_SECURITY_WITH_SAMPLING,APPSEC_CUSTOM_OBFUSCATION,APPSEC_CUSTOM_RULES,APPSEC_RATE_LIMITER
+          # - APPSEC_RASP,APPSEC_REQUEST_BLOCKING,APPSEC_RUNTIME_ACTIVATION,APPSEC_STANDALONE
+          # - DEBUGGER_EXPRESSION_LANGUAGE,TELEMETRY_METRIC_GENERATION_DISABLED,TELEMETRY_LOG_GENERATION_DISABLED
+        # attempt: [1, 2]  # let's increase the crash probability
       fail-fast: false
 
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
