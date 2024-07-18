@@ -418,10 +418,10 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("component") == "botocore"
     
     @mock_s3
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_SERVICE="botocore"))
     def test_service_name_override(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
-        cfg = config.get_from(self.session)
-        cfg['service_name'] = 'boto-service'
+        Pin.get_from(s3).clone(tracer=self.tracer).onto(s3)
 
         params = {
             "Bucket": "mybucket",
@@ -432,6 +432,9 @@ class BotocoreTest(TracerTestCase):
         s3.create_bucket(**params)
         params = dict(Key="foo", Bucket="mybucket", Body=b"bar")
         s3.put_object(**params)
+        cfg = config.get_from(self.session)
+        cfg['service'] = "boto-service"
+        s3.list_buckets()
 
         spans = self.get_spans()
         assert spans
