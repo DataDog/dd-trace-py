@@ -1,10 +1,9 @@
 import errno
 import os
 import re
+from typing import Any
 from typing import Dict
 from typing import Optional
-
-import attr
 
 from ..constants import CONTAINER_ID_HEADER_NAME
 from ..constants import ENTITY_ID_HEADER_NAME
@@ -14,15 +13,15 @@ from ..logger import get_logger
 log = get_logger(__name__)
 
 
-@attr.s(slots=True)
-class CGroupInfo(object):
-    id = attr.ib(default=None)
-    groups = attr.ib(default=None)
-    path = attr.ib(default=None)
-    container_id = attr.ib(default=None)
-    controllers = attr.ib(default=None)
-    pod_id = attr.ib(default=None)
-    node_inode = attr.ib(default=None)
+class CGroupInfo:
+    id: Any
+    groups: Any
+    path: Any
+    container_id: Any
+    controllers: Any
+    pod_id: Any
+    node_inode: Any
+    __slots__ = ("id", "groups", "path", "container_id", "controllers", "pod_id", "node_inode")
 
     # The second part is the PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
     # See https://github.com/DataDog/datadog-agent/blob/7.40.x/pkg/util/cgroups/reader.go#L50
@@ -37,6 +36,36 @@ class CGroupInfo(object):
     CONTAINER_RE = re.compile(
         r"(?:.+)?({0}|{1}|{2})(?:\.scope)?$".format(UUID_SOURCE_PATTERN, CONTAINER_SOURCE_PATTERN, TASK_PATTERN)
     )
+
+    def __init__(
+        self,
+        id=None,  # noqa: A002
+        groups=None,
+        path=None,
+        container_id=None,
+        controllers=None,
+        pod_id=None,
+        node_inode=None,
+    ):
+        self.id = id
+        self.groups = groups
+        self.path = path
+        self.container_id = container_id
+        self.controllers = controllers
+        self.pod_id = pod_id
+        self.node_inode = node_inode
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, CGroupInfo)
+            and self.id == other.id
+            and self.groups == other.groups
+            and self.path == other.path
+            and self.container_id == other.container_id
+            and self.controllers == other.controllers
+            and self.pod_id == other.pod_id
+            and self.node_inode == other.node_inode
+        )
 
     @classmethod
     def from_line(cls, line):

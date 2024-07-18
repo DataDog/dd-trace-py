@@ -100,9 +100,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
             _initializer_size = initializer_size()
             assert _initializer_size > 0
 
-        # FIXME: returns 25 instead of 24 on the second loop:
-        # https://datadoghq.atlassian.net/browse/APPSEC-54115
-        # assert _num_objects_tainted == num_objects_tainted()
+        assert _num_objects_tainted == num_objects_tainted()
         assert _active_map_addreses_size == active_map_addreses_size()
         assert _initializer_size == initializer_size()
         reset_context()
