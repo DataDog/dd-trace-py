@@ -11,6 +11,7 @@ assert sys.version_info >= (3, 12)  # nosec
 
 EXTENDED_ARG = dis.EXTENDED_ARG
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
+IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 
 
 # Register the coverage tool with the low-impact monitoring system
@@ -19,16 +20,14 @@ try:
 except ValueError:
     # TODO: Another coverage tool is already in use. Either warn the user
     # or free the tool and register ours.
-    def instrument_all_lines(
-        code: CodeType, hook: HookType, path: str, package: t.Optional[str]
-    ) -> t.Tuple[CodeType, t.Set[int]]:
+    def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
         # No-op
         return code, set()
 
 else:
     RESUME = dis.opmap["RESUME"]
 
-    _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, str]]]] = {}
+    _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
 
     def _line_event_handler(code: CodeType, line: int) -> t.Any:
         hook, path, import_names = _CODE_HOOKS[code]
@@ -40,9 +39,7 @@ else:
         sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line_event_handler
     )  # noqa
 
-    def instrument_all_lines(
-        code: CodeType, hook: HookType, path: str, package: t.Optional[str]
-    ) -> t.Tuple[CodeType, t.Set[int]]:
+    def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
         # Enable local line events for the code object
         sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
 
@@ -50,7 +47,15 @@ else:
         linestarts = dict(dis.findlinestarts(code))
 
         lines = set()
-        import_names: t.Dict[int, t.Tuple[str, str]] = {}
+        import_names: t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str, ...]]]] = {}
+
+        # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
+        # For example, from ...package import module
+        current_arg: int = 0
+        previous_arg: int = 0
+        _previous_previous_arg: int = 0
+        current_import_name: t.Optional[str] = None
+        current_import_package: t.Optional[str] = None
 
         line = 0
 
@@ -68,16 +73,49 @@ else:
                     line = linestarts[offset]
                     lines.add(line)
 
-                if opcode == IMPORT_NAME:
-                    import_arg = int.from_bytes([*ext, arg], "big", signed=False)
-                    import_name = code.co_names[import_arg]
-                    import_names[line] = (package, import_name)
+                    # Make sure that the current module is marked as depending on its own package by instrumenting the
+                    # first executable line
+                    if code.co_name == "<module>" and len(lines) == 1 and package is not None:
+                        import_names[line] = (package, ("",))
 
-                    # Accumulate extended args IMPORT_NAME arguments
                 if opcode is EXTENDED_ARG:
                     ext.append(arg)
+                    continue
                 else:
+                    _previous_previous_arg = previous_arg
+                    previous_arg = current_arg
+                    current_arg = int.from_bytes([*ext, arg], "big", signed=False)
                     ext.clear()
+
+                if opcode == IMPORT_NAME:
+                    import_depth: int = code.co_consts[_previous_previous_arg]
+                    current_import_name: str = code.co_names[current_arg]
+                    # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
+                    current_import_package: str = (
+                        ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
+                    )
+
+                    if line in import_names:
+                        import_names[line] = (
+                            current_import_package,
+                            tuple(list(import_names[line][1]) + [current_import_name]),
+                        )
+                    else:
+                        import_names[line] = (current_import_package, (current_import_name,))
+
+                # Also track import from statements since it's possible that the "from" target is a module, eg:
+                # from my_package import my_module
+                # Since the package has not changed, we simply extend the previous import names with the new value
+                if opcode == IMPORT_FROM:
+                    import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
+                    if line in import_names:
+                        import_names[line] = (
+                            current_import_package,
+                            tuple(list(import_names[line][1]) + [import_from_name]),
+                        )
+                    else:
+                        import_names[line] = (current_import_package, (import_from_name,))
+
         except StopIteration:
             pass
 
@@ -90,7 +128,10 @@ else:
         _CODE_HOOKS[code] = (hook, path, import_names)
 
         # Special case for empty modules (eg: __init__.py ):
+        # Make sure line 0 is marked as executable, and add package dependency
         if not lines and code.co_name == "<module>" and code.co_code == bytes([151, 0, 121, 0]):
             lines.add(0)
+            if package is not None:
+                import_names[0] = (package, ("",))
 
         return code, lines

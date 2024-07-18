@@ -2,11 +2,11 @@
 from ..normal_import_const import NORMAL
 
 
-def nsa_imports_parent_normal():
+def rpa_imports_parent_normal():
     return NORMAL
 
 
-def nsa_imports_parent_late():
+def rpa_imports_parent_late():
     from ..late_import_const import LATE
 
     return LATE

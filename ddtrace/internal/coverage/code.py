@@ -198,28 +198,29 @@ class ModuleCodeCollector(ModuleWatchdog):
             covered_lines[path] |= imported_module_lines
 
             # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
-            for dependency in self._import_names_by_path.get(path, set()):
-                package, module = dependency
-                dep_fqdn = f"{package}.{module}" if package else module
-                dep_name = dep_fqdn if dep_fqdn in self._import_time_name_to_path else module
-                if dep_name in self._import_time_name_to_path:
-                    dependency_path = self._import_time_name_to_path[dep_name]
-                    if dependency_path not in visited_paths:
-                        to_visit_paths.add(dependency_path)
-
-                # Since modules can import from packages below them in the hierarchy, we may also need to find packages
-                # that were imported (eg: identifying __init__.py files). We do this by working our way from the module
-                # name to the package name "one dot at a time"
-                parent_package = dep_fqdn.split(".")[:-1]
-                while parent_package:
-                    parent_package_str = ".".join(parent_package)
-                    if parent_package_str in self._import_time_name_to_path:
-                        dependency_path = self._import_time_name_to_path[parent_package_str]
+            for dependencies in self._import_names_by_path.get(path, set()):
+                package, modules = dependencies
+                for module in modules:
+                    dep_fqdn = f"{package}.{module}" if package else module
+                    dep_name = dep_fqdn if dep_fqdn in self._import_time_name_to_path else module
+                    if dep_name in self._import_time_name_to_path:
+                        dependency_path = self._import_time_name_to_path[dep_name]
                         if dependency_path not in visited_paths:
                             to_visit_paths.add(dependency_path)
-                    if parent_package_str == package:
-                        break
-                    parent_package = parent_package[:-1]
+
+                    # Since modules can import from packages below them in the hierarchy, we may also need to find
+                    # packages that were imported (eg: identifying __init__.py files). We do this by working our way
+                    # from the module name to the package name "one dot at a time"
+                    parent_package = dep_fqdn.split(".")[:-1]
+                    while parent_package:
+                        parent_package_str = ".".join(parent_package)
+                        if parent_package_str in self._import_time_name_to_path:
+                            dependency_path = self._import_time_name_to_path[parent_package_str]
+                            if dependency_path not in visited_paths:
+                                to_visit_paths.add(dependency_path)
+                        if parent_package_str == package:
+                            break
+                        parent_package = parent_package[:-1]
 
     class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):

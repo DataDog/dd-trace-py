@@ -24,17 +24,16 @@ class JumpDirection(int, Enum):
 
 
 class Jump(ABC):
-    def __init__(self, start: int, argbytes: t.List[int]) -> None:
+    def __init__(self, start: int, arg: int) -> None:
         self.start = start
         self.end: t.Optional[int] = None
-        self.arg = int.from_bytes(argbytes, "big", signed=False)
-        self.argsize = len(argbytes)
+        self.arg = arg
 
 
 class RJump(Jump):
     __opcodes__ = set(dis.hasjrel)
 
-    def __init__(self, start: int, arg: t.List[int], direction: JumpDirection) -> None:
+    def __init__(self, start: int, arg: int, direction: JumpDirection) -> None:
         super().__init__(start, arg)
 
         self.direction = direction
@@ -223,6 +222,7 @@ CALL = dis.opmap["CALL"]
 POP_TOP = dis.opmap["POP_TOP"]
 RESUME = dis.opmap["RESUME"]
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
+IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 EMPTY_BYTECODE = bytes([151, 0, 100, 0, 83, 0])
 
 
@@ -245,9 +245,7 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
 SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
-def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: t.Optional[str] = None
-) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -281,6 +279,14 @@ def instrument_all_lines(
     if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
         line_starts = {2: 0}
 
+    # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
+    # For example, from ...package import module
+    current_arg: int = 0
+    previous_arg: int = 0
+    _previous_previous_arg: int = 0
+    current_import_name: t.Optional[str] = None
+    current_import_package: t.Optional[str] = None
+
     try:
         code_iter = iter(enumerate(code.co_code))
         ext: list[bytes] = []
@@ -300,7 +306,14 @@ def instrument_all_lines(
                     trap_instructions = trap_call(trap_index, len(new_consts))
                     traps[original_offset] = len(trap_instructions)
                     instructions.extend(trap_instructions)
-                    new_consts.append((line, trap_arg, None))
+
+                    # Make sure that the current module is marked as depending on its own package by instrumenting the
+                    # first executable line
+                    package_dep = None
+                    if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
+                        package_dep = (package, ("",))
+
+                    new_consts.append((line, trap_arg, package_dep))
 
                     line_map[original_offset] = trap_instructions[0]
 
@@ -313,20 +326,44 @@ def instrument_all_lines(
             # Propagate code
             instructions.append(Instruction(original_offset, opcode, arg))
 
-            # Track imports
+            if opcode is EXTENDED_ARG:
+                ext.append(arg)
+                continue
+            else:
+                _previous_previous_arg = previous_arg
+                previous_arg = current_arg
+                current_arg = int.from_bytes([*ext, arg], "big", signed=False)
+                ext.clear()
+
+            # Track imports names
             if opcode == IMPORT_NAME:
-                import_arg = int.from_bytes([*ext, arg], "big", signed=False)
-                import_name = code.co_names[import_arg]
-                new_consts[-1] = (new_consts[-1][0], new_consts[-1][1], (package, import_name))
+                import_depth = code.co_consts[_previous_previous_arg]
+                current_import_name = code.co_names[current_arg]
+                # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
+                current_import_package = (
+                    ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
+                )
+                new_consts[-1] = (
+                    new_consts[-1][0],
+                    new_consts[-1][1],
+                    (current_import_package, (current_import_name,)),
+                )
+
+            # Also track import from statements since it's possible that the "from" target is a module, eg:
+            # from my_package import my_module
+            # Since the package has not changed, we simply extend the previous import names with the new value
+            if opcode == IMPORT_FROM:
+                import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
+                new_consts[-1] = (
+                    new_consts[-1][0],
+                    new_consts[-1][1],
+                    (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
+                )
 
             # Collect branching instructions for processing
             if opcode in RJump.__opcodes__:
-                jumps[offset] = RJump(original_offset, [*ext, arg], JumpDirection.from_opcode(opcode))
+                jumps[offset] = RJump(original_offset, current_arg, JumpDirection.from_opcode(opcode))
 
-            if opcode is EXTENDED_ARG:
-                ext.append(arg)
-            else:
-                ext.clear()
     except StopIteration:
         pass
 
@@ -422,18 +459,13 @@ def instrument_all_lines(
             new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
             seen_lines.update(nested_lines)
 
-    new_linetable = update_location_data(code, traps, [(instr.offset, s) for instr, s in exts])
-    new_exceptiontable = compile_exception_table(exc_table)
-
-    replace = code.replace(
-        co_code=bytes(new_code),
-        co_consts=tuple(new_consts),
-        co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-        co_linetable=new_linetable,
-        co_exceptiontable=new_exceptiontable,
-    )
-
     return (
-        replace,
+        code.replace(
+            co_code=bytes(new_code),
+            co_consts=tuple(new_consts),
+            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+            co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
+            co_exceptiontable=compile_exception_table(exc_table),
+        ),
         seen_lines,
     )

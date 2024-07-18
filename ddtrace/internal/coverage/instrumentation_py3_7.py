@@ -24,17 +24,16 @@ class JumpDirection(int, Enum):
 
 class Jump(ABC):
     # NOTE: in Python 3.9, jump arguments are offsets, vs instruction numbers (ie offsets/2) in Python 3.10
-    def __init__(self, start: int, argbytes: t.List[int]) -> None:
+    def __init__(self, start: int, arg: int) -> None:
         self.start = start
         self.end: int
-        self.arg = int.from_bytes(argbytes, "big", signed=False)
-        self.argsize = len(argbytes)
+        self.arg = arg
 
 
 class AJump(Jump):
     __opcodes__ = set(dis.hasjabs)
 
-    def __init__(self, start: int, arg: t.List[int]) -> None:
+    def __init__(self, start: int, arg: int) -> None:
         super().__init__(start, arg)
         self.end = self.arg
 
@@ -42,7 +41,7 @@ class AJump(Jump):
 class RJump(Jump):
     __opcodes__ = set(dis.hasjrel)
 
-    def __init__(self, start: int, arg: t.List[int], direction: JumpDirection) -> None:
+    def __init__(self, start: int, arg: int, direction: JumpDirection) -> None:
         super().__init__(start, arg)
         self.direction = direction
         self.end = start + (self.arg) * self.direction + 2
@@ -165,6 +164,7 @@ LOAD_CONST = dis.opmap["LOAD_CONST"]
 CALL = dis.opmap["CALL_FUNCTION"]
 POP_TOP = dis.opmap["POP_TOP"]
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
+IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 
 
 def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
@@ -176,9 +176,7 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     )
 
 
-def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: t.Optional[str] = None
-) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -198,6 +196,14 @@ def instrument_all_lines(
     line_map = {}
     line_starts = dict(dis.findlinestarts(code))
 
+    # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
+    # For example, from ...package import module
+    current_arg: int = 0
+    previous_arg: int = 0
+    previous_previous_arg: int = 0
+    current_import_name: t.Optional[str] = None
+    current_import_package: t.Optional[str] = None
+
     try:
         code_iter = iter(enumerate(code.co_code))
         ext: list[int] = []
@@ -212,7 +218,14 @@ def instrument_all_lines(
                 trap_instructions = trap_call(trap_index, len(new_consts))
                 traps[original_offset] = len(trap_instructions)
                 instructions.extend(trap_instructions)
-                new_consts.append((line, trap_arg, None))
+
+                # Make sure that the current module is marked as depending on its own package by instrumenting the
+                # first executable line
+                package_dep = None
+                if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
+                    package_dep = (package, ("",))
+
+                new_consts.append((line, trap_arg, package_dep))
 
                 line_map[original_offset] = trap_instructions[0]
 
@@ -225,17 +238,45 @@ def instrument_all_lines(
             # Propagate code
             instructions.append(Instruction(original_offset, opcode, arg))
 
-            # Track imports
+            if opcode is EXTENDED_ARG:
+                ext.append(arg)
+                continue
+            else:
+                previous_previous_arg = previous_arg
+                previous_arg = current_arg
+                current_arg = int.from_bytes([*ext, arg], "big", signed=False)
+                ext.clear()
+
+            # Track imports names
             if opcode == IMPORT_NAME:
-                import_arg = int.from_bytes([*ext, arg], "big", signed=False)
-                import_name = code.co_names[import_arg]
-                new_consts[-1] = (new_consts[-1][0], new_consts[-1][1], (package, import_name))
+                import_depth = code.co_consts[previous_previous_arg]
+                current_import_name = code.co_names[current_arg]
+                # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
+                current_import_package = (
+                    ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
+                )
+                new_consts[-1] = (
+                    new_consts[-1][0],
+                    new_consts[-1][1],
+                    (current_import_package, (current_import_name,)),
+                )
+
+            # Also track import from statements since it's possible that the "from" target is a module, eg:
+            # from my_package import my_module
+            # Since the package has not changed, we simply extend the previous import names with the new value
+            if opcode == IMPORT_FROM:
+                import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
+                new_consts[-1] = (
+                    new_consts[-1][0],
+                    new_consts[-1][1],
+                    (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
+                )
 
             # Collect branching instructions for processing
             if opcode in AJump.__opcodes__:
-                jumps[offset] = AJump(original_offset, [*ext, arg])
+                jumps[offset] = AJump(original_offset, current_arg)
             elif opcode in RJump.__opcodes__:
-                jumps[offset] = RJump(original_offset, [*ext, arg], JumpDirection.from_opcode(opcode))
+                jumps[offset] = RJump(original_offset, current_arg, JumpDirection.from_opcode(opcode))
 
             if opcode is EXTENDED_ARG:
                 ext.append(arg)
