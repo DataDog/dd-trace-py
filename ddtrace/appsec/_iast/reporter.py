@@ -110,6 +110,10 @@ class Source(NotNoneDictable):
 
 @dataclasses.dataclass
 class IastSpanReporter(NotNoneDictable):
+    """
+    Class representing an IAST span reporter.
+    """
+
     sources: List[Source] = dataclasses.field(default_factory=list)
     vulnerabilities: Set[Vulnerability] = dataclasses.field(default_factory=set)
 
