@@ -4,36 +4,23 @@ from ddtrace.internal import agent
 from ddtrace.internal.datadog.profiling import crashtracker
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.runtime import on_runtime_id_change
+from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace import config
 from ddtrace import version
 
 
 is_available: bool = crashtracker.is_available
 failure_msg: str = crashtracker.failure_msg
-
-if is_available:
-    is_started: Callable[[], bool] = crashtracker.is_started
-else:
-
-    def is_started() -> bool:
-        return False
+is_started: Callable[[], bool] = crashtracker.is_started
 
 
 @on_runtime_id_change
 def _update_runtime_id(runtime_id: str) -> None:
-    if is_available:
-        crashtracker.set_runtime_id(runtime_id)
+    crashtracker.set_runtime_id(runtime_id)
 
 
 def start() -> bool:
-    # Always configure, even if we aren't going to start it
-    if not is_available:
-        return False
-
-    # DEV: Import here to avoid circular imports
-    from ddtrace.settings.crashtracker import config as crashtracker_config
-
-    crashtracker.set_url(agent.get_trace_url())
+    crashtracker.set_url(crashtracker_config.debug_url or agent.get_trace_url())
     crashtracker.set_service(config.service)
     crashtracker.set_version(config.version)
     crashtracker.set_env(config.env)
@@ -44,8 +31,15 @@ def start() -> bool:
         crashtracker.set_resolve_frames_fast()
     elif crashtracker_config.stacktrace_resolver == "full":
         crashtracker.set_resolve_frames_full()
+    elif crashtracker_config.stacktrace_resolver == "safe":
+        crashtracker.set_resolve_frames_safe()
     else:
         crashtracker.set_resolve_frames_disable()
+
+    if crashtracker_config.stdout_filename:
+        crashtracker.set_stdout_filename(crashtracker_config.stdout_filename)
+    if crashtracker_config.stderr_filename:
+        crashtracker.set_stderr_filename(crashtracker_config.stderr_filename)
 
     # Only start if it is enabled
     if crashtracker_config.enabled:
