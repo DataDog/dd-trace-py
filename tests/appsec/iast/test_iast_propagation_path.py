@@ -14,7 +14,7 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
 
 def _assert_vulnerability(data, value_parts, file_line_label):
-    vulnerability = data["vulnerabilities"][0]
+    vulnerability = next(iter(data["vulnerabilities"]))._to_dict()
     assert vulnerability["type"] == VULN_PATH_TRAVERSAL
     assert vulnerability["evidence"]["valueParts"] == value_parts
     assert "value" not in vulnerability["evidence"].keys()

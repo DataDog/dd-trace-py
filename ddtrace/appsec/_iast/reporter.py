@@ -22,22 +22,12 @@ ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
 
-def set_to_list(data):
-    if isinstance(data, set):
-        return [custom_asdict(v) for v in data]
-    return data
-
-
-def custom_asdict(obj):
-    return dataclasses.asdict(
-        obj,
-        dict_factory=lambda data: {k: set_to_list(v) for k, v in data if v is not None and k not in ATTRS_TO_SKIP},
-    )
-
-
 class NotNoneDictable:
     def _to_dict(self):
-        return custom_asdict(self)
+        return dataclasses.asdict(
+            self,
+            dict_factory=lambda x: {k: v for k, v in x if v is not None and k not in ATTRS_TO_SKIP},
+        )
 
 
 @dataclasses.dataclass(eq=False)
@@ -238,6 +228,8 @@ class IastSpanReporter(NotNoneDictable):
                 if isinstance(obj, OriginType):
                     # if the obj is uuid, we simply return the value of uuid
                     return origin_to_str(obj)
+                elif isinstance(obj, set):
+                    return list(obj)
                 elif hasattr(obj, "_to_dict"):
                     return obj._to_dict()
 

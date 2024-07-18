@@ -1,4 +1,3 @@
-import dataclasses
 import json
 
 import pytest
@@ -14,16 +13,6 @@ from ddtrace.internal import core
 ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 
 
-class NotNoneDict(dict):
-    def __init__(self, args):
-        new_args = []
-        for k, v in args:
-            if v is not None and k not in ATTRS_TO_SKIP:
-                new_args.append((k, v))
-        args = new_args
-        super().__init__(args)
-
-
 def _iast_report_to_str(data):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -37,11 +26,9 @@ def _iast_report_to_str(data):
                 return list(obj)
             elif hasattr(obj, "_to_dict"):
                 return obj._to_dict()
-            elif dataclasses.is_dataclass(obj):
-                return dataclasses.asdict(obj, dict_factory=NotNoneDict)
             return json.JSONEncoder.default(self, obj)
 
-    return json.dumps(dataclasses.asdict(data, dict_factory=NotNoneDict), cls=OriginTypeEncoder)
+    return json.dumps(data._to_dict(), cls=OriginTypeEncoder)
 
 
 def test_insecure_cookies(iast_span_defaults):
