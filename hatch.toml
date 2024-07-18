@@ -71,7 +71,6 @@ dev-mode = false
 python = "3.10"
 features = ["opentracing"]
 dependencies = [  # copied from library dependencies
-    "ddsketch>=3.0.0",
     "protobuf>=3",
     "attrs>=20",
     "cattrs",
