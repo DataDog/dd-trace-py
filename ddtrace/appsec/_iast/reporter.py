@@ -22,20 +22,22 @@ ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
 
-def not_none_dict(args):
-    new_args = []
-    for k, v in args:
-        if v is not None and k not in ATTRS_TO_SKIP:
-            if isinstance(v, set):
-                new_args.append((k, [i._to_dict() if hasattr(i, "_to_dict") else i for i in v]))
-            else:
-                new_args.append((k, v))
-    return dict(new_args)
+def set_to_list(data):
+    if isinstance(data, set):
+        return [custom_asdict(v) for v in data]
+    return data
+
+
+def custom_asdict(obj):
+    return dataclasses.asdict(
+        obj,
+        dict_factory=lambda data: {k: set_to_list(v) for k, v in data if v is not None and k not in ATTRS_TO_SKIP},
+    )
 
 
 class NotNoneDictable:
     def _to_dict(self):
-        return dataclasses.asdict(self, dict_factory=not_none_dict)
+        return custom_asdict(self)
 
 
 @dataclasses.dataclass(eq=False)
