@@ -777,7 +777,6 @@ def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_s
     code = """
 import pytest
 import random
-import six
 import sys
 
 from ddtrace import Pin
@@ -800,7 +799,7 @@ def test(consumer, producer, kafka_topic):
     # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "context propagation enabled test " + str(random.randint(0, 1000))
     test_key = "context propagation key " + str(random.randint(0, 1000))
-    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+    PAYLOAD = bytes(test_string, encoding="utf-8")
 
     producer.produce(kafka_topic, PAYLOAD, key=test_key)
     producer.flush()
@@ -989,7 +988,6 @@ def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subp
     code = """
 import pytest
 import random
-import six
 import sys
 
 from ddtrace import Pin
