@@ -3,6 +3,8 @@ import sys
 
 import pytest
 
+import tests.internal.crashtracker.utils as utils
+
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
@@ -277,34 +279,28 @@ def test_crashtracker_raise_sigbus():
     assert b"os_kill" in data
 
 
+preload_code = """
+import ctypes
+ctypes.string_at(0)
+exit(-1)
+"""
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(
-    env={
-        "TEST_FILE_ROOT": os.path.dirname(__file__),
-    }
-)
-def test_crashtracker_preload_default():
-    import os
-    import sys
-
-    import tests.internal.crashtracker.utils as utils
-    from tests.utils import call_program
-
+def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
     # Setup the listening socket before we open ddtrace
     port, sock = utils.crashtracker_receiver_bind()
     assert sock
-    os.putenv("DD_TRACE_AGENT_URL", "http://localhost:%d" % port)
 
     # Call the program
-    root_dir = os.environ["TEST_FILE_ROOT"]
-    stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run", sys.executable, os.path.join(root_dir, "simple_crashing_preload.py")
-    )
+    env = os.environ.copy()
+    env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
+    stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
     # Check for expected exit condition
-    assert not stdout, stdout
+    assert not stdout
     assert not stderr
-    assert exitcode == -11
+    assert exitcode == -11  # exit code for SIGSEGV
 
     # Wait for the connection
     conn = utils.listen_get_conn(sock)
@@ -314,64 +310,48 @@ def test_crashtracker_preload_default():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(
-    env={
-        "DD_CRASHTRACKER_ENABLED": "false",
-        "TEST_FILE_ROOT": os.path.dirname(__file__),
-    }
-)
-def test_crashtracker_preload_disabled():
-    import os
-    import sys
-
-    import tests.internal.crashtracker.utils as utils
-    from tests.utils import call_program
-
+def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
     # Setup the listening socket before we open ddtrace
     port, sock = utils.crashtracker_receiver_bind()
     assert sock
-    os.putenv("DD_TRACE_AGENT_URL", "http://localhost:%d" % port)
 
     # Call the program
-    root_dir = os.environ["TEST_FILE_ROOT"]
-    stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run", sys.executable, os.path.join(root_dir, "simple_crashing_preload.py")
-    )
+    env = os.environ.copy()
+    env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
+    env["DD_CRASHTRACKER_ENABLED"] = "false"
+    stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
     # Check for expected exit condition
-    assert not stdout, stdout
+    assert not stdout
     assert not stderr
     assert exitcode == -11
 
-    # Connection should fail
+    # Wait for the connection, which should fail
     conn = utils.listen_get_conn(sock)
     assert not conn
 
 
+auto_code = """
+import ctypes
+import ddtrace.auto
+ctypes.string_at(0)
+exit(-1)
+"""
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(
-    env={
-        "TEST_FILE_ROOT": os.path.dirname(__file__),
-    }
-)
-def test_crashtracker_auto_default():
-    import os
-    import sys
-
-    import tests.internal.crashtracker.utils as utils
-    from tests.utils import call_program
-
+def test_crashtracker_auto_default(run_python_code_in_subprocess):
     # Setup the listening socket before we open ddtrace
     port, sock = utils.crashtracker_receiver_bind()
     assert sock
-    os.putenv("DD_TRACE_AGENT_URL", "http://localhost:%d" % port)
 
     # Call the program
-    root_dir = os.environ["TEST_FILE_ROOT"]
-    stdout, stderr, exitcode, _ = call_program(sys.executable, os.path.join(root_dir, "simple_crashing_auto.py"))
+    env = os.environ.copy()
+    env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
+    stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition
-    assert not stdout, stdout
+    assert not stdout
     assert not stderr
     assert exitcode == -11
 
@@ -383,33 +363,22 @@ def test_crashtracker_auto_default():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(
-    env={
-        "DD_CRASHTRACKER_ENABLED": "false",
-        "TEST_FILE_ROOT": os.path.dirname(__file__),
-    }
-)
-def test_crashtracker_auto_disabled():
-    import os
-    import sys
-
-    import tests.internal.crashtracker.utils as utils
-    from tests.utils import call_program
-
+def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
     # Setup the listening socket before we open ddtrace
     port, sock = utils.crashtracker_receiver_bind()
     assert sock
-    os.putenv("DD_TRACE_AGENT_URL", "http://localhost:%d" % port)
 
     # Call the program
-    root_dir = os.environ["TEST_FILE_ROOT"]
-    stdout, stderr, exitcode, _ = call_program(sys.executable, os.path.join(root_dir, "simple_crashing_auto.py"))
+    env = os.environ.copy()
+    env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
+    env["DD_CRASHTRACKER_ENABLED"] = "false"
+    stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition
-    assert not stdout, stdout
+    assert not stdout
     assert not stderr
     assert exitcode == -11
 
-    # Connection should fail
+    # Wait for the connection, which should fail
     conn = utils.listen_get_conn(sock)
     assert not conn
