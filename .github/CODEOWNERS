@@ -81,6 +81,7 @@ scripts/iast/*                      @DataDog/asm-python
 
 # Profiling
 ddtrace/profiling                   @DataDog/profiling-python
+ddtrace/settings/profiling.py       @DataDog/profiling-python
 ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
 
@@ -94,6 +95,7 @@ tests/llmobs                                        @DataDog/ml-observability
 tests/contrib/openai                                @DataDog/ml-observability
 tests/contrib/langchain                             @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock.py              @DataDog/ml-observability
+tests/contrib/botocore/test_bedrock_llmobs.py       @DataDog/ml-observability
 tests/contrib/botocore/bedrock_cassettes            @DataDog/ml-observability
 tests/contrib/anthropic                             @DataDog/ml-observability
 
@@ -102,11 +104,6 @@ ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-pyt
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # Guild
-# Note that core is added here since 2 reviewers are required. The guild isn't
-# big enough to support if a guild member makes a change which means 2 other
-# guild members have to review.
-# We should enforce this for important files, but more frequently edited ones
-# can settle for having 1 guild member review + a core team member.
 setup.py                            @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 pyproject.toml                      @DataDog/python-guild
@@ -114,10 +111,12 @@ hatch.toml                          @DataDog/python-guild
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 README.md                           @DataDog/python-guild  @DataDog/apm-core-python
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
-.github/PULL_REQUEST_TEMPLATE.md    @DataDog/python-guild  @DataDog/apm-core-python
-.github/ISSUE_TEMPLATE.md           @DataDog/python-guild  @DataDog/apm-core-python
-.github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
-.github/workflows/system-tests.yml  @DataDog/python-guild  @DataDog/apm-core-python
+.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
+.github/                            @DataDog/python-guild  @DataDog/apm-core-python
+.gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 tests/utils.py                      @DataDog/python-guild
+tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
+tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python

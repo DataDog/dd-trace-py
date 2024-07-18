@@ -26,7 +26,10 @@ add_library(dd_wrapper SHARED
     src/profile.cpp
     src/uploader.cpp
     src/sample.cpp
-    src/interface.cpp
+    src/ddup_interface.cpp
+    src/crashtracker.cpp
+    src/crashtracker_interface.cpp
+    src/receiver_interface.cpp
 )
 
 # Add common configuration flags
@@ -53,7 +56,7 @@ if (INPLACE_LIB_INSTALL_DIR)
 endif()
 
 # If LIB_INSTALL_DIR is set, install the library.
-# Install one directory up--both ddup and stackv2 are set to the same relative level.
+# Install one directory up--ddup, crashtracker, and stackv2 are set to the same relative level.
 if (LIB_INSTALL_DIR)
     install(TARGETS dd_wrapper
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}/..
@@ -70,6 +73,7 @@ add_cppcheck_target(dd_wrapper
     SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+# Static analysis
 add_infer_target(dd_wrapper)
 add_clangtidy_target(dd_wrapper)
 

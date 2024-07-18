@@ -1,4 +1,4 @@
-f5fb14372b8d6018f4759eb81447dfec0d3393e8e4e44fe890c42045563b5de4  libdatadog-aarch64-alpine-linux-musl.tar.gz
-2b3d1c5c3965ab4a9436aff4e101814eddaa59b59cb984ce6ebda45613aadbc3  libdatadog-aarch64-unknown-linux-gnu.tar.gz
-060482ff1c34940cf7fad1dc841693602e04e4fa54ac9e9f08cb688efcbab137  libdatadog-x86_64-alpine-linux-musl.tar.gz
-11c09440271dd4374b8fca8f0faa66c43a5e057aae05902543beb1e6cb382e52  libdatadog-x86_64-unknown-linux-gnu.tar.gz
+81017bdc4634163151272539e98700e5e0fb076d4aa88a004087c4a01be0cfc3  libdatadog-aarch64-alpine-linux-musl.tar.gz
+9b06e0dced2cfa72279a1f50bf12bb485eaa54d54b6d09764cc297d79a7ce0da  libdatadog-aarch64-unknown-linux-gnu.tar.gz
+96ed601629feb33ce3b1acf6ffd0c30eacb04c4353c8a52388eccd6b4027c2f1  libdatadog-x86_64-alpine-linux-musl.tar.gz
+cac9b7c4c0f791d8618426bac81f14c0be40bfeecb2d01a98dcae67ba217eca5  libdatadog-x86_64-unknown-linux-gnu.tar.gz

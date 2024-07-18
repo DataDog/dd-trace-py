@@ -23,9 +23,6 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._config import ed_config
-from ddtrace.debugging._encoding import LogSignalJsonEncoder
-from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
@@ -58,6 +55,7 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._signal.tracing import SpanDecoration
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import forksafe
@@ -275,7 +273,6 @@ class Debugger(Service):
 
     __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
-    __collector__ = SignalCollector
     __watchdog__ = DebuggerModuleWatchdog
     __logger__ = ProbeStatusLogger
 
@@ -348,16 +345,9 @@ class Debugger(Service):
         self._tracer = tracer or ddtrace.tracer
         service_name = di_config.service_name
 
-        self._signal_queue = SignalQueue(
-            encoder=LogSignalJsonEncoder(service_name),
-            on_full=self._on_encoder_buffer_full,
-        )
         self._status_logger = status_logger = self.__logger__(service_name)
 
         self._probe_registry = ProbeRegistry(status_logger=status_logger)
-        self._uploader = self.__uploader__(self._signal_queue)
-        self._collector = self.__collector__(self._signal_queue)
-        self._services = [self._uploader]
 
         self._function_store = FunctionStore(extra_attrs=["__dd_wrappers__"])
 
@@ -368,14 +358,6 @@ class Debugger(Service):
             call_once=True,
             raise_on_exceed=False,
         )
-
-        if ed_config.enabled:
-            from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
-
-            self._span_processor = SpanExceptionProcessor(collector=self._collector)
-            self._span_processor.register()
-        else:
-            self._span_processor = None
 
         if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
@@ -440,7 +422,7 @@ class Debugger(Service):
             signal.line()
 
             log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
-            self._collector.push(signal)
+            self.__uploader__.get_collector().push(signal)
 
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(probe)
@@ -512,7 +494,7 @@ class Debugger(Service):
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
-            resolved_source = probe.source_file
+            resolved_source = probe.resolved_source_file
             if resolved_source is None:
                 log.error(
                     "Cannot inject probe %s: source file %s cannot be resolved", probe.probe_id, probe.source_file
@@ -520,12 +502,12 @@ class Debugger(Service):
                 self._probe_registry.set_error(probe, "NoSourceFile", "Source file location cannot be resolved")
                 continue
 
-        for source in {probe.source_file for probe in probes if probe.source_file is not None}:
+        for source in {probe.resolved_source_file for probe in probes if probe.resolved_source_file is not None}:
             try:
                 self.__watchdog__.register_origin_hook(source, self._probe_injection_hook)
             except Exception as exc:
                 for probe in probes:
-                    if probe.source_file != source:
+                    if probe.resolved_source_file != source:
                         continue
                     exc_type = type(exc)
                     self._probe_registry.set_error(probe, exc_type.__name__, str(exc))
@@ -545,9 +527,9 @@ class Debugger(Service):
 
         probes_for_source: Dict[Path, List[LineProbe]] = defaultdict(list)
         for probe in unregistered_probes:
-            if probe.source_file is None:
+            if probe.resolved_source_file is None:
                 continue
-            probes_for_source[probe.source_file].append(probe)
+            probes_for_source[probe.resolved_source_file].append(probe)
 
         for resolved_source, probes in probes_for_source.items():
             module = self.__watchdog__.get_by_origin(resolved_source)
@@ -611,7 +593,7 @@ class Debugger(Service):
             else:
                 context = DebuggerWrappingContext(
                     function,
-                    collector=self._collector,
+                    collector=self.__uploader__.get_collector(),
                     registry=self._probe_registry,
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
@@ -721,15 +703,10 @@ class Debugger(Service):
 
     def _stop_service(self, join: bool = True) -> None:
         self._function_store.restore_all()
-        for service in self._services:
-            service.stop()
-            if join:
-                service.join()
+        self.__uploader__.unregister(UploaderProduct.DEBUGGER)
 
     def _start_service(self) -> None:
-        for service in self._services:
-            log.debug("[%s][P: %s] Debugger. Start service %s", os.getpid(), os.getppid(), service)
-            service.start()
+        self.__uploader__.register(UploaderProduct.DEBUGGER)
 
     @classmethod
     def _restart(cls):

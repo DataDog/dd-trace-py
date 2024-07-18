@@ -8,7 +8,7 @@ interactions:
       {"messages": [{"content": "who broke enigma?"}], "parameters": {"temperature":
       0, "max_tokens": 256}}, "output": {"messages": [{"content": "\n\nThe Enigma
       code was broken by a team of codebreakers at Bletchley Park, led by mathematician
-      Alan Turing."}]}}, "metrics": {"prompt_tokens": 64, "completion_tokens": 128,
+      Alan Turing."}]}}, "metrics": {"input_tokens": 64, "output_tokens": 128,
       "total_tokens": 192}}]}'
     headers:
       Content-Type:
@@ -50,7 +50,7 @@ interactions:
       256}}, "output": {"messages": [{"content": "Ah, a bold and foolish hobbit seeking
       to challenge my dominion in Mordor. Very well, little creature, I shall play
       along. But know that I am always watching, and your quest will not go unnoticed",
-      "role": "assistant"}]}}, "metrics": {"prompt_tokens": 64, "completion_tokens":
+      "role": "assistant"}]}}, "metrics": {"input_tokens": 64, "output_tokens":
       128, "total_tokens": 192}}]}'
     headers:
       Content-Type:
