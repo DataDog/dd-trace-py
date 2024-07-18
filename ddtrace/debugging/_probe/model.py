@@ -125,6 +125,11 @@ class ProbeConditionMixin(object):
         )
 
 
+class ProbeLocationKind(str, Enum):
+    LINE = "line"
+    FUNCTION = "method"
+
+
 @attr.s
 class ProbeLocationMixin(object):
     def location(self) -> Tuple[Optional[str], Optional[Union[str, int]]]:
