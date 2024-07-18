@@ -121,12 +121,3 @@ jobs:
           # due to a duplicate wheel being present which will ensure that the rest
           # of the wheels will be uploaded if some are uploaded manually.
           skip_existing: true
-
-  build-and-publish-init-image:
-    needs: [upload_pypi]
-    uses: ./.github/workflows/lib-inject-publish.yml
-    secrets:
-      token: ${{ secrets.GITHUB_TOKEN }}
-    with:
-      ddtrace-version: ${{ github.ref_name }}
-      image-tag: ${{ github.ref_name }}
