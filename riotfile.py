@@ -204,7 +204,6 @@ venv = Venv(
                 "requests": latest,
                 "envier": "==0.5.2",
                 "cattrs": "<23.1.1",
-                "ddsketch": ">=3.0.0",
                 "protobuf": ">=3",
                 "attrs": ">=20",
                 "typing_extensions": latest,
@@ -759,7 +758,7 @@ venv = Venv(
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
-                "pytest-django": "==3.10.0",
+                "pytest-django[testing]": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
                 "pytest-randomly": latest,
@@ -801,7 +800,7 @@ venv = Venv(
             name="django_hosts",
             command="pytest {cmdargs} tests/contrib/django_hosts",
             pkgs={
-                "pytest-django": [
+                "pytest-django[testing]": [
                     "==3.10.0",
                 ],
                 "pytest-randomly": latest,
@@ -827,7 +826,7 @@ venv = Venv(
             name="djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
             pkgs={
-                "pytest-django": "==3.10.0",
+                "pytest-django[testing]": "==3.10.0",
                 "pytest-randomly": latest,
             },
             venvs=[

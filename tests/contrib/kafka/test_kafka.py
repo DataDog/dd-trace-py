@@ -409,8 +409,8 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
     for _bucket_name, bucket in first.items():
-        assert bucket.payload_size._count >= 1
-        assert bucket.payload_size._sum == expected_payload_size
+        assert bucket.payload_size.count >= 1
+        assert bucket.payload_size.sum == expected_payload_size
 
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
@@ -449,10 +449,9 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
         sorted(["direction:in", "type:kafka", "group:test_group", "topic:{}".format(kafka_topic)]), parent_hash
     )
     assert (
-        first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].full_pathway_latency._count
-        >= 1
+        first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].full_pathway_latency.count >= 1
     )
-    assert first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].edge_latency._count >= 1
+    assert first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].edge_latency.count >= 1
     assert (
         first[
             (
@@ -460,7 +459,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
                 child_hash,
                 parent_hash,
             )
-        ].full_pathway_latency._count
+        ].full_pathway_latency.count
         >= 1
     )
     assert (
@@ -470,7 +469,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
                 child_hash,
                 parent_hash,
             )
-        ].edge_latency._count
+        ].edge_latency.count
         >= 1
     )
 

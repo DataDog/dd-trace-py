@@ -2,15 +2,14 @@ import abc
 from collections import defaultdict
 from threading import Lock
 from threading import RLock
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Iterable  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Optional
+from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
@@ -27,6 +26,7 @@ from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.sampler import BaseSampler
 
 
 try:
@@ -119,7 +119,7 @@ class TraceSamplingProcessor(TraceProcessor):
     def __init__(
         self,
         compute_stats_enabled: bool,
-        sampler: Any,
+        sampler: BaseSampler,
         single_span_rules: List[SpanSamplingRule],
         apm_opt_out: bool,
     ):
