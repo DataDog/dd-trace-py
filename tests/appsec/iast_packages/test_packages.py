@@ -38,6 +38,7 @@ class PackageForTesting:
     test_import_python_versions_to_skip = []
     test_e2e = True
     test_propagation = False
+    expect_no_change = False
 
     def __init__(
         self,
@@ -54,6 +55,7 @@ class PackageForTesting:
         import_module_to_validate=None,
         test_propagation=False,
         fixme_propagation_fails=False,
+        expect_no_change=False,
     ):
         self.name = name
         self.package_version = version
@@ -62,6 +64,7 @@ class PackageForTesting:
         self.test_e2e = test_e2e
         self.test_propagation = test_propagation
         self.fixme_propagation_fails = fixme_propagation_fails
+        self.expect_no_change = expect_no_change
 
         if expected_param:
             self.expected_param = expected_param
@@ -254,7 +257,9 @@ PACKAGES = [
         "",
         "",
         "",
-        test_import=False,
+        import_name="google.auth.crypt.rsa",
+        import_module_to_validate="google.auth.crypt.rsa",
+        expect_no_change=True,
     ),
     PackageForTesting(
         "google-api-core",
@@ -1014,12 +1019,22 @@ def test_packages_patched_import(package, venv):
         pytest.skip(reason)
         return
 
-    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "patched", package.import_module_to_validate]
+    cmdlist = [
+        venv,
+        _INSIDE_ENV_RUNNER_PATH,
+        "patched",
+        package.import_module_to_validate,
+        "True" if package.expect_no_change else "False",
+    ]
 
     with override_env({IAST_ENV: "true"}):
         # 1. Try with the specified version
         package.install(venv)
-        result = subprocess.run(cmdlist, capture_output=True, text=True)
+        result = subprocess.run(
+            cmdlist,
+            capture_output=True,
+            text=True,
+        )
         assert result.returncode == 0, result.stdout
         package.uninstall(venv)
 

@@ -409,8 +409,8 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
     for _bucket_name, bucket in first.items():
-        assert bucket.payload_size._count >= 1
-        assert bucket.payload_size._sum == expected_payload_size
+        assert bucket.payload_size.count >= 1
+        assert bucket.payload_size.sum == expected_payload_size
 
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
@@ -449,10 +449,9 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
         sorted(["direction:in", "type:kafka", "group:test_group", "topic:{}".format(kafka_topic)]), parent_hash
     )
     assert (
-        first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].full_pathway_latency._count
-        >= 1
+        first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].full_pathway_latency.count >= 1
     )
-    assert first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].edge_latency._count >= 1
+    assert first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].edge_latency.count >= 1
     assert (
         first[
             (
@@ -460,7 +459,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
                 child_hash,
                 parent_hash,
             )
-        ].full_pathway_latency._count
+        ].full_pathway_latency.count
         >= 1
     )
     assert (
@@ -470,7 +469,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
                 child_hash,
                 parent_hash,
             )
-        ].edge_latency._count
+        ].edge_latency.count
         >= 1
     )
 
@@ -777,7 +776,6 @@ def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_s
     code = """
 import pytest
 import random
-import six
 import sys
 
 from ddtrace import Pin
@@ -800,7 +798,7 @@ def test(consumer, producer, kafka_topic):
     # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "context propagation enabled test " + str(random.randint(0, 1000))
     test_key = "context propagation key " + str(random.randint(0, 1000))
-    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+    PAYLOAD = bytes(test_string, encoding="utf-8")
 
     producer.produce(kafka_topic, PAYLOAD, key=test_key)
     producer.flush()
@@ -989,7 +987,6 @@ def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subp
     code = """
 import pytest
 import random
-import six
 import sys
 
 from ddtrace import Pin

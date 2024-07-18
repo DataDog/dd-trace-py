@@ -4,7 +4,6 @@ import time
 import grpc
 from grpc.framework.foundation import logging_pool
 import pytest
-import six
 
 from ddtrace import Pin
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
@@ -332,7 +331,7 @@ class GrpcTestCase(GrpcBaseTestCase):
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloTwice(HelloRequest(name="once"))
             responses_iterator.add_done_callback(callback)
-            response = six.next(responses_iterator)
+            response = next(responses_iterator)
             callback_called.wait(timeout=1)
             assert response.message == "first response"
 
