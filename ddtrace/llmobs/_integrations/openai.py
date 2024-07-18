@@ -214,6 +214,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                     "arguments": json.loads(getattr(choice.message.function_call, "arguments", "")),
                 }
                 content = {"function_call": function_call_info}
+                output_messages.append({"content": content, "role": choice.message.role})
             elif getattr(choice.message, "tool_calls", None):
                 for tool_call in choice.message.tool_calls:
                     tool_call_info = {

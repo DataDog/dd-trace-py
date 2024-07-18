@@ -157,9 +157,12 @@ class AnthropicIntegration(BaseLLMIntegration):
                     output_messages.append({"content": text, "role": role})
                 else:
                     if _get_attr(completion, "type", None) == "tool_use":
+                        input_data = _get_attr(completion, "input", "")
+                        if isinstance(input_data, str):
+                            input_data = json.loads(input_data)
                         tool_call_info = {
                             "name": _get_attr(completion, "name", ""),
-                            "arguments": json.loads(_get_attr(completion, "input", "")),
+                            "arguments": input_data,
                             "tool_id": _get_attr(completion, "id", ""),
                             "type": _get_attr(completion, "type", ""),
                         }
