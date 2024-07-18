@@ -38,7 +38,7 @@ jobs:
           - TELEMETRY_METRIC_GENERATION_DISABLED
           - TELEMETRY_LOG_GENERATION_DISABLED
         weblog: [flask-poc, uds-flask]
-        attempt: [1, 2, 3]  # let's increase the crash probability
+        attempt: [1, 2]  # let's increase the crash probability
       fail-fast: false
 
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
