@@ -14,7 +14,6 @@ import weakref
 
 import mock
 import pytest
-import six
 
 import ddtrace
 from ddtrace._trace.context import Context
@@ -1157,7 +1156,7 @@ def test_runtime_id_parent_only():
     # Parent spans should have runtime-id
     s = tracer.trace("test")
     rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, six.string_types)
+    assert isinstance(rtid, str)
 
     # Child spans should not
     s2 = tracer.trace("test2")
@@ -1169,7 +1168,7 @@ def test_runtime_id_parent_only():
     s = tracer.trace("test")
     s.finish()
     rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, six.string_types)
+    assert isinstance(rtid, str)
 
 
 def test_runtime_id_fork():
@@ -1179,7 +1178,7 @@ def test_runtime_id_fork():
     s.finish()
 
     rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, six.string_types)
+    assert isinstance(rtid, str)
 
     pid = os.fork()
 
@@ -1189,7 +1188,7 @@ def test_runtime_id_fork():
         s.finish()
 
         rtid_child = s.get_tag("runtime-id")
-        assert isinstance(rtid_child, six.string_types)
+        assert isinstance(rtid_child, str)
         assert rtid != rtid_child
         os._exit(12)
 
