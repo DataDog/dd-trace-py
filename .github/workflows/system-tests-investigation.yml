@@ -22,16 +22,16 @@ jobs:
     needs: build-artifact
     strategy:
       matrix:
+        attempt: [1, 2, 3]  # let's increase the crash probability
         scenarios:  # list of scenario knowns to have startup crashes
           - name: set1
             list: APM_TRACING_E2E_OTEL,APPSEC_API_SECURITY,APPSEC_API_SECURITY_NO_RESPONSE_BODY,APPSEC_API_SECURITY_RC
           - name: set2
             list: APPSEC_API_SECURITY_WITH_SAMPLING,APPSEC_CUSTOM_OBFUSCATION,APPSEC_CUSTOM_RULES,APPSEC_RATE_LIMITER
           - name: set3
-            list: APPSEC_RASP,APPSEC_REQUEST_BLOCKING,APPSEC_RUNTIME_ACTIVATION,APPSEC_STANDALONE
+            list: APPSEC_RASP,APPSEC_REQUEST_BLOCKING,APPSEC_RUNTIME_ACTIVATION
           - name: set4
             list: DEBUGGER_EXPRESSION_LANGUAGE,TELEMETRY_METRIC_GENERATION_DISABLED,TELEMETRY_LOG_GENERATION_DISABLED
-        # attempt: [1, 2]  # let's increase the crash probability
       fail-fast: false
 
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
@@ -40,4 +40,4 @@ jobs:
       library: python
       scenarios: ${{ matrix.scenarios.list }}
       binaries_artifact: dd_trace_py
-      ci_environment: ${{ matrix.scenarios.name }}  # current reusable workflow does not allow artifact postfix. Let's hack
+      ci_environment: ${{ matrix.scenarios.name }}_${{ matrix.attempt }}  # current reusable workflow does not allow artifact postfix. Let's hack
