@@ -420,7 +420,8 @@ class BotocoreTest(TracerTestCase):
     @mock_s3
     def test_service_name_override(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
-        Pin(service="boto-service", tracer=self.tracer).onto(s3)
+        cfg = config.get_from(self.session)
+        cfg['service_name'] = 'boto-service'
 
         params = {
             "Bucket": "mybucket",
@@ -436,7 +437,7 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[0]
 
-        assert span.service == "boto-service.s3", "Expected 'boto-service.s3' but got {}".format(span.service)
+        assert span.service == "boto-service", "Expected 'boto-service' but got {}".format(span.service)
 
     @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
