@@ -4,7 +4,7 @@ import sys
 import typing
 import weakref
 
-from six.moves import _thread
+import _thread
 
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._unpatched import _threading as ddtrace_threading

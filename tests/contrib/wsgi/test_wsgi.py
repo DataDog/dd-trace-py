@@ -1,7 +1,6 @@
 import os
 
 import pytest
-import six
 from webtest import TestApp
 
 from ddtrace import config
@@ -52,7 +51,7 @@ def application(environ, start_response):
     elif environ["PATH_INFO"] == "/generatorError":
         return chunked_response_generator_error(start_response)
     else:
-        body = six.b("<html><body><h1>Hello World</h1></body></html>")
+        body = b"<html><body><h1>Hello World</h1></body></html>"
         headers = [
             ("Content-Type", "text/html; charset=utf8"),
             ("Content-Length", str(len(body))),

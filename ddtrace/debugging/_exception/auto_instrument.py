@@ -1,4 +1,5 @@
 from collections import deque
+from dataclasses import dataclass
 from itertools import count
 from pathlib import Path
 import sys
@@ -7,8 +8,6 @@ from types import FrameType
 from types import TracebackType
 import typing as t
 import uuid
-
-import attr
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
@@ -79,7 +78,6 @@ def unwind_exception_chain(
     return chain, exc_id
 
 
-@attr.s
 class SpanExceptionProbe(LogLineProbe):
     @classmethod
     def build(cls, exc_id: uuid.UUID, frame: FrameType) -> "SpanExceptionProbe":
@@ -105,16 +103,14 @@ class SpanExceptionProbe(LogLineProbe):
         )
 
 
-@attr.s
+@dataclass
 class SpanExceptionSnapshot(Snapshot):
-    exc_id = attr.ib(type=t.Optional[uuid.UUID], default=None)
+    exc_id: t.Optional[uuid.UUID] = None
 
     @property
     def data(self) -> t.Dict[str, t.Any]:
         data = super().data
-
         data.update({"exception-id": str(self.exc_id)})
-
         return data
 
 
@@ -145,7 +141,7 @@ def can_capture(span: Span) -> bool:
     raise ValueError(msg)
 
 
-@attr.s
+@dataclass
 class SpanExceptionProcessor(SpanProcessor):
     __uploader__ = LogsIntakeUploaderV1
 
