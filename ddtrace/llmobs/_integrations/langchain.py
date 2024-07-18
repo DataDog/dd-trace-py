@@ -10,7 +10,8 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import INPUT_MESSAGES, INPUT_DOCUMENTS
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
+from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
