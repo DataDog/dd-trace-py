@@ -66,6 +66,7 @@ class LangChainIntegration(BaseLLMIntegration):
             return
         if operation not in SUPPORTED_OPERATIONS:
             log.warning("Unsupported operation : %s" % operation)
+            return
 
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
