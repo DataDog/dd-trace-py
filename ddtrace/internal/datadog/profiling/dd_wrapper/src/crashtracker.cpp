@@ -37,15 +37,15 @@ Datadog::Crashtracker::set_runtime(std::string_view _runtime)
 }
 
 void
-Datadog::Crashtracker::set_runtime_version(std::string_view _runtime_version)
-{
-    runtime_version = std::string(_runtime_version);
-}
-
-void
 Datadog::Crashtracker::set_runtime_id(std::string_view _runtime_id)
 {
     runtime_id = std::string(_runtime_id);
+}
+
+void
+Datadog::Crashtracker::set_runtime_version(std::string_view _runtime_version)
+{
+    runtime_version = std::string(_runtime_version);
 }
 
 void

@@ -202,7 +202,6 @@ venv = Venv(
                 "tortoise-orm": latest,
                 "peewee": latest,
                 "requests": latest,
-                "six": ">=1.12.0",
                 "envier": "==0.5.2",
                 "cattrs": "<23.1.1",
                 "ddsketch": ">=3.0.0",
@@ -343,23 +342,13 @@ venv = Venv(
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
+            pys=select_pys(),
             venvs=[
                 Venv(
                     name="integration-latest",
                     env={
                         "AGENT_VERSION": "latest",
                     },
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "six": "==1.12.0",
-                            },
-                            venvs=[
-                                Venv(pys="3.7"),
-                            ],
-                        ),
-                        Venv(pys=select_pys(min_version="3.8")),
-                    ],
                 ),
                 Venv(
                     name="integration-snapshot",
@@ -367,9 +356,6 @@ venv = Venv(
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
-                    venvs=[
-                        Venv(pys=select_pys(min_version="3.7")),
-                    ],
                 ),
             ],
         ),
@@ -379,23 +365,13 @@ venv = Venv(
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
+            pys=select_pys(),
             venvs=[
                 Venv(
                     name="integration-latest-civisibility",
                     env={
                         "AGENT_VERSION": "latest",
                     },
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "six": "==1.12.0",
-                            },
-                            venvs=[
-                                Venv(pys="3.7"),
-                            ],
-                        ),
-                        Venv(pys=select_pys(min_version="3.8")),
-                    ],
                 ),
                 Venv(
                     name="integration-snapshot-civisibility",
@@ -403,9 +379,6 @@ venv = Venv(
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
-                    venvs=[
-                        Venv(pys=select_pys(min_version="3.7")),
-                    ],
                 ),
             ],
         ),
@@ -416,23 +389,13 @@ venv = Venv(
                 "msgpack": [latest],
                 "pytest-randomly": latest,
             },
+            pys=select_pys(),
             venvs=[
                 Venv(
                     name="datastreams-latest",
                     env={
                         "AGENT_VERSION": "latest",
                     },
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "six": "==1.12.0",
-                            },
-                            venvs=[
-                                Venv(pys="3.7"),
-                            ],
-                        ),
-                        Venv(pys=select_pys(min_version="3.8")),
-                    ],
                 ),
             ],
         ),
@@ -812,7 +775,7 @@ venv = Venv(
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
-                "pytest-django": "==3.10.0",
+                "pytest-django[testing]": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
                 "pytest-randomly": latest,
@@ -854,7 +817,7 @@ venv = Venv(
             name="django_hosts",
             command="pytest {cmdargs} tests/contrib/django_hosts",
             pkgs={
-                "pytest-django": [
+                "pytest-django[testing]": [
                     "==3.10.0",
                 ],
                 "pytest-randomly": latest,
@@ -880,7 +843,7 @@ venv = Venv(
             name="djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
             pkgs={
-                "pytest-django": "==3.10.0",
+                "pytest-django[testing]": "==3.10.0",
                 "pytest-randomly": latest,
             },
             venvs=[
