@@ -4,14 +4,19 @@ from ddtrace.internal import agent
 from ddtrace.internal.datadog.profiling import crashtracker
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.runtime import on_runtime_id_change
-from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace import config
 from ddtrace import version
 
 
 is_available: bool = crashtracker.is_available
 failure_msg: str = crashtracker.failure_msg
-is_started: Callable[[], bool] = crashtracker.is_started
+
+if is_available:
+    is_started: Callable[[], bool] = crashtracker.is_started
+else:
+
+    def is_started() -> bool:
+        return False
 
 
 @on_runtime_id_change
@@ -24,6 +29,9 @@ def start() -> bool:
     # Always configure, even if we aren't going to start it
     if not is_available:
         return False
+
+    # DEV: Import here to avoid circular imports
+    from ddtrace.settings.crashtracker import config as crashtracker_config
 
     crashtracker.set_url(agent.get_trace_url())
     crashtracker.set_service(config.service)
