@@ -14,7 +14,7 @@ question about the weather in a specific location. \n\nThe get_weather tool requ
 parameter. The user has provided the location of "San Francisco, CA" in their question, so we have \
 the necessary information to make the API call.\n\nNo other tools are needed to answer this question. \
 We can proceed with calling the get_weather tool with the provided location.\n</thinking>'
-WEATHER_OUTPUT_MESSAGE_2 = [
+WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL = [
     {
         "name": "get_weather",
         "arguments": {"location": "San Francisco, CA"},
@@ -313,7 +313,7 @@ class TestLLMObsAnthropic:
                     {
                         "content": "",
                         "role": "assistant",
-                        "tool_calls": WEATHER_OUTPUT_MESSAGE_2,
+                        "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL,
                     },
                 ],
                 metadata={"max_tokens": 200.0},
@@ -360,7 +360,7 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
@@ -409,7 +409,7 @@ class TestLLMObsAnthropic:
                     {
                         "content": "",
                         "role": "assistant",
-                        "tool_calls": WEATHER_OUTPUT_MESSAGE_2,
+                        "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL,
                     },
                 ],
                 metadata={"max_tokens": 200.0},
@@ -456,7 +456,7 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
@@ -499,7 +499,7 @@ class TestLLMObsAnthropic:
                 + " the location is fully specified. We can proceed with calling the get_weather tool.\n</thinking>",
                 "type": "text",
             },
-            {"text": WEATHER_OUTPUT_MESSAGE_2, "type": "text"},
+            {"text": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL, "type": "text"},
         ]
 
         traces = mock_tracer.pop_traces()
@@ -676,7 +676,7 @@ class TestLLMObsAnthropic:
                 input_messages=[
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message.content[0].text, "role": "assistant"},
-                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
