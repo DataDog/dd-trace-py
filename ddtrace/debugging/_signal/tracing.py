@@ -33,7 +33,7 @@ PROBE_ID_TAG_NAME = "debugger.probeid"
 class DynamicSpan(Signal):
     """Dynamically created span"""
 
-    _span_cm: t.Optional[t.ContextManager[Span]] = field(init=False, default=None)
+    _span_cm: t.Optional[Span] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._span_cm = None

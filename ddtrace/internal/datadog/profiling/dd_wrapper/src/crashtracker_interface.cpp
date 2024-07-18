@@ -209,3 +209,9 @@ crashtracker_profiling_state_serializing_stop() // cppcheck-suppress unusedFunct
         crashtracker.serializing_stop();
     }
 }
+
+bool
+crashtracker_is_started() // cppcheck-suppress unusedFunction
+{
+    return crashtracker_initialized;
+}
