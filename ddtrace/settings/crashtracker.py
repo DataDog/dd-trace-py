@@ -29,7 +29,7 @@ class CrashtrackerConfig(En):
     _enabled = En.v(
         bool,
         "enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Enables the crashtracker",
     )

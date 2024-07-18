@@ -1,3 +1,4 @@
+import os
 import sys
 
 import pytest
@@ -274,3 +275,80 @@ def test_crashtracker_raise_sigbus():
     data = utils.conn_to_bytes(conn)
     conn.close()
     assert b"os_kill" in data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={
+  "TEST_FILE_ROOT": os.path.dirname(__file__),
+  })
+def test_crashtracker_preload_default():
+    import os
+    import select
+    import socket
+    import sys
+
+    import tests.internal.crashtracker.utils as utils
+    from tests.utils import call_program
+
+    # Setup the listening socket before we open ddtrace
+    port, sock = utils.crashtracker_receiver_bind()
+    assert sock
+    os.putenv("DD_TRACE_AGENT_URL", "http://localhost:%d" % port)
+
+    # Call the program
+    root_dir = os.environ["TEST_FILE_ROOT"]
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(root_dir, "simple_crashing_program.py")
+    )
+
+    # Check for expected exit condition
+    assert not stdout, stdout
+    assert not stderr
+    assert exitcode == -11
+
+    # Wait for the connection
+    conn = utils.listen_get_conn(sock)
+    assert conn
+    data = utils.conn_to_bytes(conn)
+    assert data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={
+  "DD_TRACE_AGENT_URL": "http://localhost:10002",
+  "DD_CRASHTRACKER_ENABLED": "false",
+  "TEST_FILE_ROOT": os.path.dirname(__file__),
+  })
+def test_crashtracker_preload_disabled():
+    import os
+    import select
+    import socket
+    import sys
+
+    import tests.internal.crashtracker.utils as utils
+    from tests.utils import call_program
+
+
+    # Setup the listening socket before we open ddtrace
+    port, sock = utils.crashtracker_receiver_bind()
+    assert sock
+    os.putenv("DD_TRACE_AGENT_URL", "http://localhost:%d" % port)
+
+    # Call the program
+    root_dir = os.environ["TEST_FILE_ROOT"]
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(root_dir, "simple_crashing_program.py")
+    )
+
+    # Check for expected exit condition
+    assert not stdout, stdout
+    assert not stderr
+    assert exitcode == -11
+
+    # Connection should fail
+    conn = utils.listen_get_conn(sock)
+    assert not conn
