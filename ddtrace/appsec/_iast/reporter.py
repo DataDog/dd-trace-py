@@ -234,9 +234,6 @@ class IastSpanReporter(NotNoneDictable):
                 if isinstance(obj, OriginType):
                     # if the obj is uuid, we simply return the value of uuid
                     return origin_to_str(obj)
-                elif hasattr(obj, "_to_dict"):
-                    return obj._to_dict()
-
                 return json.JSONEncoder.default(self, obj)
 
         return json.dumps(self._to_dict(), cls=OriginTypeEncoder)
