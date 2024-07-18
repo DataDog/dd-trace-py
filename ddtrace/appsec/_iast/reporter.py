@@ -118,6 +118,12 @@ class IastSpanReporter(NotNoneDictable):
         """
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
 
+    def _to_dict(self):
+        return {
+            "sources": [i._to_dict() for i in self.sources],
+            "vulnerabilities": [i._to_dict() for i in self.vulnerabilities],
+        }
+
     @staticmethod
     def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Source], List[Dict]]:
         """
