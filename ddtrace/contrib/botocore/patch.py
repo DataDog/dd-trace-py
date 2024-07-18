@@ -31,7 +31,8 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
-from ..trace_utils import unwrap, ext_service
+from ..trace_utils import ext_service
+from ..trace_utils import unwrap
 from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call
 from .services.sqs import patched_sqs_api_call
@@ -75,7 +76,6 @@ config._add(
     },
 )
 
-print("Botocore service name: ", os.getenv("DD_BOTOCORE_SERVICE", "aws"))
 
 def get_version():
     # type: () -> str
@@ -86,13 +86,15 @@ def patch():
     if getattr(botocore.client, "_datadog_patch", False):
         return
     botocore.client._datadog_patch = True
-    service = ext_service(pin = None, int_config=config.botocore)
+    service = ext_service(pin=None, int_config=config.botocore)
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
-    Pin(service=service).onto(botocore.client.BaseClient)
+    config.botocore["_default_service"] = service
+    Pin().onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
-    Pin(service=service).onto(botocore.parsers.ResponseParser)
+    Pin().onto(botocore.parsers.ResponseParser)
+
     _PATCHED_SUBMODULES.clear()
 
 
@@ -198,8 +200,6 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    print("Service: ", schematize_service_name("{}.{}".format(ext_service(pin, config.botocore), endpoint_name)))
-
     with core.context_with_data(
         "botocore.instrumented_api_call",
         instance=instance,
@@ -207,7 +207,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         params=params,
         endpoint_name=endpoint_name,
         operation=operation,
-        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        service=schematize_service_name("{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)),
         pin=pin,
         span_name=function_vars.get("trace_operation"),
         span_type=SpanTypes.HTTP,

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    - Botocore service name override: This adds support for overriding the service name in botocore by
+      either setting the environment variable `DD_BOTOCORE_SERVICE` or setting the service name in `ddtrace.config`. 
