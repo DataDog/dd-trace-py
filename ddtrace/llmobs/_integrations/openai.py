@@ -215,7 +215,9 @@ class OpenAIIntegration(BaseLLMIntegration):
                 }
                 if content is None:
                     content = ""
-                output_messages.append({"content": content, "role": choice.message.role, "tool_calls": [function_call_info]})
+                output_messages.append(
+                    {"content": content, "role": choice.message.role, "tool_calls": [function_call_info]}
+                )
             elif getattr(choice.message, "tool_calls", None):
                 for tool_call in choice.message.tool_calls:
                     tool_call_info = {
