@@ -11,14 +11,15 @@ jobs:
   build-artifact:
     runs-on: ubuntu-latest
     steps:
+      - run: mkdir binaries/
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          path: dd-trace-py
+          path: binaries/dd-trace-py
       - uses: actions/upload-artifact@v4
         with:
           name: dd_trace_py
-          path: dd-trace-py
+          path: binaries/
 
   system-tests:
     needs: build-artifact
