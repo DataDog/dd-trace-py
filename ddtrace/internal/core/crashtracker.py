@@ -20,6 +20,9 @@ def _update_runtime_id(runtime_id: str) -> None:
 
 
 def start() -> bool:
+    if not is_available:
+        return False
+
     crashtracker.set_url(crashtracker_config.debug_url or agent.get_trace_url())
     crashtracker.set_service(config.service)
     crashtracker.set_version(config.version)
