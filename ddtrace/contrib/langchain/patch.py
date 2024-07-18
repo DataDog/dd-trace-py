@@ -567,6 +567,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
     """
     try:
         input_texts = get_argument_value(args, kwargs, 0, "texts")
+        chunk_size = get_argument_value(args, kwargs, 1, "chunk_Size")
     except ArgumentError:
         input_texts = get_argument_value(args, kwargs, 0, "text")
 
@@ -591,6 +592,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
                 for idx, text in enumerate(input_texts):
                     span.set_tag_str("langchain.request.inputs.%d.text" % idx, integration.trunc(text))
             span.set_metric("langchain.request.input_count", len(input_texts))
+            span.set_tag_str("langchain.request.inputs.chunk_size", chunk_size)
         # langchain currently does not support token tracking for OpenAI embeddings:
         #  https://github.com/hwchase17/langchain/issues/945
         embeddings = func(*args, **kwargs)
