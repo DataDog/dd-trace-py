@@ -582,6 +582,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
+    embeddings = None
     try:
         if isinstance(input_texts, str):
             if integration.is_pc_sampled_span(span):
@@ -611,7 +612,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
                 "embedding",
                 span,
                 input_texts=input_texts,
-                output_embedding=func(*args, **kwargs),
+                output_embedding=embeddings,
                 error=bool(span.error),
             )
         span.finish()
