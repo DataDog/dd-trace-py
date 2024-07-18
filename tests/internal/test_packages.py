@@ -70,10 +70,10 @@ def test_filename_to_package(packages):
     package = packages.filename_to_package(pytest.__file__)
     assert package.name == "pytest"
 
-    import six
+    import httpretty
 
-    package = packages.filename_to_package(six.__file__)
-    assert package.name == "six"
+    package = packages.filename_to_package(httpretty.__file__)
+    assert package.name == "httpretty"
 
     import google.protobuf.internal as gp
 
