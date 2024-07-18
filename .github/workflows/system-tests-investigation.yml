@@ -12,13 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: mkdir binaries/
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          path: binaries/dd-trace-py
-          # NB this ref is necessary to keep the checkout out of detached HEAD state, which setuptools_scm requires for
-          # proper version guessing
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - run: echo "git+https://github.com/DataDog/dd-trace-py.git@cbeauchesne/crash-investigation" > binaries/python-load-from-pip
       - uses: actions/upload-artifact@v4
         with:
           name: dd_trace_py
