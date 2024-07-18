@@ -167,9 +167,9 @@ class AnthropicIntegration(BaseLLMIntegration):
                             "type": _get_attr(completion, "type", ""),
                         }
                         tool_calls_info.append(tool_call_info)
-                        if content is None:
-                            content = ""
-                        output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
+                        if text is None:
+                            text = ""
+                        output_messages.append({"content": text, "role": role, "tool_calls": tool_calls_info})
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:

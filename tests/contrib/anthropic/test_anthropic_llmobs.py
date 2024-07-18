@@ -14,6 +14,7 @@ question about the weather in a specific location. \n\nThe get_weather tool requ
 parameter. The user has provided the location of "San Francisco, CA" in their question, so we have \
 the necessary information to make the API call.\n\nNo other tools are needed to answer this question. \
 We can proceed with calling the get_weather tool with the provided location.\n</thinking>'
+WEATHER_INPUT_MESSAGE_2 = '[tool: get_weather]\n\n{"location": "San Francisco, CA"}'
 WEATHER_OUTPUT_MESSAGE_2 = [
     {
         "name": "get_weather",
@@ -360,7 +361,7 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {"content": WEATHER_INPUT_MESSAGE_2, "role": "assistant"},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
@@ -456,7 +457,7 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {"content": WEATHER_INPUT_MESSAGE_2, "role": "assistant"},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
@@ -512,7 +513,18 @@ class TestLLMObsAnthropic:
                 input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
                     {"content": message[0]["text"], "role": "assistant"},
-                    {"content": "", "role": "assistant", "tool_calls": message[1]["text"]},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 135, "total_tokens": 734},
@@ -606,7 +618,18 @@ class TestLLMObsAnthropic:
                 input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
                     {"content": message.content[0].text, "role": "assistant"},
-                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
@@ -654,7 +677,7 @@ class TestLLMObsAnthropic:
                 input_messages=[
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message.content[0].text, "role": "assistant"},
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {"content": WEATHER_INPUT_MESSAGE_2, "role": "assistant"},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[

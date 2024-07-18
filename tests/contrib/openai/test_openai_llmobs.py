@@ -154,18 +154,10 @@ class TestLLMObsOpenaiV0:
                 function_call="auto",
                 user="ddtrace-test",
             )
-        expected_output = {
-            "function_call": {
-                "name": "extract_student_info",
-                "arguments": {
-                    "name": "David Nguyen",
-                    "major": "computer science",
-                    "school": "Stanford University",
-                    "grades": 3.8,
-                    "clubs": ["Chess Club", "South Asian Student Association"],
-                },
-            }
-        }
+        expected_output = "[function: {}]\n\n{}".format(
+            resp.choices[0].message.function_call.name,
+            resp.choices[0].message.function_call.arguments,
+        )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -202,18 +194,7 @@ class TestLLMObsOpenaiV0:
                 for chunk in resp:
                     resp_model = chunk.model
 
-        expected_output = {
-            "function_call": {
-                "name": "extract_student_info",
-                "arguments": {
-                    "name": "David Nguyen",
-                    "major": "computer science",
-                    "school": "Stanford University",
-                    "grades": 3.8,
-                    "clubs": ["Chess Club", "South Asian Student Association"],
-                },
-            }
-        }
+        expected_output = '[function: extract_student_info]\n\n{"name":"David Nguyen","major":"Computer Science","school":"Stanford University","grades":3.8,"clubs":["Chess Club","South Asian Student Association"]}'  # noqa: E501
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -542,7 +523,7 @@ class TestLLMObsOpenaiV1:
                         "grades": 3.8,
                         "clubs": ["Chess Club", "South Asian Student Association"],
                     },
-                    "tool_id": "call_ukwJcJsOt7gOrv9xGRAntkZQ",
+                    "tool_id": "call_FJStsEjxdODw9tBmQRRkm6vY",
                     "type": "function",
                 }
             ],

@@ -209,11 +209,10 @@ class OpenAIIntegration(BaseLLMIntegration):
             tool_calls_info = []
             content = getattr(choice.message, "content", "")
             if getattr(choice.message, "function_call", None):
-                function_call_info = {
-                    "name": getattr(choice.message.function_call, "name", ""),
-                    "arguments": json.loads(getattr(choice.message.function_call, "arguments", "")),
-                }
-                content = {"function_call": function_call_info}
+                content = "[function: {}]\n\n{}".format(
+                    getattr(choice.message.function_call, "name", ""),
+                    getattr(choice.message.function_call, "arguments", ""),
+                )
                 output_messages.append({"content": content, "role": choice.message.role})
             elif getattr(choice.message, "tool_calls", None):
                 for tool_call in choice.message.tool_calls:
