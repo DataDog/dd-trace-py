@@ -27,6 +27,7 @@ download_wheels:
   artifacts:
     paths:
       - "pywheels/*.whl"
+  retry: 3
 
 package-oci:
   needs: [ download_wheels ]
