@@ -278,13 +278,13 @@ def test_crashtracker_raise_sigbus():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={
-  "TEST_FILE_ROOT": os.path.dirname(__file__),
-  })
+@pytest.mark.subprocess(
+    env={
+        "TEST_FILE_ROOT": os.path.dirname(__file__),
+    }
+)
 def test_crashtracker_preload_default():
     import os
-    import select
-    import socket
     import sys
 
     import tests.internal.crashtracker.utils as utils
@@ -298,9 +298,7 @@ def test_crashtracker_preload_default():
     # Call the program
     root_dir = os.environ["TEST_FILE_ROOT"]
     stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run",
-        sys.executable,
-        os.path.join(root_dir, "simple_crashing_program.py")
+        "ddtrace-run", sys.executable, os.path.join(root_dir, "simple_crashing_program.py")
     )
 
     # Check for expected exit condition
@@ -316,20 +314,19 @@ def test_crashtracker_preload_default():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={
-  "DD_TRACE_AGENT_URL": "http://localhost:10002",
-  "DD_CRASHTRACKER_ENABLED": "false",
-  "TEST_FILE_ROOT": os.path.dirname(__file__),
-  })
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_AGENT_URL": "http://localhost:10002",
+        "DD_CRASHTRACKER_ENABLED": "false",
+        "TEST_FILE_ROOT": os.path.dirname(__file__),
+    }
+)
 def test_crashtracker_preload_disabled():
     import os
-    import select
-    import socket
     import sys
 
     import tests.internal.crashtracker.utils as utils
     from tests.utils import call_program
-
 
     # Setup the listening socket before we open ddtrace
     port, sock = utils.crashtracker_receiver_bind()
@@ -339,9 +336,7 @@ def test_crashtracker_preload_disabled():
     # Call the program
     root_dir = os.environ["TEST_FILE_ROOT"]
     stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run",
-        sys.executable,
-        os.path.join(root_dir, "simple_crashing_program.py")
+        "ddtrace-run", sys.executable, os.path.join(root_dir, "simple_crashing_program.py")
     )
 
     # Check for expected exit condition

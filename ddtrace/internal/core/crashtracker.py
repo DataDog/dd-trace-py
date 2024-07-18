@@ -1,12 +1,12 @@
 from typing import Callable
 
+from ddtrace import config
+from ddtrace import version
 from ddtrace.internal import agent
 from ddtrace.internal.datadog.profiling import crashtracker
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.settings.crashtracker import config as crashtracker_config
-from ddtrace import config
-from ddtrace import version
 
 
 is_available: bool = crashtracker.is_available

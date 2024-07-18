@@ -3,8 +3,10 @@
 is_available = False
 failure_msg = ""
 
+
 def _default_return_false(*args, **kwargs):
     return False
+
 
 try:
     from ._crashtracker import *  # noqa: F403, F401
