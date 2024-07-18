@@ -117,11 +117,19 @@ class AnthropicIntegration(BaseLLMIntegration):
                         input_messages.append({"content": "([IMAGE DETECTED])", "role": role})
 
                     elif _get_attr(block, "type", None) == "tool_use":
-                        name = _get_attr(block, "name", "")
-                        inputs = _get_attr(block, "input", "")
-                        input_messages.append(
-                            {"content": "[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
-                        )
+                        text = _get_attr(block, "text", None)
+                        input_data = _get_attr(block, "input", "")
+                        if isinstance(input_data, str):
+                            input_data = json.loads(input_data)
+                        tool_call_info = {
+                            "name": _get_attr(block, "name", ""),
+                            "arguments": input_data,
+                            "tool_id": _get_attr(block, "id", ""),
+                            "type": _get_attr(block, "type", ""),
+                        }
+                        if text is None:
+                            text = ""
+                        input_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
 
                     elif _get_attr(block, "type", None) == "tool_result":
                         content = _get_attr(block, "content", None)
@@ -151,7 +159,6 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         elif isinstance(content, list):
             for completion in content:
-                tool_calls_info = []
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
                     output_messages.append({"content": text, "role": role})
@@ -166,10 +173,9 @@ class AnthropicIntegration(BaseLLMIntegration):
                             "tool_id": _get_attr(completion, "id", ""),
                             "type": _get_attr(completion, "type", ""),
                         }
-                        tool_calls_info.append(tool_call_info)
                         if text is None:
                             text = ""
-                        output_messages.append({"content": text, "role": role, "tool_calls": tool_calls_info})
+                        output_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:

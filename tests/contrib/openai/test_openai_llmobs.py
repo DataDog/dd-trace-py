@@ -154,10 +154,22 @@ class TestLLMObsOpenaiV0:
                 function_call="auto",
                 user="ddtrace-test",
             )
-        expected_output = "[function: {}]\n\n{}".format(
-            resp.choices[0].message.function_call.name,
-            resp.choices[0].message.function_call.arguments,
-        )
+        expected_output = {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "name": "extract_student_info",
+                    "arguments": {
+                        "name": "David Nguyen",
+                        "major": "computer science",
+                        "school": "Stanford University",
+                        "grades": 3.8,
+                        "clubs": ["Chess Club", "South Asian Student Association"],
+                    },
+                }
+            ],
+        }
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -166,7 +178,7 @@ class TestLLMObsOpenaiV0:
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                output_messages=[{"content": expected_output, "role": "assistant"}],
+                output_messages=[expected_output],
                 metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
@@ -479,10 +491,22 @@ class TestLLMObsOpenaiV1:
                 function_call="auto",
                 user="ddtrace-test",
             )
-        expected_output = "[function: {}]\n\n{}".format(
-            resp.choices[0].message.function_call.name,
-            resp.choices[0].message.function_call.arguments,
-        )
+        expected_output = {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "name": "extract_student_info",
+                    "arguments": {
+                        "name": "David Nguyen",
+                        "major": "computer science",
+                        "school": "Stanford University",
+                        "grades": 3.8,
+                        "clubs": ["Chess Club", "South Asian Student Association"],
+                    },
+                }
+            ],
+        }
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -491,7 +515,7 @@ class TestLLMObsOpenaiV1:
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                output_messages=[{"content": expected_output, "role": "assistant"}],
+                output_messages=[expected_output],
                 metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},

@@ -14,7 +14,6 @@ question about the weather in a specific location. \n\nThe get_weather tool requ
 parameter. The user has provided the location of "San Francisco, CA" in their question, so we have \
 the necessary information to make the API call.\n\nNo other tools are needed to answer this question. \
 We can proceed with calling the get_weather tool with the provided location.\n</thinking>'
-WEATHER_INPUT_MESSAGE_2 = '[tool: get_weather]\n\n{"location": "San Francisco, CA"}'
 WEATHER_OUTPUT_MESSAGE_2 = [
     {
         "name": "get_weather",
@@ -361,7 +360,7 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": WEATHER_INPUT_MESSAGE_2, "role": "assistant"},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
@@ -457,7 +456,7 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": WEATHER_INPUT_MESSAGE_2, "role": "assistant"},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
@@ -677,7 +676,7 @@ class TestLLMObsAnthropic:
                 input_messages=[
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message.content[0].text, "role": "assistant"},
-                    {"content": WEATHER_INPUT_MESSAGE_2, "role": "assistant"},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
