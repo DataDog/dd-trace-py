@@ -222,15 +222,25 @@ class LangChainIntegration(BaseLLMIntegration):
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
         output_tag_key = OUTPUT_VALUE
 
-        if input_texts is not None:
-            try:
-                formatted_inputs = self.format_io(input_texts)
+        if (input_texts is not None
+                and (isinstance(input_texts, str) or all(isinstance(text, str) for text in input_texts))):
+            if is_workflow:
+                try:
+                    formatted_inputs = self.format_io(input_texts)
+                    if isinstance(input_texts, str):
+                        span.set_tag_str(input_tag_key, formatted_inputs)
+                    else:
+                        span.set_tag_str(input_tag_key, json.dumps(self.format_io(input_texts)))
+                except TypeError:
+                    log.warning("Failed to serialize embedding input data to JSON")
+            else:
                 if isinstance(input_texts, str):
-                    span.set_tag_str(input_tag_key, formatted_inputs)
-                else:
-                    span.set_tag_str(input_tag_key, json.dumps(self.format_io(input_texts)))
-            except TypeError:
-                log.warning("Failed to serialize embedding input data to JSON")
+                    span.set_tag_str(input_tag_key, input_texts)
+                elif (isinstance(input_texts, list)
+                      and all(isinstance(text, str) for text in input_texts) and not is_workflow):
+                    json_documents_list = json.dumps(input_texts)
+                    span.set_tag_str(input_tag_key, '{"documents":%s}' % json_documents_list)
+
         if error:
             span.set_tag_str(output_tag_key, "")
         elif output_embedding is not None:
