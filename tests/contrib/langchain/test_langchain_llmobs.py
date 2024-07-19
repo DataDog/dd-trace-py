@@ -122,6 +122,20 @@ class BaseTestLLMObsLangchain:
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
 
+    def _embed_query(cls, embedding_model, query, mock_tracer, cassette_name):
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
+        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+            embedding_model.embed_query(query)
+        LLMObs.disable()
+        return mock_tracer.pop_traces()[0]
+
+    def _embed_documents(cls, embedding_model, documents, mock_tracer, cassette_name):
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
+        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+            embedding_model.embed_documents(documents)
+        LLMObs.disable()
+        return mock_tracer.pop_traces()[0]
+
 
 @pytest.mark.skipif(not PATCH_LANGCHAIN_V0, reason="These tests are for langchain < 0.1.0")
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
