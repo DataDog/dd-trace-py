@@ -15,7 +15,6 @@ dependencies = [
     "mypy==0.991",
     "coverage==7.3.0",
     "envier==0.5.2",
-    "types-attrs==19.1.0",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
     "types-PyYAML==6.0.12.2",
@@ -72,8 +71,6 @@ python = "3.10"
 features = ["opentracing"]
 dependencies = [  # copied from library dependencies
     "protobuf>=3",
-    "attrs>=20",
-    "cattrs",
     "typing_extensions",
     "xmltodict>=0.12",
     "envier",
