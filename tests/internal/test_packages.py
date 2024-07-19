@@ -49,7 +49,7 @@ def test_get_distributions():
         # The correct package name is typing-extensions.
         # The issue exists in pkgutil-resolve-name package.
         if pkg.name == "typing_extensions" and "typing-extensions" in pkg_resources_ws:
-            importlib_pkgs.add("typing-extengsions")
+            importlib_pkgs.add("typing-extensions")
         elif pkg.name == "pkgutil_resolve_name" and "pkgutil-resolve-name" in pkg_resources_ws:
             importlib_pkgs.add("pkgutil-resolve-name")
         elif pkg.name == "importlib_metadata" and "importlib-metadata" in pkg_resources_ws:
