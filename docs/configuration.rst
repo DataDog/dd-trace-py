@@ -633,7 +633,7 @@ The following environment variables for the tracer are supported:
       type: String
       default: "aws"
       description: |
-         Sets service name for spans to allow for overriding default service names in botocore.
+         Set the service name, allowing default service name overrides for traces in botocore.
       version_added:
          v2.6.0:
 
