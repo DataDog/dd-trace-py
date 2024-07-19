@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ddtrace import Span  # noqa:F401
 
 import sys
+
 if sys.version_info >= (3, 8):
     from typing import Literal  # noqa:F401
 else:
