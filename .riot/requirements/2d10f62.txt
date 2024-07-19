@@ -4,17 +4,12 @@
 #
 #    pip-compile --no-annotate .riot/requirements/2d10f62.in
 #
-<<<<<<< HEAD:.riot/requirements/2d10f62.txt
 ai21==2.9.2
-=======
-ai21==2.9.1
->>>>>>> main:.riot/requirements/1598e9b.txt
 ai21-tokenizer==0.11.2
 aiohttp==3.9.5
 aiosignal==1.3.1
 annotated-types==0.7.0
-<<<<<<< HEAD:.riot/requirements/2d10f62.txt
-anthropic==0.31.1
+anthropic==0.31.2
 anyio==4.4.0
 async-timeout==4.0.3
 attrs==23.2.0
@@ -23,26 +18,11 @@ botocore==1.34.51
 certifi==2024.7.4
 charset-normalizer==3.3.2
 cohere==5.6.1
-=======
-anthropic==0.31.0
-anyio==4.4.0
-async-timeout==4.0.3
-attrs==23.2.0
-boto3==1.34.143
-botocore==1.34.143
-certifi==2024.7.4
-charset-normalizer==3.3.2
-cohere==5.5.8
->>>>>>> main:.riot/requirements/1598e9b.txt
 coverage[toml]==7.6.0
 dataclasses-json==0.6.7
 defusedxml==0.7.1
 distro==1.9.0
-<<<<<<< HEAD:.riot/requirements/2d10f62.txt
 exceptiongroup==1.2.2
-=======
-exceptiongroup==1.2.1
->>>>>>> main:.riot/requirements/1598e9b.txt
 fastavro==1.9.5
 filelock==3.15.4
 frozenlist==1.4.1
@@ -52,7 +32,7 @@ h11==0.14.0
 httpcore==1.0.5
 httpx==0.27.0
 httpx-sse==0.4.0
-huggingface-hub==0.23.5
+huggingface-hub==0.24.0
 hypothesis==6.45.0
 idna==3.7
 iniconfig==2.0.0
@@ -66,31 +46,22 @@ langchain-aws==0.1.6
 langchain-cohere==0.1.8
 langchain-core==0.2.0
 langchain-openai==0.1.7
-langchain-pinecone==0.1.1
+langchain-pinecone==0.1.2
 langchain-text-splitters==0.2.1
-<<<<<<< HEAD:.riot/requirements/2d10f62.txt
-langsmith==0.1.86
-=======
-langsmith==0.1.85
->>>>>>> main:.riot/requirements/1598e9b.txt
+langsmith==0.1.92
 marshmallow==3.21.3
 mock==5.1.0
 multidict==6.0.5
 mypy-extensions==1.0.0
-<<<<<<< HEAD:.riot/requirements/2d10f62.txt
 numexpr==2.8.5
 numpy==1.26.4
-openai==1.35.14
-=======
-numexpr==2.10.1
-numpy==1.26.4
-openai==1.35.13
->>>>>>> main:.riot/requirements/1598e9b.txt
+openai==1.35.15
 opentracing==2.4.0
 orjson==3.10.6
 packaging==23.2
 parameterized==0.9.0
-pinecone-client==3.2.2
+pinecone-client==4.1.2
+pinecone-plugin-interface==0.0.7
 pluggy==1.5.0
 psutil==6.0.0
 pydantic==2.8.2
@@ -115,17 +86,10 @@ tiktoken==0.7.0
 tokenizers==0.19.1
 tomli==2.0.1
 tqdm==4.66.4
-<<<<<<< HEAD:.riot/requirements/2d10f62.txt
 types-requests==2.32.0.20240712
 typing-extensions==4.12.2
 typing-inspect==0.9.0
 urllib3==2.0.7
-=======
-types-requests==2.32.0.20240622
-typing-extensions==4.12.2
-typing-inspect==0.9.0
-urllib3==2.2.2
->>>>>>> main:.riot/requirements/1598e9b.txt
 vcrpy==6.0.1
 wrapt==1.16.0
 yarl==1.9.4
