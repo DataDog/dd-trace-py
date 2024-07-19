@@ -245,9 +245,32 @@ class _ImportHookChainedLoader:
 
         return None
 
+    def _find_first_hook(
+        self, module: ModuleType, hooks_attr: str
+    ) -> t.Optional[t.Callable[[t.Any, ModuleType], None]]:
+        for _ in sys.meta_path:
+            if isinstance(_, ModuleWatchdog):
+                try:
+                    for (
+                        cond,
+                        hook,
+                    ) in getattr(_, hooks_attr, []):
+                        if (isinstance(cond, str) and cond == module.__name__) or (
+                            callable(cond) and cond(module.__name__)
+                        ):
+                            return hook
+                except Exception:
+                    log.debug("Exception happened while processing %s", hooks_attr, exc_info=True)
+        return None
+
+    def _find_first_exception_hook(self, module: ModuleType) -> t.Optional[t.Callable[[t.Any, ModuleType], None]]:
+        return self._find_first_hook(module, "_import_exception_hooks")
+
+    def _find_first_pre_exec_hook(self, module: ModuleType) -> t.Optional[t.Callable[[t.Any, ModuleType], None]]:
+        return self._find_first_hook(module, "_pre_exec_module_hooks")
+
     def _exec_module(self, module: ModuleType) -> None:
         # Collect and run only the first hook that matches the module.
-        pre_exec_hook = None
 
         _get_code = getattr(self.loader, "get_code", None)
         # DEV: avoid re-wrapping the loader's get_code method (eg: in case of repeated importlib.reload() calls)
@@ -265,21 +288,7 @@ class _ImportHookChainedLoader:
 
             self.loader.get_code = get_code.__get__(self.loader, type(self.loader))  # type: ignore[union-attr]
 
-        for _ in sys.meta_path:
-            if isinstance(_, ModuleWatchdog):
-                try:
-                    for cond, hook in _._pre_exec_module_hooks:
-                        if (isinstance(cond, str) and cond == module.__name__) or (
-                            callable(cond) and cond(module.__name__)
-                        ):
-                            # Several pre-exec hooks could match, we keep the first one
-                            pre_exec_hook = hook
-                            break
-                except Exception:
-                    log.debug("Exception happened while processing pre_exec_module_hooks", exc_info=True)
-
-            if pre_exec_hook is not None:
-                break
+        pre_exec_hook = self._find_first_pre_exec_hook(module)
 
         if pre_exec_hook:
             pre_exec_hook(self, module)
@@ -292,17 +301,9 @@ class _ImportHookChainedLoader:
                 else:
                     self.loader.exec_module(module)
             except Exception:
-                for _ in sys.meta_path:
-                    if isinstance(_, ModuleWatchdog):
-                        for (
-                            cond,
-                            hook,
-                        ) in _._import_exception_hooks:
-                            if (isinstance(cond, str) and cond == module.__name__) or (
-                                callable(cond) and cond(module.__name__)
-                            ):
-                                hook(self, module)
-                                break
+                exception_hook = self._find_first_exception_hook(module)
+                if exception_hook is not None:
+                    exception_hook(self, module)
 
         self.call_back(module)
 

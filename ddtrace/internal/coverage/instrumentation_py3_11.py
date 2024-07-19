@@ -221,9 +221,11 @@ CACHE = dis.opmap["CACHE"]
 CALL = dis.opmap["CALL"]
 POP_TOP = dis.opmap["POP_TOP"]
 RESUME = dis.opmap["RESUME"]
+RETURN_VALUE = dis.opmap["RETURN_VALUE"]
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 IMPORT_FROM = dis.opmap["IMPORT_FROM"]
-EMPTY_BYTECODE = bytes([151, 0, 100, 0, 83, 0])
+
+EMPTY_BYTECODE = bytes([RESUME, 0, LOAD_CONST, 0, RETURN_VALUE, 0])
 
 
 def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:

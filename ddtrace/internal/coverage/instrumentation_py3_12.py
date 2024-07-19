@@ -12,7 +12,9 @@ assert sys.version_info >= (3, 12)  # nosec
 EXTENDED_ARG = dis.EXTENDED_ARG
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 IMPORT_FROM = dis.opmap["IMPORT_FROM"]
-
+RESUME = dis.opmap["RESUME"]
+RETURN_CONST = dis.opmap["RETURN_CONST"]
+EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
 
 # Register the coverage tool with the low-impact monitoring system
 try:
@@ -25,8 +27,6 @@ except ValueError:
         return code, set()
 
 else:
-    RESUME = dis.opmap["RESUME"]
-
     _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
 
     def _line_event_handler(code: CodeType, line: int) -> t.Any:
@@ -129,7 +129,7 @@ else:
 
         # Special case for empty modules (eg: __init__.py ):
         # Make sure line 0 is marked as executable, and add package dependency
-        if not lines and code.co_name == "<module>" and code.co_code == bytes([151, 0, 121, 0]):
+        if not lines and code.co_name == "<module>" and code.co_code == EMPTY_MODULE_BYTES:
             lines.add(0)
             if package is not None:
                 import_names[0] = (package, ("",))
