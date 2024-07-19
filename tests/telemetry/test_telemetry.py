@@ -305,8 +305,6 @@ tracer.trace("hi").finish()
 
 
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_PATCH_MODULES"] = "jinja2:False,subprocess:False"
     code = """
 import logging
 logging.basicConfig()
@@ -318,7 +316,7 @@ f = flask.Flask("hi")
 f.wsgi_app()
 """
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
 
     assert status == 1, stderr
 
@@ -339,11 +337,13 @@ f.wsgi_app()
 
     integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
     integrations = integration_events[0]["payload"]["integrations"]
-    assert len(integrations) == 1
-    assert integrations[0]["enabled"] is True
-    assert integrations[0]["compatible"] is False
-    assert "ddtrace/contrib/flask/patch.py:" in integrations[0]["error"]
-    assert "not enough values to unpack (expected 2, got 0)" in integrations[0]["error"]
+
+    (flask_integration,) = [integration for integration in integrations if integration["name"] == "flask"]
+
+    assert flask_integration["enabled"] is True
+    assert flask_integration["compatible"] is False
+    assert "ddtrace/contrib/flask/patch.py:" in flask_integration["error"]
+    assert "not enough values to unpack (expected 2, got 0)" in flask_integration["error"]
 
     metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
 
