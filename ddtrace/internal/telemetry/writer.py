@@ -240,7 +240,7 @@ class TelemetryWriter(PeriodicService):
     # of `itertools.count()` which is a CPython implementation detail. The sequence field in telemetry
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
-    _ORIGINAL_EXCEPTHOOK = sys.excepthook
+    _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
@@ -882,7 +882,7 @@ class TelemetryWriter(PeriodicService):
 
             self.app_shutdown()
 
-        return self._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
+        return TelemetryWriter._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
 
     def install_excepthook(self):
         """Install a hook that intercepts unhandled exception and send metrics about them."""
@@ -890,4 +890,4 @@ class TelemetryWriter(PeriodicService):
 
     def uninstall_excepthook(self):
         """Uninstall the global tracer except hook."""
-        sys.excepthook = self._ORIGINAL_EXCEPTHOOK
+        sys.excepthook = TelemetryWriter._ORIGINAL_EXCEPTHOOK
