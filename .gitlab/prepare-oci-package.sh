@@ -19,7 +19,7 @@ if [ -z "$PYTHON_PACKAGE_VERSION" ]; then
   PYTHON_PACKAGE_VERSION=${WITHOUT_BEGINNING%%-*}
 fi
 
-mkdir -p sources
+mkdir -p sources/ddtrace_pkgs
 
 BUILD_DIR=sources
 
