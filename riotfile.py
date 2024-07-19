@@ -205,7 +205,6 @@ venv = Venv(
                 "envier": "==0.5.2",
                 "cattrs": "<23.1.1",
                 "protobuf": ">=3",
-                "attrs": ">=20",
                 "typing_extensions": latest,
                 "xmltodict": ">=0.12",
                 "opentelemetry-api": ">=1",
