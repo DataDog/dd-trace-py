@@ -11,7 +11,7 @@ python3 -m pip install packaging
 
 mkdir pywheels-dep
 
-../lib-injection/dl_wheels.py \
+lib-injection/dl_wheels.py \
     --python-version=3.12 \
     --python-version=3.11 \
     --python-version=3.10 \

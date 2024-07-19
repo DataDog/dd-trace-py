@@ -6,6 +6,9 @@ if [ -z "$CI_COMMIT_SHA" ]; then
   exit 1
 fi
 
+#Hardcoded for testing
+CI_COMMIT_SHA=d4b8e9dfcc8e90e20b51b2e89b0e0495e356713c
+
 echo "Querying for RUN_ID"
 
 timeout=600 # 10 minutes
