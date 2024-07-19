@@ -22,7 +22,9 @@ jobs:
         id: codeowners_resolved
         run: |
           codeowners ${{ steps.changed-files.outputs.all_changed_files }}
-          echo "results=$(codeowners ${{ steps.changed-files.outputs.all_changed_files }})" >> "$GITHUB_OUTPUT"
+          echo "results<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$(codeowners ${{ steps.changed-files.outputs.all_changed_files }})" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@v2
         with:

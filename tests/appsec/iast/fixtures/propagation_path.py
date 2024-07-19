@@ -158,7 +158,8 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted.jpg
     string18 = os.path.splitext(string17)[0]
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
-    string19 = os.path.join(os.sep + string18, "nottainted_notdir")
+    string19_pre = os.sep + string18
+    string19 = os.path.join(string19_pre, "nottainted_notdir")
     # /TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted/nottainted_notdir
     string20 = os.path.dirname(string19)
     # /TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted

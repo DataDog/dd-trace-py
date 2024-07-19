@@ -25,17 +25,14 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "attrs>=20",
     "bytecode>=0.15.0; python_version>='3.12'",
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
-    "ddsketch>=3.0.0",
     "envier~=0.5",
     "importlib_metadata<=6.5.0; python_version<'3.8'",
     "opentelemetry-api>=1",
     "protobuf>=3",
     "setuptools; python_version>='3.12'",
-    "six>=1.12.0",
     "typing_extensions",
     "xmltodict>=0.12",
 ]
