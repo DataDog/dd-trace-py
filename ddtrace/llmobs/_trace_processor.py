@@ -68,6 +68,7 @@ class LLMObsTraceProcessor(TraceProcessor):
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
         span_kind = span._meta.pop(SPAN_KIND)
+
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span.get_tag(MODEL_NAME) is not None:
             meta["model_name"] = span._meta.pop(MODEL_NAME)
@@ -103,6 +104,28 @@ class LLMObsTraceProcessor(TraceProcessor):
         span.set_tag_str(SESSION_ID, session_id)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
         span._meta.pop(PARENT_ID_KEY, None)
+
+        name = _get_span_name(span)
+        if span_kind == "llm":
+            print("[✧ LLM Observability] LLM ✨: {} finished in {} seconds!".format(name, span.duration))
+        elif span_kind == "workflow":
+            print("[✧ LLM Observability] Workflow 🔗: {} finished in {} seconds!".format(name, span.duration))
+        elif span_kind == "agent":
+            print("[✧ LLM Observability] Agent 🤖: {} finished in {} seconds!".format(name, span.duration))
+            url = """
+            View your agent run:
+            https://app.datadoghq.com/llm/traces?query=%40event_type%3Aspan%20%40parent_id%3Aundefined%20%40trace_id%3A{}%20&agg_m=count&agg_m_source=base&agg_t=count&fromUser=false&llmPanels=%5B%7B%22t%22%3A%22sampleDetailPanel%22%2C%22rEID%22%3A%22AgAAAZDMT2fSc-LOggAAAAAAAAAYAAAAAEFaRE1UMS1vQUFBMl9fZXBadnc3QUFBQQAAACQAAAAAMDE5MGNjNGYtODc3MC00YmY0LTg5NGItZmFiNTY1NDk1ZjE0%22%7D%5D&sidepanelTab=trace&viz=stream
+            """.format(
+                span.trace_id
+            )
+            print(url)
+        elif span_kind == "tool":
+            print("[✧ LLM Observability] Tool 🔧: {} finished in {} seconds!".format(name, span.duration))
+        elif span_kind == "task":
+            print("[✧ LLM Observability] Task 📌: {} finished in {} seconds!".format(name, span.duration))
+        elif span_kind == "retrieval":
+            print("[✧ LLM Observability] Retrieval 🔎: {} finished in {} seconds!".format(name, span.duration))
+
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),

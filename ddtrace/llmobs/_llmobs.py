@@ -115,6 +115,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
+        dev_mode: bool = True,
         _tracer: Optional[ddtrace.Tracer] = None,
     ) -> None:
         """
@@ -288,6 +289,7 @@ class LLMObs(Service):
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
     ) -> Span:
+        print("[✧ LLM Observability] LLM ✨: {} running ...".format(name))
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
@@ -325,6 +327,7 @@ class LLMObs(Service):
 
         :returns: The Span object representing the traced operation.
         """
+        print("[✧ LLM Observability] Tool 🔧: {} running ...".format(name))
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app)
@@ -341,12 +344,14 @@ class LLMObs(Service):
 
         :returns: The Span object representing the traced operation.
         """
+        print("[✧ LLM Observability] Task 📌: {} running...".format(name))
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
     def agent(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
+        print("[✧ LLM Observability] Agent 🤖: {} running ...".format(name))
         """
         Trace a dynamic workflow in which an embedded language model (agent) decides what sequence of actions to take.
 
@@ -365,6 +370,7 @@ class LLMObs(Service):
     def workflow(
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
     ) -> Span:
+        print("[✧ LLM Observability] Workflow 🔗: {} running ...".format(name))
         """
         Trace a predefined or static sequence of operations.
 
@@ -422,6 +428,7 @@ class LLMObs(Service):
     def retrieval(
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
     ) -> Span:
+        print("[✧ LLM Observability] Retrieval 🔎: {} running ...".format(name))
         """
         Trace a vector search operation involving a list of documents being returned from an external knowledge base.
 
