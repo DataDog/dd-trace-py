@@ -264,7 +264,7 @@ raise Exception('bad_code')
     # Regression test for python3.12 support
     assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
     # Regression test for invalid number of arguments in wrapped exception hook
-    assert b"TypeError: pre_ddtrace_exc_hook() takes 3 positional arguments but 4 were given" not in stderr
+    assert b"3 positional arguments but 4 were given" not in stderr
 
     app_starteds = test_agent_session.get_events("app-started")
     assert len(app_starteds) == 1
