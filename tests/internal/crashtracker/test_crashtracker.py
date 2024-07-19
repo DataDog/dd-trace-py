@@ -5,17 +5,6 @@ import pytest
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
-def test_crashtracker_loading():
-    try:
-        pass
-    except Exception:
-        import pytest
-
-        pytest.fail("Crashtracker failed to load")
-
-
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
 def test_crashtracker_available():
     import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
 
@@ -48,14 +37,36 @@ def test_crashtracker_config_bytes():
         crashtracker.set_url(b"http://localhost:1234")
         crashtracker.set_service(b"my_favorite_service")
         crashtracker.set_version(b"v0.0.0.0.0.0.1")
-        crashtracker.set_runtime(b"4kph")
-        crashtracker.set_runtime_version(b"v3.1.4.1")
+        crashtracker.set_runtime(b"shmython")
+        crashtracker.set_runtime_version(b"v9001")
+        crashtracker.set_runtime_id(b"0")
         crashtracker.set_library_version(b"v2.7.1.8")
         crashtracker.set_stdout_filename(b"stdout.log")
         crashtracker.set_stderr_filename(b"stderr.log")
         crashtracker.set_alt_stack(False)
         crashtracker.set_resolve_frames_full()
         assert crashtracker.start()
+    except Exception:
+        pytest.fail("Exception when starting crashtracker")
+
+    stdout_msg, stderr_msg = read_files(["stdout.log", "stderr.log"])
+    if stdout_msg or stderr_msg:
+        pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_started():
+    import pytest
+
+    import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
+    from tests.internal.crashtracker.utils import read_files
+
+    try:
+        crashtracker.set_stdout_filename("stdout.log")
+        crashtracker.set_stderr_filename("stderr.log")
+        assert crashtracker.start()
+        assert crashtracker.is_started()
     except Exception:
         pytest.fail("Exception when starting crashtracker")
 

@@ -1,7 +1,5 @@
 import typing  # noqa:F401
 
-import attr
-
 from .. import collector
 from . import _lock
 
@@ -23,7 +21,6 @@ class _ProfiledAsyncioLock(_lock._ProfiledLock):
     RELEASE_EVENT_CLASS = AsyncioLockReleaseEvent
 
 
-@attr.s
 class AsyncioLockCollector(_lock.LockCollector):
     """Record asyncio.Lock usage."""
 

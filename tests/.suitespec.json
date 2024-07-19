@@ -447,6 +447,7 @@
             "@remoteconfig",
             "@symbol_db",
             "@tracing",
+            "ddtrace/internal/*",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
@@ -659,6 +660,7 @@
             "@bootstrap",
             "@core",
             "@telemetry",
+            "@tracing",
             "@settings",
             "@profiling",
             "tests/telemetry/*",
