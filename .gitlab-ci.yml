@@ -16,7 +16,7 @@ include:
 variables:
   REPO_LANG: python
 
-download_wheels:
+download_ddtrace_wheels:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
   tags: [ "arch:amd64" ]
   stage: package
@@ -29,8 +29,17 @@ download_wheels:
     paths:
       - "pywheels/*.whl"
 
+download_dependency_wheels:
+  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  stage: package
+  script:
+    - .gitlab/download-wheels-from-gh-actions.sh
+  artifacts:
+    paths:
+      - "pywheels-deps"
+
 package-oci:
-  needs: [ download_wheels ]
+  needs: [ download_dependency_wheels, download_ddtrace_wheels ]
 
 # no installer tests for python
 onboarding_tests_installer:

@@ -64,7 +64,8 @@ parser.add_argument(
     action="append",
     required=True,
 )
-parser.add_argument("--ddtrace-version", type=str, required=True)
+parser.add_argument("--ddtrace-version", type=str)
+parser.add_argument("--ddtrace-commit-hash", type=str)
 parser.add_argument("--output-dir", type=str, required=True)
 parser.add_argument("--dry-run", action="store_true")
 parser.add_argument("--verbose", action="store_true")
@@ -82,6 +83,14 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         if python_version in ["2.7", "3.5", "3.6", "3.7"]:
             abi += "m"
 
+        if args.ddtrace_version:
+            ddtrace_specifier = "ddtrace==%s" % args.ddtrace_version
+        elif args.ddtrace_commit_hash:
+            ddtrace_specifier = "git+https://github.com/DataDog/dd-trace-py.git@%s" % args.ddtrace_commit_hash
+        else:
+            print("--ddtrace-version or --ddtrace-commit-hash must be specified")
+            sys.exit(1)
+
         # See the docs for an explanation of all the options used:
         # https://pip.pypa.io/en/stable/cli/pip_download/
         #   only-binary=:all: is specified to ensure we get all the dependencies of ddtrace as well.
@@ -90,7 +99,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             "-m",
             "pip",
             "download",
-            "ddtrace==%s" % args.ddtrace_version,
+            ddtrace_specifier,
             "--platform",
             "%s_%s" % (platform, arch),
             "--python-version",
