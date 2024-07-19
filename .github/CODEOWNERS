@@ -117,6 +117,7 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
 tests/utils.py                      @DataDog/python-guild
 tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
@@ -131,17 +132,12 @@ ddtrace/sampler.py                                 @DataDog/apm-sdk-api-python
 ddtrace/sampling_rule.py                           @DataDog/apm-sdk-api-python
 ddtrace/internal/sampling.py                       @DataDog/apm-sdk-api-python
 ddtrace/internal/tracemethods.py                   @DataDog/apm-sdk-api-python
+ddttace/settings/_otel_remapper.py                 @DataDog/apm-sdk-api-python
 tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-api-python
 tests/integration/test_propagation.py              @DataDog/apm-sdk-api-python
 tests/test_sampling.py                             @DataDog/apm-sdk-api-python
 tests/test_tracemethods.py                         @DataDog/apm-sdk-api-python
 tests/opentelemetry/                               @DataDog/apm-sdk-api-python
-tests/tracer/test_filters.py                       @DataDog/apm-sdk-api-python
-tests/tracer/test_pin.py                           @DataDog/apm-sdk-api-python
-tests/tracer/test_propagation.py                   @DataDog/apm-sdk-api-python
-tests/tracer/test_sampler.py                       @DataDog/apm-sdk-api-python
-tests/tracer/test_single_span_sampling_rules.py    @DataDog/apm-sdk-api-python
-tests/tracer/test_span.py                          @DataDog/apm-sdk-api-python
-tests/tracer/test_trace_utils.py                   @DataDog/apm-sdk-api-python
-tests/tracer/test_tracer.py                        @DataDog/apm-sdk-api-python
-
+tests/tracer/                                      @DataDog/apm-sdk-api-python
+# Override because order matters
+tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
