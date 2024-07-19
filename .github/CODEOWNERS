@@ -125,6 +125,7 @@ tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-pyt
 # API SDK
 ddtrace/_trace/                                    @DataDog/apm-sdk-api-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-api-python
+ddtrace/opentracer/                             @DataDog/apm-sdk-api-python
 ddtrace/propagation/                               @DataDog/apm-sdk-api-python
 ddtrace/filters.py                                 @DataDog/apm-sdk-api-python
 ddtrace/pin.py                                     @DataDog/apm-sdk-api-python
