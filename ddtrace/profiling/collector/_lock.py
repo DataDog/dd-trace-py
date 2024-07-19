@@ -7,8 +7,6 @@ import sys
 import types
 import typing
 
-import attr
-
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
@@ -305,21 +303,28 @@ class FunctionWrapper(wrapt.FunctionWrapper):
         return self
 
 
-@attr.s
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes = attr.ib(type=int, default=config.max_frames)
-    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
-    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-
-    tracer = attr.ib(default=None)
-
-    _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
-
-    # Check if libdd is available, if not, disable the feature
-    if export_libdd_enabled and not ddup.is_available:
-        export_libdd_enabled = False
+    def __init__(
+        self,
+        recorder,
+        nframes=config.max_frames,
+        endpoint_collection_enabled=config.endpoint_collection,
+        export_libdd_enabled=config.export.libdd_enabled,
+        tracer=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(recorder, *args, **kwargs)
+        self.nframes = nframes
+        self.endpoint_collection_enabled = endpoint_collection_enabled
+        self.export_libdd_enabled = export_libdd_enabled
+        self.tracer = tracer
+        self._original = None
+        # Check if libdd is available, if not, disable the feature
+        if self.export_libdd_enabled and not ddup.is_available:
+            self.export_libdd_enabled = False
 
     @abc.abstractmethod
     def _get_original(self):
