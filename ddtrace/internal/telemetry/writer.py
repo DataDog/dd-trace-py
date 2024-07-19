@@ -16,12 +16,14 @@ from typing import Union  # noqa:F401
 from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
+from ...internal.core import crashtracking
 from ...internal.module import BaseModuleWatchdog
 from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
 from ...settings.config import _ConfigSource
+from ...settings.crashtracker import config as crashtracker_config
 from ...settings.dynamic_instrumentation import config as di_config
 from ...settings.exception_debugging import config as ed_config
 from ...settings.peer_service import _ps_config
@@ -47,6 +49,14 @@ from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
+from .constants import TELEMETRY_CRASHTRACKING_ALT_STACK
+from .constants import TELEMETRY_CRASHTRACKING_AVAILABLE
+from .constants import TELEMETRY_CRASHTRACKING_DEBUG_URL
+from .constants import TELEMETRY_CRASHTRACKING_ENABLED
+from .constants import TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER
+from .constants import TELEMETRY_CRASHTRACKING_STARTED
+from .constants import TELEMETRY_CRASHTRACKING_STDERR_FILENAME
+from .constants import TELEMETRY_CRASHTRACKING_STDOUT_FILENAME
 from .constants import TELEMETRY_DOGSTATSD_PORT
 from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
@@ -510,6 +520,15 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_INJECT_WAS_ATTEMPTED, config._inject_was_attempted, "unknown"),
                 (TELEMETRY_LIB_WAS_INJECTED, config._lib_was_injected, "unknown"),
                 (TELEMETRY_LIB_INJECTION_FORCED, config._inject_force, "unknown"),
+                # Crashtracker
+                (TELEMETRY_CRASHTRACKING_ENABLED, crashtracker_config.enabled, "unknown"),
+                (TELEMETRY_CRASHTRACKING_STARTED, crashtracking.is_started(), "unknown"),
+                (TELEMETRY_CRASHTRACKING_AVAILABLE, crashtracking.is_available, "unknown"),
+                (TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER, str(crashtracker_config.stacktrace_resolver), "unknown"),
+                (TELEMETRY_CRASHTRACKING_STDOUT_FILENAME, str(crashtracker_config.stdout_filename), "unknown"),
+                (TELEMETRY_CRASHTRACKING_STDERR_FILENAME, str(crashtracker_config.stderr_filename), "unknown"),
+                (TELEMETRY_CRASHTRACKING_DEBUG_URL, str(crashtracker_config.debug_url), "unknown"),
+                (TELEMETRY_CRASHTRACKING_ALT_STACK, crashtracker_config.alt_stack, "unknown"),
             ]
             + get_python_config_vars()
         )
