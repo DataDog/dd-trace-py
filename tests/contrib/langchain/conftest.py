@@ -14,12 +14,6 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-@pytest.fixture
-def ddtrace_global_config():
-    config = {}
-    return config
-
-
 def default_global_config():
     return {"_dd_api_key": "<not-a-real-api_key>"}
 
@@ -91,10 +85,8 @@ def mock_llmobs_span_writer():
 
 
 @pytest.fixture
-def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
+def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
+    with override_global_config(default_global_config()):
         with override_config("langchain", ddtrace_config_langchain):
             with override_env(
                 dict(
@@ -115,14 +107,14 @@ def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_m
 
 
 @pytest.fixture
-def langchain_community(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_community(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
     import langchain_community
 
     yield langchain_community
 
 
 @pytest.fixture
-def langchain_core(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_core(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
     import langchain_core
     import langchain_core.prompts  # noqa: F401
 
@@ -130,7 +122,7 @@ def langchain_core(ddtrace_global_config, ddtrace_config_langchain, mock_logs, m
 
 
 @pytest.fixture
-def langchain_openai(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_openai(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
     try:
         import langchain_openai
 
