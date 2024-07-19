@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: The Langchain integration now submits embedding spans to LLM Observability.
