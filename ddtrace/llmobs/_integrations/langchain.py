@@ -233,10 +233,9 @@ class LangChainIntegration(BaseLLMIntegration):
                         span.set_tag_str(input_tag_key, json.dumps(self.format_io(input_texts)))
                 except TypeError:
                     log.warning("Failed to serialize embedding input data to JSON")
-            else:
-                if isinstance(input_texts, str):
+            elif isinstance(input_texts, str):
                     span.set_tag_str(input_tag_key, input_texts)
-                elif (isinstance(input_texts, list)
+            elif (isinstance(input_texts, list)
                       and all(isinstance(text, str) for text in input_texts) and not is_workflow):
                     json_documents_list = json.dumps(input_texts)
                     span.set_tag_str(input_tag_key, '{"documents":%s}' % json_documents_list)
