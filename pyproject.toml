@@ -29,13 +29,11 @@ dependencies = [
     "bytecode>=0.15.0; python_version>='3.12'",
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
-    "ddsketch>=3.0.0",
     "envier~=0.5",
     "importlib_metadata<=6.5.0; python_version<'3.8'",
     "opentelemetry-api>=1",
     "protobuf>=3",
     "setuptools; python_version>='3.12'",
-    "six>=1.12.0",
     "typing_extensions",
     "xmltodict>=0.12",
 ]
@@ -159,6 +157,12 @@ exclude-modules = '''
   # _ddup and _stack_v2 miss a runtime dependency in slotscheck, but ddup and stack_v2 are fine
   | ddtrace.internal.datadog.profiling.ddup._ddup
   | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
+  # coverage has version-specific checks that prevent import
+  | ddtrace.internal.coverage.instrumentation_py3_8
+  | ddtrace.internal.coverage.instrumentation_py3_9
+  | ddtrace.internal.coverage.instrumentation_py3_10
+  | ddtrace.internal.coverage.instrumentation_py3_11
+  | ddtrace.internal.coverage.instrumentation_py3_12
 )
 '''
 

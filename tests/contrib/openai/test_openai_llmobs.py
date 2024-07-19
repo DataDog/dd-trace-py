@@ -35,9 +35,10 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
-                metadata={"temperature": 0.8, "max_tokens": 10},
+                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -57,9 +58,10 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": expected_completion}],
-                metadata={"temperature": 0},
+                metadata={"stream": True},
                 token_metrics={"input_tokens": 2, "output_tokens": 16, "total_tokens": 18},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             ),
         )
 
@@ -94,9 +96,10 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
-                metadata={"temperature": 0},
+                metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -131,9 +134,10 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
-                metadata={"temperature": 0},
+                metadata={"stream": True, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 8, "output_tokens": 12, "total_tokens": 20},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -163,9 +167,10 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
-                metadata={"temperature": 0},
+                metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -199,9 +204,10 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
-                metadata={"temperature": 0},
+                metadata={"stream": True, "user": "ddtrace-test", "function_call": "auto"},
                 token_metrics={"input_tokens": 63, "output_tokens": 33, "total_tokens": 96},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -226,9 +232,10 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
-                metadata={"temperature": 0},
+                metadata={"tool_choice": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -255,12 +262,13 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ""}],
-                metadata={"temperature": 0.8, "max_tokens": 10},
+                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={},
                 error="openai.error.AuthenticationError",
                 error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -277,13 +285,7 @@ class TestLLMObsOpenaiV0:
                     {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
                     {"role": "user", "content": "Where was it played?"},
                 ]
-                openai.ChatCompletion.create(
-                    model=model,
-                    messages=input_messages,
-                    top_p=0.9,
-                    n=2,
-                    user="ddtrace-test",
-                )
+                openai.ChatCompletion.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -293,12 +295,13 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": ""}],
-                metadata={"temperature": 0},
+                metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
                 token_metrics={},
                 error="openai.error.AuthenticationError",
                 error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -336,9 +339,10 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
-                metadata={"temperature": 0.8, "max_tokens": 10},
+                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -363,9 +367,10 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": expected_completion}],
-                metadata={"temperature": 0},
+                metadata={"stream": True},
                 token_metrics={"input_tokens": 2, "output_tokens": 2, "total_tokens": 4},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             ),
         )
 
@@ -399,9 +404,10 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
-                metadata={"temperature": 0},
+                metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -437,9 +443,10 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
-                metadata={"temperature": 0},
+                metadata={"stream": True, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -468,9 +475,10 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
-                metadata={"temperature": 0},
+                metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -502,9 +510,10 @@ class TestLLMObsOpenaiV1:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 0},
+                metadata={"user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -532,12 +541,13 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ""}],
-                metadata={"temperature": 0.8, "max_tokens": 10},
+                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={},
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -569,12 +579,13 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": ""}],
-                metadata={"temperature": 0},
+                metadata={"n": 2, "top_p": 0.9, "user": "ddtrace-test"},
                 token_metrics={},
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -595,6 +606,7 @@ class TestLLMObsOpenaiV1:
                 output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -615,6 +627,7 @@ class TestLLMObsOpenaiV1:
                 output_value="[2 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -635,6 +648,7 @@ class TestLLMObsOpenaiV1:
                 output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 3, "output_tokens": 0, "total_tokens": 3},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -661,6 +675,7 @@ class TestLLMObsOpenaiV1:
                 output_value="[3 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 9, "output_tokens": 0, "total_tokens": 9},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
 
@@ -689,5 +704,6 @@ class TestLLMObsOpenaiV1:
                 output_value="[1 embedding(s) returned]",
                 token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "<ml-app-name>"},
+                integration="openai",
             )
         )
