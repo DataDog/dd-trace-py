@@ -5,7 +5,6 @@ import platform
 import sysconfig
 import typing
 
-import six
 
 from ddtrace import ext
 from ddtrace.internal import packages
@@ -480,7 +479,7 @@ class _PprofConverter(object):
                 value=[values.get(sample_type_name, 0) for sample_type_name, unit in sample_types],
                 label=[pprof_pb2.Label(key=self._str(key), str=self._str(s)) for key, s in labels],
             )
-            for (locations, labels), values in six.iteritems(self._location_values)
+            for (locations, labels), values in self._location_values.items()
         ]
 
         period_type = pprof_pb2.ValueType(type=self._str("time"), unit=self._str("nanoseconds"))

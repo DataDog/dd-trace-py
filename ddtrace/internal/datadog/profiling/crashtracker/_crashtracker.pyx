@@ -22,6 +22,7 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_set_env(string_view env)
     void crashtracker_set_version(string_view version)
     void crashtracker_set_runtime(string_view runtime)
+    void crashtracker_set_runtime_id(string_view runtime_id)
     void crashtracker_set_runtime_version(string_view runtime_version)
     void crashtracker_set_library_version(string_view profiler_version)
     void crashtracker_set_stdout_filename(string_view filename)
@@ -39,6 +40,7 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_profiling_state_serializing_start()
     void crashtracker_profiling_state_serializing_stop()
     void crashtracker_start()
+    bint crashtracker_is_started()
 
 
 def set_url(url: StringType) -> None:
@@ -69,6 +71,11 @@ def set_runtime(runtime: StringType) -> None:
 def set_runtime_version(runtime_version: StringType) -> None:
     runtime_version_bytes = ensure_binary_or_empty(runtime_version)
     crashtracker_set_runtime_version(string_view(<const char*>runtime_version_bytes, len(runtime_version_bytes)))
+
+
+def set_runtime_id(runtime_id: StringType) -> None:
+    runtime_id_bytes = ensure_binary_or_empty(runtime_id)
+    crashtracker_set_runtime_id(string_view(<const char*>runtime_id_bytes, len(runtime_id_bytes)))
 
 
 def set_library_version(library_version: StringType) -> None:
@@ -140,3 +147,7 @@ def start() -> bool:
     if bin_exists:
         crashtracker_start()
     return bin_exists
+
+
+def is_started() -> bool:
+    return crashtracker_is_started()
