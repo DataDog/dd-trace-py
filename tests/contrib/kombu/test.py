@@ -355,10 +355,10 @@ class TestKombuDsm(TracerTestCase):
         out_tags = ",".join(["direction:out", "exchange:dsm_tests", "has_routing_key:true", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
 
-        assert first[(out_tags, 72906486983046225, 0)].full_pathway_latency._count == 1
-        assert first[(out_tags, 72906486983046225, 0)].edge_latency._count == 1
-        assert first[(in_tags, 14415630735402874533, 72906486983046225)].full_pathway_latency._count == 1
-        assert first[(in_tags, 14415630735402874533, 72906486983046225)].edge_latency._count == 1
+        assert first[(out_tags, 72906486983046225, 0)].full_pathway_latency.count == 1
+        assert first[(out_tags, 72906486983046225, 0)].edge_latency.count == 1
+        assert first[(in_tags, 14415630735402874533, 72906486983046225)].full_pathway_latency.count == 1
+        assert first[(in_tags, 14415630735402874533, 72906486983046225)].edge_latency.count == 1
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_DATA_STREAMS_ENABLED="True", DD_KOMBU_DISTRIBUTED_TRACING="False")
@@ -378,10 +378,10 @@ class TestKombuDsm(TracerTestCase):
             for _bucket_name, bucket in first.items():
                 print(payload)
                 print(payload_size)
-                assert bucket.payload_size._count >= 1
+                assert bucket.payload_size.count >= 1
                 assert (
-                    bucket.payload_size._sum == expected_payload_size
-                ), f"Actual payload size: {bucket.payload_size._sum} != Expected payload size: {expected_payload_size}"
+                    bucket.payload_size.sum == expected_payload_size
+                ), f"Actual payload size: {bucket.payload_size.sum} != Expected payload size: {expected_payload_size}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
@@ -394,7 +394,7 @@ class TestKombuDsm(TracerTestCase):
         out_tags = ",".join(["direction:out", "exchange:", "has_routing_key:true", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
 
-        assert first[(out_tags, 2585352008533360777, 0)].full_pathway_latency._count == 1
-        assert first[(out_tags, 2585352008533360777, 0)].edge_latency._count == 1
-        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].full_pathway_latency._count == 1
-        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].edge_latency._count == 1
+        assert first[(out_tags, 2585352008533360777, 0)].full_pathway_latency.count == 1
+        assert first[(out_tags, 2585352008533360777, 0)].edge_latency.count == 1
+        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].full_pathway_latency.count == 1
+        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].edge_latency.count == 1
