@@ -397,14 +397,37 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
                 if integration.is_pc_sampled_span(span):
+                    text = chat_completion.text
+                    message = chat_completion.message
+
+                    # different provider partner libraries will put this on different places on the struct
+                    tool_calls = message.content or message.tool_calls
+                    if text and not tool_calls:
+                        # langchain_anthropic sets `text` and `content`
+                        span.set_tag_str(
+                            "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
+                            integration.trunc(chat_completion.text),
+                        )
+                    if tool_calls:
+                        if not isinstance(tool_calls, list):
+                            tool_calls = [tool_calls]
+                        for tool_call_idx, tool_call in enumerate(tool_calls):
+                            for tool_call_key, tool_call_value in tool_call.items():
+                                if isinstance(tool_call_value, dict):
+                                    for k, v in tool_call_value.items():
+                                        span.set_tag_str(
+                                            "langchain.response.completions.%d.%d.tool_calls.%d.%s.%s" % (message_set_idx, idx, tool_call_idx, tool_call_key, k),
+                                            integration.trunc(str(v)),
+                                        )
+                                else:
+                                    span.set_tag_str(
+                                        "langchain.response.completions.%d.%d.tool_calls.%d.%s" % (message_set_idx, idx, tool_call_idx, tool_call_key),
+                                        integration.trunc(str(tool_call_value)),
+                                    )
                     span.set_tag_str(
-                        "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
-                        integration.trunc(chat_completion.text),
+                        "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
+                        chat_completion.message.__class__.__name__,
                     )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
-                    chat_completion.message.__class__.__name__,
-                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -502,14 +525,37 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
                 if integration.is_pc_sampled_span(span):
+                    text = chat_completion.text
+                    message = chat_completion.message
+
+                    # different provider partner libraries will put this on different places on the struct
+                    tool_calls = message.content or message.tool_calls
+                    if text and not tool_calls:
+                        # langchain_anthropic sets `text` and `content`
+                        span.set_tag_str(
+                            "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
+                            integration.trunc(chat_completion.text),
+                        )
+                    if tool_calls:
+                        if not isinstance(tool_calls, list):
+                            tool_calls = [tool_calls]
+                        for tool_call_idx, tool_call in enumerate(tool_calls):
+                            for tool_call_key, tool_call_value in tool_call.items():
+                                if isinstance(tool_call_value, dict):
+                                    for k, v in tool_call_value.items():
+                                        span.set_tag_str(
+                                            "langchain.response.completions.%d.%d.tool_calls.%d.%s.%s" % (message_set_idx, idx, tool_call_idx, tool_call_key, k),
+                                            integration.trunc(str(v)),
+                                        )
+                                else:
+                                    span.set_tag_str(
+                                        "langchain.response.completions.%d.%d.tool_calls.%d.%s" % (message_set_idx, idx, tool_call_idx, tool_call_key),
+                                        integration.trunc(str(tool_call_value)),
+                                    )
                     span.set_tag_str(
-                        "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
-                        integration.trunc(chat_completion.text),
+                        "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
+                        chat_completion.message.__class__.__name__,
                     )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
-                    chat_completion.message.__class__.__name__,
-                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
