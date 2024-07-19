@@ -37,15 +37,15 @@ Datadog::Crashtracker::set_runtime(std::string_view _runtime)
 }
 
 void
-Datadog::Crashtracker::set_runtime_version(std::string_view _runtime_version)
-{
-    runtime_version = std::string(_runtime_version);
-}
-
-void
 Datadog::Crashtracker::set_runtime_id(std::string_view _runtime_id)
 {
     runtime_id = std::string(_runtime_id);
+}
+
+void
+Datadog::Crashtracker::set_runtime_version(std::string_view _runtime_version)
+{
+    runtime_version = std::string(_runtime_version);
 }
 
 void
@@ -177,7 +177,7 @@ Datadog::Crashtracker::start()
     auto tags = get_tags();
     auto metadata = get_metadata(tags);
 
-    auto result = ddog_prof_Crashtracker_init(config, receiver_config, metadata);
+    auto result = ddog_prof_Crashtracker_init_with_receiver(config, receiver_config, metadata);
     ddog_Vec_Tag_drop(tags);
     if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = result.err;                            // NOLINT (cppcoreguidelines-pro-type-union-access)
