@@ -1265,7 +1265,7 @@ class BotocoreTest(TracerTestCase):
                         3337976778666780987,
                         0,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
@@ -1275,7 +1275,7 @@ class BotocoreTest(TracerTestCase):
                         3337976778666780987,
                         0,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
@@ -1291,13 +1291,13 @@ class BotocoreTest(TracerTestCase):
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
@@ -1344,21 +1344,19 @@ class BotocoreTest(TracerTestCase):
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
-            assert (
-                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
-            )
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 1
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
@@ -1410,21 +1408,19 @@ class BotocoreTest(TracerTestCase):
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
-            assert (
-                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 3
-            )
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 3
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 3
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 3
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 3
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 3
             )
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 3
             )
             assert (
@@ -1486,13 +1482,11 @@ class BotocoreTest(TracerTestCase):
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
-            assert (
-                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
-            )
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 1
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency._count >= 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency._count >= 1
+            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency.count >= 1
+            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency.count >= 1
             assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].payload_size.count == 1
 
     @mock_lambda
@@ -3005,7 +2999,7 @@ class BotocoreTest(TracerTestCase):
                         7250761453654470644,
                         17012262583645342129,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 2
             )
             assert (
@@ -3015,7 +3009,7 @@ class BotocoreTest(TracerTestCase):
                         7250761453654470644,
                         17012262583645342129,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 2
             )
             assert (
@@ -3035,7 +3029,7 @@ class BotocoreTest(TracerTestCase):
                         17012262583645342129,
                         0,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 2
             )
             assert (
@@ -3045,7 +3039,7 @@ class BotocoreTest(TracerTestCase):
                         17012262583645342129,
                         0,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 2
             )
             assert (
@@ -3098,7 +3092,7 @@ class BotocoreTest(TracerTestCase):
                         7186383338881463054,
                         14715769790627487616,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
@@ -3108,7 +3102,7 @@ class BotocoreTest(TracerTestCase):
                         7186383338881463054,
                         14715769790627487616,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
@@ -3128,7 +3122,7 @@ class BotocoreTest(TracerTestCase):
                         14715769790627487616,
                         0,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
@@ -3138,7 +3132,7 @@ class BotocoreTest(TracerTestCase):
                         14715769790627487616,
                         0,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
