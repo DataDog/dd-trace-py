@@ -86,11 +86,9 @@ def patch():
     if getattr(botocore.client, "_datadog_patch", False):
         return
     botocore.client._datadog_patch = True
-    service = ext_service(pin=None, int_config=config.botocore)
-
+    
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
-    config.botocore["_default_service"] = service
     Pin().onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
     Pin().onto(botocore.parsers.ResponseParser)
