@@ -43,23 +43,19 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm",
-                        "chat",
-                        "chain",
-                        "embedding"
-                        ]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding"]
 
 
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
     def llmobs_set_tags(
-            self,
-            operation: str,  # oneof "llm","chat","chain","embedding"
-            span: Span,
-            inputs: Any,
-            response: Any = None,
-            error: bool = False,
+        self,
+        operation: str,  # oneof "llm","chat","chain","embedding"
+        span: Span,
+        inputs: Any,
+        response: Any = None,
+        error: bool = False,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -208,12 +204,12 @@ class LangChainIntegration(BaseLLMIntegration):
                 log.warning("Failed to serialize chain output data to JSON")
 
     def _llmobs_set_meta_tags_from_embedding(
-            self,
-            span: Span,
-            input_texts: Union[str, List[str]],
-            output_embedding: Union[List[float], List[List[float]], None],
-            error: bool = False,
-            is_workflow: bool = False,
+        self,
+        span: Span,
+        input_texts: Union[str, List[str]],
+        output_embedding: Union[List[float], List[List[float]], None],
+        error: bool = False,
+        is_workflow: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "embedding")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
@@ -227,10 +223,14 @@ class LangChainIntegration(BaseLLMIntegration):
         try:
             if is_workflow:
                 if isinstance(input_texts, str) or (
-                        isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)):
+                    isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)
+                ):
                     formatted_inputs = self.format_io(input_texts)
-                    formatted_str = formatted_inputs if isinstance(formatted_inputs, str) else json.dumps(
-                        self.format_io(input_texts))
+                    formatted_str = (
+                        formatted_inputs
+                        if isinstance(formatted_inputs, str)
+                        else json.dumps(self.format_io(input_texts))
+                    )
                     span.set_tag_str(input_tag_key, formatted_str)
             elif isinstance(input_texts, str):
                 span.set_tag_str(INPUT_DOCUMENTS, json.dumps(Document(text=str(input_texts))))
@@ -250,12 +250,12 @@ class LangChainIntegration(BaseLLMIntegration):
             )
 
     def _set_base_span_tags(  # type: ignore[override]
-            self,
-            span: Span,
-            interface_type: str = "",
-            provider: Optional[str] = None,
-            model: Optional[str] = None,
-            api_key: Optional[str] = None,
+        self,
+        span: Span,
+        interface_type: str = "",
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
         span.set_tag_str(TYPE, interface_type)
@@ -318,8 +318,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self.metric(span, "incr", "tokens.total_cost", total_cost)
 
     def format_io(
-            self,
-            messages,
+        self,
+        messages,
     ):
         """
         Formats input and output messages for serialization to JSON.
