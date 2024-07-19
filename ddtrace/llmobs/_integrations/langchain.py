@@ -22,7 +22,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 
 from .base import BaseLLMIntegration
-
+from ..utils import Document
 
 log = get_logger(__name__)
 
@@ -224,6 +224,8 @@ class LangChainIntegration(BaseLLMIntegration):
 
         if (input_texts is not None
                 and (isinstance(input_texts, str) or all(isinstance(text, str) for text in input_texts))):
+        if (isinstance(input_texts, str)
+                or (isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts))):
             if is_workflow:
                 try:
                     formatted_inputs = self.format_io(input_texts)
