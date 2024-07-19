@@ -304,6 +304,7 @@ class _ImportHookChainedLoader:
                 exception_hook = self._find_first_exception_hook(module)
                 if exception_hook is not None:
                     exception_hook(self, module)
+                raise
 
         self.call_back(module)
 
