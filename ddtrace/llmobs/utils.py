@@ -16,7 +16,10 @@ log = get_logger(__name__)
 
 DocumentType = Dict[str, Union[str, int, float]]
 
-ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
+MetaIOType = TypedDict("MetaIOType", {"value": str, "documents": List[DocumentType], "messages": List[Dict[str, str]]})
+MetaType = TypedDict("MetaType", {"input": MetaIOType, "output": MetaIOType, "metadata": Dict, "tags": Dict})
+
+ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str, "meta": MetaType})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
 
