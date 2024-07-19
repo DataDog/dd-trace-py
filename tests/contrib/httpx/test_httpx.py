@@ -1,6 +1,5 @@
 import httpx
 import pytest
-import six
 
 from ddtrace import config
 from ddtrace.contrib.httpx.patch import HTTPX_VERSION
@@ -71,7 +70,7 @@ def test_httpx_service_name(tracer, test_spans):
 
     spans = traces[0]
     assert len(spans) == 1
-    assert isinstance(spans[0].service, six.text_type)
+    assert isinstance(spans[0].service, str)
 
 
 @flaky(1735812000)
