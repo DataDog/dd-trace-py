@@ -218,8 +218,6 @@ class LangChainIntegration(BaseLLMIntegration):
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
         output_tag_key = OUTPUT_VALUE
 
-        input_documents = []
-
         try:
             if is_workflow:
                 if isinstance(input_texts, str) or (
