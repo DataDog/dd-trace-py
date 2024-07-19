@@ -73,11 +73,11 @@ TELEMETRY_LIB_INJECTION_FORCED = "DD_INJECT_FORCE"
 
 
 # Crashtracker
-TELEMETRY_CRASHTRACKER_ENABLED = "crashtracker_enabled"  # Env var enabled
-TELEMETRY_CRASHTRACKER_AVAILABLE = "crashtracker_available"  # Feature is available
-TELEMETRY_CRASHTRACKER_STARTED = "crashtracker_started"  # Crashtracker is running
-TELEMETRY_CRASHTRACKER_STDOUT_FILENAME = "crashtracker_stdout_filename"
-TELEMETRY_CRASHTRACKER_STDERR_FILENAME = "crashtracker_stderr_filename"
-TELEMETRY_CRASHTRACKER_ALT_STACK = "crashtracker_alt_stack"
-TELEMETRY_CRASHTRACKER_STACKTRACE_RESOLVER = "crashtracker_stacktrace_resolver"
-TELEMETRY_CRASHTRACKER_DEBUG_URL = "crashtracker_debug_url"
+TELEMETRY_CRASHTRACKING_ENABLED = "crashtracking_enabled"  # Env var enabled
+TELEMETRY_CRASHTRACKING_AVAILABLE = "crashtracking_available"  # Feature is available
+TELEMETRY_CRASHTRACKING_STARTED = "crashtracking_started"  # Crashtracking is running
+TELEMETRY_CRASHTRACKING_STDOUT_FILENAME = "crashtracking_stdout_filename"
+TELEMETRY_CRASHTRACKING_STDERR_FILENAME = "crashtracking_stderr_filename"
+TELEMETRY_CRASHTRACKING_ALT_STACK = "crashtracking_alt_stack"
+TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER = "crashtracking_stacktrace_resolver"
+TELEMETRY_CRASHTRACKING_DEBUG_URL = "crashtracking_debug_url"

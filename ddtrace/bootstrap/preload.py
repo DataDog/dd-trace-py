@@ -45,13 +45,13 @@ log = get_logger(__name__)
 
 # DEV: We want to start the crashtracker as early as possible
 if crashtracker_config.enabled:
-    log.debug("crashtracker enabled via environment variable")
+    log.debug("crashtracking enabled via environment variable")
     try:
-        from ddtrace.internal.core import crashtracker
+        from ddtrace.internal.core import crashtracking
 
-        crashtracker.start()
+        crashtracking.start()
     except Exception:
-        log.error("failed to enable crashtracker", exc_info=True)
+        log.error("failed to enable crashtracking", exc_info=True)
 
 
 if profiling_config.enabled:
