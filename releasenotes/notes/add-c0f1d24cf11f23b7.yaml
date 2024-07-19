@@ -2,5 +2,5 @@
 features:
   - |
     - Botocore service name: Adds support for overriding the default service name in Botocore
-      by either setting the environment variable ``DD_BOTOCORE_SERVICE`` or configuring it via 
+      by either setting the environment variable ``DD_BOTOCORE_SERVICE`` or configuring it via
       `ddtrace.config.botocore["service"]`.
