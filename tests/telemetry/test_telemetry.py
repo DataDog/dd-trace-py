@@ -266,9 +266,9 @@ tracer.trace("hello").finish()
     ]["message"]
 
 
-@pytest.mark.skip(reason="We don't have a way to capture unhandled errors in bootstrap before telemetry is loaded")
-def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
-    env = get_default_telemetry_env({"DD_SPAN_SAMPLING_RULES": "invalid_rules"})
+def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 1, stderr
@@ -289,22 +289,37 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[1]["payload"]["error"]["message"]
 
 
-def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_subprocess):
-    env = get_default_telemetry_env()
-    _, stderr, status, _ = run_python_code_in_subprocess(
-        "import ddtrace; ddtrace.tracer.trace('moon').finish(); raise Exception('bad_code')", env=env
+def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
+    out, stderr, status, _ = run_python_code_in_subprocess(
+        """
+import sys
+
+old_exc_hook = sys.excepthook
+def pre_ddtrace_exc_hook(exctype, value, traceback):
+    print("pre_ddtrace_exc_hook called")
+    return old_exc_hook(exctype, value, traceback)
+
+sys.excepthook = pre_ddtrace_exc_hook
+
+import ddtrace
+raise Exception('bad_code')
+"""
     )
+    assert b"pre_ddtrace_exc_hook called" in out
     assert status == 1, stderr
     assert b"bad_code" in stderr
     # Regression test for python3.12 support
     assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
+    # Regression test for invalid number of arguments in wrapped exception hook
+    assert b"3 positional arguments but 4 were given" not in stderr
 
-    # Ensure the expected telemetry events are sent
-    events = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_events(), must_have_deps=False, is_request=False
-    )
-    event_types = [event["request_type"] for event in events]
-    assert event_types == ["app-closing", "app-started", "generate-metrics"]
+    app_starteds = test_agent_session.get_events("app-started")
+    assert len(app_starteds) == 1
+    # app-started captures unhandled exceptions raised in application code
+    assert app_starteds[0]["payload"]["error"]["code"] == 1
+    assert re.search(r"test\.py:\d+:\sbad_code$", app_starteds[0]["payload"]["error"]["message"]), app_starteds[0][
+        "payload"
+    ]["error"]["message"]
 
 
 @flaky(1735812000)
