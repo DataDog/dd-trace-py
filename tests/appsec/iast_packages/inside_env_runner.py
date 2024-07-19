@@ -61,12 +61,13 @@ def try_patched(module_name, expect_no_change=False):
 if __name__ == "__main__":
     mode = sys.argv[1]
     import_module = sys.argv[2]
-    expect_no_change = sys.argv[3]
+    if len(sys.argv) >= 4:
+        expect_no_change = sys.argv[3]
 
     if mode == "unpatched":
         sys.exit(try_unpatched(import_module))
     elif mode == "patched":
         sys.exit(try_patched(import_module, expect_no_change=expect_no_change == "True"))
 
-    print("Use: [python from pyenv] inside_env_runner.py patched|unpatched module_name")
+    print("Use: [python from pyenv] inside_env_runner.py patched|unpatched module_name True|False")
     sys.exit(1)
