@@ -34,7 +34,7 @@ download_dependency_wheels:
   tags: [ "arch:amd64" ]
   stage: package
   script:
-    - .gitlab/download-wheels-from-gh-actions.sh
+    - .gitlab/download-dependency-wheels.sh
   artifacts:
     paths:
       - "pywheels-deps"
