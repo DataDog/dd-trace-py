@@ -113,6 +113,10 @@ class ModuleCodeCollector(ModuleWatchdog):
         """Inject coverage data into the collector. This can be used to arbitrarily add covered files."""
         instance = cls._instance
 
+        ctx_covered_lines = None
+        if ctx_coverage_enabled.get():
+            ctx_covered_lines = _get_ctx_covered_lines()
+
         if instance is None:
             return
 
@@ -123,8 +127,8 @@ class ModuleCodeCollector(ModuleWatchdog):
             for path, path_covered in covered.items():
                 if instance._coverage_enabled:
                     instance.covered[path] |= set(path_covered)
-                if ctx_coverage_enabled.get():
-                    ctx_covered.get()[path] |= set(path_covered)
+                if ctx_coverage_enabled.get() and ctx_covered_lines is not None:
+                    ctx_covered_lines[path] |= set(path_covered)
 
     @classmethod
     def report(cls, workspace_path: Path, ignore_nocover: bool = False):
@@ -153,13 +157,6 @@ class ModuleCodeCollector(ModuleWatchdog):
         covered_lines = _get_ctx_covered_lines()
 
         return json.dumps({"lines": {}, "covered": {path: list(lines) for path, lines in covered_lines.items()}})
-
-    @classmethod
-    def get_context_covered_lines(cls):
-        if cls._instance is None or not ctx_coverage_enabled.get():
-            return {}
-
-        return ctx_covered.get()
 
     @classmethod
     def write_json_report_to_file(cls, filename: str, workspace_path: Path, ignore_nocover: bool = False):
