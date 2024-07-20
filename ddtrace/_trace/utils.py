@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -74,9 +75,14 @@ def extract_DD_context_from_messages(messages, extract_from_message: Callable):
     ctx = None
     if len(messages) >= 1:
         message = messages[0]
+        print("Extracting from aws message")
         context_json = extract_from_message(message)
-        if context_json is not None:
+        print("got aws extract from message context json")
+        print(context_json)
+        if context_json != {}:
             child_of = HTTPPropagator.extract(context_json)
+            print("child_of")
+            print(child_of)
             if child_of.trace_id is not None:
                 ctx = child_of
     return ctx

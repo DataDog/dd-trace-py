@@ -2,6 +2,7 @@ import json
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
+from unittest.mock import patch
 
 import botocore.client
 import botocore.exceptions
@@ -80,6 +81,24 @@ def _ensure_datadog_messageattribute_enabled(params):
         params.update({"MessageAttributeNames": ["_datadog"]})
     elif "_datadog" not in params["MessageAttributeNames"]:
         params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
+
+    if "MessageSystemAttributeNames" not in params:
+        params.update({"MessageSystemAttributeNames": ["AWSTraceHeader"]})
+    elif (
+        "AWSTraceHeader" not in params["MessageSystemAttributeNames"]
+        and "All" not in params["MessageSystemAttributeNames"]
+        and ".*" not in params["MessageSystemAttributeNames"]
+    ):
+        params.update({"MessageSystemAttributeNames": list(params["MessageSystemAttributeNames"]) + ["AWSTraceHeader"]})
+
+    if "AttributeNames" not in params:
+        params.update({"AttributeNames": ["AWSTraceHeader"]})
+    elif (
+        "AWSTraceHeader" not in params["AttributeNames"]
+        and "All" not in params["AttributeNames"]
+        and ".*" not in params["AttributeNames"]
+    ):
+        params.update({"AttributeNames": list(params["AttributeNames"]) + ["AWSTraceHeader"]})
 
 
 def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
