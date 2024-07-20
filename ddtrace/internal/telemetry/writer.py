@@ -65,6 +65,7 @@ from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
 from .constants import TELEMETRY_INJECT_WAS_ATTEMPTED
 from .constants import TELEMETRY_LIB_INJECTION_FORCED
 from .constants import TELEMETRY_LIB_WAS_INJECTED
+from .constants import TELEMETRY_LOG_LEVEL  # noqa:F401
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
@@ -652,7 +653,7 @@ class TelemetryWriter(PeriodicService):
                 }
 
     def add_log(self, level, message, stack_trace="", tags=None):
-        # type: (str, str, str, Optional[Dict]) -> None
+        # type: (TELEMETRY_LOG_LEVEL, str, str, Optional[Dict]) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -664,7 +665,7 @@ class TelemetryWriter(PeriodicService):
             data = LogData(
                 {
                     "message": message,
-                    "level": level,
+                    "level": level.value,
                     "tracer_time": int(time.time()),
                 }
             )
