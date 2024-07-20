@@ -546,9 +546,9 @@ class _PytestDDTracePluginV1:
                     if test_is_unskippable and not current_suite_has_unskippable_test:
                         current_suite_has_unskippable_test = True
                         # Retroactively mark collected tests as forced:
-                        items_to_skip_by_module[item.module] = []
                         for item_to_skip in items_to_skip_by_module[item.module]:
                             item_to_skip._dd_itr_forced = True
+                        items_to_skip_by_module[item.module] = []
 
                 if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0]), item_name):
                     if test_is_unskippable or (
