@@ -1250,7 +1250,7 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
 
 
 @pytest.mark.snapshot
-def test_lcecl_chain_non_dict_input(langchain_core):
+def test_lcel_chain_non_dict_input(langchain_core):
     """
     Tests that non-dict inputs (specifically also non-string) are stringified properly
     """
@@ -1259,3 +1259,43 @@ def test_lcecl_chain_non_dict_input(langchain_core):
     sequence = add_one | multiply_two
 
     sequence.invoke(1)
+
+
+@pytest.mark.snapshot
+def test_lcel_with_tools_openai(langchain_core, langchain_openai, request_vcr):
+    import langchain_core.tools
+
+    @langchain_core.tools.tool
+    def add (a: int, b: int) -> int:
+        """Adds a and b.
+
+        Args:
+            a: first int
+            b: second int
+        """
+        return a + b
+    
+    llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125")
+    llm_with_tools = llm.bind_tools([add])
+    with request_vcr.use_cassette("lcel_with_tools_openai.yaml"):
+        llm_with_tools.invoke("What is the sum of 1 and 2?")
+
+
+@pytest.mark.snapshot
+def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_vcr):
+    import langchain_core.tools
+
+    @langchain_core.tools.tool
+    def add (a: int, b: int) -> int:
+        """Adds a and b.
+
+        Args:
+            a: first int
+            b: second int
+        """
+        return a + b
+    
+    llm = langchain_anthropic.ChatAnthropic(temperature=1, model_name="claude-3-opus-20240229")
+    llm_with_tools = llm.bind_tools([add])
+    with request_vcr.use_cassette("lcel_with_tools_anthropic.yaml"):
+        llm_with_tools.invoke("What is the sum of 1 and 2?")
