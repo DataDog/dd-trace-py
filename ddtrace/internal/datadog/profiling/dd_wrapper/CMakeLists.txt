@@ -26,7 +26,7 @@ add_library(dd_wrapper SHARED
     src/profile.cpp
     src/uploader.cpp
     src/sample.cpp
-    src/interface.cpp
+    src/ddup_interface.cpp
     src/crashtracker.cpp
     src/crashtracker_interface.cpp
     src/receiver_interface.cpp

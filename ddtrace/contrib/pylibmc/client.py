@@ -69,6 +69,9 @@ class TracedClient(ObjectProxy):
             pin.clone().onto(traced_client)
         return traced_client
 
+    def add(self, *args, **kwargs):
+        return self._trace_cmd("add", *args, **kwargs)
+
     def get(self, *args, **kwargs):
         return self._trace_cmd("get", *args, **kwargs)
 
