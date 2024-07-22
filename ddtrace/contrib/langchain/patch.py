@@ -399,7 +399,8 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 if integration.is_pc_sampled_span(span):
                     text = chat_completion.text
                     message = chat_completion.message
-                    tool_calls = message.tool_calls
+                    # tool calls aren't available on this property for legacy chains
+                    tool_calls = getattr(message, "tool_calls", None)
 
                     if text:
                         span.set_tag_str(
@@ -529,7 +530,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 if integration.is_pc_sampled_span(span):
                     text = chat_completion.text
                     message = chat_completion.message
-                    tool_calls = message.tool_calls
+                    tool_calls = getattr(message, "tool_calls", None)
 
                     if text:
                         span.set_tag_str(
