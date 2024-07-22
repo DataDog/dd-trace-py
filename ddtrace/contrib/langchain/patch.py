@@ -400,7 +400,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                     text = chat_completion.text
                     message = chat_completion.message
                     tool_calls = message.tool_calls
-                    
+
                     if text:
                         span.set_tag_str(
                             "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
@@ -410,18 +410,19 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                         if not isinstance(tool_calls, list):
                             tool_calls = [tool_calls]
                         for tool_call_idx, tool_call in enumerate(tool_calls):
-                            for tool_call_key, tool_call_value in tool_call.items():
-                                if isinstance(tool_call_value, dict):
-                                    for k, v in tool_call_value.items():
-                                        span.set_tag_str(
-                                            "langchain.response.completions.%d.%d.tool_calls.%d.%s.%s" % (message_set_idx, idx, tool_call_idx, tool_call_key, k),
-                                            integration.trunc(str(v)),
-                                        )
-                                else:
-                                    span.set_tag_str(
-                                        "langchain.response.completions.%d.%d.tool_calls.%d.%s" % (message_set_idx, idx, tool_call_idx, tool_call_key),
-                                        integration.trunc(str(tool_call_value)),
-                                    )
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.tool_calls.%d.id" % (message_set_idx, idx, tool_call_idx),
+                                integration.trunc(str(tool_call.get("id", ""))),
+                            )
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.tool_calls.%d.name" % (message_set_idx, idx, tool_call_idx),
+                                integration.trunc(str(tool_call.get("name", ""))),
+                            )
+                            for arg_name, arg_value in tool_call.get("args", {}).items():
+                                span.set_tag_str(
+                                    "langchain.response.completions.%d.%d.tool_calls.%d.args.%s" % (message_set_idx, idx, tool_call_idx, arg_name),
+                                    integration.trunc(str(arg_value)),
+                                )
                     span.set_tag_str(
                         "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
                         chat_completion.message.__class__.__name__,
@@ -536,18 +537,19 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                         if not isinstance(tool_calls, list):
                             tool_calls = [tool_calls]
                         for tool_call_idx, tool_call in enumerate(tool_calls):
-                            for tool_call_key, tool_call_value in tool_call.items():
-                                if isinstance(tool_call_value, dict):
-                                    for k, v in tool_call_value.items():
-                                        span.set_tag_str(
-                                            "langchain.response.completions.%d.%d.tool_calls.%d.%s.%s" % (message_set_idx, idx, tool_call_idx, tool_call_key, k),
-                                            integration.trunc(str(v)),
-                                        )
-                                else:
-                                    span.set_tag_str(
-                                        "langchain.response.completions.%d.%d.tool_calls.%d.%s" % (message_set_idx, idx, tool_call_idx, tool_call_key),
-                                        integration.trunc(str(tool_call_value)),
-                                    )
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.tool_calls.%d.id" % (message_set_idx, idx, tool_call_idx),
+                                integration.trunc(str(tool_call.get("id", ""))),
+                            )
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.tool_calls.%d.name" % (message_set_idx, idx, tool_call_idx),
+                                integration.trunc(str(tool_call.get("name", ""))),
+                            )
+                            for arg_name, arg_value in tool_call.get("args", {}).items():
+                                span.set_tag_str(
+                                    "langchain.response.completions.%d.%d.tool_calls.%d.args.%s" % (message_set_idx, idx, tool_call_idx, arg_name),
+                                    integration.trunc(str(arg_value)),
+                                )
                     span.set_tag_str(
                         "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
                         chat_completion.message.__class__.__name__,
