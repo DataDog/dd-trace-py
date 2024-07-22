@@ -2,7 +2,6 @@ from collections.abc import MutableMapping
 import functools
 import io
 import json
-import sys
 
 import xmltodict
 
@@ -30,12 +29,7 @@ except ImportError:
 
 log = get_logger(__name__)
 
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
-_BODY_METHODS: Literal["POST", "PUT", "DELETE", "PATCH"] = {"POST", "PUT", "DELETE", "PATCH"}
+_BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
 def _get_content_length(environ):

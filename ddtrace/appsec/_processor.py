@@ -4,7 +4,6 @@ import json
 from json.decoder import JSONDecodeError
 import os
 import os.path
-import sys
 import traceback
 from typing import Any
 from typing import Dict
@@ -68,25 +67,7 @@ def get_rules() -> str:
     return asm_config._asm_static_rule_file or DEFAULT.RULES
 
 
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
-
-# add type literal to _COLLECTED_REQUEST_HEADERS_ASM_ENABLED
-_COLLECTED_REQUEST_HEADERS_ASM_ENABLED: Literal[
-    "accept",
-    "content-type",
-    "user-agent",
-    "x-amzn-trace-id",
-    "cloudfront-viewer-ja3-fingerprint",
-    "cf-ray",
-    "x-cloud-trace-context",
-    "x-appgw-trace-id",
-    "akamai-user-risk",
-    "x-sigsci-requestid",
-    "x-sigsci-tags",
-] = {
+_COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",
     "content-type",
     "user-agent",
@@ -100,26 +81,7 @@ _COLLECTED_REQUEST_HEADERS_ASM_ENABLED: Literal[
     "x-sigsci-tags",
 }
 
-_COLLECTED_REQUEST_HEADERS: Literal[
-    "accept-encoding",
-    "accept-language",
-    "cf-connecting-ip",
-    "cf-connecting-ipv6",
-    "content-encoding",
-    "content-language",
-    "content-length",
-    "fastly-client-ip",
-    "forwarded",
-    "forwarded-for",
-    "host",
-    "true-client-ip",
-    "via",
-    "x-client-ip",
-    "x-cluster-client-ip",
-    "x-forwarded",
-    "x-forwarded-for",
-    "x-real-ip",
-] = {
+_COLLECTED_REQUEST_HEADERS = {
     "accept-encoding",
     "accept-language",
     "cf-connecting-ip",
