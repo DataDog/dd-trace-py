@@ -1,16 +1,17 @@
 from envier import En
 
 
-class ExceptionDebuggingConfig(En):
-    __prefix__ = "dd.exception_debugging"
+class ExceptionReplayConfig(En):
+    __prefix__ = "dd.exception"
 
     enabled = En.v(
         bool,
-        "enabled",
+        "replay.enabled",
         default=False,
         help_type="Boolean",
         help="Enable automatic capturing of exception debugging information",
+        deprecations=[("debugging.enabled", None, "3.0")],
     )
 
 
-config = ExceptionDebuggingConfig()
+config = ExceptionReplayConfig()
