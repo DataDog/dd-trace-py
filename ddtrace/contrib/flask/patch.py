@@ -28,6 +28,8 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
@@ -70,9 +72,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return get_version_for_package("flask")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 if _HAS_JSON_MIXIN:
@@ -370,7 +382,7 @@ def unpatch():
 
 
 @with_instance_pin
-def patched_wsgi_app(pin, wrapped, instance, args, kwargs):
+def _patched_wsgi_app(pin, wrapped, instance, args, kwargs):
     # This wrapper is the starting point for all requests.
     # DEV: This is safe before this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
@@ -379,7 +391,17 @@ def patched_wsgi_app(pin, wrapped, instance, args, kwargs):
     return middleware(environ, start_response)
 
 
-def patched_finalize_request(wrapped, instance, args, kwargs):
+def patched_wsgi_app(pin, wrapped, instance, args, kwargs):
+    deprecate(
+        "patched_wsgi_app is deprecated",
+        message="patched_wsgi_app is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_wsgi_app(pin, wrapped, instance, args, kwargs)
+
+
+def _patched_finalize_request(wrapped, instance, args, kwargs):
     """
     Wrapper for flask.app.Flask.finalize_request
     """
@@ -393,7 +415,17 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     return rv
 
 
-def patched_blueprint_register(wrapped, instance, args, kwargs):
+def patched_finalize_request(wrapped, instance, args, kwargs):
+    deprecate(
+        "patched_finalize_request is deprecated",
+        message="patched_finalize_request is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_finalize_request(wrapped, instance, args, kwargs)
+
+
+def _patched_blueprint_register(wrapped, instance, args, kwargs):
     """
     Wrapper for flask.blueprints.Blueprint.register
 
@@ -410,7 +442,17 @@ def patched_blueprint_register(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
+def patched_blueprint_register(wrapped, instance, args, kwargs):
+    deprecate(
+        "patched_blueprint_register is deprecated",
+        message="patched_blueprint_register is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_blueprint_register(wrapped, instance, args, kwargs)
+
+
+def _patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
     pin = Pin._find(wrapped, instance)
     if not pin:
         return wrapped(*args, **kwargs)
@@ -423,7 +465,17 @@ def patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def patched_add_url_rule(wrapped, instance, args, kwargs):
+def patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
+    deprecate(
+        "patched_blueprint_add_url_rule is deprecated",
+        message="patched_blueprint_add_url_rule is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_blueprint_add_url_rule(wrapped, instance, args, kwargs)
+
+
+def _patched_add_url_rule(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.add_url_rule to wrap all views attached to this app"""
 
     def _wrap(rule, endpoint=None, view_func=None, provide_automatic_options=None, **kwargs):
@@ -439,7 +491,17 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def patched_endpoint(wrapped, instance, args, kwargs):
+def patched_add_url_rule(wrapped, instance, args, kwargs):
+    deprecate(
+        "patched_add_url_rule is deprecated",
+        message="patched_add_url_rule is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_add_url_rule(wrapped, instance, args, kwargs)
+
+
+def _patched_endpoint(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.endpoint to ensure all endpoints are wrapped"""
     endpoint = kwargs.get("endpoint", args[0])
 
@@ -449,17 +511,57 @@ def patched_endpoint(wrapped, instance, args, kwargs):
     return _wrapper
 
 
-def patched_flask_hook(wrapped, instance, args, kwargs):
+def patched_endpoint(wrapped, instance, args, kwargs):
+    deprecate(
+        "patched_endpoint is deprecated",
+        message="patched_endpoint is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_endpoint(wrapped, instance, args, kwargs)
+
+
+def _patched_flask_hook(wrapped, instance, args, kwargs):
     func = get_argument_value(args, kwargs, 0, "f")
     return wrapped(wrap_function(instance, func))
 
 
-def traced_render_template(wrapped, instance, args, kwargs):
+def patched_flask_hook(wrapped, instance, args, kwargs):
+    deprecate(
+        "patched_flask_hook is deprecated",
+        message="patched_flask_hook is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return patched_flask_hook(wrapped, instance, args, kwargs)
+
+
+def _traced_render_template(wrapped, instance, args, kwargs):
     return _build_render_template_wrapper("render_template")(wrapped, instance, args, kwargs)
 
 
-def traced_render_template_string(wrapped, instance, args, kwargs):
+def traced_render_template(wrapped, instance, args, kwargs):
+    deprecate(
+        "traced_render_template is deprecated",
+        message="traced_render_template is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_render_template(wrapped, instance, args, kwargs)
+
+
+def _traced_render_template_string(wrapped, instance, args, kwargs):
     return _build_render_template_wrapper("render_template_string")(wrapped, instance, args, kwargs)
+
+
+def traced_render_template_string(wrapped, instance, args, kwargs):
+    deprecate(
+        "traced_render_template_string is deprecated",
+        message="traced_render_template_string is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_render_template_string(wrapped, instance, args, kwargs)
 
 
 def _build_render_template_wrapper(name):
@@ -483,7 +585,7 @@ def _build_render_template_wrapper(name):
     return traced_render
 
 
-def patched_render(wrapped, instance, args, kwargs):
+def _patched_render(wrapped, instance, args, kwargs):
     pin = Pin._find(wrapped, instance, get_current_app())
 
     if not pin.enabled:
@@ -494,6 +596,16 @@ def patched_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
+
+
+def patched_render(wrapped, instance, args, kwargs):
+    deprecate(
+        "patched_render is deprecated",
+        message="patched_render is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_render(wrapped, instance, args, kwargs)
 
 
 def patched__register_error_handler(wrapped, instance, args, kwargs):
@@ -538,7 +650,7 @@ def request_patcher(name):
     return _patched_request
 
 
-def patched_signal_receivers_for(signal):
+def _patched_signal_receivers_for(signal):
     def outer(wrapped, instance, args, kwargs):
         sender = get_argument_value(args, kwargs, 0, "sender")
         # See if they gave us the flask.app.Flask as the sender
@@ -551,7 +663,17 @@ def patched_signal_receivers_for(signal):
     return outer
 
 
-def patched_jsonify(wrapped, instance, args, kwargs):
+def patched_signal_receivers_for(signal):
+    deprecate(
+        "patched_signal_receivers_for is deprecated",
+        message="patched_signal_receivers_for is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_signal_receivers_for(signal)
+
+
+def _patched_jsonify(wrapped, instance, args, kwargs):
     pin = Pin._find(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
@@ -565,3 +687,13 @@ def patched_jsonify(wrapped, instance, args, kwargs):
         call_key="flask_jsonify_call",
     ) as ctx, ctx.get_item("flask_jsonify_call"):
         return wrapped(*args, **kwargs)
+
+
+def patched_jsonify(wrapped, instance, args, kwargs):
+    deprecate(
+        "patched_jsonify is deprecated",
+        message="patched_jsonify is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_jsonify(wrapped, instance, args, kwargs)
