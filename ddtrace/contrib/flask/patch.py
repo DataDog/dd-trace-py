@@ -108,7 +108,7 @@ else:
 #      (0, 9) == (0, 9)
 #      (0, 9, 0) != (0, 9)
 #      (0, 8, 5) <= (0, 9)
-flask_version_str = get_version()
+flask_version_str = _get_version()
 flask_version = parse_version(flask_version_str)
 
 
@@ -187,13 +187,13 @@ def patch():
     Pin().onto(flask.Flask)
     core.dispatch("flask.patch", (flask_version,))
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
-    _w("flask", "Flask.wsgi_app", patched_wsgi_app)
+    _w("flask", "Flask.wsgi_app", _patched_wsgi_app)
     _w("flask", "Flask.dispatch_request", request_patcher("dispatch_request"))
     _w("flask", "Flask.preprocess_request", request_patcher("preprocess_request"))
-    _w("flask", "Flask.add_url_rule", patched_add_url_rule)
-    _w("flask", "Flask.endpoint", patched_endpoint)
+    _w("flask", "Flask.add_url_rule", _patched_add_url_rule)
+    _w("flask", "Flask.endpoint", _patched_endpoint)
 
-    _w("flask", "Flask.finalize_request", patched_finalize_request)
+    _w("flask", "Flask.finalize_request", _patched_finalize_request)
 
     if flask_version >= (2, 0, 0):
         _w("flask", "Flask.register_error_handler", patched_register_error_handler)
@@ -201,8 +201,8 @@ def patch():
         _w("flask", "Flask._register_error_handler", patched__register_error_handler)
 
     # flask.blueprints.Blueprint methods that have custom tracing (add metadata, wrap functions, etc)
-    _w("flask", "Blueprint.register", patched_blueprint_register)
-    _w("flask", "Blueprint.add_url_rule", patched_blueprint_add_url_rule)
+    _w("flask", "Blueprint.register", _patched_blueprint_register)
+    _w("flask", "Blueprint.add_url_rule", _patched_blueprint_add_url_rule)
 
     flask_hooks = [
         "before_request",
@@ -214,8 +214,8 @@ def patch():
         flask_hooks.append("before_first_request")
 
     for hook in flask_hooks:
-        _w("flask", "Flask.{}".format(hook), patched_flask_hook)
-    _w("flask", "after_this_request", patched_flask_hook)
+        _w("flask", "Flask.{}".format(hook), _patched_flask_hook)
+    _w("flask", "after_this_request", _patched_flask_hook)
 
     flask_app_traces = [
         "process_response",
@@ -235,9 +235,9 @@ def patch():
     _w("flask", "send_file", simple_call_wrapper("flask.send_file"))
 
     # flask.json.jsonify
-    _w("flask", "jsonify", patched_jsonify)
+    _w("flask", "jsonify", _patched_jsonify)
 
-    _w("flask.templating", "_render", patched_render)
+    _w("flask.templating", "_render", _patched_render)
     _w("flask", "render_template", _build_render_template_wrapper("render_template"))
     _w("flask", "render_template_string", _build_render_template_wrapper("render_template_string"))
 
@@ -253,7 +253,7 @@ def patch():
         bp_hooks.append("before_app_first_request")
 
     for hook in bp_hooks:
-        _w("flask", "Blueprint.{}".format(hook), patched_flask_hook)
+        _w("flask", "Blueprint.{}".format(hook), _patched_flask_hook)
 
     if config.flask["trace_signals"]:
         signals = [
@@ -285,7 +285,7 @@ def patch():
                 module = "flask.signals"
 
             # DEV: Patch `receivers_for` instead of `connect` to ensure we don't mess with `disconnect`
-            _w(module, "{}.receivers_for".format(signal), patched_signal_receivers_for(signal))
+            _w(module, "{}.receivers_for".format(signal), _patched_signal_receivers_for(signal))
 
 
 def unpatch():
@@ -533,7 +533,7 @@ def patched_flask_hook(wrapped, instance, args, kwargs):
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
-    return patched_flask_hook(wrapped, instance, args, kwargs)
+    return _patched_flask_hook(wrapped, instance, args, kwargs)
 
 
 def _traced_render_template(wrapped, instance, args, kwargs):
