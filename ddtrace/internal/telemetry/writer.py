@@ -25,7 +25,7 @@ from ...settings import _config as config
 from ...settings.config import _ConfigSource
 from ...settings.crashtracker import config as crashtracker_config
 from ...settings.dynamic_instrumentation import config as di_config
-from ...settings.exception_debugging import config as ed_config
+from ...settings.exception_replay import config as er_config
 from ...settings.peer_service import _ps_config
 from ...settings.profiling import config as prof_config
 from ..agent import get_connection
@@ -61,7 +61,7 @@ from .constants import TELEMETRY_DOGSTATSD_PORT
 from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
-from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_EXCEPTION_REPLAY_ENABLED
 from .constants import TELEMETRY_INJECT_WAS_ATTEMPTED
 from .constants import TELEMETRY_LIB_INJECTION_FORCED
 from .constants import TELEMETRY_LIB_WAS_INJECTED
@@ -463,7 +463,7 @@ class TelemetryWriter(PeriodicService):
                 inst_config_id_entry,
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
-                (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
+                (TELEMETRY_EXCEPTION_REPLAY_ENABLED, er_config.enabled, "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),

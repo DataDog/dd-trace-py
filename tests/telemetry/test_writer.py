@@ -73,7 +73,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
                     {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
                     {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
+                    {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": True},
@@ -198,7 +198,7 @@ import ddtrace.auto
 
     env = os.environ.copy()
     # Change configuration default values
-    env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "True"
+    env["DD_EXCEPTION_REPLAY_ENABLED"] = "True"
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
     env["DD_TRACE_STARTUP_LOGS"] = "True"
     env["DD_LOGS_INJECTION"] = "True"
@@ -270,7 +270,7 @@ import ddtrace.auto
             {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
             {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": False},
