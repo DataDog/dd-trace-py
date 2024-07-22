@@ -13,6 +13,7 @@ from typing import Optional  # noqa:F401
 from typing import TextIO  # noqa:F401
 
 import ddtrace
+from ddtrace import Span
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings import _config as config
 from ddtrace.settings.asm import config as asm_config
@@ -45,8 +46,6 @@ from .writer_client import WriterClientBase  # noqa:F401
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable  # noqa:F401
     from typing import Tuple  # noqa:F401
-
-    from ddtrace import Span  # noqa:F401
 
     from .agent import ConnectionType  # noqa:F401
 
@@ -231,7 +230,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
 
     def _set_keep_rate(self, trace):
-        if trace and isinstance(trace, Span):
+        if trace and isinstance(trace[0], Span):
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _reset_connection(self):
