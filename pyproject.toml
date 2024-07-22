@@ -268,3 +268,7 @@ relative-imports-order = "furthest-to-closest"
 # Exclude typing stubs as vertical line spacing incompatibility with black
 # See: https://github.com/astral-sh/ruff/pull/6501
 "*.pyi" = ["I001"]
+
+[tool.ruff.lint]
+# Do not auto-fix unused imports (as this deletes things like import ddtrace)
+unfixable = ["F401"]
