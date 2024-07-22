@@ -103,7 +103,7 @@ def _switch_coverage_context(
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, framework)
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
-        if isinstance(coverage_data, ModuleCodeCollector):
+        if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):
             # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
             coverage_data.__enter__()
         return
@@ -123,7 +123,7 @@ def _report_coverage_to_span(
 ):
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
-        if isinstance(coverage_data, ModuleCodeCollector):
+        if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):
             # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
             from pathlib import Path
 
