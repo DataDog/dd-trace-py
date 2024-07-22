@@ -219,10 +219,10 @@ class LangChainIntegration(BaseLLMIntegration):
         output_tag_key = OUTPUT_VALUE
 
         try:
-            if is_workflow:
-                if isinstance(input_texts, str) or (
-                    isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)
-                ):
+            if isinstance(input_texts, str) or (
+                isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)
+            ):
+                if is_workflow:
                     formatted_inputs = self.format_io(input_texts)
                     formatted_str = (
                         formatted_inputs
@@ -230,11 +230,11 @@ class LangChainIntegration(BaseLLMIntegration):
                         else json.dumps(self.format_io(input_texts))
                     )
                     span.set_tag_str(input_tag_key, formatted_str)
-            elif isinstance(input_texts, str):
-                span.set_tag_str(INPUT_DOCUMENTS, json.dumps(Document(text=str(input_texts))))
-            elif isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts):
-                input_documents = [Document(text=str(doc)) for doc in input_texts]
-                span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents))
+                else:
+                    if isinstance(input_texts, str):
+                        input_texts = [input_texts]
+                    input_documents = [Document(text=str(doc)) for doc in input_texts]
+                    span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents))
         except TypeError:
             log.warning("Failed to serialize embedding input data to JSON")
         if error:
