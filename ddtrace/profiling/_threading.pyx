@@ -4,8 +4,7 @@ import sys
 import typing
 import weakref
 
-import attr
-from six.moves import _thread
+import _thread
 
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
@@ -103,16 +102,18 @@ else:
     _weakref_type = typing.Any
 
 
-@attr.s(slots=True, eq=False)
 class _ThreadLink(_thread_link_base):
     """Link a thread with an object.
 
     Object is removed when the thread disappears.
     """
 
-    # Key is a thread_id
-    # Value is a weakref to an object
-    _thread_id_to_object = attr.ib(factory=dict, repr=False, init=False, type=typing.Dict[int, _weakref_type])
+    __slots__ = ('_thread_id_to_object',)
+
+    def __init__(self):
+        # Key is a thread_id
+        # Value is a weakref to an object
+        self._thread_id_to_object: typing.Dict[int, _weakref_type] = {}
 
     def link_object(
             self,
