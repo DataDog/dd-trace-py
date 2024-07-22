@@ -399,11 +399,9 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 if integration.is_pc_sampled_span(span):
                     text = chat_completion.text
                     message = chat_completion.message
-
-                    # different provider partner libraries will put this on different places on the struct
-                    tool_calls = message.content or message.tool_calls
-                    if text and not tool_calls:
-                        # langchain_anthropic sets `text` and `content`
+                    tool_calls = message.tool_calls
+                    
+                    if text:
                         span.set_tag_str(
                             "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
                             integration.trunc(chat_completion.text),
@@ -527,11 +525,9 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 if integration.is_pc_sampled_span(span):
                     text = chat_completion.text
                     message = chat_completion.message
+                    tool_calls = message.tool_calls
 
-                    # different provider partner libraries will put this on different places on the struct
-                    tool_calls = message.content or message.tool_calls
-                    if text and not tool_calls:
-                        # langchain_anthropic sets `text` and `content`
+                    if text:
                         span.set_tag_str(
                             "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
                             integration.trunc(chat_completion.text),
