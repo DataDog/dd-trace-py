@@ -231,7 +231,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
 
     def _set_keep_rate(self, trace):
-        if trace:
+        if trace and isinstance(trace, Span):
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _reset_connection(self):

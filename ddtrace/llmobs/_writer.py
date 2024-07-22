@@ -11,12 +11,19 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
-
+from ddtrace.internal import agent
 from ddtrace.internal import forksafe
+from ddtrace.internal import service
+from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.writer import HTTPWriter
+from ddtrace.internal.writer import WriterClientBase
+from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
+from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
 
 
 logger = get_logger(__name__)
@@ -157,3 +164,106 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
     def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
+
+
+class LLMObsSpanEncoder(BufferedEncoder):
+    content_type = "application/json"
+
+    def __init__(self, *args):
+        super(LLMObsSpanEncoder, self).__init__()
+        self._lock = forksafe.RLock()
+        self._buffer_limit = 1000
+        self._init_buffer()
+
+    def __len__(self):
+        with self._lock:
+            return len(self._buffer)
+
+    def _init_buffer(self):
+        with self._lock:
+            self._buffer = []
+
+    def put(self, event: LLMObsSpanEvent):
+        with self._lock:
+            if len(self._buffer) >= self._buffer_limit:
+                logger.warning(
+                    "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
+                )
+                return
+            self._buffer.append(event)
+
+    def encode(self):
+        with self._lock:
+            if not self._buffer:
+                return
+            events = self._buffer
+            self._init_buffer()
+        data = {"_dd.stage": "raw", "event_type": "span", "spans": events}
+        try:
+            enc_llm_events = json.dumps(data)
+        except TypeError:
+            logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
+            return
+        return enc_llm_events
+
+
+class LLMObsEventClient(WriterClientBase):
+    def __init__(self):
+        encoder = LLMObsSpanEncoder(0, 0)
+        super(LLMObsEventClient, self).__init__(encoder)
+
+
+class LLMObsEventProxiedEventClient(LLMObsEventClient):
+    ENDPOINT = EVP_PROXY_AGENT_ENDPOINT
+
+
+class LLMObsSpanAgentWriter(HTTPWriter):
+    """Writer to the Datadog LLMObs Span Endpoint via Agent EvP Proxy."""
+
+    RETRY_ATTEMPTS = 5
+    HTTP_METHOD = "POST"
+    STATSD_NAMESPACE = "llmobs.writer"
+
+    def __init__(
+        self,
+        interval: float,
+        timeout: float,
+        dogstatsd=None,
+        sync_mode=False,
+        reuse_connections=None,
+    ):
+        intake_url = agent.get_trace_url()
+        clients = [LLMObsEventProxiedEventClient()]  # type: List[WriterClientBase]
+
+        super(LLMObsSpanAgentWriter, self).__init__(
+            intake_url=intake_url,
+            clients=clients,
+            processing_interval=interval,
+            timeout=timeout,
+            dogstatsd=dogstatsd,
+            sync_mode=sync_mode,
+            reuse_connections=reuse_connections,
+            headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_VALUE, "Content-Type": "application/json"},
+        )
+
+    def start(self, *args, **kwargs):
+        super(LLMObsSpanAgentWriter, self).start()
+        logger.debug("started %r to %r", self.__class__.__name__, self.intake_url)
+        atexit.register(self.on_shutdown)
+
+    def on_shutdown(self):
+        self.periodic()
+
+    def stop(self, timeout=None):
+        if self.status != service.ServiceStatus.STOPPED:
+            super(LLMObsSpanAgentWriter, self).stop(timeout=timeout)
+
+    def enqueue(self, event: LLMObsSpanEvent) -> None:
+        self.write([event])
+
+    def recreate(self):
+        # type: () -> HTTPWriter
+        return self.__class__(
+            interval=self._interval,
+            timeout=self._timeout,
+        )

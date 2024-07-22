@@ -43,6 +43,7 @@ from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
+from ddtrace.llmobs._writer import LLMObsSpanAgentWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
@@ -69,11 +70,18 @@ class LLMObs(Service):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
 
-        self._llmobs_span_writer = LLMObsSpanWriter(
-            site=config._dd_site,
-            api_key=config._dd_api_key,
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+        self._llmobs_span_writer = (
+            LLMObsSpanWriter(
+                site=config._dd_site,
+                api_key=config._dd_api_key,
+                interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+                timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            )
+            if asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED"))
+            else LLMObsSpanAgentWriter(
+                interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+                timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            )
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             site=config._dd_site,
