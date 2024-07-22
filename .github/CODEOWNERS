@@ -19,6 +19,8 @@ releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
+CHANGELOG.md                        @DataDog/apm-python
+README.md                           @DataDog/apm-python
 
 # Core
 tests/internal                      @DataDog/apm-core-python
