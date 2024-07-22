@@ -663,7 +663,7 @@ Dynamic Instrumentation
 .. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
 
 
-Exception Debugging
--------------------
+Exception Replay
+----------------
 
-.. ddtrace-envier-configuration:: ddtrace.settings.exception_debugging:ExceptionDebuggingConfig
+.. ddtrace-envier-configuration:: ddtrace.settings.exception_replay:ExceptionReplayConfig

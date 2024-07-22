@@ -7,7 +7,7 @@ import os  # noqa:I001
 
 from ddtrace import config  # noqa:F401
 from ddtrace.debugging._config import di_config  # noqa:F401
-from ddtrace.debugging._config import ed_config  # noqa:F401
+from ddtrace.debugging._config import er_config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
@@ -71,8 +71,8 @@ if di_config.enabled:  # Dynamic Instrumentation
 
     DynamicInstrumentation.enable()
 
-if ed_config.enabled:  # Exception Replay
-    from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+if er_config.enabled:  # Exception Replay
+    from ddtrace.debugging._exception.replay import SpanExceptionProcessor
 
     SpanExceptionProcessor().register()
 
