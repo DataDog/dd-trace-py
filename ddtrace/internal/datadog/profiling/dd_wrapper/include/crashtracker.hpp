@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 namespace Datadog {
 
@@ -46,6 +47,8 @@ class Crashtracker
     std::string library_version;
     std::string url;
 
+    std::unordered_map<std::string, std::string> user_tags;
+
     static constexpr std::string_view family{ g_language_name };
     static constexpr std::string_view library_name{ g_library_name };
 
@@ -65,6 +68,7 @@ class Crashtracker
     void set_runtime_version(std::string_view _runtime_version);
     void set_library_version(std::string_view _library_version);
     void set_url(std::string_view _url);
+    void set_tag(std::string_view _key, std::string_view _value);
 
     void set_create_alt_stack(bool _create_alt_stack);
     void set_stderr_filename(std::string_view _stderr_filename);
