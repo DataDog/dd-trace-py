@@ -37,6 +37,7 @@
         "core": [
             "ddtrace/internal/__init__.py",
             "ddtrace/internal/_exceptions.py",
+            "ddtrace/internal/_file_queue.py",
             "ddtrace/internal/_rand.pyi",
             "ddtrace/internal/_rand.pyx",
             "ddtrace/internal/_stdint.h",
@@ -167,7 +168,7 @@
         "debugging": [
             "ddtrace/debugging/*",
             "ddtrace/settings/dynamic_instrumentation.py",
-            "ddtrace/settings/exception_debugging.py"
+            "ddtrace/settings/exception_replay.py"
         ],
         "ci": [
             "ddtrace/ext/ci.py"
@@ -445,6 +446,8 @@
             "@core",
             "@remoteconfig",
             "@symbol_db",
+            "@tracing",
+            "ddtrace/internal/*",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
@@ -624,17 +627,19 @@
             "tests/datastreams/*"
         ],
         "ci_visibility": [
-            "@bootstrap",
-            "@core",
-            "@tracing",
             "@ci_visibility",
             "@ci",
             "@coverage",
-            "@dd_coverage",
             "@git",
             "@pytest",
             "@codeowners",
-            "tests/ci_visibility/*",
+            "tests/ci_visibility/*"
+        ],
+        "dd_coverage": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@dd_coverage",
             "tests/coverage/*"
         ],
         "llmobs": [
@@ -655,6 +660,7 @@
             "@bootstrap",
             "@core",
             "@telemetry",
+            "@tracing",
             "@settings",
             "@profiling",
             "tests/telemetry/*",

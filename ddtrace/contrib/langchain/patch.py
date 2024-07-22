@@ -185,10 +185,10 @@ def _is_pinecone_vectorstore_instance(instance):
     """
     try:
         if not PATCH_LANGCHAIN_V0 and langchain_pinecone:
-            return isinstance(instance, langchain_pinecone.VectorStore)
+            return isinstance(instance, langchain_pinecone.PineconeVectorStore)
         if not PATCH_LANGCHAIN_V0 and langchain_community:
-            return isinstance(instance, langchain_community.vectorstores.VectorStore)
-        return isinstance(instance, langchain.vectorstores.VectorStore)
+            return isinstance(instance, langchain_community.vectorstores.Pinecone)
+        return isinstance(instance, langchain.vectorstores.Pinecone)
     except (AttributeError, ModuleNotFoundError, ImportError):
         return False
 
@@ -763,7 +763,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
             if not isinstance(inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
-                if isinstance(inp, str):
+                if not isinstance(inp, dict):
                     span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
                 else:
                     for k, v in inp.items():
@@ -810,7 +810,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
             if not isinstance(inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
-                if isinstance(inp, str):
+                if not isinstance(inp, dict):
                     span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
                 else:
                     for k, v in inp.items():

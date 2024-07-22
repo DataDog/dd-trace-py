@@ -816,7 +816,13 @@ def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
             vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(
+    ignores=[
+        "metrics.langchain.tokens.total_cost",
+        "meta.langchain.response.outputs.input_documents",
+        "meta.langchain.request.inputs.input_documents",
+    ]
+)
 def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
     """
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
@@ -1247,3 +1253,31 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
         await chain.abatch(inputs=["chickens", "pigs"])
+
+
+@pytest.mark.snapshot
+def test_lcel_chain_non_dict_input(langchain_core):
+    """
+    Tests that non-dict inputs (specifically also non-string) are stringified properly
+    """
+    add_one = langchain_core.runnables.RunnableLambda(lambda x: x + 1)
+    multiply_two = langchain_core.runnables.RunnableLambda(lambda x: x * 2)
+    sequence = add_one | multiply_two
+
+    sequence.invoke(1)
+
+
+@pytest.mark.snapshot
+def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, request_vcr):
+    if langchain_community is None:
+        pytest.skip("langchain-community not installed which is required for this test.")
+    pytest.importorskip("faiss", reason="faiss required for this test.")
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
+        with request_vcr.use_cassette("openai_embedding_query.yaml"):
+            faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
+                ["this is a test query."],
+                embedding=langchain_openai.OpenAIEmbeddings(),
+            )
+            retriever = faiss.as_retriever()
+        with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
+            retriever.invoke("What was the message of the last test query?")

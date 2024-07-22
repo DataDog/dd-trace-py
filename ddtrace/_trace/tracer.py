@@ -5,7 +5,6 @@ import os
 from os import environ
 from os import getpid
 from threading import RLock
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -52,27 +51,25 @@ from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 from ddtrace.vendor.debtcollector import deprecate
 
-
-if TYPE_CHECKING:
-    from ddtrace.internal.writer import AgentResponse  # noqa: F401
-    from ddtrace.settings import Config  # noqa: F401
 
 log = get_logger(__name__)
 
@@ -549,9 +546,9 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 # if apm opt out, neither agent or tracer should compute the stats
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (compute_stats_enabled or self._apm_opt_out)
-                else {},
+                headers=(
+                    {"Datadog-Client-Computed-Stats": "yes"} if (compute_stats_enabled or self._apm_opt_out) else {}
+                ),
                 report_metrics=not self._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
@@ -603,8 +600,7 @@ class Tracer(object):
 
         self._generate_diagnostic_logs()
 
-    def _agent_response_callback(self, resp):
-        # type: (AgentResponse) -> None
+    def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
 
         The agent can return updated sample rates for the priority sampler.
@@ -1103,11 +1099,6 @@ class Tracer(object):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
 
-            if config._telemetry_enabled:
-                from ddtrace.internal import telemetry
-
-                telemetry.disable_and_flush()
-
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
             forksafe.unregister_before_fork(self._sample_before_fork)
@@ -1132,7 +1123,7 @@ class Tracer(object):
         elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
-        elif in_gcp_function() or in_azure_function_consumption_plan():
+        elif in_gcp_function() or in_azure_function():
             return False
         else:
             return in_aws_lambda()
@@ -1147,22 +1138,16 @@ class Tracer(object):
         - AWS Lambdas can have the Datadog agent installed via an extension.
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
-        - Google Cloud Functions and Azure Consumption Plan Functions have a mini-agent spun up by the tracer.
+        - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
-        return (
-            (in_aws_lambda() and has_aws_lambda_agent_extension())
-            or in_gcp_function()
-            or in_azure_function_consumption_plan()
-        )
+        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
 
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
 
-    def _on_global_config_update(self, cfg, items):
-        # type: (Config, List) -> None
-
+    def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
         if "_trace_sample_rate" in items and "_trace_sampling_rules" in items:
             self._handle_sampler_update(cfg)
@@ -1189,8 +1174,7 @@ class Tracer(object):
 
                 unpatch()
 
-    def _handle_sampler_update(self, cfg):
-        # type: (Config) -> None
+    def _handle_sampler_update(self, cfg: Config) -> None:
         if (
             cfg._get_source("_trace_sample_rate") != "remote_config"
             and cfg._get_source("_trace_sampling_rules") != "remote_config"

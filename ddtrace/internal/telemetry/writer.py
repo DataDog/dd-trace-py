@@ -16,14 +16,16 @@ from typing import Union  # noqa:F401
 from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
+from ...internal.core import crashtracking
 from ...internal.module import BaseModuleWatchdog
 from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
 from ...settings.config import _ConfigSource
+from ...settings.crashtracker import config as crashtracker_config
 from ...settings.dynamic_instrumentation import config as di_config
-from ...settings.exception_debugging import config as ed_config
+from ...settings.exception_replay import config as er_config
 from ...settings.peer_service import _ps_config
 from ...settings.profiling import config as prof_config
 from ..agent import get_connection
@@ -47,14 +49,23 @@ from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
+from .constants import TELEMETRY_CRASHTRACKING_ALT_STACK
+from .constants import TELEMETRY_CRASHTRACKING_AVAILABLE
+from .constants import TELEMETRY_CRASHTRACKING_DEBUG_URL
+from .constants import TELEMETRY_CRASHTRACKING_ENABLED
+from .constants import TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER
+from .constants import TELEMETRY_CRASHTRACKING_STARTED
+from .constants import TELEMETRY_CRASHTRACKING_STDERR_FILENAME
+from .constants import TELEMETRY_CRASHTRACKING_STDOUT_FILENAME
 from .constants import TELEMETRY_DOGSTATSD_PORT
 from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
-from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_EXCEPTION_REPLAY_ENABLED
 from .constants import TELEMETRY_INJECT_WAS_ATTEMPTED
 from .constants import TELEMETRY_LIB_INJECTION_FORCED
 from .constants import TELEMETRY_LIB_WAS_INJECTED
+from .constants import TELEMETRY_LOG_LEVEL  # noqa:F401
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
@@ -109,21 +120,6 @@ from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 log = get_logger(__name__)
 
-AGENT_ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
-AGENTLESS_ENDPOINT_V2 = "api/v2/apmtelemetry"
-
-
-def _get_endpoint_v2(agentless):
-    return AGENTLESS_ENDPOINT_V2 if agentless else AGENT_ENDPOINT
-
-
-def _get_agentless_telemetry_url(site: str):
-    if site == "datad0g.com":
-        return "https://all-http-intake.logs.datad0g.com"
-    if site == "datadoghq.eu":
-        return "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
-    return f"https://instrumentation-telemetry-intake.{site}/"
-
 
 class LogData(dict):
     def __hash__(self):
@@ -139,13 +135,14 @@ class LogData(dict):
 
 
 class _TelemetryClient:
-    def __init__(self, endpoint, agentless=False):
-        # type: (str, bool) -> None
-        self._telemetry_url = _get_agentless_telemetry_url(config._dd_site) if agentless else get_trace_url()
-        self._endpoint = endpoint
+    AGENT_ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
+    AGENTLESS_ENDPOINT_V2 = "api/v2/apmtelemetry"
+
+    def __init__(self, agentless):
+        # type: (bool) -> None
+        self._telemetry_url = self.get_host(config._dd_site, agentless)
+        self._endpoint = self.get_endpoint(agentless)
         self._encoder = JSONEncoderV2()
-        self._is_agentless = agentless
-        self._is_disabled = False
 
         self._headers = {
             "Content-Type": "application/json",
@@ -153,11 +150,7 @@ class _TelemetryClient:
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
 
-        if self._is_agentless:
-            if not config._dd_api_key:
-                log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
-                self._is_disabled = True
-                return
+        if agentless and config._dd_api_key:
             self._headers["dd-api-key"] = config._dd_api_key
 
     @property
@@ -166,12 +159,8 @@ class _TelemetryClient:
 
     def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
-        if self._is_disabled:
-            return None
-
         resp = None
         conn = None
-        endpoint_str = "Datadog endpoint" if self._is_agentless else "Datadog Agent"
         try:
             rb_json = self._encoder.encode(request)
             headers = self.get_headers(request)
@@ -182,9 +171,9 @@ class _TelemetryClient:
             if resp.status < 300:
                 log.debug("sent %d in %.5fs to %s. response: %s", len(rb_json), sw.elapsed(), self.url, resp.status)
             else:
-                log.debug("failed to send telemetry to the %s at %s. response: %s", endpoint_str, self.url, resp.status)
+                log.debug("failed to send telemetry to %s. response: %s", self.url, resp.status)
         except Exception:
-            log.debug("failed to send telemetry to the %s at %s.", endpoint_str, self.url, exc_info=True)
+            log.debug("failed to send telemetry to %s.", self.url, exc_info=True)
         finally:
             if conn is not None:
                 conn.close()
@@ -199,6 +188,18 @@ class _TelemetryClient:
         headers["DD-Telemetry-API-Version"] = request["api_version"]
         container.update_headers_with_container_info(headers, container.get_container_info())
         return headers
+
+    def get_endpoint(self, agentless: bool) -> str:
+        return self.AGENTLESS_ENDPOINT_V2 if agentless else self.AGENT_ENDPOINT
+
+    def get_host(self, site: str, agentless: bool) -> str:
+        if not agentless:
+            return get_trace_url()
+        elif site == "datad0g.com":
+            return "https://all-http-intake.logs.datad0g.com"
+        elif site == "datadoghq.eu":
+            return "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
+        return f"https://instrumentation-telemetry-intake.{site}/"
 
 
 class TelemetryWriterModuleWatchdog(BaseModuleWatchdog):
@@ -240,6 +241,7 @@ class TelemetryWriter(PeriodicService):
     # of `itertools.count()` which is a CPython implementation detail. The sequence field in telemetry
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
+    _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
@@ -257,24 +259,36 @@ class TelemetryWriter(PeriodicService):
         self._error = (0, "")  # type: Tuple[int, str]
         self._namespace = MetricNamespace()
         self._logs = set()  # type: Set[Dict[str, Any]]
-        self._enabled = config._telemetry_enabled
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, Distribution] = dict()
 
-        self._is_agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
-
         self.started = False
-        forksafe.register(self._fork_writer)
 
         # Debug flag that enables payload debug mode.
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
 
-        self._endpoint = _get_endpoint_v2(self._is_agentless)
+        self._enabled = config._telemetry_enabled
+        agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
+        if agentless and not config._dd_api_key:
+            log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
+            self._enabled = False
+        self._client = _TelemetryClient(agentless)
 
-        self._client = _TelemetryClient(self._endpoint, self._is_agentless)
+        if self._enabled:
+            # Avoids sending app-started and app-closed events in forked processes
+            forksafe.register(self._fork_writer)
+            # shutdown the telemetry writer when the application exits
+            atexit.register(self.app_shutdown)
+            # Captures unhandled exceptions during application start up
+            self.install_excepthook()
+            # In order to support 3.12, we start the writer upon initialization.
+            # See https://github.com/python/cpython/pull/104826.
+            # Telemetry events will only be sent after the `app-started` is queued.
+            # This will occur when the agent writer starts.
+            self.enable()
 
     def enable(self):
         # type: () -> bool
@@ -308,10 +322,15 @@ class TelemetryWriter(PeriodicService):
         if TelemetryWriterModuleWatchdog.is_installed():
             TelemetryWriterModuleWatchdog.uninstall()
         self.reset_queues()
-        if self._is_periodic and self.status is ServiceStatus.RUNNING:
+        if self._is_running():
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
+
+    def _is_running(self):
+        # type: () -> bool
+        """Returns True when the telemetry writer worker thread is running"""
+        return self._is_periodic and self._worker is not None and self.status is ServiceStatus.RUNNING
 
     def add_event(self, payload, payload_type):
         # type: (Union[Dict[str, Any], List[Any]], str) -> None
@@ -420,8 +439,6 @@ class TelemetryWriter(PeriodicService):
         #  List of configurations to be collected
 
         self.started = True
-        if register_app_shutdown:
-            atexit.register(self.app_shutdown)
 
         inst_config_id_entry = ("instrumentation_config_id", "", "default")
         if "DD_INSTRUMENTATION_CONFIG_ID" in os.environ:
@@ -446,7 +463,7 @@ class TelemetryWriter(PeriodicService):
                 inst_config_id_entry,
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
-                (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
+                (TELEMETRY_EXCEPTION_REPLAY_ENABLED, er_config.enabled, "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
@@ -504,6 +521,15 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_INJECT_WAS_ATTEMPTED, config._inject_was_attempted, "unknown"),
                 (TELEMETRY_LIB_WAS_INJECTED, config._lib_was_injected, "unknown"),
                 (TELEMETRY_LIB_INJECTION_FORCED, config._inject_force, "unknown"),
+                # Crashtracker
+                (TELEMETRY_CRASHTRACKING_ENABLED, crashtracker_config.enabled, "unknown"),
+                (TELEMETRY_CRASHTRACKING_STARTED, crashtracking.is_started(), "unknown"),
+                (TELEMETRY_CRASHTRACKING_AVAILABLE, crashtracking.is_available, "unknown"),
+                (TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER, str(crashtracker_config.stacktrace_resolver), "unknown"),
+                (TELEMETRY_CRASHTRACKING_STDOUT_FILENAME, str(crashtracker_config.stdout_filename), "unknown"),
+                (TELEMETRY_CRASHTRACKING_STDERR_FILENAME, str(crashtracker_config.stderr_filename), "unknown"),
+                (TELEMETRY_CRASHTRACKING_DEBUG_URL, str(crashtracker_config.debug_url), "unknown"),
+                (TELEMETRY_CRASHTRACKING_ALT_STACK, crashtracker_config.alt_stack, "unknown"),
             ]
             + get_python_config_vars()
         )
@@ -627,7 +653,7 @@ class TelemetryWriter(PeriodicService):
                 }
 
     def add_log(self, level, message, stack_trace="", tags=None):
-        # type: (str, str, str, Optional[Dict]) -> None
+        # type: (TELEMETRY_LOG_LEVEL, str, str, Optional[Dict]) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -639,7 +665,7 @@ class TelemetryWriter(PeriodicService):
             data = LogData(
                 {
                     "message": message,
-                    "level": level,
+                    "level": level.value,
                     "tracer_time": int(time.time()),
                 }
             )
@@ -777,7 +803,8 @@ class TelemetryWriter(PeriodicService):
             self._client.send_event(telemetry_event)
 
     def app_shutdown(self):
-        self.periodic(force_flush=True, shutting_down=True)
+        if self.started:
+            self.periodic(force_flush=True, shutting_down=True)
         self.disable()
 
     def reset_queues(self):
@@ -806,7 +833,7 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        if self._is_periodic:
+        if self._is_running():
             self.stop(join=False)
 
         # Enable writer service in child process to avoid interpreter shutdown
@@ -821,3 +848,47 @@ class TelemetryWriter(PeriodicService):
         super(TelemetryWriter, self)._stop_service(*args, **kwargs)
         if join:
             self.join(timeout=2)
+
+    def _telemetry_excepthook(self, tp, value, root_traceback):
+        if root_traceback is not None:
+            # Get the frame which raised the exception
+            traceback = root_traceback
+            while traceback.tb_next:
+                traceback = traceback.tb_next
+
+            lineno = traceback.tb_frame.f_code.co_firstlineno
+            filename = traceback.tb_frame.f_code.co_filename
+            self.add_error(1, str(value), filename, lineno)
+
+            dir_parts = filename.split(os.path.sep)
+            # Check if exception was raised in the  `ddtrace.contrib` package
+            if "ddtrace" in dir_parts and "contrib" in dir_parts:
+                ddtrace_index = dir_parts.index("ddtrace")
+                contrib_index = dir_parts.index("contrib")
+                # Check if the filename has the following format:
+                # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
+                if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
+                    integration_name = dir_parts[contrib_index + 1]
+                    self.add_count_metric(
+                        "tracers",
+                        "integration_errors",
+                        1,
+                        (("integration_name", integration_name), ("error_type", tp.__name__)),
+                    )
+                    error_msg = "{}:{} {}".format(filename, lineno, str(value))
+                    self.add_integration(integration_name, True, error_msg=error_msg)
+
+            if self._enabled and not self.started:
+                self._app_started_event(False)
+
+            self.app_shutdown()
+
+        return TelemetryWriter._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
+
+    def install_excepthook(self):
+        """Install a hook that intercepts unhandled exception and send metrics about them."""
+        sys.excepthook = self._telemetry_excepthook
+
+    def uninstall_excepthook(self):
+        """Uninstall the global tracer except hook."""
+        sys.excepthook = TelemetryWriter._ORIGINAL_EXCEPTHOOK

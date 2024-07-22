@@ -6,11 +6,10 @@ import pytest
 
 def test_enable(test_agent_session, run_python_code_in_subprocess):
     code = """
-from ddtrace.internal.telemetry import telemetry_writer
+import ddtrace # enables telemetry
 from ddtrace.internal.service import ServiceStatus
 
-telemetry_writer.enable()
-
+from ddtrace.internal.telemetry import telemetry_writer
 assert telemetry_writer.status == ServiceStatus.RUNNING
 assert telemetry_writer._worker is not None
 """
@@ -41,13 +40,10 @@ span.finish()
     events = test_agent_session.get_events()
 
     assert len(events) == 5
-    # app-closed is sent after the generate-metrics event. This is because the span aggregator is shutdown after the
-    # the telemetry writer. This is a known limitation of the current implementation. Ideally the app-closed event
-    # would be sent last.
-    assert events[0]["request_type"] == "generate-metrics"
-    assert events[1]["request_type"] == "app-closing"
-    assert events[2]["request_type"] == "app-dependencies-loaded"
-    assert events[3]["request_type"] == "app-integrations-change"
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-integrations-change"
+    assert events[3]["request_type"] == "generate-metrics"
     assert events[4]["request_type"] == "app-started"
 
 
@@ -61,10 +57,10 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
+import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 
-telemetry_writer.enable()
 telemetry_writer._app_started_event()
 
 if os.fork() == 0:
@@ -104,16 +100,15 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
+import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.telemetry import telemetry_writer
-
-telemetry_writer.enable()
 
 if os.fork() > 0:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
 
 # Heartbeat events are only sent if no other events are queued
+from ddtrace.internal.telemetry import telemetry_writer
 telemetry_writer.reset_queues()
 telemetry_writer.periodic(force_flush=True)
     """
@@ -166,12 +161,10 @@ import warnings
 # This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-import ddtrace
+import ddtrace # enables telemetry
 import logging
 import os
 
-logging.basicConfig() # required for python 2.7
-ddtrace.internal.telemetry.telemetry_writer.enable()
 os.fork()
 """
     )
@@ -215,17 +208,20 @@ tracer.trace("hello").finish()
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
     assert app_started_events[0]["payload"]["error"]["code"] == 1
-    assert "error applying processor FailingFilture()" in app_started_events[0]["payload"]["error"]["message"]
+    assert (
+        "error applying processor <__main__.FailingFilture object at"
+        in app_started_events[0]["payload"]["error"]["message"]
+    )
     pattern = re.compile(
-        ".*ddtrace/_trace/processor/__init__.py/__init__.py:[0-9]+: error applying processor FailingFilture()"
+        ".*ddtrace/_trace/processor/__init__.py/__init__.py:[0-9]+: "
+        "error applying processor <__main__.FailingFilture object at 0x[0-9a-f]+>"
     )
     assert pattern.match(app_started_events[0]["payload"]["error"]["message"]), app_started_events[0]["payload"][
         "error"
     ]["message"]
 
 
-@pytest.mark.skip(reason="We don't have a way to capture unhandled errors in bootstrap before telemetry is loaded")
-def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
 
@@ -246,19 +242,37 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in app_starteds[0]["payload"]["error"]["message"]
 
 
-def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_subprocess):
-    _, stderr, status, _ = run_python_code_in_subprocess(
-        "import ddtrace; ddtrace.tracer.trace('moon').finish(); raise Exception('bad_code')"
+def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
+    out, stderr, status, _ = run_python_code_in_subprocess(
+        """
+import sys
+
+old_exc_hook = sys.excepthook
+def pre_ddtrace_exc_hook(exctype, value, traceback):
+    print("pre_ddtrace_exc_hook called")
+    return old_exc_hook(exctype, value, traceback)
+
+sys.excepthook = pre_ddtrace_exc_hook
+
+import ddtrace
+raise Exception('bad_code')
+"""
     )
+    assert b"pre_ddtrace_exc_hook called" in out
     assert status == 1, stderr
     assert b"bad_code" in stderr
     # Regression test for python3.12 support
     assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
+    # Regression test for invalid number of arguments in wrapped exception hook
+    assert b"3 positional arguments but 4 were given" not in stderr
 
     app_starteds = test_agent_session.get_events("app-started")
     assert len(app_starteds) == 1
-    # app-started does not capture exceptions raised in application code
-    assert app_starteds[0]["payload"]["error"]["code"] == 0
+    # app-started captures unhandled exceptions raised in application code
+    assert app_starteds[0]["payload"]["error"]["code"] == 1
+    assert re.search(r"test\.py:\d+:\sbad_code$", app_starteds[0]["payload"]["error"]["message"]), app_starteds[0][
+        "payload"
+    ]["error"]["message"]
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
@@ -308,8 +322,6 @@ tracer.trace("hi").finish()
 
 
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_PATCH_MODULES"] = "jinja2:False,subprocess:False"
     code = """
 import logging
 logging.basicConfig()
@@ -321,7 +333,7 @@ f = flask.Flask("hi")
 f.wsgi_app()
 """
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
 
     assert status == 1, stderr
 
@@ -342,11 +354,13 @@ f.wsgi_app()
 
     integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
     integrations = integration_events[0]["payload"]["integrations"]
-    assert len(integrations) == 1
-    assert integrations[0]["enabled"] is True
-    assert integrations[0]["compatible"] is False
-    assert "ddtrace/contrib/flask/patch.py:" in integrations[0]["error"]
-    assert "not enough values to unpack (expected 2, got 0)" in integrations[0]["error"]
+
+    (flask_integration,) = [integration for integration in integrations if integration["name"] == "flask"]
+
+    assert flask_integration["enabled"] is True
+    assert flask_integration["compatible"] is False
+    assert "ddtrace/contrib/flask/patch.py:" in flask_integration["error"]
+    assert "not enough values to unpack (expected 2, got 0)" in flask_integration["error"]
 
     metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
 
@@ -392,10 +406,9 @@ from ddtrace import tracer
 # Create a span to start the telemetry writer
 tracer.trace("hi").finish()
 
-# Importing ddtrace.internal.telemetry.__init__ creates the telemetry writer. This has a performance cost.
-# We want to avoid this cost when telemetry is disabled.
+# We want to import the telemetry module even when telemetry is disabled.
 import sys
-assert "ddtrace.internal.telemetry" not in sys.modules
+assert "ddtrace.internal.telemetry" in sys.modules
 """
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
@@ -404,3 +417,20 @@ assert "ddtrace.internal.telemetry" not in sys.modules
 
     assert status == 0, stderr
     assert stderr == b""
+
+
+# Disable agentless to ensure telemetry is enabled (agentless needs dd-api-key to be set)
+@pytest.mark.subprocess(env={"DD_CIVISIBILITY_AGENTLESS_ENABLED": "0"})
+def test_installed_excepthook():
+    import sys
+
+    # importing ddtrace initializes the telemetry writer and installs the excepthook
+    import ddtrace  # noqa: F401
+
+    assert sys.excepthook.__name__ == "_telemetry_excepthook"
+
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._enabled is True
+    telemetry_writer.uninstall_excepthook()
+    assert sys.excepthook.__name__ != "_telemetry_excepthook"

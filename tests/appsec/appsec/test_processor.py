@@ -4,7 +4,6 @@ import os.path
 
 import mock
 import pytest
-from six import ensure_binary
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
@@ -373,28 +372,28 @@ def test_ddwaf_not_raises_exception():
         rules_json = json.loads(rules.read())
         DDWaf(
             rules_json,
-            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP),
-            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP),
+            DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
+            DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
         )
 
 
 def test_obfuscation_parameter_key_empty():
-    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="")):
+    with override_global_config(dict(_asm_obfuscation_parameter_key_regexp="")):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
 
 
 def test_obfuscation_parameter_value_empty():
-    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="")):
+    with override_global_config(dict(_asm_obfuscation_parameter_value_regexp="")):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
 
 
 def test_obfuscation_parameter_key_and_value_empty():
-    with override_env(
-        dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="", DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="")
+    with override_global_config(
+        dict(_asm_obfuscation_parameter_key_regexp="", _asm_obfuscation_parameter_value_regexp="")
     ):
         processor = AppSecSpanProcessor()
 
@@ -402,22 +401,22 @@ def test_obfuscation_parameter_key_and_value_empty():
 
 
 def test_obfuscation_parameter_key_invalid_regex():
-    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="(")):
+    with override_global_config(dict(_asm_obfuscation_parameter_key_regexp="(")):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
 
 
 def test_obfuscation_parameter_invalid_regex():
-    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="(")):
+    with override_global_config(dict(_asm_obfuscation_parameter_value_regexp="(")):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
 
 
 def test_obfuscation_parameter_key_and_value_invalid_regex():
-    with override_env(
-        dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="(", DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="(")
+    with override_global_config(
+        dict(_asm_obfuscation_parameter_key_regexp="(", _asm_obfuscation_parameter_value_regexp="(")
     ):
         processor = AppSecSpanProcessor()
 
@@ -443,11 +442,12 @@ def test_obfuscation_parameter_value_unconfigured_not_matching(tracer_appsec):
     assert all("<Redacted>" not in value for value in values)
 
 
-def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec):
+@pytest.mark.parametrize("key", ["password", "public_key", "jsessionid", "jwt"])
+def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec, key):
     tracer = tracer_appsec
 
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
+        set_http_meta(span, rules.Config(), raw_uri=f"http://example.com/.git?{key}=goodbye", status_code="404")
 
     triggers = get_triggers(span)
     assert triggers
@@ -463,9 +463,7 @@ def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec):
 
 
 def test_obfuscation_parameter_value_configured_not_matching(tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env(
-        dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")
-    ):
+    with override_global_config(dict(_asm_enabled=True, _asm_obfuscation_parameter_value_regexp="token")):
         _enable_appsec(tracer)
 
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -485,9 +483,7 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
 
 
 def test_obfuscation_parameter_value_configured_matching(tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env(
-        dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")
-    ):
+    with override_global_config(dict(_asm_enabled=True, _asm_obfuscation_parameter_value_regexp="token")):
         _enable_appsec(tracer)
 
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:

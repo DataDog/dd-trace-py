@@ -237,20 +237,20 @@ api_ospathnormcase_aspect(const StrType& path)
 void
 pyexport_ospath_aspects(py::module& m)
 {
-    m.def("_aspect_ospathjoin", &api_ospathjoin_aspect<py::str>, "first_part"_a);
-    m.def("_aspect_ospathjoin", &api_ospathjoin_aspect<py::bytes>, "first_part"_a);
-    m.def("_aspect_ospathnormcase", &api_ospathnormcase_aspect<py::str>, "path"_a);
-    m.def("_aspect_ospathnormcase", &api_ospathnormcase_aspect<py::bytes>, "path"_a);
-    m.def("_aspect_ospathbasename", &api_ospathbasename_aspect<py::str>, "path"_a);
-    m.def("_aspect_ospathbasename", &api_ospathbasename_aspect<py::bytes>, "path"_a);
-    m.def("_aspect_ospathdirname", &api_ospathdirname_aspect<py::str>, "path"_a);
-    m.def("_aspect_ospathdirname", &api_ospathdirname_aspect<py::bytes>, "path"_a);
-    m.def("_aspect_ospathsplit", &api_ospathsplit_aspect<py::str>, "path"_a);
-    m.def("_aspect_ospathsplit", &api_ospathsplit_aspect<py::bytes>, "path"_a);
-    m.def("_aspect_ospathsplitext", &api_ospathsplitext_aspect<py::str>, "path"_a);
-    m.def("_aspect_ospathsplitext", &api_ospathsplitext_aspect<py::bytes>, "path"_a);
-    m.def("_aspect_ospathsplitdrive", &api_ospathsplitdrive_aspect<py::str>, "path"_a);
-    m.def("_aspect_ospathsplitdrive", &api_ospathsplitdrive_aspect<py::bytes>, "path"_a);
-    m.def("_aspect_ospathsplitroot", &api_ospathsplitroot_aspect<py::str>, "path"_a);
-    m.def("_aspect_ospathsplitroot", &api_ospathsplitroot_aspect<py::bytes>, "path"_a);
+    m.def("_aspect_ospathjoin", &api_ospathjoin_aspect<py::str>, "first_part"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathjoin", &api_ospathjoin_aspect<py::bytes>, "first_part"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathnormcase", &api_ospathnormcase_aspect<py::str>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathnormcase", &api_ospathnormcase_aspect<py::bytes>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathbasename", &api_ospathbasename_aspect<py::str>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathbasename", &api_ospathbasename_aspect<py::bytes>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathdirname", &api_ospathdirname_aspect<py::str>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathdirname", &api_ospathdirname_aspect<py::bytes>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathsplit", &api_ospathsplit_aspect<py::str>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathsplit", &api_ospathsplit_aspect<py::bytes>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathsplitext", &api_ospathsplitext_aspect<py::str>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathsplitext", &api_ospathsplitext_aspect<py::bytes>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathsplitdrive", &api_ospathsplitdrive_aspect<py::str>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathsplitdrive", &api_ospathsplitdrive_aspect<py::bytes>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathsplitroot", &api_ospathsplitroot_aspect<py::str>, "path"_a, py::return_value_policy::move);
+    m.def("_aspect_ospathsplitroot", &api_ospathsplitroot_aspect<py::bytes>, "path"_a, py::return_value_policy::move);
 }

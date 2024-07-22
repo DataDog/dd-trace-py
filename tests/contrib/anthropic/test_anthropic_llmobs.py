@@ -14,7 +14,14 @@ question about the weather in a specific location. \n\nThe get_weather tool requ
 parameter. The user has provided the location of "San Francisco, CA" in their question, so we have \
 the necessary information to make the API call.\n\nNo other tools are needed to answer this question. \
 We can proceed with calling the get_weather tool with the provided location.\n</thinking>'
-WEATHER_OUTPUT_MESSAGE_2 = '[tool: get_weather]\n\n{"location": "San Francisco, CA"}'
+WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL = [
+    {
+        "name": "get_weather",
+        "arguments": {"location": "San Francisco, CA"},
+        "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
+        "type": "tool_use",
+    }
+]
 WEATHER_OUTPUT_MESSAGE_3 = "Based on the result from the get_weather tool, the current weather in San \
 Francisco, CA is 73°F."
 
@@ -150,7 +157,10 @@ class TestLLMObsAnthropic:
                         },
                     ],
                     output_messages=[
-                        {"content": 'The phrase "I think, therefore I am" (originally in Latin as', "role": "assistant"}
+                        {
+                            "content": 'The phrase "I think, therefore I am" (originally in Latin as',
+                            "role": "assistant",
+                        }
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
@@ -300,9 +310,13 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL,
+                    },
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 200.0},
+                metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -346,7 +360,7 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
@@ -355,7 +369,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 500.0},
+                metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -392,9 +406,13 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL,
+                    },
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 200.0},
+                metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -438,7 +456,7 @@ class TestLLMObsAnthropic:
                         "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
@@ -447,7 +465,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 500.0},
+                metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -481,7 +499,7 @@ class TestLLMObsAnthropic:
                 + " the location is fully specified. We can proceed with calling the get_weather tool.\n</thinking>",
                 "type": "text",
             },
-            {"text": WEATHER_OUTPUT_MESSAGE_2, "type": "text"},
+            {"text": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL, "type": "text"},
         ]
 
         traces = mock_tracer.pop_traces()
@@ -494,9 +512,20 @@ class TestLLMObsAnthropic:
                 input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
                     {"content": message[0]["text"], "role": "assistant"},
-                    {"content": message[1]["text"], "role": "assistant"},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 200.0},
+                metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 135, "total_tokens": 734},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -514,7 +543,7 @@ class TestLLMObsAnthropic:
                         "content": [
                             {
                                 "type": "tool_result",
-                                "tool_use_id": "toolu_01LktqwpwQ8XKE8D17BffC65",
+                                "tool_use_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
                                 "content": [{"type": "text", "text": "The weather is 73f"}],
                             }
                         ],
@@ -546,7 +575,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 500.0},
+                metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 33, "total_tokens": 795},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -588,9 +617,20 @@ class TestLLMObsAnthropic:
                 input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
                     {"content": message.content[0].text, "role": "assistant"},
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 200.0},
+                metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
                 tags={"ml_app": "<ml-app-name>"},
             )
@@ -608,7 +648,7 @@ class TestLLMObsAnthropic:
                         "content": [
                             {
                                 "type": "tool_result",
-                                "tool_use_id": "toolu_01UiyhG7tywQKaqdgxyqa8z9",
+                                "tool_use_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
                                 "content": [{"type": "text", "text": "The weather is 73f"}],
                             }
                         ],
@@ -636,13 +676,16 @@ class TestLLMObsAnthropic:
                 input_messages=[
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message.content[0].text, "role": "assistant"},
-                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
+                    {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
-                    {"content": "\n\nThe current weather in San Francisco, CA is 73°F.", "role": "assistant"}
+                    {
+                        "content": "\n\nThe current weather in San Francisco, CA is 73°F.",
+                        "role": "assistant",
+                    }
                 ],
-                metadata={"temperature": 1.0, "max_tokens": 500.0},
+                metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 18, "total_tokens": 780},
                 tags={"ml_app": "<ml-app-name>"},
             )

@@ -38,6 +38,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "ddsketch",
     "ddtrace",
     "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "encodings.idna",
     "envier",
     "exceptiongroup",
     "freezegun",  # Testing utilities for time manipulation
@@ -45,6 +46,10 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "importlib_metadata",
     "inspect",  # this package is used to get the stack frames, propagation is not needed
     "itsdangerous",
+    "moto",  # used for mocking AWS, propagation is not needed
+    "moto[all]",
+    "moto[ec2]",
+    "moto[s3]",
     "opentelemetry-api",
     "packaging",
     "pip",

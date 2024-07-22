@@ -62,19 +62,19 @@ log = get_logger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
-_HTTP_BAGGAGE_PREFIX = "ot-baggage-"
-HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
-HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
-HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
-HTTP_HEADER_ORIGIN = "x-datadog-origin"
-_HTTP_HEADER_B3_SINGLE = "b3"
-_HTTP_HEADER_B3_TRACE_ID = "x-b3-traceid"
-_HTTP_HEADER_B3_SPAN_ID = "x-b3-spanid"
-_HTTP_HEADER_B3_SAMPLED = "x-b3-sampled"
-_HTTP_HEADER_B3_FLAGS = "x-b3-flags"
-_HTTP_HEADER_TAGS = "x-datadog-tags"
-_HTTP_HEADER_TRACEPARENT = "traceparent"
-_HTTP_HEADER_TRACESTATE = "tracestate"
+_HTTP_BAGGAGE_PREFIX: Literal["ot-baggage-"] = "ot-baggage-"
+HTTP_HEADER_TRACE_ID: Literal["x-datadog-trace-id"] = "x-datadog-trace-id"
+HTTP_HEADER_PARENT_ID: Literal["x-datadog-parent-id"] = "x-datadog-parent-id"
+HTTP_HEADER_SAMPLING_PRIORITY: Literal["x-datadog-sampling-priority"] = "x-datadog-sampling-priority"
+HTTP_HEADER_ORIGIN: Literal["x-datadog-origin"] = "x-datadog-origin"
+_HTTP_HEADER_B3_SINGLE: Literal["b3"] = "b3"
+_HTTP_HEADER_B3_TRACE_ID: Literal["x-b3-traceid"] = "x-b3-traceid"
+_HTTP_HEADER_B3_SPAN_ID: Literal["x-b3-spanid"] = "x-b3-spanid"
+_HTTP_HEADER_B3_SAMPLED: Literal["x-b3-sampled"] = "x-b3-sampled"
+_HTTP_HEADER_B3_FLAGS: Literal["x-b3-flags"] = "x-b3-flags"
+_HTTP_HEADER_TAGS: Literal["x-datadog-tags"] = "x-datadog-tags"
+_HTTP_HEADER_TRACEPARENT: Literal["traceparent"] = "traceparent"
+_HTTP_HEADER_TRACESTATE: Literal["tracestate"] = "tracestate"
 
 
 def _possible_header(header):
@@ -896,7 +896,9 @@ _PROP_STYLES = {
 
 
 class HTTPPropagator(object):
-    """A HTTP Propagator using HTTP headers as carrier."""
+    """A HTTP Propagator using HTTP headers as carrier. Injects and Extracts headers
+    according to the propagation style set by ddtrace configurations.
+    """
 
     @staticmethod
     def _extract_configured_contexts_avail(normalized_headers):

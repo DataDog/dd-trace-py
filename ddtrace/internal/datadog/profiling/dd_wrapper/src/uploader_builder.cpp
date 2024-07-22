@@ -15,6 +15,7 @@ Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
         dd_env = _dd_env;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_service(std::string_view _service)
 {
@@ -22,6 +23,7 @@ Datadog::UploaderBuilder::set_service(std::string_view _service)
         service = _service;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_version(std::string_view _version)
 {
@@ -29,41 +31,12 @@ Datadog::UploaderBuilder::set_version(std::string_view _version)
         version = _version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_runtime(std::string_view _runtime)
 {
     if (!_runtime.empty()) {
         runtime = _runtime;
-    }
-}
-void
-Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
-{
-    if (!_runtime_version.empty()) {
-        runtime_version = _runtime_version;
-    }
-}
-void
-Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
-{
-    if (!_profiler_version.empty()) {
-        profiler_version = _profiler_version;
-    }
-}
-void
-Datadog::UploaderBuilder::set_url(std::string_view _url)
-{
-    if (!_url.empty()) {
-        url = _url;
-    }
-}
-void
-Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
-{
-
-    if (!_key.empty() && !_val.empty()) {
-        const std::lock_guard<std::mutex> lock(tag_mutex);
-        user_tags[std::string(_key)] = std::string(_val);
     }
 }
 
@@ -72,6 +45,40 @@ Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
 {
     if (!_runtime_id.empty()) {
         runtime_id = _runtime_id;
+    }
+}
+
+void
+Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
+{
+    if (!_runtime_version.empty()) {
+        runtime_version = _runtime_version;
+    }
+}
+
+void
+Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
+{
+    if (!_profiler_version.empty()) {
+        profiler_version = _profiler_version;
+    }
+}
+
+void
+Datadog::UploaderBuilder::set_url(std::string_view _url)
+{
+    if (!_url.empty()) {
+        url = _url;
+    }
+}
+
+void
+Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
+{
+
+    if (!_key.empty() && !_val.empty()) {
+        const std::lock_guard<std::mutex> lock(tag_mutex);
+        user_tags[std::string(_key)] = std::string(_val);
     }
 }
 
@@ -136,8 +143,11 @@ Datadog::UploaderBuilder::build()
     }
 
     // If we're here, the tags are good, so we can initialize the exporter
-    ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(
-      to_slice("dd-trace-py"), to_slice(profiler_version), to_slice(family), &tags, ddog_Endpoint_agent(to_slice(url)));
+    ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
+                                                              to_slice(profiler_version),
+                                                              to_slice(family),
+                                                              &tags,
+                                                              ddog_prof_Endpoint_agent(to_slice(url)));
     ddog_Vec_Tag_drop(tags);
 
     auto ddog_exporter_result = Datadog::get_newexporter_result(res);
