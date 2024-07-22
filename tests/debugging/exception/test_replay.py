@@ -3,26 +3,46 @@ from contextlib import contextmanager
 import pytest
 
 import ddtrace
-import ddtrace.debugging._exception.auto_instrument as auto_instrument
+from ddtrace.debugging._exception import replay
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
-from tests.debugging.mocking import exception_debugging
+from ddtrace.settings.exception_replay import ExceptionReplayConfig
+from tests.debugging.mocking import exception_replay
 from tests.utils import TracerTestCase
+
+
+def test_exception_replay_config_enabled(monkeypatch):
+    monkeypatch.setenv("DD_EXCEPTION_REPLAY_ENABLED", "1")
+
+    er_config = ExceptionReplayConfig()
+    assert er_config.enabled
+
+
+def test_exception_replay_config_enabled_deprecated(monkeypatch):
+    monkeypatch.setenv("DD_EXCEPTION_DEBUGGING_ENABLED", "1")
+
+    er_config = ExceptionReplayConfig()
+    assert er_config.enabled
+
+    monkeypatch.setenv("DD_EXCEPTION_REPLAY_ENABLED", "false")
+
+    er_config = ExceptionReplayConfig()
+    assert not er_config.enabled
 
 
 @contextmanager
 def with_rate_limiter(limiter):
-    original_limiter = auto_instrument.GLOBAL_RATE_LIMITER
-    mocked = auto_instrument.GLOBAL_RATE_LIMITER = limiter
+    original_limiter = replay.GLOBAL_RATE_LIMITER
+    mocked = replay.GLOBAL_RATE_LIMITER = limiter
 
     yield mocked
 
-    auto_instrument.GLOBAL_RATE_LIMITER = original_limiter
+    replay.GLOBAL_RATE_LIMITER = original_limiter
 
 
-class ExceptionDebuggingTestCase(TracerTestCase):
+class ExceptionReplayTestCase(TracerTestCase):
     def setUp(self):
-        super(ExceptionDebuggingTestCase, self).setUp()
+        super(ExceptionReplayTestCase, self).setUp()
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         _third_party_packages().remove("ddtrace")
@@ -30,9 +50,9 @@ class ExceptionDebuggingTestCase(TracerTestCase):
     def tearDown(self):
         _third_party_packages().add("ddtrace")
         ddtrace.tracer = self.backup_tracer
-        super(ExceptionDebuggingTestCase, self).tearDown()
+        super(ExceptionReplayTestCase, self).tearDown()
 
-    def test_debugger_exception_debugging(self):
+    def test_debugger_exception_replay(self):
         def a(v, d=None):
             with self.trace("a"):
                 if not v:
@@ -48,7 +68,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 sh = 3
                 b(foo << sh)
 
-        with exception_debugging() as uploader:
+        with exception_replay() as uploader:
             with with_rate_limiter(RateLimiter(limit_rate=1, raise_on_exceed=False)):
                 with pytest.raises(ValueError):
                     c()
@@ -107,7 +127,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 sh = 3
                 b_chain(foo << sh)
 
-        with exception_debugging() as uploader:
+        with exception_replay() as uploader:
             rate_limiter = RateLimiter(
                 limit_rate=0.1,  # one trace per second
                 tau=10,
