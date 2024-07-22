@@ -117,7 +117,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                         input_messages.append({"content": "([IMAGE DETECTED])", "role": role})
 
                     elif _get_attr(block, "type", None) == "tool_use":
-                        text = _get_attr(block, "text", "")
+                        text = _get_attr(block, "text", None)
                         input_data = _get_attr(block, "input", "")
                         if isinstance(input_data, str):
                             input_data = json.loads(input_data)
@@ -127,6 +127,8 @@ class AnthropicIntegration(BaseLLMIntegration):
                             "tool_id": _get_attr(block, "id", ""),
                             "type": _get_attr(block, "type", ""),
                         }
+                        if text is None:
+                            text = ""
                         input_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
 
                     elif _get_attr(block, "type", None) == "tool_result":
@@ -157,8 +159,8 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         elif isinstance(content, list):
             for completion in content:
-                text = _get_attr(completion, "text", "")
-                if isinstance(text, str) and text != "":
+                text = _get_attr(completion, "text", None)
+                if isinstance(text, str):
                     output_messages.append({"content": text, "role": role})
                 else:
                     if _get_attr(completion, "type", None) == "tool_use":
@@ -171,6 +173,8 @@ class AnthropicIntegration(BaseLLMIntegration):
                             "tool_id": _get_attr(completion, "id", ""),
                             "type": _get_attr(completion, "type", ""),
                         }
+                        if text is None:
+                            text = ""
                         output_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
         return output_messages
 
