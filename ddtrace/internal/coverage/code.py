@@ -187,7 +187,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             path = to_visit_paths.pop()
             visited_paths.add(path)
 
-            if path not in self._import_time_covered:
+            if path in visited_paths or path not in self._import_time_covered:
                 continue
 
             imported_module_lines = self._import_time_covered[path]
