@@ -118,7 +118,7 @@ class IAST(metaclass=Constant_Class):
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
     REQUEST_IAST_ENABLED: Literal["_dd.iast.request_enabled"] = "_dd.iast.request_enabled"
-    TEXT_TYPES: Literal["str", "bytes", "bytearray"] = (str, bytes, bytearray)
+    TEXT_TYPES = (str, bytes, bytearray)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
