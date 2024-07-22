@@ -105,26 +105,16 @@ class LLMObsTraceProcessor(TraceProcessor):
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
         span._meta.pop(PARENT_ID_KEY, None)
 
-        name = _get_span_name(span)
-        if span_kind == "llm":
-            print("[✧ LLM Observability] LLM ✨: {} finished in {} seconds!".format(name, span.duration))
-        elif span_kind == "workflow":
-            print("[✧ LLM Observability] Workflow 🔗: {} finished in {} seconds!".format(name, span.duration))
-        elif span_kind == "agent":
-            print("[✧ LLM Observability] Agent 🤖: {} finished in {} seconds!".format(name, span.duration))
-            url = """
-            View your agent run:
-            https://app.datadoghq.com/llm/traces?query=%40event_type%3Aspan%20%40parent_id%3Aundefined%20%40trace_id%3A{}%20&agg_m=count&agg_m_source=base&agg_t=count&fromUser=false&llmPanels=%5B%7B%22t%22%3A%22sampleDetailPanel%22%2C%22rEID%22%3A%22AgAAAZDMT2fSc-LOggAAAAAAAAAYAAAAAEFaRE1UMS1vQUFBMl9fZXBadnc3QUFBQQAAACQAAAAAMDE5MGNjNGYtODc3MC00YmY0LTg5NGItZmFiNTY1NDk1ZjE0%22%7D%5D&sidepanelTab=trace&viz=stream
+        if parent_id == "undefined":
+            url = """[✧ LLMObs] Trace with root span name "{span_name}" finished in {span_duration} seconds 🎉!
+
+        View your trace at:
+        https://dd.datad0g.com/llm/traces?query=%40ml_app%3Aai-chat
             """.format(
-                span.trace_id
+                span_name=span.name,
+                span_duration=span.duration,
             )
-            print(url)
-        elif span_kind == "tool":
-            print("[✧ LLM Observability] Tool 🔧: {} finished in {} seconds!".format(name, span.duration))
-        elif span_kind == "task":
-            print("[✧ LLM Observability] Task 📌: {} finished in {} seconds!".format(name, span.duration))
-        elif span_kind == "retrieval":
-            print("[✧ LLM Observability] Retrieval 🔎: {} finished in {} seconds!".format(name, span.duration))
+            print(url, flush=True)
 
         return {
             "trace_id": "{:x}".format(span.trace_id),
