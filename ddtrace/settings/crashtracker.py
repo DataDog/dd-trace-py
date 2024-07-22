@@ -2,27 +2,25 @@ import typing as t
 
 from envier import En
 
-from ddtrace.internal.datadog.profiling import crashtracker
 
-
-def _derive_stacktrace_resolver(config):
-    # type: (CrashtrackerConfig) -> t.Optional[str]
-    resolver = config._stacktrace_resolver or ""
+def _derive_stacktrace_resolver(config: "CrashtrackerConfig") -> t.Optional[str]:
+    resolver = str(config._stacktrace_resolver or "")
     resolver = resolver.lower()
-    if resolver in ("fast", "full"):
+    if resolver in ("fast", "full", "safe"):
         return resolver
     return None
 
 
-def _check_for_crashtracker_available():
+def _check_for_crashtracker_available() -> bool:
+    from ddtrace.internal.datadog.profiling import crashtracker
+
     return crashtracker.is_available
 
 
-def _derive_crashtracker_enabled(config):
-    # type: (CrashtrackerConfig) -> bool
+def _derive_crashtracker_enabled(config: "CrashtrackerConfig") -> bool:
     if not _check_for_crashtracker_available():
         return False
-    return config._enabled
+    return bool(config._enabled)
 
 
 class CrashtrackerConfig(En):
@@ -31,7 +29,7 @@ class CrashtrackerConfig(En):
     _enabled = En.v(
         bool,
         "enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Enables the crashtracker",
     )
@@ -77,6 +75,9 @@ class CrashtrackerConfig(En):
         default=None,
         help_type="String",
         help="How to collect native stack traces during a crash, if at all.  Accepted values are 'none', 'fast',"
-        " and 'full'.  The default value is 'none' (no stack traces).",
+        " 'safe', and 'full'.  The default value is 'none' (no stack traces).",
     )
     stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)
+
+
+config = CrashtrackerConfig()

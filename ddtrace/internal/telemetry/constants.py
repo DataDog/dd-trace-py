@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 TELEMETRY_NAMESPACE_TAG_TRACER = "tracers"
 TELEMETRY_NAMESPACE_TAG_APPSEC = "appsec"
 TELEMETRY_NAMESPACE_TAG_IAST = "iast"
@@ -5,6 +8,13 @@ TELEMETRY_NAMESPACE_TAG_IAST = "iast"
 TELEMETRY_TYPE_GENERATE_METRICS = "generate-metrics"
 TELEMETRY_TYPE_DISTRIBUTION = "distributions"
 TELEMETRY_TYPE_LOGS = "logs"
+
+
+class TELEMETRY_LOG_LEVEL(Enum):
+    DEBUG = "DEBUG"
+    WARNING = "WARN"
+    ERROR = "ERROR"
+
 
 # Configuration names must map to values supported by backend services:
 # https://github.com/DataDog/dd-go/blob/f88e85d64b173e7733ac03e23576d1c9be37f32e/trace/apps/tracer-telemetry-intake/telemetry-payload/static/config_norm_rules.json
@@ -70,3 +80,14 @@ TELEMETRY_PROFILING_MAX_FRAMES = "DD_PROFILING_MAX_FRAMES"
 TELEMETRY_INJECT_WAS_ATTEMPTED = "DD_LIB_INJECTION_ATTEMPTED"
 TELEMETRY_LIB_WAS_INJECTED = "DD_LIB_INJECTED"
 TELEMETRY_LIB_INJECTION_FORCED = "DD_INJECT_FORCE"
+
+
+# Crashtracker
+TELEMETRY_CRASHTRACKING_ENABLED = "crashtracking_enabled"  # Env var enabled
+TELEMETRY_CRASHTRACKING_AVAILABLE = "crashtracking_available"  # Feature is available
+TELEMETRY_CRASHTRACKING_STARTED = "crashtracking_started"  # Crashtracking is running
+TELEMETRY_CRASHTRACKING_STDOUT_FILENAME = "crashtracking_stdout_filename"
+TELEMETRY_CRASHTRACKING_STDERR_FILENAME = "crashtracking_stderr_filename"
+TELEMETRY_CRASHTRACKING_ALT_STACK = "crashtracking_alt_stack"
+TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER = "crashtracking_stacktrace_resolver"
+TELEMETRY_CRASHTRACKING_DEBUG_URL = "crashtracking_debug_url"
