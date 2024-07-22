@@ -1272,7 +1272,7 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, request_vcr):
     import langchain_core.tools
 
     @langchain_core.tools.tool
-    def add (a: int, b: int) -> int:
+    def add(a: int, b: int) -> int:
         """Adds a and b.
 
         Args:
@@ -1280,7 +1280,7 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, request_vcr):
             b: second int
         """
         return a + b
-    
+
     llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125")
     llm_with_tools = llm.bind_tools([add])
     with request_vcr.use_cassette("lcel_with_tools_openai.yaml"):
@@ -1292,7 +1292,7 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_
     import langchain_core.tools
 
     @langchain_core.tools.tool
-    def add (a: int, b: int) -> int:
+    def add(a: int, b: int) -> int:
         """Adds a and b.
 
         Args:
@@ -1300,7 +1300,7 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_
             b: second int
         """
         return a + b
-    
+
     llm = langchain_anthropic.ChatAnthropic(temperature=1, model_name="claude-3-opus-20240229")
     llm_with_tools = llm.bind_tools([add])
     with request_vcr.use_cassette("lcel_with_tools_anthropic.yaml"):
