@@ -362,7 +362,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_documents(self, langchain, mock_llmobs_span_writer, mock_tracer):
-        embedding_model = langchain.OpenAIEmbeddings(model="text-embedding-ada-002", chunk_size=4)
+        embedding_model = langchain.OpenAIEmbeddings()
         span = self._embed_documents(
             embedding_model=embedding_model,
             documents=["hello world", "goodbye world"],
@@ -379,7 +379,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=["hello world", "goodbye world"],
                 output_value="[2 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
-                tags={"ml_app": "<ml-app-name>", "langchain.request.inputs.chunk_size": 4},
+                tags={"ml_app": "<ml-app-name>"},
                 integration="langchain",
             )
         )
