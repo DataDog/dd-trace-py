@@ -609,8 +609,8 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
             integration.llmobs_set_tags(
                 "embedding",
                 span,
-                input_texts=input_texts,
-                output_embedding=embeddings,
+                input_texts,
+                embeddings,
                 error=bool(span.error),
             )
         span.finish()

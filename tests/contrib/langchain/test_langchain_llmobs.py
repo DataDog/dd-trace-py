@@ -338,7 +338,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_query(self, langchain, mock_llmobs_span_writer, mock_tracer):
-        embedding_model = langchain.OpenAIEmbeddings()
+        embedding_model = langchain.embeddings.OpenAIEmbeddings()
         span = self._embed_query(
             embedding_model=embedding_model,
             query="hello world",
@@ -355,14 +355,14 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
         )
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_documents(self, langchain, mock_llmobs_span_writer, mock_tracer):
-        embedding_model = langchain.OpenAIEmbeddings()
+        embedding_model = langchain.embeddings.OpenAIEmbeddings()
         span = self._embed_documents(
             embedding_model=embedding_model,
             documents=["hello world", "goodbye world"],
@@ -379,7 +379,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
         )
@@ -581,7 +581,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_query(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         embedding_model = langchain_openai.OpenAIEmbeddings()
-        span = self._embed_query(
+        trace = self._embed_query(
             embedding_model=embedding_model,
             query="hello world",
             mock_tracer=mock_tracer,
@@ -590,14 +590,13 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         mock_llmobs_span_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
-                span,
+                trace[0],
                 span_kind="embedding",
                 model_name=embedding_model.model,
                 model_provider="openai",
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
-                token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
         )
@@ -605,7 +604,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_documents(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         embedding_model = langchain_openai.OpenAIEmbeddings()
-        span = self._embed_documents(
+        trace = self._embed_documents(
             embedding_model=embedding_model,
             documents=["hello world", "goodbye world"],
             mock_tracer=mock_tracer,
@@ -614,14 +613,13 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         mock_llmobs_span_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
-                span,
+                trace[0],
                 span_kind="embedding",
                 model_name=embedding_model.model,
                 model_provider="openai",
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
-                token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
         )
