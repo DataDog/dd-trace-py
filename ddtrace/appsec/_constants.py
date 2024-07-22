@@ -47,7 +47,6 @@ class Constant_Class(type):
 class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
-    # add type Literal to all these constants
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
     STANDALONE_ENV: Literal["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
