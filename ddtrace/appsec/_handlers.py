@@ -28,7 +28,6 @@ except ImportError:
 
 
 log = get_logger(__name__)
-
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
