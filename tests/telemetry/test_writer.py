@@ -1,4 +1,5 @@
 import os
+import sys
 import sysconfig
 import time
 from typing import Any  # noqa:F401
@@ -128,6 +129,14 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "profiling_enabled", "origin": "default", "value": "false"},
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
+                    {"name": "crashtracking_alt_stack", "origin": "unknown", "value": False},
+                    {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
+                    {"name": "crashtracking_debug_url", "origin": "unknown", "value": "None"},
+                    {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
+                    {"name": "crashtracking_stacktrace_resolver", "origin": "unknown", "value": "None"},
+                    {"name": "crashtracking_started", "origin": "unknown", "value": False},
+                    {"name": "crashtracking_stderr_filename", "origin": "unknown", "value": "None"},
+                    {"name": "crashtracking_stdout_filename", "origin": "unknown", "value": "None"},
                     {
                         "name": "python_build_gnu_type",
                         "origin": "unknown",
@@ -310,6 +319,14 @@ import ddtrace.auto
             {"name": "profiling_enabled", "origin": "env_var", "value": "true"},
             {"name": "data_streams_enabled", "origin": "env_var", "value": "true"},
             {"name": "appsec_enabled", "origin": "env_var", "value": "true"},
+            {"name": "crashtracking_alt_stack", "origin": "unknown", "value": False},
+            {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
+            {"name": "crashtracking_debug_url", "origin": "unknown", "value": "None"},
+            {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
+            {"name": "crashtracking_stacktrace_resolver", "origin": "unknown", "value": "None"},
+            {"name": "crashtracking_started", "origin": "unknown", "value": sys.platform == "linux"},
+            {"name": "crashtracking_stderr_filename", "origin": "unknown", "value": "None"},
+            {"name": "crashtracking_stdout_filename", "origin": "unknown", "value": "None"},
             {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
             {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
             {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
