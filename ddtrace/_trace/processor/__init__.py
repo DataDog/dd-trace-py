@@ -24,6 +24,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BaseSampler
@@ -292,7 +293,7 @@ class SpanAggregator(SpanProcessor):
             #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
                 log_msg = "finished span not connected to a trace"
-                telemetry.telemetry_writer.add_log("ERROR", log_msg)
+                telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, log_msg)
                 log.debug("%s: %s", log_msg, span)
                 return
 
@@ -316,7 +317,7 @@ class SpanAggregator(SpanProcessor):
                 trace.num_finished -= num_finished
                 if trace.num_finished != 0:
                     log_msg = "unexpected finished span count"
-                    telemetry.telemetry_writer.add_log("ERROR", log_msg)
+                    telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, log_msg)
                     log.debug("%s (%s) for span %s", log_msg, num_finished, span)
                     trace.num_finished = 0
 
