@@ -173,7 +173,7 @@ class ProfilingConfig(En):
     timeline_enabled = En.v(
         bool,
         "timeline_enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Whether to add timestamp information to captured samples.  Adds a small amount of "
         "overhead to the profiler, but enables the use of the Timeline view in the UI.",
@@ -281,7 +281,7 @@ class ProfilingConfig(En):
         _libdd_enabled = En.v(
             bool,
             "libdd_enabled",
-            default=False,
+            default=True,
             help_type="Boolean",
             help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
         )
