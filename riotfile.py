@@ -2500,6 +2500,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
+                        "anthropic": latest,
                     }
                 ),
             ],

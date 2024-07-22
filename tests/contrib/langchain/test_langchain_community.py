@@ -19,6 +19,16 @@ pytestmark = pytest.mark.skipif(
     reason="This module only tests langchain >= 0.1 and Python 3.10+",
 )
 
+IGNORE_FIELDS = [
+    "resources",
+    "meta.openai.request.logprobs",  # langchain-openai llm call now includes logprobs as param
+    "meta.error.stack",
+    "meta.http.useragent",
+    "meta.langchain.request.openai.parameters.seed",  # langchain-openai llm call now includes seed as param
+    "meta.langchain.request.openai.parameters.logprobs",  # langchain-openai llm call now includes seed as param
+    "metrics.langchain.tokens.total_cost",  # total_cost depends on if tiktoken is installed
+]
+
 
 @pytest.fixture(scope="session")
 def request_vcr():
@@ -76,14 +86,14 @@ def test_global_tags(
         )
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync.yaml"):
         llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
@@ -96,14 +106,14 @@ def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_v
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_openai_llm_async(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_async.yaml"):
         await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI(streaming=True)
     with request_vcr.use_cassette("openai_completion_sync_stream.yaml"):
@@ -111,14 +121,14 @@ def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI(streaming=True)
     with request_vcr.use_cassette("openai_completion_async_stream.yaml"):
         await llm.agenerate(["Why is Spongebob so bad at driving?"])
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "resource"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_llm_error(langchain, langchain_openai, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
@@ -218,14 +228,14 @@ def test_llm_logs(
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_sync_call_langchain_openai(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
         chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_sync_generate(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_generate.yaml"):
@@ -246,7 +256,7 @@ def test_openai_chat_model_sync_generate(langchain, langchain_openai, request_vc
 
 
 @flaky(1735812000)
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
     """
     Test that input messages with nested contents are still tagged without error
@@ -276,7 +286,7 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_openai_chat_model_async_call(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_call.yaml"):
@@ -284,7 +294,7 @@ async def test_openai_chat_model_async_call(langchain, langchain_openai, request
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_openai_chat_model_async_generate(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_generate.yaml"):
@@ -305,8 +315,7 @@ async def test_openai_chat_model_async_generate(langchain, langchain_openai, req
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream", ignores=IGNORE_FIELDS,
 )
 def test_openai_chat_model_sync_stream(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
@@ -316,8 +325,7 @@ def test_openai_chat_model_sync_stream(langchain, langchain_openai, request_vcr)
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream", ignores=IGNORE_FIELDS,
 )
 async def test_openai_chat_model_async_stream(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
@@ -490,7 +498,7 @@ def test_embedding_logs(langchain_openai, ddtrace_config_langchain, request_vcr,
 
 
 @flaky(1735812000)
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
@@ -503,8 +511,7 @@ def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
 
 @flaky(1735812000)
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke", ignores=IGNORE_FIELDS,
 )
 def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
@@ -515,8 +522,7 @@ def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke", ignores=IGNORE_FIELDS,
 )
 def test_chain_invoke_str_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
@@ -527,7 +533,7 @@ def test_chain_invoke_str_input(langchain, langchain_openai, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_openai_math_chain_async(langchain, langchain_openai, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
@@ -552,7 +558,7 @@ def test_cohere_math_chain_sync(langchain, langchain_cohere, request_vcr):
 
 
 @flaky(1735812000)
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_sequential_chain(langchain, langchain_openai, request_vcr):
     """
     Test that using a SequentialChain will result in a 4-span trace with
@@ -606,7 +612,7 @@ def test_openai_sequential_chain(langchain, langchain_openai, request_vcr):
 
 
 @flaky(1735812000)
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_sequential_chain_with_multiple_llm_sync(langchain, langchain_openai, request_vcr):
     template = """Paraphrase this text:
 
@@ -646,7 +652,7 @@ def test_openai_sequential_chain_with_multiple_llm_sync(langchain, langchain_ope
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langchain_openai, request_vcr):
     template = """Paraphrase this text:
 
@@ -817,11 +823,7 @@ def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot(
-    ignores=[
-        "metrics.langchain.tokens.total_cost",
-        "meta.langchain.response.outputs.input_documents",
-        "meta.langchain.request.inputs.input_documents",
-    ]
+    ignores=IGNORE_FIELDS + ["meta.langchain.response.outputs.input_documents", "meta.langchain.request.inputs.input_documents"]
 )
 def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
     """
@@ -940,7 +942,7 @@ def test_vectorstore_logs(
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "meta.http.useragent", "resource"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
@@ -970,7 +972,7 @@ with get_request_vcr(subdirectory_name="langchain_community").use_cassette("open
     assert err == b""
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent", "metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
 def test_openai_service_name(
@@ -1126,7 +1128,7 @@ def test_embedding_logs_when_response_not_completed(
     )
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
@@ -1139,7 +1141,7 @@ def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
 
 
 @flaky(1735812000)
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template(
         "Tell me a short joke about {topic} in the style of {style}"
@@ -1169,7 +1171,7 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
@@ -1182,7 +1184,7 @@ async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request
 
 
 @flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 test")
 def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     """
@@ -1199,7 +1201,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
 
 
 @flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="Python 3.11+ required")
 def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
     """
@@ -1215,7 +1217,7 @@ def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
         chain.batch(inputs=["chickens", "pigs"])
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a nested chain will result in a 4-span trace with a root
@@ -1240,7 +1242,7 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
 
 @flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
