@@ -629,6 +629,14 @@ The following environment variables for the tracer are supported:
       version_added:
          v2.3.0:
 
+   DD_BOTOCORE_SERVICE:
+      type: String
+      default: "aws"
+      description: |
+         Set the service name, allowing default service name overrides for traces in botocore.
+      version_added:
+         v2.11.0:
+
    DD_BOTOCORE_PROPAGATION_ENABLED:
       type: Boolean
       default: False
