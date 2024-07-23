@@ -21,8 +21,9 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 
-from .base import BaseLLMIntegration
 from ..utils import Document
+from .base import BaseLLMIntegration
+
 
 log = get_logger(__name__)
 
@@ -61,7 +62,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
         if operation not in SUPPORTED_OPERATIONS:
-            log.warning("Unsupported operation : %s" % operation)
+            log.warning("Unsupported operation : %s", operation)
             return
 
         model_provider = span.get_tag(PROVIDER)
@@ -218,6 +219,8 @@ class LangChainIntegration(BaseLLMIntegration):
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
         output_tag_key = OUTPUT_VALUE
 
+        output_documents = []
+
         try:
             if isinstance(input_texts, str) or (
                 isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)
@@ -241,8 +244,8 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(output_tag_key, "")
         elif output_embedding is not None:
             if not isinstance(output_embedding[0], list):
-                output_embedding = [output_embedding]
-            embedding_dim = len(output_embedding[0])
+                output_documents = [output_embedding]
+            embedding_dim = len(output_documents[0])
             span.set_tag_str(
                 output_tag_key, "[{} embedding(s) returned with size {}]".format(len(output_embedding), embedding_dim)
             )
