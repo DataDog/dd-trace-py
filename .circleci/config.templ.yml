@@ -1271,6 +1271,15 @@ jobs:
           snapshot: true
           docker_services: 'kafka'
 
+  kafka_python_ng:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'kafka_python_ng'
+          snapshot: true
+          docker_services: 'kafka'
+
   kombu:
     <<: *contrib_job
     docker:
