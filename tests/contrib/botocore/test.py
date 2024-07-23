@@ -418,6 +418,37 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("component") == "botocore"
 
     @mock_s3
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_SERVICE="botocore"))
+    def test_service_name_override(self):
+        s3 = self.session.create_client("s3", region_name="us-west-2")
+        Pin.get_from(s3).clone(tracer=self.tracer).onto(s3)
+
+        params = {
+            "Bucket": "mybucket",
+            "CreateBucketConfiguration": {
+                "LocationConstraint": "us-west-2",
+            },
+        }
+        s3.create_bucket(**params)
+        params = dict(Key="foo", Bucket="mybucket", Body=b"bar")
+        s3.put_object(**params)
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.service == "botocore.s3", "Expected 'botocore.s3' but got {}".format(span.service)
+
+        cfg = config.botocore
+        cfg["service"] = "boto-service"
+
+        s3.list_buckets()
+        spans = self.get_spans()
+        assert spans
+        span = spans[-1]
+
+        assert span.service == "boto-service.s3", "Expected 'boto-service.s3' but got {}".format(span.service)
+
+    @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_s3_client_default(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
