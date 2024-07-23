@@ -60,15 +60,14 @@ PYBIND11_MODULE(_native, m)
 {
     const char* env_iast_enabled = std::getenv("DD_IAST_ENABLED");
     if (env_iast_enabled == nullptr) {
-        py::module::import("logging").attr("warning")("IAST not enabled");
-    }
-    else
-    {
+        py::module::import("logging").attr("warning")("IAST not enabled but native module is being loaded");
+    } else {
         std::string iast_enabled = std::string(env_iast_enabled);
-        std::transform(
-          iast_enabled.begin(), iast_enabled.end(), iast_enabled.begin(), [](unsigned char c) { return std::tolower(c); });
+        std::transform(iast_enabled.begin(), iast_enabled.end(), iast_enabled.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
         if (iast_enabled != "true" && iast_enabled != "1") {
-            py::module::import("logging").attr("warning")("IAST not enabled");
+            py::module::import("logging").attr("warning")("IAST not enabled but native module is being loaded");
         }
     }
 
