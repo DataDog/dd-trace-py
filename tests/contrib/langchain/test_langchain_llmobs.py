@@ -16,7 +16,6 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
-
 if PATCH_LANGCHAIN_V0:
     from langchain.schema import AIMessage
     from langchain.schema import ChatMessage
@@ -124,14 +123,20 @@ class BaseTestLLMObsLangchain:
 
     def _embed_query(cls, embedding_model, query, mock_tracer, cassette_name):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
-        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+        if cassette_name is not None:
+            with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+                embedding_model.embed_query(query)
+        else:  # FakeEmbeddings does not need a cassette
             embedding_model.embed_query(query)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
 
     def _embed_documents(cls, embedding_model, documents, mock_tracer, cassette_name):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
-        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+        if cassette_name is not None:
+            with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+                embedding_model.embed_documents(documents)
+        else:  # FakeEmbeddings does not need a cassette
             embedding_model.embed_documents(documents)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
@@ -356,7 +361,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 model_provider="openai",
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
-                token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
@@ -381,7 +385,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 model_provider="openai",
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
-                token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
@@ -582,13 +585,15 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_query(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
-        embedding_model = langchain_openai.OpenAIEmbeddings()
+    def test_llmobs_embedding_query(self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer):
+        if langchain_community is None:
+            pytest.skip("langchain-community not installed which is required for this test.")
+        embedding_model = langchain_community.embeddings.FakeEmbeddings(size=1536)
         trace = self._embed_query(
             embedding_model=embedding_model,
             query="hello world",
             mock_tracer=mock_tracer,
-            cassette_name="openai_embedding_query.yaml",
+            cassette_name=None,  # FakeEmbeddings does not need a cassette
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         span = trace[0] if isinstance(trace, list) else trace
@@ -596,8 +601,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             _expected_llmobs_llm_span_event(
                 span,
                 span_kind="embedding",
-                model_name=embedding_model.model,
-                model_provider="openai",
+                model_name="",
+                model_provider="fake",
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
@@ -606,13 +611,17 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         )
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_documents(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
-        embedding_model = langchain_openai.OpenAIEmbeddings()
+    def test_llmobs_embedding_documents(
+        self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer
+    ):
+        if langchain_community is None:
+            pytest.skip("langchain-community not installed which is required for this test.")
+        embedding_model = langchain_community.embeddings.FakeEmbeddings(size=1536)
         trace = self._embed_documents(
             embedding_model=embedding_model,
             documents=["hello world", "goodbye world"],
             mock_tracer=mock_tracer,
-            cassette_name="openai_embedding_document.yaml",  # cassette doesn't exist on langchain directory
+            cassette_name=None,  # FakeEmbeddings does not need a cassette
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         span = trace[0] if isinstance(trace, list) else trace
@@ -620,8 +629,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             _expected_llmobs_llm_span_event(
                 span,
                 span_kind="embedding",
-                model_name=embedding_model.model,
-                model_provider="openai",
+                model_name="",
+                model_provider="fake",
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},

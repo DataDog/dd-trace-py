@@ -219,7 +219,8 @@ class LangChainIntegration(BaseLLMIntegration):
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
         output_tag_key = OUTPUT_VALUE
 
-        output_documents = []
+        output_values = []
+        embeddings_count = 0
 
         try:
             if isinstance(input_texts, str) or (
@@ -243,12 +244,22 @@ class LangChainIntegration(BaseLLMIntegration):
         if error:
             span.set_tag_str(output_tag_key, "")
         elif output_embedding is not None:
-            if not isinstance(output_embedding[0], list):
-                output_documents = [output_embedding]
-            embedding_dim = len(output_documents[0])
-            span.set_tag_str(
-                output_tag_key, "[{} embedding(s) returned with size {}]".format(len(output_embedding), embedding_dim)
-            )
+            try:
+                if isinstance(output_embedding[0], float):
+                    # single embedding through embed_query
+                    output_values = [output_embedding]
+                    embeddings_count = 1
+                else:
+                    # multiple embeddings through embed_documents
+                    output_values = output_embedding
+                    embeddings_count = len(output_embedding)
+                embedding_dim = len(output_values[0])
+                span.set_tag_str(
+                    output_tag_key,
+                    "[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
+                )
+            except (TypeError, IndexError):
+                log.warning("Failed to write output vectors", output_embedding)
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
