@@ -117,6 +117,8 @@ def send_telemetry(event):
     )
     p.stdin.write(event_json)
     p.stdin.close()
+    _log("writing telemetry %s" % event_json, level="debug")
+
     _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
 
 
