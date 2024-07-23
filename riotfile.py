@@ -2621,7 +2621,7 @@ venv = Venv(
                         "botocore": "==1.34.51",
                         "boto3": "==1.34.51",
                         "cohere": latest,
-                        "anthropic": latest,
+                        "anthropic": "==0.26.0",
                     },
                     pys=select_pys(min_version="3.9"),
                 ),
