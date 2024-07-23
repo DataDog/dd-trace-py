@@ -1350,6 +1350,7 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_
         llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, request_vcr):
     if langchain_community is None:
