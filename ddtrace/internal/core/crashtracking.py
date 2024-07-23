@@ -19,6 +19,11 @@ def _update_runtime_id(runtime_id: str) -> None:
     crashtracker.set_runtime_id(runtime_id)
 
 
+def add_tag(key: str, value: str) -> None:
+    if is_available:
+        crashtracker.set_tag(key, value)
+
+
 def start() -> bool:
     if not is_available:
         return False
@@ -43,6 +48,10 @@ def start() -> bool:
         crashtracker.set_stdout_filename(crashtracker_config.stdout_filename)
     if crashtracker_config.stderr_filename:
         crashtracker.set_stderr_filename(crashtracker_config.stderr_filename)
+
+    # Add user tags
+    for key, value in crashtracker_config.tags.items():
+        add_tag(key, value)
 
     # Only start if it is enabled
     if crashtracker_config.enabled:
