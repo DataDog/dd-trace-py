@@ -1,6 +1,6 @@
-from ddtrace.contrib.kafka.patch import get_version
-from ddtrace.contrib.kafka.patch import patch
-from ddtrace.contrib.kafka.patch import unpatch
+from ddtrace.contrib.kafka_python_ng.patch import get_version
+from ddtrace.contrib.kafka_python_ng.patch import patch
+from ddtrace.contrib.kafka_python_ng.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
