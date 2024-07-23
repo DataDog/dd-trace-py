@@ -2,6 +2,8 @@ import typing as t
 
 from envier import En
 
+from ddtrace.internal.utils.formats import parse_tags_str
+
 
 def _derive_stacktrace_resolver(config: "CrashtrackerConfig") -> t.Optional[str]:
     resolver = str(config._stacktrace_resolver or "")
@@ -41,8 +43,8 @@ class CrashtrackerConfig(En):
         "debug_url",
         default=None,
         help_type="String",
-        help="Overrides the URL parameter set by the ddtrace library.  This is for testing and debugging purposes"
-        " and is not generally useful for end-users.",
+        help="Overrides the URL parameter set by the ddtrace library. "
+        "This is generally useful only for dd-trace-py development.",
     )
 
     stdout_filename = En.v(
@@ -66,7 +68,8 @@ class CrashtrackerConfig(En):
         "alt_stack",
         default=False,
         help_type="Boolean",
-        help="Whether to use an alternate stack for the crashtracker.  This is used for internal development.",
+        help="Whether to use an alternate stack for the crashtracker."
+        "This is generally useful only for dd-trace-py development.",
     )
 
     _stacktrace_resolver = En.v(
@@ -78,6 +81,16 @@ class CrashtrackerConfig(En):
         " 'safe', and 'full'.  The default value is 'none' (no stack traces).",
     )
     stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)
+
+    tags = En.v(
+        dict,
+        "tags",
+        parser=parse_tags_str,
+        default={},
+        help_type="Mapping",
+        help="Additional crashtracking tags. Must be a list in the ``key1:value,key2:value2`` format. "
+        "This is generally useful only for dd-trace-py development.",
+    )
 
 
 config = CrashtrackerConfig()
