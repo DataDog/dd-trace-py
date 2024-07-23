@@ -1,4 +1,5 @@
 import os
+import sys
 
 import kafka
 
@@ -22,9 +23,9 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator as Propagator
+
 
 _KafkaProducer = kafka.KafkaProducer
 _KafkaConsumer = kafka.KafkaConsumer
@@ -183,7 +184,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     first_message = None
     try:
         first_message = next(iter(messages.values()))[0]
-    except:
+    except AttributeError:
         pass
     if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers:
         ctx = Propagator.extract(dict(first_message.headers))
@@ -209,12 +210,16 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if first_message is not None:
             message_key = first_message.key or ""
+            span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
+
             message_offset = first_message.offset or -1
+            span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
+
             span.set_tag_str(kafkax.TOPIC, first_message.topic)
             span.set_tag(kafkax.PARTITION, first_message.partition)
             is_tombstone = len(first_message) == 0
             span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
-            span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
+
         span.set_tag(SPAN_MEASURED_KEY)
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
