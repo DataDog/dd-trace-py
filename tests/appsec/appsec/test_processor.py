@@ -4,7 +4,6 @@ import os.path
 
 import mock
 import pytest
-from six import ensure_binary
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
@@ -373,8 +372,8 @@ def test_ddwaf_not_raises_exception():
         rules_json = json.loads(rules.read())
         DDWaf(
             rules_json,
-            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP),
-            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP),
+            DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
+            DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
         )
 
 

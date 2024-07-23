@@ -1,4 +1,5 @@
 import os
+import sys
 import sysconfig
 import time
 from typing import Any  # noqa:F401
@@ -72,7 +73,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
                     {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
                     {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
+                    {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": True},
@@ -128,6 +129,14 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "profiling_enabled", "origin": "default", "value": "false"},
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
+                    {"name": "crashtracking_alt_stack", "origin": "unknown", "value": False},
+                    {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
+                    {"name": "crashtracking_debug_url", "origin": "unknown", "value": "None"},
+                    {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
+                    {"name": "crashtracking_stacktrace_resolver", "origin": "unknown", "value": "None"},
+                    {"name": "crashtracking_started", "origin": "unknown", "value": False},
+                    {"name": "crashtracking_stderr_filename", "origin": "unknown", "value": "None"},
+                    {"name": "crashtracking_stdout_filename", "origin": "unknown", "value": "None"},
                     {
                         "name": "python_build_gnu_type",
                         "origin": "unknown",
@@ -189,7 +198,7 @@ import ddtrace.auto
 
     env = os.environ.copy()
     # Change configuration default values
-    env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "True"
+    env["DD_EXCEPTION_REPLAY_ENABLED"] = "True"
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
     env["DD_TRACE_STARTUP_LOGS"] = "True"
     env["DD_LOGS_INJECTION"] = "True"
@@ -260,8 +269,8 @@ import ddtrace.auto
             {"name": env_var, "origin": "env_var", "value": expected_value},
             {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
             {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
-            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": False},
@@ -310,6 +319,14 @@ import ddtrace.auto
             {"name": "profiling_enabled", "origin": "env_var", "value": "true"},
             {"name": "data_streams_enabled", "origin": "env_var", "value": "true"},
             {"name": "appsec_enabled", "origin": "env_var", "value": "true"},
+            {"name": "crashtracking_alt_stack", "origin": "unknown", "value": False},
+            {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
+            {"name": "crashtracking_debug_url", "origin": "unknown", "value": "None"},
+            {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
+            {"name": "crashtracking_stacktrace_resolver", "origin": "unknown", "value": "None"},
+            {"name": "crashtracking_started", "origin": "unknown", "value": sys.platform == "linux"},
+            {"name": "crashtracking_stderr_filename", "origin": "unknown", "value": "None"},
+            {"name": "crashtracking_stdout_filename", "origin": "unknown", "value": "None"},
             {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
             {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
             {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},

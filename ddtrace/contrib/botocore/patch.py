@@ -31,6 +31,7 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
+from ..trace_utils import ext_service
 from ..trace_utils import unwrap
 from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call
@@ -62,6 +63,7 @@ log = get_logger(__name__)
 config._add(
     "botocore",
     {
+        "_default_service": os.getenv("DD_BOTOCORE_SERVICE", default="aws"),
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
@@ -87,9 +89,9 @@ def patch():
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
-    Pin(service="aws").onto(botocore.client.BaseClient)
+    Pin().onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
-    Pin(service="aws").onto(botocore.parsers.ResponseParser)
+    Pin().onto(botocore.parsers.ResponseParser)
     _PATCHED_SUBMODULES.clear()
 
 
@@ -202,7 +204,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         params=params,
         endpoint_name=endpoint_name,
         operation=operation,
-        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        service=schematize_service_name("{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)),
         pin=pin,
         span_name=function_vars.get("trace_operation"),
         span_type=SpanTypes.HTTP,
