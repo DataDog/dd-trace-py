@@ -20,12 +20,7 @@ if __name__ == "__main__":
     if (3, 6, 0) <= sys.version_info < (3, 12) and system() != "Windows" and mac_supported_iast_version():
         # ASM IAST import error test
         import_error = False
-        try:
-            from ddtrace.appsec._iast._taint_tracking._native import ops
-        except ImportError:
-            import_error = True
-
-        assert import_error
+        from ddtrace.appsec._iast._taint_tracking._native import ops
         assert "ddtrace.appsec._iast._taint_tracking._native.ops" not in sys.modules
 
         os.environ["DD_IAST_ENABLED"] = "True"
