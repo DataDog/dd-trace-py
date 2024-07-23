@@ -2530,7 +2530,8 @@ venv = Venv(
                         "botocore": latest,
                         "langchain-aws": latest,
                         "cohere": latest,
-                    }
+                        "anthropic": latest,
+                    },
                 ),
             ],
         ),
