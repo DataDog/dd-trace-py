@@ -230,6 +230,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
 
     def _set_keep_rate(self, trace):
+        # Only triggered if trace is Span type
+        # LLMObsSpanEvent type from LLMObsSpanAgentWriter doesn't have set_metric
         if trace and isinstance(trace[0], Span):
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
