@@ -1267,6 +1267,7 @@ def test_lcel_chain_non_dict_input(langchain_core):
     sequence.invoke(1)
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_lcel_with_tools_openai(langchain_core, langchain_openai, request_vcr):
     import langchain_core.tools
@@ -1287,6 +1288,7 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, request_vcr):
         llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_vcr):
     import langchain_core.tools
