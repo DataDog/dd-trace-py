@@ -17,7 +17,10 @@ from pathlib import Path
 import typing as t
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.logger import get_logger
 
+
+log = get_logger(__name__)
 
 BaseProcess = multiprocessing.process.BaseProcess
 base_process_bootstrap = BaseProcess._bootstrap  # type: ignore[attr-defined]
@@ -39,9 +42,17 @@ class CoverageCollectingMultiprocess(BaseProcess):
         if ModuleCodeCollector._instance is None:
             return
 
-        rcvd = self._parent_conn.recv()
-        if rcvd:
-            ModuleCodeCollector.absorb_data_json(rcvd)
+        try:
+            if self._parent_conn.poll():
+                rcvd = self._parent_conn.recv()
+                if rcvd:
+                    ModuleCodeCollector.absorb_data_json(rcvd)
+                else:
+                    log.warning("Child process sent empty coverage data")
+            else:
+                log.warning("Child process did not send coverage data")
+        except Exception:
+            log.warning("Failed to absorb child coverage data", exc_info=True)
 
     def _bootstrap(self, *args, **kwargs):
         """Wraps around the execution of the process to collect coverage data
@@ -61,7 +72,10 @@ class CoverageCollectingMultiprocess(BaseProcess):
         # Call the original bootstrap method
         rval = base_process_bootstrap(self, *args, **kwargs)
 
-        self._child_conn.send(ModuleCodeCollector.get_data_json())
+        try:
+            self._child_conn.send(ModuleCodeCollector.get_data_json())
+        except Exception:
+            log.warning("Failed to send coverage data to parent process", exc_info=True)
 
         return rval
 
