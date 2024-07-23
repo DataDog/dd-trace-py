@@ -347,9 +347,10 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             cassette_name="openai_embedding_query.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
+        span = trace[0] if isinstance(trace, list) else trace
         mock_llmobs_span_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
-                trace[0],
+                span,
                 span_kind="embedding",
                 model_name=embedding_model.model,
                 model_provider="openai",
@@ -371,9 +372,10 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             cassette_name="openai_embedding_document.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
+        span = trace[0] if isinstance(trace, list) else trace
         mock_llmobs_span_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
-                trace[0],
+                span,
                 span_kind="embedding",
                 model_name=embedding_model.model,
                 model_provider="openai",
@@ -589,9 +591,10 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             cassette_name="openai_embedding_query.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
+        span = trace[0] if isinstance(trace, list) else trace
         mock_llmobs_span_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
-                trace[0],
+                span,
                 span_kind="embedding",
                 model_name=embedding_model.model,
                 model_provider="openai",
@@ -612,9 +615,10 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             cassette_name="openai_embedding_document.yaml",  # cassette doesn't exist on langchain directory
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
+        span = trace[0] if isinstance(trace, list) else trace
         mock_llmobs_span_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
-                trace[0],
+                span,
                 span_kind="embedding",
                 model_name=embedding_model.model,
                 model_provider="openai",
