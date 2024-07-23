@@ -58,21 +58,17 @@ static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
  */
 PYBIND11_MODULE(_native, m)
 {
-    auto log_module = py::module::import("logging");
-    if (log_module)
+    const char* env_iast_enabled = std::getenv("DD_IAST_ENABLED");
+    if (env_iast_enabled == nullptr) {
+        py::module::import("logging").attr("warning")("IAST not enabled");
+    }
+    else
     {
-        const char* env_iast_enabled = std::getenv("DD_IAST_ENABLED");
-        if (env_iast_enabled == nullptr) {
-            log_module.attr("warning")("IAST not enabled");
-        }
-        else
-        {
-            std::string iast_enabled = std::string(env_iast_enabled);
-            std::transform(
-              iast_enabled.begin(), iast_enabled.end(), iast_enabled.begin(), [](unsigned char c) { return std::tolower(c); });
-            if (iast_enabled != "true" && iast_enabled != "1") {
-                log_module.attr("warning")("IAST not enabled");
-            }
+        std::string iast_enabled = std::string(env_iast_enabled);
+        std::transform(
+          iast_enabled.begin(), iast_enabled.end(), iast_enabled.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (iast_enabled != "true" && iast_enabled != "1") {
+            py::module::import("logging").attr("warning")("IAST not enabled");
         }
     }
 
