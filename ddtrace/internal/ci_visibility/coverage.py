@@ -1,6 +1,7 @@
 from itertools import groupby
 import json
 import os
+from pathlib import Path
 from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
 from typing import List  # noqa:F401
@@ -62,7 +63,19 @@ def _initialize_coverage(root_dir):
 def _start_coverage(root_dir: str):
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
-        return ModuleCodeCollector.CollectInContext()
+        collector = ModuleCodeCollector.CollectInContext()
+        from pathlib import Path
+
+        from ddtrace.ext.git import extract_workspace_path
+
+        try:
+            workspace_path = Path(extract_workspace_path())
+        except ValueError:
+            workspace_path = Path(os.getcwd())
+
+        setattr(collector, "_workspace_path", workspace_path)
+        return collector
+
     coverage = _initialize_coverage(root_dir)
     coverage.start()
     return coverage
@@ -125,15 +138,8 @@ def _report_coverage_to_span(
     if USE_DD_COVERAGE:
         if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):
             # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
-            from pathlib import Path
 
-            from ddtrace.ext.git import extract_workspace_path
-
-            try:
-                workspace_path = Path(extract_workspace_path())
-            except ValueError:
-                workspace_path = Path(os.getcwd())
-
+            workspace_path = getattr(coverage_data, "_workspace_path", Path("/"))
             files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=True)
             if not files:
                 return
