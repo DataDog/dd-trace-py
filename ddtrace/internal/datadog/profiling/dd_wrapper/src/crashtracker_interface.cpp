@@ -112,6 +112,12 @@ crashtracker_set_receiver_binary_path(std::string_view path) // cppcheck-suppres
     return crashtracker.set_receiver_binary_path(path);
 }
 
+void
+crashtracker_set_tag(std::string_view key, std::string_view value) // cppcheck-suppress unusedFunction
+{
+    crashtracker.set_tag(key, value);
+}
+
 // Store the old segfault handler (uses sigaction prototype)
 void (*old_sigsegv_handler)(int, siginfo_t*, void*) = nullptr;
 void (*old_sigbus_handler)(int, siginfo_t*, void*) = nullptr;
@@ -208,4 +214,10 @@ crashtracker_profiling_state_serializing_stop() // cppcheck-suppress unusedFunct
     if (crashtracker_initialized) {
         crashtracker.serializing_stop();
     }
+}
+
+bool
+crashtracker_is_started() // cppcheck-suppress unusedFunction
+{
+    return crashtracker_initialized;
 }

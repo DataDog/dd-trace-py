@@ -37,15 +37,15 @@ Datadog::Crashtracker::set_runtime(std::string_view _runtime)
 }
 
 void
-Datadog::Crashtracker::set_runtime_version(std::string_view _runtime_version)
-{
-    runtime_version = std::string(_runtime_version);
-}
-
-void
 Datadog::Crashtracker::set_runtime_id(std::string_view _runtime_id)
 {
     runtime_id = std::string(_runtime_id);
+}
+
+void
+Datadog::Crashtracker::set_runtime_version(std::string_view _runtime_version)
+{
+    runtime_version = std::string(_runtime_version);
 }
 
 void
@@ -84,6 +84,16 @@ void
 Datadog::Crashtracker::set_library_version(std::string_view _library_version)
 {
     library_version = std::string(_library_version);
+}
+
+void
+Datadog::Crashtracker::set_tag(std::string_view key, std::string_view value)
+{
+    // Maybe this should be called "add tag," but the interface to the uploader is already called "set_tag"
+    // and we have another refactor incoming anyway, so let's just kick the can for now
+    if (!key.empty() && !value.empty()) {
+        user_tags[std::string(key)] = std::string(value);
+    }
 }
 
 bool
@@ -147,10 +157,19 @@ Datadog::Crashtracker::get_tags()
         { ExportTagKey::library_version, library_version },
     };
 
+    // Add system tags
     std::string errmsg; // Populated, but unused
-    for (const auto& [tag, data] : tag_data) {
-        if (!data.empty()) {
-            add_tag(tags, tag, data, errmsg); // We don't have a good way of handling errors here
+    for (const auto& [key, value] : tag_data) {
+        // NB - keys here are members of an enum; `add_tag()` specialization below will stringify them
+        if (!value.empty()) {
+            add_tag(tags, key, value, errmsg); // We don't have a good way of handling errors here
+        }
+    }
+
+    // Add user tags
+    for (const auto& [key, value] : user_tags) {
+        if (!key.empty() && !value.empty()) {
+            add_tag(tags, key, value, errmsg);
         }
     }
 
