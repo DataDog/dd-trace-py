@@ -321,16 +321,14 @@ def _inject():
                 )
                 send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
-                raise e
                 return
     else:
         _log(
             "user-installed ddtrace found: %s, aborting site-packages injection" % ddtrace.__version__, level="warning"
         )
 
-    # try:
+
+try:
     _inject()
-
-
-# except Exception:
-#     pass  # absolutely never allow exceptions to propagate to the app
+except Exception:
+    pass  # absolutely never allow exceptions to propagate to the app
