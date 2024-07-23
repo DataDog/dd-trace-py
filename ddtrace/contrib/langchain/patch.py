@@ -427,10 +427,10 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                                     % (message_set_idx, idx, tool_call_idx, arg_name),
                                     integration.trunc(str(arg_value)),
                                 )
-                    span.set_tag_str(
-                        "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
-                        chat_completion.message.__class__.__name__,
-                    )
+                span.set_tag_str(
+                    "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
+                    chat_completion.message.__class__.__name__,
+                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -557,10 +557,10 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                                     % (message_set_idx, idx, tool_call_idx, arg_name),
                                     integration.trunc(str(arg_value)),
                                 )
-                    span.set_tag_str(
-                        "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
-                        chat_completion.message.__class__.__name__,
-                    )
+                span.set_tag_str(
+                    "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
+                    chat_completion.message.__class__.__name__,
+                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
