@@ -2716,7 +2716,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="kafka-python-ng",
+            name="kafka_python_ng",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/kafka_python_ng",
             pkgs={
