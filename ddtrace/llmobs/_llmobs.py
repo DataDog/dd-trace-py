@@ -69,23 +69,26 @@ class LLMObs(Service):
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
+        self._llmobs_span_writer = None
+        self._configure_span_writer()
 
-        self._llmobs_span_writer = (
-            LLMObsSpanWriter(
+        self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
+            site=config._dd_site,
+            api_key=config._dd_api_key,
+            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+        )
+
+    def _configure_span_writer(self):
+        if asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED")):
+            self._llmobs_span_writer = LLMObsSpanWriter(
                 site=config._dd_site,
                 api_key=config._dd_api_key,
                 interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
                 timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             )
-            if asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED"))
-            else LLMObsSpanAgentWriter(
-                interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-                timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
-            )
-        )
-        self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-            site=config._dd_site,
-            api_key=config._dd_api_key,
+            return
+        self._llmobs_span_writer = LLMObsSpanAgentWriter(
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )

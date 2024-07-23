@@ -1,4 +1,5 @@
 import json
+import os
 
 import mock
 import pytest
@@ -83,6 +84,7 @@ def test_service_enable_with_apm_disabled(monkeypatch):
         assert run_llmobs_trace_filter(dummy_tracer) is None
 
         llmobs_service.disable()
+        os.environ.pop("DD_LLMOBS_AGENTLESS_ENABLED", None)
 
 
 def test_service_disable():
