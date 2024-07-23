@@ -2716,6 +2716,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="kafka-python-ng",
+            pys=select_pys(min_version="3.7"),
+            command="pytest {cmdargs} tests/contrib/kafka_python_ng",
+            pkgs={
+                "pytest-randomly": latest,
+                "kafka-python-ng": [latest],
+            },
+        ),
+        Venv(
             name="aws_lambda",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.7", max_version="3.9"),
