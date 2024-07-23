@@ -37,7 +37,8 @@ pip_version = packaging.version.parse(out)
 if pip_version < MIN_PIP_VERSION:
     print(
         "WARNING: using known incompatible version, %r, of pip. The minimum compatible pip version is %r"
-        % (pip_version, MIN_PIP_VERSION)
+        % (pip_version, MIN_PIP_VERSION),
+        flush=True
     )
 
 # Supported Python versions lists all python versions that can install at least one version of the ddtrace library.
@@ -72,12 +73,12 @@ parser.add_argument("--verbose", action="store_true")
 args = parser.parse_args()
 
 dl_dir = args.output_dir
-print("saving wheels to %s" % dl_dir)
+print("saving wheels to %s" % dl_dir, flush=True)
 
 
 for python_version, platform in itertools.product(args.python_version, args.platform):
     for arch in args.arch:
-        print("Downloading %s %s %s wheel" % (python_version, arch, platform))
+        print("Downloading %s %s %s wheel" % (python_version, arch, platform), flush=True)
         abi = "cp%s" % python_version.replace(".", "")
         # Have to special-case these versions of Python for some reason.
         if python_version in ["2.7", "3.5", "3.6", "3.7"]:
@@ -113,7 +114,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             dl_dir,
         ]
         if args.verbose:
-            print(" ".join(cmd))
+            print(" ".join(cmd), flush=True)
 
         if not args.dry_run:
             subprocess.run(cmd, capture_output=not args.verbose, check=True)
@@ -121,7 +122,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
     wheel_files = [f for f in os.listdir(dl_dir) if f.endswith(".whl")]
     for whl in wheel_files:
         wheel_file = os.path.join(dl_dir, whl)
-        print("Unpacking %s" % wheel_file)
+        print("Unpacking %s" % wheel_file, flush=True)
         # -q for quieter output, else we get all the files being unzipped.
         subprocess.run(
             [
