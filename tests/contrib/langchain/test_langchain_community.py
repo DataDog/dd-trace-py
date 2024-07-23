@@ -315,7 +315,8 @@ async def test_openai_chat_model_async_generate(langchain, langchain_openai, req
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream", ignores=IGNORE_FIELDS,
+    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream",
+    ignores=IGNORE_FIELDS,
 )
 def test_openai_chat_model_sync_stream(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
@@ -325,7 +326,8 @@ def test_openai_chat_model_sync_stream(langchain, langchain_openai, request_vcr)
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream", ignores=IGNORE_FIELDS,
+    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream",
+    ignores=IGNORE_FIELDS,
 )
 async def test_openai_chat_model_async_stream(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
@@ -511,7 +513,8 @@ def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
 
 @flaky(1735812000)
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke", ignores=IGNORE_FIELDS,
+    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke",
+    ignores=IGNORE_FIELDS,
 )
 def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
@@ -522,7 +525,8 @@ def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke", ignores=IGNORE_FIELDS,
+    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke",
+    ignores=IGNORE_FIELDS,
 )
 def test_chain_invoke_str_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
@@ -823,7 +827,8 @@ def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot(
-    ignores=IGNORE_FIELDS + ["meta.langchain.response.outputs.input_documents", "meta.langchain.request.inputs.input_documents"]
+    ignores=IGNORE_FIELDS
+    + ["meta.langchain.response.outputs.input_documents", "meta.langchain.request.inputs.input_documents"]
 )
 def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
     """
