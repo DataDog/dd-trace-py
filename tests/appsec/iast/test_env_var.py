@@ -27,9 +27,6 @@ def test_env_var_iast_enabled(capfd):
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "IAST enabled" in captured.err
-    print("JJJ" + "=" * 80)
-    print(captured.err)
-    print("JJJ" + "=" * 80)
     assert "hi" in captured.out
 
 
@@ -39,9 +36,6 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
     env["DD_IAST_ENABLED"] = "false"
     _run_python_file(env=env)
     captured = capfd.readouterr()
-    print("JJJ" + "=" * 80)
-    print(captured.err)
-    print("JJJ" + "=" * 80)
     assert "hi" in captured.out
     assert "IAST enabled" not in captured.err
 
