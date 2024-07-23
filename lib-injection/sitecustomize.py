@@ -199,6 +199,10 @@ def _inject():
                 incompat_pkgs[package_name] = INSTALLED_PACKAGES[package_name]
                 if not FORCE_INJECT:
                     denylist_package = True
+                    _log(
+                        "Deny list integration detected %s" % package_name,
+                        level="debug",
+                    )
 
         if incompat_pkgs:
             integration_incomp = True
