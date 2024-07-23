@@ -107,6 +107,8 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             "--abi",
             abi,
             "--only-binary=:all:",
+            "--exists-action",
+            "i", #ignore redownloads of same wheel
             "--dest",
             dl_dir,
         ]
