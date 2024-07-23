@@ -182,8 +182,6 @@ def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation_dis
     import dis
     import io
 
-    import pytest
-
     from ddtrace import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
