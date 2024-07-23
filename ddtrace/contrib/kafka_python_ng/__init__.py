@@ -40,6 +40,7 @@ To configure the foo integration on an per-instance basis use the
     myfoo = foo.Foo()
     Pin.override(myfoo, service="myfoo")
 """
+
 from ...internal.utils.importlib import require_modules
 
 

@@ -70,6 +70,7 @@ class TracedKafkaConsumer(TracedKafkaConsumerMixin, kafka.KafkaConsumer):
 class TracedKafkaProducer(TracedKafkaProducerMixin, kafka.KafkaProducer):
     pass
 
+
 def patch():
     if getattr(kafka, "_datadog_patch", False):
         return
@@ -95,32 +96,33 @@ def unpatch():
     kafka.KafkaProducer = _KafkaProducer
     kafka.KafkaConsumer = _KafkaConsumer
 
+
 def traced_send(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    topic=get_argument_value(args,kwargs,0,"topic") or ""
+    topic = get_argument_value(args, kwargs, 0, "topic") or ""
     core.set_item("kafka_topic", topic)
     try:
-        value = get_argument_value(args, kwargs, 1,"value")
+        value = get_argument_value(args, kwargs, 1, "value")
     except ArgumentError:
         value = None
     message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
     with pin.tracer.trace(
-        schematize_messaging_operation(kafkax.PRODUCE,provider="kafka", direction=SpanDirection.OUTBOUND),
-        service=trace_utils.ext_service(pin,config.kafka),
+        schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
+        service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
-        core.dispatch("kafka.produce.start",(instance,args,kwargs,isinstance(instance,_KafkaProducer), span))
-        span.set_tag_str(MESSAGING_SYSTEM,kafkax.SERVICE)
-        span.set_tag_str(COMPONENT,config.kafka.integration_name)
-        span.set_tag_str(SPAN_KIND,SpanKind.PRODUCER)
-        span.set_tag_str(kafkax.TOPIC,topic)
-        span.set_tag_str(kafkax.MESSAGE_KEY,message_key)
-        span.set_tag(kafkax.PARTITION,partition)
+        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _KafkaProducer), span))
+        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
+        span.set_tag_str(COMPONENT, config.kafka.integration_name)
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        span.set_tag_str(kafkax.TOPIC, topic)
+        span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
+        span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         span.set_tag(SPAN_MEASURED_KEY)
         if instance._dd_bootstrap_servers is not None:
@@ -136,7 +138,8 @@ def traced_send(func, instance, args, kwargs):
             Propagator.inject(span.context, headers)
             args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers)
 
-        return func(*args,**kwargs)
+        return func(*args, **kwargs)
+
 
 def traced_poll(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
@@ -157,10 +160,11 @@ def traced_poll(func, instance, args, kwargs):
         if isinstance(result, dict):
             # poll returns  messages
             _instrument_message(result, pin, start_ns, instance, err)
-        #elif config.kafka.trace_empty_poll_enabled:
+        # elif config.kafka.trace_empty_poll_enabled:
         #    _instrument_message(None, pin, start_ns, instance, err)
 
     return result
+
 
 def traced_commit(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
@@ -170,6 +174,7 @@ def traced_commit(func, instance, args, kwargs):
     core.dispatch("kafka.commit.start", (instance, args, kwargs))
 
     return func(*args, **kwargs)
+
 
 def _instrument_message(messages, pin, start_ns, instance, err):
     ctx = None
@@ -183,11 +188,11 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers:
         ctx = Propagator.extract(dict(first_message.headers))
     with pin.tracer.start_span(
-            name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
-            service=trace_utils.ext_service(pin, config.kafka),
-            span_type=SpanTypes.WORKER,
-            child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
-            activate=True,
+        name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
+        service=trace_utils.ext_service(pin, config.kafka),
+        span_type=SpanTypes.WORKER,
+        child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
+        activate=True,
     ) as span:
         # reset span start time to before function call
         span.start_ns = start_ns
