@@ -108,6 +108,6 @@ with require_modules(required_modules) as missing_modules:
 
         patch = _patch.patch
         unpatch = _patch.unpatch
-        get_version = _patch.get_version
+        get_version = _patch._get_version
 
         __all__ = ["patch", "unpatch", "get_version"]
