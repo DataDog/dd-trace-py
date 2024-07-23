@@ -61,7 +61,7 @@ def test_env_var_iast_disabled_native_module_warning():
     import ddtrace.appsec._iast._taint_tracking._native  # noqa: F401
 
 
-@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="False"), err=None)
+@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="True"), err=None)
 def test_env_var_iast_enabled_no__native_module_warning():
     import ddtrace.appsec._iast._taint_tracking._native  # noqa: F401
 
