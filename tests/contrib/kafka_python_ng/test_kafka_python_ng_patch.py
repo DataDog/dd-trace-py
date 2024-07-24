@@ -12,13 +12,16 @@ class TestKafkaPythonNgPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, kafka):
-        self.assert_wrapped(kafka.KafkaProducer({}).produce)
-        self.assert_wrapped(kafka.KafkaConsumer({"group.id": "group_id"}).poll)
+        self.assert_wrapped(kafka.KafkaProducer.send)
+        self.assert_wrapped(kafka.KafkaConsumer.poll)
+        self.assert_wrapped(kafka.KafkaConsumer.commit)
 
     def assert_not_module_patched(self, kafka):
-        self.assert_not_wrapped(kafka.KafkaProducer({}).produce)
-        self.assert_not_wrapped(kafka.KafkaConsumer({"group.id": "group_id"}).poll)
+        self.assert_not_wrapped(kafka.KafkaProducer.send)
+        self.assert_not_wrapped(kafka.KafkaConsumer.poll)
+        self.assert_not_wrapped(kafka.KafkaConsumer.commit)
 
     def assert_not_module_double_patched(self, kafka):
-        self.assert_not_double_wrapped(kafka.KafkaProducer({}).produce)
-        self.assert_not_double_wrapped(kafka.KafkaConsumer({"group.id": "group_id"}).poll)
+        self.assert_not_double_wrapped(kafka.KafkaProducer.send)
+        self.assert_not_double_wrapped(kafka.KafkaConsumer.poll)
+        self.assert_not_double_wrapped(kafka.KafkaConsumer.commit)

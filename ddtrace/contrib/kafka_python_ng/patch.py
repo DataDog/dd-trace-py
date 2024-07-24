@@ -43,8 +43,7 @@ config._add(
 
 
 def get_version():
-    # get the package distribution version here
-    pass
+    return getattr(kafka, "__version__", "")
 
 
 class TracedKafkaProducerMixin:
@@ -75,7 +74,6 @@ class TracedKafkaProducer(TracedKafkaProducerMixin, kafka.KafkaProducer):
 def patch():
     if getattr(kafka, "_datadog_patch", False):
         return
-    kafka._datadog_patch = True
 
     kafka.KafkaProducer = TracedKafkaProducer
     kafka.KafkaConsumer = TracedKafkaConsumer
@@ -87,15 +85,18 @@ def patch():
     Pin().onto(kafka.KafkaProducer)
     Pin().onto(kafka.KafkaConsumer)
 
+    kafka._datadog_patch = True
+
 
 def unpatch():
-    if getattr(kafka, "_datadog_patch", False):
-        kafka._datadog_patch = False
     if trace_utils.iswrapped(TracedKafkaProducer.send):
         trace_utils.unwrap(TracedKafkaProducer, "send")
 
     kafka.KafkaProducer = _KafkaProducer
     kafka.KafkaConsumer = _KafkaConsumer
+
+    if getattr(kafka, "_datadog_patch", False):
+        kafka._datadog_patch = False
 
 
 def traced_send(func, instance, args, kwargs):
