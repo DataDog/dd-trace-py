@@ -8,7 +8,6 @@ from pathlib import Path
 import threading
 import sys
 import os
-import pdb
 from types import CodeType
 from types import ModuleType
 from types import BuiltinFunctionType
@@ -33,7 +32,17 @@ _run_module_transformers: t.List[TransformerType] = []
 _post_run_module_hooks: t.List[ModuleHookType] = []
 
 
+try:
+    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+except ImportError:
+
+    def is_pyobject_tainted(obj):
+        return False
+
+
 from functools import wraps
+
+TAINTED_FRAMES = []
 
 
 def trace_calls_and_returns(frame, event, arg):
@@ -46,21 +55,49 @@ def trace_calls_and_returns(frame, event, arg):
         return
     line_no = frame.f_lineno
     filename = co.co_filename
+    if "ddtrace" in filename:
+        return
     if event == "call":
         try:
-            print("Call to %s on line %s of %s" % (func_name, line_no, filename))
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+            if any([is_pyobject_tainted(frame.f_locals[arg]) for arg in frame.f_locals]):
+                TAINTED_FRAMES.append(frame)
+                try:
+                    print("Call to %s on line %s of %s, args: %s" % (func_name, line_no, filename, frame.f_locals))
+                except:
+                    pass
+
+                print(f"Tainted arguments:")
+                for arg in frame.f_locals:
+                    if is_pyobject_tainted(frame.f_locals[arg]):
+                        print(f"\t{arg}: {frame.f_locals[arg]}")
+                print("-----")
         except:
             pass
+
         return trace_calls_and_returns
     elif event == "return":
         try:
-            print("%s => %s" % (func_name, arg))
+            if frame in TAINTED_FRAMES:
+                TAINTED_FRAMES.remove(frame)
+                print(f"Return from {func_name} on line {line_no} of {filename}, return value: {arg}")
+                if isinstance(arg, (str, bytes, bytearray, list, tuple, dict)):
+                    if (
+                        (isinstance(arg, (str, bytes, bytearray)) and is_pyobject_tainted(arg))
+                        or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
+                        or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
+                    ):
+                        print(f"Return value is tainted")
+                    else:
+                        print(f"Return value is NOT tainted")
+                print("-----")
         except:
             pass
     return
 
 
-if os.getenv("DD_IAST_DEBUG_ENABLED", "False").lower() in ("true", "1"):
+if os.getenv("_DD_IAST_DEBUG", "False").lower() in ("true", "1"):
     threading.settrace(trace_calls_and_returns)
 
 
@@ -307,11 +344,13 @@ class _ImportHookChainedLoader:
 
         if pre_exec_hook:
             pre_exec_hook(self, module)
+            if not module.__name__.startswith(("ddtrace", "_ctypes", "_multiprocessing", "gc")):
+                if os.getenv("_DD_IAST_DEBUG", "False").lower() in ("true", "1"):
+                    monkey_patch_module(module)
         else:
-            # if not module.__name__.startswith(("ddtrace", "_ctypes", "_multiprocessing", "gc")):
-            #     if os.getenv("DD_IAST_DEBUG_ENABLED", "False").lower() in ("true", "1"):
-            #         monkey_patch_module(module)
-
+            if not module.__name__.startswith(("ddtrace", "_ctypes", "_multiprocessing", "gc")):
+                if os.getenv("_DD_IAST_DEBUG", "False").lower() in ("true", "1"):
+                    monkey_patch_module(module)
             if self.loader is None:
                 spec = getattr(module, "__spec__", None)
                 if spec is not None and is_namespace_spec(spec):
