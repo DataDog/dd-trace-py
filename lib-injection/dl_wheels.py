@@ -87,7 +87,17 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         if args.ddtrace_version:
             ddtrace_specifier = "ddtrace==%s" % args.ddtrace_version
         elif args.local_ddtrace:
-            ddtrace_specifier = "ddtrace-*%s-*%s*%s.whl" % (abi, platform, arch)
+            wheel_files = [f for f in os.listdir('.') if
+                           f.endswith(".whl")
+                           and abi in f
+                           and platform in f
+                           and arch in f]
+
+            if (len(wheel_files) > 0):
+                print("More than one matching file found %s" % wheel_files, flush=True)
+                sys.exit(1)
+
+            ddtrace_specifier = wheel_files[0]
         else:
             print("--ddtrace-version or --local-ddtrace must be specified")
             sys.exit(1)
