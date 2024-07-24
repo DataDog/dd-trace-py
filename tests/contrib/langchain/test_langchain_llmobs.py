@@ -586,7 +586,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_query_langchain_openai(
+    def test_llmobs_embedding_query_langchain_community(
         self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer
     ):
         if langchain_openai is None:
@@ -614,7 +614,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         )
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_documents_langchain_openai(
+    def test_llmobs_embedding_documents_langchain_community(
         self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer
     ):
         if langchain_community is None:
@@ -692,6 +692,9 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
             elif span_kind == "llm":
                 assert len(call_args["meta"]["input"]["messages"]) > 0
                 assert len(call_args["meta"]["output"]["messages"]) > 0
+            elif span_kind == "embedding":
+                assert len(call_args["meta"]["input"]["documents"]) > 0
+                assert len(call_args["meta"]["output"]["value"]) > 0
 
     @staticmethod
     def _call_bedrock_chat_model(ChatBedrock, HumanMessage):
@@ -721,6 +724,12 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         llm = OpenAI()
         with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
             llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+    @staticmethod
+    def _call_openai_embedding(OpenAIEmbeddings):
+        embedding = OpenAIEmbeddings()
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_embedding_query.yaml"):
+            embedding.embed_query("hello world")
 
     @staticmethod
     def _call_anthropic_chat(Anthropic):
@@ -802,6 +811,24 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["llm"])
+
+    @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
+        from langchain_openai import OpenAIEmbeddings
+
+        patch(langchain=True, openai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        self._call_openai_embedding(OpenAIEmbeddings)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "embedding"])
+
+    @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_embedding_model__openai_disabled(self):
+        from langchain_openai import OpenAIEmbeddings
+
+        patch(langchain=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        self._call_openai_embedding(OpenAIEmbeddings)
+        self._assert_trace_structure_from_writer_call_args(["embedding"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
     def test_llmobs_langchain_with_anthropic_enabled(self):
