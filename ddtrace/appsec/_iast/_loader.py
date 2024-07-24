@@ -13,9 +13,6 @@ IS_IAST_ENABLED = _is_iast_enabled()
 
 
 def _exec_iast_patched_module(module_watchdog, module):
-    # JJJ
-    module_watchdog.loader.exec_module(module)
-    return  # JJJ
     patched_source = None
     compiled_code = None
     if IS_IAST_ENABLED:
@@ -33,13 +30,16 @@ def _exec_iast_patched_module(module_watchdog, module):
             log.debug("Unexpected exception while compiling patched code", exc_info=True)
             compiled_code = None
 
-    if compiled_code:
-        # Patched source is executed instead of original module
-        exec(compiled_code, module.__dict__)  # nosec B102
-    elif module_watchdog.loader is not None:
-        try:
-            module_watchdog.loader.exec_module(module)
-        except ImportError:
-            log.debug("Unexpected exception on import loader fallback", exc_info=True)
-    else:
-        log.debug("Module loader is not available, cannot execute module %s", module)
+    # JJJ
+    module_watchdog.loader.exec_module(module)
+    return
+    # if compiled_code:
+    #     # Patched source is executed instead of original module
+    #     exec(compiled_code, module.__dict__)  # nosec B102
+    # elif module_watchdog.loader is not None:
+    #     try:
+    #         module_watchdog.loader.exec_module(module)
+    #     except ImportError:
+    #         log.debug("Unexpected exception on import loader fallback", exc_info=True)
+    # else:
+    #     log.debug("Module loader is not available, cannot execute module %s", module)
