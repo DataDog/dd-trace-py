@@ -285,7 +285,9 @@ venv = Venv(
                 "fastapi": latest,
                 "httpx": latest,
                 "pytest-randomly": latest,
-                "setuptools": latest,
+                # Max version needed for ddtrace/sourcecode
+                # This is the last version which still included distutils
+                "setuptools": ["<=67.8.0"],
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
@@ -2739,9 +2741,11 @@ venv = Venv(
         Venv(
             name="sourcecode",
             command="pytest {cmdargs} tests/sourcecode",
-            pys=select_pys(max_version="3.11"),
+            pys=select_pys(),
             pkgs={
-                "setuptools": latest,
+                # Max version needed for ddtrace/sourcecode
+                # This is the last version which still included distutils
+                "setuptools": ["<=67.8.0"],
                 "pytest-randomly": latest,
             },
         ),
