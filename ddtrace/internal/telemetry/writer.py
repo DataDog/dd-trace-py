@@ -16,14 +16,16 @@ from typing import Union  # noqa:F401
 from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
+from ...internal.core import crashtracking
 from ...internal.module import BaseModuleWatchdog
 from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
 from ...settings.config import _ConfigSource
+from ...settings.crashtracker import config as crashtracker_config
 from ...settings.dynamic_instrumentation import config as di_config
-from ...settings.exception_debugging import config as ed_config
+from ...settings.exception_replay import config as er_config
 from ...settings.peer_service import _ps_config
 from ...settings.profiling import config as prof_config
 from ..agent import get_connection
@@ -47,14 +49,23 @@ from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
+from .constants import TELEMETRY_CRASHTRACKING_ALT_STACK
+from .constants import TELEMETRY_CRASHTRACKING_AVAILABLE
+from .constants import TELEMETRY_CRASHTRACKING_DEBUG_URL
+from .constants import TELEMETRY_CRASHTRACKING_ENABLED
+from .constants import TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER
+from .constants import TELEMETRY_CRASHTRACKING_STARTED
+from .constants import TELEMETRY_CRASHTRACKING_STDERR_FILENAME
+from .constants import TELEMETRY_CRASHTRACKING_STDOUT_FILENAME
 from .constants import TELEMETRY_DOGSTATSD_PORT
 from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
-from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_EXCEPTION_REPLAY_ENABLED
 from .constants import TELEMETRY_INJECT_WAS_ATTEMPTED
 from .constants import TELEMETRY_LIB_INJECTION_FORCED
 from .constants import TELEMETRY_LIB_WAS_INJECTED
+from .constants import TELEMETRY_LOG_LEVEL  # noqa:F401
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
@@ -452,7 +463,7 @@ class TelemetryWriter(PeriodicService):
                 inst_config_id_entry,
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
-                (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
+                (TELEMETRY_EXCEPTION_REPLAY_ENABLED, er_config.enabled, "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
@@ -510,6 +521,15 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_INJECT_WAS_ATTEMPTED, config._inject_was_attempted, "unknown"),
                 (TELEMETRY_LIB_WAS_INJECTED, config._lib_was_injected, "unknown"),
                 (TELEMETRY_LIB_INJECTION_FORCED, config._inject_force, "unknown"),
+                # Crashtracker
+                (TELEMETRY_CRASHTRACKING_ENABLED, crashtracker_config.enabled, "unknown"),
+                (TELEMETRY_CRASHTRACKING_STARTED, crashtracking.is_started(), "unknown"),
+                (TELEMETRY_CRASHTRACKING_AVAILABLE, crashtracking.is_available, "unknown"),
+                (TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER, str(crashtracker_config.stacktrace_resolver), "unknown"),
+                (TELEMETRY_CRASHTRACKING_STDOUT_FILENAME, str(crashtracker_config.stdout_filename), "unknown"),
+                (TELEMETRY_CRASHTRACKING_STDERR_FILENAME, str(crashtracker_config.stderr_filename), "unknown"),
+                (TELEMETRY_CRASHTRACKING_DEBUG_URL, str(crashtracker_config.debug_url), "unknown"),
+                (TELEMETRY_CRASHTRACKING_ALT_STACK, crashtracker_config.alt_stack, "unknown"),
             ]
             + get_python_config_vars()
         )
@@ -633,7 +653,7 @@ class TelemetryWriter(PeriodicService):
                 }
 
     def add_log(self, level, message, stack_trace="", tags=None):
-        # type: (str, str, str, Optional[Dict]) -> None
+        # type: (TELEMETRY_LOG_LEVEL, str, str, Optional[Dict]) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -645,7 +665,7 @@ class TelemetryWriter(PeriodicService):
             data = LogData(
                 {
                     "message": message,
-                    "level": level,
+                    "level": level.value,
                     "tracer_time": int(time.time()),
                 }
             )
@@ -863,7 +883,7 @@ class TelemetryWriter(PeriodicService):
 
             self.app_shutdown()
 
-        return self._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
+        return TelemetryWriter._ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
 
     def install_excepthook(self):
         """Install a hook that intercepts unhandled exception and send metrics about them."""
@@ -871,4 +891,4 @@ class TelemetryWriter(PeriodicService):
 
     def uninstall_excepthook(self):
         """Uninstall the global tracer except hook."""
-        sys.excepthook = self._ORIGINAL_EXCEPTHOOK
+        sys.excepthook = TelemetryWriter._ORIGINAL_EXCEPTHOOK
