@@ -8,13 +8,13 @@ stages:
   - dogfood
 
 include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include-wip/one-pipeline.yml
+  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/dogfood.yml"
 
 variables:
-  REPO_LANG: python
+  REPO_LANG: python # "python" is used everywhere rather than "py"
 
 download_ddtrace_wheels:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0

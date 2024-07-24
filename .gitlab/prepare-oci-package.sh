@@ -25,18 +25,8 @@ BUILD_DIR=sources
 
 echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
-# Install known compatible pip as default version shipped in Ubuntu (20.0.2)
-# does not work.
-python3 -m pip install -U "pip>=22.0"
-python3 -m pip install packaging
+cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 
-WHEEL_ARCH="x86_64"
-if [ "$ARCH" = "arm64" ]; then
-  WHEEL_ARCH="aarch64"
-fi
-
-cp -r ../pywheels-dep/site-packages* $BUILD_DIR/ddtrace_pkgs
-
-cp ../lib-injection/sitecustomize.py $BUILD_DIR/
-cp ../min_compatible_versions.csv $BUILD_DIR/
-cp ../lib-injection/telemetry-forwarder.sh $BUILD_DIR/
+cp ../lib-injection/sitecustomize.py sources/
+cp ../min_compatible_versions.csv sources/
+cp ../lib-injection/telemetry-forwarder.sh sources/

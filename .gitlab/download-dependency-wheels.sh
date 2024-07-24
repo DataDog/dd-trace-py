@@ -22,5 +22,3 @@ cd pywheels
     --platform manylinux2014 \
     --output-dir ../pywheels-dep \
     --verbose
-
-
