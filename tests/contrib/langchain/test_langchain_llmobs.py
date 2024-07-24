@@ -592,7 +592,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         if langchain_openai is None:
             pytest.skip("langchain_openai not installed which is required for this test.")
         embedding_model = langchain_openai.embeddings.OpenAIEmbeddings()
-        trace = self._embed_query(
+        with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+            trace = self._embed_query(
             embedding_model=embedding_model,
             query="hello world",
             mock_tracer=mock_tracer,
