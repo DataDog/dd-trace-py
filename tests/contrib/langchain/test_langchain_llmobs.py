@@ -586,10 +586,12 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_query(self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer):
+    def test_llmobs_embedding_query(self, langchain_community, mock_llmobs_span_writer, mock_tracer):
         if langchain_community is None:
             pytest.skip("langchain-community not installed which is required for this test.")
         embedding_model = langchain_community.embeddings.FakeEmbeddings(size=1536)
+            pytest.skip("langchain_community not installed which is required for this test.")
+        embedding_model = langchain_community.embeddings.OpenAIEmbeddings()
         trace = self._embed_query(
             embedding_model=embedding_model,
             query="hello world",
