@@ -1,19 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to download all required wheels (including dependencies) of the ddtrace
-Python package for relevant Python versions (+ abis), C library platforms and
-architectures and unpack them into Python-specific site-packages directories.
-
-These site-package directories provide a portable installation of ddtrace which can be
-used on multiple platforms and architectures.
-
-Currently, the only OS supported is Linux.
-
-This script has been tested with pip 21.0.0 and is confirmed to not work with
-20.0.2.
-
-Usage:
-        ./dl_wheels.py --help
+Unpacks ddtrace wheels from previously downloaded github artifacts
 
 """
 import argparse

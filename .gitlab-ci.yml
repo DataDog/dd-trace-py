@@ -51,7 +51,7 @@ download_dependency_wheels:
     - .gitlab/download-dependency-wheels.sh
   artifacts:
     paths:
-      - "pywheels-deps"
+      - "pywheels-dep/"
 
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_wheels ]

@@ -21,8 +21,5 @@ lib-injection/dl_wheels.py \
     --output-dir pywheels-dep \
     --verbose
 
-ls -l pywheels-dep
+rm -r pywheels-dep/ddtrace*.zip
 
-rm -r ddtrace*
-
-ls -l pywheels-dep
