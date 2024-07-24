@@ -29,14 +29,13 @@ def wrapped_function(wrapped, instance, args, kwargs):
 """  # noqa: RST201, RST213, RST210
 
 import inspect
-
 import os
 import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-
 from ddtrace.internal.utils.formats import asbool
+
 from ._overhead_control_engine import OverheadControl
 from ._utils import _is_iast_enabled
 
