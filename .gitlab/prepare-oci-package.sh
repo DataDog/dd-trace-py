@@ -51,8 +51,6 @@ cp -r ../pywheels-dep/site-packages* $BUILD_DIR/ddtrace_pkgs # from dependencies
     --output-dir=$BUILD_DIR/ddtrace_pkgs \
     --verbose
 
-ls -lr $BUILD_DIR/ddtrace_pkgs
-
 cp ../lib-injection/sitecustomize.py $BUILD_DIR/
 cp ../min_compatible_versions.csv $BUILD_DIR/
 cp ../lib-injection/telemetry-forwarder.sh $BUILD_DIR/
