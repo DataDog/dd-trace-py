@@ -827,6 +827,7 @@ venv = Venv(
                     "==3.10.0",
                 ],
                 "pytest-randomly": latest,
+                "setuptools": latest,
             },
             venvs=[
                 Venv(
@@ -837,18 +838,10 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "django_hosts": ["~=5.0", latest],
                         "django": "~=4.0",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.12"),
-                    pkgs={
-                        "django_hosts": ["~=5.0", latest],
-                        "django": "~=4.0",
-                        "setuptools": latest,
                     },
                 ),
             ],
@@ -2746,20 +2739,11 @@ venv = Venv(
         Venv(
             name="sourcecode",
             command="pytest {cmdargs} tests/sourcecode",
+            pys=select_pys(),
             pkgs={
+                "setuptools": ["<=67.6.0"],
                 "pytest-randomly": latest,
             },
-            venvs=[
-                Venv(
-                    pys=select_pys(max_version="3.11"),
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.12"),
-                    pkgs={
-                        "setuptools": latest,
-                    },
-                ),
-            ],
         ),
         Venv(
             name="ci_visibility",
