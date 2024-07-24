@@ -12,7 +12,7 @@ log = get_logger(__name__)
 IS_IAST_ENABLED = _is_iast_enabled()
 
 
-def _exec_iast_patched_module(module_watchdog, module):
+astdef _exec_iast_patched_module(module_watchdog, module):
     patched_source = None
     compiled_code = None
     if IS_IAST_ENABLED:

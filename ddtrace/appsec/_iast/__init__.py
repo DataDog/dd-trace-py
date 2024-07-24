@@ -27,14 +27,16 @@ def wrapped_function(wrapped, instance, args, kwargs):
     )
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
+
 import inspect
-import os
+
+# import os
 import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.utils.formats import asbool
 
+# from ddtrace.internal.utils.formats import asbool
 from ._overhead_control_engine import OverheadControl
 from ._utils import _is_iast_enabled
 
@@ -72,7 +74,7 @@ def ddtrace_iast_flask_patch():
 
 def enable_iast_propagation():
     if False:  # JJJ disabled to test
-    # if asbool(os.getenv("DD_IAST_ENABLED", False)):
+        # if asbool(os.getenv("DD_IAST_ENABLED", False)):
         from ddtrace.appsec._iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
