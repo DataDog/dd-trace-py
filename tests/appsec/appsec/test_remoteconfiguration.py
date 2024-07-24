@@ -177,14 +177,29 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
         ({"_asm_static_rule_file": DEFAULT.RULES}, False),  # Only ASM_FEATURES
     ],
 )
+@pytest.mark.parametrize(
+    "enable_config, disable_config",
+    [
+        ({"asm": {"enabled": True}}, {"asm": {}}),
+        (
+            {"asm": {"enabled": True}, "data": [{"id": 1}]},
+            {"asm": {}, "data": [{"id": 1}]},
+        ),  # additional data in the same product should not change the result
+        (
+            {"asm": {"enabled": True, "data": 0}},
+            {"asm": {"data": 0}},
+        ),  # additional data in the same config should not change the result
+    ],
+)
 def test_rc_activation_check_asm_features_product_disables_rest_of_products(
-    tracer, remote_config_worker, env_rules, expected
+    tracer, remote_config_worker, env_rules, expected, enable_config, disable_config
 ):
     global_config = dict(_remote_config_enabled=True, _asm_enabled=True)
     global_config.update(env_rules)
     from ddtrace.internal.remoteconfig.client import config as rc_config
 
     rc_config.skip_shutdown = False
+    empty_config = {}
     with override_global_config(global_config):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
@@ -193,11 +208,32 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
         assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
 
-        _preprocess_results_appsec_1click_activation({"asm": {}})
+        # sending nothing should not change anything (configuration is the same)
+        _preprocess_results_appsec_1click_activation(empty_config)
+
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)) is expected
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+
+        # sending empty config for asm should disable asm (meaning asm was deleted)
+        _preprocess_results_appsec_1click_activation(disable_config)
 
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is None
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is None
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+
+        # sending nothing should not change anything (configuration is the same)
+        _preprocess_results_appsec_1click_activation(empty_config)
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is None
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is None
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+
+        # sending config should enable asm again
+        _preprocess_results_appsec_1click_activation(enable_config)
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)) is expected
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+
     disable_appsec_rc()
 
 
