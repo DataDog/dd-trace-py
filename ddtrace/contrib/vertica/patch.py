@@ -4,6 +4,8 @@ import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -27,23 +29,55 @@ log = get_logger(__name__)
 _PATCHED = False
 
 
-def copy_span_start(instance, span, conf, *args, **kwargs):
+def _copy_span_start(instance, span, conf, *args, **kwargs):
     span.resource = get_argument_value(args, kwargs, 0, "sql")
 
+def copy_span_start(instance, span, conf, *args, **kwargs):
+    deprecate(
+        "copy_span_start is deprecated",
+        message="copy_span_start is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _copy_span_start(instance, span, conf, *args, **kwargs)
 
-def execute_span_start(instance, span, conf, *args, **kwargs):
+def _execute_span_start(instance, span, conf, *args, **kwargs):
     span.resource = get_argument_value(args, kwargs, 0, "operation")
 
+def execute_span_start(instance, span, conf, *args, **kwargs):
+    deprecate(
+        "execute_span_start is deprecated",
+        message="execute_span_start is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _execute_span_start(instance, span, conf, *args, **kwargs)
+
+def _execute_span_end(instance, result, span, conf, *args, **kwargs):
+    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
 
 def execute_span_end(instance, result, span, conf, *args, **kwargs):
-    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+    deprecate(
+        "execute_span_end is deprecated",
+        message="execute_span_end is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _execute_span_end(instance, result, span, conf, *args, **kwargs)
 
+def _fetch_span_end(instance, result, span, conf, *args, **kwargs):
+    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
 
 def fetch_span_end(instance, result, span, conf, *args, **kwargs):
-    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+    deprecate(
+        "fetch_span_end is deprecated",
+        message="fetch_span_end is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _fetch_span_end(instance, result, span, conf, *args, **kwargs)
 
-
-def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
+def _cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     tags = {}
     tags[net.TARGET_HOST] = instance.options["host"]
     tags[net.TARGET_PORT] = instance.options["port"]
@@ -58,6 +92,14 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     )
     pin.onto(cursor)
 
+def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
+    deprecate(
+        "cursor_span_end is deprecated",
+        message="cursor_span_end is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _cursor_span_end(instance, cursor, _, conf, *args, **kwargs)
 
 # tracing configuration
 config._add(
@@ -70,7 +112,7 @@ config._add(
                 "routines": {
                     "cursor": {
                         "trace_enabled": False,
-                        "span_end": cursor_span_end,
+                        "span_end": _cursor_span_end,
                     },
                 },
             },
@@ -79,14 +121,14 @@ config._add(
                     "execute": {
                         "operation_name": schematize_database_operation("vertica.query", database_provider="vertica"),
                         "span_type": SpanTypes.SQL,
-                        "span_start": execute_span_start,
-                        "span_end": execute_span_end,
+                        "span_start": _execute_span_start,
+                        "span_end": _execute_span_end,
                         "measured": True,
                     },
                     "copy": {
                         "operation_name": "vertica.copy",
                         "span_type": SpanTypes.SQL,
-                        "span_start": copy_span_start,
+                        "span_start": _copy_span_start,
                         "measured": False,
                     },
                     "fetchone": {
@@ -94,7 +136,7 @@ config._add(
                             "vertica.fetchone", database_provider="vertica"
                         ),
                         "span_type": SpanTypes.SQL,
-                        "span_end": fetch_span_end,
+                        "span_end": _fetch_span_end,
                         "measured": False,
                     },
                     "fetchall": {
@@ -102,13 +144,13 @@ config._add(
                             "vertica.fetchall", database_provider="vertica"
                         ),
                         "span_type": SpanTypes.SQL,
-                        "span_end": fetch_span_end,
+                        "span_end": _fetch_span_end,
                         "measured": False,
                     },
                     "nextset": {
                         "operation_name": schematize_database_operation("vertica.nextset", database_provider="vertica"),
                         "span_type": SpanTypes.SQL,
-                        "span_end": fetch_span_end,
+                        "span_end": _fetch_span_end,
                         "measured": False,
                     },
                 },
@@ -118,12 +160,20 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     import vertica_python
 
     return vertica_python.__version__
 
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 def patch():
     global _PATCHED

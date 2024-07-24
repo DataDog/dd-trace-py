@@ -48,7 +48,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
-
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 log = get_logger(__name__)
 _global_skipped_elements = 0
@@ -64,10 +65,18 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return ""
 
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 def _enable_unittest_if_not_started():
     _initialize_unittest_data()
@@ -408,17 +417,17 @@ def patch():
 
     _w = wrapt.wrap_function_wrapper
 
-    _w(unittest, "TextTestResult.addSuccess", add_success_test_wrapper)
-    _w(unittest, "TextTestResult.addFailure", add_failure_test_wrapper)
-    _w(unittest, "TextTestResult.addError", add_failure_test_wrapper)
-    _w(unittest, "TextTestResult.addSkip", add_skip_test_wrapper)
-    _w(unittest, "TextTestResult.addExpectedFailure", add_xfail_test_wrapper)
-    _w(unittest, "TextTestResult.addUnexpectedSuccess", add_xpass_test_wrapper)
-    _w(unittest, "skipIf", skip_if_decorator)
-    _w(unittest, "TestCase.run", handle_test_wrapper)
-    _w(unittest, "TestSuite.run", collect_text_test_runner_session)
-    _w(unittest, "TextTestRunner.run", handle_text_test_runner_wrapper)
-    _w(unittest, "TestProgram.runTests", handle_cli_run)
+    _w(unittest, "TextTestResult.addSuccess", _add_success_test_wrapper)
+    _w(unittest, "TextTestResult.addFailure", _add_failure_test_wrapper)
+    _w(unittest, "TextTestResult.addError", _add_failure_test_wrapper)
+    _w(unittest, "TextTestResult.addSkip", _add_skip_test_wrapper)
+    _w(unittest, "TextTestResult.addExpectedFailure", _add_xfail_test_wrapper)
+    _w(unittest, "TextTestResult.addUnexpectedSuccess", _add_xpass_test_wrapper)
+    _w(unittest, "skipIf", _skip_if_decorator)
+    _w(unittest, "TestCase.run", _handle_test_wrapper)
+    _w(unittest, "TestSuite.run", _collect_text_test_runner_session)
+    _w(unittest, "TextTestRunner.run", _handle_text_test_runner_wrapper)
+    _w(unittest, "TestProgram.runTests", _handle_cli_run)
 
 
 def unpatch():
@@ -473,40 +482,80 @@ def _set_test_xpass_xfail_result(test_item, result: str):
             span.set_tag_str(test.STATUS, test.Status.PASS.value)
 
 
-def add_success_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+def _add_success_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
     if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], status=test.Status.PASS.value)
 
     return func(*args, **kwargs)
 
+def add_success_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+    deprecate(
+        "add_success_test_wrapper is deprecated",
+        message="add_success_test_wrapper is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _add_success_test_wrapper(func, instance, args, kwargs)
 
-def add_failure_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+def _add_failure_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
     if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], exc_info=_extract_test_reason(args), status=test.Status.FAIL.value)
 
     return func(*args, **kwargs)
 
+def add_failure_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+    deprecate(
+        "add_failure_test_wrapper is deprecated",
+        message="add_failure_test_wrapper is deprecated",
+        removal_version="3.0.0",
+    )
+    return _add_failure_test_wrapper(func, instance, args, kwargs)
 
-def add_xfail_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+def _add_xfail_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
     if _is_valid_result(instance, args):
         _set_test_xpass_xfail_result(test_item=args[0], result=test.Status.XFAIL.value)
 
     return func(*args, **kwargs)
 
+def add_xfail_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+    deprecate(
+        "add_xfail_test_wrapper is deprecated",
+        message="add_xfail_test_wrapper is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _add_xfail_test_wrapper(func, instance, args, kwargs)
 
-def add_skip_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+def _add_skip_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
     if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], skip_reason=_extract_test_reason(args), status=test.Status.SKIP.value)
 
     return func(*args, **kwargs)
 
+def add_skip_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+    deprecate(
+        "add_skip_test_wrapper is deprecated",
+        message="add_skip_test_wrapper is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _add_skip_test_wrapper(func, instance, args, kwargs)
 
-def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
+
+def _add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
     if _is_valid_result(instance, args):
         _set_test_xpass_xfail_result(test_item=args[0], result=test.Status.XPASS.value)
 
     return func(*args, **kwargs)
 
+def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
+    deprecate(
+        "add_xpass_test_wrapper is deprecated",
+        message="add_xpass_test_wrapper is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _add_xpass_test_wrapper(func, instance, args, kwargs)
 
 def _mark_test_as_unskippable(obj):
     test_name = obj.__name__
@@ -521,13 +570,22 @@ def _using_unskippable_decorator(args, kwargs):
     return args[0] is False and _extract_skip_if_reason(args, kwargs) == ITR_UNSKIPPABLE_REASON
 
 
-def skip_if_decorator(func, instance, args: tuple, kwargs: dict):
+def _skip_if_decorator(func, instance, args: tuple, kwargs: dict):
     if _using_unskippable_decorator(args, kwargs):
         return _mark_test_as_unskippable
     return func(*args, **kwargs)
 
+def skip_if_decorator(func, instance, args: tuple, kwargs: dict):
+    deprecate(
+        "skip_if_decorator is deprecated",
+        message="skip_if_decorator is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _skip_if_decorator(func, instance, args, kwargs)
 
-def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
+
+def _handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
     """
     Creates module and suite spans for `unittest` test executions.
     """
@@ -601,8 +659,16 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
         return result
     return func(*args, **kwargs)
 
+def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
+    deprecate(
+        "handle_test_wrapper is deprecated",
+        message="handle_test_wrapper is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _handle_test_wrapper(func, instance, args, kwargs)
 
-def collect_text_test_runner_session(func, instance: unittest.TestSuite, args: tuple, kwargs: dict):
+def _collect_text_test_runner_session(func, instance: unittest.TestSuite, args: tuple, kwargs: dict):
     """
     Discovers test suites and tests for the current `unittest` `TextTestRunner` execution
     """
@@ -620,6 +686,14 @@ def collect_text_test_runner_session(func, instance: unittest.TestSuite, args: t
     result = func(*args, **kwargs)
     return result
 
+def collect_text_test_runner_session(func, instance: unittest.TestSuite, args: tuple, kwargs: dict):
+    deprecate(
+        "collect_text_test_runner_session is deprecated",
+        message="collect_text_test_runner_session is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _collect_text_test_runner_session(func, instance, args, kwargs)
 
 def _start_test_session_span(instance) -> ddtrace.Span:
     """
@@ -810,7 +884,7 @@ def _finish_test_session_span():
     _finish_span(_CIVisibility._datadog_session_span)
 
 
-def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: dict):
+def _handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: dict):
     """
     Creates session span and discovers test suites and tests for the current `unittest` CLI execution
     """
@@ -835,8 +909,16 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
         raise e
     return result
 
+def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: dict):
+    deprecate(
+        "handle_cli_run is deprecated",
+        message="handle_cli_run is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _handle_cli_run(func, instance, args, kwargs)
 
-def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+def _handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
     """
     Creates session span if unittest is called through the `TextTestRunner` method
     """
@@ -862,3 +944,12 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
         _finish_test_session_span()
         del _CIVisibility._datadog_session_span
     return result
+
+def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+    deprecate(
+        "handle_text_test_runner_wrapper is deprecated",
+        message="handle_text_test_runner_wrapper is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning
+    )
+    return _handle_text_test_runner_wrapper(func, instance, args, kwargs)
