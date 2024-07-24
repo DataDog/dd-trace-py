@@ -139,8 +139,8 @@ def _preprocess_results_appsec_1click_activation(
         )
 
         rc_asm_enabled = None
-        if features is not None:
-            rc_asm_enabled = features.get("asm", {}).get("enabled", False)
+        if features and "asm" in features:
+            rc_asm_enabled = features["asm"].get("enabled", False)
             log.debug(
                 "[%s][P: %s] ASM Remote Configuration ASM_FEATURES. Appsec enabled: %s",
                 os.getpid(),
@@ -165,7 +165,7 @@ def _preprocess_results_appsec_1click_activation(
                 remoteconfig_poller.unregister(PRODUCTS.ASM)
                 remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
 
-            features["asm"] = {"enabled": rc_asm_enabled}
+            features["asm"]["enabled"] = rc_asm_enabled
     return features
 
 
@@ -183,7 +183,7 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
     | true              | true       | Enabled  |
     ```
     """
-    if asm_config._asm_can_be_enabled:
+    if asm_config._asm_can_be_enabled and "asm" in features:
         # Tracer is a parameter for testing propose
         # Import tracer here to avoid a circular import
         if test_tracer is None:

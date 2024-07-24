@@ -84,12 +84,19 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
 
     def append(self, config_content, target, config_metadata=None):
         # type: (Optional[Any], str, Optional[Any]) -> None
-        if not self._configs.get(target):
+        if target not in self._configs:
             self._configs[target] = {}
 
         if config_content is False:
-            # clear lists but keep the keys active so it can be updated accordingly
-            self._configs[target] = {k: [] for k, v in self._configs[target].items() if isinstance(v, list)}
+            # clear non empty values but keep the keys active so it can be updated accordingly
+            for k, v in self._configs[target].items():
+                if v:
+                    if isinstance(v, list):
+                        self._configs[target][k] = []
+                    elif isinstance(v, dict):
+                        self._configs[target][k] = {}
+                    else:
+                        self._configs[target][k] = None
         elif config_content is not None:
             # Append the new config to the configs dict. _load_new_configurations function should
             # call to this method
