@@ -26,7 +26,7 @@ def _exec_iast_patched_module(module_watchdog, module):
     if patched_source:
         try:
             # Patched source is compiled in order to execute it
-            # JJJ compiled_code
+            # JJJ compiled_code JJJ
             _ = compile(patched_source, module_path, "exec")
         except Exception:
             log.debug("Unexpected exception while compiling patched code", exc_info=True)
