@@ -219,8 +219,7 @@ class LangChainIntegration(BaseLLMIntegration):
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
         output_tag_key = OUTPUT_VALUE
 
-        output_values = []
-        embeddings_count = 0
+        output_values: Any
 
         try:
             if isinstance(input_texts, str) or (
