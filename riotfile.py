@@ -2739,9 +2739,9 @@ venv = Venv(
         Venv(
             name="sourcecode",
             command="pytest {cmdargs} tests/sourcecode",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.11"),
             pkgs={
-                "setuptools": ["<=67.6.0"],
+                "setuptools": latest,
                 "pytest-randomly": latest,
             },
         ),
