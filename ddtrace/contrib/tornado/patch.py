@@ -4,9 +4,9 @@ import tornado
 
 import ddtrace
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
@@ -29,6 +29,7 @@ def _get_version():
     # type: () -> str
     return getattr(tornado, "version", "")
 
+
 def get_version():
     deprecate(
         "get_version is deprecated",
@@ -37,6 +38,7 @@ def get_version():
         category=DDTraceDeprecationWarning,
     )
     return _get_version()
+
 
 def patch():
     """

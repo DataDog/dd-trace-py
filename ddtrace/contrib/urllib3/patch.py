@@ -8,11 +8,11 @@ from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.pin import Pin
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -47,6 +47,7 @@ config._add(
 def _get_version():
     # type: () -> str
     return getattr(urllib3, "__version__", "")
+
 
 def get_version():
     deprecate(

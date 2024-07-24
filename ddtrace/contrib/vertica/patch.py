@@ -3,8 +3,8 @@ import importlib
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor import wrapt
 from ddtrace.vendor.debtcollector import deprecate
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -32,50 +32,58 @@ _PATCHED = False
 def _copy_span_start(instance, span, conf, *args, **kwargs):
     span.resource = get_argument_value(args, kwargs, 0, "sql")
 
+
 def copy_span_start(instance, span, conf, *args, **kwargs):
     deprecate(
         "copy_span_start is deprecated",
         message="copy_span_start is deprecated",
         removal_version="3.0.0",
-        category=DDTraceDeprecationWarning
+        category=DDTraceDeprecationWarning,
     )
     return _copy_span_start(instance, span, conf, *args, **kwargs)
 
+
 def _execute_span_start(instance, span, conf, *args, **kwargs):
     span.resource = get_argument_value(args, kwargs, 0, "operation")
+
 
 def execute_span_start(instance, span, conf, *args, **kwargs):
     deprecate(
         "execute_span_start is deprecated",
         message="execute_span_start is deprecated",
         removal_version="3.0.0",
-        category=DDTraceDeprecationWarning
+        category=DDTraceDeprecationWarning,
     )
     return _execute_span_start(instance, span, conf, *args, **kwargs)
 
+
 def _execute_span_end(instance, result, span, conf, *args, **kwargs):
     span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+
 
 def execute_span_end(instance, result, span, conf, *args, **kwargs):
     deprecate(
         "execute_span_end is deprecated",
         message="execute_span_end is deprecated",
         removal_version="3.0.0",
-        category=DDTraceDeprecationWarning
+        category=DDTraceDeprecationWarning,
     )
     return _execute_span_end(instance, result, span, conf, *args, **kwargs)
 
+
 def _fetch_span_end(instance, result, span, conf, *args, **kwargs):
     span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+
 
 def fetch_span_end(instance, result, span, conf, *args, **kwargs):
     deprecate(
         "fetch_span_end is deprecated",
         message="fetch_span_end is deprecated",
         removal_version="3.0.0",
-        category=DDTraceDeprecationWarning
+        category=DDTraceDeprecationWarning,
     )
     return _fetch_span_end(instance, result, span, conf, *args, **kwargs)
+
 
 def _cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     tags = {}
@@ -92,14 +100,16 @@ def _cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     )
     pin.onto(cursor)
 
+
 def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     deprecate(
         "cursor_span_end is deprecated",
         message="cursor_span_end is deprecated",
         removal_version="3.0.0",
-        category=DDTraceDeprecationWarning
+        category=DDTraceDeprecationWarning,
     )
     return _cursor_span_end(instance, cursor, _, conf, *args, **kwargs)
+
 
 # tracing configuration
 config._add(
@@ -166,6 +176,7 @@ def _get_version():
 
     return vertica_python.__version__
 
+
 def get_version():
     deprecate(
         "get_version is deprecated",
@@ -174,6 +185,7 @@ def get_version():
         category=DDTraceDeprecationWarning,
     )
     return _get_version()
+
 
 def patch():
     global _PATCHED
