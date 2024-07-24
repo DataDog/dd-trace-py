@@ -54,7 +54,7 @@ STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.18.0"
+LIBDDWAF_VERSION = "1.19.0"
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
