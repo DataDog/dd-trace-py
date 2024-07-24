@@ -594,11 +594,11 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         embedding_model = langchain_openai.embeddings.OpenAIEmbeddings()
         with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
             trace = self._embed_query(
-            embedding_model=embedding_model,
-            query="hello world",
-            mock_tracer=mock_tracer,
-            cassette_name="openai_embedding_query.yaml",
-        )
+                embedding_model=embedding_model,
+                query="hello world",
+                mock_tracer=mock_tracer,
+                cassette_name="openai_embedding_query.yaml",
+            )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         span = trace[0] if isinstance(trace, list) else trace
         mock_llmobs_span_writer.enqueue.assert_called_with(
