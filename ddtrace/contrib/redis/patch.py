@@ -8,7 +8,9 @@ from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
 from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.redis_utils import determine_row_count
 from ddtrace.internal import core
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN
@@ -28,9 +30,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(redis, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -46,22 +58,22 @@ def patch():
     _w = wrapt.wrap_function_wrapper
 
     if redis.VERSION < (3, 0, 0):
-        _w("redis", "StrictRedis.execute_command", instrumented_execute_command(config.redis))
-        _w("redis", "StrictRedis.pipeline", instrumented_pipeline)
-        _w("redis", "Redis.pipeline", instrumented_pipeline)
-        _w("redis.client", "BasePipeline.execute", instrumented_execute_pipeline(config.redis, False))
-        _w("redis.client", "BasePipeline.immediate_execute_command", instrumented_execute_command(config.redis))
+        _w("redis", "StrictRedis.execute_command", _instrumented_execute_command(config.redis))
+        _w("redis", "StrictRedis.pipeline", _instrumented_pipeline)
+        _w("redis", "Redis.pipeline", _instrumented_pipeline)
+        _w("redis.client", "BasePipeline.execute", _instrumented_execute_pipeline(config.redis, False))
+        _w("redis.client", "BasePipeline.immediate_execute_command", _instrumented_execute_command(config.redis))
     else:
-        _w("redis", "Redis.execute_command", instrumented_execute_command(config.redis))
-        _w("redis", "Redis.pipeline", instrumented_pipeline)
-        _w("redis.client", "Pipeline.execute", instrumented_execute_pipeline(config.redis, False))
-        _w("redis.client", "Pipeline.immediate_execute_command", instrumented_execute_command(config.redis))
+        _w("redis", "Redis.execute_command", _instrumented_execute_command(config.redis))
+        _w("redis", "Redis.pipeline", _instrumented_pipeline)
+        _w("redis.client", "Pipeline.execute", _instrumented_execute_pipeline(config.redis, False))
+        _w("redis.client", "Pipeline.immediate_execute_command", _instrumented_execute_command(config.redis))
         if redis.VERSION >= (4, 1):
             # Redis v4.1 introduced support for redis clusters and rediscluster package was deprecated.
             # https://github.com/redis/redis-py/commit/9db1eec71b443b8e7e74ff503bae651dc6edf411
-            _w("redis.cluster", "RedisCluster.execute_command", instrumented_execute_command(config.redis))
-            _w("redis.cluster", "RedisCluster.pipeline", instrumented_pipeline)
-            _w("redis.cluster", "ClusterPipeline.execute", instrumented_execute_pipeline(config.redis, True))
+            _w("redis.cluster", "RedisCluster.execute_command", _instrumented_execute_command(config.redis))
+            _w("redis.cluster", "RedisCluster.pipeline", _instrumented_pipeline)
+            _w("redis.cluster", "ClusterPipeline.execute", _instrumented_execute_pipeline(config.redis, True))
             Pin(service=None).onto(redis.cluster.RedisCluster)
         # Avoid mypy invalid syntax errors when parsing Python 2 files
         if redis.VERSION >= (4, 2, 0):
@@ -69,7 +81,7 @@ def patch():
             from .asyncio_patch import instrumented_async_execute_pipeline
 
             _w("redis.asyncio.client", "Redis.execute_command", instrumented_async_execute_command)
-            _w("redis.asyncio.client", "Redis.pipeline", instrumented_pipeline)
+            _w("redis.asyncio.client", "Redis.pipeline", _instrumented_pipeline)
             _w("redis.asyncio.client", "Pipeline.execute", instrumented_async_execute_pipeline)
             _w("redis.asyncio.client", "Pipeline.immediate_execute_command", instrumented_async_execute_command)
             Pin(service=None).onto(redis.asyncio.Redis)
@@ -82,7 +94,7 @@ def patch():
             if redis.VERSION >= (4, 3, 2):
                 from .asyncio_patch import instrumented_async_execute_cluster_pipeline
 
-                _w("redis.asyncio.cluster", "RedisCluster.pipeline", instrumented_pipeline)
+                _w("redis.asyncio.cluster", "RedisCluster.pipeline", _instrumented_pipeline)
                 _w("redis.asyncio.cluster", "ClusterPipeline.execute", instrumented_async_execute_cluster_pipeline)
 
             Pin(service=None).onto(redis.asyncio.RedisCluster)
@@ -142,7 +154,7 @@ def _run_redis_command(ctx: core.ExecutionContext, func, args, kwargs):
 #
 # tracing functions
 #
-def instrumented_execute_command(integration_config):
+def _instrumented_execute_command(integration_config):
     def _instrumented_execute_command(func, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
@@ -154,7 +166,17 @@ def instrumented_execute_command(integration_config):
     return _instrumented_execute_command
 
 
-def instrumented_pipeline(func, instance, args, kwargs):
+def instrumented_execute_command(integration_config):
+    deprecate(
+        "instrumented_execute_command is deprecated",
+        message="instrumented_execute_command is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _instrumented_execute_command(integration_config)
+
+
+def _instrumented_pipeline(func, instance, args, kwargs):
     pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
@@ -162,7 +184,17 @@ def instrumented_pipeline(func, instance, args, kwargs):
     return pipeline
 
 
-def instrumented_execute_pipeline(integration_config, is_cluster=False):
+def instrumented_pipeline(func, instance, args, kwargs):
+    deprecate(
+        "instrumented_pipeline is deprecated",
+        message="instrumented_pipeline is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _instrumented_pipeline(func, instance, args, kwargs)
+
+
+def _instrumented_execute_pipeline(integration_config, is_cluster=False):
     def _instrumented_execute_pipeline(func, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
@@ -182,3 +214,13 @@ def instrumented_execute_pipeline(integration_config, is_cluster=False):
             return func(*args, **kwargs)
 
     return _instrumented_execute_pipeline
+
+
+def instrumented_execute_pipeline(integration_config, is_cluster=False):
+    deprecate(
+        "instrumented_execute_pipeline is deprecated",
+        message="instrumented_execute_pipeline is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _instrumented_execute_pipeline(integration_config, is_cluster=False)

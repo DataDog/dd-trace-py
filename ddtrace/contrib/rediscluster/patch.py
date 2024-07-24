@@ -8,8 +8,8 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib.redis.patch import instrumented_execute_command
-from ddtrace.contrib.redis.patch import instrumented_pipeline
+from ddtrace.contrib.redis.patch import _instrumented_execute_command
+from ddtrace.contrib.redis.patch import _instrumented_pipeline
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -17,11 +17,13 @@ from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...internal.utils.formats import asbool
 from .. import trace_utils
@@ -41,9 +43,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(rediscluster, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -54,14 +66,14 @@ def patch():
 
     _w = wrapt.wrap_function_wrapper
     if REDISCLUSTER_VERSION >= (2, 0, 0):
-        _w("rediscluster", "client.RedisCluster.execute_command", instrumented_execute_command(config.rediscluster))
-        _w("rediscluster", "client.RedisCluster.pipeline", instrumented_pipeline)
-        _w("rediscluster", "pipeline.ClusterPipeline.execute", traced_execute_pipeline)
+        _w("rediscluster", "client.RedisCluster.execute_command", _instrumented_execute_command(config.rediscluster))
+        _w("rediscluster", "client.RedisCluster.pipeline", _instrumented_pipeline)
+        _w("rediscluster", "pipeline.ClusterPipeline.execute", _traced_execute_pipeline)
         Pin().onto(rediscluster.RedisCluster)
     else:
-        _w("rediscluster", "StrictRedisCluster.execute_command", instrumented_execute_command(config.rediscluster))
-        _w("rediscluster", "StrictRedisCluster.pipeline", instrumented_pipeline)
-        _w("rediscluster", "StrictClusterPipeline.execute", traced_execute_pipeline)
+        _w("rediscluster", "StrictRedisCluster.execute_command", _instrumented_execute_command(config.rediscluster))
+        _w("rediscluster", "StrictRedisCluster.pipeline", _instrumented_pipeline)
+        _w("rediscluster", "StrictClusterPipeline.execute", _traced_execute_pipeline)
         Pin().onto(rediscluster.StrictRedisCluster)
 
 
@@ -84,7 +96,7 @@ def unpatch():
 #
 
 
-def traced_execute_pipeline(func, instance, args, kwargs):
+def _traced_execute_pipeline(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -111,3 +123,13 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.rediscluster.get_analytics_sample_rate())
 
         return func(*args, **kwargs)
+
+
+def traced_execute_pipeline(func, instance, args, kwargs):
+    deprecate(
+        "traced_execute_pipeline is deprecated",
+        message="traced_execute_pipeline is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_execute_pipeline(func, instance, args, kwargs)
