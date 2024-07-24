@@ -37,7 +37,7 @@ download_dependency_wheels:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.7"
         PYTHON_VERSION: "3.7"
-      - PYTHON_IMAGE_TAG: "3.8-slim-buster"
+      - PYTHON_IMAGE_TAG: "3.8"
         PYTHON_VERSION: "3.8"
       - PYTHON_IMAGE_TAG: "3.9.13"
         PYTHON_VERSION: "3.9"
