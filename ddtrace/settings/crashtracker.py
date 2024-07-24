@@ -5,12 +5,19 @@ from envier import En
 from ddtrace.internal.utils.formats import parse_tags_str
 
 
+resolver_default = "full"
+
+
 def _derive_stacktrace_resolver(config: "CrashtrackerConfig") -> t.Optional[str]:
     resolver = str(config._stacktrace_resolver or "")
     resolver = resolver.lower()
+    if resolver == "none":
+        return None
     if resolver in ("fast", "full", "safe"):
         return resolver
-    return None
+
+    # Invalid values should degrade to the default
+    return resolver_default
 
 
 def _check_for_crashtracker_available() -> bool:
@@ -75,10 +82,10 @@ class CrashtrackerConfig(En):
     _stacktrace_resolver = En.v(
         t.Optional[str],
         "stacktrace_resolver",
-        default=None,
+        default=resolver_default,
         help_type="String",
         help="How to collect native stack traces during a crash, if at all.  Accepted values are 'none', 'fast',"
-        " 'safe', and 'full'.  The default value is 'none' (no stack traces).",
+        " 'safe', and 'full'.  The default value is '" + resolver_default + "'.",
     )
     stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)
 
