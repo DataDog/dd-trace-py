@@ -593,7 +593,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             embedding_model=embedding_model,
             query="hello world",
             mock_tracer=mock_tracer,
-            cassette_name=None,  # FakeEmbeddings does not need a cassette
+            cassette_name="openai_embedding_query.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         span = trace[0] if isinstance(trace, list) else trace
@@ -601,8 +601,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             _expected_llmobs_llm_span_event(
                 span,
                 span_kind="embedding",
-                model_name="",
-                model_provider="fake",
+                model_name=embedding_model.model,
+                model_provider="openai",
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
