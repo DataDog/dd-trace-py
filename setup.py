@@ -409,11 +409,11 @@ def check_rust_toolchain():
 
 
 # Before adding any extensions, check that system pre-requisites are satisfied
-# try:
-#     check_rust_toolchain()
-# except EnvironmentError as e:
-#     print(f"{e}")
-#     sys.exit(1)
+try:
+    check_rust_toolchain()
+except EnvironmentError as e:
+    print(f"{e}")
+    sys.exit(1)
 
 
 def get_exts_for(name):

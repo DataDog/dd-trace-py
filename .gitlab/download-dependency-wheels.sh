@@ -11,15 +11,16 @@ python3 -m pip install packaging
 
 mkdir pywheels-dep
 
-lib-injection/dl_wheels.py \
+cd pywheels
+
+../lib-injection/dl_wheels.py \
     --python-version=$PYTHON_VERSION \
-    --ddtrace-commit-hash=$CI_COMMIT_SHA  \
+    --local-ddtrace \
     --arch x86_64 \
     --arch aarch64 \
     --platform musllinux_1_1 \
     --platform manylinux2014 \
-    --output-dir pywheels-dep \
+    --output-dir ../pywheels-dep \
     --verbose
 
-rm -r pywheels-dep/ddtrace*.zip
 

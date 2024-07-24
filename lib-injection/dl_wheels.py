@@ -66,7 +66,7 @@ parser.add_argument(
     required=True,
 )
 parser.add_argument("--ddtrace-version", type=str)
-parser.add_argument("--ddtrace-commit-hash", type=str)
+parser.add_argument("--local-ddtrace", action="store_true")
 parser.add_argument("--output-dir", type=str, required=True)
 parser.add_argument("--dry-run", action="store_true")
 parser.add_argument("--verbose", action="store_true")
@@ -86,10 +86,10 @@ for python_version, platform in itertools.product(args.python_version, args.plat
 
         if args.ddtrace_version:
             ddtrace_specifier = "ddtrace==%s" % args.ddtrace_version
-        elif args.ddtrace_commit_hash:
-            ddtrace_specifier = "git+https://github.com/DataDog/dd-trace-py.git@%s" % args.ddtrace_commit_hash
+        elif args.local_ddtrace:
+            ddtrace_specifier = "ddtrace-*%s-*%s*%s.whl" % (abi, platform, arch)
         else:
-            print("--ddtrace-version or --ddtrace-commit-hash must be specified")
+            print("--ddtrace-version or --local-ddtrace must be specified")
             sys.exit(1)
 
         # See the docs for an explanation of all the options used:
