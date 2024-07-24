@@ -252,14 +252,10 @@ def _inject():
                     ],
                 )
             )
-            telemetry_event = gen_telemetry_payload(telemetry_data)
-            send_telemetry(telemetry_data)
+            event = gen_telemetry_payload(telemetry_data)
+            send_telemetry(event)
 
             return
-
-        if telemetry_data:
-            telemetry_event = gen_telemetry_payload(telemetry_data)
-            send_telemetry(telemetry_event)
 
         site_pkgs_path = os.path.join(
             pkgs_path, "site-packages-ddtrace-py%s-%s" % (".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
@@ -267,6 +263,11 @@ def _inject():
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
+            telemetry_data.append(
+                create_count_metric("library_entrypoint.error", ["error_type:" + "site-packages-not-found"])
+            )
+            event = gen_telemetry_payload(telemetry_data)
+            send_telemetry(event)
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
@@ -277,6 +278,11 @@ def _inject():
 
         except BaseException as e:
             _log("failed to load ddtrace module: %s" % e, level="error")
+            telemetry_data.append(
+                create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])
+            )
+            event = gen_telemetry_payload(telemetry_data)
+            send_telemetry(event)
             return
         else:
             if not FORCE_INJECT:
@@ -306,21 +312,21 @@ def _inject():
                 # Also insert the bootstrap dir in the path of the current python process.
                 sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
-                event = gen_telemetry_payload(
-                    [
-                        create_count_metric(
-                            "library_entrypoint.complete",
-                            [
-                                "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
-                            ],
-                        )
-                    ]
+                telemetry_data.append(
+                    create_count_metric(
+                        "library_entrypoint.complete",
+                        [
+                            "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
+                        ],
+                    )
                 )
+                event = gen_telemetry_payload(telemetry_data)
                 send_telemetry(event)
             except Exception as e:
-                event = gen_telemetry_payload(
-                    [create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])]
+                telemetry_data.append(
+                    create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])
                 )
+                event = gen_telemetry_payload(telemetry_data)
                 send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
