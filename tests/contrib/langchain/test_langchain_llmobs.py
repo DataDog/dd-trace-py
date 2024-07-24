@@ -16,6 +16,7 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
+
 if PATCH_LANGCHAIN_V0:
     from langchain.schema import AIMessage
     from langchain.schema import ChatMessage
