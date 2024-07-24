@@ -35,21 +35,7 @@ if [ "$ARCH" = "arm64" ]; then
   WHEEL_ARCH="aarch64"
 fi
 
-cp -r ../pywheels-dep/site-packages* $BUILD_DIR/ddtrace_pkgs # from dependencies
-
-../.gitlab/unpack_wheels.py \
-    --python-version=3.12 \
-    --python-version=3.11 \
-    --python-version=3.10 \
-    --python-version=3.9 \
-    --python-version=3.8 \
-    --python-version=3.7 \
-    --arch=$WHEEL_ARCH \
-    --platform=musllinux_1_1 \
-    --platform=manylinux2014 \
-    --input-dir=../pywheels \
-    --output-dir=$BUILD_DIR/ddtrace_pkgs \
-    --verbose
+cp -r ../pywheels-dep/site-packages* $BUILD_DIR/ddtrace_pkgs
 
 cp ../lib-injection/sitecustomize.py $BUILD_DIR/
 cp ../min_compatible_versions.csv $BUILD_DIR/
