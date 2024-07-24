@@ -1,4 +1,12 @@
 ---
 deprecations:
   - |
-    All methods in redis/patch.py, rediscluster/patch.py, yaaredis/patch.py, requests/patch.py, and webbrowser/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+    All methods in redis/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+  - |
+    All methods in rediscluster/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+  - |
+    All methods in yaaredis/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+  - |
+    All methods in requests/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+  - |
+    All methods in webbrowser/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
