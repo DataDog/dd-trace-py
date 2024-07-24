@@ -12,12 +12,7 @@ python3 -m pip install packaging
 mkdir pywheels-dep
 
 lib-injection/dl_wheels.py \
-    --python-version=3.12 \
-    --python-version=3.11 \
-    --python-version=3.10 \
-    --python-version=3.9 \
-    --python-version=3.8 \
-    --python-version=3.7 \
+    --python-version=$PYTHON_VERSION \
     --ddtrace-commit-hash=$CI_COMMIT_SHA  \
     --arch x86_64 \
     --arch aarch64 \
