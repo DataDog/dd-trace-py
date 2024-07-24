@@ -96,6 +96,7 @@ venv = Venv(
         "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": "<6.45.1",
+        "setuptools": latest,
     },
     env={
         "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
