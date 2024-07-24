@@ -93,7 +93,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
                            and platform in f
                            and arch in f]
 
-            if (len(wheel_files) > 0):
+            if (len(wheel_files) > 1):
                 print("More than one matching file found %s" % wheel_files, flush=True)
                 sys.exit(1)
 
