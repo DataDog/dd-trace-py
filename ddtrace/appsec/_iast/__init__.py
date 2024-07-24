@@ -71,7 +71,8 @@ def ddtrace_iast_flask_patch():
 
 
 def enable_iast_propagation():
-    if asbool(os.getenv("DD_IAST_ENABLED", False)):
+    if False:  # JJJ disabled to test
+    # if asbool(os.getenv("DD_IAST_ENABLED", False)):
         from ddtrace.appsec._iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
