@@ -224,6 +224,7 @@ def patch_all(**patch_modules):
     patch(raise_errors=False, **modules)
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._patch_modules import patch_iast
+
         # JJJ
         # from ddtrace.appsec.iast import enable_iast_propagation
 
