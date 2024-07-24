@@ -13,7 +13,8 @@ IS_IAST_ENABLED = _is_iast_enabled()
 
 
 def _exec_iast_patched_module(module_watchdog, module):
-    # JJJ delete comment
+    module_watchdog.loader.exec_module(module)
+    return  # JJJ
     patched_source = None
     compiled_code = None
     if IS_IAST_ENABLED:
