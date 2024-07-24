@@ -13,9 +13,11 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...internal.schema import schematize_cloud_api_operation
 from ...internal.schema import schematize_service_name
@@ -48,9 +50,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return __version__
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -61,8 +73,8 @@ def patch():
     # AWSQueryConnection and AWSAuthConnection are two different classes called by
     # different services for connection.
     # For example EC2 uses AWSQueryConnection and S3 uses AWSAuthConnection
-    wrapt.wrap_function_wrapper("boto.connection", "AWSQueryConnection.make_request", patched_query_request)
-    wrapt.wrap_function_wrapper("boto.connection", "AWSAuthConnection.make_request", patched_auth_request)
+    wrapt.wrap_function_wrapper("boto.connection", "AWSQueryConnection.make_request", _patched_query_request)
+    wrapt.wrap_function_wrapper("boto.connection", "AWSAuthConnection.make_request", _patched_auth_request)
     Pin(service="aws").onto(boto.connection.AWSQueryConnection)
     Pin(service="aws").onto(boto.connection.AWSAuthConnection)
 
@@ -75,7 +87,7 @@ def unpatch():
 
 
 # ec2, sqs, kinesis
-def patched_query_request(original_func, instance, args, kwargs):
+def _patched_query_request(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
@@ -132,8 +144,18 @@ def patched_query_request(original_func, instance, args, kwargs):
         return result
 
 
+def patched_query_request(original_func, instance, args, kwargs):
+    deprecate(
+        "patched_query_request is deprecated",
+        message="patched_query_request is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_query_request(original_func, instance, args, kwargs)
+
+
 # s3, lambda
-def patched_auth_request(original_func, instance, args, kwargs):
+def _patched_auth_request(original_func, instance, args, kwargs):
     # Catching the name of the operation that called make_request()
     operation_name = None
 
@@ -199,6 +221,16 @@ def patched_auth_request(original_func, instance, args, kwargs):
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         return result
+
+
+def patched_auth_request(original_func, instance, args, kwargs):
+    deprecate(
+        "patched_auth_request is deprecated",
+        message="patched_auth_request is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_auth_request(original_func, instance, args, kwargs)
 
 
 def _get_instance_region_name(instance):

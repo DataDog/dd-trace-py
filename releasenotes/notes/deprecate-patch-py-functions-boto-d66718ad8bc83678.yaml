@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    All functions in boto/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
