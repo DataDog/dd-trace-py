@@ -20,6 +20,9 @@ TransformerType = t.Callable[[CodeType, ModuleType], CodeType]
 PreExecHookType = t.Callable[[t.Any, ModuleType], None]
 PreExecHookCond = t.Union[str, t.Callable[[str], bool]]
 
+ImportExceptionHookType = t.Callable[[t.Any, ModuleType], None]
+ImportExceptionHookCond = t.Union[str, t.Callable[[str], bool]]
+
 
 log = get_logger(__name__)
 
@@ -461,7 +464,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
         # _pre_exec_module_hooks is a set of tuples (condition, hook) instead
         # of a list to ensure that no hook is duplicated
         self._pre_exec_module_hooks: t.Set[t.Tuple[PreExecHookCond, PreExecHookType]] = set()
-        self._import_exception_hooks: t.Set[t.Tuple[PreExecHookCond, PreExecHookType]] = set()
+        self._import_exception_hooks: t.Set[t.Tuple[ImportExceptionHookCond, ImportExceptionHookType]] = set()
 
     @property
     def _origin_map(self) -> t.Dict[str, ModuleType]:
@@ -669,7 +672,9 @@ class ModuleWatchdog(BaseModuleWatchdog):
         instance._pre_exec_module_hooks.add((cond, hook))
 
     @classmethod
-    def register_import_exception_hook(cls: t.Type["ModuleWatchdog"], cond: PreExecHookCond, hook: PreExecHookType):
+    def register_import_exception_hook(
+        cls: t.Type["ModuleWatchdog"], cond: ImportExceptionHookCond, hook: ImportExceptionHookType
+    ):
         cls._check_installed()
 
         instance = t.cast(ModuleWatchdog, cls._instance)

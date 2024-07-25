@@ -36,8 +36,8 @@ class ModuleCodeCollector(ModuleWatchdog):
         self.seen: t.Set[t.Tuple[CodeType, str]] = set()
         self._collect_import_coverage: bool = False
         self._coverage_enabled: bool = False
-        self.lines: t.DefaultDict[str, t.Set] = defaultdict(set)
-        self.covered: t.DefaultDict[str, t.Set] = defaultdict(set)
+        self.lines: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
+        self.covered: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
         self._include_paths: t.List[Path] = []
         self.lines_by_context: t.DefaultDict[str, t.DefaultDict[str, t.Set]] = defaultdict(lambda: defaultdict(set))
 
@@ -45,7 +45,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._import_time_covered: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
         self._import_time_contexts: t.Dict[str, "ModuleCodeCollector.CollectInContext"] = {}
         self._import_time_name_to_path: t.Dict[str, str] = {}
-        self._import_names_by_path: t.Dict[str, t.Set[str]] = defaultdict(set)
+        self._import_names_by_path: t.Dict[str, t.Set[t.Tuple[str, t.Tuple[str, ...]]]] = defaultdict(set)
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -77,7 +77,10 @@ class ModuleCodeCollector(ModuleWatchdog):
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
 
-    def hook(self, arg):
+    def hook(self, arg: t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
+        line: int
+        path: str
+        import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]]
         line, path, import_name = arg
 
         if self._coverage_enabled:

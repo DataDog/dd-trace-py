@@ -64,7 +64,6 @@ def _start_coverage(root_dir: str):
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         collector = ModuleCodeCollector.CollectInContext()
-        from pathlib import Path
 
         from ddtrace.ext.git import extract_workspace_path
 
