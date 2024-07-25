@@ -58,6 +58,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "protobuf",
     "pycparser",  # this package is called when a module is imported, propagation is not needed
     "pytest",  # Testing framework
+    "request",  # JJJ remove
     "setuptools",
     "sklearn",  # Machine learning library
     "tomli",
