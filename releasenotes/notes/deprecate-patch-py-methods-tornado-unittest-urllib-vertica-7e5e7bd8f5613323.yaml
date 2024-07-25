@@ -1,12 +1,12 @@
 ---
 deprecations:
   - |
-    All methods in tornado/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+    tornado: All methods in tornado/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
   - |
-    All methods in unittest/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+    unittest: All methods in unittest/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
   - |
-    All methods in urllib/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+    urllib: All methods in urllib/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
   - |
-    All methods in urllib3/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+    urllib3: All methods in urllib3/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
   - |
-    All methods in vertica/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+    vertica: All methods in vertica/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
