@@ -58,7 +58,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "protobuf",
     "pycparser",  # this package is called when a module is imported, propagation is not needed
     "pytest",  # Testing framework
-    "request",  # JJJ remove
+    "requests",  # JJJ remove
     "setuptools",
     "sklearn",  # Machine learning library
     "tomli",
@@ -213,18 +213,16 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
         log.debug("empty file: %s", module_path)
         return "", ""
 
-    # JJJ retry3
-    return module_path, source_text
-    # if remove_flask_run:
-    #     source_text = _remove_flask_run(source_text)
+    if remove_flask_run:
+        source_text = _remove_flask_run(source_text)
 
-    # new_source = visit_ast(
-    #     source_text,
-    #     module_path,
-    #     module_name=module_name,
-    # )
-    # if new_source is None:
-    #     log.debug("file not ast patched: %s", module_path)
-    #     return "", ""
-    #
-    # return module_path, new_source
+    new_source = visit_ast(
+        source_text,
+        module_path,
+        module_name=module_name,
+    )
+    if new_source is None:
+        log.debug("file not ast patched: %s", module_path)
+        return "", ""
+
+    return module_path, new_source

@@ -13,7 +13,6 @@ IS_IAST_ENABLED = _is_iast_enabled()
 
 
 def _exec_iast_patched_module(module_watchdog, module):
-    # JJJ
     patched_source = None
     compiled_code = None
     if IS_IAST_ENABLED:
@@ -29,7 +28,7 @@ def _exec_iast_patched_module(module_watchdog, module):
             compiled_code = compile(patched_source, module_path, "exec")
         except Exception:
             log.debug("Unexpected exception while compiling patched code", exc_info=True)
-            # compiled_code = None
+            compiled_code = None
 
     if compiled_code:
         # Patched source is executed instead of original module
