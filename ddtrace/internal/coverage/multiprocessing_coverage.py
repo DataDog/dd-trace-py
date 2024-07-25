@@ -39,7 +39,11 @@ def _is_patched():
 
 class CoverageCollectingMultiprocess(BaseProcess):
     def _absorb_child_coverage(self):
-        if ModuleCodeCollector._instance is None:
+        if not ModuleCodeCollector.coverage_enabled() or ModuleCodeCollector._instance is None:
+            return
+
+        if self._parent_conn is None:
+            log.warning("Pipe was None when absorbing child coverage data", exc_info=True)
             return
 
         try:
@@ -72,10 +76,11 @@ class CoverageCollectingMultiprocess(BaseProcess):
         # Call the original bootstrap method
         rval = base_process_bootstrap(self, *args, **kwargs)
 
-        try:
-            self._child_conn.send(ModuleCodeCollector.get_data_json())
-        except Exception:
-            log.warning("Failed to send coverage data to parent process", exc_info=True)
+        if self._dd_coverage_enabled and self._child_conn is not None:
+            try:
+                self._child_conn.send(ModuleCodeCollector.get_data_json())
+            except Exception:
+                log.warning("Failed to send coverage data to parent process", exc_info=True)
 
         return rval
 
@@ -83,13 +88,16 @@ class CoverageCollectingMultiprocess(BaseProcess):
         self._dd_coverage_enabled = False
         self._dd_coverage_include_paths = []
 
-        # This pipe is used to communicate final gathered coverage from the parent process to the child
-        parent_conn, child_conn = multiprocessing.Pipe()
-        self._parent_conn = parent_conn
-        self._child_conn = child_conn
+        # If coverage is not enabled, the pipe used to communicate coverage data from child to parent is not needed
+        self._parent_conn: t.Optional[multiprocessing.Pipe] = None
+        self._child_conn: t.Optional[multiprocessing.Pipe] = None
 
         # Only enable coverage in a child process being created if the parent process has coverage enabled
         if ModuleCodeCollector.coverage_enabled():
+            parent_conn, child_conn = multiprocessing.Pipe()
+            self._parent_conn = parent_conn
+            self._child_conn = child_conn
+
             self._dd_coverage_enabled = True
             self._dd_coverage_include_paths = ModuleCodeCollector._instance._include_paths
 
