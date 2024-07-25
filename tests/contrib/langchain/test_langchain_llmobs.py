@@ -345,7 +345,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_query_langchain_base(self, langchain, mock_llmobs_span_writer, mock_tracer):
+    def test_llmobs_embedding_query(self, langchain, mock_llmobs_span_writer, mock_tracer):
         embedding_model = langchain.embeddings.OpenAIEmbeddings()
         with mock.patch("langchain.embeddings.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
             trace = self._embed_query(
@@ -370,7 +370,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         )
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_documents_langchain_base(self, langchain, mock_llmobs_span_writer, mock_tracer):
+    def test_llmobs_embedding_documents(self, langchain, mock_llmobs_span_writer, mock_tracer):
         embedding_model = langchain.embeddings.OpenAIEmbeddings()
         with mock.patch(
             "langchain.embeddings.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536] * 2
@@ -592,7 +592,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_query_langchain_community(
+    def test_llmobs_embedding_query(
         self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer
     ):
         if langchain_openai is None:
@@ -621,7 +621,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         )
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_documents_langchain_community(
+    def test_llmobs_embedding_documents(
         self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer
     ):
         if langchain_community is None:
