@@ -9,8 +9,10 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -33,9 +35,19 @@ from .utils import get_exchange_from_args
 from .utils import get_routing_key_from_args
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return str(kombu.__version__)
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 # kombu default settings
@@ -66,8 +78,8 @@ def patch():
     # *  defines defaults in its kwargs
     # *  potentially overrides kwargs with values from self
     # *  extracts/normalizes things like exchange
-    _w("kombu", "Producer._publish", traced_publish)
-    _w("kombu", "Consumer.receive", traced_receive)
+    _w("kombu", "Producer._publish", _traced_publish)
+    _w("kombu", "Consumer.receive", _traced_receive)
 
     # We do not provide a service for producer spans since they represent
     # external calls to another service.
@@ -97,7 +109,7 @@ def unpatch():
 #
 
 
-def traced_receive(func, instance, args, kwargs):
+def _traced_receive(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -132,7 +144,17 @@ def traced_receive(func, instance, args, kwargs):
         return result
 
 
-def traced_publish(func, instance, args, kwargs):
+def traced_receive(func, instance, args, kwargs):
+    deprecate(
+        "traced_receive is deprecated",
+        message="traced_receive is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_receive(func, instance, args, kwargs)
+
+
+def _traced_publish(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -165,3 +187,13 @@ def traced_publish(func, instance, args, kwargs):
             "kombu.amqp.publish.pre", [args, kwargs, s]
         )  # Has to happen after trace injection for actual payload size
         return func(*args, **kwargs)
+
+
+def traced_publish(func, instance, args, kwargs):
+    deprecate(
+        "traced_publish is deprecated",
+        message="traced_publish is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_publish(func, instance, args, kwargs)

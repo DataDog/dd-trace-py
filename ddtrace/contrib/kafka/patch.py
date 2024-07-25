@@ -22,10 +22,12 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator as Propagator
+from ddtrace.vendor.debtcollector import deprecate
 
 
 _Producer = confluent_kafka.Producer
@@ -49,12 +51,22 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(confluent_kafka, "__version__", "")
 
 
-KAFKA_VERSION_TUPLE = parse_version(get_version())
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
+
+
+KAFKA_VERSION_TUPLE = parse_version(_get_version())
 
 
 _SerializationContext = confluent_kafka.serialization.SerializationContext if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None
@@ -114,13 +126,13 @@ def patch():
         confluent_kafka.DeserializingConsumer = TracedDeserializingConsumer
 
     for producer in (TracedProducer, TracedSerializingProducer):
-        trace_utils.wrap(producer, "produce", traced_produce)
+        trace_utils.wrap(producer, "produce", _traced_produce)
     for consumer in (TracedConsumer, TracedDeserializingConsumer):
-        trace_utils.wrap(consumer, "poll", traced_poll_or_consume)
-        trace_utils.wrap(consumer, "commit", traced_commit)
+        trace_utils.wrap(consumer, "poll", _traced_poll_or_consume)
+        trace_utils.wrap(consumer, "commit", _traced_commit)
 
     # Consume is not implemented in deserializing consumers
-    trace_utils.wrap(TracedConsumer, "consume", traced_poll_or_consume)
+    trace_utils.wrap(TracedConsumer, "consume", _traced_poll_or_consume)
     Pin().onto(confluent_kafka.Producer)
     Pin().onto(confluent_kafka.Consumer)
     Pin().onto(confluent_kafka.SerializingProducer)
@@ -152,7 +164,7 @@ def unpatch():
         confluent_kafka.DeserializingConsumer = _DeserializingConsumer
 
 
-def traced_produce(func, instance, args, kwargs):
+def _traced_produce(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -178,7 +190,7 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag_str(kafkax.TOPIC, topic)
 
         if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
-            serialized_key = serialize_key(instance, topic, message_key, headers)
+            serialized_key = _serialize_key(instance, topic, message_key, headers)
             if serialized_key is not None:
                 span.set_tag_str(kafkax.MESSAGE_KEY, serialized_key)
         else:
@@ -202,7 +214,17 @@ def traced_produce(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-def traced_poll_or_consume(func, instance, args, kwargs):
+def traced_produce(func, instance, args, kwargs):
+    deprecate(
+        "traced_produce is deprecated",
+        message="traced_produce is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_produce(func, instance, args, kwargs)
+
+
+def _traced_poll_or_consume(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -228,6 +250,16 @@ def traced_poll_or_consume(func, instance, args, kwargs):
             _instrument_message([None], pin, start_ns, instance, err)
 
     return result
+
+
+def traced_poll_or_consume(func, instance, args, kwargs):
+    deprecate(
+        "traced_poll_or_consume is deprecated",
+        message="traced_poll_or_consume is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_poll_or_consume(func, instance, args, kwargs)
 
 
 def _instrument_message(messages, pin, start_ns, instance, err):
@@ -287,7 +319,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
             span.set_exc_info(*sys.exc_info())
 
 
-def traced_commit(func, instance, args, kwargs):
+def _traced_commit(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -297,7 +329,17 @@ def traced_commit(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def serialize_key(instance, topic, key, headers):
+def traced_commit(func, instance, args, kwargs):
+    deprecate(
+        "traced_commit is deprecated",
+        message="traced_commit is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_commit(func, instance, args, kwargs)
+
+
+def _serialize_key(instance, topic, key, headers):
     if _SerializationContext is not None and _MessageField is not None:
         ctx = _SerializationContext(topic, _MessageField.KEY, headers)
         if hasattr(instance, "_key_serializer") and instance._key_serializer is not None:
@@ -310,3 +352,13 @@ def serialize_key(instance, topic, key, headers):
         else:
             log.warning("Failed to set Kafka Consumer key tag, no method available to serialize key: %s", str(key))
             return None
+
+
+def serialize_key(instance, topic, key, headers):
+    deprecate(
+        "serialize_key is deprecated",
+        message="serialize_key is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _serialize_key(instance, topic, key, headers)

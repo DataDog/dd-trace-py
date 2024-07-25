@@ -8,6 +8,9 @@ from typing import Union
 import langchain
 from pydantic import SecretStr
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
 
 try:
     import langchain_core
@@ -64,15 +67,25 @@ from ddtrace.vendor import wrapt
 log = get_logger(__name__)
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(langchain, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 # After 0.1.0, implementation split into langchain, langchain_community, and langchain_core.
 # We need to check the version to determine which module to wrap, to avoid deprecation warnings
 # ref: https://github.com/DataDog/dd-trace-py/issues/8212
-PATCH_LANGCHAIN_V0 = parse_version(get_version()) < (0, 1, 0)
+PATCH_LANGCHAIN_V0 = parse_version(_get_version()) < (0, 1, 0)
 
 
 config._add(
@@ -194,7 +207,7 @@ def _is_pinecone_vectorstore_instance(instance):
 
 
 @with_traced_module
-def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
+def _traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration = langchain._datadog_integration
@@ -271,8 +284,18 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     return completions
 
 
+def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_llm_generate is deprecated",
+        message="traced_llm_generate is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_llm_generate(langchain, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
+async def _traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration = langchain._datadog_integration
@@ -349,8 +372,18 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     return completions
 
 
+async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_llm_agenerate is deprecated",
+        message="traced_llm_agenerate is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_llm_agenerate(langchain, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
+def _traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
@@ -454,8 +487,18 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     return chat_completions
 
 
+def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_chat_model_generate is deprecated",
+        message="traced_chat_model_generate is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_chat_model_generate(langchain, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs):
+async def _traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
@@ -559,8 +602,18 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     return chat_completions
 
 
+async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_chat_model_agenerate is deprecated",
+        message="traced_chat_model_agenerate is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-def traced_embedding(langchain, pin, func, instance, args, kwargs):
+def _traced_embedding(langchain, pin, func, instance, args, kwargs):
     """
     This traces both embed_query(text) and embed_documents(texts), so we need to make sure
     we get the right arg/kwarg.
@@ -615,8 +668,18 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
     return embeddings
 
 
+def traced_embedding(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_embedding is deprecated",
+        message="traced_embedding is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_embedding(langchain, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-def traced_chain_call(langchain, pin, func, instance, args, kwargs):
+def _traced_chain_call(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -644,7 +707,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
             for k, v in final_outputs.items():
                 span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
         if _is_iast_enabled():
-            taint_outputs(instance, inputs, final_outputs)
+            _taint_outputs(instance, inputs, final_outputs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -674,8 +737,18 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
     return final_outputs
 
 
+def traced_chain_call(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_chain_call is deprecated",
+        message="traced_chain_call is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_chain_call(langchain, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
+async def _traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -731,8 +804,18 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     return final_outputs
 
 
+async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_chain_acall is deprecated",
+        message="traced_chain_acall is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_chain_acall(langchain, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
+def _traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     """
     Traces the top level call of a LangChain Expression Language (LCEL) chain.
 
@@ -787,8 +870,18 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     return final_output
 
 
+def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_lcel_runnable_sequence is deprecated",
+        message="traced_lcel_runnable_sequence is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, args, kwargs):
+async def _traced_lcel_runnable_sequence_async(langchain, pin, func, instance, args, kwargs):
     """
     Similar to `traced_lcel_runnable_sequence`, but for async chaining calls.
     """
@@ -834,8 +927,18 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
     return final_output
 
 
+async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_lcel_runnable_sequence_async is deprecated",
+        message="traced_lcel_runnable_sequence_async is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_lcel_runnable_sequence_async(langchain, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
+def _traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     query = get_argument_value(args, kwargs, 0, "query")
     k = kwargs.get("k", args[1] if len(args) >= 2 else None)
@@ -903,6 +1006,16 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     return documents
 
 
+def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_similarity_search is deprecated",
+        message="traced_similarity_search is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_similarity_search(langchain, pin, func, instance, args, kwargs)
+
+
 def _patch_embeddings_and_vectorstores():
     """
     Text embedding models override two abstract base methods instead of super calls,
@@ -926,7 +1039,7 @@ def _patch_embeddings_and_vectorstores():
                 wrap(
                     base_langchain_module.__name__,
                     "embeddings.%s.embed_query" % text_embedding_model,
-                    traced_embedding(langchain),
+                    _traced_embedding(langchain),
                 )
             if not isinstance(
                 deep_getattr(base_langchain_module.embeddings, "%s.embed_documents" % text_embedding_model),
@@ -935,7 +1048,7 @@ def _patch_embeddings_and_vectorstores():
                 wrap(
                     base_langchain_module.__name__,
                     "embeddings.%s.embed_documents" % text_embedding_model,
-                    traced_embedding(langchain),
+                    _traced_embedding(langchain),
                 )
     for vectorstore in vectorstore_classes:
         if hasattr(base_langchain_module.vectorstores, vectorstore):
@@ -947,7 +1060,7 @@ def _patch_embeddings_and_vectorstores():
                 wrap(
                     base_langchain_module.__name__,
                     "vectorstores.%s.similarity_search" % vectorstore,
-                    traced_similarity_search(langchain),
+                    _traced_similarity_search(langchain),
                 )
 
 
@@ -999,41 +1112,43 @@ def patch():
         from langchain.chat_models.base import BaseChatModel  # noqa:F401
         from langchain.llms.base import BaseLLM  # noqa:F401
 
-        wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
-        wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
-        wrap("langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain))
-        wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain))
-        wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
-        wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
-        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_query", traced_embedding(langchain))
-        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
+        wrap("langchain", "llms.base.BaseLLM.generate", _traced_llm_generate(langchain))
+        wrap("langchain", "llms.base.BaseLLM.agenerate", _traced_llm_agenerate(langchain))
+        wrap("langchain", "chat_models.base.BaseChatModel.generate", _traced_chat_model_generate(langchain))
+        wrap("langchain", "chat_models.base.BaseChatModel.agenerate", _traced_chat_model_agenerate(langchain))
+        wrap("langchain", "chains.base.Chain.__call__", _traced_chain_call(langchain))
+        wrap("langchain", "chains.base.Chain.acall", _traced_chain_acall(langchain))
+        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_query", _traced_embedding(langchain))
+        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", _traced_embedding(langchain))
     else:
         from langchain.chains.base import Chain  # noqa:F401
 
-        wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
-        wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
+        wrap("langchain_core", "language_models.llms.BaseLLM.generate", _traced_llm_generate(langchain))
+        wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", _traced_llm_agenerate(langchain))
         wrap(
             "langchain_core",
             "language_models.chat_models.BaseChatModel.generate",
-            traced_chat_model_generate(langchain),
+            _traced_chat_model_generate(langchain),
         )
         wrap(
             "langchain_core",
             "language_models.chat_models.BaseChatModel.agenerate",
-            traced_chat_model_agenerate(langchain),
+            _traced_chat_model_agenerate(langchain),
         )
-        wrap("langchain", "chains.base.Chain.invoke", traced_chain_call(langchain))
-        wrap("langchain", "chains.base.Chain.ainvoke", traced_chain_acall(langchain))
-        wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
+        wrap("langchain", "chains.base.Chain.invoke", _traced_chain_call(langchain))
+        wrap("langchain", "chains.base.Chain.ainvoke", _traced_chain_acall(langchain))
+        wrap("langchain_core", "runnables.base.RunnableSequence.invoke", _traced_lcel_runnable_sequence(langchain))
         wrap(
-            "langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain)
+            "langchain_core", "runnables.base.RunnableSequence.ainvoke", _traced_lcel_runnable_sequence_async(langchain)
         )
-        wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
-        wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
+        wrap("langchain_core", "runnables.base.RunnableSequence.batch", _traced_lcel_runnable_sequence(langchain))
+        wrap(
+            "langchain_core", "runnables.base.RunnableSequence.abatch", _traced_lcel_runnable_sequence_async(langchain)
+        )
         if langchain_openai:
-            wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
+            wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", _traced_embedding(langchain))
         if langchain_pinecone:
-            wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
+            wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", _traced_similarity_search(langchain))
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _patch_embeddings_and_vectorstores()
@@ -1044,10 +1159,10 @@ def patch():
         def wrap_output_parser(module, parser):
             # Ensure not double patched
             if not isinstance(deep_getattr(module, "%s.parse" % parser), wrapt.ObjectProxy):
-                wrap(module, "%s.parse" % parser, taint_parser_output)
+                wrap(module, "%s.parse" % parser, _taint_parser_output)
 
         try:
-            with_agent_output_parser(wrap_output_parser)
+            _with_agent_output_parser(wrap_output_parser)
         except Exception as e:
             _set_iast_error_metric("IAST propagation error. langchain wrap_output_parser. {}".format(e))
 
@@ -1089,7 +1204,7 @@ def unpatch():
     delattr(langchain, "_datadog_integration")
 
 
-def taint_outputs(instance, inputs, outputs):
+def _taint_outputs(instance, inputs, outputs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric
     from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
@@ -1112,7 +1227,17 @@ def taint_outputs(instance, inputs, outputs):
         _set_iast_error_metric("IAST propagation error. langchain taint_outputs. {}".format(e))
 
 
-def taint_parser_output(func, instance, args, kwargs):
+def taint_outputs(instance, inputs, outputs):
+    deprecate(
+        "taint_outputs is deprecated",
+        message="taint_outputs is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _taint_outputs(instance, inputs, outputs)
+
+
+def _taint_parser_output(func, instance, args, kwargs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric
     from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
@@ -1139,7 +1264,17 @@ def taint_parser_output(func, instance, args, kwargs):
     return result
 
 
-def with_agent_output_parser(f):
+def taint_parser_output(func, instance, args, kwargs):
+    deprecate(
+        "taint_parser_output is deprecated",
+        message="taint_parser_output is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _taint_parser_output(func, instance, args, kwargs)
+
+
+def _with_agent_output_parser(f):
     import langchain.agents
 
     queue = [(langchain.agents, agent_output_parser_classes)]
@@ -1153,3 +1288,13 @@ def with_agent_output_parser(f):
             for name, value in current.items():
                 if hasattr(module, name):
                     queue.append((getattr(module, name), value))
+
+
+def with_agent_output_parser(f):
+    deprecate(
+        "with_agent_output_parser is deprecated",
+        message="with_agent_output_parser is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _with_agent_output_parser(f)

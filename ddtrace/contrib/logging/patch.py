@@ -2,6 +2,8 @@ import logging
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...internal.utils import get_argument_value
 from ...vendor.wrapt import wrap_function_wrapper as _w
@@ -25,9 +27,19 @@ config._add(
 )  # by default, override here for custom tracer
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(logging, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 class DDLogRecord:

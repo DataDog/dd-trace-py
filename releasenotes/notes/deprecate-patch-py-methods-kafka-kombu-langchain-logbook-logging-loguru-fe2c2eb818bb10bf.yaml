@@ -1,0 +1,14 @@
+---
+deprecations:
+  - |
+    kafka: All methods in kafka/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    kombu: All methods in kombu/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    langchain: All methods in langchain/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    logbook: All methods in logbook/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    logging: All methods in logging/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    loguru: All methods in loguru/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
