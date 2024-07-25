@@ -110,7 +110,7 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
         try:
             for _target, config_item in self._configs.items():
                 for key, value in config_item.items():
-                    # We are merging lists and dictionnaries from several payloads
+                    # We are merging lists and dictionaries from several payloads
                     if isinstance(value, list):
                         result[key] = result.get(key, []) + value
                     elif isinstance(value, dict):
