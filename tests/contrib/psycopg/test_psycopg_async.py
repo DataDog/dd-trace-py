@@ -330,7 +330,6 @@ class PsycopgCore(AsyncioTestCase):
         """Checks whether connection execute shortcute method works as normal"""
 
         query = SQL("""select 'one' as x""")
-        assert 0 == 1
         conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
 
         cur = psycopg.AsyncCursor(connection=conn)
