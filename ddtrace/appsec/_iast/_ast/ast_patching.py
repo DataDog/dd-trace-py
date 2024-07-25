@@ -215,13 +215,15 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     if remove_flask_run:
         source_text = _remove_flask_run(source_text)
 
-    new_source = visit_ast(
-        source_text,
-        module_path,
-        module_name=module_name,
-    )
-    if new_source is None:
-        log.debug("file not ast patched: %s", module_path)
-        return "", ""
-
-    return module_path, new_source
+    # JJJ
+    return module_path, source_text
+    # new_source = visit_ast(
+    #     source_text,
+    #     module_path,
+    #     module_name=module_name,
+    # )
+    # if new_source is None:
+    #     log.debug("file not ast patched: %s", module_path)
+    #     return "", ""
+    #
+    # return module_path, new_source
