@@ -159,6 +159,7 @@ services:
           - ./:/root/project
           - ./.ddtox:/root/project/.tox
           - ./.riot:/root/project/.riot
+          - /opt/libdatadog:/opt/libdatadog
 
     localstack:
         image: localstack/localstack:1.4.0
