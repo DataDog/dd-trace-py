@@ -50,9 +50,9 @@ class TracedKafkaProducerMixin:
     def __init__(self, **config):
         super(TracedKafkaProducerMixin, self).__init__(**config)
         self._dd_bootstrap_servers = (
-            config.get("bootstrap.servers")
-            if config.get("bootstrap.servers") is not None
-            else config.get("metadata.broker.list")
+            config.get("bootstrap_servers")
+            if config.get("bootstrap_servers") is not None
+            else config.get("metadata_broker_list")
         )
 
 
@@ -128,7 +128,7 @@ def traced_send(func, instance, args, kwargs):
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         span.set_tag(SPAN_MEASURED_KEY)
         if instance._dd_bootstrap_servers is not None:
-            span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
+            span.set_tag_str(kafkax.HOST_LIST, ",".join(instance._dd_bootstrap_servers))
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
