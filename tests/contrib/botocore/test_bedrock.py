@@ -153,6 +153,7 @@ def bedrock_client(boto3, request_vcr):
     )
     bedrock_client = session.client("bedrock-runtime")
     yield bedrock_client
+    LLMObs.disable()
 
 
 @pytest.fixture
@@ -473,8 +474,8 @@ class TestLLMObsBedrock:
             output_messages=[{"content": mock.ANY} for _ in range(n_output)],
             metadata=expected_parameters,
             token_metrics={
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
+                "input_tokens": prompt_tokens,
+                "output_tokens": completion_tokens,
                 "total_tokens": prompt_tokens + completion_tokens,
             },
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
@@ -487,7 +488,7 @@ class TestLLMObsBedrock:
         pin.override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
 
         if cassette_name is None:
             cassette_name = "%s_invoke.yaml" % provider
@@ -523,7 +524,7 @@ class TestLLMObsBedrock:
         pin.override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
 
         if cassette_name is None:
             cassette_name = "%s_invoke_stream.yaml" % provider
@@ -623,7 +624,7 @@ class TestLLMObsBedrock:
         pin.override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
         with pytest.raises(botocore.exceptions.ClientError):
             with request_vcr.use_cassette("meta_invoke_error.yaml"):
                 body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]

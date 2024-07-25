@@ -1935,7 +1935,6 @@ with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
 )
 def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for completion endpoints when configured.
-
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
     with openai_vcr.use_cassette("completion.yaml"):
@@ -1953,7 +1952,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
             input_messages=[{"content": "Hello world"}],
             output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
             metadata={"temperature": 0.8, "max_tokens": 10},
-            token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
+            token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -1978,8 +1977,8 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
             model_provider="openai",
             input_messages=[{"content": "Hello world"}],
             output_messages=[{"content": expected_completion}],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 2, "completion_tokens": 16, "total_tokens": 18},
+            metadata={},
+            token_metrics={"input_tokens": 2, "output_tokens": 16, "total_tokens": 18},
             tags={"ml_app": "<ml-app-name>"},
         ),
     )
@@ -1990,7 +1989,6 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
 )
 def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
-
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
     if not hasattr(openai, "ChatCompletion"):
@@ -2019,8 +2017,8 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
+            metadata={},
+            token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -2033,7 +2031,6 @@ async def test_llmobs_chat_completion_stream(
     openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
 ):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
-
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
     if not hasattr(openai, "ChatCompletion"):
@@ -2062,8 +2059,8 @@ async def test_llmobs_chat_completion_stream(
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"content": expected_completion, "role": "assistant"}],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20},
+            metadata={},
+            token_metrics={"input_tokens": 8, "output_tokens": 12, "total_tokens": 20},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -2100,8 +2097,8 @@ def test_llmobs_chat_completion_function_call(
             model_provider="openai",
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
             output_messages=[{"content": expected_output, "role": "assistant"}],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+            metadata={},
+            token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -2142,8 +2139,8 @@ def test_llmobs_chat_completion_function_call_stream(
             model_provider="openai",
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
             output_messages=[{"content": expected_output, "role": "assistant"}],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 63, "completion_tokens": 33, "total_tokens": 96},
+            metadata={},
+            token_metrics={"input_tokens": 63, "output_tokens": 33, "total_tokens": 96},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -2173,8 +2170,8 @@ def test_llmobs_chat_completion_tool_call(openai_vcr, openai, ddtrace_global_con
             model_provider="openai",
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
             output_messages=[{"content": expected_output, "role": "assistant"}],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+            metadata={},
+            token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
             tags={"ml_app": "<ml-app-name>"},
         )
     )
@@ -2242,7 +2239,7 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config,
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"content": ""}],
-            metadata={"temperature": 0},
+            metadata={},
             token_metrics={},
             error="openai.error.AuthenticationError",
             error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501

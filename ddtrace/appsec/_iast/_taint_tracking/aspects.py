@@ -506,7 +506,6 @@ def format_value_aspect(
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:
-        # TODO: use our repr once we have implemented it
         new_text = repr_aspect(repr, 0, element)
     elif options == 97:
         new_text = ascii(element)
@@ -539,6 +538,86 @@ def format_value_aspect(
     except Exception as e:
         iast_taint_log_error("IAST propagation error. format_value_aspect. {}".format(e))
         return new_text
+
+
+def ospathjoin_aspect(*args, **kwargs):
+    try:
+        return _aspect_ospathjoin(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. ospathjoin_aspect. {}".format(e))
+        import os.path
+
+        return os.path.join(*args, **kwargs)
+
+
+def ospathbasename_aspect(*args, **kwargs):
+    try:
+        return _aspect_ospathbasename(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. ospathbasename_aspect. {}".format(e))
+        import os.path
+
+        return os.path.basename(*args, **kwargs)
+
+
+def ospathdirname_aspect(*args, **kwargs):
+    try:
+        return _aspect_ospathdirname(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. ospathdirname_aspect. {}".format(e))
+        import os.path
+
+        return os.path.dirname(*args, **kwargs)
+
+
+def ospathsplit_aspect(*args, **kwargs):
+    try:
+        return _aspect_ospathsplit(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. ospathsplit_aspect. {}".format(e))
+        import os.path
+
+        return os.path.split(*args, **kwargs)
+
+
+def ospathsplitext_aspect(*args, **kwargs):
+    try:
+        return _aspect_ospathsplitext(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. ospathsplitext_aspect. {}".format(e))
+        import os.path
+
+        return os.path.splitext(*args, **kwargs)
+
+
+def ospathsplitroot_aspect(*args, **kwargs):
+    try:
+        return _aspect_ospathsplitroot(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. ospathsplitroot_aspect. {}".format(e))
+        import os.path
+
+        return os.path.splitroot(*args, **kwargs)
+
+
+def ospathnormcase_aspect(*args, **kwargs):
+    try:
+        return _aspect_ospathnormcase(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. ospathnormcase_aspect. {}".format(e))
+        import os.path
+
+        return os.path.normcase(*args, **kwargs)
+
+
+def ospathsplitdrive_aspect(*args, **kwargs):
+    try:
+        return _aspect_ospathsplitdrive(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. ospathsplitdrive_aspect. {}".format(e))
+        import os.path
+
+        return os.path.splitdrive(*args, **kwargs)
 
 
 def incremental_translation(self, incr_coder, funcode, empty):

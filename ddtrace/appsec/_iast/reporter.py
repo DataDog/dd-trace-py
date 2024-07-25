@@ -13,6 +13,7 @@ import zlib
 import attr
 
 from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
+from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
@@ -26,8 +27,12 @@ def _only_if_true(value):
     return value if value else None
 
 
+ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
+
+
 @attr.s(eq=False, hash=False)
 class Evidence(object):
+    dialect = attr.ib(type=str, default=None)  # type: Optional[str]
     value = attr.ib(type=str, default=None)  # type: Optional[str]
     _ranges = attr.ib(type=dict, default={})  # type: Any
     valueParts = attr.ib(type=list, default=None)  # type: Any
@@ -143,14 +148,6 @@ class IastSpanReporter(object):
             if source not in self.sources:
                 self.sources = self.sources + [source]
 
-    def _get_source_index(self, sources: List[Source], source: Source) -> int:
-        i = 0
-        for source_ in sources:
-            if hash(source_) == hash(source):
-                return i
-            i += 1
-        return -1
-
     def build_and_scrub_value_parts(self) -> Dict[str, Any]:
         """
         Builds and scrubs value parts of vulnerabilities.
@@ -197,7 +194,7 @@ class IastSpanReporter(object):
             if from_index < range_["start"]:
                 value_parts.append({"value": evidence_value[from_index : range_["start"]]})
 
-            source_index = self._get_source_index(sources, range_["source"])
+            source_index = _get_source_index(sources, range_["source"])
 
             value_parts.append(
                 {"value": evidence_value[range_["start"] : range_["end"]], "source": source_index}  # type: ignore[dict-item]
@@ -217,7 +214,10 @@ class IastSpanReporter(object):
         Returns:
         - Dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
-        return attr.asdict(self, filter=lambda attr, x: x is not None and attr.name != "_ranges")
+        return attr.asdict(
+            self,
+            filter=lambda attr, x: x is not None and attr.name not in ATTRS_TO_SKIP,
+        )
 
     def _to_str(self) -> str:
         """

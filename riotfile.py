@@ -210,7 +210,6 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
-                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -658,7 +657,7 @@ venv = Venv(
                     pkgs={
                         "pytest": "~=4.0",
                         "celery": [
-                            "~=4.4",  # most recent 4.x
+                            latest,  # most recent 4.x
                         ],
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
@@ -671,18 +670,18 @@ venv = Venv(
                         Venv(pys="3.7", pkgs={"exceptiongroup": latest}),
                     ],
                 ),
-                Venv(
-                    # celery added support for Python 3.9 in 4.x
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={
-                        "pytest": "~=4.0",
-                        "celery": [
-                            "~=4.4",  # most recent 4.x
-                        ],
-                        "redis": "~=3.5",
-                        "kombu": "~=4.4",
-                    },
-                ),
+                # Venv(
+                #     # celery added support for Python 3.9 in 4.x
+                #     pys=select_pys(min_version="3.8", max_version="3.9"),
+                #     pkgs={
+                #         "pytest": "~=4.0",
+                #         "celery": [
+                #             "latest",  # most recent 4.x
+                #         ],
+                #         "redis": "~=3.5",
+                #         "kombu": "~=4.4",
+                #     },
+                # ),
                 # Celery 5.x wants Python 3.6+
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
@@ -899,7 +898,7 @@ venv = Venv(
                 # that we currently have no reasons for expanding this matrix.
                 "django": "==2.2.1",
                 "sqlalchemy": "~=1.2.18",
-                "celery": "~=5.0.5",
+                "celery": latest,
                 "gevent": latest,
                 "requests": latest,
                 "typing-extensions": latest,
@@ -993,6 +992,7 @@ venv = Venv(
                 "urllib3": "~=1.0",
                 "pytest-randomly": latest,
                 "importlib_metadata": latest,
+                "flask-openapi3": latest,
             },
             venvs=[
                 # Flask 1.x.x
@@ -2308,13 +2308,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.3.9"],
+                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.30.1"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[datalib]": ["==1.3.9"],
+                        "openai[datalib]": ["==1.30.1"],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
@@ -2485,7 +2485,6 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
-                "cohere": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
                 "exceptiongroup": latest,
@@ -2500,19 +2499,55 @@ venv = Venv(
                         "langchain-community": "==0.0.14",
                         "openai": "==0.27.8",
                         "pinecone-client": "==2.2.4",
+                        "cohere": "==4.57",
                     }
                 ),
                 Venv(
                     pkgs={
-                        "langchain": "==0.1.9",
-                        "langchain-community": "==0.0.24",
-                        "langchain-core": "==0.1.27",
-                        "langchain-openai": "==0.0.8",
-                        "langchain-pinecone": "==0.0.3",
-                        "langsmith": "==0.1.9",
-                        "openai": "==1.12.0",
+                        "langchain": "==0.1.20",
+                        "langchain-community": "==0.0.38",
+                        "langchain-core": "==0.1.52",
+                        "langchain-openai": "==0.1.6",
+                        "langchain-pinecone": "==0.1.0",
+                        "langchain-aws": "==0.1.3",
+                        "langchain-cohere": "==0.1.4",
+                        "openai": "==1.30.3",
                         "pinecone-client": latest,
+                        "botocore": latest,
+                        "cohere": "==5.4.0",
                     }
+                ),
+                Venv(
+                    pkgs={
+                        "langchain": "==0.2.0",
+                        "langchain-core": "==0.2.0",
+                        "langchain-openai": latest,
+                        "langchain-pinecone": latest,
+                        "langchain-anthropic": latest,
+                        "langchain-aws": latest,
+                        "langchain-cohere": latest,
+                        "openai": latest,
+                        "pinecone-client": latest,
+                        "botocore": latest,
+                        "cohere": latest,
+                    }
+                ),
+                Venv(
+                    pkgs={
+                        "langchain": latest,
+                        "langchain-community": latest,
+                        "langchain-core": latest,
+                        "langchain-openai": latest,
+                        "langchain-pinecone": latest,
+                        "langchain-anthropic": latest,
+                        "langchain-aws": latest,
+                        "langchain-cohere": latest,
+                        "openai": latest,
+                        "pinecone-client": latest,
+                        "botocore": latest,
+                        "cohere": latest,
+                        "anthropic": latest,
+                    },
                 ),
             ],
         ),

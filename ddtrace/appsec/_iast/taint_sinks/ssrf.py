@@ -16,9 +16,6 @@ log = get_logger(__name__)
 @oce.register
 class SSRF(VulnerabilityBase):
     vulnerability_type = VULN_SSRF
-    # TODO: Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
-    #  all vulnerabilities to use it first.
-    redact_report = False
 
 
 def _iast_report_ssrf(func: Callable, *args, **kwargs):

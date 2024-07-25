@@ -3,11 +3,14 @@ import re
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from .._utils import _get_source_index
 from ..constants import VULN_CMDI
 from ..constants import VULN_HEADER_INJECTION
+from ..constants import VULN_SQL_INJECTION
 from ..constants import VULN_SSRF
 from .command_injection_sensitive_analyzer import command_injection_sensitive_analyzer
 from .header_injection_sensitive_analyzer import header_injection_sensitive_analyzer
+from .sql_sensitive_analyzer import sql_sensitive_analyzer
 from .url_sensitive_analyzer import url_sensitive_analyzer
 
 
@@ -27,7 +30,7 @@ class SensitiveHandler:
 
         self._sensitive_analyzers = {
             VULN_CMDI: command_injection_sensitive_analyzer,
-            # SQL_INJECTION: sql_sensitive_analyzer,
+            VULN_SQL_INJECTION: sql_sensitive_analyzer,
             VULN_SSRF: url_sensitive_analyzer,
             VULN_HEADER_INJECTION: header_injection_sensitive_analyzer,
         }
@@ -178,7 +181,7 @@ class SensitiveHandler:
             if next_tainted and next_tainted["start"] == i:
                 self.write_value_part(value_parts, evidence_value[start:i], source_index)
 
-                source_index = next_tainted_index
+                source_index = _get_source_index(sources, next_tainted["source"])
 
                 while next_sensitive and self._contains(next_tainted, next_sensitive):
                     redaction_start = next_sensitive["start"] - next_tainted["start"]

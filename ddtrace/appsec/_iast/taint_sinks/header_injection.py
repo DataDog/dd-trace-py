@@ -1,5 +1,3 @@
-import re
-
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -18,15 +16,6 @@ from ._base import VulnerabilityBase
 
 
 log = get_logger(__name__)
-
-_HEADERS_NAME_REGEXP = re.compile(
-    r"(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)",
-    re.IGNORECASE,
-)
-_HEADERS_VALUE_REGEXP = re.compile(
-    r"(?:bearer\\s+[a-z0-9\\._\\-]+|glpat-[\\w\\-]{20}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\\w=\\-]+\\.ey[I-L][\\w=\\-]+(?:\\.[\\w.+/=\\-]+)?|(?:[\\-]{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY[\\-]{5}|ssh-rsa\\s*[a-z0-9/\\.+]{100,}))",
-    re.IGNORECASE,
-)
 
 
 def get_version():
@@ -103,9 +92,6 @@ def _iast_h(wrapped, instance, args, kwargs):
 @oce.register
 class HeaderInjection(VulnerabilityBase):
     vulnerability_type = VULN_HEADER_INJECTION
-    # TODO: Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
-    #  all vulnerabilities to use it first.
-    redact_report = False
 
 
 def _iast_report_header_injection(headers_args) -> None:

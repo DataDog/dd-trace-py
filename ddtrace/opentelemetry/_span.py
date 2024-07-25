@@ -1,3 +1,4 @@
+import traceback
 from typing import TYPE_CHECKING
 
 from opentelemetry.trace import Span as OtelSpan
@@ -8,7 +9,10 @@ from opentelemetry.trace import StatusCode
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
+from ddtrace import config
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
@@ -48,6 +52,7 @@ _OTelDatadogMapping = {
     "resource.name": "resource",
     "span.type": "span_type",
     "analytics.event": "metrics['_dd1.sr.eausr']",
+    "http.response.status_code": "meta['http.status_code']",
 }
 
 
@@ -167,8 +172,15 @@ class Span(OtelSpan):
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None
-        """NOOP - events are not yet supported"""
-        return
+        """Records an event"""
+        if not self.is_recording():
+            return
+
+        if timestamp:
+            # timestamp arg is in micoseconds we must convert it to nanoseconds
+            timestamp = timestamp * 1000
+
+        self._ddspan._add_event(name, attributes, timestamp)
 
     def update_name(self, name):
         # type: (str) -> None
@@ -208,14 +220,34 @@ class Span(OtelSpan):
     def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
         # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
         """
-        Records the type, message, and traceback of an exception as Span attributes.
-        Note - Span Events are not yet supported.
+        Records an exception as an event
         """
         if not self.is_recording():
             return
-        self._ddspan._set_exc_tags(type(exception), exception, exception.__traceback__)
+        # Set exception attributes in a manner that is consistent with the opentelemetry sdk
+        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.24.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998
+        # We will not set the exception.stacktrace attribute, this will reduce the size of the span event
+        attrs = {
+            "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
+            "exception.message": str(exception),
+            "exception.escaped": str(escaped),
+        }
         if attributes:
-            self.set_attributes(attributes)
+            # User provided attributes must take precedence over atrrs
+            attrs.update(attributes)
+
+        # Set the error type, error message and error stacktrace tags on the span
+        self._ddspan._meta[ERROR_MSG] = attrs["exception.message"]
+        self._ddspan._meta[ERROR_TYPE] = attrs["exception.type"]
+        if "exception.stacktrace" in attrs:
+            self._ddspan._meta[ERROR_STACK] = attrs["exception.stacktrace"]
+        else:
+            self._ddspan._meta[ERROR_STACK] = "".join(
+                traceback.format_exception(
+                    type(exception), exception, exception.__traceback__, limit=config._span_traceback_max_size
+                )
+            )
+        self.add_event(name="exception", attributes=attrs, timestamp=timestamp)
 
     def __enter__(self):
         # type: () -> Span
@@ -228,9 +260,10 @@ class Span(OtelSpan):
         """Ends Span context manager"""
         if exc_val:
             if self._record_exception:
-                self.record_exception(exc_val)
+                # Generates a span event for the exception
+                self.record_exception(exc_val, escaped=True)
             if self._set_status_on_exception:
-                # do not overwrite the status message set by record exception
+                # Set the status of to Error, this will NOT set the `error.message` tag on the span
                 self.set_status(StatusCode.ERROR)
         self.end()
 

@@ -1,0 +1,58 @@
+interactions:
+- request:
+    body: '{"inputText": "Command: can you explain what Datadog is to someone not
+      in the tech industry?", "textGenerationConfig": {"maxTokenCount": 50, "stopSequences":
+      [], "temperature": 0, "topP": 0.9}}'
+    headers:
+      Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      Content-Length:
+      - '193'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC42IG1kL0JvdG9jb3JlIzEuMzQuNiB1YS8yLjAgb3MvbWFjb3MjMjMuMi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC41IG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9yZXRy
+        eS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMDhUMTgyNTIzWg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        NTNjODllZTEtYWUwZS00MWRlLWFiZGUtMmQ1NGYxZDQ1MWEw
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-tg1-large/invoke
+  response:
+    body:
+      string: '{"inputTextTokenCount":18,"results":[{"tokenCount":50,"outputText":"\nDatadog
+        is a monitoring and analytics platform that helps businesses track and optimize
+        their digital infrastructure. It provides a comprehensive set of tools and
+        services for monitoring server performance, application health, and user behavior.
+        With Datadog, businesses can identify performance","completionReason":"LENGTH"}]}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '397'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 08 Jan 2024 18:25:26 GMT
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '18'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '1835'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '50'
+      x-amzn-RequestId:
+      - 758fa023-a298-48d0-89e6-0208306cb76d
+    status:
+      code: 200
+      message: OK
+version: 1
