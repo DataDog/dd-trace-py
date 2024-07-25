@@ -250,7 +250,6 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
 
-
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_app_service_v1(self):
         """
