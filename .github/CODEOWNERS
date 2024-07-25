@@ -124,3 +124,27 @@ ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 tests/utils.py                      @DataDog/python-guild
+tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
+tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
+
+# API SDK
+ddtrace/_trace/                                    @DataDog/apm-sdk-api-python
+ddtrace/opentelemetry/                             @DataDog/apm-sdk-api-python
+ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-api-python
+ddtrace/opentracer/                                @DataDog/apm-sdk-api-python
+ddtrace/propagation/                               @DataDog/apm-sdk-api-python
+ddtrace/filters.py                                 @DataDog/apm-sdk-api-python
+ddtrace/pin.py                                     @DataDog/apm-sdk-api-python
+ddtrace/sampler.py                                 @DataDog/apm-sdk-api-python
+ddtrace/sampling_rule.py                           @DataDog/apm-sdk-api-python
+ddtrace/internal/sampling.py                       @DataDog/apm-sdk-api-python
+ddtrace/internal/tracemethods.py                   @DataDog/apm-sdk-api-python
+ddttace/settings/_otel_remapper.py                 @DataDog/apm-sdk-api-python
+tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-api-python
+tests/integration/test_propagation.py              @DataDog/apm-sdk-api-python
+tests/test_sampling.py                             @DataDog/apm-sdk-api-python
+tests/test_tracemethods.py                         @DataDog/apm-sdk-api-python
+tests/opentelemetry/                               @DataDog/apm-sdk-api-python
+tests/tracer/                                      @DataDog/apm-sdk-api-python
+# Override because order matters
+tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
