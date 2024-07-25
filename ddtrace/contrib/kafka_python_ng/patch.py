@@ -57,10 +57,10 @@ class TracedKafkaProducerMixin:
 
 
 class TracedKafkaConsumerMixin:
-    def __init__(self, config, *args, **kwargs):
-        super(TracedKafkaConsumerMixin, self).__init__(config, *args, **kwargs)
-        self._group_id = kwargs.get("group_id", "")
-        self._auto_commit = asbool(kwargs.get("enable_auto_commit", True))
+    def __init__(self, *topics, **configs):
+        super(TracedKafkaConsumerMixin, self).__init__(*topics, **configs)
+        self._group_id = configs.get("group_id", "")
+        self._auto_commit = asbool(configs.get("enable_auto_commit", True))
 
 
 class TracedKafkaConsumer(TracedKafkaConsumerMixin, kafka.KafkaConsumer):
@@ -160,11 +160,8 @@ def traced_poll(func, instance, args, kwargs):
         raise err
     finally:
         if isinstance(result, dict):
-            # poll returns  messages
-            _instrument_message(result, pin, start_ns, instance, err)
-        # elif config.kafka.trace_empty_poll_enabled:
-        #    _instrument_message(None, pin, start_ns, instance, err)
-
+            if (config.kafka.trace_empty_poll_enabled and len(result) == 0) or len(result) >= 1:
+                _instrument_message(result, pin, start_ns, instance, err)
     return result
 
 
@@ -185,7 +182,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     first_message = None
     try:
         first_message = next(iter(messages.values()))[0]
-    except AttributeError:
+    except StopIteration:
         pass
     if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers:
         ctx = Propagator.extract(dict(first_message.headers))
