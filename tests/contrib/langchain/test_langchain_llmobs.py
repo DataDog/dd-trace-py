@@ -592,9 +592,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_embedding_query(
-        self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer
-    ):
+    def test_llmobs_embedding_query(self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         if langchain_openai is None:
             pytest.skip("langchain_openai not installed which is required for this test.")
         embedding_model = langchain_openai.embeddings.OpenAIEmbeddings()
