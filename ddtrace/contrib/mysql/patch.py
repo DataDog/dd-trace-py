@@ -7,8 +7,10 @@ from ddtrace import config
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...ext import db
 from ...ext import net
@@ -31,9 +33,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return mysql.connector.version.VERSION_TEXT
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 CONN_ATTR_BY_TAG = {
@@ -63,10 +75,10 @@ def unpatch():
 
 def _connect(func, instance, args, kwargs):
     conn = func(*args, **kwargs)
-    return patch_conn(conn)
+    return _patch_conn(conn)
 
 
-def patch_conn(conn):
+def _patch_conn(conn):
     tags = {
         t: _convert_to_string(getattr(conn, a, None)) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""
     }
@@ -77,3 +89,13 @@ def patch_conn(conn):
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysql)
     pin.onto(wrapped)
     return wrapped
+
+
+def patch_conn(conn):
+    deprecate(
+        "patch_conn is deprecated",
+        message="patch_conn is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_conn(conn)
