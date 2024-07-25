@@ -736,8 +736,8 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     @staticmethod
     def _call_openai_embedding(OpenAIEmbeddings):
         embedding = OpenAIEmbeddings()
-            with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_embedding_query.yaml"):
-                embedding.embed_query("hello world")
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_embedding_query.yaml"):
+            embedding.embed_query("hello world")
 
     @staticmethod
     def _call_anthropic_chat(Anthropic):
@@ -827,7 +827,7 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         patch(langchain=True, openai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
         self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["workflow"])
+        self._assert_trace_structure_from_writer_call_args(["workflow", "embedding"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
