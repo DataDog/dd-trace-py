@@ -2536,7 +2536,8 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                    }
+                        "anthropic": latest,
+                    },
                 ),
                 Venv(
                     pkgs={
@@ -2552,7 +2553,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                    }
+                    },
                 ),
             ],
         ),

@@ -192,6 +192,7 @@ dependencies = [
 
 [envs.appsec_threats_django.scripts]
 test = [
+    "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
@@ -237,6 +238,7 @@ dependencies = [
 
 [envs.appsec_threats_flask.scripts]
 test = [
+    "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
@@ -279,6 +281,7 @@ dependencies = [
 
 [envs.appsec_threats_fastapi.scripts]
 test = [
+    "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
@@ -299,3 +302,27 @@ fastapi = ["==0.94.1"]
 [[envs.appsec_threats_fastapi.matrix]]
 python = ["3.8", "3.10", "3.11"]
 fastapi = ["~=0.109"]
+
+## Unit Tests
+
+[envs.ddtrace_unit_tests]
+dependencies = [
+    "pytest",
+    "pytest-coverage",
+    "requests",
+    "hypothesis",
+]
+
+[envs.ddtrace_unit_tests.env-vars]
+DD_IAST_ENABLED = "false"
+DD_REMOTE_CONFIGURATION_ENABLED = "false"
+
+[envs.ddtrace_unit_tests.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/internal/service_name/test_extra_services_names.py -vvv -s",
+]
+
+[[envs.ddtrace_unit_tests.matrix]]
+python = ["3.12", "3.10", "3.7"]
