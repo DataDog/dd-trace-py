@@ -340,6 +340,7 @@ class PsycopgCore(AsyncioTestCase):
         assert rows[0][0] == "one"
 
     async def test_cursor_async_connect_execute(self):
+        """Checks whether connection can execute operations with async iteration."""
 
         async with psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
             async with conn.cursor() as cur:
@@ -355,5 +356,7 @@ class PsycopgCore(AsyncioTestCase):
                         )
                 await cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
                 await cur.execute("INSERT INTO {} (a, b) VALUES (2, 'bb');".format(TEST_TABLE))
+                await cur.execute("INSERT INTO {} (a, b) VALUES (3, 'cc');".format(TEST_TABLE))
+
                 async for row in cur:
                     assert row
