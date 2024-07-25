@@ -1193,6 +1193,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/psycopg",
             pkgs={
                 "pytest-randomly": latest,
+                "psycopg-pool": latest,
             },
             venvs=[
                 Venv(
