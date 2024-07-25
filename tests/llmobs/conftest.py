@@ -3,6 +3,7 @@ import os
 import mock
 import pytest
 
+from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
@@ -38,6 +39,16 @@ def mock_llmobs_span_writer():
 
 
 @pytest.fixture
+def mock_llmobs_span_agentless_writer():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+    LLMObsSpanWriterMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsSpanWriterMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
 def mock_llmobs_eval_metric_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsEvalMetricWriter")
     LLMObsEvalMetricWriterMock = patcher.start()
@@ -45,6 +56,18 @@ def mock_llmobs_eval_metric_writer():
     LLMObsEvalMetricWriterMock.return_value = m
     yield m
     patcher.stop()
+
+
+@pytest.fixture(autouse=True)
+def mock_http_writer_send_payload_response():
+    with mock.patch(
+        "ddtrace.internal.writer.HTTPWriter._send_payload",
+        return_value=Response(
+            status=200,
+            body="{}",
+        ),
+    ):
+        yield
 
 
 @pytest.fixture
@@ -72,3 +95,16 @@ def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_glob
         llmobs_service.enable(_tracer=dummy_tracer)
         yield llmobs_service
         llmobs_service.disable()
+
+
+@pytest.fixture
+def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
+    global_config = default_global_config()
+    global_config.update(ddtrace_global_config)
+    with override_global_config(global_config):
+        os.environ["DD_LLMOBS_AGENTLESS_ENABLED"] = "1"
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        yield llmobs_service
+        llmobs_service.disable()
+        os.environ.pop("DD_LLMOBS_AGENTLESS_ENABLED", None)

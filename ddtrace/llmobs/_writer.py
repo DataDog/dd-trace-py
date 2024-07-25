@@ -201,6 +201,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
         data = {"_dd.stage": "raw", "event_type": "span", "spans": events}
         try:
             enc_llm_events = json.dumps(data)
+            logger.debug("encode %d LLMObs span events to be sent", len(events))
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
             return
