@@ -1,4 +1,5 @@
 import kafka
+from kafka.structs import OffsetAndMetadata
 import pytest
 
 from ddtrace import Pin
@@ -36,21 +37,31 @@ def producer(tracer):
 
 
 @pytest.fixture
-def consumer(tracer, kafka_topic):
+def consumer_with_topic(tracer, kafka_topic):
     print("Connecting to kafka")
     _consumer = kafka.KafkaConsumer(
-        kafka_topic, bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID
+        bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID, enable_auto_commit=False
     )
-
+    _consumer.subscribe(topics=[kafka_topic])
     Pin.override(_consumer, tracer=tracer)
     return _consumer
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_commit(producer, consumer, kafka_topic):
+def consumer_without_topic(tracer):
+    print("Connecting to kafka")
+    _consumer = kafka.KafkaConsumer(
+        bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID, enable_auto_commit=False
+    )
+    Pin.override(_consumer, tracer=tracer)
+    return _consumer
+
+
+def test_commit(producer, consumer_with_topic, kafka_topic):
     print("running tests")
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
         producer.flush()
-        message = consumer.poll()
-        consumer.commit(message)
+        result = consumer_with_topic.poll(1000)
+        for topic_partition in result:
+            for record in result[topic_partition]:
+                consumer_with_topic.commit({topic_partition: OffsetAndMetadata(record.offset, "")})
