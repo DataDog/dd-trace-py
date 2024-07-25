@@ -212,7 +212,7 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
         log.debug("empty file: %s", module_path)
         return "", ""
 
-    # JJJ retry
+    # JJJ retry2
     return module_path, source_text
     # if remove_flask_run:
     #     source_text = _remove_flask_run(source_text)
