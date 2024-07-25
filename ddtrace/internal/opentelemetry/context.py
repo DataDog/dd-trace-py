@@ -1,22 +1,8 @@
-"""
-Implementation details of parenting open telemetry spans should be kept internal. This will give us the flexibility
-to support new features (ex: baggage) and refactor this module with out introducing a breaking change.
-"""
-from opentelemetry.context.context import Context as OtelContext
-from opentelemetry.trace import NonRecordingSpan as OtelNonRecordingSpan
-from opentelemetry.trace import Span as OtelSpan
-from opentelemetry.trace import SpanContext as OtelSpanContext
-from opentelemetry.trace import get_current_span
-from opentelemetry.trace import set_span_in_context
-from opentelemetry.trace.span import TraceFlags
-from opentelemetry.trace.span import TraceState
-
 from ddtrace import tracer as ddtracer
 from ddtrace._trace.context import Context as DDContext
 from ddtrace._trace.provider import BaseContextProvider as DDBaseContextProvider  # noqa:F401
 from ddtrace._trace.span import Span as DDSpan
 from ddtrace.internal.logger import get_logger
-from ddtrace.opentelemetry._span import Span
 from ddtrace.propagation.http import _TraceContext
 
 
@@ -24,12 +10,22 @@ log = get_logger(__name__)
 
 
 class DDRuntimeContext:
+    """
+    Responsible for converting between OpenTelemetry and Datadog spans. This class is loaded by entrypoint
+    when `opentelemetry.context` is imported.
+    """
+
     def attach(self, otel_context):
-        # type: (OtelContext) -> object
         """
         Converts an OpenTelemetry Span to a Datadog Span/Context then stores the
         Datadog representation in the Global DDtrace Trace Context Provider.
         """
+        # Inline opentelemetry imports to avoid circular imports.
+        from opentelemetry.trace import Span as OtelSpan
+        from opentelemetry.trace import get_current_span
+
+        from ddtrace.opentelemetry._span import Span
+
         otel_span = get_current_span(otel_context)
         if otel_span:
             if isinstance(otel_span, Span):
@@ -51,11 +47,20 @@ class DDRuntimeContext:
         return object()
 
     def get_current(self):
-        # type: (...) -> OtelContext
         """
         Converts the active datadog span to an Opentelemetry Span and then stores it
         in a format that can be parsed by the OpenTelemetry API.
         """
+        # Inline opentelemetry imports to avoid circular imports.
+        from opentelemetry.context.context import Context as OtelContext
+        from opentelemetry.trace import NonRecordingSpan as OtelNonRecordingSpan
+        from opentelemetry.trace import SpanContext as OtelSpanContext
+        from opentelemetry.trace import set_span_in_context
+        from opentelemetry.trace.span import TraceFlags
+        from opentelemetry.trace.span import TraceState
+
+        from ddtrace.opentelemetry._span import Span
+
         ddactive = self._ddcontext_provider.active()
         context = OtelContext()
         if isinstance(ddactive, DDSpan):
@@ -70,7 +75,6 @@ class DDRuntimeContext:
         return context
 
     def detach(self, token):
-        # type: (object) -> None
         """
         NOP, The otel api uses this method to deactivate spans but this operation is not supported by
         the datadog context provider.
@@ -79,7 +83,6 @@ class DDRuntimeContext:
 
     @property
     def _ddcontext_provider(self):
-        # type: () -> DDBaseContextProvider
         """
         Get the ddtrace context provider from the global Datadog tracer.
         This can reterive a default, gevent, or asyncio context provider.
