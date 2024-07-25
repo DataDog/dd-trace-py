@@ -439,10 +439,10 @@ jobs:
           path: coverage.json
       # Print ddtrace/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=tests/ || true
+      - run: coverage report --ignore-errors --omit='tests/*' || true
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=ddtrace/ || true
+      - run: coverage report --ignore-errors --omit='ddtrace/*' || true
       # Print diff-cover report to stdout (compares against origin/1.x)
       - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml || true
 
@@ -572,6 +572,7 @@ jobs:
           pattern: "datastreams"
 
   tracer:
+    parallelism: 10
     <<: *contrib_job_large
     steps:
       - run_test:

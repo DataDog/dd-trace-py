@@ -185,10 +185,10 @@ def _is_pinecone_vectorstore_instance(instance):
     """
     try:
         if not PATCH_LANGCHAIN_V0 and langchain_pinecone:
-            return isinstance(instance, langchain_pinecone.VectorStore)
+            return isinstance(instance, langchain_pinecone.PineconeVectorStore)
         if not PATCH_LANGCHAIN_V0 and langchain_community:
-            return isinstance(instance, langchain_community.vectorstores.VectorStore)
-        return isinstance(instance, langchain.vectorstores.VectorStore)
+            return isinstance(instance, langchain_community.vectorstores.Pinecone)
+        return isinstance(instance, langchain.vectorstores.Pinecone)
     except (AttributeError, ModuleNotFoundError, ImportError):
         return False
 

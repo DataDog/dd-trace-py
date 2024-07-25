@@ -168,7 +168,7 @@
         "debugging": [
             "ddtrace/debugging/*",
             "ddtrace/settings/dynamic_instrumentation.py",
-            "ddtrace/settings/exception_debugging.py"
+            "ddtrace/settings/exception_replay.py"
         ],
         "ci": [
             "ddtrace/ext/ci.py"
@@ -447,6 +447,7 @@
             "@remoteconfig",
             "@symbol_db",
             "@tracing",
+            "ddtrace/internal/*",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
@@ -659,6 +660,7 @@
             "@bootstrap",
             "@core",
             "@telemetry",
+            "@tracing",
             "@settings",
             "@profiling",
             "tests/telemetry/*",
