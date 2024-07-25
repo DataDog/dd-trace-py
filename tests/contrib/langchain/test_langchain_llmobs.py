@@ -821,7 +821,7 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         patch(langchain=True, openai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
         self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "embedding"])
+        self._assert_trace_structure_from_writer_call_args(["workflow"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
