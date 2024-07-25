@@ -23,7 +23,7 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+from ddtrace.debugging._exception.replay import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore

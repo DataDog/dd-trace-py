@@ -15,7 +15,4 @@ def _never_called():  # Should be covered due to import
     pass
 
 
-# def calls_function_imported_in_function_namespace():
-#     from .relative_import_time_callee import relative_module_level_constant
-#     return relative_module_level_constant
-#
+# This comment should affect neither executable nor covered lines
