@@ -330,6 +330,7 @@ class PsycopgCore(AsyncioTestCase):
         """Checks whether connection execute shortcute method works as normal"""
 
         query = SQL("""select 'one' as x""")
+        assert 0 == 1
         conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
 
         cur = psycopg.AsyncCursor(connection=conn)
@@ -341,7 +342,6 @@ class PsycopgCore(AsyncioTestCase):
 
     async def test_cursor_async_connect_execute(self):
         """Checks whether connection can execute operations with async iteration."""
-
         async with psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
             async with conn.cursor() as cur:
                 await cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
@@ -358,5 +358,7 @@ class PsycopgCore(AsyncioTestCase):
                 await cur.execute("INSERT INTO {} (a, b) VALUES (2, 'bb');".format(TEST_TABLE))
                 await cur.execute("INSERT INTO {} (a, b) VALUES (3, 'cc');".format(TEST_TABLE))
 
+                count = 1
                 async for row in cur:
-                    assert row
+                    assert row[0] == count
+                    count += 1
