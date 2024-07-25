@@ -20,7 +20,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -43,20 +45,40 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(starlette, "__version__", "")
 
 
-_STARLETTE_VERSION = parse_version(get_version())
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
-def traced_init(wrapped, instance, args, kwargs):
+_STARLETTE_VERSION = parse_version(_get_version())
+
+
+def _traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
     kwargs.update({"middleware": mw})
 
     wrapped(*args, **kwargs)
+
+
+def traced_init(wrapped, instance, args, kwargs):
+    deprecate(
+        "traced_init is deprecated",
+        message="traced_init is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_init(wrapped, instance, args, kwargs)
 
 
 def patch():
@@ -65,14 +87,14 @@ def patch():
 
     starlette._datadog_patch = True
 
-    _w("starlette.applications", "Starlette.__init__", traced_init)
+    _w("starlette.applications", "Starlette.__init__", _traced_init)
     Pin().onto(starlette)
 
     # We need to check that Fastapi instrumentation hasn't already patched these
     if not isinstance(starlette.routing.Route.handle, ObjectProxy):
-        _w("starlette.routing", "Route.handle", traced_handler)
+        _w("starlette.routing", "Route.handle", _traced_handler)
     if not isinstance(starlette.routing.Mount.handle, ObjectProxy):
-        _w("starlette.routing", "Mount.handle", traced_handler)
+        _w("starlette.routing", "Mount.handle", _traced_handler)
 
     if not isinstance(starlette.background.BackgroundTasks.add_task, ObjectProxy):
         _w("starlette.background", "BackgroundTasks.add_task", _trace_background_tasks(starlette))
@@ -97,7 +119,7 @@ def unpatch():
         _u(starlette.background.BackgroundTasks, "add_task")
 
 
-def traced_handler(wrapped, instance, args, kwargs):
+def _traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
     scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
@@ -172,6 +194,16 @@ def traced_handler(wrapped, instance, args, kwargs):
         request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
 
     return wrapped(*args, **kwargs)
+
+
+def traced_handler(wrapped, instance, args, kwargs):
+    deprecate(
+        "traced_handler is deprecated",
+        message="traced_handler is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_handler(wrapped, instance, args, kwargs)
 
 
 @with_traced_module

@@ -7,7 +7,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.starlette.patch import _trace_background_tasks
-from ddtrace.contrib.starlette.patch import traced_handler
+from ddtrace.contrib.starlette.patch import _traced_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -77,10 +77,10 @@ def patch():
 
     # We need to check that Starlette instrumentation hasn't already patched these
     if not isinstance(fastapi.routing.APIRoute.handle, ObjectProxy):
-        _w("fastapi.routing", "APIRoute.handle", traced_handler)
+        _w("fastapi.routing", "APIRoute.handle", _traced_handler)
 
     if not isinstance(fastapi.routing.Mount.handle, ObjectProxy):
-        _w("starlette.routing", "Mount.handle", traced_handler)
+        _w("starlette.routing", "Mount.handle", _traced_handler)
 
 
 def unpatch():

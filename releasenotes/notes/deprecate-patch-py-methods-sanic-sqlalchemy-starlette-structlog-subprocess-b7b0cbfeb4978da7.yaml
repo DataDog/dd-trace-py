@@ -1,0 +1,14 @@
+---
+deprecations:
+  - |
+    sanic: All methods in tornado/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    snowflake: All methods in unittest/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    sqlalchemy: All methods in urllib/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    starlette: All methods in urllib3/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    structlog: All methods in vertica/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    subprocess: All methods in urllib3/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.

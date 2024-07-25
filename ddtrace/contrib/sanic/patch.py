@@ -12,9 +12,11 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.logger import get_logger
@@ -28,9 +30,19 @@ config._add("sanic", dict(_default_service=schematize_service_name("sanic"), dis
 SANIC_VERSION = (0, 0, 0)
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(sanic, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def _get_current_span(request):
@@ -41,7 +53,7 @@ def _get_current_span(request):
     return pin.tracer.current_span()
 
 
-def update_span(span, response):
+def _update_span(span, response):
     # Check for response status or headers on the response object
     # DEV: This object can either be a form of BaseResponse or an Exception
     #      if we do not have a status code, we can assume this is an exception
@@ -49,6 +61,16 @@ def update_span(span, response):
     status_code = getattr(response, "status", 500)
     response_headers = getattr(response, "headers", None)
     trace_utils.set_http_meta(span, config.sanic, status_code=status_code, response_headers=response_headers)
+
+
+def update_span(span, response):
+    deprecate(
+        "update_span is deprecated",
+        message="update_span is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _update_span(span, response)
 
 
 def _wrap_response_callback(span, callback):
@@ -60,14 +82,14 @@ def _wrap_response_callback(span, callback):
     def wrap_sync(wrapped, instance, args, kwargs):
         r = wrapped(*args, **kwargs)
         response = args[0]
-        update_span(span, response)
+        _update_span(span, response)
         return r
 
     @wrapt.function_wrapper
     async def wrap_async(wrapped, instance, args, kwargs):
         r = await wrapped(*args, **kwargs)
         response = args[0]
-        update_span(span, response)
+        _update_span(span, response)
         return r
 
     if asyncio.iscoroutinefunction(callback):
@@ -76,7 +98,7 @@ def _wrap_response_callback(span, callback):
     return wrap_sync(callback)
 
 
-async def patch_request_respond(wrapped, instance, args, kwargs):
+async def _patch_request_respond(wrapped, instance, args, kwargs):
     # Only for sanic 21 and newer
     # Wrap the framework response to set HTTP response span tags
     response = await wrapped(*args, **kwargs)
@@ -84,13 +106,23 @@ async def patch_request_respond(wrapped, instance, args, kwargs):
     if not span:
         return response
 
-    update_span(span, response)
+    _update_span(span, response)
 
     # Sanic 21.9.x does not dispatch `http.lifecycle.response` in `handle_exception`
     #  so we have to handle finishing the span here instead
     if (21, 9, 0) <= SANIC_VERSION < (21, 12, 0) and getattr(instance.ctx, "__dd_span_call_finish", False):
         span.finish()
     return response
+
+
+async def patch_request_respond(wrapped, instance, args, kwargs):
+    deprecate(
+        "patch_request_respond is deprecated",
+        message="patch_request_respond is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_request_respond(wrapped, instance, args, kwargs)
 
 
 def _get_path(request):
@@ -110,13 +142,23 @@ def _get_path(request):
     return path
 
 
-async def patch_run_request_middleware(wrapped, instance, args, kwargs):
+async def _patch_run_request_middleware(wrapped, instance, args, kwargs):
     # Set span resource from the framework request
     request = args[0]
     span = _get_current_span(request)
     if span is not None:
         span.resource = "{} {}".format(request.method, _get_path(request))
     return await wrapped(*args, **kwargs)
+
+
+async def patch_run_request_middleware(wrapped, instance, args, kwargs):
+    deprecate(
+        "patch_run_request_middleware is deprecated",
+        message="patch_run_request_middleware is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_run_request_middleware(wrapped, instance, args, kwargs)
 
 
 def patch():
@@ -130,13 +172,13 @@ def patch():
     SANIC_VERSION = tuple(map(int, sanic.__version__.split(".")))
 
     if SANIC_VERSION >= (21, 9, 0):
-        _w("sanic", "Sanic.__init__", patch_sanic_init)
-        _w(sanic.request, "Request.respond", patch_request_respond)
+        _w("sanic", "Sanic.__init__", _patch_sanic_init)
+        _w(sanic.request, "Request.respond", _patch_request_respond)
     else:
-        _w("sanic", "Sanic.handle_request", patch_handle_request)
+        _w("sanic", "Sanic.handle_request", _patch_handle_request)
         if SANIC_VERSION >= (21, 0, 0):
-            _w("sanic", "Sanic._run_request_middleware", patch_run_request_middleware)
-            _w(sanic.request, "Request.respond", patch_request_respond)
+            _w("sanic", "Sanic._run_request_middleware", _patch_run_request_middleware)
+            _w(sanic.request, "Request.respond", _patch_request_respond)
 
 
 def unpatch():
@@ -156,17 +198,27 @@ def unpatch():
     sanic.__datadog_patch = False
 
 
-def patch_sanic_init(wrapped, instance, args, kwargs):
+def _patch_sanic_init(wrapped, instance, args, kwargs):
     """Wrapper for creating sanic apps to automatically add our signal handlers"""
     wrapped(*args, **kwargs)
 
-    instance.add_signal(sanic_http_lifecycle_handle, "http.lifecycle.handle")
-    instance.add_signal(sanic_http_routing_after, "http.routing.after")
-    instance.add_signal(sanic_http_lifecycle_exception, "http.lifecycle.exception")
-    instance.add_signal(sanic_http_lifecycle_response, "http.lifecycle.response")
+    instance.add_signal(_sanic_http_lifecycle_handle, "http.lifecycle.handle")
+    instance.add_signal(_sanic_http_routing_after, "http.routing.after")
+    instance.add_signal(_sanic_http_lifecycle_exception, "http.lifecycle.exception")
+    instance.add_signal(_sanic_http_lifecycle_response, "http.lifecycle.response")
 
 
-async def patch_handle_request(wrapped, instance, args, kwargs):
+def patch_sanic_init(wrapped, instance, args, kwargs):
+    deprecate(
+        "patch_sanic_init is deprecated",
+        message="patch_sanic_init is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_sanic_init(wrapped, instance, args, kwargs)
+
+
+async def _patch_handle_request(wrapped, instance, args, kwargs):
     """Wrapper for Sanic.handle_request"""
 
     def unwrap(request, write_callback=None, stream_callback=None, **kwargs):
@@ -184,6 +236,16 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
             new_kwargs["stream_callback"] = _wrap_response_callback(span, stream_callback)
 
         return await wrapped(request, **new_kwargs)
+
+
+async def patch_handle_request(wrapped, instance, args, kwargs):
+    deprecate(
+        "patch_handle_request is deprecated",
+        message="patch_handle_request is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_handle_request(wrapped, instance, args, kwargs)
 
 
 def _create_sanic_request_span(request):
@@ -228,12 +290,22 @@ def _create_sanic_request_span(request):
     return span
 
 
-async def sanic_http_lifecycle_handle(request):
+async def _sanic_http_lifecycle_handle(request):
     """Lifecycle signal called when a new request is started."""
     _create_sanic_request_span(request)
 
 
-async def sanic_http_routing_after(request, route, kwargs, handler):
+async def sanic_http_lifecycle_handle(request):
+    deprecate(
+        "sanic_http_lifecycle_handle is deprecated",
+        message="sanic_http_lifecycle_handle is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _sanic_http_lifecycle_handle(request)
+
+
+async def _sanic_http_routing_after(request, route, kwargs, handler):
     """Lifecycle signal called after routing has been resolved."""
     span = _get_current_span(request)
     if not span:
@@ -250,7 +322,17 @@ async def sanic_http_routing_after(request, route, kwargs, handler):
     span.set_tag_str("sanic.route.name", route.name)
 
 
-async def sanic_http_lifecycle_response(request, response):
+async def sanic_http_routing_after(request, route, kwargs, handler):
+    deprecate(
+        "sanic_http_routing_after is deprecated",
+        message="sanic_http_routing_after is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _sanic_http_routing_after(request, route, kwargs, handler)
+
+
+async def _sanic_http_lifecycle_response(request, response):
     """Lifecycle signal called when a response is starting.
 
     Note: This signal does not get called when exceptions occur
@@ -260,12 +342,22 @@ async def sanic_http_lifecycle_response(request, response):
     if not span:
         return
     try:
-        update_span(span, response)
+        _update_span(span, response)
     finally:
         span.finish()
 
 
-async def sanic_http_lifecycle_exception(request, exception):
+async def sanic_http_lifecycle_response(request, response):
+    deprecate(
+        "sanic_http_lifecycle_response is deprecated",
+        message="sanic_http_lifecycle_response is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _sanic_http_lifecycle_response(request, response)
+
+
+async def _sanic_http_lifecycle_exception(request, exception):
     """Lifecycle signal called when an exception occurs."""
     span = _get_current_span(request)
     if not span:
@@ -283,3 +375,13 @@ async def sanic_http_lifecycle_exception(request, exception):
     #  so we need to indicate to `patch_request_respond` to finish the span
     if (21, 9, 0) <= SANIC_VERSION < (21, 12, 0):
         request.ctx.__dd_span_call_finish = True
+
+
+async def sanic_http_lifecycle_exception(request, exception):
+    deprecate(
+        "sanic_http_lifecycle_exception is deprecated",
+        message="sanic_http_lifecycle_exception is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _sanic_http_lifecycle_exception(request, exception)

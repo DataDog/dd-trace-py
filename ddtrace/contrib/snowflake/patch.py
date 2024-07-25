@@ -2,7 +2,9 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...ext import db
 from ...ext import net
@@ -28,7 +30,7 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     try:
         import snowflake.connector as c
@@ -37,6 +39,16 @@ def get_version():
 
         c = sys.modules.get("snowflake.connector")
     return str(c.__version__)
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 class _SFTracedCursor(TracedCursor):
@@ -57,8 +69,8 @@ def patch():
         return
     c._datadog_patch = True
 
-    wrapt.wrap_function_wrapper(c, "Connect", patched_connect)
-    wrapt.wrap_function_wrapper(c, "connect", patched_connect)
+    wrapt.wrap_function_wrapper(c, "Connect", _patched_connect)
+    wrapt.wrap_function_wrapper(c, "connect", _patched_connect)
 
 
 def unpatch():
@@ -76,7 +88,7 @@ def unpatch():
         unwrap(c, "connect")
 
 
-def patched_connect(connect_func, _, args, kwargs):
+def _patched_connect(connect_func, _, args, kwargs):
     conn = connect_func(*args, **kwargs)
     if isinstance(conn, TracedConnection):
         return conn
@@ -97,3 +109,13 @@ def patched_connect(connect_func, _, args, kwargs):
     traced_conn = TracedConnection(conn, pin=pin, cfg=config.snowflake, cursor_cls=_SFTracedCursor)
     pin.onto(traced_conn)
     return traced_conn
+
+
+def patched_connect(connect_func, _, args, kwargs):
+    deprecate(
+        "patched_connect is deprecated",
+        message="patched_connect is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_connect(connect_func, _, args, kwargs)

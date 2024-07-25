@@ -22,7 +22,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import shjoin
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -33,9 +35,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return ""
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -161,13 +173,13 @@ class SubprocessCmdLine(object):
             # Extract previous environment variables, scrubbing all the ones not
             # in ENV_VARS_ALLOWLIST
             if shell:
-                self.scrub_env_vars(tokens)
+                self._scrub_env_vars(tokens)
             else:
                 self.binary = tokens[0]
                 self.arguments = tokens[1:]
 
             self.arguments = list(self.arguments) if isinstance(self.arguments, tuple) else self.arguments
-            self.scrub_arguments()
+            self._scrub_arguments()
 
             # Create a new cache entry to store the computed values except as_list
             # and as_string that are computed and stored lazily
@@ -175,7 +187,7 @@ class SubprocessCmdLine(object):
                 cache_key, self.env_vars, self.binary, self.arguments, self.truncated
             )
 
-    def scrub_env_vars(self, tokens):
+    def _scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
             if re.match(self._COMPILED_ENV_VAR_REGEXP, token):
                 var, value = token.split("=")
@@ -193,7 +205,16 @@ class SubprocessCmdLine(object):
                     pass
                 break
 
-    def scrub_arguments(self):
+    def scrub_env_vars(self, tokens):
+        deprecate(
+            "scrub_env_vars is deprecated",
+            message="scrub_env_vars is deprecated, use _scrub_env_vars instead",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._scrub_env_vars(tokens)
+
+    def _scrub_arguments(self):
         # if the binary is in the denylist, scrub all arguments
         if self.binary.lower() in self.BINARIES_DENYLIST:
             self.arguments = ["?" for _ in self.arguments]
@@ -250,7 +271,16 @@ class SubprocessCmdLine(object):
 
         self.arguments = new_args
 
-    def truncate_string(self, str_):
+    def scrub_arguments(self):
+        deprecate(
+            "srub_arguments is deprecated",
+            message="scrub_arguments is deprecated, use _scrub_arguments instead",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._scrub_arguments()
+
+    def _truncate_string(self, str_):
         # type: (str) -> str
         oversize = len(str_) - self.TRUNCATE_LIMIT
 
@@ -263,15 +293,24 @@ class SubprocessCmdLine(object):
         msg = ' "4kB argument truncated by %d characters"' % oversize
         return str_[0 : -(oversize + len(msg))] + msg
 
+    def truncate_string(self, str_):
+        deprecate(
+            "truncate_string is deprecated",
+            message="truncate_string is deprecated, use _truncate_string instead",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._truncate_string(str_)
+
     def _as_list_and_string(self):
         # type: () -> Tuple[list[str], str]
 
         total_list = self.env_vars + [self.binary] + self.arguments
-        truncated_str = self.truncate_string(shjoin(total_list))
+        truncated_str = self._truncate_string(shjoin(total_list))
         truncated_list = shlex.split(truncated_str)
         return truncated_list, truncated_str
 
-    def as_list(self):
+    def _as_list(self):
         if self._cache_entry.as_list is not None:
             return self._cache_entry.as_list
 
@@ -280,7 +319,16 @@ class SubprocessCmdLine(object):
         self._cache_entry.as_string = str_res
         return list_res
 
-    def as_string(self):
+    def as_list(self):
+        deprecate(
+            "as_list is deprecated",
+            message="as_list is deprecated, use as_list instead",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._as_list()
+
+    def _as_string(self):
         if self._cache_entry.as_string is not None:
             return self._cache_entry.as_string
 
@@ -288,6 +336,15 @@ class SubprocessCmdLine(object):
         self._cache_entry.as_list = list_res
         self._cache_entry.as_string = str_res
         return str_res
+
+    def as_string(self):
+        deprecate(
+            "as_string is deprecated",
+            message="as_string is deprecated, use as_string instead",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._as_string()
 
 
 def unpatch():
@@ -309,7 +366,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
         shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-            span.set_tag_str(COMMANDS.SHELL, shellcmd.as_string())
+            span.set_tag_str(COMMANDS.SHELL, shellcmd._as_string())
             if shellcmd.truncated:
                 span.set_tag_str(COMMANDS.TRUNCATED, "yes")
             span.set_tag_str(COMMANDS.COMPONENT, "os")
@@ -345,7 +402,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
         shellcmd = SubprocessCmdLine(func_args, shell=False)
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-            span.set_tag(COMMANDS.EXEC, shellcmd.as_list())
+            span.set_tag(COMMANDS.EXEC, shellcmd._as_list())
             if shellcmd.truncated:
                 span.set_tag_str(COMMANDS.TRUNCATED, "true")
             span.set_tag_str(COMMANDS.COMPONENT, "os")
@@ -377,9 +434,9 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
                 core.set_item(COMMANDS.CTX_SUBP_TRUNCATED, "yes")
 
             if is_shell:
-                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_string())
+                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd._as_string())
             else:
-                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list())
+                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd._as_list())
             core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
     except Exception:  # noqa:E722
         log.debug("Could not trace subprocess execution: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
