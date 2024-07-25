@@ -4,6 +4,7 @@ from typing import TypeVar
 from ddtrace.contrib import dbapi_async
 from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
 
+
 Row = TypeVar("Row", covariant=True)
 
 class Psycopg3TracedAsyncCursor(Psycopg3TracedCursor, dbapi_async.TracedAsyncCursor):
@@ -42,14 +43,13 @@ class Psycopg3TracedAsyncCursor(Psycopg3TracedCursor, dbapi_async.TracedAsyncCur
         self._pos += 1
         return row
 
-
     async def _fetch_pipeline(self) -> None:
         if (self._execmany_returning is not False
             and not self.pgresult
             and self._conn._pipeline):
             async with self._conn.lock:
                 await self._conn.wait(self._conn._pipeline._fetch_gen(flush=True))
-    
+
     def _fetch_row(self, pos: int) -> Optional[Row]:
         # Replace with actual row fetching logic
         return self._tx.load_row(pos, self._make_row)

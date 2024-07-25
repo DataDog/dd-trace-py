@@ -15,6 +15,7 @@ from tests.utils import assert_is_measured
 
 
 TEST_PORT = POSTGRES_CONFIG["port"]
+TEST_TABLE = "test_table"
 
 
 class PsycopgCore(AsyncioTestCase):
@@ -249,6 +250,7 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
 
+
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_app_service_v1(self):
         """
@@ -291,6 +293,20 @@ class PsycopgCore(AsyncioTestCase):
         async with db.cursor() as cursor:
             await cursor.execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query", service=service))
+
+    # @AsyncioTestCase.run_in_subprocess(env_overrides=dict())
+    # async def test_async_connection(self):
+    #     """
+    #     v0: When a user specifies a service for the app
+    #         The psycopg integration should not use it.
+    #     """
+
+    #     conn = await self._get_conn()
+    #     await conn.cursor().execute("""select 'blah'""")
+
+    #     spans = self.get_spans()
+    #     self.assertEqual(len(spans), 1)
+    #     assert spans[0].service != "mysvc"
 
     async def test_connection_execute(self):
         """Checks whether connection execute shortcute method works as normal"""
@@ -337,3 +353,22 @@ class PsycopgCore(AsyncioTestCase):
         rows = await cur.fetchall()
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
+
+    async def test_cursor_async_connect_execute(self):
+
+        async with psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
+                await cur.execute(
+                            """CREATE TABLE {} (
+                            a INT,
+                            b VARCHAR(32)
+                            )
+                            """.format(
+                                TEST_TABLE
+                            )
+                        )
+                await cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+                await cur.execute("INSERT INTO {} (a, b) VALUES (2, 'bb');".format(TEST_TABLE))
+                async for row in cur:
+                    assert row
