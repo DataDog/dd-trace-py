@@ -44,6 +44,8 @@ fmt = [
     "black {args:.}",
     "ruff --fix {args:.}",
     "style",
+    "typing",
+    "spelling",
 ]
 spelling = [
     "codespell --skip='ddwaf.h,*cassettes*' {args:ddtrace/ tests/ releasenotes/ docs/}",
