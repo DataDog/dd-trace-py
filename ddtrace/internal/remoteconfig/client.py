@@ -345,9 +345,7 @@ class RemoteConfigClient:
             data = resp.read()
 
             if config.log_payloads:
-                log.debug(
-                    "[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8")
-                )  # noqa: G200
+                log.debug("[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8"))  # noqa: G200
         except OSError as e:
             log.debug("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
             return None
@@ -484,7 +482,6 @@ class RemoteConfigClient:
                 applied_config = self._applied_configs.get(target)
                 if applied_config == config:
                     continue
-
                 config_content = self._extract_target_file(payload, target, config)
                 if config_content is None:
                     continue
