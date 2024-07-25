@@ -2517,6 +2517,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": "==5.4.0",
+                        "faiss-cpu": "==1.8.0",
                     }
                 ),
                 Venv(
