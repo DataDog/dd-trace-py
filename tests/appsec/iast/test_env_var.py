@@ -48,6 +48,18 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     assert "IAST enabled" not in captured.err
 
 
+@pytest.mark.subprocess(
+    env=dict(DD_IAST_ENABLED="False"), err=b"WARNING:root:IAST not enabled but native module is being loaded\n"
+)
+def test_env_var_iast_disabled_native_module_warning():
+    import ddtrace.appsec._iast._taint_tracking._native  # noqa: F401
+
+
+@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="True"), err=None)
+def test_env_var_iast_enabled_no__native_module_warning():
+    import ddtrace.appsec._iast._taint_tracking._native  # noqa: F401
+
+
 @pytest.mark.xfail(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
     # type: (...) -> None
