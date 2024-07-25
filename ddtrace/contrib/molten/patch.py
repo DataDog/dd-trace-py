@@ -4,7 +4,9 @@ import molten
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ... import Pin
@@ -41,9 +43,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(molten, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -57,8 +69,8 @@ def patch():
     # add pin to module since many classes use __slots__
     pin.onto(molten)
 
-    _w(molten.BaseApp, "__init__", patch_app_init)
-    _w(molten.App, "__call__", patch_app_call)
+    _w(molten.BaseApp, "__init__", _patch_app_init)
+    _w(molten.App, "__call__", _patch_app_call)
 
 
 def unpatch():
@@ -75,7 +87,7 @@ def unpatch():
         _u(molten.App, "__call__")
 
 
-def patch_app_call(wrapped, instance, args, kwargs):
+def _patch_app_call(wrapped, instance, args, kwargs):
     """Patch wsgi interface for app"""
     pin = Pin.get_from(molten)
 
@@ -151,7 +163,17 @@ def patch_app_call(wrapped, instance, args, kwargs):
         return wrapped(environ, start_response, **kwargs)
 
 
-def patch_app_init(wrapped, instance, args, kwargs):
+def patch_app_call(wrapped, instance, args, kwargs):
+    deprecate(
+        "patch_app_call is deprecated",
+        message="patch_app_call is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_app_call(wrapped, instance, args, kwargs)
+
+
+def _patch_app_init(wrapped, instance, args, kwargs):
     """Patch app initialization of middleware, components and renderers"""
     # allow instance to be initialized before wrapping them
     wrapped(*args, **kwargs)
@@ -178,3 +200,13 @@ def patch_app_init(wrapped, instance, args, kwargs):
 
     # but renderers objects
     instance.renderers = [WrapperRenderer(r) for r in instance.renderers]
+
+
+def patch_app_init(wrapped, instance, args, kwargs):
+    deprecate(
+        "patch_app_init is deprecated",
+        message="patch_app_init is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_app_init(wrapped, instance, args, kwargs)

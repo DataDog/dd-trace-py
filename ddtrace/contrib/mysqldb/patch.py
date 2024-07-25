@@ -12,7 +12,9 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...ext import SpanKind
@@ -45,9 +47,19 @@ KWPOS_BY_TAG = {
 }
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return ".".join(map(str, MySQLdb.version_info[0:3]))
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -103,10 +115,10 @@ def _connect(func, instance, args, kwargs):
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = func(*args, **kwargs)
-    return patch_conn(conn, *args, **kwargs)
+    return _patch_conn(conn, *args, **kwargs)
 
 
-def patch_conn(conn, *args, **kwargs):
+def _patch_conn(conn, *args, **kwargs):
     tags = {
         t: _convert_to_string(kwargs[k]) if k in kwargs else _convert_to_string(args[p])
         for t, (k, p) in KWPOS_BY_TAG.items()
@@ -120,3 +132,13 @@ def patch_conn(conn, *args, **kwargs):
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysqldb)
     pin.onto(wrapped)
     return wrapped
+
+
+def patch_conn(conn, *args, **kwargs):
+    deprecate(
+        "patch_conn is deprecated",
+        message="patch_conn is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_conn(conn, *args, **kwargs)

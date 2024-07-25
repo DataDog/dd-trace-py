@@ -6,11 +6,13 @@ from openai import version
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import wrap
 from ddtrace.llmobs._integrations import OpenAIIntegration
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...pin import Pin
 from . import _endpoint_hooks
@@ -32,12 +34,22 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return version.VERSION
 
 
-OPENAI_VERSION = parse_version(get_version())
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
+
+
+OPENAI_VERSION = parse_version(_get_version())
 
 
 if OPENAI_VERSION >= (1, 0, 0):
