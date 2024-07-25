@@ -36,8 +36,8 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib.botocore.patch import _patch_submodules
 from ddtrace.contrib.botocore.patch import patch
-from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
@@ -76,7 +76,7 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     def setUp(self):
         patch()
-        patch_submodules(True)
+        _patch_submodules(True)
 
         self.session = botocore.session.get_session()
         self.session.set_credentials(access_key="access-key", secret_key="secret-key")
@@ -103,7 +103,7 @@ class BotocoreTest(TracerTestCase):
     @mock_ec2
     @mock_s3
     def test_patch_submodules(self):
-        patch_submodules(["s3"])
+        _patch_submodules(["s3"])
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
