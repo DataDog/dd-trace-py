@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    flask: All methods in flask/patch.py except patch() and unpatch() are deprecated and will be removed in version 3.0.0.
+    flask: All methods in flask/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
