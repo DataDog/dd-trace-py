@@ -1,16 +1,16 @@
 ---
 deprecations:
   - |
-    mako: All methods in tornado/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+    mako: All methods in mako/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
   - |
-    mariadb: All methods in unittest/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+    mariadb: All methods in mariadb/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
   - |
-    molten: All methods in urllib/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+    molten: All methods in molten/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
   - |
-    mongoengine: All methods in urllib3/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+    mongoengine: All methods in mongoengine/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
   - |
-    mysql: All methods in vertica/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+    mysql: All methods in mysql/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
   - |
-    mysqldb: All methods in urllib3/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+    mysqldb: All methods in mysqldb/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
   - |
-    openai: All methods in urllib3/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+    openai: All methods in openai/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
