@@ -5,6 +5,7 @@ from typing import Dict
 import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.internal import core
 
 from ....ext import SpanTypes
@@ -60,7 +61,7 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
     with core.context_with_data(
         "botocore.patched_stepfunctions_api_call",
         span_name=call_name,
-        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        service=schematize_service_name("{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)),
         span_type=SpanTypes.HTTP,
         call_key="patched_stepfunctions_api_call",
         instance=instance,

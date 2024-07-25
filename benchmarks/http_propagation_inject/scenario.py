@@ -7,9 +7,9 @@ from ddtrace.propagation import http
 
 
 class HTTPPropagationInject(bm.Scenario):
-    sampling_priority = bm.var(type=str)
-    dd_origin = bm.var(type=str)
-    meta = bm.var(type=str)
+    sampling_priority: str
+    dd_origin: str
+    meta: str
 
     def run(self):
         sampling_priority = None

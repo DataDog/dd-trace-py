@@ -54,7 +54,7 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Typing",
         command="hatch run lint:typing",
-        paths={"docker", "*.py", "*.pyi", "hatch.toml"},
+        paths={"docker", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
     )
     check(
         name="Security",

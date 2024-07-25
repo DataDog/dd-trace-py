@@ -1,5 +1,4 @@
 from collections import defaultdict
-from collections import deque
 import json
 import os
 from types import CodeType
@@ -7,7 +6,6 @@ from types import ModuleType
 import typing as t
 
 from ddtrace.internal.compat import Path
-from ddtrace.internal.coverage._native import replace_in_tuple
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
@@ -20,36 +18,6 @@ _original_exec = exec
 
 ctx_covered = ContextVar("ctx_covered", default=None)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
-
-
-def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, t.Optional[CodeType]]]:
-    # Topological sorting
-    q = deque([code])
-    g = {}
-    p = {}
-    leaves: t.Deque[CodeType] = deque()
-
-    # Build the graph and the parent map
-    while q:
-        c = q.popleft()
-        new_codes = g[c] = {_ for _ in c.co_consts if isinstance(_, CodeType)}
-        if not new_codes:
-            leaves.append(c)
-            continue
-        for new_code in new_codes:
-            p[new_code] = c
-        q.extend(new_codes)
-
-    # Yield the code objects in topological order
-    while leaves:
-        c = leaves.popleft()
-        parent = p.get(c)
-        yield c, parent
-        if parent is not None:
-            children = g[parent]
-            children.remove(c)
-            if not children:
-                leaves.append(parent)
 
 
 class ModuleCodeCollector(BaseModuleWatchdog):
@@ -89,7 +57,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         cls._instance._include_paths = include_paths
 
     def hook(self, arg):
-        path, line = arg
+        line, path = arg
 
         if self._coverage_enabled:
             lines = self.covered[path]
@@ -242,20 +210,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             # Not a code object we want to instrument
             return code
 
-        # Recursively instrument nested code objects, in topological order
-        # DEV: We need to make a list of the code objects because when we start
-        # mutating the parent code objects, the hashes maintained by the
-        # generator will be invalidated.
-        for nested_code, parent_code in list(collect_code_objects(code)):
-            # Instrument the code object
-            new_code = self.instrument_code(nested_code)
-
-            # If it has a parent, update the parent's co_consts to point to the
-            # new code object.
-            if parent_code is not None:
-                replace_in_tuple(parent_code.co_consts, nested_code, new_code)
-
-        return new_code
+        return self.instrument_code(code)
 
     def after_import(self, _module: ModuleType) -> None:
         pass

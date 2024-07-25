@@ -49,7 +49,7 @@ def test_registry_location_error():
     probe = create_snapshot_line_probe(probe_id=42, source_file=__file__, line=1)
 
     # Ensure the probe has no location information
-    probe.source_file = None
+    probe.resolved_source_file = None
 
     registry.register(probe)
 

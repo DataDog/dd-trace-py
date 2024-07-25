@@ -5,7 +5,6 @@ import os
 from os import environ
 from os import getpid
 from threading import RLock
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -59,20 +58,18 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 from ddtrace.vendor.debtcollector import deprecate
 
-
-if TYPE_CHECKING:
-    from ddtrace.internal.writer import AgentResponse  # noqa: F401
-    from ddtrace.settings import Config  # noqa: F401
 
 log = get_logger(__name__)
 
@@ -603,8 +600,7 @@ class Tracer(object):
 
         self._generate_diagnostic_logs()
 
-    def _agent_response_callback(self, resp):
-        # type: (AgentResponse) -> None
+    def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
 
         The agent can return updated sample rates for the priority sampler.
@@ -1151,9 +1147,7 @@ class Tracer(object):
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
 
-    def _on_global_config_update(self, cfg, items):
-        # type: (Config, List) -> None
-
+    def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
         if "_trace_sample_rate" in items and "_trace_sampling_rules" in items:
             self._handle_sampler_update(cfg)
@@ -1180,8 +1174,7 @@ class Tracer(object):
 
                 unpatch()
 
-    def _handle_sampler_update(self, cfg):
-        # type: (Config) -> None
+    def _handle_sampler_update(self, cfg: Config) -> None:
         if (
             cfg._get_source("_trace_sample_rate") != "remote_config"
             and cfg._get_source("_trace_sampling_rules") != "remote_config"

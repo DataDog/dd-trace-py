@@ -1,6 +1,6 @@
+from dataclasses import dataclass
+from dataclasses import field
 import typing as t
-
-import attr
 
 import ddtrace
 from ddtrace._trace.span import Span
@@ -29,13 +29,13 @@ SPAN_NAME = "dd.dynamic.span"
 PROBE_ID_TAG_NAME = "debugger.probeid"
 
 
-@attr.s
+@dataclass
 class DynamicSpan(Signal):
     """Dynamically created span"""
 
-    _span_cm = attr.ib(type=t.Optional[t.ContextManager[Span]], init=False)
+    _span_cm: t.Optional[Span] = field(init=False, default=None)
 
-    def __attrs_post_init__(self) -> None:
+    def __post_init__(self) -> None:
         self._span_cm = None
 
     def enter(self) -> None:
@@ -55,7 +55,7 @@ class DynamicSpan(Signal):
         )
         span = self._span_cm.__enter__()
 
-        span.set_tags(probe.tags)
+        span.set_tags(probe.tags)  # type: ignore[arg-type]
         span.set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)
         span.set_tag_str(ORIGIN_KEY, "di")
 
@@ -74,7 +74,7 @@ class DynamicSpan(Signal):
         raise NotImplementedError("Dynamic line spans are not supported in Python")
 
 
-@attr.s
+@dataclass
 class SpanDecoration(LogSignal):
     """Decorate a span."""
 
@@ -144,8 +144,7 @@ class SpanDecoration(LogSignal):
 
     @property
     def message(self):
-        return ("Condition evaluation errors for probe %s" % self.probe.probe_id) if self.errors else None
+        return f"Condition evaluation errors for probe {self.probe.probe_id}" if self.errors else None
 
-    def has_message(self):
-        # type () -> bool
+    def has_message(self) -> bool:
         return bool(self.errors)

@@ -1,11 +1,10 @@
 import contextlib
 from functools import partial
+from io import BytesIO
 import json
 import os
 import random
 import string
-
-from six import BytesIO
 
 from ddtrace import __version__ as ddtrace_version
 from ddtrace._trace.span import Span

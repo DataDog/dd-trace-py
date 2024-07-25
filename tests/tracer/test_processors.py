@@ -1,6 +1,5 @@
 from typing import Any  # noqa:F401
 
-import attr
 import mock
 import pytest
 
@@ -33,7 +32,6 @@ from tests.utils import override_global_config
 
 
 def test_no_impl():
-    @attr.s
     class BadProcessor(SpanProcessor):
         pass
 
@@ -41,8 +39,7 @@ def test_no_impl():
         BadProcessor()
 
 
-def test_default_post_init():
-    @attr.s
+def test_default_init():
     class MyProcessor(SpanProcessor):
         def on_span_start(self, span):  # type: (Span) -> None
             pass

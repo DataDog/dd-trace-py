@@ -24,11 +24,21 @@ No lines found
 """
 
 
+EXPL_FOLDER = Path(__file__).parent.resolve()
+
+
 def expl_env(**kwargs):
     return {
-        "PYTHONPATH": os.pathsep.join((str(Path(__file__).parent.resolve()), os.getenv("PYTHONPATH", ""))),
+        "PYTHONPATH": os.pathsep.join((str(EXPL_FOLDER), os.getenv("PYTHONPATH", ""))),
         **kwargs,
     }
+
+
+def test_exploration_smoke():
+    import sys
+
+    sys.path.insert(0, str(EXPL_FOLDER))
+    import tests.debugging.exploration.preload  # noqa: F401
 
 
 @pytest.mark.subprocess(env=expl_env(), out=OUT)

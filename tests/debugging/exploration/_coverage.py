@@ -52,7 +52,7 @@ class LineCoverage(ExplorationDebugger):
     def report_coverage(cls) -> None:
         seen_lines_map: t.Dict[Path, set] = defaultdict(set)
         for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, LogLineProbe)):
-            seen_lines_map[t.cast(LogLineProbe, probe).source_file].add(probe.line)
+            seen_lines_map[t.cast(LogLineProbe, probe).resolved_source_file].add(probe.line)
 
         try:
             w = max(len(str(o.relative_to(CWD))) for o in _tracked_modules)

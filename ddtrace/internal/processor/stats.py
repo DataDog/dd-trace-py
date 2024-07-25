@@ -3,14 +3,12 @@ from collections import defaultdict
 import os
 import typing
 
-from ddsketch import LogCollapsingLowestDenseDDSketch
-from ddsketch.pb.proto import DDSketchProto
-
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import _is_top_level
 from ddtrace.internal import compat
+from ddtrace.internal.core import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from ...constants import SPAN_MEASURED_KEY
@@ -73,8 +71,8 @@ class SpanAggrStats(object):
         self.duration = 0
         # Match the relative accuracy of the sketch implementation used in the backend
         # which is 0.775%.
-        self.ok_distribution = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
-        self.err_distribution = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
+        self.ok_distribution = DDSketch()
+        self.err_distribution = DDSketch()
 
 
 def _span_aggr_key(span):
@@ -178,8 +176,8 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
                     "TopLevelHits": stat_aggr.top_level_hits,
                     "Duration": stat_aggr.duration,
                     "Errors": stat_aggr.errors,
-                    "OkSummary": DDSketchProto.to_proto(stat_aggr.ok_distribution).SerializeToString(),
-                    "ErrorSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
+                    "OkSummary": stat_aggr.ok_distribution.to_proto(),
+                    "ErrorSummary": stat_aggr.err_distribution.to_proto(),
                 }
                 if service:
                     serialized_bucket["Service"] = compat.ensure_text(service)

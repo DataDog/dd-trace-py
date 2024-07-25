@@ -1,5 +1,5 @@
 import json
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -17,7 +17,6 @@ __all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "MSGPACK
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace._trace.span import Span  # noqa:F401
-
 
 log = get_logger(__name__)
 
@@ -59,7 +58,7 @@ class _EncoderBase(object):
             "resource": span.resource,
             "name": span.name,
             "error": span.error,
-        }
+        }  # type: Dict[str, Any]
 
         # a common mistake is to set the error field to a boolean instead of an
         # int. let's special case that here, because it's sure to happen in

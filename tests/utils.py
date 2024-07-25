@@ -1,5 +1,6 @@
 import contextlib
 from contextlib import contextmanager
+import dataclasses
 import datetime as dt
 from http.client import RemoteDisconnected
 import inspect
@@ -11,7 +12,6 @@ import time
 from typing import List  # noqa:F401
 import urllib.parse
 
-import attr
 import pkg_resources
 import pytest
 
@@ -977,10 +977,10 @@ class SnapshotFailed(Exception):
     pass
 
 
-@attr.s
-class SnapshotTest(object):
-    token = attr.ib(type=str)
-    tracer = attr.ib(type=ddtrace.Tracer, default=ddtrace.tracer)
+@dataclasses.dataclass
+class SnapshotTest:
+    token: str
+    tracer: ddtrace.Tracer = ddtrace.tracer
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""

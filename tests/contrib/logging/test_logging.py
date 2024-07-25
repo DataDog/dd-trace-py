@@ -1,7 +1,5 @@
 import logging
 
-import six
-
 import ddtrace
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
@@ -33,10 +31,10 @@ def current_span(tracer=None):
 class AssertFilter(logging.Filter):
     def filter(self, record):
         trace_id = getattr(record, RECORD_ATTR_TRACE_ID)
-        assert isinstance(trace_id, six.string_types)
+        assert isinstance(trace_id, str)
 
         span_id = getattr(record, RECORD_ATTR_SPAN_ID)
-        assert isinstance(span_id, six.string_types)
+        assert isinstance(span_id, str)
 
         return True
 

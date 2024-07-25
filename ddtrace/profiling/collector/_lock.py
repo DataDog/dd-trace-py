@@ -7,8 +7,6 @@ import sys
 import types
 import typing
 
-import attr
-
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
@@ -26,26 +24,35 @@ from ddtrace.vendor import wrapt
 LOG = get_logger(__name__)
 
 
-@event.event_class
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
-    lock_name = attr.ib(default="<unknown lock name>", type=str)
-    sampling_pct = attr.ib(default=0, type=int)
+    __slots__ = ("lock_name", "sampling_pct")
+
+    def __init__(self, lock_name="<unknown lock name>", sampling_pct=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lock_name = lock_name
+        self.sampling_pct = sampling_pct
 
 
-@event.event_class
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
-    wait_time_ns = attr.ib(default=0, type=int)
+    __slots__ = ("wait_time_ns",)
+
+    def __init__(self, wait_time_ns=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.wait_time_ns = wait_time_ns
 
 
-@event.event_class
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 
-    locked_for_ns = attr.ib(default=0, type=int)
+    __slots__ = ("locked_for_ns",)
+
+    def __init__(self, locked_for_ns=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.locked_for_ns: int = locked_for_ns
 
 
 def _current_thread():
@@ -296,21 +303,28 @@ class FunctionWrapper(wrapt.FunctionWrapper):
         return self
 
 
-@attr.s
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes = attr.ib(type=int, default=config.max_frames)
-    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
-    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-
-    tracer = attr.ib(default=None)
-
-    _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
-
-    # Check if libdd is available, if not, disable the feature
-    if export_libdd_enabled and not ddup.is_available:
-        export_libdd_enabled = False
+    def __init__(
+        self,
+        recorder,
+        nframes=config.max_frames,
+        endpoint_collection_enabled=config.endpoint_collection,
+        export_libdd_enabled=config.export.libdd_enabled,
+        tracer=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(recorder, *args, **kwargs)
+        self.nframes = nframes
+        self.endpoint_collection_enabled = endpoint_collection_enabled
+        self.export_libdd_enabled = export_libdd_enabled
+        self.tracer = tracer
+        self._original = None
+        # Check if libdd is available, if not, disable the feature
+        if self.export_libdd_enabled and not ddup.is_available:
+            self.export_libdd_enabled = False
 
     @abc.abstractmethod
     def _get_original(self):

@@ -9,7 +9,6 @@ from typing import Generator  # noqa:F401
 from typing import List  # noqa:F401
 
 import pytest
-import six
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.flask.patch import flask_version
@@ -142,7 +141,7 @@ def test_flask_ipblock_match_403(flask_client):
     if hasattr(resp, "text"):
         assert resp.text == BLOCKED_RESPONSE_HTML
     else:
-        assert resp.data == six.ensure_binary(BLOCKED_RESPONSE_HTML)
+        assert resp.data == BLOCKED_RESPONSE_HTML.encode("utf-8")
 
 
 @pytest.mark.snapshot(
@@ -176,7 +175,7 @@ def test_flask_ipblock_match_403_json(flask_client):
     if hasattr(resp, "text"):
         assert resp.text == BLOCKED_RESPONSE_JSON
     else:
-        assert resp.data == six.ensure_binary(BLOCKED_RESPONSE_JSON)
+        assert resp.data == BLOCKED_RESPONSE_JSON.encode("utf-8")
 
 
 @pytest.mark.snapshot(
@@ -209,7 +208,7 @@ def test_flask_userblock_match_403_json(flask_client):
     if hasattr(resp, "text"):
         assert resp.text == BLOCKED_RESPONSE_JSON
     else:
-        assert resp.data == six.ensure_binary(BLOCKED_RESPONSE_JSON)
+        assert resp.data == BLOCKED_RESPONSE_JSON.encode("utf-8")
 
 
 @pytest.mark.snapshot(

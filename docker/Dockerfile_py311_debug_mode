@@ -62,17 +62,13 @@ RUN git clone --depth 1 --branch v3.11.6 https://github.com/python/cpython/ "${P
   && cd -
 
 RUN python3.11 -m pip install -U pip \
-    && python3.11 -m pip install six cattrs setuptools cython wheel cmake pytest pytest-cov hypothesis pytest-memray\
+    && python3.11 -m pip install setuptools cython wheel cmake pytest pytest-cov hypothesis pytest-memray\
     memray==1.12.0 \
     requests==2.31.0 \
-    attrs>=20 \
     bytecode>=0.14.0 \
-    cattrs \
-    ddsketch>=3.0.0 \
     envier~=0.5 \
     opentelemetry-api>=1 \
     protobuf>=3 \
-    six>=1.12.0 \
     typing_extensions \
     xmltodict>=0.12
 

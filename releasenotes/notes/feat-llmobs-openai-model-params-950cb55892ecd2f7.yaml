@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: All OpenAI model parameters specified in a completion/chat completion request are now captured. 

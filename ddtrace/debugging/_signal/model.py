@@ -1,4 +1,6 @@
 import abc
+from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
 from threading import Thread
 import time
@@ -12,8 +14,6 @@ from typing import Union
 from typing import cast
 from uuid import uuid4
 
-import attr
-
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.debugging import _safety
@@ -25,10 +25,10 @@ from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
-@attr.s
-class EvaluationError(object):
-    expr = attr.ib(type=str)
-    message = attr.ib(type=str)
+@dataclass
+class EvaluationError:
+    expr: str
+    message: str
 
 
 class SignalState(str, Enum):
@@ -40,7 +40,7 @@ class SignalState(str, Enum):
     DONE = "DONE"
 
 
-@attr.s
+@dataclass
 class Signal(abc.ABC):
     """Debugger signal base class.
 
@@ -48,16 +48,15 @@ class Signal(abc.ABC):
     triggered.
     """
 
-    probe = attr.ib(type=Probe)
-    frame = attr.ib(type=FrameType)
-    thread = attr.ib(type=Thread)
-
-    trace_context = attr.ib(type=Optional[Union[Span, Context]], default=None)
-    args = attr.ib(type=Optional[List[Tuple[str, Any]]], default=None)
-    state = attr.ib(type=str, default=SignalState.NONE)
-    errors = attr.ib(type=List[EvaluationError], factory=lambda: list())
-    timestamp = attr.ib(type=float, factory=time.time)
-    uuid = attr.ib(type=str, init=False, factory=lambda: str(uuid4()))
+    probe: Probe
+    frame: FrameType
+    thread: Thread
+    trace_context: Optional[Union[Span, Context]] = None
+    args: Optional[List[Tuple[str, Any]]] = None
+    state: str = SignalState.NONE
+    errors: List[EvaluationError] = field(default_factory=list)
+    timestamp: float = field(default_factory=time.time)
+    uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
 
     def _eval_condition(self, _locals: Optional[Dict[str, Any]] = None) -> bool:
         """Evaluate the probe condition against the collected frame."""
@@ -103,7 +102,7 @@ class Signal(abc.ABC):
         pass
 
 
-@attr.s
+@dataclass
 class LogSignal(Signal):
     """A signal that also emits a log message.
 
@@ -114,29 +113,25 @@ class LogSignal(Signal):
 
     @property
     @abc.abstractmethod
-    def message(self):
-        # type () -> Optional[str]
+    def message(self) -> Optional[str]:
         """The log message to emit."""
         pass
 
     @abc.abstractmethod
-    def has_message(self):
-        # type () -> bool
+    def has_message(self) -> bool:
         """Whether the signal has a log message to emit."""
         pass
 
     @property
-    def data(self):
-        # type () -> Dict[str, Any]
+    def data(self) -> Dict[str, Any]:
         """Extra data to include in the snapshot portion of the log message."""
         return {}
 
-    def _probe_details(self):
-        # type () -> Dict[str, Any]
+    def _probe_details(self) -> Dict[str, Any]:
         probe = self.probe
         if isinstance(probe, LineLocationMixin):
             location = {
-                "file": str(probe.source_file),
+                "file": str(probe.resolved_source_file),
                 "lines": [probe.line],
             }
         elif isinstance(probe, FunctionLocationMixin):
@@ -154,8 +149,7 @@ class LogSignal(Signal):
         }
 
     @property
-    def snapshot(self):
-        # type () -> Dict[str, Any]
+    def snapshot(self) -> Dict[str, Any]:
         full_data = {
             "id": self.uuid,
             "timestamp": int(self.timestamp * 1e3),  # milliseconds

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 #    Copyright (C) 2015 Yahoo! Inc. All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -16,21 +14,10 @@
 
 import functools
 import inspect
-import types
 import warnings
 
-import six
-
-try:
-    _TYPE_TYPE = types.TypeType
-except AttributeError:
-    _TYPE_TYPE = type
-
-
-# See: https://docs.python.org/2/library/__builtin__.html#module-__builtin__
-# and see https://docs.python.org/2/reference/executionmodel.html (and likely
-# others)...
-_BUILTIN_MODULES = ('builtins', '__builtin__', '__builtins__', 'exceptions')
+# See https://docs.python.org/3/library/builtins.html
+_BUILTIN_MODULES = ('builtins', 'exceptions')
 _enabled = True
 
 
@@ -91,14 +78,7 @@ def generate_message(prefix, postfix=None, message=None,
 
 def get_assigned(decorator):
     """Helper to fix/workaround https://bugs.python.org/issue3445"""
-    if six.PY3:
-        return functools.WRAPPER_ASSIGNMENTS
-    else:
-        assigned = []
-        for attr_name in functools.WRAPPER_ASSIGNMENTS:
-            if hasattr(decorator, attr_name):
-                assigned.append(attr_name)
-        return tuple(assigned)
+    return functools.WRAPPER_ASSIGNMENTS
 
 
 def get_class_name(obj, fully_qualified=True):
@@ -108,7 +88,7 @@ def get_class_name(obj, fully_qualified=True):
     Else, fully qualified name of the type of the object is returned.
     For builtin types, just name is returned.
     """
-    if not isinstance(obj, six.class_types):
+    if not isinstance(obj, type):
         obj = type(obj)
     try:
         built_in = obj.__module__ in _BUILTIN_MODULES
@@ -129,7 +109,7 @@ def get_method_self(method):
     if not inspect.ismethod(method):
         return None
     try:
-        return six.get_method_self(method)
+        return getattr(method, '__self__')
     except AttributeError:
         return None
 
@@ -142,7 +122,7 @@ def get_callable_name(function):
     method_self = get_method_self(function)
     if method_self is not None:
         # This is a bound method.
-        if isinstance(method_self, six.class_types):
+        if isinstance(method_self, type):
             # This is a bound class method.
             im_class = method_self
         else:
@@ -165,7 +145,7 @@ def get_callable_name(function):
                 parts = (function.__module__, function.__name__)
     else:
         im_class = type(function)
-        if im_class is _TYPE_TYPE:
+        if im_class is type:
             im_class = function
         try:
             parts = (im_class.__module__, im_class.__qualname__)

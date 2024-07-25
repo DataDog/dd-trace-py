@@ -2,8 +2,6 @@ import os
 import subprocess
 import sys
 
-import six
-
 from tests.utils import snapshot
 
 
@@ -43,8 +41,8 @@ def do_test(tmpdir, es_version):
     p.wait()
     stderr = p.stderr.read()
     stdout = p.stdout.read()
-    assert stderr == six.b(""), stderr
-    assert stdout == six.b(""), stdout
+    assert stderr == b"", stderr
+    assert stdout == b"", stdout
     assert p.returncode == 0
 
 

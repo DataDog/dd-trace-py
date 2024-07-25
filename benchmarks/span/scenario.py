@@ -1,18 +1,18 @@
-import bm
+from bm import Scenario
 import bm.utils as utils
 
 from ddtrace import config
 from ddtrace import tracer
 
 
-class Span(bm.Scenario):
-    nspans = bm.var(type=int)
-    ntags = bm.var(type=int)
-    ltags = bm.var(type=int)
-    nmetrics = bm.var(type=int)
-    finishspan = bm.var_bool()
-    traceid128 = bm.var_bool()
-    telemetry = bm.var_bool()
+class Span(Scenario):
+    nspans: int
+    ntags: int
+    ltags: int
+    nmetrics: int
+    finishspan: bool
+    traceid128: bool
+    telemetry: bool
 
     def run(self):
         # run scenario to also set tags on spans

@@ -287,7 +287,7 @@ def test_debugger_invalid_source_file(log):
         Stuff().instancestuff()
 
         log.error.assert_called_once_with(
-            "Cannot inject probe %s: source file %s cannot be resolved", "invalidsource", None
+            "Cannot inject probe %s: source file %s cannot be resolved", "invalidsource", "tests/submod/bonkers.py"
         )
 
         assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidsource" for s in d.uploader.wait_for_payloads())

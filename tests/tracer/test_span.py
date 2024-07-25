@@ -695,6 +695,9 @@ def test_span_pprint():
     root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.set_tag("t", "v")
     root.set_metric("m", 1.0)
+    root._add_event("message", {"importance": 10}, 16789898242)
+    root.set_link(trace_id=99, span_id=10, attributes={"link.name": "s1_to_s2", "link.kind": "scheduled_by"})
+
     root.finish()
     actual = root._pprint()
     assert "name='test.span'" in actual
@@ -704,6 +707,11 @@ def test_span_pprint():
     assert "error=0" in actual
     assert "tags={'t': 'v'}" in actual
     assert "metrics={'m': 1.0}" in actual
+    assert "events='name=message time=16789898242 attributes=importance:10'" in actual
+    assert (
+        "links='trace_id=99 span_id=10 attributes=link.name:s1_to_s2,link.kind:scheduled_by "
+        "tracestate=None flags=None dropped_attributes=0'" in actual
+    )
     assert re.search("id=[0-9]+", actual) is not None
     assert re.search("trace_id=[0-9]+", actual) is not None
     assert "parent_id=None" in actual

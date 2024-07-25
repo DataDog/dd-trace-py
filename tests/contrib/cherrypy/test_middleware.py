@@ -3,11 +3,11 @@ import logging
 import os
 import re
 import time
+from urllib.parse import quote as url_quote
 
 import cherrypy
 from cherrypy.test import helper
 import pytest
-from six.moves.urllib.parse import quote as url_quote
 
 import ddtrace
 from ddtrace import config

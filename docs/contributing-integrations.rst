@@ -110,14 +110,15 @@ What are "snapshot tests"?
 --------------------------
 
 Many of the tests are based on "snapshots": saved copies of actual traces sent to the
-`APM test agent <../README.md#use-the-apm-test-agent>`_.
+`APM test agent <../README.md#use-the-apm-test-agent>`_. When an integration is added or modified, the snapshots
+(if they exist) should be updated to match the new expected output.
 
-To update the snapshots expected by a test, first update the library and test code to generate
-new traces. Then, delete the snapshot file corresponding to your test at ``tests/snapshots/<snapshot_file>``.
+1. Update the library and test code to generate new traces.
+2. Delete the snapshot file corresponding to your test at ``tests/snapshots/<snapshot_file>`` (if applicable).
+3. Use `docker-compose up -d testagent` to start the APM test agent, and then re-run the test. Use `--pass-env` as described
+   `here <../README.md#use-the-apm-test-agent>`_ to ensure that your test run can talk to the test agent. 
 
-Use `docker-compose up -d testagent` to start the APM test agent, and then re-run the test. Use `--pass-env` as described
-`here <../README.md#use-the-apm-test-agent>`_ to ensure that your test run can talk to the
-test agent. Once the run finishes, the snapshot file will have been regenerated.
+Once the run finishes, the snapshot file will have been regenerated.
 
 How should I write integration tests for my integration?
 --------------------------------------------------------

@@ -1,4 +1,4 @@
-from typing import Any  # noqa:F401
+from typing import Any
 
 import bm
 from bm.utils import override_env
@@ -20,7 +20,7 @@ TAINT_ORIGIN = Source(name="sample_name", value="sample_value", origin=OriginTyp
 CHECK_RANGES = [TaintRange(0, 3, TAINT_ORIGIN), TaintRange(21, 3, TAINT_ORIGIN), TaintRange(41, 3, TAINT_ORIGIN)]
 
 
-def taint_pyobject_with_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
+def taint_pyobject_with_ranges(pyobject: Any, ranges: tuple) -> None:
     set_ranges(pyobject, tuple(ranges))
 
 
@@ -68,8 +68,8 @@ def launch_function(enable_propagation, func, internal_loop, caller_loop):
 
 
 class IastPropagation(bm.Scenario):
-    iast_enabled = bm.var(type=int)
-    internal_loop = bm.var(type=int)
+    iast_enabled: int
+    internal_loop: int
 
     def run(self):
         caller_loop = 10

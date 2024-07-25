@@ -3,13 +3,13 @@ import utils
 
 
 class Encoder(bm.Scenario):
-    ntraces = bm.var(type=int)
-    nspans = bm.var(type=int)
-    ntags = bm.var(type=int)
-    ltags = bm.var(type=int)
-    nmetrics = bm.var(type=int)
-    dd_origin = bm.var_bool()
-    encoding = bm.var(type=str)
+    ntraces: int
+    nspans: int
+    ntags: int
+    ltags: int
+    nmetrics: int
+    encoding: str
+    dd_origin: bool
 
     def run(self):
         encoder = utils.init_encoder(self.encoding)

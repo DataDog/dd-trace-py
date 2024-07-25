@@ -3,8 +3,6 @@ import os
 import random
 import sqlite3
 
-import attr
-import bm
 from flask import Flask
 from flask import Response
 from flask import render_template_string
@@ -77,16 +75,7 @@ def create_app():
     return app
 
 
-@attr.s()
 class FlaskScenarioMixin:
-    tracer_enabled = bm.var_bool()
-    profiler_enabled = bm.var_bool()
-    debugger_enabled = bm.var_bool()
-    appsec_enabled = bm.var_bool()
-    iast_enabled = bm.var_bool()
-    post_request = bm.var_bool()
-    telemetry_metrics_enabled = bm.var_bool()
-
     def setup(self):
         # Setup the environment and enable Datadog features
         os.environ.update(

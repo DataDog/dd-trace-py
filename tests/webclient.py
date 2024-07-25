@@ -1,5 +1,6 @@
+import urllib.parse
+
 import requests
-import six
 
 from ddtrace._trace.context import Context
 from ddtrace.filters import TraceFilter
@@ -21,7 +22,7 @@ class Client(object):
 
     def _url(self, path):
         # type: (str) -> str
-        return six.moves.urllib.parse.urljoin(self._base_url, path)
+        return urllib.parse.urljoin(self._base_url, path)
 
     def get(self, path, **kwargs):
         return self._session.get(self._url(path), **kwargs)

@@ -5,7 +5,6 @@ from hypothesis import given
 from hypothesis import settings
 import hypothesis.strategies as st
 import pytest
-import six
 
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import is_integer
@@ -111,4 +110,4 @@ def test_is_integer(obj, expected):
 )
 @settings(max_examples=100)
 def test_maybe_stringify(obj):
-    assert type(maybe_stringify(obj)) is (obj is not None and six.text_type or type(None))
+    assert type(maybe_stringify(obj)) is (obj is not None and str or type(None))

@@ -63,6 +63,19 @@ def _patch_run_code() -> None:
         runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
 
 
+def register_run_module_transformer(transformer: TransformerType) -> None:
+    """Register a run module transformer."""
+    _run_module_transformers.append(transformer)
+
+
+def unregister_run_module_transformer(transformer: TransformerType) -> None:
+    """Unregister a run module transformer.
+
+    If the transformer was not registered, a ``ValueError`` exception is raised.
+    """
+    _run_module_transformers.remove(transformer)
+
+
 def register_post_run_module_hook(hook: ModuleHookType) -> None:
     """Register a post run module hook.
 
@@ -218,7 +231,8 @@ class _ImportHookChainedLoader:
         pre_exec_hook = None
 
         _get_code = getattr(self.loader, "get_code", None)
-        if _get_code is not None:
+        # DEV: avoid re-wrapping the loader's get_code method (eg: in case of repeated importlib.reload() calls)
+        if _get_code is not None and not getattr(_get_code, "_dd_get_code", False):
 
             def get_code(_loader, fullname):
                 code = _get_code(fullname)
@@ -227,6 +241,8 @@ class _ImportHookChainedLoader:
                     code = callback(code, module)
 
                 return code
+
+            setattr(get_code, "_dd_get_code", True)
 
             self.loader.get_code = get_code.__get__(self.loader, type(self.loader))  # type: ignore[union-attr]
 

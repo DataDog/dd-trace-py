@@ -12,7 +12,7 @@ def stuff_discovery():
 def test_abs_stuff():
     import tests.submod.absstuff as absstuff
 
-    assert sorted(FunctionDiscovery.from_module(absstuff).keys()) == [9, 13, 18, 21]
+    assert sorted(FunctionDiscovery.from_module(absstuff).keys()) == [7, 11, 16, 19]
 
 
 def test_function_discovery(stuff_discovery):

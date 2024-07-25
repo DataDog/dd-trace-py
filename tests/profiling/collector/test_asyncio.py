@@ -1,8 +1,8 @@
+import _thread
 import asyncio
 import uuid
 
 import pytest
-from six.moves import _thread
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import asyncio as collector_asyncio

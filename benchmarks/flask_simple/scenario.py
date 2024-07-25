@@ -3,7 +3,17 @@ from bm import utils
 from bm.flask_utils import FlaskScenarioMixin
 
 
-class FlaskSimple(FlaskScenarioMixin, bm.Scenario):
+class FlaskSimple(bm.Scenario, FlaskScenarioMixin):
+    # DEV: These should better go in FlaskScenarioMixin
+    # but then the logic to get them wouldn't work
+    tracer_enabled: bool
+    profiler_enabled: bool
+    debugger_enabled: bool
+    appsec_enabled: bool
+    iast_enabled: bool
+    post_request: bool
+    telemetry_metrics_enabled: bool
+
     def run(self):
         app = self.create_app()
 

@@ -56,7 +56,7 @@ debtcollector
 
 Website: https://docs.openstack.org/debtcollector/latest/index.html
 Source: https://github.com/openstack/debtcollector
-Version: 1.22.0
+Version: 2.5.0
 License: Apache License 2.0
 
 Notes:
