@@ -66,7 +66,7 @@ class TracerProvider(OtelTracerProvider):
 
     else:
 
-        def get_tracer(
+        def get_tracer(  # type: ignore[misc]
             self,
             instrumenting_module_name,
             instrumenting_library_version=None,
