@@ -346,7 +346,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_query_langchain_base(self, langchain, mock_llmobs_span_writer, mock_tracer):
         embedding_model = langchain.embeddings.OpenAIEmbeddings()
-        with mock.patch("langchain.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+        with mock.patch("langchain.embeddings.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
             trace = self._embed_query(
                 embedding_model=embedding_model,
                 query="hello world",
@@ -371,7 +371,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_documents_langchain_base(self, langchain, mock_llmobs_span_writer, mock_tracer):
         embedding_model = langchain.embeddings.OpenAIEmbeddings()
-        with mock.patch("langchain.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+        with mock.patch("langchain.embeddings.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
             trace = self._embed_documents(
                 embedding_model=embedding_model,
                 documents=["hello world", "goodbye world"],
