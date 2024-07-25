@@ -729,7 +729,8 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     @staticmethod
     def _call_openai_embedding(OpenAIEmbeddings):
         embedding = OpenAIEmbeddings()
-        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_embedding_query.yaml"):
+        with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+            with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_embedding_query.yaml"):
             embedding.embed_query("hello world")
 
     @staticmethod
