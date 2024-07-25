@@ -306,7 +306,9 @@ def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
     conn = utils.listen_get_conn(sock)
     assert conn
     data = utils.conn_to_bytes(conn)
+    conn.close()
     assert data
+    assert b"string_at" in data
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -359,7 +361,35 @@ def test_crashtracker_auto_default(run_python_code_in_subprocess):
     conn = utils.listen_get_conn(sock)
     assert conn
     data = utils.conn_to_bytes(conn)
+    conn.close()
     assert data
+    assert b"string_at" in data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
+    # Setup the listening socket before we open ddtrace
+    port, sock = utils.crashtracker_receiver_bind()
+    assert sock
+
+    # Call the program
+    env = os.environ.copy()
+    env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
+    env["DD_CRASHTRACKER_STACKTRACE_RESOLVER"] = "none"
+    stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+
+    # Check for expected exit condition
+    assert not stdout
+    assert not stderr
+    assert exitcode == -11
+
+    # Wait for the connection
+    conn = utils.listen_get_conn(sock)
+    assert conn
+    data = utils.conn_to_bytes(conn)
+    conn.close()
+    assert data
+    assert b"string_at" not in data
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
