@@ -7,7 +7,7 @@ fi
 if [ -z "$PYTHON_PACKAGE_VERSION" ]; then
   # Get the version from the filename of the first wheel
   # wheels have the form:
-  # ddtrace-2.11.0.dev41+g50bf57680-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.wh
+  # ddtrace-2.11.0.dev41+g50bf57680-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
   # the version is everything between the first and second "-"
   WHEELS_LIST=(../pywheels/*.whl)
   FIRST_WHEEL=${WHEELS_LIST[1]}

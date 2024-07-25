@@ -38,7 +38,6 @@ if pip_version < MIN_PIP_VERSION:
     print(
         "WARNING: using known incompatible version, %r, of pip. The minimum compatible pip version is %r"
         % (pip_version, MIN_PIP_VERSION),
-        flush=True
     )
 
 # Supported Python versions lists all python versions that can install at least one version of the ddtrace library.
@@ -73,12 +72,12 @@ parser.add_argument("--verbose", action="store_true")
 args = parser.parse_args()
 
 dl_dir = args.output_dir
-print("saving wheels to %s" % dl_dir, flush=True)
+print("saving wheels to %s" % dl_dir)
 
 
 for python_version, platform in itertools.product(args.python_version, args.platform):
     for arch in args.arch:
-        print("Downloading %s %s %s wheel" % (python_version, arch, platform), flush=True)
+        print("Downloading %s %s %s wheel" % (python_version, arch, platform))
         abi = "cp%s" % python_version.replace(".", "")
         # Have to special-case these versions of Python for some reason.
         if python_version in ["2.7", "3.5", "3.6", "3.7"]:
@@ -87,14 +86,12 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         if args.ddtrace_version:
             ddtrace_specifier = "ddtrace==%s" % args.ddtrace_version
         elif args.local_ddtrace:
-            wheel_files = [f for f in os.listdir('.') if
-                           f.endswith(".whl")
-                           and abi in f
-                           and platform in f
-                           and arch in f]
+            wheel_files = [
+                f for f in os.listdir(".") if f.endswith(".whl") and abi in f and platform in f and arch in f
+            ]
 
-            if (len(wheel_files) > 1):
-                print("More than one matching file found %s" % wheel_files, flush=True)
+            if len(wheel_files) > 1:
+                print("More than one matching file found %s" % wheel_files)
                 sys.exit(1)
 
             ddtrace_specifier = wheel_files[0]
@@ -119,12 +116,12 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             abi,
             "--only-binary=:all:",
             "--exists-action",
-            "i", #ignore redownloads of same wheel
+            "i",  # ignore redownloads of same wheel
             "--dest",
             dl_dir,
         ]
         if args.verbose:
-            print(" ".join(cmd), flush=True)
+            print(" ".join(cmd))
 
         if not args.dry_run:
             subprocess.run(cmd, capture_output=not args.verbose, check=True)
@@ -132,7 +129,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
     wheel_files = [f for f in os.listdir(dl_dir) if f.endswith(".whl")]
     for whl in wheel_files:
         wheel_file = os.path.join(dl_dir, whl)
-        print("Unpacking %s" % wheel_file, flush=True)
+        print("Unpacking %s" % wheel_file)
         # -q for quieter output, else we get all the files being unzipped.
         subprocess.run(
             [

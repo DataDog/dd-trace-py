@@ -13,6 +13,8 @@ mkdir pywheels-dep
 
 cd pywheels
 
+export PYTHONUNBUFFERED=TRUE
+
 ../lib-injection/dl_wheels.py \
     --python-version=$PYTHON_VERSION \
     --local-ddtrace \
