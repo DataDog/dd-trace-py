@@ -294,20 +294,6 @@ class PsycopgCore(AsyncioTestCase):
             await cursor.execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query", service=service))
 
-    # @AsyncioTestCase.run_in_subprocess(env_overrides=dict())
-    # async def test_async_connection(self):
-    #     """
-    #     v0: When a user specifies a service for the app
-    #         The psycopg integration should not use it.
-    #     """
-
-    #     conn = await self._get_conn()
-    #     await conn.cursor().execute("""select 'blah'""")
-
-    #     spans = self.get_spans()
-    #     self.assertEqual(len(spans), 1)
-    #     assert spans[0].service != "mysvc"
-
     async def test_connection_execute(self):
         """Checks whether connection execute shortcute method works as normal"""
 
