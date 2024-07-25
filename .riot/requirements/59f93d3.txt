@@ -6,10 +6,10 @@
 #
 asgiref==3.8.1
 attrs==23.2.0
-certifi==2024.6.2
+certifi==2024.7.4
 charset-normalizer==2.1.1
 click==7.1.2
-coverage[toml]==7.5.4
+coverage[toml]==7.6.0
 flask==1.1.4
 gevent==24.2.1
 greenlet==3.0.3
@@ -28,7 +28,7 @@ opentelemetry-util-http==0.19b0
 opentracing==2.4.0
 packaging==24.1
 pluggy==1.5.0
-pytest==8.2.2
+pytest==8.3.1
 pytest-asyncio==0.21.1
 pytest-cov==5.0.0
 pytest-mock==3.14.0
