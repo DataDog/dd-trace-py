@@ -1,75 +1,73 @@
 stages:
   - package
-  - deploy
+  - shared-pipeline
   - dogfood
   - benchmarks
   - benchmarks-pr-comment
   - macrobenchmarks
 
 include:
-  - remote: https://gitlab-templates.ddbuild.io/apm/packaging.yml
+  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/dogfood.yml"
 
 variables:
-  DOWNSTREAM_BRANCH:
-    value: "master"
-    description: "Run a specific datadog-reliability-env branch downstream"
-  DOWNSTREAM_MBP_BRANCH:
-    value: "dd-trace-py"
-    description: "Run a specific relenv-microbenchmarking-platform branch downstream"
-  PYTHON_PACKAGE_VERSION:
-    description: "Version to build for .deb and .rpm. Must be already published in PyPi"
+  REPO_LANG: python # "python" is used everywhere rather than "py"
 
-.common: &common
-  tags: [ "runner:main", "size:large" ]
-
-package:
-  extends: .package
-  rules:
-  - if: $PYTHON_PACKAGE_VERSION
-    when: on_success
-  - if: '$CI_COMMIT_TAG =~ /^v.*/'
-    when: on_success
+download_ddtrace_wheels:
+  image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  tags: [ "arch:amd64" ]
+  stage: package
   script:
-    - ../.gitlab/build-deb-rpm.sh
-    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
+    - aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+    - gh auth login --with-token < token
+    - rm token
+    - .gitlab/download-wheels-from-gh-actions.sh
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
 
-package-arm:
-  extends: .package-arm
-  rules:
-  - if: $PYTHON_PACKAGE_VERSION
-    when: on_success
-  - if: '$CI_COMMIT_TAG =~ /^v.*/'
-    when: on_success
+download_dependency_wheels:
+  image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
+  tags: [ "arch:amd64" ]
+  stage: package
+  needs: [ download_ddtrace_wheels ]
+  parallel:
+    matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
+      - PYTHON_IMAGE_TAG: "3.7"
+        PYTHON_VERSION: "3.7"
+      - PYTHON_IMAGE_TAG: "3.8"
+        PYTHON_VERSION: "3.8"
+      - PYTHON_IMAGE_TAG: "3.9.13"
+        PYTHON_VERSION: "3.9"
+      - PYTHON_IMAGE_TAG: "3.10.13"
+        PYTHON_VERSION: "3.10"
+      - PYTHON_IMAGE_TAG: "3.11.6"
+        PYTHON_VERSION: "3.11"
+      - PYTHON_IMAGE_TAG: "3.12.0"
+        PYTHON_VERSION: "3.12"
   script:
-    - ../.gitlab/build-deb-rpm.sh
-    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
+    - .gitlab/download-dependency-wheels.sh
+  artifacts:
+    paths:
+      - "pywheels-dep/"
 
-.release-package:
-  stage: deploy
-  variables:
-    PRODUCT_NAME: auto_inject-python
+package-oci:
+  needs: [ download_dependency_wheels, download_ddtrace_wheels ]
 
-deploy_to_reliability_env:
-  stage: deploy
+# no installer tests for python
+onboarding_tests_installer:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: on_success
-    - when: manual
-      allow_failure: true
-  trigger:
-    project: DataDog/apm-reliability/datadog-reliability-env
-    branch: $DOWNSTREAM_BRANCH
-  variables:
-    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
-    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
+    - when: never
+
+onboarding_tests_k8s_injection:
+  parallel:
+    matrix:
+      - WEBLOG_VARIANT: [dd-lib-python-init-test-django, dd-lib-python-init-test-django-gunicorn, dd-lib-python-init-test-django-uvicorn]
 
 deploy_to_di_backend:manual:
-  stage: deploy
+  stage: shared-pipeline
   rules:
     - when: manual
       allow_failure: true
@@ -84,65 +82,3 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
-
-generate-lib-init-tag-values:
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/ci/auto_inject/gitlab:current
-  stage: deploy
-  rules:
-    - if: '$POPULATE_CACHE'
-      when: never
-    # We don't tag prerelease versions
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
-      when: on_success
-    - when: manual
-      allow_failure: true
-  variables:
-    IMG_DESTINATION_BASE: dd-lib-python-init
-  script:
-    - ./.gitlab/build-lib-init.sh
-  artifacts:
-    reports:
-      dotenv: build.env
-
-deploy-lib-init-trigger:
-  stage: deploy
-  # needs the version from the generate-tag-values job
-  needs:
-    - job: generate-lib-init-tag-values
-      artifacts: true
-  trigger:
-#    project: DataDog/dd-trace-dotnet-gitlab-test # can be used for testing
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
-  variables:
-    IMG_SOURCES: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:$CI_COMMIT_TAG
-    IMG_DESTINATIONS: $IMG_DESTINATIONS
-    IMG_SIGNING: "false"
-    # Wait 4 hours to trigger the downstream job.
-    # This is a work-around since there isn't a way to trigger
-    # Gitlab from the Github workflow (build_deploy.yml:upload_pypi).
-    #
-    # The caveat here is that if there is a failure to build to PyPI and it
-    # isn't fixed in the retry period then this job will fail and images will
-    # not be published.
-    RETRY_DELAY: 14400
-    RETRY_COUNT: 3
-
-package-oci:
-  stage: package
-  extends: .package-oci
-  rules:
-  - if: $PYTHON_PACKAGE_VERSION
-    when: on_success
-  - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(-prerelease)?$/'
-    when: manual
-    allow_failure: false
-  script:
-    - ../.gitlab/build-oci.sh
-  parallel:
-    matrix:
-      - ARCH:
-        - arm64
-        - amd64
