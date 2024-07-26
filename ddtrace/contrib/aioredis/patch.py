@@ -11,8 +11,10 @@ from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.redis_utils import _run_redis_command_async
 from ddtrace.contrib.redis_utils import determine_row_count
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -51,9 +53,19 @@ aioredis_version = parse_version(aioredis_version_str)
 V2 = parse_version("2.0")
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return aioredis_version_str
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -62,14 +74,14 @@ def patch():
     aioredis._datadog_patch = True
     pin = Pin()
     if aioredis_version >= V2:
-        _w("aioredis.client", "Redis.execute_command", traced_execute_command)
-        _w("aioredis.client", "Redis.pipeline", traced_pipeline)
-        _w("aioredis.client", "Pipeline.execute", traced_execute_pipeline)
+        _w("aioredis.client", "Redis.execute_command", _traced_execute_command)
+        _w("aioredis.client", "Redis.pipeline", _traced_pipeline)
+        _w("aioredis.client", "Pipeline.execute", _traced_execute_pipeline)
         pin.onto(aioredis.client.Redis)
     else:
-        _w("aioredis", "Redis.execute", traced_13_execute_command)
-        _w("aioredis", "Redis.pipeline", traced_13_pipeline)
-        _w("aioredis.commands.transaction", "Pipeline.execute", traced_13_execute_pipeline)
+        _w("aioredis", "Redis.execute", _traced_13_execute_command)
+        _w("aioredis", "Redis.pipeline", _traced_13_pipeline)
+        _w("aioredis.commands.transaction", "Pipeline.execute", _traced_13_execute_pipeline)
         pin.onto(aioredis.Redis)
 
 
@@ -88,7 +100,7 @@ def unpatch():
         _u(aioredis.commands.transaction.Pipeline, "execute")
 
 
-async def traced_execute_command(func, instance, args, kwargs):
+async def _traced_execute_command(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
@@ -97,7 +109,17 @@ async def traced_execute_command(func, instance, args, kwargs):
         return await _run_redis_command_async(ctx=ctx, func=func, args=args, kwargs=kwargs)
 
 
-def traced_pipeline(func, instance, args, kwargs):
+async def traced_execute_command(func, instance, args, kwargs):
+    deprecate(
+        "traced_execute_command is deprecated",
+        message="traced_execute_command is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_execute_command(func, instance, args, kwargs)
+
+
+def _traced_pipeline(func, instance, args, kwargs):
     pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
@@ -105,7 +127,17 @@ def traced_pipeline(func, instance, args, kwargs):
     return pipeline
 
 
-async def traced_execute_pipeline(func, instance, args, kwargs):
+def traced_pipeline(func, instance, args, kwargs):
+    deprecate(
+        "traced_pipeline is deprecated",
+        message="traced_pipeline is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_pipeline(func, instance, args, kwargs)
+
+
+async def _traced_execute_pipeline(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
@@ -115,7 +147,17 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
 
-def traced_13_pipeline(func, instance, args, kwargs):
+async def traced_execute_pipeline(func, instance, args, kwargs):
+    deprecate(
+        "traced_execute_pipeline is deprecated",
+        message="traced_execute_pipeline is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_execute_pipeline(func, instance, args, kwargs)
+
+
+def _traced_13_pipeline(func, instance, args, kwargs):
     pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
@@ -123,7 +165,17 @@ def traced_13_pipeline(func, instance, args, kwargs):
     return pipeline
 
 
-def traced_13_execute_command(func, instance, args, kwargs):
+def traced_13_pipeline(func, instance, args, kwargs):
+    deprecate(
+        "traced_13_pipeline is deprecated",
+        message="traced_13_pipeline is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_13_pipeline(func, instance, args, kwargs)
+
+
+def _traced_13_execute_command(func, instance, args, kwargs):
     # If we have a _RedisBuffer then we are in a pipeline
     if isinstance(instance.connection, _RedisBuffer):
         return func(*args, **kwargs)
@@ -192,7 +244,17 @@ def traced_13_execute_command(func, instance, args, kwargs):
     return task
 
 
-async def traced_13_execute_pipeline(func, instance, args, kwargs):
+def traced_13_execute_command(func, instance, args, kwargs):
+    deprecate(
+        "traced_13_execute_command is deprecated",
+        message="traced_13_execute_command is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_13_execute_command(func, instance, args, kwargs)
+
+
+async def _traced_13_execute_pipeline(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
@@ -233,3 +295,13 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aioredis.get_analytics_sample_rate())
 
         return await func(*args, **kwargs)
+
+
+async def traced_13_execute_pipeline(func, instance, args, kwargs):
+    deprecate(
+        "traced_13_execute_pipeline is deprecated",
+        message="traced_13_execute_pipeline is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_13_execute_pipeline(func, instance, args, kwargs)

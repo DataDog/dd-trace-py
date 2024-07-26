@@ -9,8 +9,10 @@ from ddtrace.contrib import dbapi
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
@@ -30,9 +32,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(aiomysql, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 CONN_ATTR_BY_TAG = {
@@ -43,7 +55,7 @@ CONN_ATTR_BY_TAG = {
 }
 
 
-async def patched_connect(connect_func, _, args, kwargs):
+async def _patched_connect(connect_func, _, args, kwargs):
     conn = await connect_func(*args, **kwargs)
     tags = {}
     for tag, attr in CONN_ATTR_BY_TAG.items():
@@ -54,6 +66,16 @@ async def patched_connect(connect_func, _, args, kwargs):
     c = AIOTracedConnection(conn)
     Pin(tags=tags).onto(c)
     return c
+
+
+async def patched_connect(connect_func, _, args, kwargs):
+    deprecate(
+        "patched_connect is deprecated",
+        message="patched_connect is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patched_connect(connect_func, _, args, kwargs)
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
@@ -165,7 +187,7 @@ def patch():
     if getattr(aiomysql, "__datadog_patch", False):
         return
     aiomysql.__datadog_patch = True
-    wrapt.wrap_function_wrapper(aiomysql.connection, "_connect", patched_connect)
+    wrapt.wrap_function_wrapper(aiomysql.connection, "_connect", _patched_connect)
 
 
 def unpatch():

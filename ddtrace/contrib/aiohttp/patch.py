@@ -9,8 +9,10 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
@@ -45,9 +47,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return aiohttp.__version__
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 class _WrappedConnectorClass(wrapt.ObjectProxy):
