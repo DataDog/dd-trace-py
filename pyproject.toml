@@ -49,7 +49,7 @@ openai = [
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
 
 [project.entry-points.opentelemetry_context]
-ddcontextvars_context = "ddtrace.opentelemetry._context:DDRuntimeContext"
+ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
 ddtrace = "ddtrace.contrib.pytest.plugin"
