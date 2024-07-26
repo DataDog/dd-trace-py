@@ -1,5 +1,6 @@
 import abc
 from collections import defaultdict
+import copy
 from importlib._bootstrap import _init_module_attrs
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
@@ -7,7 +8,6 @@ from importlib.util import find_spec
 import os
 from pathlib import Path
 import sys
-import threading
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -64,36 +64,38 @@ if _is_iast_debug_enabled():
             if "ddtrace" in filename:
                 return
             if event == "call":
-                if any([is_pyobject_tainted(frame.f_locals[arg]) for arg in frame.f_locals]):
+                f_locals = copy.deepcopy(frame.f_locals)
+                if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
                     TAINTED_FRAMES.append(frame)
-                    print("Call to %s on line %s of %s, args: %s" % (func_name, line_no, filename, frame.f_locals))
-                    print("Tainted arguments:")
-                    for arg in frame.f_locals:
-                        if is_pyobject_tainted(frame.f_locals[arg]):
-                            print(f"\t{arg}: {frame.f_locals[arg]}")
-                    print("-----")
+                    log.debug("Call to %s on line %s of %s, args: %s", (func_name, line_no, filename, frame.f_locals))
+                    log.debug("Tainted arguments:")
+                    for arg in f_locals:
+                        if is_pyobject_tainted(f_locals[arg]):
+                            log.debug("\t%s: %s", (arg, f_locals[arg]))
+                    log.debug("-----")
 
                 return trace_calls_and_returns
             elif event == "return":
                 if frame in TAINTED_FRAMES:
                     TAINTED_FRAMES.remove(frame)
-                    print(f"Return from {func_name} on line {line_no} of {filename}, return value: {arg}")
+                    log.debug("Return from %s on line %d of %s, return value: %s", (func_name, line_no, filename, arg))
                     if isinstance(arg, (str, bytes, bytearray, list, tuple, dict)):
                         if (
                             (isinstance(arg, (str, bytes, bytearray)) and is_pyobject_tainted(arg))
                             or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
                             or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
                         ):
-                            print("Return value is tainted")
+                            log.debug("Return value is tainted")
                         else:
-                            print("Return value is NOT tainted")
-                    print("-----")
+                            log.debug("Return value is NOT tainted")
+                    log.debug("-----")
             return
+
         except Exception:
             # Ensure that we do not break by any means
             pass
 
-        threading.settrace(trace_calls_and_returns)
+    sys.settrace(trace_calls_and_returns)
 
 
 def _wrapped_run_code(*args: t.Any, **kwargs: t.Any) -> t.Dict[str, t.Any]:
