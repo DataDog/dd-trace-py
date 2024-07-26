@@ -158,16 +158,6 @@ class LLMObs(Service):
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
-        if not config._dd_api_key:
-            raise ValueError(
-                "DD_API_KEY is required for sending LLMObs data. "
-                "Ensure this configuration is set before running your application."
-            )
-        if not config._dd_site:
-            raise ValueError(
-                "DD_SITE is required for sending LLMObs data. "
-                "Ensure this configuration is set before running your application."
-            )
         if not config._llmobs_ml_app:
             raise ValueError(
                 "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
@@ -176,6 +166,17 @@ class LLMObs(Service):
 
         config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
         if config._llmobs_agentless_enabled:
+            # validate required values for agentless LLMObs
+            if not config._dd_api_key:
+                raise ValueError(
+                    "DD_API_KEY is required for sending LLMObs data. "
+                    "Ensure this configuration is set before running your application."
+                )
+            if not config._dd_site:
+                raise ValueError(
+                    "DD_SITE is required for sending LLMObs data. "
+                    "Ensure this configuration is set before running your application."
+                )
             if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
                 config._telemetry_enabled = False
                 log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")

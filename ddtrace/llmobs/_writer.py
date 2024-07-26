@@ -184,7 +184,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
             self._buffer = []
 
     def put(self, events: List[LLMObsSpanEvent]):
-        # events always has only 1 event - to be compatible with HTTPWriter interfaces
+        # events always has only 1 event - with List type to be compatible with HTTPWriter interfaces
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
