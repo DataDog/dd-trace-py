@@ -18,6 +18,7 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import flaky
 
+
 LANGCHAIN_VERSION = (parse_version(langchain.__version__) < (0, 1, 0) or sys.version_info < (3, 10),)
 
 if LANGCHAIN_VERSION < (0, 1, 0):
