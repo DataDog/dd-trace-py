@@ -166,6 +166,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
     LFI_ADDRESS: Literal["server.io.fs.file"] = "server.io.fs.file"
+    SHI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
     SSRF_ADDRESS: Literal["server.io.net.url"] = "server.io.net.url"
     SQLI_ADDRESS: Literal["server.db.statement"] = "server.db.statement"
     SQLI_SYSTEM_ADDRESS: Literal["server.db.system"] = "server.db.system"
