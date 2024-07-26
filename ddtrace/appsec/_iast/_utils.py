@@ -1,9 +1,13 @@
+import os
 import sys
 from typing import List
 from typing import Text
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
+
+from .._constants import IAST
 
 
 def _is_python_version_supported() -> bool:
@@ -23,6 +27,10 @@ def _is_iast_enabled():
     return True
 
 
+def _is_iast_debug_enabled():
+    return asbool(os.environ.get(IAST.ENV_DEBUG, "false"))
+
+
 def _get_source_index(sources: List, source) -> int:
     i = 0
     for source_ in sources:
@@ -37,9 +45,7 @@ def _get_patched_code(module_path: Text, module_name: Text) -> str:
     Print the patched code to stdout, for debugging purposes.
     """
     import astunparse
-
-    from ddtrace.appsec._iast._ast.ast_patching import get_encoding
-    from ddtrace.appsec._iast._ast.ast_patching import visit_ast
+    from ddtrace.appsec._iast._ast.ast_patching import get_encoding, visit_ast
 
     with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
         source_text = source_file.read()
