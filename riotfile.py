@@ -330,6 +330,8 @@ venv = Venv(
                 "flask": "<=2.2.3",
                 "httpretty": "<1.1",
                 "werkzeug": "<2.0",
+                # FIXME: ddtrace does not support the latest versions of opentelemetry-api
+                "opentelemetry-api": "<1.25.0",
                 "pytest-randomly": latest,
                 "markupsafe": "<2.0",
             },
@@ -2515,6 +2517,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": "==5.4.0",
+                        "faiss-cpu": "==1.8.0",
                     }
                 ),
                 Venv(
