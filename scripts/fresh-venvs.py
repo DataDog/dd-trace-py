@@ -1,11 +1,17 @@
 import ast
+from collections import defaultdict
+import datetime as dt
+from http.client import HTTPSConnection
 from io import StringIO
+import json
 import os
 import pathlib
 import sys
 import typing
 
+from packaging.version import Version
 from pip import _internal
+import requests
 
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -18,13 +24,16 @@ CONTRIB_ROOT = "ddtrace/contrib"
 class Capturing(list):
     def __enter__(self):
         self._stdout = sys.stdout
+        self._stderr = sys.stderr
         sys.stdout = self._stringio = StringIO()
+        sys.stderr = StringIO()
         return self
 
     def __exit__(self, *args):
         self.extend(self._stringio.getvalue().splitlines())
         del self._stringio  # free up some memory
         sys.stdout = self._stdout
+        sys.stderr = self._stderr
 
 
 def _get_integrated_modules() -> typing.Set[str]:
@@ -61,23 +70,78 @@ def _get_riot_envs_including_any(modules: typing.Set[str]) -> typing.Set[str]:
     return envs
 
 
-def _get_version_extremes(module: str) -> typing.Dict[str, typing.Dict[str, str]]:
+def _get_packages_implementing(modules: typing.Set[str]) -> typing.Set[str]:
+    return {m for m in modules if "." not in m}
+
+
+def _get_version_extremes(package_name: str) -> typing.Tuple[str, str]:
     with Capturing() as output:
-        _internal.main(["index", "versions", module])
-    # https://stackoverflow.com/a/66579111/735204
+        _internal.main(["index", "versions", package_name])
+    if not output:
+        return (None, None)
+    version_list = [a for a in output if "available versions" in a.lower()][0]
+    output_parts = version_list.split()
+    versions = [p.strip(",") for p in output_parts[2:]]
+    earliest_within_window = versions[-1]
+    conn = HTTPSConnection("pypi.org", 443)
+    conn.request("GET", f"pypi/{package_name}/json")
+    response = conn.getresponse()
+    version_infos = json.loads(response.readlines()[0])["releases"]
+    for version in versions:
+        version_info = version_infos.get(version, [])
+        if not version_info:
+            continue
+        upload_timestamp = version_info[0].get("upload_time_iso_8601")
+        upload_time = dt.datetime.strptime(upload_timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+        version_age = dt.datetime.utcnow() - upload_time
+        if version_age > dt.timedelta(days=365 * 2):
+            earliest_within_window = version
+            break
+    return earliest_within_window, versions[0]
+
+
+def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.List[typing.Tuple[str, str]]:
+    with open(f".riot/requirements/{env}.txt", "r") as lockfile:
+        lockfile_content = lockfile.readlines()
+    lock_packages = []
+    for line in lockfile_content:
+        parts = line.split("==")
+        if parts[0] in packages:
+            lock_packages.append((parts[0], parts[1].strip("\n")))
+    return lock_packages
+
+
+def _versions_fully_cover_bounds(bounds: typing.Tuple[str, str], versions: typing.List[str]) -> bool:
+    if not versions:
+        return False
+    return versions[0] >= Version(bounds[1]) and versions[-1] <= Version(bounds[0])
 
 
 def main():
     all_required_modules = _get_integrated_modules()
+    all_required_packages = _get_packages_implementing(all_required_modules)
     envs = _get_riot_envs_including_any(all_required_modules)
-    for module in all_required_modules:
-        versions = _get_version_extremes(module)
-        print(versions)
-    # for each required_modules
-    #  get earliest and latest pypi versions
-    #  for each env in set
-    #   get version of module used
-    pass
+
+    bounds = dict()
+    for package in all_required_packages:
+        earliest, latest = _get_version_extremes(package)
+        bounds[package] = (earliest, latest)
+
+    all_used_versions = defaultdict(set)
+    for env in envs:
+        versions_used = _get_package_versions_from(env, all_required_packages)
+        for pkg, version in versions_used:
+            all_used_versions[pkg].add(version)
+
+    for package in all_required_packages:
+        ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
+        if not ordered:
+            continue
+        if not _versions_fully_cover_bounds(bounds[package], ordered):
+            print(
+                f"{package}: policy supports version {bounds[package][0]} through {bounds[package][1]} "
+                f"but only these versions are used: {[str(v) for v in ordered]}"
+            )
 
 
 if __name__ == "__main__":
