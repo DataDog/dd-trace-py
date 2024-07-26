@@ -47,6 +47,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable  # noqa:F401
     from typing import Tuple  # noqa:F401
 
+    from ddtrace.llmobs._writer import LLMObsSpanEvent  # noqa:F401
+
     from .agent import ConnectionType  # noqa:F401
 
 
@@ -231,7 +233,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _set_keep_rate(self, trace):
         # Only triggered if trace is Span type
-        # LLMObsSpanEvent type from LLMObsSpanAgentWriter doesn't have set_metric
+        # LLMObsSpanEvent type from LLMObsSpanAgentWriter(HTTPWriter) doesn't have set_metric as TypedDict
         if trace and isinstance(trace[0], Span):
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
@@ -328,7 +330,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self.flush_queue()
 
     def _write_with_client(self, client, spans=None):
-        # type: (WriterClientBase, Optional[List[Span]]) -> None
+        # type: (WriterClientBase, Optional[List[Union[Span, LLMObsSpanEvent]]]) -> None
         if spans is None:
             return
 
