@@ -339,6 +339,7 @@ class PsycopgCore(AsyncioTestCase):
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
 
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_cursor_async_connect_execute(self):
         """Checks whether connection can execute operations with async iteration."""
         async with psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
@@ -361,3 +362,6 @@ class PsycopgCore(AsyncioTestCase):
                 async for row in cur:
                     assert row[0] == count
                     count += 1
+                    spans = self.get_spans()
+                    assert spans
+                    assert spans[0].name == "postgres.query"
