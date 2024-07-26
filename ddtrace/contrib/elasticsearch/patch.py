@@ -8,6 +8,8 @@ from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -59,18 +61,48 @@ def _es_modules():
 versions = {}
 
 
-def get_version_tuple(elasticsearch):
+def _get_version_tuple(elasticsearch):
     return getattr(elasticsearch, "__version__", "")
 
 
-def get_version():
+def get_version_tuple(elasticsearch):
+    deprecate(
+        "get_version_tuple is deprecated",
+        message="get_version_tuple is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version_tuple(elasticsearch)
+
+
+def _get_version():
     # type: () -> str
     return ""
 
 
-def get_versions():
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
+
+
+def _get_versions():
     # type: () -> List[str]
     return versions
+
+
+def get_versions():
+    deprecate(
+        "get_versions is deprecated",
+        message="get_versions is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_versions()
 
 
 def _get_transport_module(elasticsearch):

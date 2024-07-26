@@ -10,7 +10,9 @@ from ddtrace.contrib.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -29,16 +31,36 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(fastapi, "__version__", "")
 
 
-def wrap_middleware_stack(wrapped, instance, args, kwargs):
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
+
+
+def _wrap_middleware_stack(wrapped, instance, args, kwargs):
     return TraceMiddleware(app=wrapped(*args, **kwargs), integration_config=config.fastapi)
 
 
-async def traced_serialize_response(wrapped, instance, args, kwargs):
+def wrap_middleware_stack(wrapped, instance, args, kwargs):
+    deprecate(
+        "wrap_middleware_stac is deprecated",
+        message="wrap_middleware_stac is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _wrap_middleware_stack(wrapped, instance, args, kwargs)
+
+
+async def _traced_serialize_response(wrapped, instance, args, kwargs):
     """Wrapper for fastapi.routing.serialize_response function.
 
     This function is called on all non-Response objects to
@@ -63,14 +85,24 @@ async def traced_serialize_response(wrapped, instance, args, kwargs):
         return await wrapped(*args, **kwargs)
 
 
+async def traced_serialize_response(wrapped, instance, args, kwargs):
+    deprecate(
+        "traced_serialize_response is deprecated",
+        message="traced_serialize_response is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_serialize_response(wrapped, instance, args, kwargs)
+
+
 def patch():
     if getattr(fastapi, "_datadog_patch", False):
         return
 
     fastapi._datadog_patch = True
     Pin().onto(fastapi)
-    _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
-    _w("fastapi.routing", "serialize_response", traced_serialize_response)
+    _w("fastapi.applications", "FastAPI.build_middleware_stack", _wrap_middleware_stack)
+    _w("fastapi.routing", "serialize_response", _traced_serialize_response)
 
     if not isinstance(fastapi.BackgroundTasks.add_task, ObjectProxy):
         _w("fastapi", "BackgroundTasks.add_task", _trace_background_tasks(fastapi))

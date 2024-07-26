@@ -1,0 +1,10 @@
+---
+deprecations:
+  - |
+    elasticsearch: All methods in elasticsearch/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    falcon: All methods in falcon/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    fastapi: All methods in fastapi/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    futures: All methods in futures/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
