@@ -8,16 +8,28 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.vendor.debtcollector import deprecate
 
 from ._cold_start import is_cold_start
 from ._cold_start import set_cold_start
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return ""
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 class DDLambdaLogger:
@@ -27,13 +39,31 @@ class DDLambdaLogger:
         self.logger = get_logger(__name__)
         self.is_cold_start = is_cold_start()
 
-    def exception(self, msg, *args, exc_info=True, **kwargs):
+    def _exception(self, msg, *args, exc_info=True, **kwargs):
         if self.is_cold_start:
             self.logger.error(msg, *args, exc_info=exc_info, **kwargs)
 
-    def warning(self, msg, *args, **kwargs):
+    def exception(self, msg, *args, exc_info=True, **kwargs):
+        deprecate(
+            "exception is deprecated",
+            message="exception is deprecated",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._exception(msg, *args, exc_info=exc_info, **kwargs)
+
+    def _warning(self, msg, *args, **kwargs):
         if self.is_cold_start:
             self.logger.warning(msg, *args, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        deprecate(
+            "warning is deprecated",
+            message="warning is deprecated",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._warning(msg, *args, **kwargs)
 
 
 log = DDLambdaLogger()
@@ -95,7 +125,7 @@ class TimeoutChannel:
             root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
             root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
         else:
-            log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
+            log._warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
 
         current_span = tracer.current_span()
         if current_span is not None:
@@ -106,8 +136,17 @@ class TimeoutChannel:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, signal.SIG_DFL)
 
-    def stop(self):
+    def _stop(self):
         self._remove_alarm_signal()
+
+    def stop(self):
+        deprecate(
+            "stop is deprecated",
+            message="stop is deprecated",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._stop()
 
 
 class DatadogInstrumentation(object):
@@ -149,7 +188,7 @@ class DatadogInstrumentation(object):
 
     def _after(self):
         if not self.timeoutChannel.crashed:
-            self.timeoutChannel.stop()
+            self.timeoutChannel._stop()
 
 
 def _modify_module_name(module_name):
@@ -246,7 +285,7 @@ def patch():
         # which might cause a circular dependency. Skipping.
         return
     except Exception:
-        log.exception("Error patching handler. Timeout spans will not be generated.")
+        log._exception("Error patching handler. Timeout spans will not be generated.")
 
         return
 
@@ -267,6 +306,6 @@ def unpatch():
     except AttributeError:
         return
     except Exception:
-        log.exception("Error unpatching handler.")
+        log._exception("Error unpatching handler.")
 
         return

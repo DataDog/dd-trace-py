@@ -3,13 +3,25 @@ import asyncio
 from ddtrace import Pin
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.vendor.debtcollector import deprecate
+
+
+def _get_version():
+    # type: () -> str
+    return ""
 
 
 def get_version():
-    # type: () -> str
-    return ""
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():

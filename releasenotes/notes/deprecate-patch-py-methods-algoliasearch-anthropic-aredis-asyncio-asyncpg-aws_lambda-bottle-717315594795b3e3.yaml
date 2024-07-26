@@ -1,0 +1,16 @@
+---
+deprecations:
+  - |
+    algoliasearch: All methods in algoliasearch/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    anthropic: All methods in anthropic/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    aredis: All methods in aredis/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    asyncio: All methods in asyncio/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    asyncpg: All methods in asyncpg/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    aws_lambda: All methods in aws_lambda/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    bottle: All methods in bottle/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.

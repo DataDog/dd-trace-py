@@ -9,9 +9,11 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs._integrations import AnthropicIntegration
 from ddtrace.llmobs._integrations.anthropic import _get_attr
 from ddtrace.pin import Pin
+from ddtrace.vendor.debtcollector import deprecate
 
 from ._streaming import handle_streamed_response
 from ._streaming import is_streaming_operation
@@ -25,9 +27,19 @@ from .utils import tag_tool_use_input_on_span
 log = get_logger(__name__)
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(anthropic, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 config._add(
@@ -40,7 +52,7 @@ config._add(
 
 
 @with_traced_module
-def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
+def _traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
@@ -118,8 +130,18 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     return chat_completions
 
 
+def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_chat_model_generate is deprecated",
+        message="traced_chat_model_generate is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs)
+
+
 @with_traced_module
-async def traced_async_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
+async def _traced_async_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
@@ -197,6 +219,16 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     return chat_completions
 
 
+async def traced_async_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_async_chat_model_generate is deprecated",
+        message="traced_async_chat_model_generate is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return await _traced_async_chat_model_generate(anthropic, pin, func, instance, args, kwargs)
+
+
 def patch():
     if getattr(anthropic, "_datadog_patch", False):
         return
@@ -207,11 +239,11 @@ def patch():
     integration = AnthropicIntegration(integration_config=config.anthropic)
     anthropic._datadog_integration = integration
 
-    wrap("anthropic", "resources.messages.Messages.create", traced_chat_model_generate(anthropic))
-    wrap("anthropic", "resources.messages.Messages.stream", traced_chat_model_generate(anthropic))
-    wrap("anthropic", "resources.messages.AsyncMessages.create", traced_async_chat_model_generate(anthropic))
+    wrap("anthropic", "resources.messages.Messages.create", _traced_chat_model_generate(anthropic))
+    wrap("anthropic", "resources.messages.Messages.stream", _traced_chat_model_generate(anthropic))
+    wrap("anthropic", "resources.messages.AsyncMessages.create", _traced_async_chat_model_generate(anthropic))
     # AsyncMessages.stream is a sync function
-    wrap("anthropic", "resources.messages.AsyncMessages.stream", traced_chat_model_generate(anthropic))
+    wrap("anthropic", "resources.messages.AsyncMessages.stream", _traced_chat_model_generate(anthropic))
 
 
 def unpatch():
