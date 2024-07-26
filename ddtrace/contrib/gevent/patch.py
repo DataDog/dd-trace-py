@@ -1,6 +1,9 @@
 import gevent
 import gevent.pool
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
 from .greenlet import TracedGreenlet
 from .greenlet import TracedIMap
 from .greenlet import TracedIMapUnordered
@@ -11,10 +14,18 @@ __IMap = gevent.pool.IMap
 __IMapUnordered = gevent.pool.IMapUnordered
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(gevent, "__version__", "")
 
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 def patch():
     """

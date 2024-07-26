@@ -1,0 +1,14 @@
+---
+deprecations:
+  - |
+    gevent: All methods in gevent/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    graphql: All methods in graphql/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    grpc: All methods in grpc/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    httplib: All methods in httplib/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    httpx: All methods in httpx/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    jinja2: All methods in jinja2/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.

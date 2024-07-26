@@ -17,11 +17,13 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -29,9 +31,19 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 HTTPX_VERSION = parse_version(httpx.__version__)
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(httpx, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 config._add(

@@ -6,8 +6,10 @@ from ddtrace import config
 from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -40,9 +42,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return ""
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def _wrap_init(func, instance, args, kwargs):
@@ -88,7 +100,7 @@ def _wrap_request(func, instance, args, kwargs):
         func_to_call = func
 
     pin = Pin.get_from(instance)
-    if should_skip_request(pin, instance):
+    if _should_skip_request(pin, instance):
         return func_to_call(*args, **kwargs)
 
     cfg = config.get_from(instance)
@@ -131,7 +143,7 @@ def _wrap_request(func, instance, args, kwargs):
 def _wrap_putrequest(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
     pin = Pin.get_from(instance)
-    if should_skip_request(pin, instance):
+    if _should_skip_request(pin, instance):
         return func(*args, **kwargs)
 
     try:
@@ -196,7 +208,7 @@ def _wrap_putheader(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def should_skip_request(pin, request):
+def _should_skip_request(pin, request):
     """Helper to determine if the provided request should be traced"""
     if getattr(request, _HTTPLIB_NO_TRACE_REQUEST, False):
         return True
@@ -212,6 +224,16 @@ def should_skip_request(pin, request):
         parsed = parse.urlparse(agent_url)
         return request.host == parsed.hostname and request.port == parsed.port
     return False
+
+
+def should_skip_request(pin, request):
+    deprecate(
+        "should_skip_request is deprecated",
+        message="should_skip_request is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _should_skip_request(pin, request)
 
 
 def patch():
