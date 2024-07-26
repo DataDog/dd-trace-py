@@ -46,6 +46,7 @@ from .writer_client import WriterClientBase  # noqa:F401
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable  # noqa:F401
     from typing import Tuple  # noqa:F401
+    from typing import Union  # noqa:F401
 
     from ddtrace.llmobs._writer import LLMObsSpanEvent  # noqa:F401
 
