@@ -46,6 +46,10 @@ fmt = [
     "style",
     "typing",
     "spelling",
+    "riot",
+    "security",
+    "test",
+    "suitespec-check",
 ]
 spelling = [
     "codespell --skip='ddwaf.h,*cassettes*' {args:ddtrace/ tests/ releasenotes/ docs/}",
