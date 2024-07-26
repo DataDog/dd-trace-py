@@ -345,14 +345,14 @@ class PsycopgCore(AsyncioTestCase):
             async with conn.cursor() as cur:
                 await cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
                 await cur.execute(
-                            """CREATE TABLE {} (
+                    """CREATE TABLE {} (
                             a INT,
                             b VARCHAR(32)
                             )
                             """.format(
-                                TEST_TABLE
-                            )
-                        )
+                        TEST_TABLE
+                    )
+                )
                 await cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
                 await cur.execute("INSERT INTO {} (a, b) VALUES (2, 'bb');".format(TEST_TABLE))
                 await cur.execute("INSERT INTO {} (a, b) VALUES (3, 'cc');".format(TEST_TABLE))

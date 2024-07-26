@@ -7,6 +7,7 @@ from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
 
 Row = TypeVar("Row", covariant=True)
 
+
 class Psycopg3TracedAsyncCursor(Psycopg3TracedCursor, dbapi_async.TracedAsyncCursor):
     def __init__(self, cursor, pin, cfg, *args, **kwargs):
         super(Psycopg3TracedAsyncCursor, self).__init__(cursor, pin, cfg)
@@ -44,9 +45,7 @@ class Psycopg3TracedAsyncCursor(Psycopg3TracedCursor, dbapi_async.TracedAsyncCur
         return row
 
     async def _fetch_pipeline(self) -> None:
-        if (self._execmany_returning is not False
-            and not self.pgresult
-            and self._conn._pipeline):
+        if self._execmany_returning is not False and not self.pgresult and self._conn._pipeline:
             async with self._conn.lock:
                 await self._conn.wait(self._conn._pipeline._fetch_gen(flush=True))
 
