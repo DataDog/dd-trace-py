@@ -4,6 +4,7 @@ from importlib._bootstrap import _init_module_attrs
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
+import os
 from pathlib import Path
 import sys
 import threading
@@ -12,9 +13,10 @@ from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
 
-from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
+from ddtrace.appsec._constants import IAST
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 
 
 ModuleHookType = t.Callable[[ModuleType], None]
@@ -33,12 +35,17 @@ _run_code = None
 _run_module_transformers: t.List[TransformerType] = []
 _post_run_module_hooks: t.List[ModuleHookType] = []
 
+
+def _is_iast_debug_enabled():
+    return asbool(os.environ.get(IAST.ENV_DEBUG, "false"))
+
+
 if _is_iast_debug_enabled():
     try:
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
     except ImportError:
 
-        def is_pyobject_tainted(obj):
+        def is_pyobject_tainted(pyobject: t.Any) -> bool:
             return False
 
     TAINTED_FRAMES = []

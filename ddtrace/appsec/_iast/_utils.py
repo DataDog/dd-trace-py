@@ -1,13 +1,9 @@
-import os
 import sys
 from typing import List
 from typing import Text
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
-
-from .._constants import IAST
 
 
 def _is_python_version_supported() -> bool:
@@ -25,10 +21,6 @@ def _is_iast_enabled():
         return False
 
     return True
-
-
-def _is_iast_debug_enabled():
-    return asbool(os.environ.get(IAST.ENV_DEBUG, "false"))
 
 
 def _get_source_index(sources: List, source) -> int:
