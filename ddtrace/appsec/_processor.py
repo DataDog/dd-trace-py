@@ -206,6 +206,22 @@ class AppSecSpanProcessor(SpanProcessor):
         self._update_required()
         return result
 
+    @property
+    def rasp_lfi_enabled(self) -> bool:
+        return WAF_DATA_NAMES.LFI_ADDRESS in self._addresses_to_keep
+
+    @property
+    def rasp_shi_enabled(self) -> bool:
+        return WAF_DATA_NAMES.SHI_ADDRESS in self._addresses_to_keep
+
+    @property
+    def rasp_ssrf_enabled(self) -> bool:
+        return WAF_DATA_NAMES.SSRF_ADDRESS in self._addresses_to_keep
+
+    @property
+    def rasp_sqli_enabled(self) -> bool:
+        return WAF_DATA_NAMES.SQLI_ADDRESS in self._addresses_to_keep
+
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib import trace_utils
 
