@@ -24,8 +24,8 @@ import pytest
 import ddtrace
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.coverage.data import _coverage_data
+from ddtrace.contrib.coverage.patch import _run_coverage_report
 from ddtrace.contrib.coverage.patch import patch as patch_coverage
-from ddtrace.contrib.coverage.patch import run_coverage_report
 from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.utils import _is_coverage_patched
@@ -508,7 +508,7 @@ class _PytestDDTracePluginV1:
                 invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
                 if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
                     if invoked_by_coverage_run_status and not pytest_cov_status:
-                        run_coverage_report()
+                        _run_coverage_report()
                     _add_pct_covered_to_span(_coverage_data, test_session_span)
                     unpatch_coverage()
                 test_session_span.finish()

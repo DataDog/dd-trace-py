@@ -6,9 +6,11 @@ except AttributeError:
     from dogpile import lock as dogpile_lock
 
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.pin import _DD_PIN_PROXY_NAME
 from ddtrace.pin import Pin
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .lock import _wrap_lock_ctor
@@ -21,9 +23,19 @@ _get_or_create_multi = dogpile_cache.region.CacheRegion.get_or_create_multi
 _lock_ctor = dogpile_lock.Lock.__init__
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(dogpile_cache, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():

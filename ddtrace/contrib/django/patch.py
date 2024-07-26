@@ -35,10 +35,12 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt.importer import when_imported
 
@@ -91,14 +93,24 @@ DB_CONN_ATTR_BY_TAG = {
 }
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     import django
 
     return django.__version__
 
 
-def patch_conn(django, conn):
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
+
+
+def _patch_conn(django, conn):
     global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
 
     if psycopg_cursor_cls is _NotSet:
@@ -176,11 +188,21 @@ def patch_conn(django, conn):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
 
 
-def instrument_dbs(django):
+def patch_conn(django, conn):
+    deprecate(
+        "patch_conn is deprecated",
+        message="patch_conn is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_conn(django, conn)
+
+
+def _instrument_dbs(django):
     def get_connection(wrapped, instance, args, kwargs):
         conn = wrapped(*args, **kwargs)
         try:
-            patch_conn(django, conn)
+            _patch_conn(django, conn)
         except Exception:
             log.debug("Error instrumenting database connection %r", conn, exc_info=True)
         return conn
@@ -191,8 +213,18 @@ def instrument_dbs(django):
         )
 
 
+def instrument_dbs(django):
+    deprecate(
+        "instrument_dbs is deprecated",
+        message="instrument_dbs is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _instrument_dbs(django)
+
+
 @trace_utils.with_traced_module
-def traced_cache(django, pin, func, instance, args, kwargs):
+def _traced_cache(django, pin, func, instance, args, kwargs):
     from . import utils
 
     if not config.django.instrument_caches:
@@ -235,7 +267,17 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         return result
 
 
-def instrument_caches(django):
+def traced_cache(django, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_cache is deprecated",
+        message="traced_cache is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_cache(django, pin, func, instance, args, kwargs)
+
+
+def _instrument_caches(django):
     cache_backends = set([cache["BACKEND"] for cache in django.conf.settings.CACHES.values()])
     for cache_path in cache_backends:
         split = cache_path.split(".")
@@ -246,13 +288,23 @@ def instrument_caches(django):
                 cls = django.utils.module_loading.import_string(cache_path)
                 # DEV: this can be removed when we add an idempotent `wrap`
                 if not trace_utils.iswrapped(cls, method):
-                    trace_utils.wrap(cache_module, "{0}.{1}".format(cache_cls, method), traced_cache(django))
+                    trace_utils.wrap(cache_module, "{0}.{1}".format(cache_cls, method), _traced_cache(django))
             except Exception:
                 log.debug("Error instrumenting cache %r", cache_path, exc_info=True)
 
 
+def instrument_caches(django):
+    deprecate(
+        "instrument_caches is deprecated",
+        message="instrument_caches is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _instrument_caches(django)
+
+
 @trace_utils.with_traced_module
-def traced_populate(django, pin, func, instance, args, kwargs):
+def _traced_populate(django, pin, func, instance, args, kwargs):
     """django.apps.registry.Apps.populate is the method used to populate all the apps.
 
     It is used as a hook to install instrumentation for 3rd party apps (like DRF).
@@ -282,14 +334,14 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     # Instrument databases
     if config.django.instrument_databases:
         try:
-            instrument_dbs(django)
+            _instrument_dbs(django)
         except Exception:
             log.debug("Error instrumenting Django database connections", exc_info=True)
 
     # Instrument caches
     if config.django.instrument_caches:
         try:
-            instrument_caches(django)
+            _instrument_caches(django)
         except Exception:
             log.debug("Error instrumenting Django caches", exc_info=True)
 
@@ -307,7 +359,17 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     return ret
 
 
-def traced_func(django, name, resource=None, ignored_excs=None):
+def traced_populate(django, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_populate is deprecated",
+        message="traced_populate is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_populate(django, pin, func, instance, args, kwargs)
+
+
+def _traced_func(django, name, resource=None, ignored_excs=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         tags = {COMPONENT: config.django.integration_name}
         with core.context_with_data(
@@ -328,7 +390,17 @@ def traced_func(django, name, resource=None, ignored_excs=None):
     return trace_utils.with_traced_module(wrapped)(django)
 
 
-def traced_process_exception(django, name, resource=None):
+def traced_func(django, name, resource=None, ignored_excs=None):
+    deprecate(
+        "traced_func is deprecated",
+        message="traced_func is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_func(django, name, resource=resource, ignored_excs=ignored_excs)
+
+
+def _traced_process_exception(django, name, resource=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         tags = {COMPONENT: config.django.integration_name}
         with core.context_with_data(
@@ -343,8 +415,18 @@ def traced_process_exception(django, name, resource=None):
     return trace_utils.with_traced_module(wrapped)(django)
 
 
+def traced_process_exception(django, name, resource=None):
+    deprecate(
+        "traced_process_exception is deprecated",
+        message="traced_process_exception is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_process_exception(django, name, resource=resource)
+
+
 @trace_utils.with_traced_module
-def traced_load_middleware(django, pin, func, instance, args, kwargs):
+def _traced_load_middleware(django, pin, func, instance, args, kwargs):
     """
     Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all
     middlewares.
@@ -382,7 +464,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
                     if r:
                         return wrapt.FunctionWrapper(
                             r,
-                            traced_func(django, "django.middleware", resource=resource),
+                            _traced_func(django, "django.middleware", resource=resource),
                         )
                     # If r is an empty middleware function (i.e. returns None), don't wrap since
                     # NoneType cannot be called
@@ -404,16 +486,26 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
             ]:
                 if hasattr(mw, hook) and not trace_utils.iswrapped(mw, hook):
                     trace_utils.wrap(
-                        mw, hook, traced_func(django, "django.middleware", resource=mw_path + ".{0}".format(hook))
+                        mw, hook, _traced_func(django, "django.middleware", resource=mw_path + ".{0}".format(hook))
                     )
             # Do a little extra for `process_exception`
             if hasattr(mw, "process_exception") and not trace_utils.iswrapped(mw, "process_exception"):
                 res = mw_path + ".{0}".format("process_exception")
                 trace_utils.wrap(
-                    mw, "process_exception", traced_process_exception(django, "django.middleware", resource=res)
+                    mw, "process_exception", _traced_process_exception(django, "django.middleware", resource=res)
                 )
 
     return func(*args, **kwargs)
+
+
+def traced_load_middleware(django, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_load_middleware is deprecated",
+        message="traced_load_middleware is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_load_middleware(django, pin, func, instance, args, kwargs)
 
 
 def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):
@@ -444,7 +536,7 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
 
 
 @trace_utils.with_traced_module
-def traced_get_response(django, pin, func, instance, args, kwargs):
+def _traced_get_response(django, pin, func, instance, args, kwargs):
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
 
     This is the main entry point for requests.
@@ -553,8 +645,18 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     return response  # noqa: B012
 
 
+def traced_get_response(django, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_get_response is deprecated",
+        message="traced_get_response is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_get_response(django, pin, func, instance, args, kwargs)
+
+
 @trace_utils.with_traced_module
-def traced_template_render(django, pin, wrapped, instance, args, kwargs):
+def _traced_template_render(django, pin, wrapped, instance, args, kwargs):
     # DEV: Check here in case this setting is configured after a template has been instrumented
     if not config.django.instrument_templates:
         return wrapped(*args, **kwargs)
@@ -581,6 +683,16 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
         pin=pin,
     ) as ctx, ctx["call"]:
         return wrapped(*args, **kwargs)
+
+
+def traced_template_render(django, pin, wrapped, instance, args, kwargs):
+    deprecate(
+        "traced_template_render is deprecated",
+        message="traced_template_render is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_template_render(django, pin, wrapped, instance, args, kwargs)
 
 
 def instrument_view(django, view):
@@ -615,7 +727,7 @@ def _instrument_view(django, view):
 
             resource = "{0}.{1}".format(func_name(view), name)
             op_name = "django.view.{0}".format(name)
-            trace_utils.wrap(view, name, traced_func(django, name=op_name, resource=resource))
+            trace_utils.wrap(view, name, _traced_func(django, name=op_name, resource=resource))
         except Exception:
             log.debug("Failed to instrument Django view %r function %s", view, name, exc_info=True)
 
@@ -632,20 +744,20 @@ def _instrument_view(django, view):
 
                 resource = "{0}.{1}".format(func_name(response_cls), name)
                 op_name = "django.response.{0}".format(name)
-                trace_utils.wrap(response_cls, name, traced_func(django, name=op_name, resource=resource))
+                trace_utils.wrap(response_cls, name, _traced_func(django, name=op_name, resource=resource))
             except Exception:
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
 
     # If the view itself is not wrapped, wrap it
     if not isinstance(view, wrapt.ObjectProxy):
         view = utils.DjangoViewProxy(
-            view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
+            view, _traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
         )
     return view
 
 
 @trace_utils.with_traced_module
-def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
+def _traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
         if "view" in kwargs:
@@ -659,8 +771,18 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
+def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
+    deprecate(
+        "traced_urls_path is deprecated",
+        message="traced_urls_path is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_urls_path(django, pin, wrapped, instance, args, kwargs)
+
+
 @trace_utils.with_traced_module
-def traced_as_view(django, pin, func, instance, args, kwargs):
+def _traced_as_view(django, pin, func, instance, args, kwargs):
     """
     Wrapper for django's View.as_view class method
     """
@@ -669,17 +791,37 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     except Exception:
         log.debug("Failed to instrument Django view %r", instance, exc_info=True)
     view = func(*args, **kwargs)
-    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
+    return wrapt.FunctionWrapper(view, _traced_func(django, "django.view", resource=func_name(instance)))
+
+
+def traced_as_view(django, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_as_view is deprecated",
+        message="traced_as_view is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_as_view(django, pin, func, instance, args, kwargs)
 
 
 @trace_utils.with_traced_module
-def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
+def _traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
+
+
+def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_get_asgi_application is deprecated",
+        message="traced_get_asgi_application is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_get_asgi_application(django, pin, func, instance, args, kwargs)
 
 
 class _DjangoUserInfoRetriever(_UserInfoRetriever):
@@ -759,7 +901,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
 
 
 @trace_utils.with_traced_module
-def traced_login(django, pin, func, instance, args, kwargs):
+def _traced_login(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
     mode = asm_config._user_event_mode
     if mode == "disabled":
@@ -772,8 +914,18 @@ def traced_login(django, pin, func, instance, args, kwargs):
         log.debug("Error while trying to trace Django login", exc_info=True)
 
 
+def traced_login(django, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_login is deprecated",
+        message="traced_login is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_login(django, pin, func, instance, args, kwargs)
+
+
 @trace_utils.with_traced_module
-def traced_authenticate(django, pin, func, instance, args, kwargs):
+def _traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
     mode = asm_config._user_event_mode
     if mode == "disabled":
@@ -790,7 +942,17 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     return result_user
 
 
-def unwrap_views(func, instance, args, kwargs):
+def traced_authenticate(django, pin, func, instance, args, kwargs):
+    deprecate(
+        "traced_authenticate is deprecated",
+        message="traced_authenticate is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_authenticate(django, pin, func, instance, args, kwargs)
+
+
+def _unwrap_views(func, instance, args, kwargs):
     """
     Django channels uses path() and re_path() to route asgi applications. This broke our initial
     assumption that
@@ -813,24 +975,36 @@ def unwrap_views(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
+def unwrap_views(func, instance, args, kwargs):
+    deprecate(
+        "unwrap_views is deprecated",
+        message="unwrap_views is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _unwrap_views(func, instance, args, kwargs)
+
+
 def _patch(django):
     Pin().onto(django)
 
-    when_imported("django.apps.registry")(lambda m: trace_utils.wrap(m, "Apps.populate", traced_populate(django)))
+    when_imported("django.apps.registry")(lambda m: trace_utils.wrap(m, "Apps.populate", _traced_populate(django)))
 
     if config.django.instrument_middleware:
         when_imported("django.core.handlers.base")(
-            lambda m: trace_utils.wrap(m, "BaseHandler.load_middleware", traced_load_middleware(django))
+            lambda m: trace_utils.wrap(m, "BaseHandler.load_middleware", _traced_load_middleware(django))
         )
 
-    when_imported("django.core.handlers.wsgi")(lambda m: trace_utils.wrap(m, "WSGIRequest.__init__", wrap_wsgi_environ))
+    when_imported("django.core.handlers.wsgi")(
+        lambda m: trace_utils.wrap(m, "WSGIRequest.__init__", _wrap_wsgi_environ)
+    )
     core.dispatch("django.patch", ())
 
     @when_imported("django.core.handlers.base")
     def _(m):
         import django
 
-        trace_utils.wrap(m, "BaseHandler.get_response", traced_get_response(django))
+        trace_utils.wrap(m, "BaseHandler.get_response", _traced_get_response(django))
         if django.VERSION >= (3, 1):
             # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
             from ._asgi import traced_get_response_async
@@ -839,33 +1013,33 @@ def _patch(django):
 
     @when_imported("django.contrib.auth")
     def _(m):
-        trace_utils.wrap(m, "login", traced_login(django))
-        trace_utils.wrap(m, "authenticate", traced_authenticate(django))
+        trace_utils.wrap(m, "login", _traced_login(django))
+        trace_utils.wrap(m, "authenticate", _traced_authenticate(django))
 
     # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
     # because get_response and get_asgi_application will be used. We must rely on the version instead of coalescing
     # with the previous patching hook because of circular imports within `django.core.asgi`.
     if django.VERSION >= (3, 1):
         when_imported("django.core.asgi")(
-            lambda m: trace_utils.wrap(m, "get_asgi_application", traced_get_asgi_application(django))
+            lambda m: trace_utils.wrap(m, "get_asgi_application", _traced_get_asgi_application(django))
         )
 
     if config.django.instrument_templates:
         when_imported("django.template.base")(
-            lambda m: trace_utils.wrap(m, "Template.render", traced_template_render(django))
+            lambda m: trace_utils.wrap(m, "Template.render", _traced_template_render(django))
         )
 
     if django.VERSION < (4, 0, 0):
-        when_imported("django.conf.urls")(lambda m: trace_utils.wrap(m, "url", traced_urls_path(django)))
+        when_imported("django.conf.urls")(lambda m: trace_utils.wrap(m, "url", _traced_urls_path(django)))
 
     if django.VERSION >= (2, 0, 0):
 
         @when_imported("django.urls")
         def _(m):
-            trace_utils.wrap(m, "path", traced_urls_path(django))
-            trace_utils.wrap(m, "re_path", traced_urls_path(django))
+            trace_utils.wrap(m, "path", _traced_urls_path(django))
+            trace_utils.wrap(m, "re_path", _traced_urls_path(django))
 
-    when_imported("django.views.generic.base")(lambda m: trace_utils.wrap(m, "View.as_view", traced_as_view(django)))
+    when_imported("django.views.generic.base")(lambda m: trace_utils.wrap(m, "View.as_view", _traced_as_view(django)))
 
     @when_imported("channels.routing")
     def _(m):
@@ -874,10 +1048,10 @@ def _patch(django):
         channels_version = parse_version(channels.__version__)
         if channels_version >= parse_version("3.0"):
             # ASGI3 is only supported in channels v3.0+
-            trace_utils.wrap(m, "URLRouter.__init__", unwrap_views)
+            trace_utils.wrap(m, "URLRouter.__init__", _unwrap_views)
 
 
-def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
+def _wrap_wsgi_environ(wrapped, _instance, args, kwargs):
     result = core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result
     # if the callback is registered and runs, return the result
     if result:
@@ -888,6 +1062,16 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
     # if an exception occurs, raise it. It should never happen.
     elif result.exception:
         raise result.exception
+
+
+def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
+    deprecate(
+        "wrap_wsgi_environ is deprecated",
+        message="wrap_wsgi_environ is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _wrap_wsgi_environ(wrapped, _instance, args, kwargs)
 
 
 def patch():

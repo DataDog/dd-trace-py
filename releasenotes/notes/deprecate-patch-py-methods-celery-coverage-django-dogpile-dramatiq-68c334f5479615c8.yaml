@@ -1,0 +1,12 @@
+---
+deprecations:
+  - |
+    celery: All methods in celery/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    coverage: All methods in coverage/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    django: All methods in django/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    dogpile_cache: All methods in dogpile_cache/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    dramatiq: All methods in dramatiq/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
