@@ -19,7 +19,7 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import flaky
 
 
-LANGCHAIN_VERSION = (parse_version(langchain.__version__) < (0, 1, 0) or sys.version_info < (3, 10),)
+LANGCHAIN_VERSION = parse_version(langchain.__version__)
 
 if LANGCHAIN_VERSION < (0, 1, 0):
     from langchain.schema import AIMessage
@@ -151,7 +151,7 @@ class BaseTestLLMObsLangchain:
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain"
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_openai_llm(self, langchain, mock_llmobs_span_writer, mock_tracer):
         span = self._invoke_llm(
             llm=langchain.llms.OpenAI(model="gpt-3.5-turbo-instruct"),
@@ -172,7 +172,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_ai21_llm(self, langchain, mock_llmobs_span_writer, mock_tracer):
         llm = langchain.llms.AI21()
         span = self._invoke_llm(
@@ -199,7 +199,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_openai_chat_model(self, langchain, mock_llmobs_span_writer, mock_tracer):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
         span = self._invoke_chat(
@@ -211,7 +211,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_openai_chat_model_custom_role(self, langchain, mock_llmobs_span_writer, mock_tracer):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
         span = self._invoke_chat(
@@ -224,7 +224,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="custom")
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_chain(self, langchain, mock_llmobs_span_writer, mock_tracer):
         chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0, max_tokens=256))
 
@@ -259,7 +259,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         )
         _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_chain_nested(self, langchain, mock_llmobs_span_writer, mock_tracer):
         template = "Paraphrase this text:\n{input_text}\nParaphrase: "
         prompt = langchain.PromptTemplate(input_variables=["input_text"], template=template)
@@ -298,7 +298,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_chain_span(trace[3], mock_llmobs_span_writer)
         _assert_expected_llmobs_llm_span(trace[4], mock_llmobs_span_writer)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_chain_schema_io(self, langchain, mock_llmobs_span_writer, mock_tracer):
         prompt = langchain.prompts.ChatPromptTemplate.from_messages(
             [
@@ -347,7 +347,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         )
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_query(self, langchain, mock_llmobs_span_writer, mock_tracer):
         embedding_model = langchain.embeddings.OpenAIEmbeddings()
         with mock.patch("langchain.embeddings.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
@@ -372,7 +372,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             )
         )
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_documents(self, langchain, mock_llmobs_span_writer, mock_tracer):
         embedding_model = langchain.embeddings.OpenAIEmbeddings()
         with mock.patch(
@@ -427,7 +427,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_ai21_llm(self, langchain_community, mock_llmobs_span_writer, mock_tracer):
         if langchain_community is None:
             pytest.skip("langchain-community not installed which is required for this test.")
@@ -594,7 +594,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_query(self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         if langchain_openai is None:
             pytest.skip("langchain_openai not installed which is required for this test.")
@@ -621,7 +621,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             )
         )
 
-    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_embedding_documents(
         self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer
     ):
