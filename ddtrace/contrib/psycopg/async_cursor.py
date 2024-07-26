@@ -1,10 +1,5 @@
-from typing import TypeVar
-
 from ddtrace.contrib import dbapi_async
 from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
-
-
-Row = TypeVar("Row", covariant=True)
 
 
 class Psycopg3TracedAsyncCursor(Psycopg3TracedCursor, dbapi_async.TracedAsyncCursor):
@@ -30,7 +25,7 @@ class Psycopg3TracedAsyncCursor(Psycopg3TracedCursor, dbapi_async.TracedAsyncCur
         await self._fetch_pipeline()
         self._check_result_for_fetch()
 
-        def load(pos: int) -> Row | None:
+        def load(pos: int):
             return self._tx.load_row(pos, self._make_row)
 
         while True:
