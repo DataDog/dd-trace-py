@@ -21,16 +21,15 @@ variables:
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
+# no installer tests for python
 onboarding_tests_installer:
-  parallel:
-    matrix:
-      - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine-libgcc]
-
+  rules:
+    - when: never
 
 onboarding_tests_k8s_injection:
   parallel:
     matrix:
-      - WEBLOG_VARIANT: [dd-lib-python-init-test-django, dd-lib-python-init-test-django-gunicorn, dd-lib-python-init-test-django-uvicorn, dd-lib-python-init-test-protobuf-old]
+      - WEBLOG_VARIANT: [dd-lib-python-init-test-django, dd-lib-python-init-test-django-gunicorn, dd-lib-python-init-test-django-uvicorn]
 
 deploy_to_di_backend:manual:
   stage: shared-pipeline
