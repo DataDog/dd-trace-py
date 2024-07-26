@@ -3,7 +3,7 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.aiobotocore import get_version
+from ddtrace.contrib.aiobotocore.patch import _get_version
 from ddtrace.contrib.aiobotocore.patch import patch
 
 
@@ -19,7 +19,7 @@ class TestAiobotocorePatch(PatchTestCase.Base):
     __module_name__ = "aiobotocore.client"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
-    __get_version__ = get_version
+    __get_version__ = _get_version
 
     def assert_module_patched(self, aiobotocore_client):
         pass
