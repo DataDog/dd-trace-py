@@ -101,10 +101,11 @@ def test_service_enable_no_api_key():
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(_tracer=dummy_tracer)
+            llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=True)
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
+        os.environ.pop("DD_LLMOBS_AGENTLESS_ENABLED", None)
 
 
 def test_service_enable_no_ml_app_specified():
