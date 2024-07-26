@@ -87,11 +87,11 @@ class LLMObs(Service):
                 interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
                 timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             )
-            return
-        self._llmobs_span_writer = LLMObsSpanAgentWriter(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
-        )
+        else:
+            self._llmobs_span_writer = LLMObsSpanAgentWriter(
+                interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+                timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            )
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters

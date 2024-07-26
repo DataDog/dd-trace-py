@@ -263,6 +263,10 @@ class LLMObsSpanAgentWriter(HTTPWriter):
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         self.write([event])
 
+    # Noop to make it compatible with HTTPWriter interface
+    def _set_keep_rate(self, events: List[LLMObsSpanEvent]):
+        return
+
     def recreate(self):
         # type: () -> HTTPWriter
         return self.__class__(
