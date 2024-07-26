@@ -91,6 +91,10 @@ def patch():
 def unpatch():
     if trace_utils.iswrapped(TracedKafkaProducer.send):
         trace_utils.unwrap(TracedKafkaProducer, "send")
+    if trace_utils.iswrapped(TracedKafkaConsumer.poll):
+        trace_utils.unwrap(TracedKafkaConsumer, "poll")
+    if trace_utils.iswrapped(TracedKafkaConsumer.commit):
+        trace_utils.unwrap(TracedKafkaConsumer, "commit")
 
     kafka.KafkaProducer = _KafkaProducer
     kafka.KafkaConsumer = _KafkaConsumer

@@ -233,7 +233,8 @@ def test_async_commit(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
         producer.flush()
-        result = consumer.poll(100)
+        result = consumer.poll(1000)
+        assert len(result) == 1
         topic_partition = list(result.keys())[0]
         consumer.commit_async({topic_partition: OffsetAndMetadata(result[topic_partition][0].offset, "")})
 
