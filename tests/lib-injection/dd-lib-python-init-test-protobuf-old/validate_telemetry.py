@@ -1,5 +1,4 @@
 # This test succeeds as long as the test application can print the string "OK" to the
-import json
 import sys
 
 
