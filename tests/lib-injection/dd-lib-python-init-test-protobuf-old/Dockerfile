@@ -6,6 +6,7 @@ ENV DD_PROFILING_ENABLED true # profiling will crash the service on load if it d
 ENV DD_INJECT_FORCE 1
 WORKDIR /src
 ADD . /src
+EXPOSE 18080
 RUN pip install -r requirements.txt
 
 CMD python test.py
