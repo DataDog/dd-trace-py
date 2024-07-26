@@ -25,7 +25,7 @@ importlib-metadata==7.1.0
 iniconfig==2.0.0
 jmespath==1.0.1
 mock==5.1.0
-opentelemetry-api==1.25.0
+opentelemetry-api==1.26.0
 opentracing==2.4.0
 packaging==24.1
 pluggy==1.5.0
