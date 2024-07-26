@@ -5,9 +5,8 @@ from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from pathlib import Path
-import threading
 import sys
-import os
+import threading
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -353,9 +352,6 @@ class _ImportHookChainedLoader:
 
         if pre_exec_hook:
             pre_exec_hook(self, module)
-            if not module.__name__.startswith(("ddtrace", "_ctypes", "_multiprocessing", "gc")):
-                if os.getenv("_DD_IAST_DEBUG", "False").lower() in ("true", "1"):
-                    monkey_patch_module(module)
         else:
             try:
                 if self.loader is None:

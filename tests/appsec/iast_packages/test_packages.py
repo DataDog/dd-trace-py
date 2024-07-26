@@ -811,7 +811,7 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 # Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
 # Remember to set to False before pushing it!
-_DEBUG_MODE = True
+_DEBUG_MODE = False
 
 
 @pytest.fixture(scope="module")
@@ -843,8 +843,8 @@ def template_venv():
     yield venv_dir
 
     # Cleanup: Remove the virtual environment directory after tests
-    # if not _DEBUG_MODE:
-    #     shutil.rmtree(venv_dir)
+    if not _DEBUG_MODE:
+        shutil.rmtree(venv_dir)
 
 
 @pytest.fixture()
