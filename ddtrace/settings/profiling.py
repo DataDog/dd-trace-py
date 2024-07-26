@@ -83,7 +83,7 @@ def _is_libdd_required(config):
     # v2 requires libdd because it communicates over a pure-native channel
     # libdd... requires libdd
     # injected environments _cannot_ deploy protobuf, so they must use libdd
-    return config.stack.v2_enabled or config.export._libdd_enabled or config.injected
+    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected
 
 
 # This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
@@ -366,7 +366,7 @@ config = ProfilingConfig()
 # - Mark it as such
 # - Force libdd to be enabled, disabling the profiler otherwise the service might crash
 #   (this is done in the _is_libdd_required function)
-config.injected = _check_for_injected()
+config._injected = _check_for_injected()
 
 # Force the enablement of libdd if the user requested a feature which requires it; otherwise the user has to manage
 # configuration too intentionally and we'll need to change the API too much over time.
