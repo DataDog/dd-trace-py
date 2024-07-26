@@ -21,7 +21,6 @@ iniconfig==2.0.0
 itsdangerous==2.2.0
 jinja2==3.1.4
 markupsafe==2.0.1
-mock==5.1.0
 opentelemetry-api==1.26.0
 opentelemetry-instrumentation==0.37b0
 opentelemetry-instrumentation-flask==0.37b0
