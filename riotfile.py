@@ -2562,9 +2562,8 @@ venv = Venv(
         Venv(
             name="langchain",
             command="pytest -v {cmdargs} tests/contrib/langchain",
-            # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "==0.23.7",
                 "tiktoken": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,

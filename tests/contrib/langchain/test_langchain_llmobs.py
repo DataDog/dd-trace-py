@@ -20,7 +20,7 @@ from tests.utils import flaky
 
 
 LANGCHAIN_VERSION = parse_version(langchain_.__version__)
-PY39 = sys.version_info <= (3, 9)
+PY39 = sys.version_info < (3, 10)
 
 if LANGCHAIN_VERSION < (0, 1, 0):
     from langchain.schema import AIMessage
