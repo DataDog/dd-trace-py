@@ -147,7 +147,7 @@ class BaseTestLLMObsLangchain:
         return mock_tracer.pop_traces()[0]
 
 
-# @pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1, 0), reason="These tests are for langchain < 0.1.0")
+@pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1, 0), reason="These tests are for langchain < 0.1.0")
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain"
 
@@ -403,7 +403,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
 
 
 @flaky(1735812000, reason="Community cassette tests are flaky")
-# @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="These tests are for langchain >= 0.1.0")
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="These tests are for langchain >= 0.1.0")
 class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain_community"
 
@@ -655,7 +655,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
 
 
 @flaky(1735812000, reason="Community cassette tests are flaky")
-# @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="These tests are for langchain >= 0.1.0")
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="These tests are for langchain >= 0.1.0")
 class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
