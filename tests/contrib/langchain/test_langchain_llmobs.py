@@ -516,7 +516,7 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     )
 
     anthropic_env_config = dict(
-        # ANTHROPIC_API_KEY="testing",
+        ANTHROPIC_API_KEY="testing",
         DD_API_KEY="<not-a-real-key>",
     )
 
