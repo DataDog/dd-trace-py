@@ -207,7 +207,6 @@ venv = Venv(
                 "protobuf": ">=3",
                 "typing_extensions": latest,
                 "xmltodict": ">=0.12",
-                "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
             },
@@ -330,8 +329,6 @@ venv = Venv(
                 "flask": "<=2.2.3",
                 "httpretty": "<1.1",
                 "werkzeug": "<2.0",
-                # FIXME: ddtrace does not support the latest versions of opentelemetry-api
-                "opentelemetry-api": "<1.25.0",
                 "pytest-randomly": latest,
                 "markupsafe": "<2.0",
             },
@@ -2351,14 +2348,13 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            # FIXME: this test suite breaks on 3.7
             pys=select_pys(min_version="3.8"),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
-                "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
-                "opentelemetry-instrumentation-flask": "<=0.37b0",
-                # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
+                # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
+                "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
+                "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,
                 "gevent": latest,
@@ -2605,6 +2601,7 @@ venv = Venv(
                         "botocore": "==1.34.51",
                         "boto3": "==1.34.51",
                         "cohere": "==5.4.0",
+                        "anthropic": "==0.26.0",
                         "faiss-cpu": "==1.8.0",
                     },
                     pys=select_pys(min_version="3.9", max_version="3.11"),
@@ -2623,7 +2620,7 @@ venv = Venv(
                         "botocore": "==1.34.51",
                         "boto3": "==1.34.51",
                         "cohere": latest,
-                        "anthropic": latest,
+                        "anthropic": "==0.26.0",
                     },
                     pys=select_pys(min_version="3.9"),
                 ),

@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
+from opentelemetry import version
 from opentelemetry.context import Context as OtelContext  # noqa:F401
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import Tracer as OtelTracer
@@ -18,6 +19,7 @@ from ddtrace.propagation.http import _TraceContext
 
 
 if TYPE_CHECKING:
+    from typing import Dict  # noqa:F401
     from typing import Iterator  # noqa:F401
     from typing import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401
@@ -34,6 +36,9 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
+
+
 class TracerProvider(OtelTracerProvider):
     """
     Entry point of the OpenTelemetry API and provides access to OpenTelemetry compatible Tracers.
@@ -44,15 +49,32 @@ class TracerProvider(OtelTracerProvider):
         self._ddtracer = ddtrace.tracer
         super().__init__()
 
-    def get_tracer(
-        self,
-        instrumenting_module_name,
-        instrumenting_library_version=None,
-        schema_url=None,
-    ):
-        # type: (str, Optional[str], Optional[str]) -> OtelTracer
-        """Returns an opentelemetry compatible Tracer."""
-        return Tracer(self._ddtracer)
+    if OTEL_VERSION >= (1, 26):
+        # OpenTelemetry 1.26+ has a new get_tracer signature
+        # https://github.com/open-telemetry/opentelemetry-python/commit/d4e13bdf95190314b0d21a9357f850fa2e6a4cd3
+        # The new signature includes an `attributes` parameter which is used by opentelemetry internals.
+        def get_tracer(
+            self,
+            instrumenting_module_name,
+            instrumenting_library_version=None,
+            schema_url=None,
+            attributes=None,
+        ):
+            # type: (str, Optional[str], Optional[str], Optional[Dict]) -> OtelTracer
+            """Returns an opentelemetry compatible Tracer."""
+            return Tracer(self._ddtracer)
+
+    else:
+
+        def get_tracer(  # type: ignore[misc]
+            self,
+            instrumenting_module_name,
+            instrumenting_library_version=None,
+            schema_url=None,
+        ):
+            # type: (str, Optional[str], Optional[str]) -> OtelTracer
+            """Returns an opentelemetry compatible Tracer."""
+            return Tracer(self._ddtracer)
 
 
 class Tracer(OtelTracer):
