@@ -808,7 +808,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
-@pytest.mark.skipif(PY39, reason="Cassette specific to Python 3.9")
+@pytest.mark.skipif(not PY39, reason="Cassette specific to Python 3.9")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
     """

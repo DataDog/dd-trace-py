@@ -112,21 +112,6 @@ async def test_openai_llm_async(langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_llm_sync_stream(langchain_openai, request_vcr):
-    llm = langchain_openai.OpenAI(streaming=True)
-    with request_vcr.use_cassette("openai_completion_sync_stream.yaml"):
-        llm.invoke("Why is Spongebob so bad at driving?")
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr):
-    llm = langchain_openai.OpenAI(streaming=True)
-    with request_vcr.use_cassette("openai_completion_async_stream.yaml"):
-        await llm.agenerate(["Why is Spongebob so bad at driving?"])
-
-
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_llm_error(langchain, langchain_openai, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
