@@ -2564,7 +2564,6 @@ venv = Venv(
             command="pytest -v {cmdargs} tests/contrib/langchain",
             # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
             pkgs={
-                "vcrpy": "==5.1.0",
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
                 "huggingface-hub": latest,
@@ -2578,6 +2577,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pkgs={
+                        "vcrpy": "==6.0.1",
                         "langchain": "==0.0.192",
                         "langchain-community": "==0.0.14",
                         "openai": "==0.27.8",
@@ -2588,6 +2588,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
                         "langchain-community": "==0.0.38",
                         "langchain-core": "==0.1.52",
@@ -2608,6 +2609,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": "==0.2.0",
                         "langchain-core": "==0.2.0",
                         "langchain-openai": latest,
@@ -2626,6 +2628,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": latest,
                         "langchain-community": latest,
                         "langchain-core": latest,

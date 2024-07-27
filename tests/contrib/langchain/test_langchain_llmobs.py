@@ -16,6 +16,7 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
+from tests.utils import flaky
 
 
 LANGCHAIN_VERSION = parse_version(langchain_.__version__)
@@ -426,6 +427,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer, input_role="user")
         _assert_expected_llmobs_llm_span(trace[3], mock_llmobs_span_writer, input_role="user")
 
+    @flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
     @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
     def test_llmobs_chain_batch(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
