@@ -15,8 +15,7 @@ from tests.utils import override_global_config
 
 
 pytestmark = pytest.mark.skipif(
-    # parse_version(langchain.__version__) < (0, 1, 0) or (sys.version_info[0] == 3 and sys.version_info[1] == 9),
-    parse_version(langchain.__version__) < (0, 1, 0),
+    parse_version(langchain.__version__) < (0, 1, 0) or sys.version_info < (3, 10),
     reason="This module only tests langchain >= 0.1 and Python 3.10+",
 )
 
@@ -44,7 +43,6 @@ def test_global_tags(ddtrace_config_langchain, langchain_openai, request_vcr, mo
         The env should be used for all data
         The version should be used for all data
     """
-    assert 0, sys.version_info
     llm = langchain_openai.OpenAI()
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
         with request_vcr.use_cassette("openai_completion_sync.yaml"):
@@ -1157,7 +1155,7 @@ async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request
 
 @flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 test")
+@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 test")
 def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
@@ -1174,7 +1172,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
 
 @flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="Python 3.11+ required")
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Python 3.11+ required")
 def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
