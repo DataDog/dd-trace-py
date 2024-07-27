@@ -580,17 +580,15 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
             chat.invoke(messages)
 
     @staticmethod
-    def _call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory):
+    def _call_bedrock_llm(Bedrock):
         llm = Bedrock(
             model_id="amazon.titan-tg1-large",
             region_name="us-east-1",
             model_kwargs={"temperature": 0, "topP": 0.9, "stopSequences": [], "maxTokens": 50},
         )
 
-        conversation = ConversationChain(llm=llm, verbose=True, memory=ConversationBufferMemory())
-
         with get_request_vcr(subdirectory_name="langchain_community").use_cassette("bedrock_amazon_invoke.yaml"):
-            conversation.predict(input="can you explain what Datadog is to someone not in the tech industry?")
+            llm.invoke("can you explain what Datadog is to someone not in the tech industry?")
 
     @staticmethod
     def _call_openai_llm(OpenAI):
@@ -632,36 +630,24 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
 
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_llm_model_bedrock_enabled(self):
-        from langchain.chains import ConversationChain
-        from langchain.memory import ConversationBufferMemory
-
-        try:
-            from langchain_community.llms import Bedrock
-        except (ImportError, ModuleNotFoundError):
-            self.skipTest("langchain-community not installed which is required for this test.")
+        from langchain_aws import Bedrock
 
         patch(langchain=True, botocore=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
-        self._call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory)
+        self._call_bedrock_llm(Bedrock)
         self._assert_trace_structure_from_writer_call_args(["workflow", "workflow", "llm"])
 
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_llm_model_bedrock_disabled(self):
-        from langchain.chains import ConversationChain
-        from langchain.memory import ConversationBufferMemory
-
-        try:
-            from langchain_community.llms import Bedrock
-        except (ImportError, ModuleNotFoundError):
-            self.skipTest("langchain-community not installed which is required for this test.")
+        from langchain_aws import Bedrock
 
         patch(langchain=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
-        self._call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory)
+        self._call_bedrock_llm(Bedrock)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_openai_enabled(self):
+    def test_llmobs_with_openai_enabled(self):
         from langchain_openai import OpenAI
 
         patch(langchain=True, openai=True)
@@ -670,7 +656,7 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_openai_disabled(self):
+    def test_llmobs_with_openai_disabled(self):
         from langchain_openai import OpenAI
 
         patch(langchain=True)
@@ -680,7 +666,7 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         self._assert_trace_structure_from_writer_call_args(["llm"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
-    def test_llmobs_langchain_with_anthropic_enabled(self):
+    def test_llmobs_with_anthropic_enabled(self):
         from langchain_anthropic import ChatAnthropic
 
         patch(langchain=True, anthropic=True)
@@ -690,7 +676,7 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
-    def test_llmobs_langchain_with_anthropic_disabled(self):
+    def test_llmobs_with_anthropic_disabled(self):
         from langchain_anthropic import ChatAnthropic
 
         patch(langchain=True)
