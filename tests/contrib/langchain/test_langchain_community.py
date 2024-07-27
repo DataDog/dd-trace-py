@@ -782,7 +782,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
     import langchain_pinecone
     import pinecone
 
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
         with request_vcr.use_cassette("openai_pinecone_vectorstore_retrieval_chain.yaml"):
             pc = pinecone.Pinecone(
                 api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
@@ -796,7 +796,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
             qa_with_sources = langchain.chains.RetrievalQAWithSourcesChain.from_chain_type(
                 llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
             )
-            qa_with_sources.invoke("Who was Alan Turing?")
+            qa_with_sources.invoke("What did the president say about Ketanji Brown Jackson?")
 
 
 def test_vectorstore_similarity_search_metrics(langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
