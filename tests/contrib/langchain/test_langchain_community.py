@@ -312,8 +312,8 @@ def test_chat_model_metrics(
     mock_metrics.assert_has_calls(
         [
             mock.call.distribution("tokens.prompt", 20, tags=expected_tags),
-            mock.call.distribution("tokens.completion", 96, tags=expected_tags),
-            mock.call.distribution("tokens.total", 116, tags=expected_tags),
+            mock.call.distribution("tokens.completion", 83, tags=expected_tags),
+            mock.call.distribution("tokens.total", 103, tags=expected_tags),
             mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
@@ -457,14 +457,16 @@ def test_embedding_logs(langchain_openai, ddtrace_config_langchain, request_vcr,
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS, token="tests.contrib.langchain.test_langchain_community.test_openai_math_chain"
+)
 def test_openai_math_chain_sync(langchain_openai, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
     the overall LLMMathChain, LLMChain, and underlying OpenAI interface.
     """
     chain = langchain.chains.LLMMathChain.from_llm(langchain_openai.OpenAI(temperature=0))
-    with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
+    with request_vcr.use_cassette("openai_math_chain.yaml"):
         chain.invoke("what is two raised to the fifty-fourth power?")
 
 
@@ -476,7 +478,7 @@ def test_chain_invoke_dict_input(langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
     prompt = langchain.prompts.PromptTemplate(input_variables=["base"], template=prompt_template)
     chain = langchain.chains.LLMChain(llm=langchain_openai.OpenAI(temperature=0), prompt=prompt)
-    with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
+    with request_vcr.use_cassette("openai_math_chain.yaml"):
         chain.invoke(input={"base": "two"})
 
 
@@ -488,33 +490,22 @@ def test_chain_invoke_str_input(langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
     prompt = langchain.prompts.PromptTemplate(input_variables=["base"], template=prompt_template)
     chain = langchain.chains.LLMChain(llm=langchain_openai.OpenAI(temperature=0), prompt=prompt)
-    with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
+    with request_vcr.use_cassette("openai_math_chain.yaml"):
         chain.invoke("two")
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS, token="tests.contrib.langchain.test_langchain_community.test_openai_math_chain"
+)
 async def test_openai_math_chain_async(langchain_openai, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
     the overall LLMMathChain, LLMChain, and underlying OpenAI interface.
     """
     chain = langchain.chains.LLMMathChain.from_llm(langchain_openai.OpenAI(temperature=0))
-    with request_vcr.use_cassette("openai_math_chain_async.yaml"):
+    with request_vcr.use_cassette("openai_math_chain.yaml"):
         await chain.ainvoke("what is two raised to the fifty-fourth power?")
-
-
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_cohere_math_chain")
-def test_cohere_math_chain_sync(langchain_cohere, request_vcr):
-    """
-    Test that using the provided LLMMathChain will result in a 3-span trace with
-    the overall LLMMathChain, LLMChain, and underlying Cohere interface.
-    """
-    chain = langchain.chains.LLMMathChain.from_llm(
-        langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
-    )
-    with request_vcr.use_cassette("cohere_math_chain_sync.yaml"):
-        chain.invoke("what is thirteen raised to the .3432 power?")
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -657,7 +648,7 @@ def test_chain_logs(
     langchain, langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
 ):
     chain = langchain.chains.LLMMathChain.from_llm(langchain_openai.OpenAI(temperature=0))
-    with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
+    with request_vcr.use_cassette("openai_math_chain.yaml"):
         chain.invoke("what is two raised to the fifty-fourth power?")
     traces = mock_tracer.pop_traces()
     base_chain_span = traces[0][0]

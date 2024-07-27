@@ -560,8 +560,8 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
             chat.invoke(messages)
 
     @staticmethod
-    def _call_bedrock_llm(Bedrock):
-        llm = Bedrock(
+    def _call_bedrock_llm(BedrockLLM):
+        llm = BedrockLLM(
             model_id="amazon.titan-tg1-large",
             region_name="us-east-1",
             model_kwargs={"temperature": 0, "topP": 0.9, "stopSequences": [], "maxTokens": 50},
@@ -610,21 +610,21 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
 
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_llm_model_bedrock_enabled(self):
-        from langchain_aws import Bedrock
+        from langchain_aws import BedrockLLM
 
         patch(langchain=True, botocore=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
-        self._call_bedrock_llm(Bedrock)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "workflow", "llm"])
+        self._call_bedrock_llm(BedrockLLM)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_llm_model_bedrock_disabled(self):
-        from langchain_aws import Bedrock
+        from langchain_aws import BedrockLLM
 
         patch(langchain=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
-        self._call_bedrock_llm(Bedrock)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+        self._call_bedrock_llm(BedrockLLM)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_enabled(self):

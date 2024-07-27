@@ -46,8 +46,8 @@ interactions:
       before testing begins. Finally, Langsmith can assist with creating test cases and scenarios 
       based on your documentation, making the testing process more efficient and effective.\",\n
       \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-      \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 22,\n    \"completion_tokens\":
-      112,\n    \"total_tokens\": 134\n  }\n}\n"
+      \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 20,\n    \"completion_tokens\":
+      101,\n    \"total_tokens\": 121\n  }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC

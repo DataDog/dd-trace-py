@@ -1,8 +1,9 @@
 interactions:
 - request:
     body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Which team won the 2019
-      NBA finals?"], "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256,
-      "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p": 1}'
+      NBA finals?"], "frequency_penalty": 0, "logit_bias": {}, "logprobs": null, "max_tokens":
+      256, "n": 1, "presence_penalty": 0, "seed": null, "temperature": 0.7, "top_p":
+      1}'
     headers:
       accept:
       - application/json
@@ -11,13 +12,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '210'
+      - '242'
       content-type:
       - application/json
       host:
       - api.openai.com
       user-agent:
-      - AsyncOpenAI/Python 1.30.3
+      - AsyncOpenAI/Python 1.37.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -27,7 +28,7 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.30.3
+      - 1.37.0
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
@@ -35,41 +36,67 @@ interactions:
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
-    content: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
-      \\u003cnot-a-r****key\\u003e. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
-      \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
-      \"invalid_api_key\"\n    }\n}\n"
+    content: "{\n  \"id\": \"cmpl-9pRmV8lKVNKd8Pss2wVGmocz2lAUU\",\n  \"object\":
+      \"text_completion\",\n  \"created\": 1722048547,\n  \"model\": \"gpt-3.5-turbo-instruct\",\n
+      \ \"choices\": [\n    {\n      \"text\": \"\\n\\nThe Toronto Raptors won the
+      2019 NBA Finals.\",\n      \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\":
+      \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 10,\n    \"completion_tokens\":
+      12,\n    \"total_tokens\": 22\n  }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8a4669ba0916aad3-YYZ
+      - 8a99507cfab043e6-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
       Connection:
       - keep-alive
-      Content-Length:
-      - '276'
+      Content-Encoding:
+      - gzip
       Content-Type:
-      - application/json; charset=utf-8
+      - application/json
       Date:
-      - Wed, 17 Jul 2024 01:21:03 GMT
+      - Sat, 27 Jul 2024 02:49:07 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=wItmo23YeMSFndlE1Eq_.ma907oEp2tk3Ye6SphyANE-1721179263-1.0.1.1-qPsoou7.DLumaat3QEL53fqQf4mrBaWDdarBGWzddZ4WV_BMgIdWjjlB7dw86x4wpRGj.4ERvecHhgDTf10gbA;
-        path=/; expires=Wed, 17-Jul-24 01:51:03 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=uM16az0GbIc51IHXNaDQKm67KQ6MWxFPsoykHA24pjI-1722048547-1.0.1.1-n4vBcdB4COF_1lMNqCXFTrxn2wS9Visis7SxCdbvM9Thi8mRv2y2fUKQXCvgHP9ZiZRPauAkJws9k.eUrjuqdA;
+        path=/; expires=Sat, 27-Jul-24 03:19:07 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=q99r2OKSGB_CRW__P2iTQGW6TjXdUgAqLHV.mll.JKk-1721179263123-0.0.1.1-604800000;
+      - _cfuvid=ugZHcoUNOx.gQEhCW1Qzq4V4QzhgijtZ7i1l1l_ZmHw-1722048547874-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
       X-Content-Type-Options:
       - nosniff
+      access-control-allow-origin:
+      - '*'
       alt-svc:
       - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '154'
+      openai-version:
+      - '2020-10-01'
       strict-transport-security:
       - max-age=15552000; includeSubDomains; preload
-      vary:
-      - Origin
+      x-ratelimit-limit-requests:
+      - '3500'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '3499'
+      x-ratelimit-remaining-tokens:
+      - '89736'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-ratelimit-reset-tokens:
+      - 176ms
       x-request-id:
-      - req_f161275e51d8bf9a3c5312ab53566c38
+      - req_c5a972e91807ef4cf9e435fd09da3b6c
     http_version: HTTP/1.1
-    status_code: 401
+    status_code: 200
 version: 1
