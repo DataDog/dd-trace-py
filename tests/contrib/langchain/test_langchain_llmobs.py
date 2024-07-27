@@ -511,7 +511,7 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     )
 
     openai_env_config = dict(
-        # OPENAI_API_KEY="testing",
+        OPENAI_API_KEY="testing",
         DD_API_KEY="<not-a-real-key>",
     )
 
