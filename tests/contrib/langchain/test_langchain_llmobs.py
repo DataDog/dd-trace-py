@@ -3,12 +3,11 @@ from operator import itemgetter
 import os
 import sys
 
-import langchain
 import mock
 import pytest
 
 from ddtrace import patch
-from ddtrace.internal.utils.version import parse_version
+from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
@@ -19,9 +18,7 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import flaky
 
 
-LANGCHAIN_VERSION = parse_version(langchain.__version__)
-
-if LANGCHAIN_VERSION < (0, 1, 0):
+if PATCH_LANGCHAIN_V0:
     from langchain.schema import AIMessage
     from langchain.schema import ChatMessage
     from langchain.schema import HumanMessage
@@ -91,7 +88,7 @@ class BaseTestLLMObsLangchain:
     def _invoke_llm(cls, llm, prompt, mock_tracer, cassette_name):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
-            if LANGCHAIN_VERSION < (0, 1, 0):
+            if PATCH_LANGCHAIN_V0:
                 llm(prompt)
             else:
                 llm.invoke(prompt)
@@ -106,7 +103,7 @@ class BaseTestLLMObsLangchain:
                 messages = [HumanMessage(content=prompt)]
             else:
                 messages = [ChatMessage(content=prompt, role="custom")]
-            if LANGCHAIN_VERSION < (0, 1, 0):
+            if PATCH_LANGCHAIN_V0:
                 chat_model(messages)
             else:
                 chat_model.invoke(messages)
@@ -119,7 +116,7 @@ class BaseTestLLMObsLangchain:
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
             if batch:
                 chain.batch(inputs=prompt)
-            elif LANGCHAIN_VERSION < (0, 1, 0):
+            elif PATCH_LANGCHAIN_V0:
                 chain.run(prompt)
             else:
                 chain.invoke(prompt)
@@ -147,20 +144,20 @@ class BaseTestLLMObsLangchain:
         return mock_tracer.pop_traces()[0]
 
 
-@pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1, 0), reason="These tests are for langchain < 0.1.0")
+@pytest.mark.skipif(not PATCH_LANGCHAIN_V0, reason="These tests are for langchain < 0.1.0")
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain"
 
     # @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_openai_llm(self, langchain, mock_llmobs_span_writer, mock_tracer):
+        if sys.version_info < (3, 10):
+            assert 0, "sys.version_info < (3, 10) results in True even though sys.version_info == " % sys.version_info
         span = self._invoke_llm(
             llm=langchain.llms.OpenAI(model="gpt-3.5-turbo-instruct"),
             prompt="Can you explain what Descartes meant by 'I think, therefore I am'?",
             mock_tracer=mock_tracer,
             cassette_name="openai_completion_sync.yaml",
         )
-        if sys.version_info < (3, 10):
-            assert 0, "sys.version_info < (3, 10) results in True even though sys.version_info == " % sys.version_info
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
 
@@ -403,19 +400,19 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
 
 
 @flaky(1735812000, reason="Community cassette tests are flaky")
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="These tests are for langchain >= 0.1.0")
+@pytest.mark.skipif(PATCH_LANGCHAIN_V0, reason="These tests are for langchain >= 0.1.0")
 class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain_community"
 
     def test_llmobs_openai_llm(self, langchain_openai, mock_llmobs_span_writer, mock_tracer):
+        if sys.version_info < (3, 10):
+            assert 0, "sys.version_info < (3, 10) results in True even though sys.version_info == " % sys.version_info
         span = self._invoke_llm(
             llm=langchain_openai.OpenAI(),
             prompt="Can you explain what Descartes meant by 'I think, therefore I am'?",
             mock_tracer=mock_tracer,
             cassette_name="openai_completion_sync.yaml",
         )
-        if sys.version_info < (3, 10):
-            assert 0, "sys.version_info < (3, 10) results in True even though sys.version_info == " % sys.version_info
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
 
@@ -655,7 +652,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
 
 
 @flaky(1735812000, reason="Community cassette tests are flaky")
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="These tests are for langchain >= 0.1.0")
+@pytest.mark.skipif(PATCH_LANGCHAIN_V0, reason="These tests are for langchain >= 0.1.0")
 class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
