@@ -32,7 +32,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
     """
     llm = langchain.llms.OpenAI(model="text-davinci-003")
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
-        if sys.version_info >= (3, 10, 0):
+        if sys.version_info >= (3, 10):
             cassette_name = "openai_completion_sync.yaml"
         else:
             cassette_name = "openai_completion_sync_39.yaml"
@@ -75,7 +75,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
         )
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_llm_sync(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
@@ -83,7 +83,7 @@ def test_openai_llm_sync(langchain, request_vcr):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="Python 3.9 specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_llm_sync_39(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
@@ -91,7 +91,7 @@ def test_openai_llm_sync_39(langchain, request_vcr):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(ignores=["resource"])
 def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
@@ -104,7 +104,7 @@ def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
         )
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="Python 3.9 specific test")
 @pytest.mark.snapshot
 def test_openai_llm_sync_multiple_prompts_39(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
@@ -121,7 +121,7 @@ def test_openai_llm_sync_multiple_prompts_39(langchain, request_vcr):
 @pytest.mark.snapshot(ignores=["resource", "langchain.request.openai.parameters.request_timeout"])
 async def test_openai_llm_async(langchain, request_vcr):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_completion_async.yaml"
     else:
         cassette_name = "openai_completion_async_39.yaml"
@@ -165,7 +165,7 @@ def test_huggingfacehub_llm_sync(langchain, request_vcr):
 @pytest.mark.snapshot(ignores=["meta.langchain.response.completions.0.text", "resource"])
 def test_ai21_llm_sync(langchain, request_vcr):
     llm = langchain.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "ai21_completion_sync.yaml"
     else:
         cassette_name = "ai21_completion_sync_39.yaml"
@@ -175,7 +175,7 @@ def test_ai21_llm_sync(langchain, request_vcr):
 
 def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_completion_sync.yaml"
     else:
         cassette_name = "openai_completion_sync_39.yaml"
@@ -210,7 +210,7 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
 )
 def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_completion_sync.yaml"
     else:
         cassette_name = "openai_completion_sync_39.yaml"
@@ -240,7 +240,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
@@ -251,7 +251,7 @@ def test_openai_chat_model_sync_call(langchain, request_vcr):
         chat(messages=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="Python 3.9 specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_sync_call_39(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -259,7 +259,7 @@ def test_openai_chat_model_sync_call_39(langchain, request_vcr):
         chat([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
@@ -283,7 +283,7 @@ def test_openai_chat_model_sync_generate(langchain, request_vcr):
         )
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="Python 3.9 specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_sync_generate_39(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -341,7 +341,7 @@ async def test_openai_chat_model_async_generate(langchain, request_vcr):
 
 def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_chat_completion_sync_call.yaml"
     else:
         cassette_name = "openai_chat_completion_sync_call_39.yaml"
@@ -376,7 +376,7 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
 )
 def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_chat_completion_sync_call.yaml"
     else:
         cassette_name = "openai_chat_completion_sync_call_39.yaml"
@@ -409,7 +409,7 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain, request_vcr):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_embedding_query.yaml"
     else:
         cassette_name = "openai_embedding_query_39.yaml"
@@ -421,7 +421,7 @@ def test_openai_embedding_query(langchain, request_vcr):
 @pytest.mark.snapshot
 def test_openai_embedding_document(langchain, request_vcr):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_embedding_document.yaml"
     else:
         cassette_name = "openai_embedding_document_39.yaml"
@@ -443,7 +443,7 @@ def test_fake_embedding_document(langchain):
 
 def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_embedding_query.yaml"
     else:
         cassette_name = "openai_embedding_query_39.yaml"
@@ -472,7 +472,7 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
 )
 def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_embedding_query.yaml"
     else:
         cassette_name = "openai_embedding_query_39.yaml"
@@ -511,7 +511,7 @@ def test_openai_math_chain_sync(langchain, request_vcr):
     the overall LLMMathChain, LLMChain, and underlying OpenAI interface.
     """
     chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_math_chain_sync.yaml"
     else:
         cassette_name = "openai_math_chain_sync_39.yaml"
@@ -547,7 +547,7 @@ def test_cohere_math_chain_sync(langchain, request_vcr):
         chain.run("what is thirteen raised to the .3432 power?")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_sequential_chain",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
@@ -604,7 +604,7 @@ def test_openai_sequential_chain(langchain, request_vcr):
         sequential_chain.run({"text": input_text, "style": "a 90s rapper"})
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(ignores=["langchain.tokens.total_cost", "resource"])
 def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
     template = """Paraphrase this text:
@@ -663,7 +663,7 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, reques
 
 def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_math_chain_sync.yaml"
     else:
         cassette_name = "openai_math_chain_sync_39.yaml"
@@ -698,7 +698,7 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
 )
 def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
     chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_math_chain_sync.yaml"
     else:
         cassette_name = "openai_math_chain_sync_39.yaml"
@@ -811,7 +811,7 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
     import pinecone
 
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_pinecone_similarity_search.yaml"
     else:
         cassette_name = "openai_pinecone_similarity_search_39.yaml"
@@ -826,7 +826,7 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Cassette specific to Python 3.10+")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Cassette specific to Python 3.10+")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
     """
@@ -851,7 +851,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Cassette specific to Python 3.9")
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="Cassette specific to Python 3.9")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
     """
@@ -879,7 +879,7 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
 def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     import pinecone
 
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_pinecone_similarity_search.yaml"
     else:
         cassette_name = "openai_pinecone_similarity_search_39.yaml"
@@ -916,7 +916,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
 def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
     import pinecone
 
-    if sys.version_info >= (3, 10, 0):
+    if sys.version_info >= (3, 10):
         cassette_name = "openai_pinecone_similarity_search.yaml"
     else:
         cassette_name = "openai_pinecone_similarity_search_39.yaml"
@@ -973,7 +973,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
@@ -1005,7 +1005,7 @@ with get_request_vcr(subdirectory_name="langchain").use_cassette("openai_complet
     assert err == b""
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])

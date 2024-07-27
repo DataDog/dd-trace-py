@@ -15,7 +15,8 @@ from tests.utils import override_global_config
 
 
 pytestmark = pytest.mark.skipif(
-    parse_version(langchain.__version__) < (0, 1, 0) or sys.version_info < (3, 10),
+    # parse_version(langchain.__version__) < (0, 1, 0) or (sys.version_info[0] == 3 and sys.version_info[1] == 9),
+    parse_version(langchain.__version__) < (0, 1, 0),
     reason="This module only tests langchain >= 0.1 and Python 3.10+",
 )
 
@@ -43,6 +44,7 @@ def test_global_tags(ddtrace_config_langchain, langchain_openai, request_vcr, mo
         The env should be used for all data
         The version should be used for all data
     """
+    assert 0, sys.version_info
     llm = langchain_openai.OpenAI()
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
         with request_vcr.use_cassette("openai_completion_sync.yaml"):
