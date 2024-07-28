@@ -1,12 +1,13 @@
 import mock
 import opentelemetry
+from opentelemetry.trace import set_span_in_context
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 import opentelemetry.version
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
-from tests.utils import flaky
 
 
 OTEL_VERSION = parse_version(opentelemetry.version.__version__)
@@ -50,7 +51,7 @@ def test_otel_start_span_without_default_args(oteltracer):
     root = oteltracer.start_span("root-span")
     otel_span = oteltracer.start_span(
         "test-start-span",
-        context=opentelemetry.trace.set_span_in_context(root),
+        context=set_span_in_context(root),
         kind=opentelemetry.trace.SpanKind.CLIENT,
         attributes={"start_span_tag": "start_span_val"},
         links=None,
@@ -117,7 +118,7 @@ def test_otel_start_current_span_without_default_args(oteltracer):
     with oteltracer.start_as_current_span("root-span") as root:
         with oteltracer.start_as_current_span(
             "test-start-current-span-no-defualts",
-            context=opentelemetry.trace.set_span_in_context(root),
+            context=set_span_in_context(root),
             kind=opentelemetry.trace.SpanKind.SERVER,
             attributes={"start_current_span_tag": "start_cspan_val"},
             links=[],
@@ -138,7 +139,25 @@ def test_otel_start_current_span_without_default_args(oteltracer):
     otel_span.end()
 
 
-@flaky(1717428664)
+def test_otel_get_span_context_sets_sampling_decision(oteltracer):
+    with oteltracer.start_span("otel-server") as otelspan:
+        # Sampling priority is not set on span creation
+        assert otelspan._ddspan.context.sampling_priority is None
+        # Sampling priority is evaluated when the SpanContext is first accessed
+        sp = otelspan._ddspan.context.sampling_priority
+        assert sp is not None
+        # Ensure the sampling priority is always consistent with traceflags
+        span_context = otelspan.get_span_context()
+        if sp > 0:
+            assert span_context.trace_flags == 1
+        else:
+            assert span_context.trace_flags == 0
+        # Ensure the sampling priority is always consistent
+        for _ in range(1000):
+            otelspan.get_span_context()
+            assert otelspan._ddspan.context.sampling_priority == sp
+
+
 @pytest.mark.parametrize(
     "flask_wsgi_application,flask_env_arg,flask_port,flask_command",
     [
@@ -164,10 +183,12 @@ def test_otel_start_current_span_without_default_args(oteltracer):
         "with_opentelemetry_instrument",
     ],
 )
-@pytest.mark.snapshot(ignores=["metrics.net.peer.port", "meta.traceparent", "meta.flask.version"])
+@pytest.mark.snapshot(ignores=["metrics.net.peer.port", "meta.traceparent", "meta.tracestate", "meta.flask.version"])
 def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F811
-    with oteltracer.start_as_current_span("test-otel-distributed-trace"):
-        resp = flask_client.get("/otel")
+    with oteltracer.start_as_current_span("test-otel-distributed-trace") as span:
+        headers = {}
+        TraceContextTextMapPropagator().inject(headers, set_span_in_context(span))
+        resp = flask_client.get("/otel", headers=headers)
 
     assert resp.text == "otel"
     assert resp.status_code == 200

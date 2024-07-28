@@ -10,6 +10,7 @@ from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
 from ddtrace import config
+from ddtrace import tracer as ddtracer
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -136,13 +137,21 @@ class Span(OtelSpan):
     def get_span_context(self):
         # type: () -> SpanContext
         """Returns an OpenTelemetry SpanContext"""
-        ts = None
-        tf = TraceFlags.DEFAULT
-        if self._ddspan.context:
-            ts_str = w3c_tracestate_add_p(self._ddspan.context._tracestate, self._ddspan.span_id)
-            ts = TraceState.from_header([ts_str])
-            if self._ddspan.context.sampling_priority and self._ddspan.context.sampling_priority > 0:
-                tf = TraceFlags.SAMPLED
+        ts_str = w3c_tracestate_add_p(self._ddspan.context._tracestate, self._ddspan.span_id)
+        ts = TraceState.from_header([ts_str])
+
+        if self._ddspan.context.sampling_priority is None:
+            # With the introduction of lazy sampling, spans are now sampled on finished. With this change
+            # the active trace_id and span_id could be propagated to nother proccess before a sampling
+            # decision waa made. Since the default sampling decision is to unsample spans this can result
+            # in missing spans. To resolve this issue, we will make a sampling decision the first time
+            # span context is accessed.
+            ddtracer.sample(self._ddspan)
+
+        if self._ddspan.context.sampling_priority > 0:
+            tf = TraceFlags.SAMPLED
+        else:
+            tf = TraceFlags.DEFAULT
 
         return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
 
