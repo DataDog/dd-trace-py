@@ -122,6 +122,14 @@ class BaseTestLLMObsLangchain:
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
 
+    @classmethod
+    def _similarity_search(cls, vector_db, prompt, k, mock_tracer, cassette_name):
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
+        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+            vector_db.similarity_search(prompt, k)
+        LLMObs.disable()
+        return mock_tracer.pop_traces()[0][0]
+
 
 @pytest.mark.skipif(not PATCH_LANGCHAIN_V0, reason="These tests are for langchain < 0.1.0")
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
@@ -322,6 +330,37 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             ),
         )
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
+
+    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    def test_llmobs_similarity_search(self, langchain, mock_llmobs_span_writer, mock_tracer):
+        langchain.vectorstores.pinecone.init(
+            api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+            environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
+        index = langchain.vectorstores.pinecone.Index(index_name="langchain-retrieval")
+        vectorstore = langchain.vectorstores.pinecone(index, embed.embed_query, "text")
+        trace = self._similarity_search(
+            vectorstore, "Who was Alan Turing?", 1, mock_tracer, "pinecone_similarity_search.yaml"
+        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        span = trace[0] if isinstance(trace, list) else trace
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                span_kind="similarity_search",
+                input_value="Who was Alan Turing?",
+                output_value=[
+                    {
+                        "id": 13,
+                        "title": "Alan Turing",
+                        "text": "A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificial intelli...",
+                    }
+                ],
+                tags={"ml_app": ""},
+                integration="langchain",
+            )
+        )
 
 
 @pytest.mark.skipif(PATCH_LANGCHAIN_V0, reason="These tests are for langchain >= 0.1.0")
