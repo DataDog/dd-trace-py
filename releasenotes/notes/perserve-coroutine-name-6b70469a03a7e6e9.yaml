@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Preserves the name of the coroutine when wrapping it with `asyncio.create_task`. This is useful for visualizing profiling data.
