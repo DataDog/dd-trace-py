@@ -147,3 +147,19 @@ def langchain_anthropic(ddtrace_config_langchain, mock_logs, mock_metrics, langc
         yield langchain_anthropic
     except ImportError:
         yield
+
+
+@pytest.fixture
+def pinecone(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+    with override_env(
+        dict(
+            PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+            PINECONE_ENV=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+        )
+    ):
+        try:
+            import pinecone
+
+            yield pinecone
+        except ImportError:
+            yield
