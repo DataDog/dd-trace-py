@@ -889,8 +889,8 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             integration.llmobs_set_tags(
                 "similarity_search",
                 span,
-                input_query=query,
-                output_documents=documents,
+                query,
+                documents,
                 error=bool(span.error),
             )
         span.finish()
