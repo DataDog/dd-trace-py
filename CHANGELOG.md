@@ -4,6 +4,18 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.10.1
+
+
+### Bug Fixes
+
+- langchain: This fix resolves an issue where the wrong langchain class name was being used to check for Pinecone vectorstore instances.
+- opentelemetry: Resolves circular imports raised by the OpenTelemetry API when the `ddcontextvars_context` entrypoint is loaded. This resolves an incompatibility introduced in `opentelemetry-api==1.25.0`.
+- opentelemetry: Resolves an issue where the `get_tracer` function would raise a `TypeError` when called with the `attribute` argument. This resolves an incompatibility introduced in `opentelemetry-api==1.26.0`.
+
+
+---
+
 ## 2.9.1
 
 
