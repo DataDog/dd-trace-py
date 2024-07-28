@@ -176,7 +176,7 @@ def test_commit_with_poll(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
         producer.flush()
-        result = consumer.poll(100)
+        result = consumer.poll(1000)
         assert len(result) == 1
         for topic_partition in result:
             for record in result[topic_partition]:
@@ -243,7 +243,7 @@ def test_async_commit(producer, consumer, kafka_topic):
 def test_traces_empty_poll_by_default(dummy_tracer, consumer, kafka_topic):
     Pin.override(consumer, tracer=dummy_tracer)
 
-    consumer.poll(10.0)
+    consumer.poll(1000)
 
     traces = dummy_tracer.pop_traces()
     empty_poll_span_created = False
@@ -266,7 +266,7 @@ def test_does_not_trace_empty_poll_when_disabled(dummy_tracer, consumer, produce
     Pin.override(consumer, tracer=dummy_tracer)
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         # Test for empty poll
-        consumer.poll(10.0)
+        consumer.poll(1000)
 
         traces = dummy_tracer.pop_traces()
         assert 0 == len(traces)
@@ -277,7 +277,7 @@ def test_does_not_trace_empty_poll_when_disabled(dummy_tracer, consumer, produce
 
         result = None
         while result is None:
-            result = consumer.poll(10.0)
+            result = consumer.poll(1000)
 
         traces = dummy_tracer.pop_traces()
         non_empty_poll_span_created = False
