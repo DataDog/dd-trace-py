@@ -16,7 +16,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Anthropic: Adds support for tracing synchronous and asynchronous message streaming.
 - LLM Observability: Adds support for tracing synchronous and asynchronous message streaming.
 - SSI: Introduces generic safeguards for automatic instrumentation when using single step install in the form of early exit conditions. Early exit from instrumentation is triggered if a version of software in the environment is not explicitly supported by ddtrace. The Python runtime itself and many Python packages are checked for explicit support on the basis of their version.
-- langchain: This introduces support for `langchain==0.2.0` by conditionally patching the `langchain-community` module if available, which is an optional dependency for `langchain>=0.2.0`. See the langchain integration :ref: <span class="title-ref">docs\<langchain\></span> for more details.
+- langchain: Introduces support for `langchain==0.2.0` by conditionally patching the `langchain-community` module if available, which is an optional dependency for `langchain>=0.2.0`. See the langchain integration docs for more details.
 - LLM Observability: Adds support to automatically submit Anthropic chat messages to LLM Observability.
 
 - tracer: This introduces the tracer flare functionality. Currently the tracer flare includes the tracer logs and tracer configurations.
