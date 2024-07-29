@@ -1267,7 +1267,7 @@ jobs:
     parallelism: 4
     steps:
       - run_test:
-          pattern: 'kafka'
+          pattern: 'kafka$'
           snapshot: true
           docker_services: 'kafka'
 
