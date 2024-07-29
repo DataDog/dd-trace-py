@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: The Langchain integration now submits similarity search spans to LLM Observability.
