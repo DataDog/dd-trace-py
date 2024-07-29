@@ -11,7 +11,6 @@ from typing import List  # noqa:F401
 import urllib.parse
 
 import attr
-import pkg_resources
 import pytest
 
 import ddtrace
@@ -40,6 +39,11 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
+
+try:
+    import importlib.metadata as importlib_metadata
+except ImportError:
+    import importlib_metadata
 
 NO_CHILDREN = object()
 
@@ -1215,9 +1219,9 @@ def request_token(request):
 
 def package_installed(package_name):
     try:
-        pkg_resources.get_distribution(package_name)
+        importlib_metadata.distribution(package_name)
         return True
-    except pkg_resources.DistributionNotFound:
+    except importlib_metadata.PackageNotFoundError:
         return False
 
 
