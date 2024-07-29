@@ -143,11 +143,11 @@ def test_otel_get_span_context_sets_sampling_decision(oteltracer):
     with oteltracer.start_span("otel-server") as otelspan:
         # Sampling priority is not set on span creation
         assert otelspan._ddspan.context.sampling_priority is None
+        # Ensure the sampling priority is always consistent with traceflags
+        span_context = otelspan.get_span_context()
         # Sampling priority is evaluated when the SpanContext is first accessed
         sp = otelspan._ddspan.context.sampling_priority
         assert sp is not None
-        # Ensure the sampling priority is always consistent with traceflags
-        span_context = otelspan.get_span_context()
         if sp > 0:
             assert span_context.trace_flags == 1
         else:
@@ -156,6 +156,31 @@ def test_otel_get_span_context_sets_sampling_decision(oteltracer):
         for _ in range(1000):
             otelspan.get_span_context()
             assert otelspan._ddspan.context.sampling_priority == sp
+
+
+def test_distributed_trace_inject(oteltracer):  # noqa:F811
+    with oteltracer.start_as_current_span("test-otel-distributed-trace") as span:
+        headers = {}
+        TraceContextTextMapPropagator().inject(headers, set_span_in_context(span))
+        sp = span.get_span_context()
+        assert headers["traceparent"] == f"00-{sp.trace_id:032x}-{sp.span_id:016x}-{sp.trace_flags:02x}"
+        assert headers["tracestate"] == sp.trace_state.to_header()
+
+
+def test_distributed_trace_extract(oteltracer):  # noqa:F811
+    headers = {
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "tracestate": "congo=t61rcWkgMzE,dd=s:2",
+    }
+    context = TraceContextTextMapPropagator().extract(headers)
+    with oteltracer.start_as_current_span("test-otel-distributed-trace", context=context) as span:
+        sp = span.get_span_context()
+        assert sp.trace_id == int("0af7651916cd43dd8448eb211c80319c", 16)
+        assert span._ddspan.parent_id == int("b7ad6b7169203331", 16)
+        assert sp.trace_flags == 1
+        assert sp.trace_state.get("congo") == "t61rcWkgMzE"
+        assert "s:2" in sp.trace_state.get("dd")
+        assert sp.is_remote is False
 
 
 @pytest.mark.parametrize(
