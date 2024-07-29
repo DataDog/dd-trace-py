@@ -112,7 +112,7 @@ def _get_minor_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     name = "%s.%s.0" % (parsed_base.major, parsed_base.minor)
 
     rn_raw = generate_release_notes(base)
-    rn_sections_clean = create_release_notes_sections(rn_raw, base)
+    rn_sections_clean = create_release_notes_sections(rn_raw, f"{parsed_base.major}.{parsed_base.minor}")
     release_notes = ""
     rn_key_order = [
         "Prelude",
@@ -148,9 +148,6 @@ def create_release_draft(dd_repo, base, rc, patch):
 
 def clean_release_notes(rn_raw: bytes) -> str:
     """removes everything from the given string except for release notes that haven't been released yet"""
-    import pdb
-
-    pdb.set_trace()
     return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
 
