@@ -52,7 +52,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
       OTEL_RESOURCE_ATTRIBUTES -> DD_TAGS
       OTEL_SDK_DISABLED -> DD_TRACE_OTEL_ENABLED
 
-- otel: adds support for generating Datadog trace metrics using OpenTelemetry instrumentations
+- otel: Adds support for generating Datadog trace metrics using OpenTelemetry instrumentations
 
 ### Known Issues
 
