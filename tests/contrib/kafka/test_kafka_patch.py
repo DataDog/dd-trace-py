@@ -1,4 +1,4 @@
-from ddtrace.contrib.kafka.patch import get_version
+from ddtrace.contrib.kafka.patch import _get_version
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from tests.contrib.patch import PatchTestCase
@@ -9,7 +9,7 @@ class TestKafkaPatch(PatchTestCase.Base):
     __module_name__ = "confluent_kafka"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
-    __get_version__ = get_version
+    __get_version__ = _get_version
 
     def assert_module_patched(self, confluent_kafka):
         self.assert_wrapped(confluent_kafka.Producer({}).produce)

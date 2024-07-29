@@ -1,9 +1,9 @@
-from ddtrace.contrib.langchain import get_version
 from ddtrace.contrib.langchain import patch
 from ddtrace.contrib.langchain import unpatch
 from ddtrace.contrib.langchain.constants import text_embedding_models
 from ddtrace.contrib.langchain.constants import vectorstore_classes
 from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
+from ddtrace.contrib.langchain.patch import _get_version
 from tests.contrib.patch import PatchTestCase
 
 
@@ -12,7 +12,7 @@ class TestLangchainPatch(PatchTestCase.Base):
     __module_name__ = "langchain"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
-    __get_version__ = get_version
+    __get_version__ = _get_version
 
     def assert_module_patched(self, langchain):
         if PATCH_LANGCHAIN_V0:
