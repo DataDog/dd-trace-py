@@ -49,9 +49,11 @@ Example::
     # Override service name
     config.elasticsearch['service'] = 'custom-service-name'
 """
-from .patch import get_version
-from .patch import get_versions
+from .patch import _get_version  # noqa: F401
+from .patch import _get_versions  # noqa: F401
+from .patch import get_version  # noqa: F401
+from .patch import get_versions  # noqa: F401
 from .patch import patch
 
 
-__all__ = ["patch", "get_version", "get_versions"]
+__all__ = ["patch"]

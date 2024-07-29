@@ -52,7 +52,8 @@ required_modules = ["falcon"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
-        from .patch import get_version
+        from .patch import _get_version  # noqa: F401
+        from .patch import get_version  # noqa: F401
         from .patch import patch
 
-        __all__ = ["TraceMiddleware", "patch", "get_version"]
+        __all__ = ["TraceMiddleware", "patch"]

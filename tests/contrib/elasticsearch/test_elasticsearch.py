@@ -6,8 +6,8 @@ import pytest
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.elasticsearch.patch import _get_version
-from ddtrace.contrib.elasticsearch.patch import _get_versions
+from ddtrace.contrib.elasticsearch import _get_version
+from ddtrace.contrib.elasticsearch import _get_versions
 from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
 from ddtrace.ext import http
