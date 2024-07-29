@@ -13,7 +13,7 @@ from tests.utils import override_global_config
 
 
 pytestmark = pytest.mark.skipif(
-    parse_version(_langchain.__version__) >= (0, 1, 0), reason="This module only tests langchain < 0.1"
+    parse_version(_langchain.__version__) >= (0, 1), reason="This module only tests langchain < 0.1"
 )
 
 PY39 = sys.version_info < (3, 10)

@@ -16,10 +16,7 @@ from tests.utils import override_global_config
 
 LANGCHAIN_VERSION = parse_version(langchain.__version__)
 
-pytestmark = pytest.mark.skipif(
-    LANGCHAIN_VERSION < (0, 1, 0) or sys.version_info < (3, 10),
-    reason="This module only tests langchain >= 0.1 and Python 3.10+",
-)
+pytestmark = pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="This module only tests langchain >= 0.1")
 
 IGNORE_FIELDS = [
     "resources",
@@ -128,7 +125,7 @@ def test_openai_llm_error(langchain, langchain_openai, request_vcr):
             llm.generate([12345, 123456])
 
 
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 2, 0), reason="Requires separate cassette for langchain v0.1")
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 2), reason="Requires separate cassette for langchain v0.1")
 @pytest.mark.snapshot
 def test_cohere_llm_sync(langchain_cohere, request_vcr):
     llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
@@ -136,7 +133,7 @@ def test_cohere_llm_sync(langchain_cohere, request_vcr):
         llm.invoke("What is the secret Krabby Patty recipe?")
 
 
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 2, 0), reason="Requires separate cassette for langchain v0.1")
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 2), reason="Requires separate cassette for langchain v0.1")
 @pytest.mark.snapshot
 def test_ai21_llm_sync(langchain_community, request_vcr):
     if langchain_community is None:

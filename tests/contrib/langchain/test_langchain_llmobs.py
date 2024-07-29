@@ -22,7 +22,7 @@ from tests.utils import flaky
 LANGCHAIN_VERSION = parse_version(langchain_.__version__)
 PY39 = sys.version_info < (3, 10)
 
-if LANGCHAIN_VERSION < (0, 1, 0):
+if LANGCHAIN_VERSION < (0, 1):
     from langchain.schema import AIMessage
     from langchain.schema import ChatMessage
     from langchain.schema import HumanMessage
@@ -92,7 +92,7 @@ class BaseTestLLMObsLangchain:
     def _invoke_llm(cls, llm, prompt, mock_tracer, cassette_name):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
-            if LANGCHAIN_VERSION < (0, 1, 0):
+            if LANGCHAIN_VERSION < (0, 1):
                 llm(prompt)
             else:
                 llm.invoke(prompt)
@@ -107,7 +107,7 @@ class BaseTestLLMObsLangchain:
                 messages = [HumanMessage(content=prompt)]
             else:
                 messages = [ChatMessage(content=prompt, role="custom")]
-            if LANGCHAIN_VERSION < (0, 1, 0):
+            if LANGCHAIN_VERSION < (0, 1):
                 chat_model(messages)
             else:
                 chat_model.invoke(messages)
@@ -120,7 +120,7 @@ class BaseTestLLMObsLangchain:
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
             if batch:
                 chain.batch(inputs=prompt)
-            elif LANGCHAIN_VERSION < (0, 1, 0):
+            elif LANGCHAIN_VERSION < (0, 1):
                 chain.run(prompt)
             else:
                 chain.invoke(prompt)
@@ -128,7 +128,7 @@ class BaseTestLLMObsLangchain:
         return mock_tracer.pop_traces()[0]
 
 
-@pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1, 0), reason="These tests are for langchain < 0.1.0")
+@pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1), reason="These tests are for langchain < 0.1.0")
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain"
 
@@ -316,7 +316,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
 
 
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="These tests are for langchain >= 0.1.0")
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
 class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain_community"
 
@@ -500,7 +500,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
 
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="These tests are for langchain >= 0.1.0")
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
 class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
