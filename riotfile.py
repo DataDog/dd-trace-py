@@ -2702,7 +2702,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} tests/contrib/kafka",
+                    command="pytest {cmdargs} tests/contrib/kafka/",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.10"),
@@ -2717,7 +2717,7 @@ venv = Venv(
         Venv(
             name="kafka_python_ng",
             pys=select_pys(),
-            command="pytest {cmdargs} tests/contrib/kafka_python_ng",
+            command="pytest {cmdargs} tests/contrib/kafka_python_ng/",
             pkgs={
                 "pytest-randomly": latest,
                 "kafka-python-ng": [latest],
