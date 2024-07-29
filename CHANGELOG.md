@@ -97,7 +97,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - tracing: Fixes an issue where `DD_TRACE_SPAN_TRACEBACK_MAX_SIZE` was not applied to exception tracebacks.
 - Code Security: This fixes a bug in the AST patching process where `ImportError` exceptions were being caught, interfering with the proper application cycle if an `ImportError` was expected."
 - Code Security: Ensure IAST propagation does not raise side effects related to Magic methods.
-- Code Security: fix a potential memory corruption when the context was reset.
+- Code Security: Fixes a potential memory corruption when the context was reset.
 - langchain: This fix resolves an issue where specifying inputs as a keyword argument for batching on chains caused a crash.
 - Code Security: avoid calling terminate on the extend and join aspect when an exception is raised.
 - tracing: Ensures spans are rate limited at the expected rate (100 spans per second by default). Previously long running spans would set the rate limiter to set an invalid window and this could cause the next trace to be dropped.
