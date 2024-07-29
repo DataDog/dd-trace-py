@@ -1262,6 +1262,15 @@ jobs:
           pattern: "wsgi"
           snapshot: true
 
+  aiokafka:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'aiokafka$'
+          snapshot: true
+          docker_services: 'kafka'
+
   kafka:
     <<: *machine_executor
     parallelism: 4

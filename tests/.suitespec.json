@@ -306,6 +306,9 @@
             "ddtrace/contrib/kafka/*",
             "ddtrace/ext/kafka.py"
         ],
+        "aiokafka": [
+            "ddtrace/contrib/aiokafka/*"
+        ],
         "graphql": [
             "ddtrace/contrib/graphql/*"
         ],
@@ -476,6 +479,16 @@
             "@datastreams",
             "tests/contrib/kafka/*",
             "tests/snapshots/tests.contrib.kafka.*"
+        ],
+        "aiokafka": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@kafka",
+            "@datastreams",
+            "tests/contrib/aiokafka/*",
+            "tests/snapshots/tests.contrib.aiokafka.*"
         ],
         "tracer": [
             "@tracing",

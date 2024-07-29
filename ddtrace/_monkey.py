@@ -43,6 +43,7 @@ PATCH_MODULES = {
     "grpc": True,
     "httpx": True,
     "kafka": True,
+    "aiokafka": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -138,6 +139,7 @@ _MODULES_FOR_CONTRIB = {
     "aws_lambda": ("datadog_lambda",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
+    "aiokafka": ("aiokafka"),
 }
 
 
