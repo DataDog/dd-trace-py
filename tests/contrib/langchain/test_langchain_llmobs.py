@@ -501,7 +501,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
 
 
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
-class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
+class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
         AWS_SECRET_ACCESS_KEY="testing",
@@ -530,7 +530,7 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
 
         self.mock_llmobs_span_writer = mock_llmobs_span_writer
 
-        super(TestLangchainTraceStructureWithLlmIntegrations, self).setUp()
+        super(TestTraceStructureWithLLMIntegrations, self).setUp()
 
     def tearDown(self):
         LLMObs.disable()

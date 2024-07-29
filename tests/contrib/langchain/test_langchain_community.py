@@ -133,7 +133,10 @@ def test_cohere_llm_sync(langchain_cohere, request_vcr):
         llm.invoke("What is the secret Krabby Patty recipe?")
 
 
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 2), reason="Requires separate cassette for langchain v0.1")
+@pytest.mark.skipif(
+    LANGCHAIN_VERSION < (0, 2) or sys.version_info < (3, 10),
+    reason="Requires separate cassette for langchain v0.1, Python 3.9",
+)
 @pytest.mark.snapshot
 def test_ai21_llm_sync(langchain_community, request_vcr):
     if langchain_community is None:
