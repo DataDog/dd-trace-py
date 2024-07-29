@@ -12,6 +12,7 @@ from datadog_api_client import Configuration
 from datadog_api_client.v1.api.notebooks_api import NotebooksApi
 from github import Github
 from github import GithubException
+from packaging.version import Version
 import requests
 
 
@@ -107,7 +108,8 @@ def _get_patch_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
 
 def _get_minor_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress minor release"""
-    name = "%s.0" % base
+    parsed_base = Version(base)
+    name = "%s.%s.0" % (parsed_base.major, parsed_base.minor)
 
     rn_raw = generate_release_notes(base)
     rn_sections_clean = create_release_notes_sections(rn_raw, base)
