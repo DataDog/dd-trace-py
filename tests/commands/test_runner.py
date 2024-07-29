@@ -329,7 +329,7 @@ def test_regression_hangs_on_exit():
         ["ddtrace-run", "python", "-c", "import time; time.sleep(60); print('Exiting...')"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     try:
@@ -349,6 +349,7 @@ def test_regression_hangs_on_exit():
         pytest.fail("Process is still running")
 
     assert process.returncode == 0, f"Process exited with non-zero return code: {process.returncode}"
+
 
 def test_info_no_configs():
     p = subprocess.Popen(
