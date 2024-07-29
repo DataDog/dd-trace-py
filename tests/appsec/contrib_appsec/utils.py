@@ -1247,10 +1247,12 @@ class Contrib_TestClass_For_Threats:
         + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))],
     )
     @pytest.mark.parametrize(
-        ("rule_file", "blocking"),
+        ("rule_file", "action_level"),
+        # action_level 0: no action, 1: report, 2: block
         [
-            (rules.RULES_EXPLOIT_PREVENTION, False),
-            (rules.RULES_EXPLOIT_PREVENTION_BLOCKING, True),
+            (rules.RULES_EXPLOIT_PREVENTION, 1),
+            (rules.RULES_EXPLOIT_PREVENTION_BLOCKING, 2),
+            (rules.RULES_EXPLOIT_PREVENTION_DISABLED, 0),
         ],
     )
     def test_exploit_prevention(
@@ -1266,7 +1268,7 @@ class Contrib_TestClass_For_Threats:
         rule,
         top_functions,
         rule_file,
-        blocking,
+        action_level,
     ):
         from unittest.mock import patch as mock_patch
 
@@ -1280,13 +1282,14 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
             response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
-            code = 403 if blocking and asm_enabled and ep_enabled else 200
+            code = 403 if action_level == 2 and asm_enabled and ep_enabled else 200
             assert self.status(response) == code, (self.status(response), code)
             assert get_tag(http.STATUS_CODE) == str(code), (get_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
-            if asm_enabled and ep_enabled:
-                self.check_rules_triggered([rule] * (1 if blocking else 2), root_span)
+            telemetry_calls = {(c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
+            if asm_enabled and ep_enabled and action_level > 0:
+                self.check_rules_triggered([rule] * (1 if action_level == 2 else 2), root_span)
                 assert self.check_for_stack_trace(root_span)
                 for trace in self.check_for_stack_trace(root_span):
                     assert "frames" in trace
@@ -1295,7 +1298,6 @@ class Contrib_TestClass_For_Threats:
                         asm_config._iast_enabled and function.endswith("ast_function")
                     ), f"unknown top function {function}"
                 # assert mocked.call_args_list == []
-                telemetry_calls = {(c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
                 assert (
                     "CountMetric",
                     "appsec.rasp.rule.match",
@@ -1306,7 +1308,7 @@ class Contrib_TestClass_For_Threats:
                     "appsec.rasp.rule.eval",
                     (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
                 ) in telemetry_calls
-                if blocking:
+                if action_level == 2:
                     assert get_tag("rasp.request.done") is None
                 else:
                     assert get_tag("rasp.request.done") == endpoint
@@ -1316,6 +1318,8 @@ class Contrib_TestClass_For_Threats:
                 assert float(get_metric(APPSEC.RASP_DURATION_EXT)) >= float(get_metric(APPSEC.RASP_DURATION))
                 assert int(get_metric(APPSEC.RASP_RULE_EVAL)) > 0
             else:
+                for _, n, _ in telemetry_calls:
+                    assert "rasp" not in n
                 assert get_triggers(root_span()) is None
                 assert self.check_for_stack_trace(root_span) == []
                 assert get_tag("rasp.request.done") == endpoint

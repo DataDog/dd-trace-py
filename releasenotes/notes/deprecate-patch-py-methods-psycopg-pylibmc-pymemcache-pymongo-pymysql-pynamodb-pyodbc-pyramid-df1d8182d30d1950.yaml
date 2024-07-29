@@ -1,0 +1,18 @@
+---
+deprecations:
+  - |
+    psycopg: All methods in psycopg/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    pylibmc: All methods in pylibmc/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    pymemcache: All methods in pymemcache/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    pymongo: All methods in pymongo/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    pymysql: All methods in pymysql/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    pynamodb: All methods in pynamodb/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    pyodbc: All methods in pyodbc/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    pyramid: All methods in pyramid/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
