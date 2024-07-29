@@ -16,8 +16,9 @@ with require_modules(required_modules) as missing_modules:
         from .helpers import ensure_future
         from .helpers import run_in_executor
         from .helpers import set_call_context
-        from .patch import get_version
+        from .patch import _get_version  # noqa: F401
+        from .patch import get_version  # noqa: F401
         from .patch import patch
         from .patch import unpatch  # noqa: F401
 
-        __all__ = ["context_provider", "set_call_context", "ensure_future", "run_in_executor", "patch", "get_version"]
+        __all__ = ["context_provider", "set_call_context", "ensure_future", "run_in_executor", "patch"]
