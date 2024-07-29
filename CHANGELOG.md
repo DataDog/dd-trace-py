@@ -7,10 +7,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ## 2.9.4
 
 
-### New Features
-
-- langchain: Introduces support for `langchain==0.2.0` by conditionally patching the `langchain-community` module if available, which is an optional dependency for `langchain>=0.2.0`. See the langchain integration docs for more details.
-
 ### Bug Fixes
 
 - langchain: This fix resolves an issue where the wrong langchain class name was being used to check for Pinecone vectorstore instances.
@@ -19,6 +15,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - redis: Resolves an issue in the `redis` exception handling where an `UnboundLocalError` was raised instead of the expected `BaseException`.
 - Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.
 - langchain: Fixes an issue of `langchain` patching errors due to the `langchain-community` module becoming an optional dependency in `langchain>=0.2.0`. The `langchain` integration now conditionally patches `langchain-community` methods if it is available. See the langchain integration docs for more details.
+- langchain: Resolves incompatibilities with langchain==0.2.0
 - ASM: Resolves an issue where ASM one click feature could fail to deactivate ASM.
 
 
