@@ -8,7 +8,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### New Features
 
-- botocore: Adds support for overriding the default service name in botocore by either setting the environment variable `DD_BOTOCORE_SERVICE` or configuring it via <span class="title-ref">ddtrace.config.botocore\["service"\]</span>.
+- botocore: Adds support for overriding the default service name in botocore by either setting the environment variable `DD_BOTOCORE_SERVICE` or configuring it via `ddtrace.config.botocore["service"]`.
 - Database Monitoring: Adds Database Monitoring (DBM) trace propagation for postgres databases used through Django.
 - Anthropic: Adds support for tracing message calls using tools.
 - LLM Observability: Adds support for tracing Anthropic messages using tool calls.
