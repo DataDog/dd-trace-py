@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    opentelemetry: Addresses an edge case where distributed tracing headers could be generated before a sampling decision waa made.
+    opentelemetry: Resolves an edge case where distributed tracing headers could be generated before a sampling decision is made.
     Resulting in dropped spans in downstream services.
