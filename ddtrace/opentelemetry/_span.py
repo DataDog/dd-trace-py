@@ -148,10 +148,13 @@ class Span(OtelSpan):
             # the span context is accessed.
             ddtracer.sample(self._ddspan)
 
-        if self._ddspan.context.sampling_priority > 0:
-            tf = TraceFlags.SAMPLED
-        else:
+        if self._ddspan.context.sampling_priority is None:
             tf = TraceFlags.DEFAULT
+            log.warning("Span context is missing a sampling decision, defaulting to unsampled: %s", str(self._ddspan.context))
+        elif self._ddspan.context.sampling_priority > 0:
+            tf = TraceFlags.DEFAULT
+        else:
+            tf = TraceFlags.SAMPLED
 
         return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
 
