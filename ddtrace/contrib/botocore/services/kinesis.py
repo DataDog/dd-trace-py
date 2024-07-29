@@ -91,7 +91,6 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
         try:
             start_ns = time_ns()
             is_getrecords_call = True
-            breakpoint()
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             result = original_func(*args, **kwargs)
 
