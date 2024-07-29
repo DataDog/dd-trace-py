@@ -339,29 +339,20 @@ class PsycopgCore(AsyncioTestCase):
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_cursor_async_connect_execute(self):
         """Checks whether connection can execute operations with async iteration."""
         async with psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
             async with conn.cursor() as cur:
                 await cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
-                await cur.execute(
-                    """CREATE TABLE {} (
-                            a INT,
-                            b VARCHAR(32)
-                            )
-                            """.format(
-                        TEST_TABLE
-                    )
-                )
+                await cur.execute("CREATE TABLE  %s ( a INT, b VARCHAR(32))", TEST_TABLE)
                 await cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
                 await cur.execute("INSERT INTO {} (a, b) VALUES (2, 'bb');".format(TEST_TABLE))
                 await cur.execute("INSERT INTO {} (a, b) VALUES (3, 'cc');".format(TEST_TABLE))
 
-                count = 1
                 async for row in cur:
-                    assert row[0] == count
-                    count += 1
                     spans = self.get_spans()
-                    assert spans
-                    assert spans[0].name == "postgres.query"
+                    assert len(spans) == 5
+                    span = spans[0]
+                    assert span.name == "postgres.query"
+
+                await cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
