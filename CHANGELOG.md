@@ -9,7 +9,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### New Features
 
-- langchain: This introduces support for `langchain==0.2.0` by conditionally patching the `langchain-community` module if available, which is an optional dependency for `langchain>=0.2.0`. See the langchain integration :ref: <span class="title-ref">docs\<langchain\></span> for more details.
+- langchain: Introduces support for `langchain==0.2.0` by conditionally patching the `langchain-community` module if available, which is an optional dependency for `langchain>=0.2.0`. See the langchain integration docs for more details.
 
 ### Bug Fixes
 
