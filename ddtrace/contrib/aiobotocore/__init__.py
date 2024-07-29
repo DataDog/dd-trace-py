@@ -32,8 +32,8 @@ required_modules = ["aiobotocore.client"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import _get_version
-        from .patch import get_version
+        from .patch import _get_version  # noqa: F401
+        from .patch import get_version  # noqa: F401
         from .patch import patch
 
         __all__ = ["patch"]
