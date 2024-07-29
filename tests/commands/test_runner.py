@@ -324,6 +324,32 @@ def test_return_code():
     assert p.returncode == 4
 
 
+def test_regression_hangs_on_exit():
+    process = subprocess.Popen(
+        ["ddtrace-run", "python", "-c", "import time; time.sleep(60); print('Exiting...')"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    try:
+        # Wait for the process to produce output or timeout after 70 seconds
+        output, errors = process.communicate(timeout=65)
+    except subprocess.TimeoutExpired:
+        # If the process did not finish in 70 seconds, kill it and fail the test
+        process.kill()
+        pytest.fail("Process did not complete within 70 seconds")
+
+    # Check if the expected output is in the stdout
+    assert "Exiting..." in output, "Expected output not found"
+
+    # Check if the process has finished
+    if process.poll() is None:
+        process.kill()
+        pytest.fail("Process is still running")
+
+    assert process.returncode == 0, f"Process exited with non-zero return code: {process.returncode}"
+
 def test_info_no_configs():
     p = subprocess.Popen(
         ["ddtrace-run", "--info"],

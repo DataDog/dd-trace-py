@@ -234,6 +234,10 @@ def patch_all(**patch_modules):
 
         patch_common_modules()
 
+    # This fix a hanging in a lock.acquire on cleanup with this test:
+    # ddtrace-run python -c "import time; time.sleep(60); print('Exiting...')"
+    import threading  # noqa: F401
+
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
     # type: (bool, str, Union[List[str], bool]) -> None
