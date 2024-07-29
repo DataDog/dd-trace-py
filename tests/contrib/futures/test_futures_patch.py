@@ -3,7 +3,7 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.futures import get_version
+from ddtrace.contrib.futures.patch import _get_version
 from ddtrace.contrib.futures.patch import patch
 
 
@@ -19,7 +19,7 @@ class TestFuturesPatch(PatchTestCase.Base):
     __module_name__ = "concurrent.futures.thread"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
-    __get_version__ = get_version
+    __get_version__ = _get_version
 
     def assert_module_patched(self, concurrent_futures):
         pass
@@ -31,6 +31,6 @@ class TestFuturesPatch(PatchTestCase.Base):
         pass
 
     def test_and_emit_get_version(self):
-        version = get_version()
+        version = _get_version()
         assert type(version) == str
         assert version == ""

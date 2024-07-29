@@ -6,8 +6,8 @@ import pytest
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.elasticsearch.patch import get_version
-from ddtrace.contrib.elasticsearch.patch import get_versions
+from ddtrace.contrib.elasticsearch.patch import _get_version
+from ddtrace.contrib.elasticsearch.patch import _get_versions
 from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
 from ddtrace.ext import http
@@ -364,11 +364,11 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans[0].get_tag("elasticsearch.body")) < 25000
 
     def test_and_emit_get_version(self):
-        version = get_version()
+        version = _get_version()
         assert type(version) == str
         assert version == ""
 
-        versions = get_versions()
+        versions = _get_versions()
         assert len(versions) > 0
         for module_name, v in versions.items():
             emit_integration_and_version_to_test_agent("elasticsearch", v, module_name=module_name)
