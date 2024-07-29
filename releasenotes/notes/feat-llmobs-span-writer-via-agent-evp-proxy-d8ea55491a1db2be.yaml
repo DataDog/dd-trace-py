@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: This introduces the agent proxy mode for LLM Observability. By default, if agentless mode is not 
+    enabled, llmobs spans are sent to the agent trace url, and then forwarded to Event Platform's llmobs intake.
