@@ -16,7 +16,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - langchain: This fix resolves an issue where the wrong langchain class name was being used to check for Pinecone vectorstore instances.
 - opentelemetry: Resolves circular imports raised by the OpenTelemetry API when the `ddcontextvars_context` entrypoint is loaded. This resolves an incompatibility introduced in `opentelemetry-api==1.25.0`.
 - opentelemetry: Resolves an issue where the `get_tracer` function would raise a `TypeError` when called with the `attribute` argument. This resolves an incompatibility introduced in `opentelemetry-api==1.26.0`.
-- redis: This fix resolves an issue in the redis exception handling where an UnboundLocalError was raised instead of the expected BaseException.
+- redis: Resolves an issue in the `redis` exception handling where an `UnboundLocalError` was raised instead of the expected `BaseException`.
 - Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.
 - langchain: Fixes an issue of `langchain` patching errors due to the `langchain-community` module becoming an optional dependency in `langchain>=0.2.0`. The `langchain` integration now conditionally patches `langchain-community` methods if it is available. See the langchain integration docs for more details.
 
