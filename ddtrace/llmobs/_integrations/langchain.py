@@ -231,7 +231,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     documents = [
                         Document(
                             id=d.id,
-                            text=d.page_content,  # Review note : page_content is not truncated
+                            text=d.page_content,
                             name=d.metadata["source"],
                         )
                         for d in output_documents
