@@ -438,6 +438,7 @@ class FormData:
 def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
     from email.mime.application import MIMEApplication
     from email.mime.multipart import MIMEMultipart
+    from email.policy import HTTP
 
     msg = MIMEMultipart("form-data")
     del msg["MIME-Version"]
@@ -449,6 +450,6 @@ def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
         msg.attach(app)
 
     # Split headers and body
-    headers, _, body = msg.as_string().partition("\n\n")
+    headers, _, body = msg.as_string(policy=HTTP).partition("\r\n\r\n")
 
     return body.encode("utf-8"), dict(_.split(": ") for _ in headers.splitlines())

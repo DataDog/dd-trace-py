@@ -56,6 +56,12 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._import_time_name_to_path: t.Dict[str, str] = {}
         self._import_names_by_path: t.Dict[str, t.Set[t.Tuple[str, t.Tuple[str, ...]]]] = defaultdict(set)
 
+        # Import-time coverage data
+        self._import_time_covered: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
+        self._import_time_contexts: t.Dict[str, "ModuleCodeCollector.CollectInContext"] = {}
+        self._import_time_name_to_path: t.Dict[str, str] = {}
+        self._import_names_by_path: t.Dict[str, t.Set[t.Tuple[str, t.Tuple[str, ...]]]] = defaultdict(set)
+
         # Replace the built-in exec function with our own in the pytest globals
         try:
             import _pytest.assertion.rewrite as par
@@ -86,7 +92,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
 
-    def hook(self, arg: t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
+      def hook(self, arg: t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
         line: int
         path: str
         import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]]
