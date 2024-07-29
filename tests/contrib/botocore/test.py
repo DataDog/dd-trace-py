@@ -3290,31 +3290,31 @@ class BotocoreTest(TracerTestCase):
             client.put_records(StreamName=stream_name, Records=data)
 
         spans = self.get_spans()
-        assert spans[0].name == "kinesis.manual_span"
 
-        assert spans[1].service == "mysvc"
-        assert spans[1].name == "aws.kinesis.request"
-        assert spans[1].parent == spans[0].span_id
+        assert spans[0].service == "aws.kinesis"
+        assert spans[0].name == "kinesis.command"
+        assert spans[0].parent_id == spans[2].span_id
 
-        assert spans[2].service == "mysvc"
-        assert spans[2].name == "aws.kinesis.send"
-        assert spans[2].parent == spans[0].span_id
+        assert spans[1].service == "aws.kinesis"
+        assert spans[1].name == "kinesis.command"
+        assert spans[1].parent_id == spans[2].span_id
+
+        assert spans[2].name == "kinesis.manual_span"
 
     @mock_sqs
     def test_sqs_parenting(self):
+        Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+
         with self.tracer.trace("sqs.manual_span"):
             self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
 
         spans = self.get_spans()
+
         assert spans[0].name == "sqs.manual_span"
 
-        assert spans[1].service == "mysvc"
-        assert spans[1].name == "aws.sqs.request"
-        assert spans[1].parent == spans[0].span_id
-
-        assert spans[2].service == "mysvc"
-        assert spans[2].name == "aws.sqs.send"
-        assert spans[2].parent == spans[0].span_id
+        assert spans[1].service == "aws.sqs"
+        assert spans[1].name == "sqs.command"
+        assert spans[1].parent_id == spans[0].span_id
 
     @mock_kinesis
     def test_kinesis_put_records_newline_base64_trace_injection(self):
