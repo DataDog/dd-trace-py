@@ -75,7 +75,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - LLM Observability: This resolves a typing hint error in the `ddtrace.llmobs.utils.Documents` helper class constructor where type hints did not accept input dictionaries with integer or float values.
 - LLM Observability: This fix resolves an issue where the OpenAI, Anthropic, and AWS Bedrock integrations were always setting `temperature` and `max_tokens` parameters to LLM invocations. The OpenAI integration in particular was setting the wrong `temperature` default values. These parameters are now only set if provided in the request.
 - redis: This fix resolves an issue in the redis exception handling where an UnboundLocalError was raised instead of the expected BaseException.
-- ASM: This fix resolves an issue where the <span class="title-ref">requests</span> integration would not propagate when apm is opted out (i.e. in ASM Standalone).
+- ASM: This fix resolves an issue where the requests integration would not propagate when apm is opted out (i.e. in ASM Standalone).
 - profiling: Fixes an issue where task information coming from echion was encoded improperly, which could segfault the application.
 - tracing: fixes a potential crash where using partial flushes and `tracer.configure()` could result in an IndexError
 - flask: Fix scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
