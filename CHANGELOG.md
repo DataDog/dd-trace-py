@@ -99,7 +99,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Code Security: Ensure IAST propagation does not raise side effects related to Magic methods.
 - Code Security: Fixes a potential memory corruption when the context was reset.
 - langchain: This fix resolves an issue where specifying inputs as a keyword argument for batching on chains caused a crash.
-- Code Security: avoid calling terminate on the extend and join aspect when an exception is raised.
+- Code Security: Avoids calling terminate on the extend and join aspect when an exception is raised.
 - tracing: Ensures spans are rate limited at the expected rate (100 spans per second by default). Previously long running spans would set the rate limiter to set an invalid window and this could cause the next trace to be dropped.
 - RemoteConfig: This fix resolves an issue where remote config did not work for the tracer when using an agent that would add a flare item to the remote config payload. With this fix, the tracer will now correctly pull out the lib_config we need from the payload in order to implement remote config changes properly.
 - opentelemetry: Records exceptions on spans in a manner that is consistent with the [otel specification](https://opentelemetry.io/docs/specs/otel/trace/exceptions/#recording-an-exception)
