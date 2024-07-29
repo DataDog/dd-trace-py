@@ -3,7 +3,7 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.kombu.patch import _get_version
+from ddtrace.contrib.kombu import _get_version
 from ddtrace.contrib.kombu.patch import patch
 
 

@@ -1,4 +1,4 @@
-from ddtrace.contrib.kafka.patch import _get_version
+from ddtrace.contrib.kafka import _get_version
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from tests.contrib.patch import PatchTestCase
