@@ -1,4 +1,4 @@
-from ddtrace.contrib.httplib.patch import _get_version
+from ddtrace.contrib.httplib import _get_version
 from ddtrace.contrib.httplib.patch import patch
 
 

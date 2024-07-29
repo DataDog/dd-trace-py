@@ -58,9 +58,10 @@ The integration can be configured per instance::
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
-from .patch import get_version
+from .patch import _get_version  # noqa: F401
+from .patch import get_version  # noqa: F401
 from .patch import patch
 from .patch import unpatch
 
 
-__all__ = ["patch", "unpatch", "get_version"]
+__all__ = ["patch", "unpatch"]
