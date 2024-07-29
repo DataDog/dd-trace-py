@@ -71,7 +71,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - Code Security: Adds the `boto` package to the IAST patching denylist.
 - celery: Changes `error.message` span tag to no longer include the traceback that is already included in the `error.stack` span tag.
-- CI Visibility: fixes source file information that would be incorrect in certain decorated / wrapped scenarios and forces paths to be relative to the repository root, if present.
+- CI Visibility: Fixes source file information that would be incorrect in certain decorated / wrapped scenarios and forces paths to be relative to the repository root, if present.
 - LLM Observability: This resolves a typing hint error in the `ddtrace.llmobs.utils.Documents` helper class constructor where type hints did not accept input dictionaries with integer or float values.
 - LLM Observability: This fix resolves an issue where the OpenAI, Anthropic, and AWS Bedrock integrations were always setting `temperature` and `max_tokens` parameters to LLM invocations. The OpenAI integration in particular was setting the wrong `temperature` default values. These parameters are now only set if provided in the request.
 - redis: This fix resolves an issue in the redis exception handling where an UnboundLocalError was raised instead of the expected BaseException.
