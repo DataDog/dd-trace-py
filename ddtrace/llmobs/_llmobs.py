@@ -169,12 +169,12 @@ class LLMObs(Service):
             # validate required values for agentless LLMObs
             if not config._dd_api_key:
                 raise ValueError(
-                    "DD_API_KEY is required for sending LLMObs data. "
+                    "DD_API_KEY is required for sending LLMObs data when agentless mode is enabled. "
                     "Ensure this configuration is set before running your application."
                 )
             if not config._dd_site:
                 raise ValueError(
-                    "DD_SITE is required for sending LLMObs data. "
+                    "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                     "Ensure this configuration is set before running your application."
                 )
             if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
