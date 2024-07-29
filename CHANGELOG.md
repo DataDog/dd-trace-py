@@ -4,6 +4,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.10.1
+
+
+### Bug Fixes
+
+- langchain: This fix resolves an issue where the wrong langchain class name was being used to check for Pinecone vectorstore instances.
+- opentelemetry: Resolves circular imports raised by the OpenTelemetry API when the `ddcontextvars_context` entrypoint is loaded. This resolves an incompatibility introduced in `opentelemetry-api==1.25.0`.
+- opentelemetry: Resolves an issue where the `get_tracer` function would raise a `TypeError` when called with the `attribute` argument. This resolves an incompatibility introduced in `opentelemetry-api==1.26.0`.
+- ASM: This fix resolves an issue where ASM one click feature could fail to deactivate ASM.
+
+
+---
+
+
 ## 2.10.0
 
 ### New Features
@@ -110,6 +124,22 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - LLM Observability: The SDK allowed users to submit an unsupported `numerical` evaluation metric type. All evaluation metric types submitted with `numerical` type will now be automatically converted to a `score` type. As an alternative to using the `numerical` type, use `score` instead.
 
 - lib-injection: Updates base Alpine image to 3.20.
+
+---
+
+## 2.9.4
+
+
+### Bug Fixes
+
+- langchain: This fix resolves an issue where the wrong langchain class name was being used to check for Pinecone vectorstore instances.
+- opentelemetry: Resolves circular imports raised by the OpenTelemetry API when the `ddcontextvars_context` entrypoint is loaded. This resolves an incompatibility introduced in `opentelemetry-api==1.25.0`.
+- opentelemetry: Resolves an issue where the `get_tracer` function would raise a `TypeError` when called with the `attribute` argument. This resolves an incompatibility introduced in `opentelemetry-api==1.26.0`.
+- redis: Resolves an issue in the `redis` exception handling where an `UnboundLocalError` was raised instead of the expected `BaseException`.
+- Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.
+- langchain: Fixes an issue of `langchain` patching errors due to the `langchain-community` module becoming an optional dependency in `langchain>=0.2.0`. The `langchain` integration now conditionally patches `langchain-community` methods if it is available. See the langchain integration docs for more details.
+- langchain: Resolves incompatibilities with langchain==0.2.0
+- ASM: Resolves an issue where ASM one click feature could fail to deactivate ASM.
 
 
 ---
