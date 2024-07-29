@@ -8,6 +8,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
+from tests.utils import flaky
 
 
 OTEL_VERSION = parse_version(opentelemetry.version.__version__)
@@ -183,6 +184,7 @@ def test_distributed_trace_extract(oteltracer):  # noqa:F811
         assert sp.is_remote is False
 
 
+@flaky(1717428664)
 @pytest.mark.parametrize(
     "flask_wsgi_application,flask_env_arg,flask_port,flask_command",
     [
