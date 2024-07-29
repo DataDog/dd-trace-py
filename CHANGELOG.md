@@ -81,7 +81,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - flask: Fix scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
 - wsgi: Ensures the status of wsgi Spans are not set to error when a `StopIteration` exception is raised marked the span as an error. With this change, `StopIteration` exceptions in this context will be ignored.
 - langchain: tag non-dict inputs to LCEL chains appropriately. Non-dict inputs are stringified, and dict inputs are tagged by key-value pairs.
-- langchain: This fixes an issue of langchain patching errors due to the `langchain-community` module becoming an optional dependency in `langchain>=0.2.0`. The langchain integration now conditionally patches `langchain-community` methods if it is available. See the langchain integration :ref: <span class="title-ref">docs\<langchain\></span> for more details.
+- langchain: Fixes an issue of langchain patching errors due to the `langchain-community` module becoming an optional dependency in `langchain>=0.2.0`. The langchain integration now conditionally patches `langchain-community` methods if it is available. See the langchain integration docs for more details.
 
 - ASM: This fix resolves an issue where an org could not customize actions through remote config.
 - ASM: protect against potentially returning `None` when tainting a gRPC message.
