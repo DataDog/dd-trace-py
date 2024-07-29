@@ -1,16 +1,15 @@
+import dataclasses
 from functools import reduce
 import json
 import operator
 import os
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Set
 from typing import Tuple
 import zlib
-
-import attr
 
 from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
@@ -19,23 +18,24 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Optional  # noqa:F401
-
-
-def _only_if_true(value):
-    return value if value else None
-
-
 ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
+EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
 
-@attr.s(eq=False, hash=False)
-class Evidence(object):
-    dialect = attr.ib(type=str, default=None)  # type: Optional[str]
-    value = attr.ib(type=str, default=None)  # type: Optional[str]
-    _ranges = attr.ib(type=dict, default={})  # type: Any
-    valueParts = attr.ib(type=list, default=None)  # type: Any
+class NotNoneDictable:
+    def _to_dict(self):
+        return dataclasses.asdict(
+            self,
+            dict_factory=lambda x: {k: v for k, v in x if v is not None and k not in ATTRS_TO_SKIP},
+        )
+
+
+@dataclasses.dataclass(eq=False)
+class Evidence(NotNoneDictable):
+    dialect: Optional[str] = None
+    value: Optional[str] = None
+    _ranges: List[Dict] = dataclasses.field(default_factory=list)
+    valueParts: Optional[List] = None
 
     def _valueParts_hash(self):
         if not self.valueParts:
@@ -56,31 +56,37 @@ class Evidence(object):
         return self.value == other.value and self._valueParts_hash() == other._valueParts_hash()
 
 
-@attr.s(eq=True, hash=True)
-class Location(object):
-    spanId = attr.ib(type=int, eq=False, hash=False, repr=False)  # type: int
-    path = attr.ib(type=str, default=None)  # type: Optional[str]
-    line = attr.ib(type=int, default=None)  # type: Optional[int]
+@dataclasses.dataclass(unsafe_hash=True)
+class Location(NotNoneDictable):
+    spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
+    path: Optional[str] = None
+    line: Optional[int] = None
+
+    def __repr__(self):
+        return f"Location(path='{self.path}', line={self.line})"
 
 
-@attr.s(eq=True, hash=True)
-class Vulnerability(object):
-    type = attr.ib(type=str)  # type: str
-    evidence = attr.ib(type=Evidence, repr=False)  # type: Evidence
-    location = attr.ib(type=Location, hash="PYTEST_CURRENT_TEST" in os.environ)  # type: Location
-    hash = attr.ib(init=False, eq=False, hash=False, repr=False)  # type: int
+@dataclasses.dataclass(unsafe_hash=True)
+class Vulnerability(NotNoneDictable):
+    type: str
+    evidence: Evidence
+    location: Location
+    hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())
 
+    def __repr__(self):
+        return f"Vulnerability(type='{self.type}', location={self.location})"
 
-@attr.s(eq=True, hash=False)
-class Source(object):
-    origin = attr.ib(type=str)  # type: str
-    name = attr.ib(type=str)  # type: str
-    redacted = attr.ib(type=bool, default=False, converter=_only_if_true)  # type: bool
-    value = attr.ib(type=str, default=None)  # type: Optional[str]
-    pattern = attr.ib(type=str, default=None)  # type: Optional[str]
+
+@dataclasses.dataclass
+class Source(NotNoneDictable):
+    origin: str
+    name: str
+    redacted: Optional[bool] = dataclasses.field(default=None, repr=False)
+    value: Optional[str] = dataclasses.field(default=None, repr=False)
+    pattern: Optional[str] = dataclasses.field(default=None, repr=False)
 
     def __hash__(self):
         """origin & name serve as hashes. This approach aims to mitigate false positives when searching for
@@ -94,15 +100,14 @@ class Source(object):
         return hash((self.origin, self.name))
 
 
-@attr.s(eq=False, hash=False)
-class IastSpanReporter(object):
+@dataclasses.dataclass
+class IastSpanReporter(NotNoneDictable):
     """
     Class representing an IAST span reporter.
     """
 
-    sources = attr.ib(type=List[Source], factory=list)  # type: List[Source]
-    vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)  # type: Set[Vulnerability]
-    _evidences_with_no_sources = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
+    sources: List[Source] = dataclasses.field(default_factory=list)
+    vulnerabilities: Set[Vulnerability] = dataclasses.field(default_factory=set)
 
     def __hash__(self) -> int:
         """
@@ -112,6 +117,12 @@ class IastSpanReporter(object):
         - int: Hash value.
         """
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
+
+    def _to_dict(self):
+        return {
+            "sources": [i._to_dict() for i in self.sources],
+            "vulnerabilities": [i._to_dict() for i in self.vulnerabilities],
+        }
 
     @staticmethod
     def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Source], List[Dict]]:
@@ -169,7 +180,7 @@ class IastSpanReporter(object):
                         source.value = None
                 vuln.evidence.valueParts = redacted_value_parts
                 vuln.evidence.value = None
-            elif vuln.evidence.value is not None and vuln.type not in self._evidences_with_no_sources:
+            elif vuln.evidence.value is not None and vuln.type not in EVIDENCES_WITH_NO_SOURCES:
                 vuln.evidence.valueParts = self.get_unredacted_value_parts(
                     vuln.evidence.value, vuln.evidence._ranges, self.sources
                 )
@@ -207,18 +218,6 @@ class IastSpanReporter(object):
             value_parts.append({"value": evidence_value[from_index:]})
 
         return value_parts
-
-    def _to_dict(self) -> Dict[str, Any]:
-        """
-        Converts the IAST span reporter to a dictionary.
-
-        Returns:
-        - Dict[str, Any]: Dictionary representation of the IAST span reporter.
-        """
-        return attr.asdict(
-            self,
-            filter=lambda attr, x: x is not None and attr.name not in ATTRS_TO_SKIP,
-        )
 
     def _to_str(self) -> str:
         """
