@@ -10,6 +10,7 @@ from typing import Optional
 from datadog_api_client import ApiClient
 from datadog_api_client import Configuration
 from datadog_api_client.v1.api.notebooks_api import NotebooksApi
+from github import Commit
 from github import Github
 from github import GithubException
 from packaging.version import Version
@@ -211,7 +212,7 @@ def break_into_release_sections(rn):
     return [ele for ele in re.split(r"[^#](#)\1{2}[^#]", rn)[1:] if ele != "#"]
 
 
-def _commit_from(ref: str) -> str:
+def _commit_from(ref: str) -> Commit:
     try:
         branch = dd_repo.get_branch(branch=ref)
     except GithubException as exc:
