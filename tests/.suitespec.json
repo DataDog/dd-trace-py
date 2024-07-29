@@ -168,7 +168,7 @@
         "debugging": [
             "ddtrace/debugging/*",
             "ddtrace/settings/dynamic_instrumentation.py",
-            "ddtrace/settings/exception_debugging.py"
+            "ddtrace/settings/exception_replay.py"
         ],
         "ci": [
             "ddtrace/ext/ci.py"
@@ -260,7 +260,8 @@
             "ddtrace/contrib/sqlalchemy/*"
         ],
         "opentelemetry": [
-            "ddtrace/opentelemetry/*"
+            "ddtrace/opentelemetry/*",
+            "ddtrace/internal/opentelemetry/*"
         ],
         "profiling": [
             "ddtrace/profiling/*",
