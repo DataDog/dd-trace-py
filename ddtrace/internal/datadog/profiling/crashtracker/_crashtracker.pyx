@@ -33,6 +33,7 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_set_resolve_frames_full()
     void crashtracker_set_resolve_frames_safe()
     bint crashtracker_set_receiver_binary_path(string_view path)
+    void crashtracker_set_tag(string_view key, string_view value)
     void crashtracker_profiling_state_sampling_start()
     void crashtracker_profiling_state_sampling_stop()
     void crashtracker_profiling_state_unwinding_start()
@@ -132,6 +133,15 @@ def set_profiling_state_serializing(on: bool) -> None:
         crashtracker_profiling_state_serializing_start()
     else:
         crashtracker_profiling_state_serializing_stop()
+
+
+def set_tag(key: StringType, value: StringType) -> None:
+    key_bytes = ensure_binary_or_empty(key)
+    value_bytes = ensure_binary_or_empty(value)
+    crashtracker_set_tag(
+        string_view(<const char*>key_bytes, len(key_bytes)),
+        string_view(<const char*>value_bytes, len(value_bytes))
+    )
 
 
 def start() -> bool:
