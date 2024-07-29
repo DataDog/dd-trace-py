@@ -109,7 +109,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - LLM Observability: The SDK allowed users to submit an unsupported `numerical` evaluation metric type. All evaluation metric types submitted with `numerical` type will now be automatically converted to a `score` type. As an alternative to using the `numerical` type, use `score` instead.
 
-- lib-injection: update base Alpine image to 3.20.
+- lib-injection: Updates base Alpine image to 3.20.
 
 
 ---
