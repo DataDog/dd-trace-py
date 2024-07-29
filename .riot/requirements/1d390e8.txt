@@ -39,3 +39,4 @@ urllib3==1.26.18
 wrapt==1.16.0
 yarl==1.9.4
 zipp==3.17.0
+setuptools<72.0.0

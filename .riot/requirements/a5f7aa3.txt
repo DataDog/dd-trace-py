@@ -24,3 +24,4 @@ zipp==3.17.0
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
+setuptools<72.0.0

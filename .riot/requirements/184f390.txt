@@ -26,3 +26,4 @@ urllib3==1.26.19
 vcrpy==6.0.1
 wrapt==1.16.0
 yarl==1.9.4
+setuptools<72.0.0

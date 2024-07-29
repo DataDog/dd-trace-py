@@ -36,3 +36,4 @@ sqlalchemy==2.0.22
 typing-extensions==4.12.1
 urllib3==2.2.1
 wheel==0.43.0
+setuptools<72.0.0

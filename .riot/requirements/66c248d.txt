@@ -34,3 +34,4 @@ urllib3==2.2.1
 virtualenv-clone==0.5.7
 werkzeug==3.0.3
 wheel==0.43.0
+setuptools<72.0.0

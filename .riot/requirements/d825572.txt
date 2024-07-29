@@ -47,3 +47,4 @@ typing-extensions==4.12.2
 urllib3==2.2.2
 werkzeug==3.0.3
 xmltodict==0.13.0
+setuptools<72.0.0

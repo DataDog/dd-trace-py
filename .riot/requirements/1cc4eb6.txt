@@ -36,3 +36,4 @@ virtualenv-clone==0.5.7
 werkzeug==3.0.3
 wheel==0.43.0
 zipp==3.19.1
+setuptools<72.0.0

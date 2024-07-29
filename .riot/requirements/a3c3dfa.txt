@@ -36,3 +36,4 @@ typing-extensions==4.12.2
 urllib3==1.26.19
 werkzeug==3.0.3
 zipp==3.19.2
+setuptools<72.0.0

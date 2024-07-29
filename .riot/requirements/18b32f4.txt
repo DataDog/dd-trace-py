@@ -19,3 +19,4 @@ pytest-mock==3.14.0
 pytest-randomly==3.15.0
 redis==5.0.1
 sortedcontainers==2.4.0
+setuptools<72.0.0

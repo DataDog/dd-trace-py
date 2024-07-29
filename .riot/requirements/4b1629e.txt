@@ -37,3 +37,4 @@ starlette==0.20.4
 tomli==2.0.1
 typing-extensions==4.10.0
 urllib3==2.2.1
+setuptools<72.0.0

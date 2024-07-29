@@ -62,3 +62,4 @@ urllib3==2.1.0
 werkzeug==3.0.1
 yarl==1.9.4
 zipp==3.17.0
+setuptools<72.0.0

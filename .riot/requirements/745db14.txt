@@ -48,3 +48,4 @@ uvloop==0.18.0
 websockets==9.1
 yarl==1.9.4
 zipp==3.15.0
+setuptools<72.0.0

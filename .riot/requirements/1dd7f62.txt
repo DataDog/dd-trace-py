@@ -27,3 +27,4 @@ typing-extensions==4.9.0
 tzdata==2023.3
 vine==5.1.0
 zipp==3.17.0
+setuptools<72.0.0

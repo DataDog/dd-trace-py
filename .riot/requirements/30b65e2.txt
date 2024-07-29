@@ -30,3 +30,4 @@ redis==2.10.6
 sortedcontainers==2.4.0
 tomli==2.0.1
 werkzeug==1.0.1
+setuptools<72.0.0

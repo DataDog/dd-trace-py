@@ -35,3 +35,4 @@ tomli==2.0.1
 tzdata==2023.3
 vine==5.1.0
 wcwidth==0.2.12
+setuptools<72.0.0

@@ -21,3 +21,4 @@ redis==3.0.1
 redis-py-cluster==2.0.0
 sortedcontainers==2.4.0
 tomli==2.0.1
+setuptools<72.0.0

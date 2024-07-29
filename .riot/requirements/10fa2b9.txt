@@ -23,3 +23,4 @@ reno==4.0.0
 sortedcontainers==2.4.0
 tomli==2.0.1
 urllib3==1.26.15
+setuptools<72.0.0

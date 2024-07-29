@@ -32,3 +32,4 @@ sortedcontainers==2.4.0
 toml==0.10.2
 typing-extensions==4.7.1
 zipp==3.15.0
+setuptools<72.0.0

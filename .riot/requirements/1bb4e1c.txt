@@ -28,3 +28,4 @@ typing-extensions==4.7.1
 urllib3==2.0.7
 websocket-client==1.6.1
 zipp==3.15.0
+setuptools<72.0.0

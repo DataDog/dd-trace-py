@@ -35,3 +35,4 @@ sqlalchemy==1.4.52
 starlette==0.33.0
 typing-extensions==4.10.0
 urllib3==2.2.1
+setuptools<72.0.0

@@ -30,3 +30,4 @@ requests==2.31.0
 sortedcontainers==2.4.0
 urllib3==2.1.0
 werkzeug==3.0.1
+setuptools<72.0.0
