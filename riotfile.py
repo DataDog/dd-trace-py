@@ -284,6 +284,7 @@ venv = Venv(
                 "fastapi": latest,
                 "httpx": latest,
                 "pytest-randomly": latest,
+                "setuptools": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
@@ -417,9 +418,16 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "pytest-asyncio": "~=0.23.7",
+                        "setuptools": latest,
                     },
                 ),
             ],
@@ -818,6 +826,7 @@ venv = Venv(
                     "==3.10.0",
                 ],
                 "pytest-randomly": latest,
+                "setuptools": latest,
             },
             venvs=[
                 Venv(
@@ -2731,7 +2740,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/sourcecode",
             pys=select_pys(),
             pkgs={
-                "setuptools": ["<=67.6.0"],
+                "setuptools": latest,
                 "pytest-randomly": latest,
             },
         ),
