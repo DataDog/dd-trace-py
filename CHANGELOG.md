@@ -21,7 +21,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - tracer: This introduces the tracer flare functionality. Currently the tracer flare includes the tracer logs and tracer configurations.
 
-- Expand SSRF vulnerability support for Code Security and Exploit Prevention for the modules `urllib3`, `http.client`, `webbrowser` and `urllib.request`.
+- Code Security: Expands SSRF vulnerability support for Code Security and Exploit Prevention for the modules `urllib3`, `http.client`, `webbrowser` and `urllib.request`.
 
 - ASM: This introduces full support for exploit prevention in the python tracer.  
   - LFI (via standard API open)
