@@ -69,7 +69,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.
 - redis: This fix resolves an issue in redis utils where a variable may not be declared within a try/catch
 
-- Code Security: add the boto package to the IAST patching denylist.
+- Code Security: Adds the `boto` package to the IAST patching denylist.
 - celery: changes `error.message` span tag to no longer include the traceback that is already included in the `error.stack` span tag.
 - CI Visibility: fixes source file information that would be incorrect in certain decorated / wrapped scenarios and forces paths to be relative to the repository root, if present.
 - LLM Observability: This resolves a typing hint error in the `ddtrace.llmobs.utils.Documents` helper class constructor where type hints did not accept input dictionaries with integer or float values.
