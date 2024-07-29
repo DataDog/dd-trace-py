@@ -68,6 +68,11 @@ def select_records_for_injection(params: List[Any], inject_trace_context: bool) 
 
 
 def patched_kinesis_api_call(original_func, instance, args, kwargs, function_vars):
+    with core.context_with_data("botocore.patched_kinesis_api_call.propagated") as parent_ctx:
+        return _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars)
+
+
+def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
     pin = function_vars.get("pin")
@@ -80,12 +85,13 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     result = None
 
     parent_ctx: core.ExecutionContext = core.ExecutionContext(
-        "botocore.patched_sqs_api_call.propagated",
+        "botocore.patched_kinesis_api_call.propagated",
     )
     if operation == "GetRecords":
         try:
             start_ns = time_ns()
             is_getrecords_call = True
+            breakpoint()
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             result = original_func(*args, **kwargs)
 
@@ -180,6 +186,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
                     ],
                 )
                 raise
+        # also what is this line??? code unreachable
         parent_ctx.end()
     elif is_getrecords_call:
         if getrecords_error:
