@@ -103,8 +103,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         """Checks whether connection can execute operations with async iteration."""
 
         cursor = self.cursor
-        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
-        traced_cursor = TracedAsyncCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+        traced_cursor = TracedAsyncCursor(cursor, Pin("dbapi_service", tracer=self.tracer), {})
         async with traced_cursor as cursor:
             await cursor.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
             await cursor.execute(
