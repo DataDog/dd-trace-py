@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptoos<72.0.0", "setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.7'", "setuptools-rust<2"]
+requires = ["setuptools<72.0.0", "setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.7'", "setuptools-rust<2"]
 build-backend = "setuptools.build_meta"
 
 [project]
