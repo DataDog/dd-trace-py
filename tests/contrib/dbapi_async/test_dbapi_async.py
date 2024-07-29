@@ -105,23 +105,25 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         def method():
             pass
 
-        async with TracedAsyncCursor(self.cursor, Pin("dbapi_service", tracer=self.tracer), {}) as cursor:
-            cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
+        try:
+            async with TracedAsyncCursor(self.cursor, Pin("dbapi_service", tracer=self.tracer), {}) as cursor:
+                cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
 
-            await cursor.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
-            await cursor.execute("CREATE TABLE  %s ( a INT, b VARCHAR(32))", TEST_TABLE)
-            await cursor.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            await cursor.execute("INSERT INTO {} (a, b) VALUES (2, 'bb');".format(TEST_TABLE))
-            await cursor.execute("INSERT INTO {} (a, b) VALUES (3, 'cc');".format(TEST_TABLE))
+                await cursor.execute(f"DROP TABLE IF EXISTS {TEST_TABLE}")
+                await cursor.execute(f"CREATE TABLE {TEST_TABLE} (a INT, b VARCHAR(32))")
+                await cursor.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa')")
+                await cursor.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (2, 'bb')")
+                await cursor.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (3, 'cc')")
 
-            async for row in cursor:
-                spans = self.get_spans()
-                assert len(spans) == 5
-                span = spans[0]
-                assert span.service == "dbapi_service", "Service from pin"
-                assert span.resource == "my_resource", "Resource is respected"
-                assert span.name == "my_name", "Span name is respected"
-            await cursor.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
+                async for row in cursor:
+                    spans = self.get_spans()
+                    assert len(spans) == 5
+                    span = spans[0]
+                    assert span.service == "dbapi_service", "Service from pin"
+                    assert span.resource == "my_resource", "Resource is respected"
+                    assert span.name == "my_name", "Span name is respected"
+        finally:
+            await cursor.execute(f"DROP TABLE IF EXISTS {TEST_TABLE}")
 
     @mark_asyncio
     async def test_fetchall_wrapped_is_called_and_returned(self):
