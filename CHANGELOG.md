@@ -84,7 +84,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - langchain: Fixes an issue of langchain patching errors due to the `langchain-community` module becoming an optional dependency in `langchain>=0.2.0`. The langchain integration now conditionally patches `langchain-community` methods if it is available. See the langchain integration docs for more details.
 
 - ASM: This fix resolves an issue where an org could not customize actions through remote config.
-- ASM: protect against potentially returning `None` when tainting a gRPC message.
+- ASM: Protects against potentially returning `None` when tainting a gRPC message.
 - botocore: This fix adds additional key name checking and appropriate defaults for responses from Cohere and Amazon models.
 - Tracer: This fix resolves an issue where importing `asyncio` after a trace has already been started will reset the currently active span.
 - CI Visibility: Fixes traces that were not properly being sent in agentless mode, and were otherwise not properly attached to the test that started them
