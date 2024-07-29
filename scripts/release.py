@@ -172,8 +172,8 @@ def generate_release_notes(branch: str) -> str:
 
 def create_release_notes_sections(rn_raw, branch):
     # get anything in unreleased section in case there were updates since the last RC
-    print(rn_raw)
     unreleased = clean_release_notes(rn_raw)
+    print(unreleased)
     unreleased = break_into_release_sections(unreleased)
     try:
         unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
