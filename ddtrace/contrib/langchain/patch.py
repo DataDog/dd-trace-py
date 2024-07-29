@@ -938,7 +938,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     finally:
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags(
-                "similarity_search",
+                "retrieval",
                 span,
                 query,
                 documents,

@@ -49,7 +49,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def llmobs_set_tags(
         self,
-        operation: str,  # oneof "llm","chat","chain","similarity_search-"
+        operation: str,  # oneof "llm","chat","chain","retrieval"
         span: Span,
         inputs: Any,
         response: Any = None,
@@ -80,7 +80,7 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error, is_workflow=is_workflow)
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
-        elif operation == "similarity_search":
+        elif operation == "retrieval":
             self._llmobs_set_meta_tags_from_similarity_search(span, inputs, response, error, is_workflow=is_workflow)
         span.set_tag_str(METRICS, json.dumps({}))
 
@@ -205,7 +205,7 @@ class LangChainIntegration(BaseLLMIntegration):
         error: bool = False,
         is_workflow: bool = False,
     ) -> None:
-        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "similarity_search")
+        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "retrieval")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 

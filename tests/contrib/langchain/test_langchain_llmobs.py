@@ -340,7 +340,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         index_name = "langchain-retrieval"
         namespace = "langchain-retrieval"
         vectorstore = langchain_pinecone.PineconeVectorStore(
-            pinecone_api_key="859e6f54-e85e-44c0-a199-960c93f6b43a",
+            pinecone_api_key="<not-a-real-key>",
             index_name=index_name,
             embedding=embedding,
             namespace=namespace,

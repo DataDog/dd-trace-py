@@ -159,5 +159,7 @@ def langchain_pinecone(ddtrace_config_langchain, mock_logs, mock_metrics, langch
     ):
         try:
             import langchain_pinecone
+
+            yield langchain_pinecone
         except ImportError:
             yield
