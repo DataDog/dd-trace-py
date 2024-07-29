@@ -173,7 +173,6 @@ def generate_release_notes(branch: str) -> str:
 def create_release_notes_sections(rn_raw, branch):
     # get anything in unreleased section in case there were updates since the last RC
     unreleased = clean_release_notes(rn_raw)
-    print(unreleased)
     unreleased = break_into_release_sections(unreleased)
     try:
         unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
@@ -233,7 +232,6 @@ def _commit_from(ref: str) -> str:
 
 
 def create_draft_release_github(release_parameters: ReleaseParameters):
-    # XXX
     base_commit = _commit_from(release_parameters.ref)
     print_release_notes = bool(os.getenv("PRINT"))
     if print_release_notes:
