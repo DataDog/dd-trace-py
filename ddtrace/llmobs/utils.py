@@ -2,6 +2,8 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+from pydantic import BaseModel
+
 
 # TypedDict was added to typing in python 3.8
 try:
@@ -16,7 +18,27 @@ log = get_logger(__name__)
 
 DocumentType = Dict[str, Union[str, int, float]]
 
-ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
+
+class MetaIO(BaseModel):
+    value: str
+    # (TODO): lievan, let Messages and Documents inherit from BaseModel
+    documents: List[DocumentType]
+    messages: List[Dict[str, str]]
+
+
+class Meta(BaseModel):
+    input: MetaIO
+    output: MetaIO
+    metadata: Dict
+
+
+class ExportedLLMObsSpan(BaseModel):
+    span_id: str
+    trace_id: str
+    meta: Meta
+    tags: Dict[str, str]
+
+
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
 

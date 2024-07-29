@@ -38,6 +38,7 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._utils import _get_llmobs_tags
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
@@ -227,26 +228,53 @@ class LLMObs(Service):
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
-        """Returns a simple representation of a span to export its span and trace IDs.
+        """Returns an exported representation of a span.
         If no span is provided, the current active LLMObs-type span will be used.
         """
-        if span:
-            try:
-                if span.span_type != SpanTypes.LLM:
-                    log.warning("Span must be an LLMObs-generated span.")
-                    return None
-                return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
-            except (TypeError, AttributeError):
-                log.warning("Failed to export span. Span must be a valid Span object.")
-                return None
-        span = cls._instance.tracer.current_span()
+        span = span if span else cls._instance.tracer.current_span()
         if span is None:
             log.warning("No span provided and no active LLMObs-generated span found.")
             return None
         if span.span_type != SpanTypes.LLM:
             log.warning("Span must be an LLMObs-generated span.")
             return None
-        return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+
+        # (TODO): lievan - how do we make this work with finished spans were these tags are already popped?
+        exported_span = ExportedLLMObsSpan()
+
+        exported_span.trace_id = "{:x}".format(span.trace_id)
+        exported_span.span_id = str(span.span_id)
+
+        metadata = span.get_tag(METADATA)
+        if metadata is not None:
+            exported_span.meta.metadata = json.loads(metadata)
+
+        input_value = span.get_tag(INPUT_VALUE)
+        if input_value is not None:
+            exported_span.meta.input.value = input_value
+
+        input_documents = span.get_tag(INPUT_DOCUMENTS)
+        if input_documents is not None:
+            exported_span.meta.input.documents = json.loads(input_documents)
+
+        input_messages = span.get_tag(INPUT_MESSAGES)
+        if input_messages is not None:
+            exported_span.meta.input.messages = json.loads(input_messages)
+
+        output_value = span.get_tag(OUTPUT_VALUE)
+        if output_value is not None:
+            exported_span.meta.output.value = output_value
+
+        output_documents = span.get_tag(OUTPUT_DOCUMENTS)
+        if output_documents is not None:
+            exported_span.meta.output.documents = json.loads(output_documents)
+
+        output_messages = span.get_tag(OUTPUT_MESSAGES)
+        if output_messages is not None:
+            exported_span.meta.output.messages = json.loads(output_messages)
+
+        exported_span.tags = _get_llmobs_tags(span, ml_app=_get_ml_app(span), session_id=_get_session_id(span))
+        return exported_span
 
     def _start_span(
         self,

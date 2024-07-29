@@ -5,9 +5,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-import ddtrace
 from ddtrace import Span
-from ddtrace import config
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -30,8 +28,8 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._utils import _get_llmobs_tags
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
@@ -103,36 +101,17 @@ class LLMObsTraceProcessor(TraceProcessor):
         span.set_tag_str(SESSION_ID, session_id)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
         span._meta.pop(PARENT_ID_KEY, None)
+        tags = _get_llmobs_tags(span, ml_app=ml_app, session_id=session_id)
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "session_id": session_id,
             "name": _get_span_name(span),
-            "tags": self._llmobs_tags(span, ml_app=ml_app, session_id=session_id),
+            "tags": ["{}:{}".format(k, v) for k, v in tags.items()],
             "start_ns": span.start_ns,
             "duration": span.duration_ns,
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
         }
-
-    @staticmethod
-    def _llmobs_tags(span: Span, ml_app: str, session_id: str) -> List[str]:
-        tags = {
-            "version": config.version or "",
-            "env": config.env or "",
-            "service": span.service or "",
-            "source": "integration",
-            "ml_app": ml_app,
-            "session_id": session_id,
-            "ddtrace.version": ddtrace.__version__,
-            "error": span.error,
-        }
-        err_type = span.get_tag(ERROR_TYPE)
-        if err_type:
-            tags["error_type"] = err_type
-        existing_tags = span._meta.pop(TAGS, None)
-        if existing_tags is not None:
-            tags.update(json.loads(existing_tags))
-        return ["{}:{}".format(k, v) for k, v in tags.items()]
