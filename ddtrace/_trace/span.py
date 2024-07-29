@@ -72,6 +72,10 @@ class SpanEvent:
             d["attributes"] = self.attributes
         return d
 
+    def __str__(self):
+        attrs_str = ",".join([f"{k}:{v}" for k, v in self.attributes.items()])
+        return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
+
 
 log = get_logger(__name__)
 
@@ -569,6 +573,8 @@ class Span(object):
             ("error", self.error),
             ("tags", dict(sorted(self._meta.items()))),
             ("metrics", dict(sorted(self._metrics.items()))),
+            ("links", ", ".join([str(link) for _, link in self._links.items()])),
+            ("events", ", ".join([str(e) for e in self._events])),
         ]
         return " ".join(
             # use a large column width to keep pprint output on one line
