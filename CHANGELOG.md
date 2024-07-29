@@ -19,7 +19,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - redis: Resolves an issue in the `redis` exception handling where an `UnboundLocalError` was raised instead of the expected `BaseException`.
 - Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.
 - langchain: Fixes an issue of `langchain` patching errors due to the `langchain-community` module becoming an optional dependency in `langchain>=0.2.0`. The `langchain` integration now conditionally patches `langchain-community` methods if it is available. See the langchain integration docs for more details.
-- ASM:  Resolves an issue where ASM one click feature could fail to deactivate ASM.
+- ASM: Resolves an issue where ASM one click feature could fail to deactivate ASM.
 
 
 ---
