@@ -555,7 +555,7 @@ setup(
         "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
+    setup_requires=["setuptools<72.0.0", "setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=ext_modules
     + cythonize(
         [
