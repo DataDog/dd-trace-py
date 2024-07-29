@@ -1,5 +1,5 @@
-from ddtrace.contrib.grpc import get_version
 from ddtrace.contrib.grpc import patch
+from ddtrace.contrib.grpc.patch import _get_version
 from tests.contrib.patch import PatchTestCase
 
 
@@ -8,7 +8,7 @@ class TestGRPCPatch(PatchTestCase.Base):
     __module_name__ = "grpc"
     __patch_func__ = patch
     __unpatch_func__ = None
-    __get_version__ = get_version
+    __get_version__ = _get_version
 
     def assert_module_patched(self, grpc):
         # Client Wrapping

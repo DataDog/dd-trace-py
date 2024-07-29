@@ -1,4 +1,4 @@
-from ddtrace.contrib.httplib.patch import get_version
+from ddtrace.contrib.httplib.patch import _get_version
 from ddtrace.contrib.httplib.patch import patch
 
 
@@ -14,7 +14,7 @@ class TestHttplibPatch(PatchTestCase.Base):
     __module_name__ = "http.client"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
-    __get_version__ = get_version
+    __get_version__ = _get_version
 
     def assert_module_patched(self, http_client):
         pass
@@ -26,6 +26,6 @@ class TestHttplibPatch(PatchTestCase.Base):
         pass
 
     def test_and_emit_get_version(self):
-        version = get_version()
+        version = _get_version()
         assert type(version) == str
         assert version == ""

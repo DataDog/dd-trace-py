@@ -11,7 +11,7 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.httplib import patch
 from ddtrace.contrib.httplib import unpatch
-from ddtrace.contrib.httplib.patch import should_skip_request
+from ddtrace.contrib.httplib.patch import _should_skip_request
 from ddtrace.ext import http
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
@@ -107,26 +107,26 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.tracer.enabled = True
         request = self.get_http_connection(SOCKET)
         pin = Pin.get_from(request)
-        self.assertFalse(should_skip_request(pin, request))
+        self.assertFalse(_should_skip_request(pin, request))
 
         # Disabled Pin and non-internal request
         self.tracer.enabled = False
         request = self.get_http_connection(SOCKET)
         pin = Pin.get_from(request)
-        self.assertTrue(should_skip_request(pin, request))
+        self.assertTrue(_should_skip_request(pin, request))
 
         # Enabled Pin and internal request
         self.tracer.enabled = True
         parsed = parse.urlparse(self.tracer.agent_url)
         request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
-        self.assertTrue(should_skip_request(pin, request))
+        self.assertTrue(_should_skip_request(pin, request))
 
         # Disabled Pin and internal request
         self.tracer.enabled = False
         request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
-        self.assertTrue(should_skip_request(pin, request))
+        self.assertTrue(_should_skip_request(pin, request))
 
     def test_httplib_request_get_request_no_ddtrace(self):
         """
