@@ -77,7 +77,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - redis: This fix resolves an issue in the redis exception handling where an UnboundLocalError was raised instead of the expected BaseException.
 - ASM: This fix resolves an issue where the requests integration would not propagate when apm is opted out (i.e. in ASM Standalone).
 - profiling: Fixes an issue where task information coming from echion was encoded improperly, which could segfault the application.
-- tracing: fixes a potential crash where using partial flushes and `tracer.configure()` could result in an IndexError
+- tracing: Fixes a potential crash where using partial flushes and `tracer.configure()` could result in an `IndexError`.
 - flask: Fix scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
 - wsgi: Ensures the status of wsgi Spans are not set to error when a `StopIteration` exception is raised marked the span as an error. With this change, `StopIteration` exceptions in this context will be ignored.
 - langchain: tag non-dict inputs to LCEL chains appropriately. Non-dict inputs are stringified, and dict inputs are tagged by key-value pairs.
