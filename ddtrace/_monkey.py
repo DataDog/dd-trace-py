@@ -59,6 +59,7 @@ PATCH_MODULES = {
     "kafka": True,
     "langgraph": True,
     "litellm": True,
+    "aiokafka": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -167,16 +168,6 @@ _MODULES_FOR_CONTRIB = {
     "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
-    "google_adk": ("google.adk",),
-    "google_generativeai": ("google.generativeai",),
-    "google_genai": ("google.genai",),
-    "langchain": ("langchain_core",),
-    "langgraph": (
-        "langgraph",
-        "langgraph.graph",
-        "langgraph.prebuilt",
-    ),
-    "openai_agents": ("agents",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}
