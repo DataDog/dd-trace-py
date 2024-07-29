@@ -128,7 +128,7 @@ def non_auto_commit_consumer(tracer, kafka_topic):
 def test_send_single_server(dummy_tracer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
     producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-    producer.flush()
+    producer.close()
 
     traces = dummy_tracer.pop_traces()
     assert 1 == len(traces)
@@ -141,7 +141,7 @@ def test_send_multiple_servers(dummy_tracer, kafka_topic):
     producer = kafka.KafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS] * 3)
     Pin.override(producer, tracer=dummy_tracer)
     producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-    producer.flush()
+    producer.close()
 
     traces = dummy_tracer.pop_traces()
     assert 1 == len(traces)
@@ -153,7 +153,7 @@ def test_send_multiple_servers(dummy_tracer, kafka_topic):
 def test_send_none_key(dummy_tracer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
     producer.send(kafka_topic, value=PAYLOAD, key=None)
-    producer.flush()
+    producer.close()
 
     traces = dummy_tracer.pop_traces()
     assert 1 == len(traces), "key=None does not cause send() call to raise an exception"
@@ -168,14 +168,14 @@ def test_message(producer, tombstone, kafka_topic):
             producer.send(kafka_topic, value=None, key=KEY)
         else:
             producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-        producer.flush()
+        producer.close()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_commit_with_poll(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-        producer.flush()
+        producer.close()
         result = consumer.poll(1000)
         assert len(result) == 1
         for topic_partition in result:
@@ -187,7 +187,7 @@ def test_commit_with_poll_single_message(dummy_tracer, producer, consumer, kafka
     Pin.override(consumer, tracer=dummy_tracer)
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-        producer.flush()
+        producer.close()
         # One message is consumed and one span is generated.
         result = consumer.poll(timeout_ms=1000, max_records=1)
         assert len(result) == 1
@@ -209,7 +209,7 @@ def test_commit_with_poll_multiple_messages(dummy_tracer, producer, consumer, ka
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-        producer.flush()
+        producer.close()
         # Two messages are consumed but only ONE span is generated
         result = consumer.poll(timeout_ms=1000, max_records=2)
         assert len(result) == 1
@@ -232,7 +232,7 @@ def test_commit_with_poll_multiple_messages(dummy_tracer, producer, consumer, ka
 def test_async_commit(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-        producer.flush()
+        producer.close()
         result = consumer.poll(1000)
         assert len(result) == 1
         topic_partition = list(result.keys())[0]
@@ -273,7 +273,7 @@ def test_does_not_trace_empty_poll_when_disabled(dummy_tracer, consumer, produce
 
         # Test for non-empty poll right after
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-        producer.flush()
+        producer.close()
 
         result = None
         while result is None:
