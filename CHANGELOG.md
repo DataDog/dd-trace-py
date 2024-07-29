@@ -8,7 +8,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### New Features
 
-- - botocore: Adds support for overriding the default service name in botocore by either setting the environment variable `DD_BOTOCORE_SERVICE` or configuring it via <span class="title-ref">ddtrace.config.botocore\["service"\]</span>.
+- botocore: Adds support for overriding the default service name in botocore by either setting the environment variable `DD_BOTOCORE_SERVICE` or configuring it via <span class="title-ref">ddtrace.config.botocore\["service"\]</span>.
 - Database Monitoring: Adds Database Monitoring (DBM) trace propagation for postgres databases used through Django.
 - Anthropic: Adds support for tracing message calls using tools.
 - LLM Observability: Adds support for tracing Anthropic messages using tool calls.
@@ -53,14 +53,17 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
       OTEL_SDK_DISABLED -> DD_TRACE_OTEL_ENABLED
 
 - otel: adds support for generating Datadog trace metrics using OpenTelemetry instrumentations
+
 ### Known Issues
 
 - Code Security: Security tracing for the `builtins.open` function is experimental and may not be stable. This aspect is not replaced by default.
 - grpc: Tracing for the `grpc.aio` clients and servers is experimental and may not be stable. This integration is now disabled by default.
+
 ### Deprecation Notes
 
 - Removes the deprecated sqlparse dependency.
 - LLM Observability: `DD_LLMOBS_APP_NAME` is deprecated and will be removed in the next major version of ddtrace. As an alternative to `DD_LLMOBS_APP_NAME`, you can use `DD_LLMOBS_ML_APP` instead. See the [SDK setup documentation](https://docs.datadoghq.com/tracing/llm_observability/sdk/#setup) for more details on how to configure the LLM Observability SDK.
+
 ### Bug Fixes
 
 - Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.
@@ -101,6 +104,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - RemoteConfig: This fix resolves an issue where remote config did not work for the tracer when using an agent that would add a flare item to the remote config payload. With this fix, the tracer will now correctly pull out the lib_config we need from the payload in order to implement remote config changes properly.
 - opentelemetry: Records exceptions on spans in a manner that is consistent with the [otel specification](https://opentelemetry.io/docs/specs/otel/trace/exceptions/#recording-an-exception)
 - tracing: Ensures W3C tracecontext headers take precedence over all other header formats when incoming headers reference different spans in the same trace.
+
 ### Other Changes
 
 - LLM Observability: the SDK allowed users to submit an unsupported <span class="title-ref">numerical</span> evaluation metric type. All evaluation metric types submitted with <span class="title-ref">numerical</span> type will now be automatically converted to a <span class="title-ref">score</span> type. As an alternative to using the <span class="title-ref">numerical type, use \`score</span> instead.
