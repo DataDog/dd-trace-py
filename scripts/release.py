@@ -146,8 +146,11 @@ def create_release_draft(dd_repo, base, rc, patch):
     return parameters.name, parameters.rn
 
 
-def clean_release_notes(rn_raw: str) -> str:
+def clean_release_notes(rn_raw: bytes) -> str:
     """removes everything from the given string except for release notes that haven't been released yet"""
+    import pdb
+
+    pdb.set_trace()
     return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
 
