@@ -141,11 +141,11 @@ class Span(OtelSpan):
         ts = TraceState.from_header([ts_str])
 
         if self._ddspan.context.sampling_priority is None:
-            # With the introduction of lazy sampling, spans are now sampled on finished. With this change
-            # the active trace_id and span_id could be propagated to nother proccess before a sampling
-            # decision waa made. Since the default sampling decision is to unsample spans this can result
-            # in missing spans. To resolve this issue, we will make a sampling decision the first time
-            # span context is accessed.
+            # With the introduction of lazy sampling, spans are now sampled on serialization. With this change
+            # a spans trace flags could be propagated before a sampling
+            # decision is made. Since the default sampling decision is to unsample spans this can result
+            # in missing spans. To resolve this issue, a sampling decision must be made the first time
+            # the span context is accessed.
             ddtracer.sample(self._ddspan)
 
         if self._ddspan.context.sampling_priority > 0:
