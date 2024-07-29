@@ -16,6 +16,9 @@ from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
 
 
+TEST_TABLE = "test_table"
+
+
 class TestTracedAsyncCursor(AsyncioTestCase):
     def setUp(self):
         super(TestTracedAsyncCursor, self).setUp()
@@ -94,6 +97,37 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         traced_cursor = TracedAsyncCursor(cursor, pin, {})
         assert "__result__" == await traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
         cursor.fetchone.assert_called_once_with("arg_1", kwarg1="kwarg1")
+
+    @mark_asyncio
+    async def test_cursor_async_connection(self):
+        """Checks whether connection can execute operations with async iteration."""
+
+        cursor = self.cursor
+        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
+        traced_cursor = TracedAsyncCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+        async with traced_cursor as cursor:
+            await cursor.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
+            await cursor.execute(
+                """CREATE TABLE {} (
+                        a INT,
+                        b VARCHAR(32)
+                        )
+                        """.format(
+                    TEST_TABLE
+                )
+            )
+            await cursor.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+            await cursor.execute("INSERT INTO {} (a, b) VALUES (2, 'bb');".format(TEST_TABLE))
+            await cursor.execute("INSERT INTO {} (a, b) VALUES (3, 'cc');".format(TEST_TABLE))
+
+            count = 1
+            async for row in cursor:
+                assert row[0] == count
+                count += 1
+                spans = self.get_spans()
+                assert spans
+                span = spans[0]
+                assert span.service == "dbapi_service", "Service from pin"
 
     @mark_asyncio
     async def test_fetchall_wrapped_is_called_and_returned(self):
