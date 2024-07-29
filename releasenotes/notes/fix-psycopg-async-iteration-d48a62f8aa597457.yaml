@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixes issue of psycopg async iterator previously not returning objects, by implementing async generator.
+    psycopg: Fixes issue of psycopg async iterator previously not returning objects, by implementing async generator.
