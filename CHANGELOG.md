@@ -87,7 +87,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - ASM: protect against potentially returning `None` when tainting a gRPC message.
 - botocore: This fix adds additional key name checking and appropriate defaults for responses from Cohere and Amazon models.
 - Tracer: This fix resolves an issue where importing `asyncio` after a trace has already been started will reset the currently active span.
-- CI Visibility: fixes that traces were not properly being sent in agentless mode, and were otherwise not properly attached to the test that started them
+- CI Visibility: Fixes traces that were not properly being sent in agentless mode, and were otherwise not properly attached to the test that started them
 - fix(grpc): This fix a bug in the grpc.aio support specific to streaming responses.
 - openai: This fix resolves an issue where specifying `n=None` for streamed chat completions resulted in a `TypeError`.
 - openai: This fix removes patching for the edits and fine tunes endpoints, which have been removed from the OpenAI API.
