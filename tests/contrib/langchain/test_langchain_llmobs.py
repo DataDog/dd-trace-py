@@ -358,7 +358,8 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                     {
                         "id": 13,
                         "title": "Alan Turing",
-                        "text": "A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificial intelli...",
+                        "text": "A brilliant mathematician and cryptographer Alan was to become the founder of "
+                        "modern-day computer science and artificial intelli...",
                     }
                 ],
                 tags={"ml_app": ""},
