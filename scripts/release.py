@@ -212,7 +212,7 @@ def break_into_release_sections(rn):
 def _commit_from(ref: str) -> str:
     try:
         branch = dd_repo.get_branch(branch=ref)
-    except GithubException.GithubException as exc:
+    except GithubException as exc:
         if exc._GithubException__status == 404:
             pass
     else:
@@ -220,7 +220,7 @@ def _commit_from(ref: str) -> str:
 
     try:
         tag = next((x for x in dd_repo.get_tags() if x.name == ref))
-    except (GithubException.GithubException, StopIteration) as exc:
+    except (GithubException, StopIteration) as exc:
         if isinstance(exc, StopIteration) or exc._GithubException__status == 404:
             pass
     else:
