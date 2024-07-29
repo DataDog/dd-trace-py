@@ -3173,6 +3173,19 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="aiokafka",
+            command="pytest {cmdargs} tests/contrib/aiokafka/",
+            pys=select_pys(),
+            env={
+                "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
+                "DD_DATA_STREAMS_ENABLED": "true",
+            },
+            pkgs={
+                "pytest-randomly": latest,
+                "aiokafka": latest,
+            },
+        ),
+        Venv(
             name="aws_lambda",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.8", max_version="3.13"),
