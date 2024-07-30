@@ -711,8 +711,14 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     @staticmethod
     def _call_openai_embedding(OpenAIEmbeddings):
         embedding = OpenAIEmbeddings()
-        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_embedding_query.yaml"):
-            embedding.embed_query("hello world")
+        with mock.patch("langchain_openai.embeddings.base.tiktoken.encoding_for_model") as mock_encoding_for_model:
+            mock_encoding = mock.MagicMock()
+            mock_encoding_for_model.return_value = mock_encoding
+            mock_encoding.encode.return_value = [0.0] * 1536
+            with get_request_vcr(subdirectory_name="langchain_community").use_cassette(
+                "openai_embedding_query_integration.yaml"
+            ):
+                embedding.embed_query("hello world")
 
     @staticmethod
     def _call_anthropic_chat(Anthropic):
