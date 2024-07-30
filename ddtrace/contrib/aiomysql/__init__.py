@@ -36,15 +36,15 @@ To configure the integration on an per-connection basis use the
     await cur.execute("SELECT 6*7 AS the_answer;")
 """
 
-from ...internal.utils.importlib import require_modules
+from ..internal.utils.importlib import require_modules
 
 
 required_modules = ["aiomysql"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from ...internal.aiomysql.patch import get_version
-        from ...internal.aiomysql.patch import patch
-        from ...internal.aiomysql.patch import unpatch
+        from ..internal.aiomysql.patch import get_version
+        from ..internal.aiomysql.patch import patch
+        from ..internal.aiomysql.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

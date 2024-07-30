@@ -1,6 +1,6 @@
 from ddtrace.vendor.debtcollector import deprecate
 
-from ...internal.aiomysql.patch import *  # noqa: F401,F403
+from ..internal.aiomysql.patch import *  # noqa: F401,F403
 
 
 deprecate(

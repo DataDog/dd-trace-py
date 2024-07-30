@@ -22,7 +22,7 @@ required_modules = ["aiopg"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from ...internal.aiopg.patch import get_version
-        from ...internal.aiopg.patch import patch
+        from ..internal.aiopg.patch import get_version
+        from ..internal.aiopg.patch import patch
 
         __all__ = ["patch", "get_version"]

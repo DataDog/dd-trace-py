@@ -16,7 +16,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
-from .. import trace_utils
+from ... import trace_utils
 
 
 AIOPG_VERSION = parse_version(__version__)
