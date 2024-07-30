@@ -188,17 +188,25 @@ def test_commit_with_poll(producer, consumer, kafka_topic):
 
 
 def test_commit_with_poll_single_message(dummy_tracer, producer, consumer, kafka_topic):
+    logger.debug("Starting test_commit_with_poll_single_message")
     Pin.override(consumer, tracer=dummy_tracer)
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
-        producer.send(kafka_topic, value=PAYLOAD, key=KEY)
+        logger.debug("Sending data")
+        res = producer.send(kafka_topic, value=PAYLOAD, key=KEY)
+        logger.debug("data results %s", res)
+        logger.debug("Closing producer")
         producer.close()
+        logger.debug("Producer closed")
         # One message is consumed and one span is generated.
+        logger.debug("Starting poll")
         result = consumer.poll(timeout_ms=1000, max_records=1)
+        logger.debug("Poll finished %s", result)
         assert len(result) == 1
         topic_partition = list(result.keys())[0]
         assert len(result[topic_partition]) == 1
         consumer.commit({topic_partition: OffsetAndMetadata(result[topic_partition][0].offset + 1, "")})
-
+    logger.debug("Kafka part finished")
+    logger.debug("Starting datadog span assertions")
     traces = dummy_tracer.pop_traces()
     assert len(traces) == 1
 
@@ -206,6 +214,7 @@ def test_commit_with_poll_single_message(dummy_tracer, producer, consumer, kafka
     assert span.name == "kafka.consume"
     assert span.get_tag("kafka.received_message") == "True"
     Pin.override(consumer, tracer=dummy_tracer)
+    logger.debug("Test finished")
 
 
 def test_commit_with_poll_multiple_messages(dummy_tracer, producer, consumer, kafka_topic):
