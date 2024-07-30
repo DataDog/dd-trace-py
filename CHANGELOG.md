@@ -4,6 +4,171 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.10.1
+
+
+### Bug Fixes
+
+- langchain: This fix resolves an issue where the wrong langchain class name was being used to check for Pinecone vectorstore instances.
+- opentelemetry: Resolves circular imports raised by the OpenTelemetry API when the `ddcontextvars_context` entrypoint is loaded. This resolves an incompatibility introduced in `opentelemetry-api==1.25.0`.
+- opentelemetry: Resolves an issue where the `get_tracer` function would raise a `TypeError` when called with the `attribute` argument. This resolves an incompatibility introduced in `opentelemetry-api==1.26.0`.
+- ASM: This fix resolves an issue where ASM one click feature could fail to deactivate ASM.
+
+
+---
+
+
+## 2.10.0
+
+### New Features
+
+- botocore: Adds support for overriding the default service name in botocore by either setting the environment variable `DD_BOTOCORE_SERVICE` or configuring it via `ddtrace.config.botocore["service"]`.
+- Database Monitoring: Adds Database Monitoring (DBM) trace propagation for postgres databases used through Django.
+- Anthropic: Adds support for tracing message calls using tools.
+- LLM Observability: Adds support for tracing Anthropic messages using tool calls.
+- azure: Removes the restrictions on the tracer to only run the mini-agent on the consumption plan. The mini-agent now runs regardless of the hosting plan
+- Anthropic: Adds support for tracing synchronous and asynchronous message streaming.
+- LLM Observability: Adds support for tracing synchronous and asynchronous message streaming.
+- SSI: Introduces generic safeguards for automatic instrumentation when using single step install in the form of early exit conditions. Early exit from instrumentation is triggered if a version of software in the environment is not explicitly supported by ddtrace. The Python runtime itself and many Python packages are checked for explicit support on the basis of their version.
+- langchain: Introduces support for `langchain==0.2.0` by conditionally patching the `langchain-community` module if available, which is an optional dependency for `langchain>=0.2.0`. See the langchain integration docs for more details.
+- LLM Observability: Adds support to automatically submit Anthropic chat messages to LLM Observability.
+
+- tracer: This introduces the tracer flare functionality. Currently the tracer flare includes the tracer logs and tracer configurations.
+
+- Code Security: Expands SSRF vulnerability support for Code Security and Exploit Prevention for the modules `urllib3`, `http.client`, `webbrowser` and `urllib.request`.
+
+- ASM: This introduces full support for exploit prevention in the python tracer.  
+  - LFI (via standard API open)
+  - SSRF (via standard API urllib or third party requests)
+
+  with monitoring and blocking feature, telemetry and span metrics reports.
+
+- ASM: This introduces SQL injection support for exploit prevention.
+
+- anthropic: This introduces tracing support for anthropic chat messages.  
+  See [the docs](https://ddtrace.readthedocs.io/en/stable/integrations.html#anthropic) for more information.
+
+- ASM: This introduces "Standalone ASM", a feature that disables APM in the tracer but keeps ASM enabled. In order to enable it, set the environment variables `DD_APPSEC_ENABLED=1` and `DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED=1`.
+
+- LLM Observability: This introduces the LLM Observability SDK, which enhances the observability of Python-based LLM applications. See the [LLM Observability Overview](https://docs.datadoghq.com/tracing/llm_observability/) or the [SDK documentation](https://docs.datadoghq.com/tracing/llm_observability/sdk) for more information about this feature.
+
+- opentelemetry: Adds support for span events.
+
+- tracing: Ensures the following OpenTelemetry environment variables are mapped to an equivalent Datadog configuration (datadog environment variables taking precedence in cases where both are configured):
+
+      OTEL_SERVICE_NAME -> DD_SERVICE
+      OTEL_LOG_LEVEL -> DD_TRACE_DEBUG
+      OTEL_PROPAGATORS -> DD_TRACE_PROPAGATION_STYLE
+      OTEL_TRACES_SAMPLER -> DD_TRACE_SAMPLE_RATE
+      OTEL_TRACES_EXPORTER -> DD_TRACE_ENABLED
+      OTEL_METRICS_EXPORTER -> DD_RUNTIME_METRICS_ENABLED
+      OTEL_LOGS_EXPORTER -> none
+      OTEL_RESOURCE_ATTRIBUTES -> DD_TAGS
+      OTEL_SDK_DISABLED -> DD_TRACE_OTEL_ENABLED
+
+- otel: Adds support for generating Datadog trace metrics using OpenTelemetry instrumentations
+
+### Known Issues
+
+- Code Security: Security tracing for the `builtins.open` function is experimental and may not be stable. This aspect is not replaced by default.
+- grpc: Tracing for the `grpc.aio` clients and servers is experimental and may not be stable. This integration is now disabled by default.
+
+### Deprecation Notes
+
+- Removes the deprecated sqlparse dependency.
+- LLM Observability: `DD_LLMOBS_APP_NAME` is deprecated and will be removed in the next major version of ddtrace. As an alternative to `DD_LLMOBS_APP_NAME`, you can use `DD_LLMOBS_ML_APP` instead. See the [SDK setup documentation](https://docs.datadoghq.com/tracing/llm_observability/sdk/#setup) for more details on how to configure the LLM Observability SDK.
+
+### Bug Fixes
+
+- Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.
+- redis: This fix resolves an issue in redis utils where a variable may not be declared within a try/catch
+
+- Code Security: Adds the `boto` package to the IAST patching denylist.
+- celery: Changes `error.message` span tag to no longer include the traceback that is already included in the `error.stack` span tag.
+- CI Visibility: Fixes source file information that would be incorrect in certain decorated / wrapped scenarios and forces paths to be relative to the repository root, if present.
+- LLM Observability: This resolves a typing hint error in the `ddtrace.llmobs.utils.Documents` helper class constructor where type hints did not accept input dictionaries with integer or float values.
+- LLM Observability: This fix resolves an issue where the OpenAI, Anthropic, and AWS Bedrock integrations were always setting `temperature` and `max_tokens` parameters to LLM invocations. The OpenAI integration in particular was setting the wrong `temperature` default values. These parameters are now only set if provided in the request.
+- redis: This fix resolves an issue in the redis exception handling where an UnboundLocalError was raised instead of the expected BaseException.
+- ASM: This fix resolves an issue where the requests integration would not propagate when apm is opted out (i.e. in ASM Standalone).
+- profiling: Fixes an issue where task information coming from echion was encoded improperly, which could segfault the application.
+- tracing: Fixes a potential crash where using partial flushes and `tracer.configure()` could result in an `IndexError`.
+- flask: Fixes scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
+- wsgi: Ensures the status of wsgi Spans are not set to error when a `StopIteration` exception is raised marked the span as an error. With this change, `StopIteration` exceptions in this context will be ignored.
+- langchain: Tags non-dict inputs to LCEL chains appropriately. Non-dict inputs are stringified, and dict inputs are tagged by key-value pairs.
+- langchain: Fixes an issue of langchain patching errors due to the `langchain-community` module becoming an optional dependency in `langchain>=0.2.0`. The langchain integration now conditionally patches `langchain-community` methods if it is available. See the langchain integration docs for more details.
+
+- ASM: This fix resolves an issue where an org could not customize actions through remote config.
+- ASM: Protects against potentially returning `None` when tainting a gRPC message.
+- botocore: This fix adds additional key name checking and appropriate defaults for responses from Cohere and Amazon models.
+- Tracer: This fix resolves an issue where importing `asyncio` after a trace has already been started will reset the currently active span.
+- CI Visibility: Fixes traces that were not properly being sent in agentless mode, and were otherwise not properly attached to the test that started them
+- grpc: Fixes a bug in the `grpc.aio` support specific to streaming responses.
+- openai: This fix resolves an issue where specifying `n=None` for streamed chat completions resulted in a `TypeError`.
+- openai: This fix removes patching for the edits and fine tunes endpoints, which have been removed from the OpenAI API.
+- openai: This fix resolves an issue where streamed OpenAI responses raised errors when being used as context managers.
+- tracing: Ensures span links generated by distributed tracing headers record the correct sampling decision.
+- telemetry: This fix resolves an issue when using `pytest` + `gevent` where the telemetry writer was eager initialized by `pytest` entrypoints loading of our plugin causing a potential dead lock.
+- tracing: Fixes an issue where `DD_TRACE_SPAN_TRACEBACK_MAX_SIZE` was not applied to exception tracebacks.
+- Code Security: This fixes a bug in the AST patching process where `ImportError` exceptions were being caught, interfering with the proper application cycle if an `ImportError` was expected."
+- Code Security: Ensure IAST propagation does not raise side effects related to Magic methods.
+- Code Security: Fixes a potential memory corruption when the context was reset.
+- langchain: This fix resolves an issue where specifying inputs as a keyword argument for batching on chains caused a crash.
+- Code Security: Avoids calling terminate on the extend and join aspect when an exception is raised.
+- tracing: Ensures spans are rate limited at the expected rate (100 spans per second by default). Previously long running spans would set the rate limiter to set an invalid window and this could cause the next trace to be dropped.
+- RemoteConfig: This fix resolves an issue where remote config did not work for the tracer when using an agent that would add a flare item to the remote config payload. With this fix, the tracer will now correctly pull out the lib_config we need from the payload in order to implement remote config changes properly.
+- opentelemetry: Records exceptions on spans in a manner that is consistent with the [otel specification](https://opentelemetry.io/docs/specs/otel/trace/exceptions/#recording-an-exception)
+- tracing: Ensures W3C tracecontext headers take precedence over all other header formats when incoming headers reference different spans in the same trace.
+
+### Other Changes
+
+- LLM Observability: The SDK allowed users to submit an unsupported `numerical` evaluation metric type. All evaluation metric types submitted with `numerical` type will now be automatically converted to a `score` type. As an alternative to using the `numerical` type, use `score` instead.
+
+- lib-injection: Updates base Alpine image to 3.20.
+
+---
+
+## 2.9.4
+
+
+### Bug Fixes
+
+- langchain: This fix resolves an issue where the wrong langchain class name was being used to check for Pinecone vectorstore instances.
+- opentelemetry: Resolves circular imports raised by the OpenTelemetry API when the `ddcontextvars_context` entrypoint is loaded. This resolves an incompatibility introduced in `opentelemetry-api==1.25.0`.
+- opentelemetry: Resolves an issue where the `get_tracer` function would raise a `TypeError` when called with the `attribute` argument. This resolves an incompatibility introduced in `opentelemetry-api==1.26.0`.
+- redis: Resolves an issue in the `redis` exception handling where an `UnboundLocalError` was raised instead of the expected `BaseException`.
+- Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.
+- langchain: Fixes an issue of `langchain` patching errors due to the `langchain-community` module becoming an optional dependency in `langchain>=0.2.0`. The `langchain` integration now conditionally patches `langchain-community` methods if it is available. See the langchain integration docs for more details.
+- langchain: Resolves incompatibilities with langchain==0.2.0
+- ASM: Resolves an issue where ASM one click feature could fail to deactivate ASM.
+
+
+---
+
+## 2.9.3
+
+
+### Bug Fixes
+
+- Code Security: Adds `encodings.idna` to the IAST patching denylist to avoid problems with gevent.
+- Code Security: Adds the boto package to the IAST patching denylist.
+- celery: Changes `error.message` span tag to no longer include the traceback that is already included in the `error.stack` span tag.
+- CI Visibility: Fixes source file information that would be incorrect in certain decorated / wrapped scenarios, and forces paths to be relative to the repository root, if present.
+- LLM Observability: Resolves a typing hint error in the `ddtrace.llmobs.utils.Documents` helper class constructor where type hints did not accept input dictionaries with integer or float values.
+- LLM Observability: Resolves an issue where the OpenAI and AWS Bedrock integrations were always setting `temperature` and `max_tokens` parameters to LLM invocations. The OpenAI integration in particular was setting the wrong `temperature` default values. These parameters are now only set if provided in the request.
+- profiling: Fixes an issue where task information coming from `echion` was encoded improperly, which could segfault the application.
+- tracing: Fixes a potential crash where using partial flushes and `tracer.configure()` could result in an `IndexError`.
+- internal: Fixes an issue where some `pathlib` functions return `OSError`g on Windows.
+- flask: Fixes scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
+- wsgi: Ensures the status of wsgi Spans are not set to error when a `StopIteration` exception is raised marked the span as an error. With this change, `StopIteration` exceptions in this context will be ignored.
+- langchain: Tags non-dict inputs to LCEL chains appropriately. Non-dict inputs are stringified, and dict inputs are tagged by key-value pairs.
+
+### Other Changes
+
+- LLM Observability: The SDK allowed users to submit an unsupported `numerical` evaluation metric type. All evaluation metric types submitted with `numerical` type will now be automatically converted to a `score` type. As an alternative to using the `numerical` type, use `score` instead.
+
+
+---
+
 ## 2.9.1
 
 

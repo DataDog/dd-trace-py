@@ -1,0 +1,94 @@
+interactions:
+- request:
+    body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": "What is
+      the sum of 1 and 2?"}], "model": "claude-3-opus-20240229", "temperature": 1.0,
+      "tools": [{"name": "add", "description": "add(a: int, b: int) -> int - Adds
+      a and b.\n\n        Args:\n            a: first int\n            b: second int",
+      "input_schema": {"type": "object", "properties": {"a": {"type": "integer"},
+      "b": {"type": "integer"}}, "required": ["a", "b"]}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-beta:
+      - tools-2024-05-16
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '436'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.26.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.26.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages?beta=tools
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1RS0W4aMRD8ldU+H5S7Eqqcklap+tBGKipJpErtVWg5L5yLWR/2GkoQ/17dVaTh
+        yfJ4dmY9u0e0BkvcxNV8lE9/xMXsiifeHx7SeDb77KfTj4+YoR5a7lgcI60YMwzedQDFaKOSKGa4
+        8YYdllg7SoYHbwe+TXFQjIrxqCiuMcPai7Iolj+PZ0HlP11pf5R4o42VtZXV+0qePJDEPQfQhmGb
+        OKr1AhV+b0jBxh6OaQN+CTmQGCg+VJj1MBkD6r3raIEd70h0CF8UlNYcQfceAm+TDWzAivKKA7QU
+        aMPKIQL1cothJZU8NQwpcoCGIhgbuFZ3gDb4nTVsercducQRlj6cK8HKRddlJQS3kEMlC7iFohN+
+        tFIzkHM986Wd120EBtqRdbRwnMGeoSbprGtmA3urDdTknJXV5afVw4r1nM+wkps3L7niKfufvfdu
+        nmI3zX4Funuaj/K7w8LQ/VruZ7a++/1tWTxMnj99xQyFNv3MjelKpE2K5REJyzzDBZbF6fQrw6i+
+        nQem6OXSo3+IvE0sNWMpybkMU79O5fGf3Fz9miViORlfZ+iTvsbyq3en018AAAD//wMA+tNEC64C
+        AAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8a746ac97d2132d0-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 22 Jul 2024 15:20:59 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      anthropic-ratelimit-requests-limit:
+      - '4000'
+      anthropic-ratelimit-requests-remaining:
+      - '3999'
+      anthropic-ratelimit-requests-reset:
+      - '2024-07-22T15:21:35Z'
+      anthropic-ratelimit-tokens-limit:
+      - '400000'
+      anthropic-ratelimit-tokens-remaining:
+      - '400000'
+      anthropic-ratelimit-tokens-reset:
+      - '2024-07-22T15:20:59Z'
+      request-id:
+      - req_01Jb2oh3gEjmmvwkC7mdtMyi
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 8ee0e26013bdc05e50737e637ed45418
+    status:
+      code: 200
+      message: OK
+version: 1
