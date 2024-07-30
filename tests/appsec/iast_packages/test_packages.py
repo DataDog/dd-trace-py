@@ -871,12 +871,12 @@ def _assert_results(response, package):
         assert content["param"] == package.expected_param
 
     if type(content["result1"]) in (str, bytes):
-        assert content["result1"].startswith(package.expected_result1)
+        assert content["result1"].startswith(str(package.expected_result1))
     else:
         assert content["result1"] == package.expected_result1
 
     if type(content["result2"]) in (str, bytes):
-        assert content["result2"].startswith(package.expected_result2)
+        assert content["result2"].startswith(str(package.expected_result2))
     else:
         assert content["result2"] == package.expected_result2
 
