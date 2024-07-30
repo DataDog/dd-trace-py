@@ -1,6 +1,6 @@
 from ddtrace.vendor.debtcollector import deprecate
 
-from ..internal.aiohttp_jinja2.patch_module import *  # noqa: F401,F403
+from ...internal.aiohttp_jinja2.patch import *  # noqa: F401,F403
 
 
 deprecate(
