@@ -41,26 +41,25 @@ def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
     mod.sqli_simple(table)
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert span_report
-
-    assert len(span_report.vulnerabilities) == 1
-    vulnerability = list(span_report.vulnerabilities)[0]
-    source = span_report.sources[0]
-    assert vulnerability.type == VULN_SQL_INJECTION
-    assert vulnerability.evidence.valueParts == [
+    data = span_report.build_and_scrub_value_parts()
+    vulnerability = data["vulnerabilities"][0]
+    source = data["sources"][0]
+    assert vulnerability["type"] == VULN_SQL_INJECTION
+    assert vulnerability["evidence"]["valueParts"] == [
         {"value": "SELECT "},
         {"redacted": True},
         {"value": " FROM "},
         {"value": "students", "source": 0},
     ]
-    assert vulnerability.evidence.value is None
-    assert source.name == "test_ossystem"
-    assert source.origin == OriginType.PARAMETER
-    assert source.value == "students"
+    assert "value" not in vulnerability["evidence"].keys()
+    assert source["name"] == "test_ossystem"
+    assert source["origin"] == OriginType.PARAMETER
+    assert source["value"] == "students"
 
     line, hash_value = get_line_and_hash("test_sql_injection", VULN_SQL_INJECTION, filename=fixture_path)
-    assert vulnerability.location.line == line
-    assert vulnerability.location.path == fixture_path
-    assert vulnerability.hash == hash_value
+    assert vulnerability["location"]["path"] == fixture_path
+    assert vulnerability["location"]["line"] == line
+    assert vulnerability["hash"] == hash_value
 
 
 @pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
@@ -80,6 +79,6 @@ def test_sql_injection_deduplication(fixture_path, fixture_module, iast_span_ded
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
 
     assert span_report
-
-    assert len(span_report.vulnerabilities) == 1
+    data = span_report.build_and_scrub_value_parts()
+    assert len(data["vulnerabilities"]) == 1
     VulnerabilityBase._prepare_report._reset_cache()

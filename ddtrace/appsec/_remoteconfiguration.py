@@ -121,6 +121,7 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
         _add_rules_to_list(features, "rules_override", "rules override", ruleset)
         _add_rules_to_list(features, "scanners", "scanners", ruleset)
         _add_rules_to_list(features, "processors", "processors", ruleset)
+        _add_rules_to_list(features, "actions", "actions", ruleset)
         if ruleset:
             return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
 
@@ -142,30 +143,22 @@ def _preprocess_results_appsec_1click_activation(
         )
 
         rc_asm_enabled = None
-        if features is not None:
-            if APPSEC_ENV in os.environ:
-                rc_asm_enabled = asbool(os.environ.get(APPSEC_ENV))
-            elif features == {}:
-                rc_asm_enabled = False
-            else:
-                asm_features = features.get("asm", {})
-                if asm_features is not None:
-                    rc_asm_enabled = asm_features.get("enabled")
+        if features and "asm" in features:
+            rc_asm_enabled = features["asm"].get("enabled", False)
             log.debug(
                 "[%s][P: %s] ASM Remote Configuration ASM_FEATURES. Appsec enabled: %s",
                 os.getpid(),
                 os.getppid(),
                 rc_asm_enabled,
             )
-            if rc_asm_enabled is not None:
-                from ddtrace.appsec._constants import PRODUCTS
+            from ddtrace.appsec._constants import PRODUCTS
 
-                if pubsub_instance is None:
-                    pubsub_instance = (
-                        remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
-                        or remoteconfig_poller.get_registered(PRODUCTS.ASM)
-                        or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
-                    )
+            if pubsub_instance is None:
+                pubsub_instance = (
+                    remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
+                    or remoteconfig_poller.get_registered(PRODUCTS.ASM)
+                    or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+                )
 
                 if rc_asm_enabled and _appsec_rc_file_is_not_static():
                     remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
@@ -176,7 +169,7 @@ def _preprocess_results_appsec_1click_activation(
                     remoteconfig_poller.unregister(PRODUCTS.ASM)
                     remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
 
-            features["asm"] = {"enabled": rc_asm_enabled}
+            features["asm"]["enabled"] = rc_asm_enabled
     return features
 
 
@@ -194,7 +187,7 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
     | true              | true       | Enabled  |
     ```
     """
-    if _appsec_rc_features_is_enabled():
+    if _appsec_rc_features_is_enabled() and "asm" in features:
         # Tracer is a parameter for testing propose
         # Import tracer here to avoid a circular import
         if test_tracer is None:

@@ -248,6 +248,12 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns)
+{
+    sample->push_monotonic_ns(monotonic_ns);
+}
+
+void
 ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
     sample->flush_sample();

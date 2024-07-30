@@ -539,6 +539,7 @@ class AgentWriter(HTTPWriter):
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
             api_version=self._api_version,
+            headers=self._headers,
         )
 
     @property

@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    LLM Observability: ``DD_LLMOBS_APP_NAME`` is deprecated and will be removed in the next major version of ddtrace.
+    As an alternative to ``DD_LLMOBS_APP_NAME``, you can use ``DD_LLMOBS_ML_APP`` instead. See the 
+    `SDK setup documentation <https://docs.datadoghq.com/tracing/llm_observability/sdk/#setup>`_ for more details on how to configure the LLM Observability SDK.

@@ -6,6 +6,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -30,6 +31,7 @@ def mock_logs():
 
 
 def test_processor_returns_all_traces_by_default(monkeypatch):
+    monkeypatch.delenv("DD_LLMOBS_AGENTLESS_ENABLED", raising=False)
     """Test that the LLMObsTraceProcessor returns all traces by default."""
     trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
     root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
@@ -39,8 +41,8 @@ def test_processor_returns_all_traces_by_default(monkeypatch):
 
 
 def test_processor_returns_all_traces_if_no_apm_env_var_is_false(monkeypatch):
-    """Test that the LLMObsTraceProcessor returns all traces if DD_LLMOBS_NO_APM is not set to true."""
-    monkeypatch.setenv("DD_LLMOBS_NO_APM", "0")
+    """Test that the LLMObsTraceProcessor returns all traces if DD_LLMOBS_AGENTLESS_ENABLED is not set to true."""
+    monkeypatch.setenv("DD_LLMOBS_AGENTLESS_ENABLED", "0")
     trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
     root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
     root_llm_span.set_tag_str(SPAN_KIND, "llm")
@@ -49,8 +51,8 @@ def test_processor_returns_all_traces_if_no_apm_env_var_is_false(monkeypatch):
 
 
 def test_processor_returns_none_if_no_apm_env_var_is_true(monkeypatch):
-    """Test that the LLMObsTraceProcessor returns None if DD_LLMOBS_NO_APM is set to true."""
-    monkeypatch.setenv("DD_LLMOBS_NO_APM", "1")
+    """Test that the LLMObsTraceProcessor returns None if DD_LLMOBS_AGENTLESS_ENABLED is set to true."""
+    monkeypatch.setenv("DD_LLMOBS_AGENTLESS_ENABLED", "1")
     trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
     root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
     root_llm_span.set_tag_str(SPAN_KIND, "llm")
@@ -106,8 +108,8 @@ def test_set_correct_parent_id():
             with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
                 pass
     assert _get_llmobs_parent_id(root_span) is None
-    assert _get_llmobs_parent_id(child_span) is None
-    assert _get_llmobs_parent_id(grandchild_span) == root_span.span_id
+    assert _get_llmobs_parent_id(child_span) == str(root_span.span_id)
+    assert _get_llmobs_parent_id(grandchild_span) == str(root_span.span_id)
 
 
 def test_propagate_session_id_from_ancestors():
@@ -170,7 +172,7 @@ def test_session_id_propagates_ignore_non_llmobs_spans():
 
 
 def test_ml_app_tag_defaults_to_env_var():
-    """Test that no ml_app defaults to the environment variable DD_LLMOBS_APP_NAME."""
+    """Test that no ml_app defaults to the environment variable DD_LLMOBS_ML_APP."""
     dummy_tracer = DummyTracer()
     with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
@@ -182,7 +184,7 @@ def test_ml_app_tag_defaults_to_env_var():
 
 
 def test_ml_app_tag_overrides_env_var():
-    """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_APP_NAME."""
+    """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_ML_APP."""
     dummy_tracer = DummyTracer()
     with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
@@ -357,6 +359,17 @@ def test_metrics_are_set():
             llm_span.set_tag(METRICS, '{"tokens": 100}')
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)["metrics"] == {"tokens": 100}
+
+
+def test_langchain_span_name_is_set_to_class_name():
+    """Test span names for langchain auto-instrumented spans is set correctly."""
+    dummy_tracer = DummyTracer()
+    mock_llmobs_span_writer = mock.MagicMock()
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace(LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+        tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
+        assert tp._llmobs_span_event(llm_span)["name"] == "expected_name"
 
 
 def test_error_is_set():

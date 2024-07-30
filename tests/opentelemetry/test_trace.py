@@ -1,3 +1,4 @@
+import mock
 import opentelemetry
 import opentelemetry.version
 import pytest
@@ -17,24 +18,31 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
     assert isinstance(otel_compatible_tracer, opentelemetry.trace.Tracer)
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1)
-def test_otel_start_span_with_default_args(oteltracer):
-    otel_span = oteltracer.start_span("test-start-span")
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
+def test_otel_start_span_record_exception(oteltracer):
+    # Avoid mocking time_ns when Span is created. This is a workaround to resolve a rate limit bug.
+    raised_span = oteltracer.start_span("test-raised-exception")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
-        with opentelemetry.trace.use_span(
-            otel_span,
-            end_on_exit=False,
-            record_exception=False,
-            set_status_on_exception=False,
-        ):
-            otel_span.update_name("rename-start-span")
-            raise Exception("Sorry Otel Span, I failed you")
+        # Ensures that the exception is recorded with the consistent timestamp for snapshot testing
+        with mock.patch("ddtrace._trace.span.time_ns", return_value=1716560261227739000):
+            with raised_span:
+                raised_span.record_exception(ValueError("Invalid Operation 1"))
+                raise Exception("Sorry Otel Span, I failed you")
 
-    # set_status_on_exception is False
-    assert otel_span._ddspan.error == 0
-    # Since end_on_exit=False start_as_current_span should not call Span.end()
-    assert otel_span.is_recording()
-    otel_span.end()
+    with oteltracer.start_span("test-recorded-exception") as not_raised_span:
+        not_raised_span.record_exception(
+            IndexError("Invalid Operation 2"), {"exception.stuff": "thing 2"}, 1716560281337739
+        )
+        not_raised_span.record_exception(
+            Exception("Real Exception"),
+            {
+                "exception.type": "RandoException",
+                "exception.message": "MoonEar Fire!!!",
+                "exception.stacktrace": "Fake traceback",
+                "exception.details": "This is FAKE, I overwrote the real exception details",
+            },
+            1716560271237812,
+        )
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
@@ -47,22 +55,17 @@ def test_otel_start_span_without_default_args(oteltracer):
         attributes={"start_span_tag": "start_span_val"},
         links=None,
         start_time=0,
-        record_exception=True,
-        set_status_on_exception=True,
+        record_exception=False,
+        set_status_on_exception=False,
     )
-    otel_span.update_name("rename-start-span")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
-        with opentelemetry.trace.use_span(
-            otel_span,
-            end_on_exit=False,
-            record_exception=False,
-            set_status_on_exception=False,
-        ):
+        with otel_span:
+            otel_span.update_name("rename-start-span")
             raise Exception("Sorry Otel Span, I failed you")
 
     # set_status_on_exception is False
     assert otel_span._ddspan.error == 0
-    assert otel_span.is_recording()
+    assert otel_span.is_recording() is False
     assert root.is_recording()
     otel_span.end()
     root.end()
