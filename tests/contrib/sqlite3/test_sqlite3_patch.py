@@ -10,7 +10,7 @@ try:
 except ImportError:
     pass
 
-from ddtrace.contrib.sqlite3 import get_version
+from ddtrace.contrib.sqlite3 import _get_version
 from ddtrace.contrib.sqlite3.patch import patch
 
 
@@ -26,7 +26,7 @@ class TestSqlite3Patch(PatchTestCase.Base):
     __module_name__ = "sqlite3"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
-    __get_version__ = get_version
+    __get_version__ = _get_version
 
     def assert_module_patched(self, sqlite3):
         pass

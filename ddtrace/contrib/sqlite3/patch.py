@@ -6,8 +6,10 @@ import sys
 from ddtrace import config
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
@@ -33,13 +35,23 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return sqlite3.sqlite_version
 
 
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
+
+
 def patch():
-    wrapped = wrapt.FunctionWrapper(_connect, traced_connect)
+    wrapped = wrapt.FunctionWrapper(_connect, _traced_connect)
 
     sqlite3.connect = wrapped
     sqlite3.dbapi2.connect = wrapped
@@ -53,15 +65,35 @@ def unpatch():
     sqlite3.dbapi2.connect = _connect
 
 
-def traced_connect(func, _, args, kwargs):
+def _traced_connect(func, _, args, kwargs):
     conn = func(*args, **kwargs)
-    return patch_conn(conn)
+    return _patch_conn(conn)
 
 
-def patch_conn(conn):
+def traced_connect(func, _, args, kwargs):
+    deprecate(
+        "traced_connect is deprecated",
+        message="traced_connect is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_connect(func, _, args, kwargs)
+
+
+def _patch_conn(conn):
     wrapped = TracedSQLite(conn)
     Pin(tags={db.SYSTEM: "sqlite"}).onto(wrapped)
     return wrapped
+
+
+def patch_conn(conn):
+    deprecate(
+        "patch_conn is deprecated",
+        message="patch_conn is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_conn(conn)
 
 
 class TracedSQLiteCursor(TracedCursor):
