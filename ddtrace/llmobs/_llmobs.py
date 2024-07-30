@@ -47,6 +47,7 @@ from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
+from ddtrace.llmobs.utils import LLMObsSpanContext
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -227,27 +228,42 @@ class LLMObs(Service):
         log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
-    def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
-        """Returns an exported representation of a span.
-        If no span is provided, the current active LLMObs-type span will be used.
+    def export_span_context(cls, span: Optional[Span] = None) -> Optional[LLMObsSpanContext]:
+        """
+        Returns an exported representation of a span. If not span is provided, the current
+        active LLMObs-type span will be used.
+
+        :param Optional[Span] span: a span to be exported.
         """
         span = span if span else cls._instance.tracer.current_span()
         if span is None:
             log.warning("No span provided and no active LLMObs-generated span found.")
             return None
-        if span.span_type != SpanTypes.LLM:
-            log.warning("Span must be an LLMObs-generated span.")
+        try:
+            if span.span_type != SpanTypes.LLM:
+                log.warning("Span must be an LLMObs-generated span.")
+                return None
+        except (TypeError, AttributeError):
+            log.warning("Failed to export span context. `span` must be a valid Span object.")
             return None
 
-        # (TODO): lievan - how do we make this work with finished spans were these tags are already popped?
-        exported_span = ExportedLLMObsSpan()
-
-        exported_span.trace_id = "{:x}".format(span.trace_id)
-        exported_span.span_id = str(span.span_id)
+        # (TODO): lievan - how do we make this work with finished spans where these tags are already popped?
+        exported_span = LLMObsSpanContext(
+            span_id=str(span.span_id),
+            trace_id="{:x}".format(span.trace_id),
+            name=span.name,
+            parent_id=_get_llmobs_parent_id(span),
+            kind=span.get_tag(SPAN_KIND),
+            ml_app=_get_ml_app(span),
+        )
 
         metadata = span.get_tag(METADATA)
         if metadata is not None:
             exported_span.meta.metadata = json.loads(metadata)
+
+        metrics = span.get_tag(METRICS)
+        if metrics is not None:
+            exported_span.metrics = json.loads(metrics)
 
         input_value = span.get_tag(INPUT_VALUE)
         if input_value is not None:
@@ -273,8 +289,43 @@ class LLMObs(Service):
         if output_messages is not None:
             exported_span.meta.output.messages = json.loads(output_messages)
 
+        model_name = span.get_tag(MODEL_NAME)
+        if model_name is not None:
+            exported_span.meta.model_name = model_name
+
+        model_provider = span.get_tag(MODEL_PROVIDER)
+        if model_provider is not None:
+            exported_span.meta.model_provider = model_provider
+
+        session_id = span.get_tag(SESSION_ID)
+        if session_id is not None:
+            exported_span.session_id = session_id
+
         exported_span.tags = _get_llmobs_tags(span, ml_app=_get_ml_app(span), session_id=_get_session_id(span))
         return exported_span
+
+    @classmethod
+    def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
+        """Returns a simple representation of a span to export its span and trace IDs.
+        If no span is provided, the current active LLMObs-type span will be used.
+        """
+        if span:
+            try:
+                if span.span_type != SpanTypes.LLM:
+                    log.warning("Span must be an LLMObs-generated span.")
+                    return None
+                return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+            except (TypeError, AttributeError):
+                log.warning("Failed to export span. Span must be a valid Span object.")
+                return None
+        span = cls._instance.tracer.current_span()
+        if span is None:
+            log.warning("No span provided and no active LLMObs-generated span found.")
+            return None
+        if span.span_type != SpanTypes.LLM:
+            log.warning("Span must be an LLMObs-generated span.")
+            return None
+        return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
 
     def _start_span(
         self,

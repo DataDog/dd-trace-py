@@ -785,6 +785,7 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
     )
 
 
+# ===== **START** EXPORT_SPAN API TESTS =====
 def test_export_span_specified_span_is_incorrect_type_raises_warning(LLMObs, mock_logs):
     LLMObs.export_span(span="asd")
     mock_logs.warning.assert_called_once_with("Failed to export span. Span must be a valid Span object.")
@@ -815,12 +816,98 @@ def test_export_span_active_span_not_llmobs_span_raises_warning(LLMObs, mock_log
     mock_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
 
 
-def test_export_span_no_specified_span_returns_exported_active_span(LLMObs):
+# ===== **END** EXPORT_SPAN API TESTS =====
+
+
+# ===== **START** EXPORT_SPAN_CONTEXT API TESTS =====
+def test_export_span_context_specified_span_is_incorrect_type_raises_warning(LLMObs, mock_logs):
+    LLMObs.export_span_context(span="asd")
+    mock_logs.warning.assert_called_once_with("Failed to export span context. `span` must be a valid Span object.")
+
+
+def test_export_span_context_specified_span_is_not_llmobs_span_raises_warning(LLMObs, mock_logs):
+    with DummyTracer().trace("non_llmobs_span") as span:
+        LLMObs.export_span_context(span=span)
+    mock_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
+
+
+def test_export_span_context_specified_span_returns_span_context(LLMObs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        span_context = LLMObs.export_span()
+        span_context = LLMObs.export_span_context(span=span)
         assert span_context is not None
-        assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == "{:x}".format(span.trace_id)
+        assert span_context.span_id == str(span.span_id)
+        assert span_context.trace_id == "{:x}".format(span.trace_id)
+
+
+def test_export_span_context_no_specified_span_no_active_span_raises_warning(LLMObs, mock_logs):
+    LLMObs.export_span_context()
+    mock_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
+
+
+def test_export_span_context_active_span_not_llmobs_span_raises_warning(LLMObs, mock_logs):
+    with LLMObs._instance.tracer.trace("non_llmobs_span"):
+        LLMObs.export_span_context()
+    mock_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
+
+
+def test_export_span_context_no_specified_span_returns_exported_active_span(LLMObs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        span_context = LLMObs.export_span_context()
+        assert span_context is not None
+        assert span_context.span_id == str(span.span_id)
+        assert span_context.trace_id == "{:x}".format(span.trace_id)
+
+
+def test_export_span_context_of_type_llm(LLMObs):
+    input_data = [{"content": "test_input", "role": "human"}]
+    with LLMObs.llm(
+        ml_app="test_ml_app",
+        session_id="test_session_id",
+        model_name="test_model",
+        name="test_llm_call",
+        model_provider="test_provider",
+    ) as span:
+        LLMObs.annotate(
+            input_data=input_data,
+            output_data=[{"content": "test_output", "role": "assistant"}],
+            metrics={
+                "input_tokens": 10,
+            },
+            metadata={"temperature": 0.5, "stop_sequences": ["foo", "bar"]},
+        )
+        span_context = LLMObs.export_span_context()
+        assert span_context is not None
+        assert span_context.span_id == str(span.span_id)
+        assert span_context.trace_id == "{:x}".format(span.trace_id)
+        assert span_context.ml_app == "test_ml_app"
+        assert span_context.session_id == "test_session_id"
+        assert span_context.name == "test_llm_call"
+        assert span_context.kind == "llm"
+        assert span_context.meta.model_name == "test_model"
+        assert span_context.meta.model_provider == "test_provider"
+        assert span_context.meta.input.messages == input_data
+        assert span_context.meta.output.messages == [{"content": "test_output", "role": "assistant"}]
+        assert span_context.metrics == {"input_tokens": 10}
+        assert span_context.meta.metadata == {"temperature": 0.5, "stop_sequences": ["foo", "bar"]}
+
+
+def test_export_span_of_kind_workflow(LLMObs):
+    pass
+
+
+def test_export_span_of_kind_retrieval(LLMObs):
+    pass
+
+
+def test_export_span_of_kind_tool(LLMObs):
+    pass
+
+
+def test_export_span_with_no_meta(LLMObs):
+    pass
+
+
+# ===== **END** EXPORT_SPAN_CONTEXT API TESTS =====
 
 
 def test_submit_evaluation_llmobs_disabled_raises_warning(LLMObs, mock_logs):

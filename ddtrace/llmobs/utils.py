@@ -1,8 +1,10 @@
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 
 from pydantic import BaseModel
+from pydantic import ConfigDict
 
 
 # TypedDict was added to typing in python 3.8
@@ -20,25 +22,38 @@ DocumentType = Dict[str, Union[str, int, float]]
 
 
 class MetaIO(BaseModel):
-    value: str
+    value: Optional[str] = None
     # (TODO): lievan, let Messages and Documents inherit from BaseModel
-    documents: List[DocumentType]
-    messages: List[Dict[str, str]]
+    documents: Optional[List[DocumentType]] = None
+    messages: Optional[List[Dict[str, str]]] = None
 
 
 class Meta(BaseModel):
-    input: MetaIO
-    output: MetaIO
-    metadata: Dict
+    # model_* is a protected namespace in pydantic, so we need to add this line to allow
+    # for model_* fields
+    model_config = ConfigDict(protected_namespaces=())
+
+    input: MetaIO = MetaIO()
+    output: MetaIO = MetaIO()
+    metadata: Dict = {}
+    # (TODO) lievan: validate model_* fields are only present on certain span types
+    model_name: str = ""
+    model_provider: str = ""
 
 
-class ExportedLLMObsSpan(BaseModel):
+class LLMObsSpanContext(BaseModel):
     span_id: str
     trace_id: str
-    meta: Meta
-    tags: Dict[str, str]
+    name: str
+    kind: str
+    ml_app: str
+    meta: Meta = Meta()
+    session_id: str = ""
+    metrics: Dict[str, Union[int, float]] = {}
+    tags: Dict[str, str] = {}
 
 
+ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
 

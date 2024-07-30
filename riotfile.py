@@ -2766,7 +2766,7 @@ venv = Venv(
         Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
-            pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
+            pkgs={"vcrpy": latest, "pydantic": latest, "pytest-asyncio": "==0.21.1"},
             pys=select_pys(min_version="3.7"),
         ),
         Venv(
