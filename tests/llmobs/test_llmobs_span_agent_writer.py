@@ -1,7 +1,6 @@
 import time
 
 import mock
-import pytest
 
 from ddtrace.internal import agent
 from ddtrace.llmobs._writer import LLMObsSpanAgentWriter
@@ -18,8 +17,7 @@ def test_writer_start(mock_writer_logs):
     mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanAgentWriter", INTAKE_ENDPOINT)])
 
 
-@pytest.mark.mock_http_writer_send_payload_response
-def test_buffer_limit(mock_writer_logs):
+def test_buffer_limit(mock_writer_logs, mock_http_writer_send_payload_response):
     llmobs_span_writer = LLMObsSpanAgentWriter(interval=1000, timeout=1)
     for _ in range(1001):
         llmobs_span_writer.enqueue({})
@@ -28,8 +26,7 @@ def test_buffer_limit(mock_writer_logs):
     )
 
 
-@pytest.mark.mock_http_writer_send_payload_response
-def test_send_completion_event(mock_writer_logs):
+def test_send_completion_event(mock_writer_logs, mock_http_writer_send_payload_response):
     llmobs_span_writer = LLMObsSpanAgentWriter(interval=1000, timeout=1)
     llmobs_span_writer.start()
     llmobs_span_writer.enqueue(_completion_event())
@@ -37,8 +34,7 @@ def test_send_completion_event(mock_writer_logs):
     mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
 
 
-@pytest.mark.mock_http_writer_send_payload_response
-def test_send_chat_completion_event(mock_writer_logs):
+def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_send_payload_response):
     llmobs_span_writer = LLMObsSpanAgentWriter(interval=1000, timeout=1)
     llmobs_span_writer.start()
     llmobs_span_writer.enqueue(_chat_completion_event())
@@ -46,8 +42,7 @@ def test_send_chat_completion_event(mock_writer_logs):
     mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
 
 
-@pytest.mark.mock_http_writer_send_payload_response
-def test_send_timed_events(mock_writer_logs):
+def test_send_timed_events(mock_writer_logs, mock_http_writer_send_payload_response):
     llmobs_span_writer = LLMObsSpanAgentWriter(interval=0.05, timeout=1)
     llmobs_span_writer.start()
     mock_writer_logs.reset_mock()

@@ -80,7 +80,7 @@ class LLMObs(Service):
         )
 
     def _configure_span_writer(self):
-        if asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED")):
+        if config._llmobs_agentless_enabled:
             self._llmobs_span_writer = LLMObsSpanWriter(
                 site=config._dd_site,
                 api_key=config._dd_api_key,

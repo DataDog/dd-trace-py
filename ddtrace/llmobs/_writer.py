@@ -166,8 +166,9 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
 
 
-# LLMObsSpanEncoder encodes LLMObsSpanEvents to json in buffer, and is used in LLMObsSpanAgentWriter's LLMObsEventClient
 class LLMObsSpanEncoder(BufferedEncoder):
+    """Encodes LLMObsSpanEvents to JSON in buffer, and is used in LLMObsSpanAgentWriter's LLMObsEventClient"""
+
     content_type = "application/json"
 
     def __init__(self, *args):
