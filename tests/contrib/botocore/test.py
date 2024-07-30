@@ -3291,15 +3291,15 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
 
-        assert spans[0].service == "aws.kinesis"
-        assert spans[0].name == "kinesis.command"
-        assert spans[0].parent_id == spans[2].span_id
+        assert spans[0].name == "kinesis.manual_span"
 
         assert spans[1].service == "aws.kinesis"
         assert spans[1].name == "kinesis.command"
-        assert spans[1].parent_id == spans[2].span_id
+        assert spans[1].parent_id == spans[0].span_id
 
-        assert spans[2].name == "kinesis.manual_span"
+        assert spans[2].service == "aws.kinesis"
+        assert spans[2].name == "kinesis.command"
+        assert spans[2].parent_id == spans[0].span_id
 
     @mock_sqs
     def test_sqs_parenting(self):
