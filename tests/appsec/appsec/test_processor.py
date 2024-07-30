@@ -313,6 +313,9 @@ def test_ip_update_rules_expired_no_block(tracer):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
