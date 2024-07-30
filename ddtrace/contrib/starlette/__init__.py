@@ -72,8 +72,8 @@ required_modules = ["starlette"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version # noqa: F401
-        from .patch import _get_version # noqa: F401
+        from .patch import _get_version  # noqa: F401
+        from .patch import get_version  # noqa: F401
         from .patch import patch
         from .patch import unpatch
 
