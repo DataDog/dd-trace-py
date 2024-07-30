@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    botocore: All methods in botocore/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.
+  - |
+    consul: All methods in consul/patch.py except ``patch()`` and ``unpatch()`` are deprecated and will be removed in version 3.0.0.

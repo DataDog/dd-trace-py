@@ -260,7 +260,8 @@
             "ddtrace/contrib/sqlalchemy/*"
         ],
         "opentelemetry": [
-            "ddtrace/opentelemetry/*"
+            "ddtrace/opentelemetry/*",
+            "ddtrace/internal/opentelemetry/*"
         ],
         "profiling": [
             "ddtrace/profiling/*",

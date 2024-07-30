@@ -8,6 +8,7 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 
+import ddtrace
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -47,7 +48,12 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
 
         check_and_report_path_traversal(*args, **kwargs)
 
-    if asm_config._asm_enabled and asm_config._ep_enabled:
+    if (
+        asm_config._asm_enabled
+        and asm_config._ep_enabled
+        and ddtrace.tracer._appsec_processor is not None
+        and ddtrace.tracer._appsec_processor.rasp_lfi_enabled
+    ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
@@ -87,7 +93,12 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
         # TODO: IAST SSRF sink to be added
         pass
 
-    if asm_config._asm_enabled and asm_config._ep_enabled:
+    if (
+        asm_config._asm_enabled
+        and asm_config._ep_enabled
+        and ddtrace.tracer._appsec_processor is not None
+        and ddtrace.tracer._appsec_processor.rasp_ssrf_enabled
+    ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
@@ -121,7 +132,13 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 
         _iast_report_ssrf(original_request_callable, *args, **kwargs)
-    if asm_config._asm_enabled and asm_config._ep_enabled:
+
+    if (
+        asm_config._asm_enabled
+        and asm_config._ep_enabled
+        and ddtrace.tracer._appsec_processor is not None
+        and ddtrace.tracer._appsec_processor.rasp_ssrf_enabled
+    ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
@@ -162,7 +179,13 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
     listener for dbapi execute and executemany function
     parameters are ignored as they are properly handled by the dbapi without risk of injections
     """
-    if asm_config._asm_enabled and asm_config._ep_enabled:
+
+    if (
+        asm_config._asm_enabled
+        and asm_config._ep_enabled
+        and ddtrace.tracer._appsec_processor is not None
+        and ddtrace.tracer._appsec_processor.rasp_sqli_enabled
+    ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
