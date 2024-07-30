@@ -3,8 +3,8 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.psycopg.patch import get_version
-from ddtrace.contrib.psycopg.patch import get_versions
+from ddtrace.contrib.psycopg import _get_version
+from ddtrace.contrib.psycopg import _get_versions
 from ddtrace.contrib.psycopg.patch import patch
 
 
@@ -21,8 +21,8 @@ class TestPsycopgPatch(PatchTestCase.Base):
     __module_name__ = "psycopg2"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
-    __get_version__ = get_version
-    __get_versions__ = get_versions
+    __get_version__ = _get_version
+    __get_versions__ = _get_versions
 
     def assert_module_patched(self, psycopg):
         pass
@@ -35,8 +35,8 @@ class TestPsycopgPatch(PatchTestCase.Base):
 
     def test_and_emit_get_version(self):
         patch()
-        assert get_version() == ""
-        versions = get_versions()
+        assert _get_version() == ""
+        versions = _get_versions()
         assert versions.get("psycopg2")
         emit_integration_and_version_to_test_agent("psycopg", versions["psycopg2"], "psycopg2")
         unpatch()
