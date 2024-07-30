@@ -5,14 +5,10 @@ WORKDIR /app
 
 
 # dependencies for psycopg2
-RUN apt-get update && apt-get install --no-install-recommends -y curl dnsutils cmake git libpq-dev=11.16-0+deb10u1 python3-dev=3.7.3-1 \
+RUN apt-get update && apt-get install --no-install-recommends -y dnsutils git libpq-dev=11.16-0+deb10u1 python3-dev=3.7.3-1 \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# rust
-RUN curl https://sh.rustup.rs -sSf | \
-    sh -s -- --default-toolchain stable -y
-ENV PATH=/root/.cargo/bin:$PATH
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -23,34 +19,21 @@ RUN git clone https://github.com/adeyosemanputra/pygoat.git
 
 
 # copy project
-COPY tests/appsec/integrations/pygoat_tests /app/
+COPY . /app/
 
-# pip install some deps
-RUN python3 -m pip install --no-cache-dir pip==22.0.4
-RUN pip install setuptools-rust cmake Cython
-
-# Copy ddtrace
+# copy and install ddtrace
 WORKDIR /
-COPY . /ddtrace
-
-# Clear any existing CMake and build cache and rebuild
-RUN rm -rf /ddtrace/build
-RUN find / -name "CMakeCache.txt" -exec rm -f {} \;
-
-
-# Install ddtrace
-WORKDIR /ddtrace
-RUN pip install --no-cache-dir .
+COPY ../../../../ ddtrace
+RUN pip install --no-cache-dir ddtrace
 
 WORKDIR /app/pygoat
 # Install dependencies
 RUN git checkout v2.0.1
+RUN python3 -m pip install --no-cache-dir pip==22.0.4
+RUN pip install --no-cache-dir -r requirements.txt
 # At some point, pyyaml started failing on CI with CBaseLoader import error, this
 # fixed the problem
-#RUN pip --no-cache-dir install --force-reinstall -I pyyaml==6.0.1
-RUN pip install --no-cache-dir "cython<3.0.0"
-RUN pip install --no-cache-dir --no-build-isolation pyyaml==6.0
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip --no-cache-dir install --force-reinstall -I pyyaml==6.0.1
 
 # install pygoat
 EXPOSE 8321
