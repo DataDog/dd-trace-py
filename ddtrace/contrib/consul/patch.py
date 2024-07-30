@@ -3,6 +3,8 @@ import consul
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -22,9 +24,19 @@ from ...pin import Pin
 _KV_FUNCS = ["put", "get", "delete"]
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(consul, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -36,7 +48,7 @@ def patch():
     pin.onto(consul.Consul.KV)
 
     for f_name in _KV_FUNCS:
-        _w("consul", "Consul.KV.%s" % f_name, wrap_function(f_name))
+        _w("consul", "Consul.KV.%s" % f_name, _wrap_function(f_name))
 
 
 def unpatch():
@@ -48,7 +60,7 @@ def unpatch():
         _u(consul.Consul.KV, f_name)
 
 
-def wrap_function(name):
+def _wrap_function(name):
     def trace_func(wrapped, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
@@ -83,3 +95,13 @@ def wrap_function(name):
             return wrapped(*args, **kwargs)
 
     return trace_func
+
+
+def wrap_function(name):
+    deprecate(
+        "wrap_function is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _wrap_function(name)
