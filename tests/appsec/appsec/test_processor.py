@@ -202,6 +202,9 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
