@@ -185,8 +185,6 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                     ],
                 )
                 raise
-        # also what is this line??? code unreachable
-        parent_ctx.end()
     elif is_getrecords_call:
         if getrecords_error:
             raise getrecords_error
