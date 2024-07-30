@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: propagates runtime_id tag, a unique string identifier for the
+    profiled process when using Libdatadog exporter. It is used to distinguish
+    processes on Thread Timeline visualization.
