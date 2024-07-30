@@ -147,22 +147,22 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ## 2.9.3
 
 
-- Code Security: add encodings.idna to the IAST patching denylist to avoid problems with gevent.
-- Code Security: add the boto package to the IAST patching denylist.
-- celery: changes `error.message` span tag to no longer include the traceback that is already included in the `error.stack` span tag.
-- CI Visibility: fixes source file information that would be incorrect in certain decorated / wrapped scenarios and forces paths to be relative to the repository root, if present.
-- LLM Observability: This resolves a typing hint error in the `ddtrace.llmobs.utils.Documents` helper class constructor where type hints did not accept input dictionaries with integer or float values.
-- LLM Observability: This fix resolves an issue where the OpenAI and AWS Bedrock integrations were always setting `temperature` and `max_tokens` parameters to LLM invocations. The OpenAI integration in particular was setting the wrong `temperature` default values. These parameters are now only set if provided in the request.
-- profiling: Fixes an issue where task information coming from echion was encoded improperly, which could segfault the application.
-- tracing: fixes a potential crash where using partial flushes and `tracer.configure()` could result in an IndexError
-- internal: fixes an issue where some pathlib functions return OSError on Windows.
-- flask: Fix scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
+- Code Security: Adds `encodings.idna` to the IAST patching denylist to avoid problems with gevent.
+- Code Security: Adds the boto package to the IAST patching denylist.
+- celery: Changes `error.message` span tag to no longer include the traceback that is already included in the `error.stack` span tag.
+- CI Visibility: Fixes source file information that would be incorrect in certain decorated / wrapped scenarios, and forces paths to be relative to the repository root, if present.
+- LLM Observability: Resolves a typing hint error in the `ddtrace.llmobs.utils.Documents` helper class constructor where type hints did not accept input dictionaries with integer or float values.
+- LLM Observability: Resolves an issue where the OpenAI and AWS Bedrock integrations were always setting `temperature` and `max_tokens` parameters to LLM invocations. The OpenAI integration in particular was setting the wrong `temperature` default values. These parameters are now only set if provided in the request.
+- profiling: Fixes an issue where task information coming from `echion` was encoded improperly, which could segfault the application.
+- tracing: Fixes a potential crash where using partial flushes and `tracer.configure()` could result in an `IndexError`.
+- internal: Fixes an issue where some `pathlib` functions return `OSError`g on Windows.
+- flask: Fixes scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
 - wsgi: Ensures the status of wsgi Spans are not set to error when a `StopIteration` exception is raised marked the span as an error. With this change, `StopIteration` exceptions in this context will be ignored.
-- langchain: tag non-dict inputs to LCEL chains appropriately. Non-dict inputs are stringified, and dict inputs are tagged by key-value pairs.
+- langchain: Tags non-dict inputs to LCEL chains appropriately. Non-dict inputs are stringified, and dict inputs are tagged by key-value pairs.
 
 ### Other Changes
 
-- LLM Observability: the SDK allowed users to submit an unsupported <span class="title-ref">numerical</span> evaluation metric type. All evaluation metric types submitted with <span class="title-ref">numerical</span> type will now be automatically converted to a <span class="title-ref">score</span> type. As an alternative to using the <span class="title-ref">numerical type, use \`score</span> instead.
+- LLM Observability: The SDK allowed users to submit an unsupported `numerical` evaluation metric type. All evaluation metric types submitted with `numerical` type will now be automatically converted to a `score` type. As an alternative to using the `numerical` type, use `score` instead.
 
 
 ---
