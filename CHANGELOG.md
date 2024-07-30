@@ -147,6 +147,8 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ## 2.9.3
 
 
+### Bug Fixes
+
 - Code Security: Adds `encodings.idna` to the IAST patching denylist to avoid problems with gevent.
 - Code Security: Adds the boto package to the IAST patching denylist.
 - celery: Changes `error.message` span tag to no longer include the traceback that is already included in the `error.stack` span tag.
