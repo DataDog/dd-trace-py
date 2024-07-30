@@ -2,6 +2,101 @@ import pytest
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+def test_coverage_multiprocessing_without_coverage():
+    """This test ensures that the coverage collector does not interfere with multiprocessing when it is not enabled."""
+    import multiprocessing
+
+    if __name__ == "__main__":
+        multiprocessing.freeze_support()
+
+        import os
+        from pathlib import Path
+
+        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+
+        from ddtrace.internal.coverage.installer import install
+
+        include_paths = [Path("/intentionally/not/valid/path")]
+        install(include_paths=include_paths)
+
+        def _sleeps():
+            import time
+
+            time.sleep(1)
+
+        process = multiprocessing.Process(target=_sleeps())
+        process.start()
+        process.join()
+
+        # This should simply not hang.
+
+
+@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+def test_coverage_multiprocessing_coverage_started():
+    """This test ensures that the coverage collector does not interfere with multiprocessing when it is not enabled."""
+    import multiprocessing
+
+    if __name__ == "__main__":
+        multiprocessing.freeze_support()
+
+        import os
+        from pathlib import Path
+
+        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+
+        from ddtrace.internal.coverage.code import ModuleCodeCollector
+        from ddtrace.internal.coverage.installer import install
+
+        include_paths = [Path("/intentionally/not/valid/path")]
+        install(include_paths=include_paths)
+
+        def _sleeps():
+            import time
+
+            time.sleep(1)
+
+        process = multiprocessing.Process(target=_sleeps())
+        process.start()
+        ModuleCodeCollector.start_coverage()
+        process.join()
+
+        # This should simply not hang.
+
+
+@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+def test_coverage_multiprocessing_coverage_stopped():
+    """This test ensures that the coverage collector does not interfere with multiprocessing when it is not enabled."""
+    import multiprocessing
+
+    if __name__ == "__main__":
+        multiprocessing.freeze_support()
+
+        import os
+        from pathlib import Path
+
+        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+
+        from ddtrace.internal.coverage.code import ModuleCodeCollector
+        from ddtrace.internal.coverage.installer import install
+
+        include_paths = [Path("/intentionally/not/valid/path")]
+        install(include_paths=include_paths)
+
+        def _sleeps():
+            import time
+
+            time.sleep(1)
+
+        process = multiprocessing.Process(target=_sleeps())
+        ModuleCodeCollector.start_coverage()
+        process.start()
+        ModuleCodeCollector.stop_coverage()
+        process.join()
+
+        # This should simply not hang.
+
+
+@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
 def test_coverage_multiprocessing_session():
     import multiprocessing
 

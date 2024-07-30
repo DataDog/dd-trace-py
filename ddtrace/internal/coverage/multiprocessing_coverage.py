@@ -43,7 +43,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
             return
 
         if self._parent_conn is None:
-            log.warning("Pipe was None when absorbing child coverage data", exc_info=True)
+            log.debug("Pipe was None when absorbing child coverage data", exc_info=True)
             return
 
         try:
@@ -52,11 +52,11 @@ class CoverageCollectingMultiprocess(BaseProcess):
                 if rcvd:
                     ModuleCodeCollector.absorb_data_json(rcvd)
                 else:
-                    log.warning("Child process sent empty coverage data")
+                    log.debug("Child process sent empty coverage data")
             else:
-                log.warning("Child process did not send coverage data")
+                log.debug("Child process did not send coverage data")
         except Exception:
-            log.warning("Failed to absorb child coverage data", exc_info=True)
+            log.debug("Failed to absorb child coverage data", exc_info=True)
 
     def _bootstrap(self, *args, **kwargs):
         """Wraps around the execution of the process to collect coverage data
