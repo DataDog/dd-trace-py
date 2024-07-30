@@ -3,9 +3,11 @@ import pymemcache.client.hash
 
 from ddtrace.ext import memcached as memcachedx
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.pin import _DD_PIN_PROXY_NAME
 from ddtrace.pin import Pin
+from ddtrace.vendor.debtcollector import deprecate
 
 from .client import WrappedClient
 from .client import WrappedHashClient
@@ -16,9 +18,19 @@ _hash_Client = pymemcache.client.hash.Client
 _hash_HashClient = pymemcache.client.hash.Client
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(pymemcache, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
