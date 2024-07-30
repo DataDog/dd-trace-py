@@ -117,6 +117,7 @@ if _DDWAF_LOADED:
 
         def _set_info(self, diagnostics: ddwaf_object) -> None:
             info_struct = diagnostics.struct
+            print(info_struct)
             rules = info_struct.get("rules", {}) if info_struct else {}  # type: ignore
             errors_result = rules.get("errors", {})
             version = info_struct.get("ruleset_version", "") if info_struct else ""  # type: ignore

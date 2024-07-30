@@ -387,6 +387,50 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert get_triggers(root_span()) is None, f"asm struct in root span {get_triggers(root_span())}"
 
+    SUSPICIOUS_IP = "34.65.27.85"
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("ip", [SUSPICIOUS_IP, "132.202.34.7"])
+    @pytest.mark.parametrize(
+        ["agent", "event", "status"],
+        [
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                " (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+                False,
+                200,
+            ),
+            ("Arachni/v1.5.1", True, 200),
+            ("dd-test-scanner-log-block", True, 403),
+        ],
+    )
+    def test_request_suspicious_attacker_blocking(
+        self, interface: Interface, get_tag, root_span, asm_enabled, ip, agent, event, status
+    ):
+        from ddtrace.ext import http
+
+        with override_global_config(
+            dict(
+                _asm_enabled=asm_enabled,
+                _asm_static_rule_file=rules.RULES_SAB,
+            )
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers={"User-Agent": agent, "X-Real-Ip": ip})
+            if not asm_enabled:
+                status = 200
+                event = False
+            if event and ip == self.SUSPICIOUS_IP:
+                status = 402
+            assert self.status(response) == status, f"status={self.status(response)}, expected={status}"
+            assert get_tag(http.STATUS_CODE) == str(status), f"status_code={self.status(response)}, expected={status}"
+            if event:
+                self.check_single_rule_triggered(
+                    "ua0-600-56x" if agent == "dd-test-scanner-log-block" else "ua0-600-12x", root_span
+                )
+            else:
+                assert get_triggers(root_span()) is None
+
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(("method", "kwargs"), [("get", {}), ("post", {"data": {"key": "value"}}), ("options", {})])
