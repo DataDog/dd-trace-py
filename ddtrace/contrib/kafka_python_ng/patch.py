@@ -104,6 +104,7 @@ def unpatch():
 
 
 def traced_send(func, instance, args, kwargs):
+    log.debug("Traced send")
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -148,6 +149,7 @@ def traced_send(func, instance, args, kwargs):
 
 
 def traced_poll(func, instance, args, kwargs):
+    log.debug("Traced poll")
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -170,6 +172,7 @@ def traced_poll(func, instance, args, kwargs):
 
 
 def traced_commit(func, instance, args, kwargs):
+    log.debug("Traced commit")
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)

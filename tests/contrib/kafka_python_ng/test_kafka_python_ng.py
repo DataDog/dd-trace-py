@@ -1,3 +1,5 @@
+import logging
+
 import kafka
 from kafka.structs import OffsetAndMetadata
 from kafka.structs import TopicPartition
@@ -12,6 +14,9 @@ import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patchin
 from tests.contrib.config import KAFKA_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import override_config
+
+
+logger = logging.getLogger(__name__)
 
 
 GROUP_ID = "test_group"
@@ -33,6 +38,7 @@ class KafkaConsumerPollFilter(TraceFilter):
 @pytest.fixture()
 def kafka_topic(request):
     topic_name = request.node.name.replace("[", "_").replace("]", "")
+    logger.debug("Creating topic %s", topic_name)
 
     client = kafka.KafkaAdminClient(bootstrap_servers=[BOOTSTRAP_SERVERS])
     try:
@@ -41,20 +47,6 @@ def kafka_topic(request):
         pass
 
     client.create_topics([kafka.admin.NewTopic(topic_name, 1, 1)])
-    return topic_name
-
-
-@pytest.fixture()
-def empty_kafka_topic(request):
-    topic_name = request.node.name.replace("[", "_").replace("]", "")
-    client = kafka.KafkaAdminClient(bootstrap_servers=[BOOTSTRAP_SERVERS])
-    client.delete_topics([topic_name])
-
-    client = kafka.KafkaAdminClient(bootstrap_servers=[BOOTSTRAP_SERVERS])
-    try:
-        client.create_topics([kafka.admin.NewTopic(topic_name, 1, 1)])
-    except kafka.errors.TopicAlreadyExistsError:
-        pass
     return topic_name
 
 
@@ -92,6 +84,7 @@ def tracer(should_filter_empty_polls):
 
 @pytest.fixture
 def producer(tracer):
+    logger.debug("Creating producer")
     _producer = kafka.KafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS])
     Pin.override(_producer, tracer=tracer)
     return _producer
@@ -99,16 +92,19 @@ def producer(tracer):
 
 @pytest.fixture
 def consumer(tracer, kafka_topic):
+    logger.debug("Creating consumer")
     _consumer = kafka.KafkaConsumer(
         bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID
     )
-
+    logger.debug("Resetting offset for topic %s", kafka_topic)
     tp = TopicPartition(kafka_topic, 0)
     _consumer.commit({tp: OffsetAndMetadata(0, "")})
     Pin.override(_consumer, tracer=tracer)
+    logger.debug("Subscribing to topic")
     _consumer.subscribe(topics=[kafka_topic])
     yield _consumer
     _consumer.close()
+    logger.debug("Consumer closed")
 
 
 @pytest.fixture
@@ -173,14 +169,22 @@ def test_message(producer, tombstone, kafka_topic):
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_commit_with_poll(producer, consumer, kafka_topic):
+    logger.debug("Starting test_commit_with_poll")
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
-        producer.send(kafka_topic, value=PAYLOAD, key=KEY)
+        logger.debug("Sending data")
+        res = producer.send(kafka_topic, value=PAYLOAD, key=KEY)
+        logger.debug("data result: %s", res)
+        logger.debug("Closing producer")
         producer.close()
+        logger.debug("Producer closed")
+        logger.debug("Starting poll")
         result = consumer.poll(1000)
+        logger.debug("poll finished: %s", result)
         assert len(result) == 1
         for topic_partition in result:
             for record in result[topic_partition]:
                 consumer.commit({topic_partition: OffsetAndMetadata(record.offset + 1, "")})
+    logger.debug("Stopping test_commit_with_poll")
 
 
 def test_commit_with_poll_single_message(dummy_tracer, producer, consumer, kafka_topic):

@@ -2717,7 +2717,8 @@ venv = Venv(
         Venv(
             name="kafka_python_ng",
             pys=select_pys(min_version="3.10", max_version="3.10"),
-            command="pytest {cmdargs} tests/contrib/kafka_python_ng/",
+            command='pytest --log-level DEBUG --log-format="%(asctime)s %(levelname)s %(message)s"'
+            + ' --log-date-format="%Y-%m-%d %H:%M:%S.%f" {cmdargs} tests/contrib/kafka_python_ng/',
             pkgs={
                 "pytest-randomly": latest,
                 "kafka-python-ng": "==2.2.2",
