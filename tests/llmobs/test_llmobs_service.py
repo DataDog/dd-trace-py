@@ -1,5 +1,4 @@
 import json
-import os
 
 import mock
 import pytest
@@ -84,7 +83,6 @@ def test_service_enable_with_apm_disabled(monkeypatch):
         assert run_llmobs_trace_filter(dummy_tracer) is None
 
         llmobs_service.disable()
-        os.environ.pop("DD_LLMOBS_AGENTLESS_ENABLED", None)
 
 
 def test_service_disable():
@@ -105,7 +103,6 @@ def test_service_enable_no_api_key():
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
-        os.environ.pop("DD_LLMOBS_AGENTLESS_ENABLED", None)
 
 
 def test_service_enable_no_ml_app_specified():

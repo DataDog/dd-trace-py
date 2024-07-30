@@ -101,10 +101,9 @@ def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_glob
 def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
+    global_config.update(dict(_llmobs_agentless_enabled=True))
     with override_global_config(global_config):
-        os.environ["DD_LLMOBS_AGENTLESS_ENABLED"] = "1"
         dummy_tracer = DummyTracer()
         llmobs_service.enable(_tracer=dummy_tracer)
         yield llmobs_service
         llmobs_service.disable()
-        os.environ.pop("DD_LLMOBS_AGENTLESS_ENABLED", None)
