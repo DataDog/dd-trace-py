@@ -51,7 +51,8 @@ Global Configuration
    Default: ``False``
 """
 from ...internal.utils.importlib import require_modules
-from .patch import get_version
+from .patch import _get_version  # noqa: F401
+from .patch import get_version  # noqa: F401
 from .patch import patch
 from .patch import unpatch
 
@@ -60,4 +61,4 @@ required_modules = ["urllib3"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        __all__ = ["patch", "unpatch", "get_version"]
+        __all__ = ["patch", "unpatch"]

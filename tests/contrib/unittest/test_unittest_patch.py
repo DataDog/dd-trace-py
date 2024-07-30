@@ -3,7 +3,7 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.unittest import get_version
+from ddtrace.contrib.unittest import _get_version
 from ddtrace.contrib.unittest.patch import patch
 
 
@@ -19,7 +19,7 @@ class TestUnittestPatch(PatchTestCase.Base):
     __module_name__ = "unittest"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
-    __get_version__ = get_version
+    __get_version__ = _get_version
 
     def assert_module_patched(self, unittest):
         pass
@@ -31,6 +31,6 @@ class TestUnittestPatch(PatchTestCase.Base):
         pass
 
     def test_and_emit_get_version(self):
-        version = get_version()
+        version = _get_version()
         assert type(version) == str
         assert version == ""
