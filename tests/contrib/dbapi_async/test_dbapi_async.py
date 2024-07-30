@@ -103,18 +103,18 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         async with TracedAsyncCursor(self.cursor, Pin("dbapi_service", tracer=self.tracer), {}) as cursor:
-            cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-
             await cursor.execute("""select 'one' as x""")
             await cursor.execute("""select 'blah'""")
 
             async for row in cursor:
                 spans = self.get_spans()
                 assert len(spans) == 2
-                span = spans[0]
-                assert span.service == "dbapi_service", "Service from pin"
-                assert span.resource == "my_resource", "Resource is respected"
-                assert span.name == "my_name", "Span name is respected"
+                assert spans[0].name == "postgres.query"
+                assert spans[0].resource == "select ?"
+                assert spans[0].service == "dbapi_service"
+                assert spans[1].name == "postgres.query"
+                assert spans[1].resource == "select ?"
+                assert spans[1].service == "dbapi_service"
 
     @mark_asyncio
     async def test_fetchall_wrapped_is_called_and_returned(self):

@@ -349,5 +349,7 @@ class PsycopgCore(AsyncioTestCase):
                 async for row in cur:
                     spans = self.get_spans()
                     assert len(spans) == 2
-                    span = spans[0]
-                    assert span.name == "postgres.query"
+                    assert spans[0].name == "postgres.query"
+                    assert spans[0].resource == "select ?"
+                    assert spans[1].name == "postgres.query"
+                    assert spans[1].resource == "select ?"
