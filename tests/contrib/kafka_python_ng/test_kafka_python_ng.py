@@ -23,6 +23,8 @@ GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "127.0.0.1:{}".format(KAFKA_CONFIG["port"])
 KEY = bytes("test_key", encoding="utf-8")
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
+POLL_TIMEOUT = 5000
+FETCH_MAX_WAIT_MS = 1000
 DSM_TEST_PATH_HEADER_SIZE = 28
 
 
@@ -94,7 +96,10 @@ def producer(tracer):
 def consumer(tracer, kafka_topic):
     logger.debug("Creating consumer")
     _consumer = kafka.KafkaConsumer(
-        bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID, fetch_max_wait_ms=1000
+        bootstrap_servers=[BOOTSTRAP_SERVERS],
+        auto_offset_reset="earliest",
+        group_id=GROUP_ID,
+        fetch_max_wait_ms=FETCH_MAX_WAIT_MS,
     )
     logger.debug("Resetting offset for topic %s", kafka_topic)
     tp = TopicPartition(kafka_topic, 0)
@@ -178,7 +183,7 @@ def test_commit_with_poll(producer, consumer, kafka_topic):
         producer.close()
         logger.debug("Producer closed")
         logger.debug("Starting poll")
-        result = consumer.poll(1000)
+        result = consumer.poll(POLL_TIMEOUT)
         logger.debug("poll finished: %s", result)
         assert len(result) == 1
         for topic_partition in result:
@@ -199,7 +204,7 @@ def test_commit_with_poll_single_message(dummy_tracer, producer, consumer, kafka
         logger.debug("Producer closed")
         # One message is consumed and one span is generated.
         logger.debug("Starting poll")
-        result = consumer.poll(timeout_ms=1000, max_records=1)
+        result = consumer.poll(timeout_ms=POLL_TIMEOUT, max_records=1)
         logger.debug("Poll finished %s", result)
         assert len(result) == 1
         topic_partition = list(result.keys())[0]
@@ -224,7 +229,7 @@ def test_commit_with_poll_multiple_messages(dummy_tracer, producer, consumer, ka
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
         producer.close()
         # Two messages are consumed but only ONE span is generated
-        result = consumer.poll(timeout_ms=1000, max_records=2)
+        result = consumer.poll(timeout_ms=POLL_TIMEOUT, max_records=2)
         assert len(result) == 1
         topic_partition = list(result.keys())[0]
         assert len(result[topic_partition]) == 2
@@ -246,7 +251,7 @@ def test_async_commit(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.send(kafka_topic, value=PAYLOAD, key=KEY)
         producer.close()
-        result = consumer.poll(1000)
+        result = consumer.poll(POLL_TIMEOUT)
         assert len(result) == 1
         topic_partition = list(result.keys())[0]
         consumer.commit_async({topic_partition: OffsetAndMetadata(result[topic_partition][0].offset, "")})
@@ -256,7 +261,7 @@ def test_async_commit(producer, consumer, kafka_topic):
 def test_traces_empty_poll_by_default(dummy_tracer, consumer, kafka_topic):
     Pin.override(consumer, tracer=dummy_tracer)
 
-    consumer.poll(1000)
+    consumer.poll(POLL_TIMEOUT)
 
     traces = dummy_tracer.pop_traces()
     empty_poll_span_created = False
@@ -279,7 +284,7 @@ def test_does_not_trace_empty_poll_when_disabled(dummy_tracer, consumer, produce
     Pin.override(consumer, tracer=dummy_tracer)
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         # Test for empty poll
-        consumer.poll(1000)
+        consumer.poll(POLL_TIMEOUT)
 
         traces = dummy_tracer.pop_traces()
         assert 0 == len(traces)
@@ -290,7 +295,7 @@ def test_does_not_trace_empty_poll_when_disabled(dummy_tracer, consumer, produce
 
         result = None
         while result is None:
-            result = consumer.poll(1000)
+            result = consumer.poll(POLL_TIMEOUT)
 
         traces = dummy_tracer.pop_traces()
         non_empty_poll_span_created = False
