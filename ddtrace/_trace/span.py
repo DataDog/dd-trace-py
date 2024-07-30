@@ -117,6 +117,7 @@ class Span(object):
         "_links",
         "_events",
         "__weakref__",
+        "_lazy_sampler",
     ]
 
     def __init__(
@@ -133,6 +134,7 @@ class Span(object):
         on_finish: Optional[List[Callable[["Span"], None]]] = None,
         span_api: str = SPAN_API_DATADOG,
         links: Optional[List[SpanLink]] = None,
+        lazy_sampler: Optional[Callable[["Span"], None]] = None,
     ) -> None:
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -204,6 +206,7 @@ class Span(object):
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
         self._local_root: Optional["Span"] = None
         self._store: Optional[Dict[str, Any]] = None
+        self._lazy_sampler = lazy_sampler
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -283,11 +286,11 @@ class Span(object):
             Please use span.context.sampling_priority instead to check if a span is sampled.""",
             category=DDTraceDeprecationWarning,
         )
-        if self.context.sampling_priority is None:
+        if self._context.sampling_priority is None:
             # this maintains original span.sampled behavior, where all spans would start
             # with span.sampled = True until sampling runs
             return True
-        return self.context.sampling_priority > 0
+        return self._context.sampling_priority > 0
 
     @sampled.setter
     def sampled(self, value: bool) -> None:
@@ -320,8 +323,8 @@ class Span(object):
             cb(self)
 
     def _override_sampling_decision(self, decision: Optional[NumericType]):
-        self.context.sampling_priority = decision
-        set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
+        self._context.sampling_priority = decision
+        set_sampling_decision_maker(self._context, SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
                 if key in self._local_root._metrics:
@@ -497,7 +500,7 @@ class Span(object):
         """Sets a baggage item in the span context of this span.
         Baggage is used to propagate state between spans (in-process, http/https).
         """
-        self._context = self.context._with_baggage_item(key, value)
+        self._context = self._context._with_baggage_item(key, value)
         return self
 
     def _add_event(
@@ -508,7 +511,7 @@ class Span(object):
 
     def _get_baggage_item(self, key: str) -> Optional[Any]:
         """Gets a baggage item from the span context of this span."""
-        return self.context._get_baggage_item(key)
+        return self._context._get_baggage_item(key)
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
@@ -587,6 +590,18 @@ class Span(object):
     @property
     def context(self) -> Context:
         """Return the trace context for this span."""
+        # Ensure that the span has a sampling decision before returning the context. This is necessary to ensure that
+        # the span always reports a valid sampling decision.
+        if self._context.sampling_priority is None:
+            if self._lazy_sampler:
+                span_to_sample: Span = self._local_root or self
+                self._lazy_sampler(span_to_sample)
+            else:
+                log.warning(
+                    "Programming Error: Span was initialized without a sampling decision and a lazy sampler: %s. "
+                    "An undefined sampling decision may be propagated",
+                    self,
+                )
         return self._context
 
     def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:

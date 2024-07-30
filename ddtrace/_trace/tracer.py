@@ -284,7 +284,6 @@ class Tracer(object):
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
-        forksafe.register_before_fork(self._sample_before_fork)
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
@@ -318,10 +317,14 @@ class Tracer(object):
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def sample(self, span):
-        if self._sampler is not None:
-            self._sampler.sample(span)
-        else:
-            log.error("No sampler available to sample span")
+        deprecate(
+            "tracer.sample is deprecated and will be removed.",
+            message="Spans are now sampled when ``Span.context`` is accessed or the span is serialized. "
+            "Span sampling should not be triggered manually.",
+            category=DDTraceDeprecationWarning,
+        )
+        # triggers the span to be sampled
+        span.context
 
     @property
     def sampler(self):
@@ -366,11 +369,6 @@ class Tracer(object):
 
         self._hooks.deregister(self.__class__.start_span, func)
         return func
-
-    def _sample_before_fork(self) -> None:
-        span = self.current_root_span()
-        if span is not None and span._context.sampling_priority is None:
-            self.sample(span)
 
     @property
     def _sampler(self):
@@ -783,6 +781,7 @@ class Tracer(object):
                 span_api=span_api,
                 links=links,
                 on_finish=[self._on_span_finish],
+                lazy_sampler=self._sampler.sample,
             )
 
             # Extra attributes when from a local parent
@@ -807,6 +806,7 @@ class Tracer(object):
                 span_type=span_type,
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
+                lazy_sampler=self._sampler.sample,
             )
             span._local_root = span
             if config.report_hostname:
@@ -1101,7 +1101,6 @@ class Tracer(object):
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
-            forksafe.unregister_before_fork(self._sample_before_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 
