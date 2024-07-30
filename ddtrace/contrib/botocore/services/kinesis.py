@@ -84,9 +84,6 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
     start_ns = None
     result = None
 
-    parent_ctx: core.ExecutionContext = core.ExecutionContext(
-        "botocore.patched_kinesis_api_call.propagated",
-    )
     if operation == "GetRecords":
         try:
             start_ns = time_ns()
@@ -134,6 +131,8 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
     )
     is_kinesis_put_operation = endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}
 
+    child_of = parent_ctx.get_item("distributed_context")
+
     if should_instrument:
         with core.context_with_data(
             "botocore.patched_kinesis_api_call",
@@ -142,6 +141,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
             args=args,
             params=params,
             endpoint_name=endpoint_name,
+            child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             operation=operation,
             service=schematize_service_name(
                 "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
