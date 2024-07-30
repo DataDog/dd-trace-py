@@ -155,7 +155,7 @@ class TraceSamplingProcessor(TraceProcessor):
             # single span sampling rules are applied after trace sampling
             if self.single_span_rules:
                 for span in trace:
-                    if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
+                    if span._context.sampling_priority is not None and span._context.sampling_priority <= 0:
                         for rule in self.single_span_rules:
                             if rule.match(span):
                                 rule.sample(span)

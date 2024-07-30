@@ -192,7 +192,9 @@ class Span(object):
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        self._context: Optional[Context] = context._with_span(self) if context else None
+        if context is None:
+            context = Context()
+        self._context: Context = context._with_span(self)
 
         self._links: Dict[int, SpanLink] = {}
         if links:
@@ -585,8 +587,6 @@ class Span(object):
     @property
     def context(self) -> Context:
         """Return the trace context for this span."""
-        if self._context is None:
-            self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
         return self._context
 
     def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:

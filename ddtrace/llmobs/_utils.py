@@ -80,7 +80,7 @@ def _inject_llmobs_parent_id(span_context):
     if span is None:
         log.warning("No active span to inject LLMObs parent ID info.")
         return
-    if span.context is not span_context:
+    if span._context is not span_context:
         log.warning("The current active span and span_context do not match. Not injecting LLMObs parent ID.")
         return
 

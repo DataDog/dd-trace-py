@@ -82,7 +82,7 @@ def _span_aggr_key(span):
     resource = span.resource or ""
     _type = span.span_type or ""
     status_code = span.get_tag("http.status_code") or 0
-    synthetics = span.context.dd_origin == "synthetics"
+    synthetics = span._context.dd_origin == "synthetics"
     return span.name, service, resource, _type, int(status_code), synthetics
 
 
