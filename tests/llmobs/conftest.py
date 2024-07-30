@@ -30,7 +30,7 @@ def pytest_configure(config):
 
 @pytest.fixture
 def mock_llmobs_span_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanAgentWriter")
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     LLMObsSpanWriterMock = patcher.start()
     m = mock.MagicMock()
     LLMObsSpanWriterMock.return_value = m
