@@ -25,6 +25,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
+from tests.llmobs._utils import _assert_core_span_context_values_are_expected
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
@@ -785,7 +786,6 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
     )
 
 
-# ===== **START** EXPORT_SPAN API TESTS =====
 def test_export_span_specified_span_is_incorrect_type_raises_warning(LLMObs, mock_logs):
     LLMObs.export_span(span="asd")
     mock_logs.warning.assert_called_once_with("Failed to export span. Span must be a valid Span object.")
@@ -816,10 +816,6 @@ def test_export_span_active_span_not_llmobs_span_raises_warning(LLMObs, mock_log
     mock_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
 
 
-# ===== **END** EXPORT_SPAN API TESTS =====
-
-
-# ===== **START** EXPORT_SPAN_CONTEXT API TESTS =====
 def test_export_span_context_specified_span_is_incorrect_type_raises_warning(LLMObs, mock_logs):
     LLMObs.export_span_context(span="asd")
     mock_logs.warning.assert_called_once_with("Failed to export span context. `span` must be a valid Span object.")
@@ -858,56 +854,119 @@ def test_export_span_context_no_specified_span_returns_exported_active_span(LLMO
         assert span_context.trace_id == "{:x}".format(span.trace_id)
 
 
-def test_export_span_context_of_type_llm(LLMObs):
-    input_data = [{"content": "test_input", "role": "human"}]
+def test_export_span_of_kind_llm(LLMObs):
     with LLMObs.llm(
         ml_app="test_ml_app",
         session_id="test_session_id",
         model_name="test_model",
-        name="test_llm_call",
+        name="test_span",
         model_provider="test_provider",
     ) as span:
         LLMObs.annotate(
-            input_data=input_data,
+            input_data=[{"content": "test_input", "role": "human"}],
             output_data=[{"content": "test_output", "role": "assistant"}],
             metrics={
                 "input_tokens": 10,
             },
             metadata={"temperature": 0.5, "stop_sequences": ["foo", "bar"]},
+            tags={"test_tag": "test_value"},
         )
         span_context = LLMObs.export_span_context()
         assert span_context is not None
-        assert span_context.span_id == str(span.span_id)
-        assert span_context.trace_id == "{:x}".format(span.trace_id)
-        assert span_context.ml_app == "test_ml_app"
-        assert span_context.session_id == "test_session_id"
-        assert span_context.name == "test_llm_call"
-        assert span_context.kind == "llm"
+        _assert_core_span_context_values_are_expected(span_context, span, kind="llm", tags={"test_tag": "test_value"})
         assert span_context.meta.model_name == "test_model"
         assert span_context.meta.model_provider == "test_provider"
-        assert span_context.meta.input.messages == input_data
+        assert span_context.meta.input.messages == [{"content": "test_input", "role": "human"}]
         assert span_context.meta.output.messages == [{"content": "test_output", "role": "assistant"}]
         assert span_context.metrics == {"input_tokens": 10}
         assert span_context.meta.metadata == {"temperature": 0.5, "stop_sequences": ["foo", "bar"]}
 
 
-def test_export_span_of_kind_workflow(LLMObs):
-    pass
+def test_export_span_with_generic_io_values(LLMObs):
+    with LLMObs.workflow(
+        ml_app="test_ml_app",
+        session_id="test_session_id",
+        name="test_span",
+    ) as span:
+        LLMObs.annotate(
+            input_data="hello",
+            output_data={"result": "success"},
+            metadata={"user": "test_user"},
+            tags={"test_tag": "test_value"},
+        )
+        span_context = LLMObs.export_span_context()
+        assert span_context is not None
+        _assert_core_span_context_values_are_expected(
+            span_context, span, kind="workflow", tags={"test_tag": "test_value"}
+        )
+        assert span_context.meta.input.value == "hello"
+        assert json.loads(span_context.meta.output.value) == {"result": "success"}
+        assert span_context.meta.metadata == {"user": "test_user"}
 
 
 def test_export_span_of_kind_retrieval(LLMObs):
-    pass
+    with LLMObs.retrieval(
+        ml_app="test_ml_app",
+        session_id="test_session_id",
+        name="test_span",
+    ) as span:
+        LLMObs.annotate(
+            input_data="hello",
+            output_data=[
+                {"text": "doctext", "name": "docname", "score": 0.1},
+            ],
+            metadata={"top_k": 1},
+            tags={"test_tag": "test_value"},
+        )
+        span_context = LLMObs.export_span_context()
+        assert span_context is not None
+        _assert_core_span_context_values_are_expected(
+            span_context, span, kind="retrieval", tags={"test_tag": "test_value"}
+        )
+        assert span_context.meta.input.value == "hello"
+        assert span_context.meta.output.documents == [
+            {"text": "doctext", "name": "docname", "score": 0.1},
+        ]
+        assert span_context.meta.metadata == {"top_k": 1}
 
 
-def test_export_span_of_kind_tool(LLMObs):
-    pass
+def test_export_span_of_kind_embedding(LLMObs):
+    with LLMObs.embedding(
+        ml_app="test_ml_app",
+        session_id="test_session_id",
+        name="test_span",
+        model_name="test_model",
+        model_provider="test_provider",
+    ) as span:
+        LLMObs.annotate(
+            input_data=[
+                {"text": "doctext", "name": "docname", "score": 0.1},
+            ],
+            output_data="success",
+            tags={"test_tag": "test_value"},
+        )
+        span_context = LLMObs.export_span_context()
+        assert span_context is not None
+        _assert_core_span_context_values_are_expected(
+            span_context, span, kind="embedding", tags={"test_tag": "test_value"}
+        )
+        assert span_context.meta.input.documents == [
+            {"text": "doctext", "name": "docname", "score": 0.1},
+        ]
+        assert span_context.meta.output.value == "success"
 
 
-def test_export_span_with_no_meta(LLMObs):
-    pass
-
-
-# ===== **END** EXPORT_SPAN_CONTEXT API TESTS =====
+def test_export_span_with_no_annotation(LLMObs):
+    with LLMObs.llm(
+        ml_app="test_ml_app",
+        session_id="test_session_id",
+        model_name="test_model",
+        name="test_span",
+        model_provider="test_provider",
+    ) as span:
+        span_context = LLMObs.export_span_context()
+        assert span_context is not None
+        _assert_core_span_context_values_are_expected(span_context, span, kind="llm")
 
 
 def test_submit_evaluation_llmobs_disabled_raises_warning(LLMObs, mock_logs):

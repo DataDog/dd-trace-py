@@ -17,28 +17,33 @@ logs_vcr = vcr.VCR(
 )
 
 
-def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
+def _expected_llmobs_tags_as_dict(span, error=None, ml_app=None, tags=None, session_id=None):
     if tags is None:
         tags = {}
-    expected_tags = [
-        "version:{}".format(tags.get("version", "")),
-        "env:{}".format(tags.get("env", "")),
-        "service:{}".format(tags.get("service", "")),
-        "source:integration",
-        "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
-        "session_id:{}".format(session_id or "{:x}".format(span.trace_id)),
-        "ddtrace.version:{}".format(ddtrace.__version__),
-    ]
+    expected_tags = {
+        "version": tags.get("version", ""),
+        "env": tags.get("env", ""),
+        "service": tags.get("service", ""),
+        "source": "integration",
+        "ml_app": ml_app or tags.get("ml_app", "unnamed-ml-app"),
+        "session_id": session_id or "{:x}".format(span.trace_id),
+        "ddtrace.version": ddtrace.__version__,
+    }
     if error:
-        expected_tags.append("error:1")
-        expected_tags.append("error_type:{}".format(error))
+        expected_tags["error"] = "1"
+        expected_tags["error_type"] = error
     else:
-        expected_tags.append("error:0")
+        expected_tags["error"] = "0"
     if tags:
-        expected_tags.extend(
-            "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
-        )
+        expected_tags.update({k: v for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")})
     return expected_tags
+
+
+def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
+    return [
+        "{}:{}".format(k, v)
+        for k, v in _expected_llmobs_tags_as_dict(span, error=error, tags=tags, session_id=session_id).items()
+    ]
 
 
 def _expected_llmobs_llm_span_event(
@@ -224,3 +229,17 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["tags"] = tags
 
     return eval_metric_event
+
+
+def _assert_core_span_context_values_are_expected(
+    span_context, span, kind, tags=None, ml_app="test_ml_app", session_id="test_session_id", name="test_span"
+):
+    assert span_context.trace_id == "{:x}".format(span.trace_id)
+    assert span_context.span_id == str(span.span_id)
+    assert span_context.kind == kind
+    assert span_context.ml_app == ml_app
+    assert span_context.session_id == session_id
+    assert span_context.name == name
+    assert span_context.tags == _expected_llmobs_tags_as_dict(
+        span_context, ml_app=ml_app, session_id=session_id, tags=tags
+    )
