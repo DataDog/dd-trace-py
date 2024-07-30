@@ -49,10 +49,11 @@ def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
             _set_metric_iast_executed_sink(PathTraversal.vulnerability_type)
             if is_pyobject_tainted(args[0]):
                 PathTraversal.report(evidence_value=args[0])
-        except Exception:
-            log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
-    else:
-        log.debug("IAST: no vulnerability quota to analyze more sink points")
+        except Exception:  # nosec
+            # log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
+            pass
+    # else:
+    # log.debug("IAST: no vulnerability quota to analyze more sink points")
 
 
 def open_path_traversal(*args, **kwargs):
