@@ -94,7 +94,7 @@ def producer(tracer):
 def consumer(tracer, kafka_topic):
     logger.debug("Creating consumer")
     _consumer = kafka.KafkaConsumer(
-        bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID
+        bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID, fetch_max_wait_ms=1000
     )
     logger.debug("Resetting offset for topic %s", kafka_topic)
     tp = TopicPartition(kafka_topic, 0)
