@@ -23,6 +23,7 @@ GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "127.0.0.1:{}".format(KAFKA_CONFIG["port"])
 KEY = bytes("test_key", encoding="utf-8")
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
+# Changing below values will result in flaky tests
 POLL_TIMEOUT = 5000
 FETCH_MAX_WAIT_MS = 1000
 DSM_TEST_PATH_HEADER_SIZE = 28

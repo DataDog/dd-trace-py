@@ -2716,7 +2716,7 @@ venv = Venv(
         ),
         Venv(
             name="kafka_python_ng",
-            pys=select_pys(min_version="3.10", max_version="3.10"),
+            pys=select_pys(),
             command='pytest --log-level DEBUG --log-format="%(asctime)s %(levelname)s %(name)s %(message)s"'
             + ' --log-date-format="%Y-%m-%d %H:%M:%S.%f" {cmdargs} tests/contrib/kafka_python_ng/',
             pkgs={
