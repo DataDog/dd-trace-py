@@ -23,7 +23,7 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+from ddtrace.debugging._exception.replay import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
@@ -494,7 +494,7 @@ class Debugger(Service):
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
-            resolved_source = probe.source_file
+            resolved_source = probe.resolved_source_file
             if resolved_source is None:
                 log.error(
                     "Cannot inject probe %s: source file %s cannot be resolved", probe.probe_id, probe.source_file
@@ -502,12 +502,12 @@ class Debugger(Service):
                 self._probe_registry.set_error(probe, "NoSourceFile", "Source file location cannot be resolved")
                 continue
 
-        for source in {probe.source_file for probe in probes if probe.source_file is not None}:
+        for source in {probe.resolved_source_file for probe in probes if probe.resolved_source_file is not None}:
             try:
                 self.__watchdog__.register_origin_hook(source, self._probe_injection_hook)
             except Exception as exc:
                 for probe in probes:
-                    if probe.source_file != source:
+                    if probe.resolved_source_file != source:
                         continue
                     exc_type = type(exc)
                     self._probe_registry.set_error(probe, exc_type.__name__, str(exc))
@@ -527,9 +527,9 @@ class Debugger(Service):
 
         probes_for_source: Dict[Path, List[LineProbe]] = defaultdict(list)
         for probe in unregistered_probes:
-            if probe.source_file is None:
+            if probe.resolved_source_file is None:
                 continue
-            probes_for_source[probe.source_file].append(probe)
+            probes_for_source[probe.resolved_source_file].append(probe)
 
         for resolved_source, probes in probes_for_source.items():
             module = self.__watchdog__.get_by_origin(resolved_source)

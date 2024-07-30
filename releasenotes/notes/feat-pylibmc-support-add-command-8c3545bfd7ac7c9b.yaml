@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    pylibmc: adds traces for memcached add command
