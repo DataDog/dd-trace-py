@@ -16,9 +16,6 @@ from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
 
 
-TEST_TABLE = "test_table"
-
-
 class TestTracedAsyncCursor(AsyncioTestCase):
     def setUp(self):
         super(TestTracedAsyncCursor, self).setUp()

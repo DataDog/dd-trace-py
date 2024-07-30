@@ -15,7 +15,6 @@ from tests.utils import assert_is_measured
 
 
 TEST_PORT = POSTGRES_CONFIG["port"]
-TEST_TABLE = "test_table"
 
 
 class PsycopgCore(AsyncioTestCase):
