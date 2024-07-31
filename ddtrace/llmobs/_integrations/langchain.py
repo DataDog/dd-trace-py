@@ -237,7 +237,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     if isinstance(input_texts, str):
                         input_texts = [input_texts]
                     input_documents = [Document(text=str(doc)) for doc in input_texts]
-                    span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents))
+                    span.set_tag_str(input_tag_key, json.dumps(input_documents))
         except TypeError:
             log.warning("Failed to serialize embedding input data to JSON")
         if error:
