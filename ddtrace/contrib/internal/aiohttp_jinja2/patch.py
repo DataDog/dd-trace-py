@@ -2,13 +2,12 @@ import aiohttp_jinja2
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
-
-from ddtrace.ext import SpanTypes
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.utils import get_argument_value
 
 
 config._add(
