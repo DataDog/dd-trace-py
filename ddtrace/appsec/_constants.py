@@ -306,3 +306,11 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
         SSRF: Literal["SSRF_ADDRESS"] = "SSRF_ADDRESS"
         SQLI: Literal["SQLI_ADDRESS"] = "SQLI_ADDRESS"
         SQLI_TYPE: Literal["SQLI_SYSTEM_ADDRESS"] = "SQLI_SYSTEM_ADDRESS"
+
+
+class FINGERPRINTING(metaclass=Constant_Class):
+    PREFIX = "_dd.appsec.fp."
+    ENDPOINT = PREFIX + "http.endpoint"
+    HEADER = PREFIX + "http.header"
+    NETWORK = PREFIX + "http.network"
+    SESSION = PREFIX + "session"
