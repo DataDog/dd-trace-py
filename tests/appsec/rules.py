@@ -5,6 +5,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) + "/appsec"
 RULES_GOOD_PATH = os.path.join(ROOT_DIR, "rules-good.json")
 RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
 RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
+RULES_SAB = os.path.join(ROOT_DIR, "rules-suspicious-attacker-blocking.json")
 RULES_SRB = os.path.join(ROOT_DIR, "rules-suspicious-requests.json")
 RULES_SRBCA = os.path.join(ROOT_DIR, "rules-suspicious-requests-custom-actions.json")
 RULES_SRB_RESPONSE = os.path.join(ROOT_DIR, "rules-suspicious-requests-response.json")
