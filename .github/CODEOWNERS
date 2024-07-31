@@ -111,6 +111,7 @@ setup.py                            @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 pyproject.toml                      @DataDog/python-guild
 hatch.toml                          @DataDog/python-guild
+.clang-format                       @DataDog/python-guild
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 README.md                           @DataDog/python-guild  @DataDog/apm-core-python
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
@@ -121,6 +122,8 @@ ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
+hooks/scripts/run-clang-format.sh   @DataDog/python-guild
+scripts/cformat.sh                  @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
