@@ -64,7 +64,7 @@ def bedrock_client(boto3, request_vcr):
 
 @pytest.fixture
 def mock_llmobs_span_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanAgentWriter")
     try:
         LLMObsSpanWriterMock = patcher.start()
         m = mock.MagicMock()
