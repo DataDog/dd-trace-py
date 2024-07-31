@@ -18,7 +18,7 @@ from ddtrace.internal.utils.http import get_connection
 
 
 TRACER_FLARE_DIRECTORY = "tracer_flare"
-TRACER_FLARE_TAR = pathlib.Path("tracer_flare.tar")
+TRACER_FLARE_ZIP = pathlib.Path("tracer_flare.zip")
 TRACER_FLARE_ENDPOINT = "/tracer_flare/v1"
 TRACER_FLARE_FILE_HANDLER_NAME = "tracer_flare_file_handler"
 TRACER_FLARE_LOCK = pathlib.Path("tracer_flare.lock")
