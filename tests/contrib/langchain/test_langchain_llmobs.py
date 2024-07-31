@@ -370,7 +370,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 embedding_model=embedding_model,
                 documents=["hello world", "goodbye world"],
                 mock_tracer=mock_tracer,
-                cassette_name="openai_embedding_document.yaml",
+                cassette_name="openai_embedding_document_39.yaml" if PY39 else "openai_embedding_document.yaml",
             )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         span = trace[0] if isinstance(trace, list) else trace
