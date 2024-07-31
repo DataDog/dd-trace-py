@@ -488,7 +488,8 @@
             "@contrib",
             "@kafka_python_ng",
             "@datastreams",
-            "tests/contrib/kafka_python_ng/*"
+            "tests/contrib/kafka_python_ng/*",
+            "tests/snapshots/tests.contrib.kafka_python_ng.*"
         ],
         "tracer": [
             "@tracing",
