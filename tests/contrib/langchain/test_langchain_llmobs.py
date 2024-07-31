@@ -650,7 +650,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     )
 
     def setUp(self):
-        patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+        patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanAgentWriter")
         LLMObsSpanWriterMock = patcher.start()
         mock_llmobs_span_writer = mock.MagicMock()
         LLMObsSpanWriterMock.return_value = mock_llmobs_span_writer
@@ -734,7 +734,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         from langchain_core.messages import HumanMessage
 
         patch(langchain=True, botocore=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
 
         self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
 
@@ -746,7 +746,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         from langchain_core.messages import HumanMessage
 
         patch(langchain=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
 
         self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
 
@@ -757,7 +757,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         from langchain_aws import BedrockLLM
 
         patch(langchain=True, botocore=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_bedrock_llm(BedrockLLM)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
@@ -766,7 +766,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         from langchain_aws import BedrockLLM
 
         patch(langchain=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_bedrock_llm(BedrockLLM)
         self._assert_trace_structure_from_writer_call_args(["llm"])
 
@@ -775,7 +775,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         from langchain_openai import OpenAI
 
         patch(langchain=True, openai=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
@@ -785,7 +785,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["llm"])
 
@@ -813,7 +813,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True, anthropic=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_anthropic_chat(ChatAnthropic)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
@@ -823,7 +823,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
 
         self._call_anthropic_chat(ChatAnthropic)
         self._assert_trace_structure_from_writer_call_args(["llm"])
