@@ -257,6 +257,10 @@ class LLMObs(Service):
             log.warning("Failed to export span context. `span` must be a valid Span object.")
             return None
 
+        if span.finished:
+            log.warning("Cannot export a finished span.")
+            return None
+
         # (TODO): lievan - how do we make this work with finished spans where these tags are already popped?
         exported_span = LLMObsSpanContext(
             span_id=str(span.span_id),

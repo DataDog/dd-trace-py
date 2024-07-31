@@ -978,6 +978,14 @@ def test_export_span_context_specified_span_is_not_llmobs_span_raises_warning(LL
     mock_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
 
 
+def test_export_span_context_specified_span_is_finished_raises_warning(LLMObs, mock_logs):
+    with LLMObs.agent("some_span") as span:
+        pass
+    exported_span = LLMObs.export_span_context(span=span)
+    assert exported_span is None
+    mock_logs.warning.assert_called_once_with("Cannot export a finished span.")
+
+
 def test_export_span_context_specified_span_returns_span_context(LLMObs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         span_context = LLMObs.export_span_context(span=span)
