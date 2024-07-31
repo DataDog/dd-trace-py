@@ -4,11 +4,11 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 
-from ....ext import SpanTypes
-from ....internal.utils import get_argument_value
-from ...trace_utils import unwrap
-from ...trace_utils import with_traced_module
-from ...trace_utils import wrap
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.trace_utils import wrap
 
 
 config._add(

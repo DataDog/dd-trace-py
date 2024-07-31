@@ -12,11 +12,11 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor import wrapt
 
-from ....ext import SpanKind
-from ....ext import SpanTypes
-from ....internal.schema import schematize_url_operation
-from ....pin import Pin
-from ....propagation.http import HTTPPropagator
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.pin import Pin
+from ddtrace.propagation.http import HTTPPropagator
 from ...trace_utils import ext_service
 from ...trace_utils import extract_netloc_and_query_info_from_url
 from ...trace_utils import set_http_meta

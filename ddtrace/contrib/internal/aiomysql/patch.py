@@ -12,12 +12,12 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
 
-from ....ext import SpanKind
-from ....ext import SpanTypes
-from ....ext import db
-from ....ext import net
-from ....internal.schema import schematize_service_name
-from ....propagation._database_monitoring import _DBM_Propagator
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
+from ddtrace.ext import net
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ... import trace_utils
 
 
