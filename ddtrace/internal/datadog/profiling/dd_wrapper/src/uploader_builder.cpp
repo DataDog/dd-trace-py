@@ -109,6 +109,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::version, version },
         { ExportTagKey::language, language },
         { ExportTagKey::runtime, runtime },
+        { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::profiler_version, profiler_version },
     };
