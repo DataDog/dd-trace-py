@@ -16,7 +16,7 @@ interactions:
       DD-API-KEY:
       - XXXXXX
     method: POST
-    uri: https://llmobs-intake.datadoghq.com/api/v2/llmobs
+    uri: https://llmobs-intake.datad0g.com/api/v2/llmobs
   response:
     body:
       string: '{}'
