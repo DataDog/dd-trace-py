@@ -23,10 +23,9 @@ GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "127.0.0.1:{}".format(KAFKA_CONFIG["port"])
 KEY = bytes("test_key", encoding="utf-8")
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
-# Changing below values will result in flaky tests
-POLL_TIMEOUT = 5000
-FETCH_MAX_WAIT_MS = 1000
 DSM_TEST_PATH_HEADER_SIZE = 28
+# Lowering the poll timeout will result in flaky tests
+POLL_TIMEOUT = 8000
 
 
 class KafkaConsumerPollFilter(TraceFilter):
@@ -100,7 +99,6 @@ def consumer(tracer, kafka_topic):
         bootstrap_servers=[BOOTSTRAP_SERVERS],
         auto_offset_reset="earliest",
         group_id=GROUP_ID,
-        fetch_max_wait_ms=FETCH_MAX_WAIT_MS,
     )
     logger.debug("Resetting offset for topic %s", kafka_topic)
     tp = TopicPartition(kafka_topic, 0)
