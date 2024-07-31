@@ -20,6 +20,7 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -326,7 +327,6 @@ class AppSecSpanProcessor(SpanProcessor):
         waf_results = self._ddwaf.run(
             ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
         )
-
         blocked = {}
         for action, parameters in waf_results.actions.items():
             if action == WAF_ACTIONS.BLOCK_ACTION:
@@ -341,6 +341,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 report_stack("exploit detected", span, crop_trace, stack_id=stack_trace_id)
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
+
+        # FingerPrinting
+        for key, value in waf_results.derivatives.items():
+            if key.startswith(FINGERPRINTING.PREFIX):
+                (span._local_root or span).set_tag_str(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
