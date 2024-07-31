@@ -1,8 +1,9 @@
 interactions:
 - request:
     body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Which team won the 2019
-      NBA finals?"], "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256,
-      "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p": 1}'
+      NBA finals?"], "frequency_penalty": 0, "logit_bias": {}, "logprobs": null, "max_tokens":
+      256, "n": 1, "presence_penalty": 0, "seed": null, "temperature": 0.7, "top_p":
+      1}'
     headers:
       accept:
       - application/json
@@ -11,13 +12,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '210'
+      - '242'
       content-type:
       - application/json
       host:
       - api.openai.com
       user-agent:
-      - AsyncOpenAI/Python 1.12.0
+      - AsyncOpenAI/Python 1.37.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -27,27 +28,25 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.37.0
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.5
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA0yQS2/CMBCE7/kVK58blKQPmtwogmMPFYdKpULBbBMHx2vZa5WH+O+VQwS97GFm
-        Z77VnhMAoXaiAiF7q9PXE89Px3k/W+QdeeyWoVyETO6Lp+NnEA9xm7YdSo4JxgNvJPVWIysyV1s6
-        rBljYz7NyulLVhb5YPS0Qx1jjeX0cfKccnBbSpXx7ILkMd2SkuhFBV8JAMB5mHBlxfDarM2qRViR
-        I8MEH7Vlch5+yQC3CEWWl/D+NoOlMrX2k6F2aFBmhwdRQXZTNDXW0TbSTND6pv8oo3y7cVh7MhHq
-        mawY3EsC8D1cGnzdoKjGC4V11FveMO3RxMJ8xIj7f/6ZxWgyca3velEkEXFJ/gAAAP//AwCv9Cfv
-        lwEAAA==
+    content: "{\n  \"id\": \"cmpl-9pRmV8lKVNKd8Pss2wVGmocz2lAUU\",\n  \"object\":
+      \"text_completion\",\n  \"created\": 1722048547,\n  \"model\": \"gpt-3.5-turbo-instruct\",\n
+      \ \"choices\": [\n    {\n      \"text\": \"\\n\\nThe Toronto Raptors won the
+      2019 NBA Finals.\",\n      \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\":
+      \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 10,\n    \"completion_tokens\":
+      12,\n    \"total_tokens\": 22\n  }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8605799edd1c439c-EWR
+      - 8a99507cfab043e6-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -57,17 +56,19 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Wed, 06 Mar 2024 21:35:21 GMT
+      - Sat, 27 Jul 2024 02:49:07 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=b3USpOEpxhNmxOpiE1tm1IBKxyK4GLbflVs_hrhdwyg-1709760921-1.0.1.1-XHi7Vc8d_yC6totIzrZZ2GZ9Z69DDu2BHzSFbJ7qO8iWjpastKBBYZgh1que28TnJtYDbNsHrDg5i0S8m8hc0Q;
-        path=/; expires=Wed, 06-Mar-24 22:05:21 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=uM16az0GbIc51IHXNaDQKm67KQ6MWxFPsoykHA24pjI-1722048547-1.0.1.1-n4vBcdB4COF_1lMNqCXFTrxn2wS9Visis7SxCdbvM9Thi8mRv2y2fUKQXCvgHP9ZiZRPauAkJws9k.eUrjuqdA;
+        path=/; expires=Sat, 27-Jul-24 03:19:07 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=3rH34R5zCyRzeipsUfJ8XN.xIRLRFwVvhJ7dtzI7d40-1709760921708-0.0.1.1-604800000;
+      - _cfuvid=ugZHcoUNOx.gQEhCW1Qzq4V4QzhgijtZ7i1l1l_ZmHw-1722048547874-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
+      X-Content-Type-Options:
+      - nosniff
       access-control-allow-origin:
       - '*'
       alt-svc:
@@ -77,26 +78,25 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '159'
+      - '154'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
+      - max-age=15552000; includeSubDomains; preload
       x-ratelimit-limit-requests:
-      - '3000'
+      - '3500'
       x-ratelimit-limit-tokens:
-      - '250000'
+      - '90000'
       x-ratelimit-remaining-requests:
-      - '2999'
+      - '3499'
       x-ratelimit-remaining-tokens:
-      - '249735'
+      - '89736'
       x-ratelimit-reset-requests:
-      - 20ms
+      - 17ms
       x-ratelimit-reset-tokens:
-      - 63ms
+      - 176ms
       x-request-id:
-      - req_508bebac21bca4d530c6942400386c31
-    status:
-      code: 200
-      message: OK
+      - req_c5a972e91807ef4cf9e435fd09da3b6c
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

@@ -6,6 +6,7 @@ import django
 import pytest
 
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import FINGERPRINTING
 import ddtrace.internal.constants as constants
 import tests.appsec.rules as rules
 from tests.utils import snapshot
@@ -100,6 +101,9 @@ def test_appsec_enabled():
         "metrics._dd.appsec.rasp.duration_ext",
         "metrics._dd.appsec.rasp.rule.eval",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
     ]
 )
 def test_appsec_enabled_attack():

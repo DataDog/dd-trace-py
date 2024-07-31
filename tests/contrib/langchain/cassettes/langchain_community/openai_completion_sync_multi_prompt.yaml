@@ -2,8 +2,9 @@ interactions:
 - request:
     body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["What is the best way to
       teach a baby multiple languages?", "How many times has Spongebob failed his
-      road test?"], "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256, "n":
-      1, "presence_penalty": 0, "temperature": 0.7, "top_p": 1}'
+      road test?"], "frequency_penalty": 0, "logit_bias": {}, "logprobs": null, "max_tokens":
+      256, "n": 1, "presence_penalty": 0, "seed": null, "temperature": 0.7, "top_p":
+      1}'
     headers:
       accept:
       - application/json
@@ -12,13 +13,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '285'
+      - '317'
       content-type:
       - application/json
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.12.0
+      - OpenAI/Python 1.37.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -28,37 +29,44 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.37.0
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.5
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA5RV224bRwx991cQepYFX+VYjylSwCh6Q9y8NIXBneXu0podbodcyWoQIL/R3+uX
-        FJxVLKW5AH0RFsPh4eGZQ+rdCcCM69kKZqEf4umLv3R5trs6vz3bxj/f/Hr3Pf/0As82y8cfrrc8
-        m/ttqR4pmGcYPdlDkH6IZCxpCodMaOSI5zdntzfXy+XVVQn0UlP0tHaw08vF9amNuZJTTmp5DLbP
-        7oQD6WwFv58AALwrvzDV8uS36W06X8Brw2xAmONuBfcdlU+mDAih41gDK9DTIEo1mEA/RuMhEkRM
-        7Ygt6RysZKknscGWY4SKoJHskd6zImFOgKmGTIacSmABr54GyqaQKUjfU6pBnQ2nFipqJFOBxpZA
-        GpBEC+d8sYCfE8FAWSXN/fiZywruzPlyP0g2TFZIEIZufx2m0lNn/3z4WyFyQ84wSFJWo2RxBzoQ
-        rj9B9isT5/uOdeqxozgc0KDmpqFMyRiNoCLbEqWDTKV73AjXXqsZlSWVfi4X8JsScN9T9sMV3E2f
-        qT1C3xN/LnIEzFqoSlNu9KIG1DQUjDcEW9xpIV9UOGohyFhgQxxr8o5TXSpyT7Bl6yBhAShaUNY5
-        bNFC53fu34B2slWQDLGIVjLdHMrhG1RLv1cL+BHX5FZpxrSCl1gx6d4iFamBdVnGtoMh4q7I1owJ
-        0PthY9IF3KUgeZDsQrfYuwdVUqvzctvEW+7QgNNG4oa+qpxTdiqltvdA6VF2WMWDewvl6wW8pCOL
-        rOC7j99h5/qvaQfbjtIksyMhVFjtvjAuPnEc1l4bIctonKjQLkx0LKZHA9pQ3vm77puoP/duwOxE
-        Y/S38JBif2TZPMa95MvJYhvWESMg17qCXzjYmF26JqJ2AXO9168SWevkAWVfSbCVXE8GHrqM6p5L
-        XxQ0YPrvWKCqhDISE0rBtY44Q5CcSQeZnDdtw4nwzQJepSBj9j58N4yJA1qZjkPgUMQERv3GO3e0
-        Axfr+aGrHRyV3g/3R4U/lbG0nZE/DiTnsmDLLuVU09NsBWfPJ1HaIUvlezeNMT6fN5xYu4dMqJJ8
-        /UZKrXWzEn8///qKfj1IaqmSCjpUaJAj1eADnAVrMJ+Xq5sytrr4nNj5/yemJsOe1gnAH+XPZFRs
-        abbaM5wNWfrBHkzWlBzw4nKCmx3+wo6Cy9t91MQwHgVuL068yPuTfwEAAP//AwDL4NsmPAcAAA==
+    content: "{\n  \"id\": \"cmpl-9pS5scz8rtXlIUCoz1kp8vHcD2G0k\",\n  \"object\":
+      \"text_completion\",\n  \"created\": 1722049748,\n  \"model\": \"gpt-3.5-turbo-instruct\",\n
+      \ \"choices\": [\n    {\n      \"text\": \"\\n\\n1. Start early: It is easier
+      for babies to learn multiple languages when exposed to them from a young age.
+      Babies are born with the ability to distinguish between different sounds and
+      can learn multiple languages simultaneously.\\n\\n2. One person, one language:
+      Choose one person to speak one language consistently to the baby. This will
+      help the baby differentiate between the languages and prevent confusion.\\n\\n3.
+      Use gestures and facial expressions: Babies learn best through visual cues,
+      so use gestures, facial expressions, and other non-verbal communication to help
+      them understand the meaning of words in different languages.\\n\\n4. Consistency
+      is key: Consistency is important when teaching a baby multiple languages. Stick
+      to a regular routine and use the same phrases and words in each language to
+      help the baby understand and remember them.\\n\\n5. Use play and songs: Incorporate
+      songs, games, and other fun activities that involve language into your daily
+      routine. This will make learning more enjoyable for the baby and help them retain
+      the information better.\\n\\n6. Expose the baby to different cultures: Exposing
+      the baby to different cultures and languages will help them understand and appreciate
+      the diversity of languages.\\n\\n7. Use visual aids: Use visual aids such as
+      books, flashcards, and videos to help the baby associate words with images.\",\n
+      \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"length\"\n
+      \   },\n    {\n      \"text\": \"\\n\\nSpongebob has failed his road test at
+      least 26 times.\",\n      \"index\": 1,\n      \"logprobs\": null,\n      \"finish_reason\":
+      \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 23,\n    \"completion_tokens\":
+      271,\n    \"total_tokens\": 294\n  }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 86051132180942a5-EWR
+      - 8a996dd0cf4f41ba-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -68,17 +76,19 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Wed, 06 Mar 2024 20:24:06 GMT
+      - Sat, 27 Jul 2024 03:09:11 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=t36Lbizu3fS3zBSLCgjK2do97J4VU5ogB47CiCVa9D0-1709756646-1.0.1.1-VNZB5yUrow70GSARFIeREg45e6flsdKmFx1HIo_LeP.u05BWFWmlMHuVmokjqX5tpEkNyHD1.ySHGx8CJxBmqg;
-        path=/; expires=Wed, 06-Mar-24 20:54:06 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=1NmhdnGLH.kOUAFL8IYX1vEfPVOph1x5APdlpf2lLPE-1722049751-1.0.1.1-nkQ_A336CIn7yH7CAdVMj6ilmBwjrQXJFoanMCmwwD49h29wFq04_hrtP6dopQMLFCfrG0hmyZevgrmX7JPXKg;
+        path=/; expires=Sat, 27-Jul-24 03:39:11 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=DhdIuc2pBflQbEDh6yA9gk9_HpKU_QDPi9tJiZT1gWc-1709756646847-0.0.1.1-604800000;
+      - _cfuvid=fSftIEDroi7qN7_1P0NkststNs0Dew2INaE38BYHlF8-1722049751758-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
+      X-Content-Type-Options:
+      - nosniff
       access-control-allow-origin:
       - '*'
       alt-svc:
@@ -88,26 +98,25 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '2572'
+      - '3040'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
+      - max-age=15552000; includeSubDomains; preload
       x-ratelimit-limit-requests:
-      - '3000'
+      - '3500'
       x-ratelimit-limit-tokens:
-      - '250000'
+      - '90000'
       x-ratelimit-remaining-requests:
-      - '2999'
+      - '3499'
       x-ratelimit-remaining-tokens:
-      - '249462'
+      - '89461'
       x-ratelimit-reset-requests:
-      - 20ms
+      - 17ms
       x-ratelimit-reset-tokens:
-      - 129ms
+      - 358ms
       x-request-id:
-      - req_d5462d3ec4061832658507c24c9ca550
-    status:
-      code: 200
-      message: OK
+      - req_6143667614e847c6877cd5da9d94a1ce
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1
