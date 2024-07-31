@@ -218,7 +218,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 if isinstance(formatted_inputs, str):
                     span.set_tag_str(input_tag_key, formatted_inputs)
                 else:
-                    span.set_tag_str(input_tag_key, json.dumps(self.format_io(input_query)))
+                    span.set_tag_str(input_tag_key, json.dumps(formatted_inputs))
             except TypeError:
                 log.warning("Failed to serialize similarity input query to JSON")
         if error:
