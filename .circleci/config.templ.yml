@@ -1273,7 +1273,7 @@ jobs:
 
   kafka_python_ng:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 5
     steps:
       - run_test:
           pattern: 'kafka_python_ng'
