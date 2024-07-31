@@ -1005,7 +1005,7 @@ def test_export_span_context_no_specified_span_returns_exported_active_span(LLMO
         assert span_context.trace_id == "{:x}".format(span.trace_id)
 
 
-def test_export_span_of_kind_llm(LLMObs):
+def test_export_span_context_of_kind_llm(LLMObs):
     with LLMObs.llm(
         ml_app="test_ml_app",
         session_id="test_session_id",
@@ -1033,7 +1033,7 @@ def test_export_span_of_kind_llm(LLMObs):
         assert span_context.meta.metadata == {"temperature": 0.5, "stop_sequences": ["foo", "bar"]}
 
 
-def test_export_span_with_generic_io_values(LLMObs):
+def test_export_span_context_with_generic_io_values(LLMObs):
     with LLMObs.workflow(
         ml_app="test_ml_app",
         session_id="test_session_id",
@@ -1055,7 +1055,7 @@ def test_export_span_with_generic_io_values(LLMObs):
         assert span_context.meta.metadata == {"user": "test_user"}
 
 
-def test_export_span_of_kind_retrieval(LLMObs):
+def test_export_span_context_of_kind_retrieval(LLMObs):
     with LLMObs.retrieval(
         ml_app="test_ml_app",
         session_id="test_session_id",
@@ -1081,7 +1081,7 @@ def test_export_span_of_kind_retrieval(LLMObs):
         assert span_context.meta.metadata == {"top_k": 1}
 
 
-def test_export_span_of_kind_embedding(LLMObs):
+def test_export_span_context_of_kind_embedding(LLMObs):
     with LLMObs.embedding(
         ml_app="test_ml_app",
         session_id="test_session_id",
@@ -1107,7 +1107,7 @@ def test_export_span_of_kind_embedding(LLMObs):
         assert span_context.meta.output.value == "success"
 
 
-def test_export_span_with_no_annotation(LLMObs):
+def test_export_span_context_with_no_annotation(LLMObs):
     with LLMObs.llm(
         ml_app="test_ml_app",
         session_id="test_session_id",
