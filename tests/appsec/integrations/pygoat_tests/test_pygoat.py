@@ -92,6 +92,7 @@ def vulnerability_in_traces(vuln_type: str, agent_client: requests.Session) -> b
     return False
 
 
+@pytest.mark.skip(reason="PyGoat docker is broken, FIXME")
 def test_insecure_cookie(client):
     payload = {"name": "admin", "pass": "adminpassword", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/sql_lab", data=payload, headers=TESTAGENT_HEADERS)
@@ -99,6 +100,7 @@ def test_insecure_cookie(client):
     assert vulnerability_in_traces("INSECURE_COOKIE", client.agent_session)
 
 
+@pytest.mark.skip(reason="PyGoat docker is broken, FIXME")
 def test_nohttponly_cookie(client):
     payload = {"email": "test@test.com", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/otp", data=payload, headers=TESTAGENT_HEADERS)
@@ -106,12 +108,14 @@ def test_nohttponly_cookie(client):
     assert vulnerability_in_traces("NO_HTTPONLY_COOKIE", client.agent_session)
 
 
+@pytest.mark.skip(reason="PyGoat docker is broken, FIXME")
 def test_weak_random(client):
     reply = client.pygoat_session.get(PYGOAT_URL + "/otp?email=test%40test.com", headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert vulnerability_in_traces("WEAK_RANDOMNESS", client.agent_session)
 
 
+@pytest.mark.skip(reason="PyGoat docker is broken, FIXME")
 def test_weak_hash(client):
     payload = {"username": "admin", "password": "adminpassword", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(
@@ -121,6 +125,7 @@ def test_weak_hash(client):
     assert vulnerability_in_traces("WEAK_HASH", client.agent_session)
 
 
+@pytest.mark.skip(reason="PyGoat docker is broken, FIXME")
 def test_cmdi(client):
     payload = {"domain": "google.com && ls", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/cmd_lab", data=payload, headers=TESTAGENT_HEADERS)
@@ -128,6 +133,7 @@ def test_cmdi(client):
     assert vulnerability_in_traces("COMMAND_INJECTION", client.agent_session)
 
 
+@pytest.mark.skip(reason="PyGoat docker is broken, FIXME")
 def test_sqli(client):
     payload = {"name": "admin", "pass": "anything' OR '1' ='1", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/sql_lab", data=payload, headers=TESTAGENT_HEADERS)
@@ -153,6 +159,7 @@ def test_ssrf1(client, tracer, iast_span_defaults):
     assert vulnerability_in_traces("SSRF", client.agent_session)
 
 
+@pytest.mark.skip(reason="PyGoat docker is broken, FIXME")
 def test_ssrf2(client, tracer, span_defaults):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
