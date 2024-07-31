@@ -20,8 +20,11 @@ required_modules = ["aiohttp_jinja2"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch
+        # Required to allow users to import from `ddtrace.contrib.aiohttp.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        from ..internal.aiobotocore.patch import get_version
+        from ..internal.aiobotocore.patch import patch
+        from ..internal.aiobotocore.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]
