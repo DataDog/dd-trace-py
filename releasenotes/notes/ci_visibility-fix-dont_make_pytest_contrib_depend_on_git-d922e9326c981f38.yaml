@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    CI Visibility: fixes an issue where the pytest plugin would crash if the git binary was absent
+    CI Visibility: Fixes an issue where the pytest plugin would crash if the git binary was absent
