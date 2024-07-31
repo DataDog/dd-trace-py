@@ -8,6 +8,7 @@ import pytest
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
+from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -172,6 +173,9 @@ def test_headers_collection(tracer_appsec):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -198,6 +202,9 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -306,6 +313,9 @@ def test_ip_update_rules_expired_no_block(tracer):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
