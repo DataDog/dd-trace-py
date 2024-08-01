@@ -130,20 +130,24 @@ def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
 
     out, err, status, pid = run_python_code_in_subprocess(
         """
-import atexit
+import mock
 import os
 import time
 
+from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs.test_llmobs_span_writer import _completion_event
-from tests.llmobs._utils import logs_vcr
 
-ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_span_writer.test_send_completion_event.yaml")
-ctx.__enter__()
-atexit.register(lambda: ctx.__exit__())
-llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=1)
-llmobs_span_writer.start()
-llmobs_span_writer.enqueue(_completion_event())
+with mock.patch(
+    "ddtrace.internal.writer.HTTPWriter._send_payload",
+    return_value=Response(
+        status=200,
+        body="{}",
+    ),
+):
+    llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=1)
+    llmobs_span_writer.start()
+    llmobs_span_writer.enqueue(_completion_event())
 """,
         env=env,
     )
