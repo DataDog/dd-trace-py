@@ -228,7 +228,7 @@ class LLMObsSpanWriter(HTTPWriter):
         sync_mode=False,
         reuse_connections=None,
     ):
-        headers = {"Content-Type": "application/json"}
+        headers = {}
         clients = []  # type: List[WriterClientBase]
         if is_agentless:
             clients.append(LLMObsEventAgentlessEventClient())
