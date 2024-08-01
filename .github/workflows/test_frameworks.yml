@@ -25,7 +25,7 @@ jobs:
           python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml', '.github/workflows/test_frameworks.yml', 'tests/debugging/exploration/*'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
         continue-on-error: true
 
-  bottle-testsuite-0_12_19:
+  bottle-testsuite:
     strategy:
       matrix:
         include:
@@ -45,7 +45,7 @@ jobs:
             profiling: 0
             iast: 0
             appsec: 0
-    name: Bottle 0.12.19 (with ${{ matrix.suffix }})
+    name: Bottle 0.12.25 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
     env:
@@ -72,7 +72,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: bottlepy/bottle
-          ref: master
+          ref: 0.12.25
           path: bottle
       - name: Install Dependencies
         if: needs.needs-run.outputs.outcome == 'success'
@@ -412,7 +412,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
-  flask-testsuite-1_1_4:
+  flask-testsuite:
     strategy:
       matrix:
         include:
@@ -432,7 +432,7 @@ jobs:
             profiling: 0
             iast: 0
             appsec: 0
-    name: Flask 1.1.4 (with ${{ matrix.suffix }})
+    name: Flask 3.0.3 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
     env:
@@ -456,7 +456,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: pallets/flask
-          ref: 1.1.4
+          ref: 3.0.3
           path: flask
       - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
@@ -542,7 +542,7 @@ jobs:
         # test_pool_timeout raises RuntimeError: The connection pool was closed while 1 HTTP requests/responses were still in-flight
         run: pytest -k 'not test_pool_timeout'
 
-  mako-testsuite-1_3_0:
+  mako-testsuite:
     strategy:
       matrix:
         include:
@@ -562,7 +562,7 @@ jobs:
             profiling: 0
             iast: 0
             appsec: 0
-    name: Mako 1.3.0 (with ${{ matrix.suffix }})
+    name: Mako 1.3.5 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
     env:
@@ -586,7 +586,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: sqlalchemy/mako
-          ref: rel_1_3_0
+          ref: rel_1_3_5
           path: mako
       - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
@@ -595,9 +595,6 @@ jobs:
       - name: Install tox
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install tox
-      - name: Pin pygments to avoid breaking test
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: sed -i 's/pygments/pygments~=2.11.0/' tox.ini
       - name: Create tox env
         if: needs.needs-run.outputs.outcome == 'success'
         run: tox -e py312 --notest
@@ -749,7 +746,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
-  asyncpg-testsuite-0_27_0:
+  asyncpg-testsuite:
     # https://github.com/MagicStack/asyncpg/blob/v0.25.0/.github/workflows/tests.yml#L125
     strategy:
       matrix:
@@ -770,7 +767,7 @@ jobs:
             profiling: 0
             iast: 0
             appsec: 0
-    name: AsyncPG 0.27.0 (with ${{ matrix.suffix }})
+    name: AsyncPG 0.29.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
     env:
@@ -795,7 +792,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: magicstack/asyncpg
-          ref: v0.27.0
+          ref: v0.29.0
           path: asyncpg
           fetch-depth: 50
           submodules: true
