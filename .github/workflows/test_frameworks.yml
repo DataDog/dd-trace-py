@@ -594,8 +594,7 @@ jobs:
         run: |
           source .tox/py312/bin/activate
           pip install ../ddtrace
-          pip install -e .
-          pytest -p no:warnings
+          tox -e py312
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
