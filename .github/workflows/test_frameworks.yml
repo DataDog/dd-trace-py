@@ -468,7 +468,7 @@ jobs:
         run: tox -e py312 --notest
       - name: Add pytest configuration for ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
-        run: touch tox.ini && echo -e "[pytest]\nddtrace-patch-all = 1" >> tox.ini
+        run: touch pyproject.toml && echo -e "[tool.pytest.inioptions]\nddtrace-patch-all = 1" >> pyproject.toml
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: |
