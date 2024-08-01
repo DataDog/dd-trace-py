@@ -22,7 +22,6 @@ def test_writer_start(mock_writer_logs):
         mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanWriter", INTAKE_URL)])
 
 
-@pytest.mark.vcr_logs
 def test_buffer_limit(mock_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_api_key="foobar.baz", _dd_site=DATADOG_SITE)):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1000, timeout=1)
@@ -33,8 +32,7 @@ def test_buffer_limit(mock_writer_logs, mock_http_writer_send_payload_response):
         )
 
 
-@pytest.mark.vcr_logs
-def test_send_completion_event(mock_writer_logs, mock_http_writer_logs):
+def test_send_completion_event(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(
         dict(
             _dd_site=DATADOG_SITE,
@@ -49,8 +47,7 @@ def test_send_completion_event(mock_writer_logs, mock_http_writer_logs):
         mock_http_writer_logs.error.assert_not_called()
 
 
-@pytest.mark.vcr_logs
-def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_logs):
+def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(
         dict(
             _dd_site=DATADOG_SITE,
@@ -65,8 +62,7 @@ def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_logs):
         mock_http_writer_logs.error.assert_not_called()
 
 
-@pytest.mark.vcr_logs
-def test_send_completion_bad_api_key(mock_http_writer_logs):
+def test_send_completion_bad_api_key(mock_http_writer_logs, mock_http_writer_put_response_forbidden):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="<bad-api-key>")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
         llmobs_span_writer.start()
@@ -74,14 +70,13 @@ def test_send_completion_bad_api_key(mock_http_writer_logs):
         llmobs_span_writer.periodic()
         mock_http_writer_logs.error.assert_called_with(
             "failed to send traces to intake at %s: HTTP error status %s, reason %s",
-            1,
+            INTAKE_ENDPOINT,
             403,
             b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
         )
 
 
-@pytest.mark.vcr_logs
-def test_send_timed_events(mock_writer_logs, mock_http_writer_logs):
+def test_send_timed_events(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(
         dict(
             _dd_site=DATADOG_SITE,
@@ -102,8 +97,7 @@ def test_send_timed_events(mock_writer_logs, mock_http_writer_logs):
         mock_http_writer_logs.error.assert_not_called()
 
 
-@pytest.mark.vcr_logs
-def test_send_multiple_events(mock_writer_logs, mock_http_writer_logs):
+def test_send_multiple_events(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(
         dict(
             _dd_site=DATADOG_SITE,

@@ -71,6 +71,18 @@ def mock_http_writer_send_payload_response():
 
 
 @pytest.fixture
+def mock_http_writer_put_response_forbidden():
+    with mock.patch(
+        "ddtrace.internal.writer.HTTPWriter._put",
+        return_value=Response(
+            status=403,
+            reason='{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
+        ),
+    ):
+        yield
+
+
+@pytest.fixture
 def mock_writer_logs():
     with mock.patch("ddtrace.llmobs._writer.logger") as m:
         yield m
