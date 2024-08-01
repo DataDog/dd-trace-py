@@ -440,7 +440,6 @@ jobs:
       DD_IAST_ENABLED: ${{ matrix.iast }}
       DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
-      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
@@ -465,19 +464,16 @@ jobs:
         run: pip install tox
       - name: Create tox env
         if: needs.needs-run.outputs.outcome == 'success'
-        run: tox -e py312 --notest
+        run: tox -e py3.12 --notest
       - name: Add pytest configuration for ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: touch pyproject.toml && echo -e "[tool.pytest.inioptions]\nddtrace-patch-all = 1" >> pyproject.toml
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: |
-          source .tox/py312/bin/activate
+          source .tox/py3.12/bin/activate
           pip install ../ddtrace
           tox run -e py3.12
-      - name: Debugger exploration results
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: cat debugger-expl.txt
 
   httpx-testsuite-0_22_0:
     strategy:
