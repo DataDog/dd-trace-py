@@ -27,6 +27,7 @@ from ddtrace._trace.span import Span  # noqa: E402
 from ddtrace._trace.tracer import Tracer  # noqa: E402
 from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
+from ddtrace._trace.context import Context # noqa: E402
 
 # DEV: Import deprecated tracer module in order to retain side-effect of package
 # initialization, which added this module to sys.modules. We catch deprecation
@@ -50,6 +51,7 @@ __all__ = [
     "tracer",
     "Tracer",
     "config",
+    "Context",
     "DDTraceDeprecationWarning",
 ]
 

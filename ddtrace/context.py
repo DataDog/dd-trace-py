@@ -4,7 +4,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 deprecate(
-    "The context interface is deprecated.",
-    message="The trace context is an internal interface and will no longer be supported.",
+    "The ddtrace.context module is deprecated and will be removed from the public API.",
+    message="Context class should be imported from ddtrace package (ex: from ddtrace import Context)",
     category=DDTraceDeprecationWarning,
 )
