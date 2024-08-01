@@ -11,9 +11,8 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-
-from ... import trace_utils
-from ...asyncio import context_provider
+from ddtrace.contrib import trace_utils
+from ddtrace.contrib.asyncio import context_provider
 
 
 CONFIG_KEY = "datadog_trace"

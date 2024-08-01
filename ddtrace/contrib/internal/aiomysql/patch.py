@@ -17,8 +17,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.vendor import wrapt
-
-from ... import trace_utils
+from ddtrace.contrib import trace_utils
 
 
 config._add(

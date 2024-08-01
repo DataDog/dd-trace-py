@@ -16,14 +16,13 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
-
-from ...trace_utils import ext_service
-from ...trace_utils import extract_netloc_and_query_info_from_url
-from ...trace_utils import set_http_meta
-from ...trace_utils import unwrap
-from ...trace_utils import with_traced_module as with_traced_module_sync
-from ...trace_utils import wrap
-from ...trace_utils_async import with_traced_module
+from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.contrib.trace_utils import with_traced_module as with_traced_module_sync
+from ddtrace.contrib.trace_utils import wrap
+from ddtrace.contrib.trace_utils_async import with_traced_module
 
 
 log = get_logger(__name__)

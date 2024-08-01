@@ -7,9 +7,8 @@ import asyncio
 
 import ddtrace
 from ddtrace.vendor.debtcollector import deprecate
-
-from .provider import AsyncioContextProvider
-from .wrappers import wrapped_create_task
+from ddtrace.contrib.internal.asyncio.provider import AsyncioContextProvider
+from ddtrace.contrib.internal.asyncio.wrappers import wrapped_create_task
 
 
 def set_call_context(task, ctx):

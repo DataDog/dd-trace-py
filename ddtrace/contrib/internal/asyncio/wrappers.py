@@ -1,5 +1,5 @@
-from .compat import asyncio_current_task
-from .provider import AsyncioContextProvider
+from ddtrace.contrib.internal.asyncio.compat import asyncio_current_task
+from ddtrace.contrib.internal.asyncio.provider import AsyncioContextProvider
 
 
 def wrapped_create_task(wrapped, instance, args, kwargs):
