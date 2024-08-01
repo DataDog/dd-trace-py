@@ -13,6 +13,10 @@ set(CMAKE_CXX_STANDARD 17)
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
 add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
 
+# Debug-specific compile options
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0")
+
 if(BUILD_MACOS)
     # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
     message(STATUS "Compile options for MacOS")
@@ -67,6 +71,13 @@ set_target_properties(
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
+endif()
+
+# Debug-specific link options
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    if(UNIX AND NOT APPLE)
+        target_link_options(${APP_NAME} PRIVATE -rdynamic)
+    endif()
 endif()
 
 install(TARGETS _native DESTINATION
