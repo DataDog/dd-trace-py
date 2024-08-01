@@ -474,10 +474,9 @@ jobs:
         # test_exception_propagation is broken upstream
         run: |
           source .tox/py312/bin/activate
-          pip install pytest==8.3.2
           pip install ../ddtrace
           pip install -e .
-          tox run -e py312
+          tox run -e py3.12
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
