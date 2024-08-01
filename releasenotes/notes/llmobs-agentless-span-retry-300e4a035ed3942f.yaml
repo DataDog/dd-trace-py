@@ -1,0 +1,3 @@
+features:
+  - |
+    LLM Observability: Updates the agentless span writer to retry sending spans if the initial attempt fails.
