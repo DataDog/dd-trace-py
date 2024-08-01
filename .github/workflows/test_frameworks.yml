@@ -63,7 +63,7 @@ jobs:
       - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: '3.9'
+          python-version: '3.12'
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
@@ -148,7 +148,7 @@ jobs:
       - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install sanic and dependencies required to run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip3 install '.[test]' aioquic
@@ -461,7 +461,7 @@ jobs:
       - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: '3.8'
+          python-version: '3.12'
       - name: Install tox
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install tox
@@ -591,7 +591,7 @@ jobs:
       - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: '3.8'
+          python-version: '3.12'
       - name: Install tox
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install tox
