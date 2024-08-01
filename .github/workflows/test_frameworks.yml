@@ -467,7 +467,7 @@ jobs:
         run: pip install tox
       - name: Create tox env
         if: needs.needs-run.outputs.outcome == 'success'
-        run: tox -e py38 --notest
+        run: tox -e py312 --notest
       - name: Add pytest configuration for ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
@@ -600,7 +600,7 @@ jobs:
         run: sed -i 's/pygments/pygments~=2.11.0/' tox.ini
       - name: Create tox env
         if: needs.needs-run.outputs.outcome == 'success'
-        run: tox -e py --notest
+        run: tox -e py312 --notest
       - name: Add pytest configuration for ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
