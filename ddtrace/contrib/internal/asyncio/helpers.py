@@ -6,9 +6,9 @@ Context and Spans in instrumented ``asyncio`` code.
 import asyncio
 
 import ddtrace
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.contrib.internal.asyncio.provider import AsyncioContextProvider
 from ddtrace.contrib.internal.asyncio.wrappers import wrapped_create_task
+from ddtrace.vendor.debtcollector import deprecate
 
 
 def set_call_context(task, ctx):

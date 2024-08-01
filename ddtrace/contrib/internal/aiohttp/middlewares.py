@@ -5,14 +5,14 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import trace_utils
+from ddtrace.contrib.asyncio import context_provider
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.asyncio import context_provider
 
 
 CONFIG_KEY = "datadog_trace"
