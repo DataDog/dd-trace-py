@@ -10,6 +10,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -20,6 +21,7 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 
+from ..utils import Document
 from .base import BaseLLMIntegration
 
 
@@ -42,13 +44,15 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding"]
+
 
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
     def llmobs_set_tags(
         self,
-        operation: str,  # oneof "llm","chat","chain"
+        operation: str,  # oneof "llm","chat","chain","embedding"
         span: Span,
         inputs: Any,
         response: Any = None,
@@ -57,6 +61,10 @@ class LangChainIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
+        if operation not in SUPPORTED_OPERATIONS:
+            log.warning("Unsupported operation : %s", operation)
+            return
+
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
@@ -79,6 +87,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error, is_workflow=is_workflow)
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
+        elif operation == "embedding":
+            self._llmobs_set_meta_tags_from_embedding(span, inputs, response, error, is_workflow=is_workflow)
         span.set_tag_str(METRICS, json.dumps({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
@@ -193,6 +203,62 @@ class LangChainIntegration(BaseLLMIntegration):
                     span.set_tag_str(OUTPUT_VALUE, json.dumps(self.format_io(outputs)))
             except TypeError:
                 log.warning("Failed to serialize chain output data to JSON")
+
+    def _llmobs_set_meta_tags_from_embedding(
+        self,
+        span: Span,
+        input_texts: Union[str, List[str]],
+        output_embedding: Union[List[float], List[List[float]], None],
+        error: bool = False,
+        is_workflow: bool = False,
+    ) -> None:
+        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "embedding")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
+        input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
+        output_tag_key = OUTPUT_VALUE
+
+        output_values: Any
+
+        try:
+            if isinstance(input_texts, str) or (
+                isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)
+            ):
+                if is_workflow:
+                    formatted_inputs = self.format_io(input_texts)
+                    formatted_str = (
+                        formatted_inputs
+                        if isinstance(formatted_inputs, str)
+                        else json.dumps(self.format_io(input_texts))
+                    )
+                    span.set_tag_str(input_tag_key, formatted_str)
+                else:
+                    if isinstance(input_texts, str):
+                        input_texts = [input_texts]
+                    input_documents = [Document(text=str(doc)) for doc in input_texts]
+                    span.set_tag_str(input_tag_key, json.dumps(input_documents))
+        except TypeError:
+            log.warning("Failed to serialize embedding input data to JSON")
+        if error:
+            span.set_tag_str(output_tag_key, "")
+        elif output_embedding is not None:
+            try:
+                if isinstance(output_embedding[0], float):
+                    # single embedding through embed_query
+                    output_values = [output_embedding]
+                    embeddings_count = 1
+                else:
+                    # multiple embeddings through embed_documents
+                    output_values = output_embedding
+                    embeddings_count = len(output_embedding)
+                embedding_dim = len(output_values[0])
+                span.set_tag_str(
+                    output_tag_key,
+                    "[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
+                )
+            except (TypeError, IndexError):
+                log.warning("Failed to write output vectors", output_embedding)
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

@@ -799,6 +799,17 @@ class CIVisibility(Service):
         return instance._service
 
     @classmethod
+    def get_workspace_path(cls) -> Optional[str]:
+        if not cls.enabled:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        instance = cls.get_instance()
+        if instance is None:
+            return None
+        return instance._tags.get(ci.WORKSPACE_PATH)
+
+    @classmethod
     def is_item_itr_skippable(cls, item_id: CIItemId) -> bool:
         if not cls.enabled:
             error_msg = "CI Visibility is not enabled"

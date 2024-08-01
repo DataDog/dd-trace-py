@@ -36,8 +36,8 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib.botocore.patch import _patch_submodules
 from ddtrace.contrib.botocore.patch import patch
-from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
@@ -76,7 +76,7 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     def setUp(self):
         patch()
-        patch_submodules(True)
+        _patch_submodules(True)
 
         self.session = botocore.session.get_session()
         self.session.set_credentials(access_key="access-key", secret_key="secret-key")
@@ -103,7 +103,7 @@ class BotocoreTest(TracerTestCase):
     @mock_ec2
     @mock_s3
     def test_patch_submodules(self):
-        patch_submodules(["s3"])
+        _patch_submodules(["s3"])
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
@@ -3271,6 +3271,50 @@ class BotocoreTest(TracerTestCase):
         decoded_record_data = self._test_kinesis_put_records_trace_injection("json_string", records)
 
         assert decoded_record_data.endswith("\n")
+
+    @mock_kinesis
+    def test_kinesis_parenting(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+        stream_name = "test"
+
+        partition_key = "1234"
+        data = [
+            {"Data": json.dumps({"Hello": "World"}), "PartitionKey": partition_key},
+            {"Data": json.dumps({"foo": "bar"}), "PartitionKey": partition_key},
+        ]
+
+        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
+
+        with self.tracer.trace("kinesis.manual_span"):
+            client.create_stream(StreamName=stream_name, ShardCount=1)
+            client.put_records(StreamName=stream_name, Records=data)
+
+        spans = self.get_spans()
+
+        assert spans[0].name == "kinesis.manual_span"
+
+        assert spans[1].service == "aws.kinesis"
+        assert spans[1].name == "kinesis.command"
+        assert spans[1].parent_id == spans[0].span_id
+
+        assert spans[2].service == "aws.kinesis"
+        assert spans[2].name == "kinesis.command"
+        assert spans[2].parent_id == spans[0].span_id
+
+    @mock_sqs
+    def test_sqs_parenting(self):
+        Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+
+        with self.tracer.trace("sqs.manual_span"):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+
+        spans = self.get_spans()
+
+        assert spans[0].name == "sqs.manual_span"
+
+        assert spans[1].service == "aws.sqs"
+        assert spans[1].name == "sqs.command"
+        assert spans[1].parent_id == spans[0].span_id
 
     @mock_kinesis
     def test_kinesis_put_records_newline_base64_trace_injection(self):
