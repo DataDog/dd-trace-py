@@ -778,6 +778,8 @@ def listen():
     core.on("botocore.prep_context_injection.post", _on_botocore_trace_context_injection_prepared)
     core.on("botocore.patched_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_kinesis_api_call.started", _on_botocore_patched_api_call_started)
+    core.on("botocore.patched_kinesis_api_call.exception", _on_botocore_patched_api_call_exception)
+    core.on("botocore.patched_kinesis_api_call.success", _on_botocore_patched_api_call_success)
     core.on("botocore.kinesis.update_record", _on_botocore_kinesis_update_record)
     core.on("botocore.patched_sqs_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_sqs_api_call.exception", _on_botocore_patched_api_call_exception)

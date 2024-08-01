@@ -169,6 +169,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.9.2
+
+
+### Bug Fixes
+
+- futures: Fixes inconsistent behavior with `concurrent.futures.ThreadPoolExecutor` context propagation by passing the current trace context instead of the currently active span to tasks. This prevents edge cases of disconnected spans when the task executes after the parent span has finished.
+
+### Other Changes
+
+- lib-injection: Updates base Alpine image to 3.20.
+
+
+---
+
 ## 2.9.1
 
 
