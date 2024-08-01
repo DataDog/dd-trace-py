@@ -384,7 +384,7 @@ class CMakeExtension(Extension):
         self.cmake_args = cmake_args or []
         self.build_args = build_args or []
         self.install_args = install_args or []
-        self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
+        self.build_type = build_type or ("Debug" if DEBUG_COMPILE else "Release")
         self.optional = optional  # If True, cmake errors are ignored
 
 
@@ -486,7 +486,8 @@ if not IS_PYSTON:
             )
         )
 
-        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, build_type="Debug"))
+        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR,
+                                          build_type="RelWithDebInfo"))
 
     if platform.system() == "Linux" and is_64_bit_python():
         ext_modules.append(
