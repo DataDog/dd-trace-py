@@ -58,7 +58,7 @@ def mock_llmobs_eval_metric_writer():
     patcher.stop()
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def mock_http_writer_send_payload_response():
     with mock.patch(
         "ddtrace.internal.writer.HTTPWriter._send_payload",
@@ -73,6 +73,12 @@ def mock_http_writer_send_payload_response():
 @pytest.fixture
 def mock_writer_logs():
     with mock.patch("ddtrace.llmobs._writer.logger") as m:
+        yield m
+
+
+@pytest.fixture
+def mock_http_writer_logs():
+    with mock.patch("ddtrace.internal.writer.writer.log") as m:
         yield m
 
 

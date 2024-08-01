@@ -1,3 +1,4 @@
+import os
 import time
 
 import mock
@@ -61,13 +62,13 @@ def test_send_chat_completion_event(mock_writer_logs):
 
 
 @pytest.mark.vcr_logs
-def test_send_completion_bad_api_key(mock_writer_logs):
+def test_send_completion_bad_api_key(mock_http_writer_logs):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="<bad-api-key>")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
         llmobs_span_writer.start()
         llmobs_span_writer.enqueue(_completion_event())
         llmobs_span_writer.periodic()
-        mock_writer_logs.error.assert_called_with(
+        mock_http_writer_logs.error.assert_called_with(
             "failed to send traces to intake at %s: HTTP error status %s, reason %s",
             1,
             403,
@@ -115,14 +116,20 @@ def test_send_multiple_events(mock_writer_logs):
 
 
 def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
-    with override_global_config(
-        dict(
-            _dd_site=DATADOG_SITE,
-            _dd_api_key="foobar.baz",
-        )
-    ):
-        out, err, status, pid = run_python_code_in_subprocess(
-            """
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "DD_API_KEY": "foobar.baz",
+            "DD_SITE": DATADOG_SITE,
+            "PYTHONPATH": ":".join(pypath),
+        }
+    )
+
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
 import atexit
 import os
 import time
@@ -138,7 +145,8 @@ llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=
 llmobs_span_writer.start()
 llmobs_span_writer.enqueue(_completion_event())
 """,
-        )
-        assert status == 0, err
-        assert out == b""
-        assert err == b""
+        env=env,
+    )
+    assert status == 0, err
+    assert out == b""
+    assert err == b""
