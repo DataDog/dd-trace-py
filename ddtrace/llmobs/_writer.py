@@ -221,20 +221,21 @@ class LLMObsSpanWriter(HTTPWriter):
 
     def __init__(
         self,
-        is_agentless: bool,
         interval: float,
         timeout: float,
+        is_agentless: bool = True,
         dogstatsd=None,
         sync_mode=False,
         reuse_connections=None,
     ):
         headers = {"Content-Type": "application/json"}
+        clients = []  # type: List[WriterClientBase]
         if is_agentless:
-            clients = [LLMObsEventAgentlessEventClient()]  # type: List[WriterClientBase]
+            clients.append(LLMObsEventAgentlessEventClient())
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, config._dd_site)
             headers["DD-API-KEY"] = config._dd_api_key
         else:
-            clients = [LLMObsEventProxiedEventClient()]  # type: List[WriterClientBase]
+            clients.append(LLMObsEventProxiedEventClient())
             intake_url = agent.get_trace_url()
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
@@ -268,7 +269,6 @@ class LLMObsSpanWriter(HTTPWriter):
     def recreate(self):
         # type: () -> HTTPWriter
         return self.__class__(
-            is_agentless=self._is_agentless,
             interval=self._interval,
             timeout=self._timeout,
         )
