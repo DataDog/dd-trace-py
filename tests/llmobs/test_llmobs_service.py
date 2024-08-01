@@ -984,6 +984,20 @@ def test_submit_evaluation_llmobs_disabled_raises_warning(LLMObs, mock_logs):
     )
 
 
+def test_submit_evaluation_no_api_key_raises_warning(AgentlessLLMObs, mock_logs):
+    with override_global_config(dict(_dd_api_key="")):
+        AgentlessLLMObs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+        )
+        mock_logs.warning.assert_called_once_with(
+            "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+            "Ensure this configuration is set before running your application."
+        )
+
+
 def test_submit_evaluation_span_context_incorrect_type_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(span_context="asd", label="toxicity", metric_type="categorical", value="high")
     mock_logs.warning.assert_called_once_with(
