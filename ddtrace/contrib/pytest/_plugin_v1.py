@@ -37,7 +37,6 @@ from ddtrace.contrib.pytest.utils import _pytest_version_supports_itr
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
-from ddtrace.ext.git import extract_workspace_path
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
@@ -451,13 +450,12 @@ class _PytestDDTracePluginV1:
             log.debug("CI Visibility enabled - starting test session")
             global _global_skipped_elements
             _global_skipped_elements = 0
-            try:
-                workspace_path = extract_workspace_path()
-            except ValueError:
-                log.debug("Couldn't extract workspace path from git, reverting to config rootdir")
+
+            workspace_path = _CIVisibility.get_workspace_path()
+            if workspace_path is None:
                 workspace_path = session.config.rootdir
 
-            session._dd_workspace_path = workspace_path
+            session.config._dd_workspace_path = workspace_path
 
             test_session_span = _CIVisibility._instance.tracer.trace(
                 "pytest.test_session",
@@ -677,7 +675,7 @@ class _PytestDDTracePluginV1:
                     span,
                     test_method_object,
                     test_name,
-                    getattr(item.session, "_dd_workspace_path", item.config.rootdir),
+                    getattr(item.session.config, "_dd_workspace_path", item.config.rootdir),
                 )
 
             # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
@@ -889,11 +887,8 @@ class _PytestDDTracePluginV1:
         def pytest_terminal_summary(terminalreporter, exitstatus, config):
             # Reports coverage if experimental session-level coverage is enabled.
             if USE_DD_COVERAGE and COVER_SESSION:
-                from ddtrace.ext.git import extract_workspace_path
-
-                try:
-                    workspace_path = Path(extract_workspace_path())
-                except ValueError:
+                workspace_path = getattr(config, "_dd_workspace_path", None)
+                if workspace_path is None:
                     workspace_path = Path(os.getcwd())
 
                 ModuleCodeCollector.report(workspace_path)
