@@ -36,8 +36,8 @@ from ddtrace.contrib.pytest.constants import NO_DDTRACE_HELP_MSG
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import ci
 from ddtrace.ext import test
-from ddtrace.ext.git import extract_workspace_path
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
@@ -461,11 +461,8 @@ def pytest_sessionstart(session):
         log.debug("CI Visibility enabled - starting test session")
         global _global_skipped_elements
         _global_skipped_elements = 0
-        try:
-            workspace_path = extract_workspace_path()
-        except ValueError:
-            log.debug("Couldn't extract workspace path from git, reverting to config rootdir")
-            workspace_path = session.config.rootdir
+
+        workspace_path = _CIVisibility._instance._tags.get(ci.WORKSPACE_PATH) or session.config.rootdir
 
         session._dd_workspace_path = workspace_path
 
