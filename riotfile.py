@@ -2570,9 +2570,9 @@ venv = Venv(
         ),
         Venv(
             name="langchain",
-            command="pytest {cmdargs} tests/contrib/langchain",
+            command="pytest -v {cmdargs} tests/contrib/langchain",
             pkgs={
-                "vcrpy": latest,
+                "pytest-asyncio": "==0.23.7",
                 "tiktoken": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
@@ -2581,11 +2581,11 @@ venv = Venv(
                 "pytest-randomly": "==3.10.1",
                 "numexpr": "==2.8.5",
                 "greenlet": "==3.0.3",
-                "pytest-asyncio": "==0.23.7",
             },
             venvs=[
                 Venv(
                     pkgs={
+                        "vcrpy": "==6.0.1",
                         "langchain": "==0.0.192",
                         "langchain-community": "==0.0.14",
                         "openai": "==0.27.8",
@@ -2596,6 +2596,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
                         "langchain-community": "==0.0.38",
                         "langchain-core": "==0.1.52",
@@ -2616,6 +2617,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": "==0.2.0",
                         "langchain-core": "==0.2.0",
                         "langchain-openai": latest,
@@ -2634,6 +2636,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": latest,
                         "langchain-community": latest,
                         "langchain-core": latest,
