@@ -45,7 +45,7 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval"]
 
 
 class LangChainIntegration(BaseLLMIntegration):
