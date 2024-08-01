@@ -12,7 +12,6 @@ import time
 from typing import List  # noqa:F401
 import urllib.parse
 
-import pkg_resources
 import pytest
 
 import ddtrace
@@ -41,6 +40,11 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
+
+try:
+    import importlib.metadata as importlib_metadata
+except ImportError:
+    import importlib_metadata
 
 NO_CHILDREN = object()
 
@@ -148,6 +152,7 @@ def override_global_config(values):
         "_llmobs_enabled",
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
+        "_llmobs_agentless_enabled",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -1216,9 +1221,9 @@ def request_token(request):
 
 def package_installed(package_name):
     try:
-        pkg_resources.get_distribution(package_name)
+        importlib_metadata.distribution(package_name)
         return True
-    except pkg_resources.DistributionNotFound:
+    except importlib_metadata.PackageNotFoundError:
         return False
 
 
