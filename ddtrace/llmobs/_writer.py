@@ -203,8 +203,10 @@ class LLMObsEventClient(WriterClientBase):
         encoder = LLMObsSpanEncoder(0, 0)
         super(LLMObsEventClient, self).__init__(encoder)
 
+
 class LLMObsEventAgentlessEventClient(LLMObsEventClient):
     ENDPOINT = AGENTLESS_ENDPOINT
+
 
 class LLMObsEventProxiedEventClient(LLMObsEventClient):
     ENDPOINT = EVP_PROXY_AGENT_ENDPOINT
