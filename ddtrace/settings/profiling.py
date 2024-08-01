@@ -120,8 +120,7 @@ def _parse_profiling_enabled(raw: str) -> bool:
 
 def _check_for_injected():
     global _profiling_injected
-    if _profiling_injected:
-        return True
+    return _profiling_injected
 
 
 class ProfilingConfig(En):
