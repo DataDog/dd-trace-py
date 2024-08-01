@@ -463,20 +463,12 @@ jobs:
       - name: Install tox
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install tox
-      - name: Create tox env
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: tox -e py312
-      - name: Add pytest configuration for ddtrace
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         # test_exception_propagation is broken upstream
         run: |
-          source .tox/py312/bin/activate
           pip install ../ddtrace
-          pip install -e .
-          tox run -e py3.12 tests/
+          tox run -e py3.12
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
