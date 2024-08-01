@@ -43,6 +43,7 @@ from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
+from ddtrace.llmobs._writer import LLMObsSpanAgentWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
@@ -68,19 +69,29 @@ class LLMObs(Service):
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
+        self._llmobs_span_writer = None
+        self._configure_span_writer()
 
-        self._llmobs_span_writer = LLMObsSpanWriter(
-            site=config._dd_site,
-            api_key=config._dd_api_key,
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
-        )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
+
+    def _configure_span_writer(self):
+        if config._llmobs_agentless_enabled:
+            self._llmobs_span_writer = LLMObsSpanWriter(
+                site=config._dd_site,
+                api_key=config._dd_api_key,
+                interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+                timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            )
+        else:
+            self._llmobs_span_writer = LLMObsSpanAgentWriter(
+                interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+                timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            )
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
@@ -147,30 +158,29 @@ class LLMObs(Service):
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
-        if not config._dd_api_key:
-            raise ValueError(
-                "DD_API_KEY is required for sending LLMObs data. "
-                "Ensure this configuration is set before running your application."
-            )
-        if not config._dd_site:
-            raise ValueError(
-                "DD_SITE is required for sending LLMObs data. "
-                "Ensure this configuration is set before running your application."
-            )
         if not config._llmobs_ml_app:
             raise ValueError(
                 "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
 
-        if agentless_enabled or asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", "false")):
-            os.environ["DD_LLMOBS_AGENTLESS_ENABLED"] = "1"
-
+        config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
+        if config._llmobs_agentless_enabled:
+            # validate required values for agentless LLMObs
+            if not config._dd_api_key:
+                raise ValueError(
+                    "DD_API_KEY is required for sending LLMObs data when agentless mode is enabled. "
+                    "Ensure this configuration is set before running your application."
+                )
+            if not config._dd_site:
+                raise ValueError(
+                    "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
+                    "Ensure this configuration is set before running your application."
+                )
             if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
                 config._telemetry_enabled = False
                 log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 telemetry.telemetry_writer.disable()
-
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
@@ -669,6 +679,12 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(
                 "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
+            )
+            return
+        if not config._dd_api_key:
+            log.warning(
+                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                "Ensure this configuration is set before running your application."
             )
             return
         if not isinstance(span_context, dict):
