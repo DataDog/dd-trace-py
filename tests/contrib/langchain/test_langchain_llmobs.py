@@ -393,7 +393,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             )
         )
 
-   def test_llmobs_similarity_search(self, langchain, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
+    def test_llmobs_similarity_search(self, langchain, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
         if langchain_pinecone is None:
             pytest.skip("langchain_pinecone not installed which is required for this test.")
         embedding = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
@@ -404,10 +404,10 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             embedding=embedding,
             namespace=namespace,
         )
-        cassette_name = "openai_pinecone_similarity_search_39.yaml" if PY39 else "openai_pinecone_similarity_search.yaml"
-        trace = self._similarity_search(
-            vectorstore, "Who was Alan Turing?", 1, mock_tracer, cassette_name
+        cassette_name = (
+            "openai_pinecone_similarity_search_39.yaml" if PY39 else "openai_pinecone_similarity_search.yaml"
         )
+        trace = self._similarity_search(vectorstore, "Who was Alan Turing?", 1, mock_tracer, cassette_name)
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         span = trace[0] if isinstance(trace, list) else trace
         mock_llmobs_span_writer.enqueue.assert_called_with(
@@ -665,7 +665,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             )
         )
 
-   def test_llmobs_similarity_search(self, langchain_openai, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
+    def test_llmobs_similarity_search(self, langchain_openai, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
         if langchain_pinecone is None:
             pytest.skip("langchain_pinecone not installed which is required for this test.")
         embedding = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
@@ -676,10 +676,10 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             embedding=embedding,
             namespace=namespace,
         )
-        cassette_name = "openai_pinecone_similarity_search_39.yaml" if PY39 else "openai_pinecone_similarity_search.yaml"
-        trace = self._similarity_search(
-            vectorstore, "Who was Alan Turing?", 1, mock_tracer, cassette_name
+        cassette_name = (
+            "openai_pinecone_similarity_search_39.yaml" if PY39 else "openai_pinecone_similarity_search.yaml"
         )
+        trace = self._similarity_search(vectorstore, "Who was Alan Turing?", 1, mock_tracer, cassette_name)
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         span = trace[0] if isinstance(trace, list) else trace
         mock_llmobs_span_writer.enqueue.assert_called_with(
@@ -699,6 +699,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 integration="langchain",
             )
         )
+
 
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
