@@ -25,8 +25,9 @@ RUN python3 dl_wheels.py \
         --verbose
 
 FROM alpine:3.20
+ARG UID=10000
 RUN addgroup -g 10000 -S datadog && \
-    adduser -u 10000 -S datadog -G datadog
+    adduser -u ${UID} -S datadog -G datadog
 USER ${UID}
 WORKDIR /datadog-init
 
