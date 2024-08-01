@@ -1,11 +1,9 @@
 import abc
 from collections import defaultdict
-import copy
 from importlib._bootstrap import _init_module_attrs
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
-import os
 from pathlib import Path
 import sys
 from types import CodeType
@@ -13,10 +11,8 @@ from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import asbool
 
 
 ModuleHookType = t.Callable[[ModuleType], None]
@@ -34,68 +30,6 @@ log = get_logger(__name__)
 _run_code = None
 _run_module_transformers: t.List[TransformerType] = []
 _post_run_module_hooks: t.List[ModuleHookType] = []
-
-
-def _is_iast_debug_enabled():
-    return asbool(os.environ.get(IAST.ENV_DEBUG, "false"))
-
-
-if _is_iast_debug_enabled():
-    try:
-        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    except ImportError:
-
-        def is_pyobject_tainted(pyobject: t.Any) -> bool:
-            return False
-
-    TAINTED_FRAMES = []
-
-    def trace_calls_and_returns(frame, event, arg):
-        try:
-            co = frame.f_code
-            func_name = co.co_name
-            if func_name == "write":
-                # Ignore write() calls from print statements
-                return
-            if func_name in ("is_pyobject_tainted", "__repr__"):
-                return
-            line_no = frame.f_lineno
-            filename = co.co_filename
-            if "ddtrace" in filename:
-                return
-            if event == "call":
-                f_locals = copy.deepcopy(frame.f_locals)
-                if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
-                    TAINTED_FRAMES.append(frame)
-                    log.debug("Call to %s on line %s of %s, args: %s", (func_name, line_no, filename, frame.f_locals))
-                    log.debug("Tainted arguments:")
-                    for arg in f_locals:
-                        if is_pyobject_tainted(f_locals[arg]):
-                            log.debug("\t%s: %s", (arg, f_locals[arg]))
-                    log.debug("-----")
-
-                return trace_calls_and_returns
-            elif event == "return":
-                if frame in TAINTED_FRAMES:
-                    TAINTED_FRAMES.remove(frame)
-                    log.debug("Return from %s on line %d of %s, return value: %s", (func_name, line_no, filename, arg))
-                    if isinstance(arg, (str, bytes, bytearray, list, tuple, dict)):
-                        if (
-                            (isinstance(arg, (str, bytes, bytearray)) and is_pyobject_tainted(arg))
-                            or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
-                            or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
-                        ):
-                            log.debug("Return value is tainted")
-                        else:
-                            log.debug("Return value is NOT tainted")
-                    log.debug("-----")
-            return
-
-        except Exception:
-            # Ensure that we do not break by any means
-            pass
-
-    sys.settrace(trace_calls_and_returns)
 
 
 def _wrapped_run_code(*args: t.Any, **kwargs: t.Any) -> t.Dict[str, t.Any]:
