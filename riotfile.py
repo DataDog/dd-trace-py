@@ -284,6 +284,7 @@ venv = Venv(
                 "fastapi": latest,
                 "httpx": latest,
                 "pytest-randomly": latest,
+                "setuptools": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
@@ -417,9 +418,16 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "pytest-asyncio": "~=0.23.7",
+                        "setuptools": latest,
                     },
                 ),
             ],
@@ -818,6 +826,7 @@ venv = Venv(
                     "==3.10.0",
                 ],
                 "pytest-randomly": latest,
+                "setuptools": latest,
             },
             venvs=[
                 Venv(
@@ -2561,9 +2570,9 @@ venv = Venv(
         ),
         Venv(
             name="langchain",
-            command="pytest {cmdargs} tests/contrib/langchain",
+            command="pytest -v {cmdargs} tests/contrib/langchain",
             pkgs={
-                "vcrpy": latest,
+                "pytest-asyncio": "==0.23.7",
                 "tiktoken": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
@@ -2572,11 +2581,11 @@ venv = Venv(
                 "pytest-randomly": "==3.10.1",
                 "numexpr": "==2.8.5",
                 "greenlet": "==3.0.3",
-                "pytest-asyncio": "==0.23.7",
             },
             venvs=[
                 Venv(
                     pkgs={
+                        "vcrpy": "==6.0.1",
                         "langchain": "==0.0.192",
                         "langchain-community": "==0.0.14",
                         "openai": "==0.27.8",
@@ -2587,6 +2596,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
                         "langchain-community": "==0.0.38",
                         "langchain-core": "==0.1.52",
@@ -2607,6 +2617,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": "==0.2.0",
                         "langchain-core": "==0.2.0",
                         "langchain-openai": latest,
@@ -2625,6 +2636,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": latest,
                         "langchain-community": latest,
                         "langchain-core": latest,
@@ -2731,13 +2743,13 @@ venv = Venv(
             command="pytest {cmdargs} tests/sourcecode",
             pys=select_pys(),
             pkgs={
-                "setuptools": ["<=67.6.0"],
+                "setuptools": latest,
                 "pytest-randomly": latest,
             },
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility tests/coverage",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pys=select_pys(),
             pkgs={
                 "msgpack": latest,
