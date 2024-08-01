@@ -1,11 +1,9 @@
 interactions:
 - request:
     body: '{"max_tokens": 200, "messages": [{"role": "user", "content": "What is the
-      result of 1,984,135 * 9,343,116?"}], "model": "claude-3-opus-20240229", "tools":
-      [{"name": "calculator", "description": "A simple calculator that performs basic
-      arithmetic operations.", "input_schema": {"type": "object", "properties": {"expression":
-      {"type": "string", "description": "The mathematical expression to evaluate (e.g.,
-      ''2 + 3 * 4'')."}}, "required": ["expression"]}}]}'
+      weather in San Francisco, CA?"}], "model": "claude-3-opus-20240229", "tools":
+      [{"name": "get_weather", "description": "Get the weather for a specific location",
+      "input_schema": {"type": "object", "properties": {"location": {"type": "string"}}}}]}'
     headers:
       accept:
       - application/json
@@ -16,17 +14,17 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '454'
+      - '320'
       content-type:
       - application/json
       host:
       - api.anthropic.com
       user-agent:
-      - Anthropic/Python 0.28.0
+      - AsyncAnthropic/Python 0.28.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
-      - 'false'
+      - async:asyncio
       x-stainless-lang:
       - python
       x-stainless-os:
@@ -36,27 +34,26 @@ interactions:
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.9
+      - 3.10.13
     method: POST
     uri: https://api.anthropic.com/v1/messages
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA1ySYW8TMQyG/4rlL5PQrfTaMtbTxAcEAiaEGNoEg6Equ3ObaDkni51uU9X/jnLd
-        6LRPp4vtN+/zxht0HTbYy2oxri++Lz/VP25POZ//5F83dqqXn0WxQn2IVLpIxKwIK0zBlwMj4kQN
-        l54+dOSxwdab3NHh9DDELIeT8WQ2nkzmWGEbWIkVmz+bJ0Gl+0G+fBo8Uev4xvHq3RWfW4IslA4E
-        Et1mEgUnoAGWjjtQS5BIslcIS+izVxf9g+MV6F0Ab9KKgHN/TUlGUKRa49vsjYYEGoKH1jBESsuQ
-        elDrBExyantS10KIlIy6wKMr3hl5OV0cuUQChuGA7mMiERf4AKJJpielVMGdda0FsSH7Dq4JDPRG
-        LfVGXWs87KfACBgQTY5XO7OFG2IKa9fRjrVQPfKUDJ6AoXOJWvUP4PgxkyGqwfgXsGZNYLwfSo4L
-        7MAFTDQoh0K2K79EvHNqh4KJMYWYnFF6ZnoE3wIEtbRrL/nRo+zoik9e/39J3Fb71w7BL7KU/RmW
-        rvznxbiep9/ry1M5+36x/nrWf/h4lN5ez99jhWz6Mrf3ViY5ZsVmg3sz2GA9P57V0zfwCubT2bSu
-        j3C7/VuhaIiLREaGpmf3DwUpaXFL2HD2vsI8LHez2d2x0HBDLNgczcYVhqzPz+rZ8Xb7DwAA//8D
-        AERgt0k8AwAA
+        H4sIAAAAAAAAA3RS0Y7TMBD8ldU+p6XtUR2NTkhVDyQQQiAKJyAoMs4msZp4U3vd0qv678gpDUXA
+        k2Xv7Mx4do9oCkyx9VU+mb5f3u7uq91j+WXafpzzM7svN85ggnLoKKLIe1URJui4iQ/Ke+NFWcEE
+        Wy6owRR1o0JBo5sRd8GPZpPZ08lstsAENVshK5h+PV4IhX7E1v5I8U5qYzfGVs8zu64JKpJ8T0pq
+        ciDMDRgPhXGkpTmAo4Z2ygqU7EBZvydnbAVSGw/bQF4MW1DfOQhITXDhMRYU+I60KY2GhrWKwDFk
+        9j+ajrbBOPKgIMMLPkPolFMtCbkxxL7gyUGtPHSOd6agole94IFLyPCDsvDSKauN15zAaplh9CM1
+        GTd4TsAz7AlqtaOew5KOsbsDGFuya8+EwtCqzRmxfPcKtGqacfzEWwYe3HtQLjJQb4h/5fRnSGN4
+        INDKRueaqIC9kbrnO+f5j0x6RKwMnx2CzOzdk2GMeEp+j5q5yYOPy9NvXLyHfDK9//yab275xfqT
+        XxVv1mu9etDFFhO0qo19V+Kx1XZBMD0Ok8D071jxdPqWoBfuckfK96Ar+b7gaRvIasLUhqZJMPSL
+        nR7PCrnwhqzHdL5YJMhBrt+m89np9BMAAP//AwBjBTfEOAMAAA==
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88eab1927eeb41ec-EWR
+      - 892a69eb7ebc0ce1-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -64,29 +61,29 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 04 Jun 2024 20:32:49 GMT
+      - Wed, 12 Jun 2024 14:08:42 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
       - chunked
       anthropic-ratelimit-requests-limit:
-      - '5'
+      - '4000'
       anthropic-ratelimit-requests-remaining:
-      - '4'
+      - '3999'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-04T20:32:57Z'
+      - '2024-06-12T14:09:35Z'
       anthropic-ratelimit-tokens-limit:
-      - '10000'
+      - '400000'
       anthropic-ratelimit-tokens-remaining:
-      - '9000'
+      - '399000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-04T20:32:57Z'
+      - '2024-06-12T14:09:35Z'
       request-id:
-      - req_01MjmmPeMPkDTKEYwLmjEpCn
+      - req_015akRKY3h8vWcdrDH9q9Q5B
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - e4e7af2dbd6317f66083906d363b6d81
+      - 20d8935e80f02155df3bb6198c9a09a4
     status:
       code: 200
       message: OK

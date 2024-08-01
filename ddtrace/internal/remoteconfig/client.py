@@ -358,21 +358,6 @@ class RemoteConfigClient(object):
         except Exception:
             raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
 
-    @staticmethod
-    def _parse_target(target, metadata):
-        # type: (str, TargetDesc) -> ConfigMetadata
-        m = TARGET_FORMAT.match(target)
-        if m is None:
-            raise RemoteConfigError("unexpected target format {!r}".format(target))
-        _, product_name, config_id, _ = m.groups()
-        return ConfigMetadata(
-            id=config_id,
-            product_name=product_name,
-            sha256_hash=metadata.hashes.get("sha256"),
-            length=metadata.length,
-            tuf_version=metadata.custom.get("v"),
-        )
-
     def _build_payload(self, state):
         # type: (Mapping[str, Any]) -> Mapping[str, Any]
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
@@ -430,23 +415,6 @@ class RemoteConfigClient(object):
             state["error"] = self._last_error
         return state
 
-    def _process_targets(self, payload):
-        # type: (AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[TargetsType]]
-        if payload.targets is None:
-            # no targets received
-            return None, None, None
-
-        signed = payload.targets.signed
-        targets = dict()  # type: TargetsType
-
-        for target, metadata in signed.targets.items():
-            config = self._parse_target(target, metadata)
-            if config is not None:
-                targets[target] = config
-
-        backend_state = signed.custom.get("opaque_backend_state")
-        return signed.version, backend_state, targets
-
     @staticmethod
     def _apply_callback(list_callbacks, callback, config_content, target, config_metadata):
         # type: (List[PubSub], Any, Any, str, ConfigMetadata) -> None
@@ -456,8 +424,9 @@ class RemoteConfigClient(object):
 
     def _remove_previously_applied_configurations(self, list_callbacks, applied_configs, client_configs, targets):
         # type: (List[PubSub], AppliedConfigType, TargetsType, TargetsType) -> None
+        witness = object()
         for target, config in self._applied_configs.items():
-            if target in client_configs and targets.get(target) == config:
+            if client_configs.get(target, witness) == config:
                 # The configuration has not changed.
                 applied_configs[target] = config
                 continue
@@ -483,7 +452,6 @@ class RemoteConfigClient(object):
                 applied_config = self._applied_configs.get(target)
                 if applied_config == config:
                     continue
-
                 config_content = self._extract_target_file(payload, target, config)
                 if config_content is None:
                     continue
@@ -541,6 +509,28 @@ class RemoteConfigClient(object):
         # type: (List[PubSub]) -> None
         for callback_to_dispach in list_callbacks:
             callback_to_dispach.publish()
+
+    def _process_targets(self, payload):
+        # type: (AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[TargetsType]]
+        if payload.targets is None:
+            # no targets received
+            return None, None, None
+        signed = payload.targets.signed
+        targets = dict()
+        for target, metadata in signed.targets.items():
+            m = TARGET_FORMAT.match(target)
+            if m is None:
+                raise RemoteConfigError("unexpected target format {!r}".format(target))
+            _, product_name, config_id, _ = m.groups()
+            targets[target] = ConfigMetadata(
+                id=config_id,
+                product_name=product_name,
+                sha256_hash=metadata.hashes.get("sha256"),
+                length=metadata.length,
+                tuf_version=metadata.custom.get("v"),
+            )
+        backend_state = signed.custom.get("opaque_backend_state")
+        return signed.version, backend_state, targets
 
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
