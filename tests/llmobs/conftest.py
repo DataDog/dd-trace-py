@@ -76,7 +76,7 @@ def mock_http_writer_put_response_forbidden():
         "ddtrace.internal.writer.HTTPWriter._put",
         return_value=Response(
             status=403,
-            reason='{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
+            reason=b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
         ),
     ):
         yield
@@ -90,12 +90,8 @@ def mock_writer_logs():
 
 @pytest.fixture
 def mock_http_writer_logs():
-    patcher = mock.patch("ddtrace.internal.writer.writer.log")
-    InternalWriterLogger = patcher.start()
-    m = mock.MagicMock()
-    InternalWriterLogger.return_value = m
-    yield m
-    patcher.stop()
+    with mock.patch("ddtrace.internal.writer.writer.log") as m:
+        yield m
 
 
 @pytest.fixture
