@@ -15,6 +15,7 @@ tests/contrib/grpc                  @DataDog/apm-idm-python @DataDog/asm-python
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
 #      or files which changes often with most PRs
+docs/                               @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
