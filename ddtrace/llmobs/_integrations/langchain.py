@@ -209,7 +209,7 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
-        input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
+        input_tag_key = INPUT_VALUE
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_DOCUMENTS
 
         if input_query is not None:
@@ -232,7 +232,6 @@ class LangChainIntegration(BaseLLMIntegration):
                         Document(
                             id=d.id,
                             text=d.page_content,
-                            name=d.metadata["source"],
                         )
                         for d in output_documents
                     ]
