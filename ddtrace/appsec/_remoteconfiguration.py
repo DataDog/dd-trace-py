@@ -86,8 +86,9 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
     if rules is not None:
         try:
             if ruleset.get(feature) is None:
-                ruleset[feature] = []
-            ruleset[feature] += rules
+                ruleset[feature] = rules
+            else:
+                ruleset[feature] = ruleset[feature] + rules
             log.debug("Reloading Appsec %s: %s", message, str(rules)[:20])
         except json.JSONDecodeError:
             log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
@@ -112,7 +113,7 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
         ruleset = {}  # type: dict[str, Optional[list[Any]]]
         if features.get("rules", None) == []:
             # if rules is empty, we need to switch back to the default rules
-            ruleset = tracer._appsec_processor._rules or {}
+            ruleset = tracer._appsec_processor._rules.copy() or {}
         _add_rules_to_list(features, "actions", "actions", ruleset)
         _add_rules_to_list(features, "custom_rules", "custom rules", ruleset)
         _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset)
