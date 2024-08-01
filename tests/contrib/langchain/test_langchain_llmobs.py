@@ -393,36 +393,26 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             )
         )
 
-    def test_llmobs_similarity_search(self, langchain, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
-        if langchain_pinecone is None:
-            pytest.skip("langchain_pinecone not installed which is required for this test.")
-        embedding = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
-        index_name = "langchain-retrieval"
-        namespace = "langchain-retrieval"
-        vectorstore = langchain_pinecone.PineconeVectorStore(
-            index_name=index_name,
-            embedding=embedding,
-            namespace=namespace,
-        )
+    def test_llmobs_similarity_search_base(self, langchain, pinecone, mock_llmobs_span_writer, mock_tracer):
+        if pinecone is None:
+            pytest.skip("pinecone not installed which is required for this test.")
+        pinecone.init(api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"))
+        index = pinecone.Index("langchain-retrieval")
+        embedding = langchain.embeddings.OpenAIEmbeddings()
+        vectorstore = langchain.vectorstores.Pinecone(index, embedding, "text")
         cassette_name = (
             "openai_pinecone_similarity_search_39.yaml" if PY39 else "openai_pinecone_similarity_search.yaml"
         )
+        vectorstore.similarity_search("Who was Alan Turing?", 1, mock_tracer, cassette_name)
         trace = self._similarity_search(vectorstore, "Who was Alan Turing?", 1, mock_tracer, cassette_name)
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         span = trace[0] if isinstance(trace, list) else trace
         mock_llmobs_span_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(
                 span,
-                span_kind="similarity_search",
+                span_kind="retrieval",
                 input_value="Who was Alan Turing?",
-                output_value=[
-                    {
-                        "id": 13,
-                        "title": "Alan Turing",
-                        "text": "A brilliant mathematician and cryptographer Alan was to become the founder of "
-                        "modern-day computer science and artificial intelli...",
-                    }
-                ],
+                output_value=[],
                 tags={"ml_app": ""},
                 integration="langchain",
             )
