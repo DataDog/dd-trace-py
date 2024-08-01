@@ -14,7 +14,7 @@ from opentelemetry.trace.span import Span as OtelSpan
 import ddtrace
 from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
-from ddtrace.opentelemetry._span import Span
+from .span import Span
 from ddtrace.propagation.http import _TraceContext
 
 
