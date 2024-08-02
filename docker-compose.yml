@@ -183,8 +183,8 @@ services:
 
     pygoat:
         build:
-            context: tests/appsec/integrations/pygoat_tests
-            dockerfile: Dockerfile.pygoat.2.0.1
+            context: .
+            dockerfile: tests/appsec/integrations/pygoat_tests/Dockerfile.pygoat.2.0.1
         ports:
             - "127.0.0.1:8321:8321"
         environment:
