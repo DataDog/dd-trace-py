@@ -79,8 +79,6 @@ def _get_test_id_from_item(item: pytest.Item) -> CITestId:
 
     test_id = CITestId(suite_id, test_name, parameters_json)
 
-    print(test_id)
-
     return test_id
 
 

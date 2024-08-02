@@ -424,7 +424,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
         The caller of get_status() must decide what to do if the result is UNFINISHED
         """
         if self.children is None:
-            return self.get_status()
+            return self.get_raw_status()
 
         # We use values because enum entries do not hash stably
         children_status_counts = {
@@ -479,22 +479,20 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
                     if not child.is_finished():
                         child.finish(force=force)
                 self.set_status(self.get_raw_status())
-                return
-
-            else:
-                # Leave the item as unfinished if any children are unfinished
-                return
         elif not isinstance(item_status, SPECIAL_STATUS):
             self.set_status(item_status)
 
-        super().finish()
+        super().finish(force=force)
 
     def add_child(self, child: CITEMT):
         child.parent = self
-        if self._session_settings.reject_duplicates and child.item_id in self.children:
-            error_msg = f"{child.item_id} already exists in {self.item_id}'s children"
-            log.warning(error_msg)
-            raise CIVisibilityDataError(error_msg)
+        if child.item_id in self.children:
+            if self._session_settings.reject_duplicates:
+                error_msg = f"{child.item_id} already exists in {self.item_id}'s children"
+                log.warning(error_msg)
+                raise CIVisibilityDataError(error_msg)
+            # If duplicates are allowed, we don't need to do anything
+            return
         self.children[child.item_id] = child
 
     def get_child_by_id(self, child_id: CIDT) -> CITEMT:

@@ -21,7 +21,6 @@ from ddtrace.contrib.pytest.utils import _get_session_id
 from ddtrace.contrib.pytest.utils import _get_test_id_from_item
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import test
-from ddtrace.ext.ci import WORKSPACE_PATH
 from ddtrace.ext.ci_visibility.api import CIExcInfo
 from ddtrace.ext.ci_visibility.api import CIModule
 from ddtrace.ext.ci_visibility.api import CISession
@@ -76,7 +75,9 @@ class _PytestDDTracePluginV2:
             module_operation_name="pytest.test_module",
             suite_operation_name="pytest.test_suite",
             test_operation_name="pytest.test",
-            root_dir=Path(CIVisibility._instance._tags[WORKSPACE_PATH]),  # TODO : use getter
+            reject_duplicates=False,
+            reject_unknown_items=True,
+            root_dir=Path(CIVisibility.get_workspace_path() or session.config.rootpath),  # TODO rootdir for pytest <6.1
         )
 
         CISession.start(session_id)
@@ -119,6 +120,11 @@ class _PytestDDTracePluginV2:
         CITest.start(test_id)
 
         yield
+
+        # We rely on the CI Visibility product to not finish items that have discovered but unfinished items
+        CISuite.finish(suite_id)
+        CIModule.finish(module_id)
+
         return
 
     @staticmethod
