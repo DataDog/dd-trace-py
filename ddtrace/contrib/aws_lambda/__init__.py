@@ -38,18 +38,10 @@ Configuration
 For additional configuration refer to
 `Instrumenting Python Serverless Applications by Datadog <https://docs.datadoghq.com/serverless/installation/python>`_.
 """
-from ...internal.utils.importlib import require_modules
+
+from ddtrace.contrib.internal.aws_lambda.patch import get_version
+from ddtrace.contrib.internal.aws_lambda.patch import patch
+from ddtrace.contrib.internal.aws_lambda.patch import unpatch
 
 
-required_modules = ["aws_lambda"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.aiohttp.patch` directly
-        from . import patch as _  # noqa: F401, I001
-
-        from ..internal.aws_lambda.patch import get_version
-        from ..internal.aws_lambda.patch import patch
-        from ..internal.aws_lambda.patch import unpatch
-
-        __all__ = ["patch", "unpatch", "get_version"]
+__all__ = ["patch", "unpatch", "get_version"]
