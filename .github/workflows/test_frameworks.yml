@@ -120,7 +120,7 @@ jobs:
             iast: 0
             appsec: 0
     name: Sanic 24.6 (with ${{ matrix.suffix }})
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     needs: needs-run
     env:
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
@@ -157,7 +157,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: ddtrace-run pytest -k "not test_reload_listeners and not test_no_exceptions_when_cancel_pending_request and not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers and not test_keep_alive_connection_context and not test_redirect_with_params and not test_keep_alive_client_timeout and not test_logger_vhosts and not test_ssl_in_multiprocess_mode"
 
-  django-testsuite-3_1:
+  django-testsuite:
     strategy:
       matrix:
         include:
@@ -195,7 +195,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: needs-run
     timeout-minutes: 15
-    name: Django 3.1 (with ${{ matrix.suffix }})
+    name: Django 5.0.7 (with ${{ matrix.suffix }})
     env:
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
       DD_IAST_ENABLED: ${{ matrix.iast }}
@@ -224,12 +224,12 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: django/django
-          ref: stable/3.1.x
+          ref: 5.0.7
           path: django
       - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: "3.8"
+          python-version: "3.12"
       - name: Install pylibmc libmemcached package
         if: needs.needs-run.outputs.outcome == 'success'
         # Django-specific: pylibmc in Ubuntu requires libmemcached package
