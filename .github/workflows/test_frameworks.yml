@@ -262,6 +262,11 @@ jobs:
           sed -i'' 's/test_multivalue_dict_key_error/multivalue_dict_key_error/' tests/view_tests/tests/test_debug.py  # Sensitive data leak
           sed -i'' 's/test_db_table/db_table/' tests/schema/tests.py
           sed -i'' 's/test_custom_fields/custom_fields/' tests/inspectdb/tests.py
+          sed -i'' 's/test_access_warning/access_warning/' tests/deprecation/test_storages.py
+          sed -i'' 's/test_authenticate_sensitive_variables/sensitive_variables/' tests/auth_tests/test_auth_backends.py
+          sed -i'' 's/test_zip_reload/zip_reload/' tests/utils_tests/test_autoreload.py
+          sed -i'' 's/test_repr_functools_partial/repr_functools_partial/' tests/urlpatterns_reverse/tests.py
+          sed -i'' 's/test_class_attributes/class_attributes/' tests/generic_views/test_base.py
 
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
