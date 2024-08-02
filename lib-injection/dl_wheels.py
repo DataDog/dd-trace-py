@@ -184,6 +184,6 @@ for file_hash in file_hashes:
     shutil.copy(src, dest)
 
     for src in file_hashes[file_hash]:
-        print(f"Replacing {src} with hard link to {dest}")
+        print(f"Replacing {src} with symlink to {dest}")
         os.remove(src)
-        os.link(dest, src)
+        os.symlink(dest, src)
