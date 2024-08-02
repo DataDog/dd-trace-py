@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
+import logging
 import os
 import sys
-import logging
 
 from ddtrace import tracer
 from ddtrace.ext import SpanTypes
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
