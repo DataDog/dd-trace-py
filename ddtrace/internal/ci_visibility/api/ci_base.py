@@ -283,6 +283,12 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self.set_tags(self._collect_hierarchy_tags())
 
     def start(self):
+        if self.is_started():
+            if self._session_settings.reject_duplicates:
+                error_msg = f"Item {self.item_id} has already been started"
+                log.warning(error_msg)
+                raise CIVisibilityDataError(error_msg)
+            return
         record_event_created(
             self.event_type_metric_name,
             self._session_settings.test_framework_metric_name,
@@ -291,6 +297,9 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             self._is_benchmark is not None,
         )
         self._start_span()
+
+    def is_started(self):
+        return self._span is not None
 
     def finish(self, force: bool = False):
         """Finish the span and set the _is_finished flag to True.
@@ -479,6 +488,8 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
                     if not child.is_finished():
                         child.finish(force=force)
                 self.set_status(self.get_raw_status())
+            else:
+                return
         elif not isinstance(item_status, SPECIAL_STATUS):
             self.set_status(item_status)
 
