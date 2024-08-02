@@ -1,5 +1,4 @@
 import abc
-import copy
 import os
 from typing import TYPE_CHECKING  # noqa:F401
 
@@ -84,12 +83,19 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
 
     def append(self, config_content, target, config_metadata=None):
         # type: (Optional[Any], str, Optional[Any]) -> None
-        if not self._configs.get(target):
+        if target not in self._configs:
             self._configs[target] = {}
 
         if config_content is False:
-            # clear lists but keep the keys active so it can be updated accordingly
-            self._configs[target] = {k: [] for k, v in self._configs[target].items() if isinstance(v, list)}
+            # clear non empty values but keep the keys active so it can be updated accordingly
+            for k, v in self._configs[target].items():
+                if v:
+                    if isinstance(v, list):
+                        self._configs[target][k] = []
+                    elif isinstance(v, dict):
+                        self._configs[target][k] = {}
+                    else:
+                        self._configs[target][k] = None
         elif config_content is not None:
             # Append the new config to the configs dict. _load_new_configurations function should
             # call to this method
@@ -100,17 +106,29 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
 
     def dispatch(self, pubsub_instance=None):
         # type: (Optional[Any]) -> None
-        config_result = {}  # type: Dict[str, Any]
+        result = {}  # type: Dict[str, Any]
         try:
             for _target, config_item in self._configs.items():
                 for key, value in config_item.items():
+                    # We are merging lists and dictionaries from several payloads
                     if isinstance(value, list):
-                        config_result[key] = config_result.get(key, []) + value
+                        result[key] = result.get(key, []) + value
                     elif isinstance(value, dict):
-                        config_result[key] = value
+                        if key not in result:
+                            result[key] = {}
+                        for k, v in value.items():
+                            if k in result[key]:
+                                if result[key][k] != v:
+                                    info = (
+                                        f"[{os.getpid()}][P: {os.getppid()}]"
+                                        f"Conflicting values {result[key][k]} and {v} for key {key}"
+                                    )
+                                    log.debug(info)
+                            else:
+                                result[key][k] = v
                     else:
+                        result[key] = value
                         log.debug("[%s][P: %s] Invalid value  %s for key %s", os.getpid(), os.getppid(), value, key)
-            result = copy.deepcopy(config_result)
             if self._preprocess_results_func:
                 result = self._preprocess_results_func(result, pubsub_instance)
             log.debug("[%s][P: %s] PublisherAfterMerge publish %s", os.getpid(), os.getppid(), str(result)[:100])

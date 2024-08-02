@@ -493,7 +493,9 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install -r requirements.txt
+        run: |
+          pip install pip==24.0
+          pip install -r requirements.txt
       - name: Inject ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace

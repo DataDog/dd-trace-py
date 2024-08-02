@@ -6,6 +6,14 @@ variables:
   needs: []
   tags: ["runner:apm-k8s-same-cpu"]
   timeout: 1h
+  retry:
+    max: 2
+    when:
+      - unknown_failure
+      - data_integrity_failure
+      - runner_system_failure
+      - scheduler_failure
+      - api_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always

@@ -67,6 +67,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.inspection import undecorated
 
 
 log = get_logger(__name__)
@@ -97,7 +98,7 @@ def _is_pytest_cov_enabled(config) -> bool:
     nocov_option = config.getoption("--no-cov", default=False)
     if nocov_option is True:
         return False
-    if type(cov_option) == list and cov_option == [True] and not nocov_option:
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
         return True
     return cov_option
 
@@ -449,6 +450,13 @@ class _PytestDDTracePluginV1:
             log.debug("CI Visibility enabled - starting test session")
             global _global_skipped_elements
             _global_skipped_elements = 0
+
+            workspace_path = _CIVisibility.get_workspace_path()
+            if workspace_path is None:
+                workspace_path = session.config.rootdir
+
+            session.config._dd_workspace_path = workspace_path
+
             test_session_span = _CIVisibility._instance.tracer.trace(
                 "pytest.test_session",
                 service=_CIVisibility._instance._service,
@@ -661,8 +669,14 @@ class _PytestDDTracePluginV1:
             if item.location and item.location[0]:
                 _CIVisibility.set_codeowners_of(item.location[0], span=span)
             if hasattr(item, "_obj"):
-                test_method_object = item._obj
-                _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name, item.config.rootdir)
+                item_path = Path(item.path if hasattr(item, "path") else item.fspath)
+                test_method_object = undecorated(item._obj, item.name, item_path)
+                _add_start_end_source_file_path_data_to_span(
+                    span,
+                    test_method_object,
+                    test_name,
+                    getattr(item.session.config, "_dd_workspace_path", item.config.rootdir),
+                )
 
             # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
             # (where the actual test status is set), it means there was a pytest error
@@ -873,11 +887,8 @@ class _PytestDDTracePluginV1:
         def pytest_terminal_summary(terminalreporter, exitstatus, config):
             # Reports coverage if experimental session-level coverage is enabled.
             if USE_DD_COVERAGE and COVER_SESSION:
-                from ddtrace.ext.git import extract_workspace_path
-
-                try:
-                    workspace_path = Path(extract_workspace_path())
-                except ValueError:
+                workspace_path = getattr(config, "_dd_workspace_path", None)
+                if workspace_path is None:
                     workspace_path = Path(os.getcwd())
 
                 ModuleCodeCollector.report(workspace_path)

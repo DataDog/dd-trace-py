@@ -210,7 +210,6 @@ venv = Venv(
                 "attrs": ">=20",
                 "typing_extensions": latest,
                 "xmltodict": ">=0.12",
-                "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
             },
@@ -661,7 +660,7 @@ venv = Venv(
                     pkgs={
                         "pytest": "~=4.0",
                         "celery": [
-                            "~=4.4",  # most recent 4.x
+                            latest,  # most recent 4.x
                         ],
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
@@ -674,18 +673,18 @@ venv = Venv(
                         Venv(pys="3.7", pkgs={"exceptiongroup": latest}),
                     ],
                 ),
-                Venv(
-                    # celery added support for Python 3.9 in 4.x
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={
-                        "pytest": "~=4.0",
-                        "celery": [
-                            "~=4.4",  # most recent 4.x
-                        ],
-                        "redis": "~=3.5",
-                        "kombu": "~=4.4",
-                    },
-                ),
+                # Venv(
+                #     # celery added support for Python 3.9 in 4.x
+                #     pys=select_pys(min_version="3.8", max_version="3.9"),
+                #     pkgs={
+                #         "pytest": "~=4.0",
+                #         "celery": [
+                #             "latest",  # most recent 4.x
+                #         ],
+                #         "redis": "~=3.5",
+                #         "kombu": "~=4.4",
+                #     },
+                # ),
                 # Celery 5.x wants Python 3.6+
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
@@ -902,7 +901,7 @@ venv = Venv(
                 # that we currently have no reasons for expanding this matrix.
                 "django": "==2.2.1",
                 "sqlalchemy": "~=1.2.18",
-                "celery": "~=5.0.5",
+                "celery": latest,
                 "gevent": latest,
                 "requests": latest,
                 "typing-extensions": latest,
@@ -996,6 +995,7 @@ venv = Venv(
                 "urllib3": "~=1.0",
                 "pytest-randomly": latest,
                 "importlib_metadata": latest,
+                "flask-openapi3": latest,
             },
             venvs=[
                 # Flask 1.x.x
@@ -1583,6 +1583,7 @@ venv = Venv(
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
+                        "httpx": latest,
                     },
                     venvs=[
                         Venv(
@@ -1610,6 +1611,7 @@ venv = Venv(
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
+                        "httpx": latest,
                     },
                 ),
             ],
@@ -2271,14 +2273,13 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            # FIXME: this test suite breaks on 3.7
-            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pys=select_pys(min_version="3.8"),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
-                "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
-                "opentelemetry-instrumentation-flask": "<=0.37b0",
-                # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
+                # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
+                "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
+                "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,
                 "gevent": latest,
@@ -2517,6 +2518,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": "==5.4.0",
+                        "faiss-cpu": "==1.8.0",
                     }
                 ),
                 Venv(
@@ -2532,7 +2534,8 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                    }
+                        "anthropic": latest,
+                    },
                 ),
                 Venv(
                     pkgs={
@@ -2548,7 +2551,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                    }
+                    },
                 ),
             ],
         ),

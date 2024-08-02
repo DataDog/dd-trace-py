@@ -82,9 +82,8 @@ jobs:
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
             auditwheel repair -w ./tempwheelhouse {wheel} &&
-            (yum install -y zip || apk add zip) &&
             for w in ./tempwheelhouse/*.whl; do
-              zip -d $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
@@ -122,9 +121,8 @@ jobs:
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
             auditwheel repair -w ./tempwheelhouse {wheel} &&
-            (yum install -y zip || apk add zip) &&
             for w in ./tempwheelhouse/*.whl; do
-              zip -d $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
