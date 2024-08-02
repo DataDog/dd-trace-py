@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.10.2
+
+
+### Bug Fixes
+
+- lib-injection: This fix resolves an issue with docker layer caching and the final lib-injection image size.
+- psycopg: Ensures traced async cursors return an asynchronous iterator object.
+- tracer: This fix resolves an issue where the tracer was not starting properly on a read-only file system.
+- Code Security: fix potential infinite loop with path traversal when the analyze quota has been exceeded.
+- profiling: captures lock usages with `with` context managers, e.g. `with lock:`
+- profiling: propagates `runtime_id` tag to libdatadog exporter. It is a unique string identifier for the profiled process. For example, Thread Timeline visualization uses it to distinguish different processes.
+
+
+---
+
 ## 2.10.1
 
 
@@ -165,6 +180,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ### Other Changes
 
 - LLM Observability: The SDK allowed users to submit an unsupported `numerical` evaluation metric type. All evaluation metric types submitted with `numerical` type will now be automatically converted to a `score` type. As an alternative to using the `numerical` type, use `score` instead.
+
+
+---
+
+## 2.9.2
+
+
+### Bug Fixes
+
+- futures: Fixes inconsistent behavior with `concurrent.futures.ThreadPoolExecutor` context propagation by passing the current trace context instead of the currently active span to tasks. This prevents edge cases of disconnected spans when the task executes after the parent span has finished.
+
+### Other Changes
+
+- lib-injection: Updates base Alpine image to 3.20.
 
 
 ---
