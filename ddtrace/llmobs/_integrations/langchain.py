@@ -286,7 +286,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 else:
                     span.set_tag_str(input_tag_key, json.dumps(formatted_inputs))
             except TypeError:
-                log.warning("Failed to serialize similarity serach input to JSON")
+                log.warning("Failed to serialize similarity search input to JSON")
         if error:
             span.set_tag_str(output_tag_key, "")
         elif isinstance(output_documents, list):
