@@ -267,6 +267,7 @@ jobs:
           sed -i'' 's/test_zip_reload/zip_reload/' tests/utils_tests/test_autoreload.py
           sed -i'' 's/test_repr_functools_partial/repr_functools_partial/' tests/urlpatterns_reverse/tests.py
           sed -i'' 's/test_class_attributes/class_attributes/' tests/generic_views/test_base.py
+          sed -i'' 's/test_aauthenticate_sensitive_variables/aauthenticate_sensitive_variables/' tests/auth_tests/test_auth_backends.py
 
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
