@@ -1032,3 +1032,15 @@ def test_rc_rules_data_error_ddwaf(tracer):
             "rules": [{"invalid": mock.MagicMock()}],
         }
         assert not _appsec_rules_data(config, tracer)
+
+
+def test_rules_never_empty(tracer):
+    with override_global_config(dict(_asm_enabled=True)):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
+            mock_update.reset_mock()
+            _appsec_rules_data({"rules": []}, tracer)
+            call = mock_update.mock_calls
+            args = call[-1][1][1]
+            assert "rules" in args
+            assert args["rules"], "empty rules should not be possible, it must switch to default."
