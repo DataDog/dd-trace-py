@@ -138,6 +138,9 @@ jobs:
           mv ${{ matrix.weblog-variant}}_${{ github.sha }}.tar.gz/venv venv
           chmod -R +x venv/bin/*
 
+      - name: print python version
+        run: python -V
+
       - name: Run DEFAULT
         if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
         run: ./run.sh DEFAULT
