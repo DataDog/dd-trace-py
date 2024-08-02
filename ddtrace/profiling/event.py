@@ -17,6 +17,7 @@ class Event(object):
     __slots__ = ("timestamp",)
 
     def __init__(self, timestamp=compat.time_ns()):
+        # type: (typing.Optional[int]) -> None
         self.timestamp = timestamp
 
     @property
@@ -32,6 +33,7 @@ class TimedEvent(Event):
     __slots__ = ("duration",)
 
     def __init__(self, duration=None, *args, **kwargs):
+        # type: (typing.Optional[int], *typing.Any, **typing.Any) -> None
         super().__init__(*args, **kwargs)
         self.duration = duration
 
@@ -42,6 +44,7 @@ class SampleEvent(Event):
     __slots__ = ("sampling_period",)
 
     def __init__(self, sampling_period=None, *args, **kwargs):
+        # type: (typing.Optional[int], *typing.Any, **typing.Any) -> None
         super().__init__(*args, **kwargs)
         self.sampling_period = sampling_period
 
