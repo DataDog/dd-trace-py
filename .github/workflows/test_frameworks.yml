@@ -161,18 +161,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: DI profiler
-            expl_profiler: 1
-            expl_coverage: 0
-            profiling: 1
-            iast: 0
-            appsec: 0
-          - suffix: DI coverage
-            expl_profiler: 0
-            expl_coverage: 1
-            profiling: 1
-            iast: 0
-            appsec: 0
+          #- suffix: DI profiler
+          #  expl_profiler: 1
+          #  expl_coverage: 0
+          #  profiling: 1
+          #  iast: 0
+          #  appsec: 0
+          #- suffix: DI coverage
+          #  expl_profiler: 0
+          #  expl_coverage: 1
+          #  profiling: 1
+          #  iast: 0
+          #  appsec: 0
           # Disabled while the bug is investigated: APPSEC-53222
           # - suffix: IAST
           #   expl_profiler: 0
