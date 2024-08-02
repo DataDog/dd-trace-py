@@ -50,7 +50,12 @@ class LockReleaseEvent(LockEventBase):
 
     __slots__ = ("locked_for_ns",)
 
-    def __init__(self, locked_for_ns=0, *args, **kwargs):
+    def __init__(
+        self,
+        locked_for_ns=0,  # type: int
+        *args,  # type: typing.Any
+        **kwargs,  # type: typing.Any
+    ):
         super().__init__(*args, **kwargs)
         self.locked_for_ns: int = locked_for_ns
 
