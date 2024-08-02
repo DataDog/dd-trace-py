@@ -98,7 +98,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
-  sanic-testsuite-24_6:
+  sanic-testsuite:
     strategy:
       matrix:
         include:
@@ -120,7 +120,7 @@ jobs:
             iast: 0
             appsec: 0
     name: Sanic 24.6 (with ${{ matrix.suffix }})
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: needs-run
     env:
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
