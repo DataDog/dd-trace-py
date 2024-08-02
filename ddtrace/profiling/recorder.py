@@ -67,6 +67,7 @@ class Recorder:
 
         All the events MUST be of the same type.
         There is no sanity check as whether all the events are from the same class for performance reasons.
+        Change to trigger system test.
 
         :param events: The event list to push.
         """
