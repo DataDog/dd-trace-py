@@ -112,14 +112,18 @@ def appsec_application_server(
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["FLASK_RUN_PORT"] = str(port)
 
-    server_process = subprocess.Popen(
-        cmd,
-        env=env,
-        start_new_session=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    subprocess_kwargs = {
+        "env": env,
+        "start_new_session": True,
+        "stdout": sys.stdout,
+        "stderr": sys.stderr,
+    }
+    if assert_debug:
+        subprocess_kwargs["stdout"] = subprocess.PIPE
+        subprocess_kwargs["stderr"] = subprocess.PIPE
+        subprocess_kwargs["text"] = True
+
+    server_process = subprocess.Popen(cmd, **subprocess_kwargs)
     try:
         client = Client("http://0.0.0.0:%s" % port)
 
