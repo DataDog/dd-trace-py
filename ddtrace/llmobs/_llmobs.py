@@ -681,6 +681,12 @@ class LLMObs(Service):
                 "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
             )
             return
+        if not config._dd_api_key:
+            log.warning(
+                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                "Ensure this configuration is set before running your application."
+            )
+            return
         if not isinstance(span_context, dict):
             log.warning(
                 "span_context must be a dictionary containing both span_id and trace_id keys. "
