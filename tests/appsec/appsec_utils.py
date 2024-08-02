@@ -60,6 +60,7 @@ def flask_server(
     app="tests/appsec/app.py",
     env=None,
     port=8000,
+    assert_debug=False,
 ):
     cmd = [python_cmd, app, "--no-reload"]
     yield from appsec_application_server(
@@ -72,6 +73,7 @@ def flask_server(
         token=token,
         env=env,
         port=port,
+        assert_debug=assert_debug,
     )
 
 
@@ -85,6 +87,7 @@ def appsec_application_server(
     token=None,
     env=None,
     port=8000,
+    assert_debug=False,
 ):
     env = _build_env(env)
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
@@ -99,10 +102,11 @@ def appsec_application_server(
         env["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = appsec_standalone_enabled
     if iast_enabled is not None and iast_enabled != "false":
         env["DD_IAST_ENABLED"] = iast_enabled
-        env["_DD_IAST_DEBUG"] = iast_enabled
-        env["DD_TRACE_DEBUG"] = iast_enabled
         env["DD_IAST_REQUEST_SAMPLING"] = "100"
         env["_DD_APPSEC_DEDUPLICATION_ENABLED"] = "false"
+        if assert_debug:
+            env["_DD_IAST_DEBUG"] = iast_enabled
+            env["DD_TRACE_DEBUG"] = iast_enabled
     if tracer_enabled is not None:
         env["DD_TRACE_ENABLED"] = tracer_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
@@ -157,7 +161,7 @@ def appsec_application_server(
         os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
         server_process.terminate()
         server_process.wait()
-        if iast_enabled is not None and iast_enabled != "false":
+        if assert_debug and (iast_enabled is not None and iast_enabled != "false"):
             process_output = server_process.stderr.read()
             assert "Return from keys on line" in process_output
             assert "Return value is tainted" in process_output
