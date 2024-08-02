@@ -69,18 +69,16 @@ class LLMObs(Service):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_span_writer = None
-        self._configure_span_writer()
 
-        self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-            site=config._dd_site,
-            api_key=config._dd_api_key,
+        self._llmobs_span_writer = LLMObsSpanWriter(
+            is_agentless=config._llmobs_agentless_enabled,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
 
-    def _configure_span_writer(self):
-        self._llmobs_span_writer = LLMObsSpanWriter(
-            is_agentless=config._llmobs_agentless_enabled,
+        self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
+            site=config._dd_site,
+            api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )

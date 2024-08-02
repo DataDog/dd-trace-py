@@ -1,3 +1,4 @@
 features:
   - |
-    LLM Observability: Updates the agentless span writer to retry sending spans if the initial attempt fails.
+    LLM Observability: Adds retry logic to the agentless span writer to mitigate potential networking issues, like timeouts or dropped connections.  
+

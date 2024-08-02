@@ -22,12 +22,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
-
-from ._constants import AGENTLESS_BASE_URL
-from ._constants import AGENTLESS_ENDPOINT
-from ._constants import EVP_PROXY_AGENT_ENDPOINT
-from ._constants import EVP_SUBDOMAIN_HEADER_NAME
-from ._constants import EVP_SUBDOMAIN_HEADER_VALUE
+from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
+from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
+from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
+from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
 
 
 logger = get_logger(__name__)
@@ -204,11 +203,11 @@ class LLMObsEventClient(WriterClientBase):
         super(LLMObsEventClient, self).__init__(encoder)
 
 
-class LLMObsEventAgentlessEventClient(LLMObsEventClient):
+class LLMObsAgentlessEventClient(LLMObsEventClient):
     ENDPOINT = AGENTLESS_ENDPOINT
 
 
-class LLMObsEventProxiedEventClient(LLMObsEventClient):
+class LLMObsProxiedEventClient(LLMObsEventClient):
     ENDPOINT = EVP_PROXY_AGENT_ENDPOINT
 
 
@@ -231,11 +230,11 @@ class LLMObsSpanWriter(HTTPWriter):
         headers = {}
         clients = []  # type: List[WriterClientBase]
         if is_agentless:
-            clients.append(LLMObsEventAgentlessEventClient())
+            clients.append(LLMObsAgentlessEventClient())
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, config._dd_site)
             headers["DD-API-KEY"] = config._dd_api_key
         else:
-            clients.append(LLMObsEventProxiedEventClient())
+            clients.append(LLMObsProxiedEventClient())
             intake_url = agent.get_trace_url()
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 

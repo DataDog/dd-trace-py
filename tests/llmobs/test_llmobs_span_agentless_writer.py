@@ -2,7 +2,6 @@ import os
 import time
 
 import mock
-import pytest
 
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs._utils import _chat_completion_event
@@ -136,7 +135,7 @@ import time
 
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._writer import LLMObsSpanWriter
-from tests.llmobs.test_llmobs_span_writer import _completion_event
+from tests.llmobs.test_llmobs_span_agentless_writer import _completion_event
 
 with mock.patch(
     "ddtrace.internal.writer.HTTPWriter._send_payload",
