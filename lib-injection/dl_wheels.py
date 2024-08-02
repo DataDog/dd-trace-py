@@ -16,8 +16,11 @@ Usage:
         ./dl_wheels.py --help
 
 """
+
 import argparse
+import collections
 import itertools
+import glob
 import os
 from pathlib import Path
 import shutil
@@ -156,3 +159,31 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             shutil.rmtree(directory)
         except Exception:
             pass
+
+# Find binary files to deduplicate
+file_hashes = collections.defaultdict(set)
+for src in glob.glob(f"{dl_dir}/**/*.so*", recursive=True):
+    print(f"Found binary file: {src}")
+    res = subprocess.check_output(["sha256sum", str(src)])
+    file_hash, _, _ = res.decode().partition(" ")
+    file_hashes[file_hash].add(src)
+
+
+# Replace binaries with hard links
+binaries_dir = Path(dl_dir) / "binaries"
+os.makedirs(binaries_dir)
+
+for file_hash in file_hashes:
+    # Skip unique files that aren't duplicates
+    if len(file_hashes[file_hash]) <= 1:
+        continue
+
+    src = next(iter(file_hashes[file_hash]))
+    basename = os.path.basename(src)
+    dest = binaries_dir / f"{file_hash}_{basename}"
+    shutil.copy(src, dest)
+
+    for src in file_hashes[file_hash]:
+        print(f"Replacing {src} with hard link to {dest}")
+        os.remove(src)
+        os.link(dest, src)
