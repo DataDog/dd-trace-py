@@ -186,48 +186,44 @@ if _is_iast_debug_enabled():
     TAINTED_FRAMES = []
 
     def trace_calls_and_returns(frame, event, arg):
-        try:
-            co = frame.f_code
-            func_name = co.co_name
-            if func_name == "write":
-                # Ignore write() calls from print statements
-                return
-            if func_name in ("is_pyobject_tainted", "__repr__"):
-                return
-            line_no = frame.f_lineno
-            filename = co.co_filename
-            if "ddtrace" in filename:
-                return
-            if event == "call":
-                f_locals = frame.f_locals
-                if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
-                    TAINTED_FRAMES.append(frame)
-                    log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
-                    log.debug("Tainted arguments:")
-                    for arg in f_locals:
-                        if is_pyobject_tainted(f_locals[arg]):
-                            log.debug("\t%s: %s", arg, f_locals[arg])
-                    log.debug("-----")
-
-                return trace_calls_and_returns
-            elif event == "return":
-                if frame in TAINTED_FRAMES:
-                    TAINTED_FRAMES.remove(frame)
-                    log.debug("Return from %s on line %d of %s, return value: %s", func_name, line_no, filename, arg)
-                    if isinstance(arg, (str, bytes, bytearray, list, tuple, dict)):
-                        if (
-                            (isinstance(arg, (str, bytes, bytearray)) and is_pyobject_tainted(arg))
-                            or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
-                            or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
-                        ):
-                            log.debug("Return value is tainted")
-                        else:
-                            log.debug("Return value is NOT tainted")
-                    log.debug("-----")
+        co = frame.f_code
+        func_name = co.co_name
+        if func_name == "write":
+            # Ignore write() calls from print statements
             return
+        if func_name in ("is_pyobject_tainted", "__repr__"):
+            return
+        line_no = frame.f_lineno
+        filename = co.co_filename
+        if "ddtrace" in filename:
+            return
+        if event == "call":
+            f_locals = frame.f_locals
+            if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
+                TAINTED_FRAMES.append(frame)
+                log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
+                log.debug("Tainted arguments:")
+                for arg in f_locals:
+                    if is_pyobject_tainted(f_locals[arg]):
+                        log.debug("\t%s: %s", arg, f_locals[arg])
+                log.debug("-----")
 
-        except Exception as e:
-            # Ensure that we do not break by any means
-            log.debug("Error in trace_calls_and_returns: %s", e)
+            return trace_calls_and_returns
+            # return
+        elif event == "return":
+            if frame in TAINTED_FRAMES:
+                TAINTED_FRAMES.remove(frame)
+                log.debug("Return from %s on line %d of %s, return value: %s", func_name, line_no, filename, arg)
+                if isinstance(arg, (str, bytes, bytearray, list, tuple, dict)):
+                    if (
+                        (isinstance(arg, (str, bytes, bytearray)) and is_pyobject_tainted(arg))
+                        or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
+                        or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
+                    ):
+                        log.debug("Return value is tainted")
+                    else:
+                        log.debug("Return value is NOT tainted")
+                log.debug("-----")
+        return
 
     threading.settrace(trace_calls_and_returns)
