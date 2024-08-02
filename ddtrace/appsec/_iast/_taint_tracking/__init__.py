@@ -226,8 +226,8 @@ if _is_iast_debug_enabled():
                     log.debug("-----")
             return
 
-        except Exception:
+        except Exception as e:
             # Ensure that we do not break by any means
-            pass
+            log.debug("Error in trace_calls_and_returns: %s", e)
 
     threading.settrace(trace_calls_and_returns)
