@@ -121,7 +121,7 @@ def _get_agentless_telemetry_url(site: str):
     if site == "datad0g.com":
         return "https://all-http-intake.logs.datad0g.com"
     if site == "datadoghq.eu":
-        return "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
+        return "https://instrumentation-telemetry-intake.datadoghq.eu"
     return f"https://instrumentation-telemetry-intake.{site}/"
 
 
