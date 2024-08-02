@@ -1394,6 +1394,24 @@ class Contrib_TestClass_For_Threats:
                 assert not any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
                 assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in root_span()._meta)
 
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    def test_fingerprinting(self, interface, root_span, get_tag, asm_enabled):
+        with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=None)):
+            self.update_tracer(interface)
+            response = interface.client.post(
+                "/asm/324/huj/?x=1&y=2", headers={"User-Agent": "dd-test-scanner-log-block"}, data={"test": "attack"}
+            )
+            assert self.status(response) == 403 if asm_enabled else 200
+            assert get_tag("http.status_code") == "403" if asm_enabled else "200"
+            if asm_enabled:
+                assert get_tag(asm_constants.FINGERPRINTING.HEADER)
+                assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
+                assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
+            else:
+                assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
+                assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
+                assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
+
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
             raise pytest.xfail("fastapi does not fully support IAST for now")
