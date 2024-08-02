@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where the WAF could be disabled if the ASM_DD rule file was not found in Remote Config.
