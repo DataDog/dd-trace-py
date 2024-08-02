@@ -119,13 +119,22 @@ class _PytestDDTracePluginV2:
         CISuite.start(suite_id)
         CITest.start(test_id)
 
+        # TODO support test skipping
+
         yield
 
-        # We rely on the CI Visibility product to not finish items that have discovered but unfinished items
-        CISuite.finish(suite_id)
-        CIModule.finish(module_id)
+        # TODO support test skipping
 
-        return
+        # We rely on the CI Visibility service to prevent finishing items that have been discovered and have unfinished
+        # children, but as an optimization:
+        # - we know we don't need to finish the suite if the next item is in the same suite
+        # - we know we don't need to finish the module if the next item is in the same module
+        # - we trust that the next item is in the same module if it is in the same suite
+        next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
+        if next_test_id is None or next_test_id.parent_id != suite_id:
+            CISuite.finish(suite_id)
+            if nextitem is None or next_test_id.parent_id.parent_id != module_id:
+                CIModule.finish(module_id)
 
     @staticmethod
     @pytest.hookimpl(hookwrapper=True)
