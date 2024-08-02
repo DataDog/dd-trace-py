@@ -127,6 +127,8 @@ jobs:
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: ${{ matrix.weblog-variant}}_${{ github.sha }}.tar.gz
+
+      - name: Display contents of downloaded artifacts
         run: ls ${{ matrix.weblog-variant}}_${{ github.sha }}.tar.gz
 
       - name: docker load
