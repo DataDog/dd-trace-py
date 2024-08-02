@@ -29,7 +29,11 @@ def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
             filename_arg = args[0] if args else kwargs.get("file", None)
             if is_pyobject_tainted(filename_arg):
                 PathTraversal.report(evidence_value=filename_arg)
-        except Exception:
-            log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
-    else:
-        log.debug("IAST: no vulnerability quota to analyze more sink points")
+        except Exception:  # nosec
+            # FIXME: see below
+            # log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
+            pass
+    # FIXME: this is commented out because logs can execute _open which can runs the check_and_report_path_traversal
+    # entering an infinite loop
+    # else:
+    #     log.debug("IAST: no vulnerability quota to analyze more sink points")
