@@ -26,14 +26,12 @@ from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.pin import Pin
 from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
-from ddtrace.vendor.debtcollector import deprecate
 
 from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call
@@ -79,19 +77,9 @@ config._add(
 )
 
 
-def _get_version():
+def get_version():
     # type: () -> str
     return __version__
-
-
-def get_version():
-    deprecate(
-        "get_version is deprecated",
-        message="get_version is deprecated",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    return _get_version()
 
 
 def patch():
@@ -100,9 +88,9 @@ def patch():
     botocore.client._datadog_patch = True
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
-    wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", _patched_api_call(botocore))
+    wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin().onto(botocore.client.BaseClient)
-    wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", _patched_lib_fn)
+    wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
     Pin().onto(botocore.parsers.ResponseParser)
     _PATCHED_SUBMODULES.clear()
 
@@ -115,7 +103,7 @@ def unpatch():
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
 
-def _patch_submodules(submodules):
+def patch_submodules(submodules):
     # type: (Union[List[str], bool]) -> None
     if isinstance(submodules, bool) and submodules:
         _PATCHED_SUBMODULES.clear()
@@ -124,17 +112,7 @@ def _patch_submodules(submodules):
         _PATCHED_SUBMODULES.update(submodules)
 
 
-def patch_submodules(submodules):
-    deprecate(
-        "patch_submodules is deprecated",
-        message="patch_submodules is deprecated",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    return _patch_submodules(submodules)
-
-
-def _patched_lib_fn(original_func, instance, args, kwargs):
+def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
@@ -146,18 +124,8 @@ def _patched_lib_fn(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
 
-def patched_lib_fn(original_func, instance, args, kwargs):
-    deprecate(
-        "patched_lib_fn is deprecated",
-        message="patched_lib_fn is deprecated",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    return _patched_lib_fn(original_func, instance, args, kwargs)
-
-
 @with_traced_module
-def _patched_api_call(botocore, pin, original_func, instance, args, kwargs):
+def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
@@ -185,7 +153,7 @@ def _patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     if endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
         patching_fn = patched_bedrock_api_call
     else:
-        patching_fn = PATCHING_FUNCTIONS.get(endpoint_name, _patched_api_call_fallback)
+        patching_fn = PATCHING_FUNCTIONS.get(endpoint_name, patched_api_call_fallback)
 
     return patching_fn(
         original_func=original_func,
@@ -196,17 +164,7 @@ def _patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     )
 
 
-def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
-    deprecate(
-        "patched_api_call is deprecated",
-        message="patched_api_call is deprecated",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    return _patched_api_call(botocore, pin, original_func, instance, args, kwargs)
-
-
-def _prep_context_injection(ctx, endpoint_name, operation, trace_operation, params):
+def prep_context_injection(ctx, endpoint_name, operation, trace_operation, params):
     cloud_service = None
     injection_function = None
     schematization_function = schematize_cloud_messaging_operation
@@ -231,17 +189,7 @@ def _prep_context_injection(ctx, endpoint_name, operation, trace_operation, para
     )
 
 
-def prep_context_injection(ctx, endpoint_name, operation, trace_operation, params):
-    deprecate(
-        "prep_context_injection is deprecated",
-        message="prep_context_injection is deprecated",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    return _prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
-
-
-def _patched_api_call_fallback(original_func, instance, args, kwargs, function_vars):
+def patched_api_call_fallback(original_func, instance, args, kwargs, function_vars):
     # default patched api call that is used generally for several services / operations
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
@@ -264,7 +212,7 @@ def _patched_api_call_fallback(original_func, instance, args, kwargs, function_v
     ) as ctx, ctx.get_item("instrumented_api_call"):
         core.dispatch("botocore.patched_api_call.started", [ctx])
         if args and config.botocore["distributed_tracing"]:
-            _prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
+            prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
         try:
             result = original_func(*args, **kwargs)
@@ -282,13 +230,3 @@ def _patched_api_call_fallback(original_func, instance, args, kwargs, function_v
         else:
             core.dispatch("botocore.patched_api_call.success", [ctx, result])
             return result
-
-
-def patched_api_call_fallback(original_func, instance, args, kwargs, function_vars):
-    deprecate(
-        "patched_api_call_fallback is deprecated",
-        message="patched_api_call_fallback is deprecated",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    return _patched_api_call_fallback(original_func, instance, args, kwargs, function_vars)
