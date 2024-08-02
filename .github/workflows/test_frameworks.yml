@@ -120,7 +120,7 @@ jobs:
             iast: 0
             appsec: 0
     name: Sanic 24.6 (with ${{ matrix.suffix }})
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     needs: needs-run
     env:
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
