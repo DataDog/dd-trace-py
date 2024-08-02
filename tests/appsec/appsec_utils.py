@@ -111,9 +111,10 @@ def appsec_application_server(
     server_process = subprocess.Popen(
         cmd,
         env=env,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
         start_new_session=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
     try:
         client = Client("http://0.0.0.0:%s" % port)
@@ -137,9 +138,6 @@ def appsec_application_server(
                 % (server_process.stdout, server_process.stderr)
             )
 
-        if iast_enabled is not None and iast_enabled != "false":
-            assert "Return from keys on line" in server_process.stderr
-            assert "Return value is tainted" in server_process.stderr
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
         parent = psutil.Process(server_process.pid)
         children = parent.children(recursive=True)
@@ -159,3 +157,7 @@ def appsec_application_server(
         os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
         server_process.terminate()
         server_process.wait()
+        if iast_enabled is not None and iast_enabled != "false":
+            process_output = server_process.stderr.read()
+            assert "Return from keys on line" in process_output
+            assert "Return value is tainted" in process_output
