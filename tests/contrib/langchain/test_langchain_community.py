@@ -16,7 +16,7 @@ from tests.utils import override_global_config
 
 LANGCHAIN_VERSION = parse_version(langchain.__version__)
 
-pytestmark = pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1, 0), reason="This module only tests langchain >= 0.1")
+pytestmark = pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="This module only tests langchain >= 0.1")
 
 IGNORE_FIELDS = [
     "resources",
