@@ -25,9 +25,11 @@ BUILD_DIR=sources
 
 echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
-cp -r ../pywheels-dep/binaries sources/ddtrace_pkgs
 cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 
 cp ../lib-injection/sitecustomize.py sources/
 cp ../min_compatible_versions.csv sources/
 cp ../lib-injection/telemetry-forwarder.sh sources/
+
+echo "Deduplicating package files"
+python ../lib-injection/dedupe.py sources/ddtrace_pkgs/
