@@ -16,11 +16,8 @@ Usage:
         ./dl_wheels.py --help
 
 """
-
 import argparse
-import collections
 import itertools
-import glob
 import os
 from pathlib import Path
 import shutil
