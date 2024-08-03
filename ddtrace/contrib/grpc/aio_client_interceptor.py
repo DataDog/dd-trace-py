@@ -199,7 +199,7 @@ class _ClientInterceptor:
                 yield response
         except StopAsyncIteration:
             # Callback will handle span finishing
-            _handle_cancelled_error()
+            _handle_cancelled_error(call, span)
             raise
         except aio.AioRpcError as rpc_error:
             # NOTE: We can also handle the error in done callbacks,
