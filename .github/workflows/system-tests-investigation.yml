@@ -1,0 +1,45 @@
+name: System Tests Investigation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  build-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - run: mkdir binaries/
+      - run: echo "git+https://github.com/DataDog/dd-trace-py.git@cbeauchesne/crash-investigation" > binaries/python-load-from-pip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dd_trace_py
+          path: binaries/
+
+  system-tests:
+    needs: build-artifact
+    strategy:
+      matrix:
+        attempt: [1, 2, 3]  # let's increase the crash probability
+        scenarios:  # list of scenario knowns to have startup crashes
+          - name: set1
+            list: APM_TRACING_E2E_OTEL,APPSEC_API_SECURITY,APPSEC_API_SECURITY_NO_RESPONSE_BODY,APPSEC_API_SECURITY_RC
+          - name: set2
+            list: APPSEC_API_SECURITY_WITH_SAMPLING,APPSEC_CUSTOM_OBFUSCATION,APPSEC_CUSTOM_RULES,APPSEC_RATE_LIMITER
+          - name: set3
+            list: APPSEC_RASP,APPSEC_REQUEST_BLOCKING,APPSEC_RUNTIME_ACTIVATION,DEBUGGER_PII_REDACTION,REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
+          - name: set4
+            list: DEBUGGER_EXPRESSION_LANGUAGE,TELEMETRY_METRIC_GENERATION_DISABLED,TELEMETRY_LOG_GENERATION_DISABLED
+          - name: set5
+            list: APM_TRACING_E2E_OTEL,REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES_NOCACHE,REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD_NOCACHE,APPSEC_LOW_WAF_TIMEOUT
+      fail-fast: false
+
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
+    secrets: inherit
+    with:
+      library: python
+      scenarios: ${{ matrix.scenarios.list }}
+      binaries_artifact: dd_trace_py
+      ci_environment: ${{ matrix.scenarios.name }}_${{ matrix.attempt }}  # current reusable workflow does not allow artifact postfix. Let's hack
