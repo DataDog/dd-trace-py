@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 
+
 if len(sys.argv) != 2:
     print("Usage: python dedupe.py <source dir>")
     print("Example: python dedupe.py sources/ddtrace_pkgs")
