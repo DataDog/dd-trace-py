@@ -31,6 +31,6 @@ cp ../lib-injection/sitecustomize.py sources/
 cp ../min_compatible_versions.csv sources/
 cp ../lib-injection/telemetry-forwarder.sh sources/
 
-clean-apt install python
+clean-apt install python3
 echo "Deduplicating package files"
-python ../lib-injection/dedupe.py sources/ddtrace_pkgs/
+python3 ../lib-injection/dedupe.py sources/ddtrace_pkgs/
