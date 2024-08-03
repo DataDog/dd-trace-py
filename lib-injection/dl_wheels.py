@@ -160,18 +160,25 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         except Exception:
             pass
 
-# Find binary files to deduplicate
+# Find all duplicate files
+print("Finding duplicate files")
 file_hashes = collections.defaultdict(set)
-for src in glob.glob(f"{dl_dir}/**/*.so*", recursive=True):
-    print(f"Found binary file: {src}")
+for src in glob.glob(f"{dl_dir}/**/*", recursive=True):
+    if not os.path.isfile(src):
+        continue
     res = subprocess.check_output(["sha256sum", str(src)])
     file_hash, _, _ = res.decode().partition(" ")
     file_hashes[file_hash].add(src)
 
 
-# Replace binaries with hard links
-binaries_dir = Path(dl_dir) / "binaries"
-os.makedirs(binaries_dir)
+# Replace shared files with soft links
+dl_path = Path(dl_dir)
+shared_dir = dl_path / "shared"
+try:
+    shutil.rmtree(shared_dir)
+except Exception:
+    pass
+os.makedirs(shared_dir)
 
 for file_hash in file_hashes:
     # Skip unique files that aren't duplicates
@@ -180,10 +187,12 @@ for file_hash in file_hashes:
 
     src = next(iter(file_hashes[file_hash]))
     basename = os.path.basename(src)
-    dest = binaries_dir / f"{file_hash}_{basename}"
+    dest = shared_dir / f"{file_hash}_{basename}"
     shutil.copy(src, dest)
 
     for src in file_hashes[file_hash]:
-        print(f"Replacing {src} with symlink to {dest}")
+        dest_rel = dest.relative_to(dl_path)
+        src_rel = Path(*([".." for _ in Path(src).relative_to(dl_path).parts[:-1]] + [dest_rel]))
+        print(f"Replacing {src} with symlink to {src_rel}")
         os.remove(src)
-        os.symlink(dest, src)
+        os.symlink(src_rel, src)
