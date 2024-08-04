@@ -11,7 +11,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
-from ddtrace.internal import core
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
@@ -109,7 +108,6 @@ def traced_send(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     topic = get_argument_value(args, kwargs, 0, "topic") or ""
-    core.set_item("kafka_topic", topic)
     try:
         value = get_argument_value(args, kwargs, 1, "value")
     except ArgumentError:
@@ -122,7 +120,6 @@ def traced_send(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
-        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _KafkaProducer), span))
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -178,8 +175,6 @@ def traced_commit(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    core.dispatch("kafka.commit.start", (instance, args, kwargs))
-
     return func(*args, **kwargs)
 
 
@@ -203,11 +198,6 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     ) as span:
         # reset span start time to before function call
         span.start_ns = start_ns
-
-        for message in messages:
-            if message is not None and first_message is not None:
-                core.set_item("kafka_topic", first_message.topic)
-                core.dispatch("kafka.consume.start", (instance, first_message, span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)

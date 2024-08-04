@@ -24,7 +24,6 @@ GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "127.0.0.1:{}".format(KAFKA_CONFIG["port"])
 KEY = bytes("test_key", encoding="utf-8")
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
-DSM_TEST_PATH_HEADER_SIZE = 28
 # Lowering the poll timeout will result in flaky tests
 POLL_TIMEOUT = 8000
 
@@ -343,8 +342,6 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
     # kafka.produce span is created without a parent
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
-    # This should work again once DSM is all set up for this
-    # assert produce_span.get_tag("pathway.hash") is not None
 
     # None of the kafka.consume spans have parents
     assert consume_span.name == "kafka.consume"
