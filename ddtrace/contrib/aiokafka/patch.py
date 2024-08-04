@@ -49,7 +49,6 @@ class TracedAIOKafkaConsumer(TracedAIOKafkaConsumerMixin, aiokafka.AIOKafkaConsu
 
 
 def patch():
-    print("patching")
     if getattr(aiokafka, "_datadog_patch", False):
         return
     aiokafka._datadog_patch = True
@@ -67,7 +66,6 @@ def patch():
 
 
 def unpatch():
-    print("unpatching")
     if getattr(aiokafka, "_datadog_patch", False):
         aiokafka._datadog_patch = False
 
