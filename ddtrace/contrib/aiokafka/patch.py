@@ -84,17 +84,17 @@ def unpatch():
     aiokafka.AIOKafkaConsumer = _AIOKafkaConsumer
 
 
-def traced_send():
+async def traced_send():
     pass
 
 
-def traced_getone():
+async def traced_getone():
     pass
 
 
-def traced_getmany():
+async def traced_getmany():
     pass
 
 
-def traced_commit():
+async def traced_commit():
     pass
