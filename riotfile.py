@@ -2738,7 +2738,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pys=["3.7"],
-                            pkgs={" kafka-python 2.0.2 ": "2.0.2"},
+                            pkgs={"kafka-python": "==2.0.2"},
                         ),
                         Venv(pys=select_pys(min_version="3.8"), pkgs={"kafka-python-ng": "==2.2.2"}),
                     ],
