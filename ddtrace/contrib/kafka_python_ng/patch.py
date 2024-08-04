@@ -14,7 +14,6 @@ from ddtrace.ext import kafka as kafkax
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -27,8 +26,6 @@ from ddtrace.propagation.http import HTTPPropagator as Propagator
 
 _KafkaProducer = kafka.KafkaProducer
 _KafkaConsumer = kafka.KafkaConsumer
-
-log = get_logger(__name__)
 
 config._add(
     "kafka",
@@ -102,7 +99,6 @@ def unpatch():
 
 
 def traced_send(func, instance, args, kwargs):
-    log.debug("Traced send")
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -147,7 +143,6 @@ def traced_send(func, instance, args, kwargs):
 
 
 def traced_poll(func, instance, args, kwargs):
-    log.debug("Traced poll")
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -170,7 +165,6 @@ def traced_poll(func, instance, args, kwargs):
 
 
 def traced_commit(func, instance, args, kwargs):
-    log.debug("Traced commit")
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
