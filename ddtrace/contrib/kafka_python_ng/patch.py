@@ -21,7 +21,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator as Propagator
@@ -141,10 +140,12 @@ def traced_send(func, instance, args, kwargs):
         # inject headers with Datadog tags if trace propagation is enabled
         if config.kafka.distributed_tracing_enabled:
             # inject headers with Datadog tags:
-            headers = get_argument_value(args, kwargs, 6, "headers", True) or []
-            Propagator.inject(span.context, headers)
-            args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers)
-
+            headers = kwargs.get("headers", [])
+            additional_headers = {}
+            Propagator.inject(span.context, additional_headers)
+            for header, value in additional_headers.items():
+                headers.append((header, value.encode("utf-8")))
+            kwargs["headers"] = headers
         return func(*args, **kwargs)
 
 

@@ -1,4 +1,5 @@
 import logging
+import random
 
 import kafka
 from kafka.structs import OffsetAndMetadata
@@ -309,3 +310,99 @@ def test_does_not_trace_empty_poll_when_disabled(dummy_tracer, consumer, produce
 
         assert non_empty_poll_span_created is True
         Pin.override(consumer, tracer=None)
+
+
+def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, producer, kafka_topic):
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    test_string = "context test no propagation"
+    test_key = "context test key no propagation"
+
+    producer.send(kafka_topic, value=test_string.encode("utf-8"), key=test_key.encode("utf-8"))
+    producer.close()
+
+    response = None
+    while response is None:
+        response = consumer.poll(POLL_TIMEOUT)
+
+    message = next(iter(response.values()))[0]
+
+    # message comes back with expected test string
+    assert message.value == b"context test no propagation"
+
+    consume_span = None
+    traces = dummy_tracer.pop_traces()
+    produce_span = traces[0][0]
+    for trace in traces:
+        for span in trace:
+            if span.get_tag("kafka.received_message") == "True":
+                if span.get_tag("kafka.message_key") == test_key:
+                    consume_span = span
+
+    # kafka.produce span is created without a parent
+    assert produce_span.name == "kafka.produce"
+    assert produce_span.parent_id is None
+    # This should work again once DSM is all set up for this
+    # assert produce_span.get_tag("pathway.hash") is not None
+
+    # None of the kafka.consume spans have parents
+    assert consume_span.name == "kafka.consume"
+    assert consume_span.parent_id is None
+
+    # None of these spans are part of the same trace
+    assert produce_span.trace_id != consume_span.trace_id
+
+    Pin.override(consumer, tracer=None)
+    Pin.override(producer, tracer=None)
+
+
+def test_context_header_injection_works_no_client_added_headers(kafka_topic, producer, consumer):
+    with override_config("kafka", dict(distributed_tracing_enabled=True)):
+        # use a random int in this string to prevent reading a message produced by a previous test run
+        test_string = "context propagation enabled test " + str(random.randint(0, 1000))
+        test_key = "context propagation key " + str(random.randint(0, 1000))
+
+        producer.send(kafka_topic, value=test_string.encode("utf-8"), key=test_key.encode("utf-8"))
+        producer.close()
+
+        response = None
+        while response is None:
+            response = consumer.poll(POLL_TIMEOUT)
+
+        message = next(iter(response.values()))[0]
+
+        propagation_asserted = False
+        for header in message.headers:
+            if header[0] == "x-datadog-trace-id":
+                propagation_asserted = True
+
+        assert propagation_asserted is True
+
+
+def test_context_header_injection_works_with_client_added_headers(kafka_topic, producer, consumer):
+    with override_config("kafka", dict(distributed_tracing_enabled=True)):
+        # use a random int in this string to prevent reading a message produced by a previous test run
+        test_string = "context propagation enabled test " + str(random.randint(0, 1000))
+        test_key = "context propagation key " + str(random.randint(0, 1000))
+
+        producer.send(
+            kafka_topic,
+            value=test_string.encode("utf-8"),
+            key=test_key.encode("utf-8"),
+            headers=[("my_header", "my_header_value".encode("utf-8"))],
+        )
+        producer.close()
+
+        response = None
+        while response is None:
+            response = consumer.poll(POLL_TIMEOUT)
+
+        message = next(iter(response.values()))[0]
+
+        propagation_asserted = False
+        for header in message.headers:
+            if header[0] == "x-datadog-trace-id":
+                propagation_asserted = True
+
+        assert propagation_asserted is True
