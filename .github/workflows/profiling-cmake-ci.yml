@@ -1,0 +1,18 @@
+name: "Profiling CMake CI"
+on:
+  push:
+  pull_request:
+    paths:
+      - ddtrace/internal/datadog/profiling/**
+
+jobs:
+  check:
+    name: Rust CI
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        extension: ["ddtrace/internal/datadog/profiling"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run cppcheck on dd_wrapper
+        run: ./build_standalone.sh -C -- dd_wrapper
