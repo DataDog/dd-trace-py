@@ -9,14 +9,14 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-- CI Visibility: Fixes an issue where the pytest plugin would crash if the git binary was absent
-- CI Visibility: fixes incorrect URL for telemetry intake in EU that was causing missing telemetry data and SSL error log messages.
-- psycopg: Ensures traced async cursors return an asynchronous iterator object.
 - ASM: This fix resolves an issue where the WAF could be disabled if the ASM_DD rule file was not found in Remote Config.
+- CI Visibility: Fixes an issue where the pytest plugin would crash if the git binary was absent
+- CI Visibility: Fixes incorrect URL for telemetry intake in EU that was causing missing telemetry data and SSL error log messages.
 - Code Security: fix potential infinite loop with path traversal when the analyze quota has been exceeded.
 - opentelemetry: Resolves an edge case where distributed tracing headers could be generated before a sampling decision is made, resulting in dropped spans in downstream services.
 - profiling: captures lock usages with `with` context managers, e.g. `with lock:`
 - profiling: propagates `runtime_id` tag to libdatadog exporter. It is a unique string identifier for the profiled process. For example, Thread Timeline visualization uses it to distinguish different processes.
+- psycopg: Ensures traced async cursors return an asynchronous iterator object.
 
 
 ---
