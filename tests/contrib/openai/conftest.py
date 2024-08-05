@@ -128,7 +128,7 @@ def mock_logs():
         patcher.stop()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def mock_llmobs_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
