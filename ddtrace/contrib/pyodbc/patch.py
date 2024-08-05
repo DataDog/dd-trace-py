@@ -9,7 +9,6 @@ from ddtrace.vendor.debtcollector import deprecate
 from ... import Pin
 from ... import config
 from ...ext import db
-from ...ext import net
 from ...internal.utils.formats import asbool
 from ..dbapi import TracedConnection
 from ..dbapi import TracedCursor
@@ -65,7 +64,6 @@ def _patch_conn(conn):
         tags = {
             db.SYSTEM: conn.getinfo(pyodbc.SQL_DBMS_NAME),
             db.USER: conn.getinfo(pyodbc.SQL_USER_NAME),
-            net.SERVER_ADDRESS: conn.getinfo(pyodbc.HOST),
         }
     except pyodbc.Error:
         tags = {}
