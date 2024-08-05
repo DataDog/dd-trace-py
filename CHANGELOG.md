@@ -9,11 +9,11 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-- Code Security: add encodings.idna to the IAST patching denylist to avoid problems with gevent.
-- CI Visibility: Fixes an issue where the pytest plugin would crash if the git binary was absent
-- CI Visibility: fixes incorrect URL for telemetry intake in EU that was causing missing telemetry data and SSL error log messages.
-- internal: fixes an issue where some pathlib functions return OSError on Windows.
 - ASM: This fix resolves an issue where the WAF could be disabled if the ASM_DD rule file was not found in Remote Config.
+- CI Visibility: Fixes an issue where the pytest plugin would crash if the git binary was absent
+- CI Visibility: Fixes incorrect URL for telemetry intake in EU that was causing missing telemetry data and SSL error log messages.
+- Code Security: Add encodings.idna to the IAST patching denylist to avoid problems with gevent.
+- internal: Fixes an issue where some pathlib functions return OSError on Windows.
 - opentelemetry: Resolves an edge case where distributed tracing headers could be generated before a sampling decision is made, resulting in dropped spans in downstream services.
 
 
