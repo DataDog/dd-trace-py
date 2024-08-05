@@ -76,7 +76,7 @@ required_modules = ["aioredis"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.aiohttp.patch` directly
+        # Required to allow users to import from `ddtrace.contrib.aioredis.patch` directly
         from . import patch as _  # noqa: F401, I001
 
         from ..internal.aioredis.patch import get_version
