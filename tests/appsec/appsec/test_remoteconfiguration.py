@@ -118,7 +118,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "DYDkA/w="),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "DYHkA/w="),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
         (True, "false", "gAAAAA=="),
         (False, "false", ""),
@@ -143,7 +143,7 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "DYDkA/4="),  # All capabilities
+        ({}, "DYHkA/4="),  # All capabilities
         ({"_asm_static_rule_file": DEFAULT.RULES}, "gAAAAg=="),  # Only ASM_FEATURES
     ],
 )
@@ -1037,3 +1037,39 @@ def test_rc_rules_data_error_ddwaf(tracer):
             "rules": [{"invalid": mock.MagicMock()}],
         }
         assert not _appsec_rules_data(config, tracer)
+
+
+def test_rules_never_empty(tracer):
+    with override_global_config(dict(_asm_enabled=True)):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
+            mock_update.reset_mock()
+            _appsec_rules_data({"rules": []}, tracer)
+            call = mock_update.mock_calls
+            args = call[-1][1][1]
+            assert "rules" in args
+            assert args["rules"], "empty rules should not be possible, it must switch to default."
+
+
+def test_static_rules_never_modified(tracer):
+    with override_global_config(dict(_asm_enabled=True)):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        processors = str(tracer._appsec_processor._rules["processors"])
+        scanners = str(tracer._appsec_processor._rules["scanners"])
+        proc_add = {"id": "new_processor"}
+        scan_add = {"id": "new_scanner"}
+        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
+            mock_update.reset_mock()
+            _appsec_rules_data({"rules": [], "processors": [proc_add], "scanners": [scan_add]}, tracer)
+            call = mock_update.mock_calls
+            args = call[-1][1][1]
+            # check the new rules have been sent and merged
+            assert "processors" in args
+            assert proc_add in args["processors"]
+            assert len(args["processors"]) > 1
+            assert "scanners" in args
+            assert scan_add in args["scanners"]
+            assert len(args["scanners"]) > 1
+            # check that the original rules are still there unmodified
+            assert processors == str(tracer._appsec_processor._rules["processors"])
+            assert scanners == str(tracer._appsec_processor._rules["scanners"])
