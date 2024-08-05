@@ -114,7 +114,7 @@ def main():
     executable = None
     try:
         parser = _get_arg_parser()
-        args = _prepare_env()
+        args = _prepare_env(parser)
         executable = _find_executable(args)
     except Exception:
         log.warning("error bootstrapping Datadog tracing", exc_info=True)
