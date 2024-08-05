@@ -29,7 +29,7 @@ required_modules = ["algoliasearch", "algoliasearch.version"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.aiohttp.patch` directly
+        # Required to allow users to import from `ddtrace.contrib.algoliasearch.patch` directly
         from . import patch as _  # noqa: F401, I001
 
         from ..internal.algoliasearch.patch import get_version
