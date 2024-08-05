@@ -44,7 +44,7 @@ def _test_dbm_propagation_comment_with_global_service_name_configured(
 
     dbm_comment = (
         f"/*dddb='{db_name}',dddbs='{db_system}',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-        "ddpv='v7343437-d7ac743'*/ "
+        "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
     )
     _test_execute(dbm_comment, cursor, wrapped_instance)
     if execute_many:
@@ -59,7 +59,7 @@ def _test_dbm_propagation_comment_integration_service_name_override(
 
     dbm_comment = (
         f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-        "ddpv='v7343437-d7ac743'*/ "
+        "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
     )
     _test_execute(dbm_comment, cursor, wrapped_instance)
     if execute_many:
@@ -77,7 +77,7 @@ def _test_dbm_propagation_comment_pin_service_name_override(
 
     dbm_comment = (
         f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-        "ddpv='v7343437-d7ac743'*/ "
+        "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
     )
     _test_execute(dbm_comment, cursor, wrapped_instance)
     if execute_many:
@@ -90,7 +90,7 @@ def _test_dbm_propagation_comment_peer_service_enabled(config, cursor, wrapped_i
 
     dbm_comment = (
         f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-        "ddpv='v7343437-d7ac743'*/ "
+        "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
     )
     _test_execute(dbm_comment, cursor, wrapped_instance)
     if execute_many:
@@ -105,7 +105,7 @@ def _test_dbm_propagation_comment_with_peer_service_tag(
 
     dbm_comment = (
         f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddprs='{peer_service_name}',ddps='orders-app',"
-        "ddpv='v7343437-d7ac743'*/ "
+        "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
     )
     _test_execute(dbm_comment, cursor, wrapped_instance)
     if execute_many:
