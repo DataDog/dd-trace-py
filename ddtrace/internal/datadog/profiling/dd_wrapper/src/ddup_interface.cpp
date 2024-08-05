@@ -41,85 +41,85 @@ ddup_prefork()
 
 // Configuration
 void
-ddup_config_env(std::string_view dd_env) // cppcheck-suppress unusedFunction
+ddup_config_env(std::string_view environment)
 {
-    Datadog::UploaderBuilder::set_env(dd_env);
+    Datadog::UploaderBuilder::set_env(environment);
 }
 
 void
-ddup_config_service(std::string_view service) // cppcheck-suppress unusedFunction
+ddup_config_service(std::string_view service)
 {
     Datadog::UploaderBuilder::set_service(service);
 }
 
 void
-ddup_config_version(std::string_view version) // cppcheck-suppress unusedFunction
+ddup_config_version(std::string_view version)
 {
     Datadog::UploaderBuilder::set_version(version);
 }
 
 void
-ddup_config_runtime(std::string_view runtime) // cppcheck-suppress unusedFunction
+ddup_config_runtime(std::string_view runtime)
 {
     Datadog::UploaderBuilder::set_runtime(runtime);
 }
 
 void
-ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunction
+ddup_set_runtime_id(std::string_view runtime_id)
 {
     Datadog::UploaderBuilder::set_runtime_id(runtime_id);
 }
 
 void
-ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
+ddup_config_runtime_version(std::string_view runtime_version)
 {
     Datadog::UploaderBuilder::set_runtime_version(runtime_version);
 }
 
 void
-ddup_config_profiler_version(std::string_view profiler_version) // cppcheck-suppress unusedFunction
+ddup_config_profiler_version(std::string_view profiler_version)
 {
     Datadog::UploaderBuilder::set_profiler_version(profiler_version);
 }
 
 void
-ddup_config_url(std::string_view url) // cppcheck-suppress unusedFunction
+ddup_config_url(std::string_view url)
 {
     Datadog::UploaderBuilder::set_url(url);
 }
 
 void
-ddup_config_user_tag(std::string_view key, std::string_view val) // cppcheck-suppress unusedFunction
+ddup_config_user_tag(std::string_view key, std::string_view val)
 {
     Datadog::UploaderBuilder::set_tag(key, val);
 }
 
 void
-ddup_config_sample_type(unsigned int _type) // cppcheck-suppress unusedFunction
+ddup_config_sample_type(unsigned int _type)
 {
     Datadog::SampleManager::add_type(_type);
 }
 
 void
-ddup_config_max_nframes(int max_nframes) // cppcheck-suppress unusedFunction
+ddup_config_max_nframes(int max_nframes)
 {
     Datadog::SampleManager::set_max_nframes(max_nframes);
 }
 
 void
-ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
+ddup_config_timeline(bool enabled)
 {
     Datadog::SampleManager::set_timeline(enabled);
 }
 
 bool
-ddup_is_initialized() // cppcheck-suppress unusedFunction
+ddup_is_initialized()
 {
     return is_ddup_initialized;
 }
 
 void
-ddup_start() // cppcheck-suppress unusedFunction
+ddup_start()
 {
     std::call_once(ddup_init_flag, []() {
         // Perform any one-time startup operations
@@ -136,56 +136,56 @@ ddup_start() // cppcheck-suppress unusedFunction
 }
 
 Datadog::Sample*
-ddup_start_sample() // cppcheck-suppress unusedFunction
+ddup_start_sample()
 {
     return Datadog::SampleManager::start_sample();
 }
 
 void
-ddup_push_walltime(Datadog::Sample* sample, int64_t walltime, int64_t count) // cppcheck-suppress unusedFunction
+ddup_push_walltime(Datadog::Sample* sample, int64_t walltime, int64_t count)
 {
 
     sample->push_walltime(walltime, count);
 }
 
 void
-ddup_push_cputime(Datadog::Sample* sample, int64_t cputime, int64_t count) // cppcheck-suppress unusedFunction
+ddup_push_cputime(Datadog::Sample* sample, int64_t cputime, int64_t count)
 {
     sample->push_cputime(cputime, count);
 }
 
 void
-ddup_push_acquire(Datadog::Sample* sample, int64_t acquire_time, int64_t count) // cppcheck-suppress unusedFunction
+ddup_push_acquire(Datadog::Sample* sample, int64_t acquire_time, int64_t count)
 {
     sample->push_acquire(acquire_time, count);
 }
 
 void
-ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count) // cppcheck-suppress unusedFunction
+ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count)
 {
     sample->push_release(release_time, count);
 }
 
 void
-ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count) // cppcheck-suppress unusedFunction
+ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count)
 {
     sample->push_alloc(size, count);
 }
 
 void
-ddup_push_heap(Datadog::Sample* sample, int64_t size) // cppcheck-suppress unusedFunction
+ddup_push_heap(Datadog::Sample* sample, int64_t size)
 {
     sample->push_heap(size);
 }
 
 void
-ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name) // cppcheck-suppress unusedFunction
+ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name)
 {
     sample->push_lock_name(lock_name);
 }
 
 void
-ddup_push_threadinfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
+ddup_push_threadinfo(Datadog::Sample* sample,
                      int64_t thread_id,
                      int64_t thread_native_id,
                      std::string_view thread_name)
@@ -194,44 +194,44 @@ ddup_push_threadinfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunctio
 }
 
 void
-ddup_push_task_id(Datadog::Sample* sample, int64_t task_id) // cppcheck-suppress unusedFunction
+ddup_push_task_id(Datadog::Sample* sample, int64_t task_id)
 {
     sample->push_task_id(task_id);
 }
 
 void
-ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name) // cppcheck-suppress unusedFunction
+ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name)
 {
     sample->push_task_name(task_name);
 }
 
 void
-ddup_push_span_id(Datadog::Sample* sample, int64_t span_id) // cppcheck-suppress unusedFunction
+ddup_push_span_id(Datadog::Sample* sample, int64_t span_id)
 {
     sample->push_span_id(span_id);
 }
 
 void
-ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id) // cppcheck-suppress unusedFunction
+ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id)
 {
     sample->push_local_root_span_id(local_root_span_id);
 }
 
 void
-ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type) // cppcheck-suppress unusedFunction
+ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type)
 {
     sample->push_trace_type(trace_type);
 }
 
 void
-ddup_push_trace_resource_container(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
+ddup_push_trace_resource_container(Datadog::Sample* sample,
                                    std::string_view trace_resource_container)
 {
     sample->push_trace_resource_container(trace_resource_container);
 }
 
 void
-ddup_push_exceptioninfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
+ddup_push_exceptioninfo(Datadog::Sample* sample,
                         std::string_view exception_type,
                         int64_t count)
 {
@@ -239,13 +239,13 @@ ddup_push_exceptioninfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunc
 }
 
 void
-ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name) // cppcheck-suppress unusedFunction
+ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name)
 {
     sample->push_class_name(class_name);
 }
 
 void
-ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
+ddup_push_frame(Datadog::Sample* sample,
                 std::string_view _name,
                 std::string_view _filename,
                 uint64_t address,
@@ -255,25 +255,25 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
 }
 
 void
-ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppcheck-suppress unusedFunction
+ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns)
 {
     sample->push_monotonic_ns(monotonic_ns);
 }
 
 void
-ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
+ddup_flush_sample(Datadog::Sample* sample)
 {
     sample->flush_sample();
 }
 
 void
-ddup_drop_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
+ddup_drop_sample(Datadog::Sample* sample)
 {
     Datadog::SampleManager::drop_sample(sample);
 }
 
 bool
-ddup_upload() // cppcheck-suppress unusedFunction
+ddup_upload()
 {
     if (!is_ddup_initialized) {
         std::cerr << "ddup_upload() called before ddup_init()" << std::endl;

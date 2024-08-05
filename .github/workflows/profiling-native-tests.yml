@@ -1,0 +1,18 @@
+name: "Profiling Native Tests"
+on:
+  pull_request:
+    paths:
+      - ddtrace/internal/datadog/profiling/**
+
+jobs:
+  check:
+    name: Profiling Native Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        extension: ["ddtrace/internal/datadog/profiling"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: dd_wrapper static analysis (cppcheck)
+        run: ./build_standalone.sh -C -- dd_wrapper
+        working-directory: ${{ matrix.extension }}

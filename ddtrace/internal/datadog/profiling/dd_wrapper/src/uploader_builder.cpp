@@ -9,10 +9,10 @@
 #include <vector>
 
 void
-Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
+Datadog::UploaderBuilder::set_env(std::string_view _environment)
 {
-    if (!_dd_env.empty()) {
-        dd_env = _dd_env;
+    if (!_environment.empty()) {
+        environment = _environment;
     }
 }
 
@@ -111,7 +111,7 @@ Datadog::UploaderBuilder::build()
     // tags, so we'll just collect all the reasons and report them all at once.
     std::vector<std::string> reasons{};
     const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
-        { ExportTagKey::dd_env, dd_env },
+        { ExportTagKey::environment, environment},
         { ExportTagKey::service, service },
         { ExportTagKey::version, version },
         { ExportTagKey::language, language },

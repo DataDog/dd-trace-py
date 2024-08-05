@@ -148,7 +148,7 @@ Datadog::Crashtracker::get_tags()
 {
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
     const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
-        { ExportTagKey::dd_env, env },
+        { ExportTagKey::environment, environment},
         { ExportTagKey::service, service },
         { ExportTagKey::version, version },
         { ExportTagKey::language, family }, // Slight conflation of terms, but should be OK

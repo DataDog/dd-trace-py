@@ -16,7 +16,7 @@ class UploaderBuilder
     static inline std::mutex tag_mutex{};
 
     // Building parameters
-    static inline std::string dd_env;
+    static inline std::string environment;
     static inline std::string service;
     static inline std::string version;
     static inline std::string runtime{ g_runtime_name };
@@ -30,7 +30,7 @@ class UploaderBuilder
     static constexpr std::string_view family{ g_language_name };
 
   public:
-    static void set_env(std::string_view _dd_env);
+    static void set_env(std::string_view _environment);
     static void set_service(std::string_view _service);
     static void set_version(std::string_view _version);
     static void set_runtime(std::string_view _runtime);

@@ -10,7 +10,7 @@ extern "C"
 #endif
     void crashtracker_set_url(std::string_view url);
     void crashtracker_set_service(std::string_view service);
-    void crashtracker_set_env(std::string_view env);
+    void crashtracker_set_env(std::string_view environment);
     void crashtracker_set_version(std::string_view version);
     void crashtracker_set_runtime(std::string_view runtime);
     void crashtracker_set_runtime_id(std::string_view runtime_id);
