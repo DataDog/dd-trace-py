@@ -294,3 +294,41 @@ def _chat_completion_event():
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
+
+
+def _large_event():
+    return {
+        "span_id": "12345678903",
+        "trace_id": "98765432103",
+        "parent_id": "",
+        "session_id": "98765432103",
+        "name": "large_span",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "A" * 2_600_000,
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }

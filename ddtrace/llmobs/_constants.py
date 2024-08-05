@@ -34,6 +34,7 @@ EVP_PROXY_AGENT_BASE_PATH = "evp_proxy/v2"
 EVP_PROXY_AGENT_ENDPOINT = "{}/api/v2/llmobs".format(EVP_PROXY_AGENT_BASE_PATH)
 EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
 EVP_SUBDOMAIN_HEADER_VALUE = "llmobs-intake"
+EVP_PAYLOAD_SIZE_LIMIT = 5_000_000  # 5MB
 
 AGENTLESS_BASE_URL = "https://llmobs-intake"
 AGENTLESS_ENDPOINT = "api/v2/llmobs"

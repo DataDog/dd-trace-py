@@ -24,6 +24,7 @@ from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
+from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
@@ -170,6 +171,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
     def _init_buffer(self):
         with self._lock:
             self._buffer = []
+            self.buffer_size = 0
 
     def put(self, events: List[LLMObsSpanEvent]):
         # events always has only 1 event - with List type to be compatible with HTTPWriter interfaces
@@ -180,6 +182,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 )
                 return
             self._buffer.extend(events)
+            self.buffer_size += len(json.dumps(events))
 
     def encode(self):
         with self._lock:
@@ -259,6 +262,12 @@ class LLMObsSpanWriter(HTTPWriter):
             super(LLMObsSpanWriter, self).stop(timeout=timeout)
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
+        event_size = len(json.dumps(event))
+        for client in self._clients:
+            if isinstance(client, LLMObsEventClient):
+                if (client.encoder.buffer_size + event_size) > EVP_PAYLOAD_SIZE_LIMIT:
+                    logger.debug("flushing queue because queuing next event will exceed EVP payload limit")
+                    self._flush_queue_with_client(client)
         self.write([event])
 
     # Noop to make it compatible with HTTPWriter interface

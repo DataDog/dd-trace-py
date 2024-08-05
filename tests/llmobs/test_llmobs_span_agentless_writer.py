@@ -6,6 +6,7 @@ import mock
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs._utils import _chat_completion_event
 from tests.llmobs._utils import _completion_event
+from tests.llmobs._utils import _large_event
 from tests.utils import override_global_config
 
 
@@ -29,6 +30,16 @@ def test_buffer_limit(mock_writer_logs, mock_http_writer_send_payload_response):
         mock_writer_logs.warning.assert_called_with(
             "%r event buffer full (limit is %d), dropping event", "LLMObsSpanEncoder", 1000
         )
+
+
+def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(
+    mock_writer_logs, mock_http_writer_send_payload_response
+):
+    with override_global_config(dict(_dd_api_key="foobar.baz", _dd_site=DATADOG_SITE)):
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1000, timeout=1)
+        llmobs_span_writer.enqueue(_large_event())
+        llmobs_span_writer.enqueue(_large_event())
+        mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
 
 
 def test_send_completion_event(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
