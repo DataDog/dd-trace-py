@@ -646,7 +646,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     )
 
     def setUp(self):
-        patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanAgentWriter")
+        patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
         LLMObsSpanWriterMock = patcher.start()
         mock_llmobs_span_writer = mock.MagicMock()
         LLMObsSpanWriterMock.return_value = mock_llmobs_span_writer
