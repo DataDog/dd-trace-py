@@ -1,8 +1,11 @@
 # -*- encoding: utf-8 -*-
 import logging
+from typing import Any  # noqa F401
 from typing import Callable
+from typing import Dict  # noqa F401
 from typing import List
 from typing import Optional
+from typing import Sequence  # noqa F401
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
@@ -12,6 +15,7 @@ from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
 
 from .exporter import Exporter
+from .recorder import EventsType
 from .recorder import Recorder
 
 
@@ -32,8 +36,8 @@ class Scheduler(periodic.PeriodicService):
         self.recorder: Optional[Recorder] = recorder
         self.exporters: Optional[List[Exporter]] = exporters
         self.before_flush: Optional[Callable] = before_flush
-        self._configured_interval: Optional[float] = self.interval
-        self._last_export: Optional[int] = None
+        self._configured_interval: float = self.interval
+        self._last_export: int = 0  # Overridden in _start_service
         self._export_libdd_enabled: bool = config.export.libdd_enabled
 
     def _start_service(self):
@@ -45,6 +49,7 @@ class Scheduler(periodic.PeriodicService):
         LOG.debug("Scheduler started")
 
     def flush(self):
+        # type: (...) -> None
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
         if self._export_libdd_enabled:
@@ -61,21 +66,25 @@ class Scheduler(periodic.PeriodicService):
                 self.before_flush()
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
-        events = self.recorder.reset()
+        events: EventsType = {}
+        if self.recorder:
+            events = self.recorder.reset()
         start = self._last_export
         self._last_export = compat.time_ns()
-        for exp in self.exporters:
-            try:
-                exp.export(events, start, self._last_export)
-            except exporter.ExportError as e:
-                LOG.warning("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
-            except Exception:
-                LOG.exception(
-                    "Unexpected error while exporting events. "
-                    "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
-                )
+        if self.exporters:
+            for exp in self.exporters:
+                try:
+                    exp.export(events, start, self._last_export)
+                except exporter.ExportError as e:
+                    LOG.warning("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
+                except Exception:
+                    LOG.exception(
+                        "Unexpected error while exporting events. "
+                        "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
+                    )
 
     def periodic(self):
+        # type: (...) -> None
         start_time = compat.monotonic()
         try:
             self.flush()
@@ -97,10 +106,13 @@ class ServerlessScheduler(Scheduler):
     FLUSH_AFTER_INTERVALS = 60.0
 
     def __init__(self, *args, **kwargs):
-        super(ServerlessScheduler, self).__init__(interval=self.FORCED_INTERVAL, *args, **kwargs)
+        # type: (*Any, **Any) -> None
+        kwargs.setdefault("interval", self.FORCED_INTERVAL)
+        super(ServerlessScheduler, self).__init__(*args, **kwargs)
         self._profiled_intervals: int = 0
 
     def periodic(self):
+        # type: (...) -> None
         # Check both the number of intervals and time frame to be sure we don't flush, e.g., empty profiles
         if self._profiled_intervals >= self.FLUSH_AFTER_INTERVALS and (compat.time_ns() - self._last_export) >= (
             self.FORCED_INTERVAL * self.FLUSH_AFTER_INTERVALS

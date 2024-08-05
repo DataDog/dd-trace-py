@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.10.2
+
+
+### Bug Fixes
+
+- lib-injection: This fix resolves an issue with docker layer caching and the final lib-injection image size.
+- psycopg: Ensures traced async cursors return an asynchronous iterator object.
+- tracer: This fix resolves an issue where the tracer was not starting properly on a read-only file system.
+- Code Security: fix potential infinite loop with path traversal when the analyze quota has been exceeded.
+- profiling: captures lock usages with `with` context managers, e.g. `with lock:`
+- profiling: propagates `runtime_id` tag to libdatadog exporter. It is a unique string identifier for the profiled process. For example, Thread Timeline visualization uses it to distinguish different processes.
+
+
+---
+
 ## 2.10.1
 
 
