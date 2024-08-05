@@ -30,7 +30,7 @@ def pytest_configure(config):
 
 @pytest.fixture
 def mock_llmobs_span_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanAgentWriter")
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     LLMObsSpanWriterMock = patcher.start()
     m = mock.MagicMock()
     LLMObsSpanWriterMock.return_value = m
@@ -58,7 +58,7 @@ def mock_llmobs_eval_metric_writer():
     patcher.stop()
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def mock_http_writer_send_payload_response():
     with mock.patch(
         "ddtrace.internal.writer.HTTPWriter._send_payload",
@@ -71,8 +71,26 @@ def mock_http_writer_send_payload_response():
 
 
 @pytest.fixture
+def mock_http_writer_put_response_forbidden():
+    with mock.patch(
+        "ddtrace.internal.writer.HTTPWriter._put",
+        return_value=Response(
+            status=403,
+            reason=b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
+        ),
+    ):
+        yield
+
+
+@pytest.fixture
 def mock_writer_logs():
     with mock.patch("ddtrace.llmobs._writer.logger") as m:
+        yield m
+
+
+@pytest.fixture
+def mock_http_writer_logs():
+    with mock.patch("ddtrace.internal.writer.writer.log") as m:
         yield m
 
 
