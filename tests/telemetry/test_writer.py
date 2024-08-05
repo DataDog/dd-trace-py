@@ -626,9 +626,7 @@ def test_telemetry_writer_agentless_setup_eu():
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
         assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-        assert (
-            new_telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
-        )
+        assert new_telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.datadoghq.eu"
         assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
 
 
