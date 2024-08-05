@@ -60,7 +60,10 @@ required_modules = ["cherrypy"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .middleware import TraceMiddleware
-        from .middleware import get_version
+        # Required to allow users to import from `ddtrace.contrib.cherrypy.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        from ..internal.cherrypy.middleware import TraceMiddleware
+        from ..internal.cherrypy.middleware import get_version
 
         __all__ = ["TraceMiddleware", "get_version"]

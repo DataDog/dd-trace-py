@@ -1,7 +1,15 @@
-from copy import copy
-import sys
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+from ..internal.coverage.data import *  # noqa: F401,F403
 
 
-_coverage_data = {}
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-_original_sys_argv_command = copy(sys.argv)
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
