@@ -9,6 +9,8 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "datadog/crashtracker.h"
+
 namespace Datadog {
 
 // One of the core intrigues with crashtracker is contextualization of crashes--did a crash occur
@@ -33,7 +35,7 @@ class Crashtracker
     std::optional<std::string> stderr_filename{ std::nullopt };
     std::optional<std::string> stdout_filename{ std::nullopt };
     std::string path_to_receiver_binary;
-    ddog_prof_StacktraceCollection resolve_frames = DDOG_PROF_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS;
+    ddog_crasht_StacktraceCollection resolve_frames = DDOG_CRASHT_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS;
     uint64_t timeout_secs = g_crashtracker_timeout_secs;
 
     ProfilingState profiling_state;
@@ -54,9 +56,9 @@ class Crashtracker
 
     // Helpers for initialization/restart
     ddog_Vec_Tag get_tags();
-    ddog_prof_CrashtrackerConfiguration get_config();
-    ddog_prof_CrashtrackerMetadata get_metadata(ddog_Vec_Tag& tags);
-    ddog_prof_CrashtrackerReceiverConfig get_receiver_config();
+    ddog_crasht_Config get_config();
+    ddog_crasht_Metadata get_metadata(ddog_Vec_Tag& tags);
+    ddog_crasht_ReceiverConfig get_receiver_config();
 
   public:
     // Setters
@@ -75,7 +77,7 @@ class Crashtracker
     void set_stdout_filename(std::string_view _stdout_filename);
     bool set_receiver_binary_path(std::string_view _path_to_receiver_binary);
 
-    void set_resolve_frames(ddog_prof_StacktraceCollection _resolve_frames);
+    void set_resolve_frames(ddog_crasht_StacktraceCollection _resolve_frames);
 
     // Helpers
     bool start();
