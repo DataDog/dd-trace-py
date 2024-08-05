@@ -3,8 +3,6 @@ This module when included on the PYTHONPATH will update the PYTHONPATH to point 
 containing the ddtrace package compatible with the current Python version and platform.
 """
 
-from __future__ import print_function  # noqa: E402
-
 from collections import namedtuple
 import csv
 import json
