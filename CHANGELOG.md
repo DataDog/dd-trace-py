@@ -4,6 +4,30 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.8.6
+
+
+### Bug Fixes
+
+- ASM: This fix resolves an issue where an org could not customize actions through remote config.
+- Code Security: add the boto package to the IAST patching denylist.
+- CI Visibility: Fixes an issue where the pytest plugin would crash if the git binary was absent
+- This fix resolves an issue where importing `asyncio` after a trace has already been started will reset the currently active span.
+- CI Visibility: fixes source file information that would be incorrect in certain decorated / wrapped scenarios and forces paths to be relative to the repository root, if present.
+- CI Visibility: fixes that traces were not properly being sent in agentless mode, and were otherwise not properly attached to the test that started them
+- openai: This fix resolves an issue where specifying <span class="title-ref">n=None</span> for streamed chat completions resulted in a <span class="title-ref">TypeError</span>.
+- openai: This fix removes patching for the edits and fine tunes endpoints, which have been removed from the OpenAI API.
+- openai: This fix resolves an issue where streamed OpenAI responses raised errors when being used as context managers.
+- profiling: Fixes an issue where task information coming from echion was encoded improperly, which could segfault the application.
+- tracing: fixes a potential crash where using partial flushes and `tracer.configure()` could result in an IndexError
+- tracing: Fixes an issue where `DD_TRACE_SPAN_TRACEBACK_MAX_SIZE` was not applied to exception tracebacks.
+- flask: Fix scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
+- profiling: captures lock usages with `with` context managers, e.g. `with lock:`
+- profiling: propagates `runtime_id` tag to libdatadog exporter. It is a unique string identifier for the profiled process. For example, Thread Timeline visualization uses it to distinguish different processes.
+
+
+---
+
 ## 2.10.2
 
 
