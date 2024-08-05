@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    langchain: This introduces support for ``langchain==0.2.0`` by conditionally patching the 
+    ``langchain-community`` module if available, which is an optional dependency for ``langchain>=0.2.0``.
+    See the langchain integration :ref: `docs<langchain>` for more details.
+fixes:
+  - |
+    langchain: This fixes an issue of langchain patching errors due to the ``langchain-community`` 
+    module becoming an optional dependency in ``langchain>=0.2.0``. The langchain integration now conditionally 
+    patches ``langchain-community`` methods if it is available. See the langchain integration :ref: `docs<langchain>` for more details.

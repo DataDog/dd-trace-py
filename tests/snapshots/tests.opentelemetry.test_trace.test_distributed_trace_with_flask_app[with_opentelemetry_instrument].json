@@ -10,23 +10,23 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "655535dc00000000",
+      "_dd.p.tid": "66a666b600000000",
       "language": "python",
-      "runtime-id": "b4ffa244c11343de919ca20a7e8eebcf"
+      "runtime-id": "4fe738d296c04c00aff7eb2a66389ad4"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 7703
+      "process_id": 75526
     },
-    "duration": 24467250,
-    "start": 1700083164080082009
+    "duration": 3561000,
+    "start": 1722181302828129000
   },
      {
        "name": "server",
        "service": "",
-       "resource": "/otel",
+       "resource": "GET /otel",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -34,7 +34,8 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "655535dc00000000",
+         "_dd.p.tid": "66a666b600000000",
+         "_dd.parent_id": "ae6e2bf21738f62f",
          "http.flavor": "1.1",
          "http.host": "0.0.0.0:8001",
          "http.method": "GET",
@@ -45,21 +46,22 @@
          "http.target": "/otel",
          "http.user_agent": "python-requests/2.28.1",
          "language": "python",
+         "net.host.name": "0.0.0.0:8001",
          "net.peer.ip": "127.0.0.1",
-         "runtime-id": "f90fe90fc53a4388b02210639d156981",
+         "runtime-id": "0dacca250fe4471094dc593f4892b91f",
          "span.kind": "server",
-         "tracestate": "dd=s:1;t.dm:-0"
+         "tracestate": "dd=p:ae6e2bf21738f62f;s:1;t.dm:-0"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
          "net.host.port": 8001,
-         "net.peer.port": 65508,
-         "process_id": 7721
+         "net.peer.port": 62683,
+         "process_id": 75530
        },
-       "duration": 413250,
-       "start": 1700083164081574592
+       "duration": 515000,
+       "start": 1722181302830460000
      },
         {
           "name": "internal",
@@ -70,6 +72,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 18250,
-          "start": 1700083164081867259
+          "duration": 16000,
+          "start": 1722181302830847000
         }]]
