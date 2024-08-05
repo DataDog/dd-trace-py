@@ -14,7 +14,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - CI Visibility: Fixes an issue where the pytest plugin would crash if the git binary was absent
 - CI Visibility: fixes source file information that would be incorrect in certain decorated / wrapped scenarios and forces paths to be relative to the repository root, if present.
 - CI Visibility: fixes that traces were not properly being sent in agentless mode, and were otherwise not properly attached to the test that started them
-- openai: This fix resolves an issue where specifying <span class="title-ref">n=None</span> for streamed chat completions resulted in a <span class="title-ref">TypeError</span>.
+- openai: This fix resolves an issue where specifying `None` for streamed chat completions resulted in a `TypeError`.
 - openai: This fix removes patching for the edits and fine tunes endpoints, which have been removed from the OpenAI API.
 - openai: This fix resolves an issue where streamed OpenAI responses raised errors when being used as context managers.
 - profiling: Fixes an issue where task information coming from echion was encoded improperly, which could segfault the application.
