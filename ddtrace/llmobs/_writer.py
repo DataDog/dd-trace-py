@@ -264,7 +264,7 @@ class LLMObsSpanWriter(HTTPWriter):
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         event_size = len(json.dumps(event))
         for client in self._clients:
-            if isinstance(client, LLMObsEventClient):
+            if isinstance(client, LLMObsEventClient) and isinstance(client.encoder, LLMObsSpanEncoder):
                 if (client.encoder.buffer_size + event_size) > EVP_PAYLOAD_SIZE_LIMIT:
                     logger.debug("flushing queue because queuing next event will exceed EVP payload limit")
                     self._flush_queue_with_client(client)
