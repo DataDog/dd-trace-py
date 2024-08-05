@@ -67,14 +67,7 @@ class SamplingRule(object):
             number of characters, and "?" meaning any one character. If all tags specified in a SamplingRule are
             matches with a given span, that span is considered to have matching tags with the rule.
         """
-        # Enforce sample rate constraints
-        if not 0.0 <= sample_rate <= 1.0:
-            raise ValueError(
-                (
-                    "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 and less than or equal to 1.0"
-                ).format(sample_rate)
-            )
-        self.sample_rate = float(sample_rate)
+        self.sample_rate = float(min(1, max(0, sample_rate)))
         # since span.py converts None to 'None' for tags, and does not accept 'None' for metrics
         # we can just create a GlobMatcher for 'None' and it will match properly
         self._tag_value_matchers = (
@@ -250,8 +243,7 @@ class SamplingRule(object):
 
     __str__ = __repr__
 
-    def __eq__(self, other):
-        # type: (Any) -> bool
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, SamplingRule):
-            raise TypeError("Cannot compare SamplingRule to {}".format(type(other)))
+            return False
         return str(self) == str(other)

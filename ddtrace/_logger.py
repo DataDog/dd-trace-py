@@ -55,10 +55,11 @@ def _configure_ddtrace_file_logger(logger):
     try:
         file_log_level_value = getattr(logging, log_file_level)
     except AttributeError:
-        raise ValueError(
+        print(
             "DD_TRACE_LOG_FILE_LEVEL is invalid. Log level must be CRITICAL/ERROR/WARNING/INFO/DEBUG.",
             log_file_level,
         )
+        file_log_level_value = logging.WARNING
     max_file_bytes = int(os.environ.get("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
     log_path = os.environ.get("DD_TRACE_LOG_FILE")
     _add_file_handler(logger=logger, log_path=log_path, log_level=file_log_level_value, max_file_bytes=max_file_bytes)
