@@ -1288,7 +1288,15 @@ class Contrib_TestClass_For_Threats:
                 repeat=2,
             )
         ]
-        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))],
+        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))]
+        + [
+            (
+                "command_injection",
+                "cmd_1=$(cat /etc/passwd 1>%262 ; echo .)&cmd_2=$(uname -a 1>%262 ; echo .)",
+                "rasp-932-100",
+                ("system", "rasp"),
+            )
+        ],
     )
     @pytest.mark.parametrize(
         ("rule_file", "action_level"),
