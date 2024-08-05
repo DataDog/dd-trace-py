@@ -6,6 +6,8 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_KIND
@@ -26,9 +28,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return getattr(pymongo, "__version__", "")
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 # Original Client class
@@ -40,18 +52,18 @@ _VERIFY_VERSION_CLASS = pymongo.pool.SocketInfo if _VERSION < (4, 5) else pymong
 
 
 def patch():
-    patch_pymongo_module()
+    _patch_pymongo_module()
     # We should progressively get rid of TracedMongoClient. We now try to
     # wrap methods individually. cf #1501
     pymongo.MongoClient = TracedMongoClient
 
 
 def unpatch():
-    unpatch_pymongo_module()
+    _unpatch_pymongo_module()
     pymongo.MongoClient = _MongoClient
 
 
-def patch_pymongo_module():
+def _patch_pymongo_module():
     if getattr(pymongo, "_datadog_patch", False):
         return
     pymongo._datadog_patch = True
@@ -60,11 +72,21 @@ def patch_pymongo_module():
     # Whenever a pymongo command is invoked, the lib either:
     # - Creates a new socket & performs a TCP handshake
     # - Grabs a socket already initialized before
-    _w("pymongo.server", "Server.%s" % _CHECKOUT_FN_NAME, traced_get_socket)
+    _w("pymongo.server", "Server.%s" % _CHECKOUT_FN_NAME, _traced_get_socket)
     _w("pymongo.pool", f"{_VERIFY_VERSION_CLASS.__name__}.validate_session", wrapped_validate_session)
 
 
-def unpatch_pymongo_module():
+def patch_pymongo_module():
+    deprecate(
+        "patch_pymongo_module is deprecated",
+        message="patch_pymongo_module is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_pymongo_module()
+
+
+def _unpatch_pymongo_module():
     if not getattr(pymongo, "_datadog_patch", False):
         return
     pymongo._datadog_patch = False
@@ -73,8 +95,18 @@ def unpatch_pymongo_module():
     _u(_VERIFY_VERSION_CLASS, "validate_session")
 
 
+def unpatch_pymongo_module():
+    deprecate(
+        "unpatch_pymongo_module is deprecated",
+        message="unpatch_pymongo_module is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _unpatch_pymongo_module()
+
+
 @contextlib.contextmanager
-def traced_get_socket(wrapped, instance, args, kwargs):
+def _traced_get_socket(wrapped, instance, args, kwargs):
     pin = Pin._find(wrapped, instance)
     if not pin or not pin.enabled():
         with wrapped(*args, **kwargs) as sock_info:
@@ -96,3 +128,13 @@ def traced_get_socket(wrapped, instance, args, kwargs):
             set_address_tags(span, sock_info.address)
             span.set_tag(SPAN_MEASURED_KEY)
             yield sock_info
+
+
+def traced_get_socket(wrapped, instance, args, kwargs):
+    deprecate(
+        "traced_get_socket is deprecated",
+        message="traced_get_socket is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_get_socket(wrapped, instance, args, kwargs)

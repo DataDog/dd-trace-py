@@ -68,6 +68,11 @@ def select_records_for_injection(params: List[Any], inject_trace_context: bool) 
 
 
 def patched_kinesis_api_call(original_func, instance, args, kwargs, function_vars):
+    with core.context_with_data("botocore.patched_kinesis_api_call.propagated") as parent_ctx:
+        return _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars)
+
+
+def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
     pin = function_vars.get("pin")
@@ -79,9 +84,6 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     start_ns = None
     result = None
 
-    parent_ctx: core.ExecutionContext = core.ExecutionContext(
-        "botocore.patched_sqs_api_call.propagated",
-    )
     if operation == "GetRecords":
         try:
             start_ns = time_ns()
@@ -129,6 +131,8 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     )
     is_kinesis_put_operation = endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}
 
+    child_of = parent_ctx.get_item("distributed_context")
+
     if should_instrument:
         with core.context_with_data(
             "botocore.patched_kinesis_api_call",
@@ -137,6 +141,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             args=args,
             params=params,
             endpoint_name=endpoint_name,
+            child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             operation=operation,
             service=schematize_service_name(
                 "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
@@ -180,7 +185,6 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
                     ],
                 )
                 raise
-        parent_ctx.end()
     elif is_getrecords_call:
         if getrecords_error:
             raise getrecords_error
