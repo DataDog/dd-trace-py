@@ -652,7 +652,7 @@ class BotocoreTest(TracerTestCase):
         # DEV: We want to mock time to ensure we only create a single bucket
         self._test_distributed_tracing_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
     def test_distributed_tracing_sns_to_sqs_raw_delivery(self, mock_encode):
         """
         Moto doesn't currently handle raw delivery message handling quite correctly.
@@ -1198,7 +1198,7 @@ class BotocoreTest(TracerTestCase):
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
         """
