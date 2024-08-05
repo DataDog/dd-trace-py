@@ -12,7 +12,7 @@ import ddtrace
 
 def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Optional[str]:
     if args is None:
-        return
+        return None
     command = args.command[0]
     if os.path.isfile(command):
         return command
