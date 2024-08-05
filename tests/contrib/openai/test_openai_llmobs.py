@@ -12,9 +12,7 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
-@pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) >= (1, 0, 0), reason="These tests are for openai < 1.0"
-)
+@pytest.mark.skipif(parse_version(openai_module.version.VERSION) >= (1, 0), reason="These tests are for openai < 1.0")
 class TestLLMObsOpenaiV0:
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -338,9 +336,7 @@ class TestLLMObsOpenaiV0:
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
-@pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 0, 0), reason="These tests are for openai >= 1.0"
-)
+@pytest.mark.skipif(parse_version(openai_module.version.VERSION) < (1, 0), reason="These tests are for openai >= 1.0")
 class TestLLMObsOpenaiV1:
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
