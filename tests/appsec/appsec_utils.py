@@ -138,8 +138,13 @@ def appsec_application_server(
                 "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
                 % (server_process.stdout, server_process.stderr)
             )
-        except Exception as e:
-            raise AssertionError("Flask process failed with some other error: %s" % str(e))
+        except Exception:
+            raise AssertionError(
+                "Server FAILED, see stdout and stderr logs"
+                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                % (server_process.stdout, server_process.stderr)
+            )
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
         parent = psutil.Process(server_process.pid)
