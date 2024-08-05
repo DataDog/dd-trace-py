@@ -209,7 +209,6 @@ if _is_iast_debug_enabled():
                 log.debug("-----")
 
             return trace_calls_and_returns
-            # return
         elif event == "return":
             if frame in TAINTED_FRAMES:
                 TAINTED_FRAMES.remove(frame)
