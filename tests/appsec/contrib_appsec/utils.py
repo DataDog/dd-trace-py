@@ -1469,12 +1469,12 @@ class Contrib_TestClass_For_Threats:
             raise pytest.xfail("fastapi does not fully support IAST for now")
         from ddtrace.ext import http
 
-        url = "/rasp/shell/?cmd=ls"
+        url = "/rasp/command_injection/?cmd=ls"
         self.update_tracer(interface)
         response = interface.client.get(url)
         assert self.status(response) == 200
         assert get_tag(http.STATUS_CODE) == "200"
-        assert self.body(response).startswith("shell endpoint")
+        assert self.body(response).startswith("command_injection endpoint")
         if asm_config._iast_enabled:
             assert get_tag("_dd.iast.json") is not None
         else:
