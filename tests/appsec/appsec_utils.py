@@ -166,7 +166,7 @@ def appsec_application_server(
         os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
         server_process.terminate()
         server_process.wait()
-        if (assert_debug and PYTHON_VERSION_INFO > (3, 9)) and (iast_enabled is not None and iast_enabled != "false"):
+        if (assert_debug and PYTHON_VERSION_INFO >= (3, 10)) and (iast_enabled is not None and iast_enabled != "false"):
             process_output = server_process.stderr.read()
             assert "Return from " in process_output
             assert "Return value is tainted" in process_output
