@@ -290,10 +290,9 @@ def test_bad_executable():
     )
     p.wait()
     assert p.returncode == 1
-    assert p.stdout.read() == (
-        b"ddtrace-run: failed to find executable 'executable-does-not-exist'.\n\n"
-        b"usage: ddtrace-run <your usual python command>\n"
-    )
+    content = p.stdout.read()
+    assert b"ddtrace-run: failed to bootstrap: args" in content
+    assert b"'executable-does-not-exist'" in content
 
 
 def test_executable_no_perms():
