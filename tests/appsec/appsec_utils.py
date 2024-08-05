@@ -6,6 +6,7 @@ import sys
 
 from requests.exceptions import ConnectionError
 
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.vendor import psutil
 from tests.webclient import Client
@@ -60,6 +61,7 @@ def flask_server(
     app="tests/appsec/app.py",
     env=None,
     port=8000,
+    assert_debug=False,
 ):
     cmd = [python_cmd, app, "--no-reload"]
     yield from appsec_application_server(
@@ -72,6 +74,7 @@ def flask_server(
         token=token,
         env=env,
         port=port,
+        assert_debug=assert_debug,
     )
 
 
@@ -85,6 +88,7 @@ def appsec_application_server(
     token=None,
     env=None,
     port=8000,
+    assert_debug=False,
 ):
     env = _build_env(env)
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
@@ -101,18 +105,26 @@ def appsec_application_server(
         env["DD_IAST_ENABLED"] = iast_enabled
         env["DD_IAST_REQUEST_SAMPLING"] = "100"
         env["_DD_APPSEC_DEDUPLICATION_ENABLED"] = "false"
+        if assert_debug:
+            env["_DD_IAST_DEBUG"] = iast_enabled
+            env["DD_TRACE_DEBUG"] = iast_enabled
     if tracer_enabled is not None:
         env["DD_TRACE_ENABLED"] = tracer_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["FLASK_RUN_PORT"] = str(port)
 
-    server_process = subprocess.Popen(
-        cmd,
-        env=env,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-        start_new_session=True,
-    )
+    subprocess_kwargs = {
+        "env": env,
+        "start_new_session": True,
+        "stdout": sys.stdout,
+        "stderr": sys.stderr,
+    }
+    if assert_debug:
+        subprocess_kwargs["stdout"] = subprocess.PIPE
+        subprocess_kwargs["stderr"] = subprocess.PIPE
+        subprocess_kwargs["text"] = True
+
+    server_process = subprocess.Popen(cmd, **subprocess_kwargs)
     try:
         client = Client("http://0.0.0.0:%s" % port)
 
@@ -134,6 +146,7 @@ def appsec_application_server(
                 "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
                 % (server_process.stdout, server_process.stderr)
             )
+
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
         parent = psutil.Process(server_process.pid)
         children = parent.children(recursive=True)
@@ -153,3 +166,8 @@ def appsec_application_server(
         os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
         server_process.terminate()
         server_process.wait()
+        if (assert_debug and PYTHON_VERSION_INFO >= (3, 10)) and (iast_enabled is not None and iast_enabled != "false"):
+            process_output = server_process.stderr.read()
+            assert "Return from " in process_output
+            assert "Return value is tainted" in process_output
+            assert "Tainted arguments:" in process_output
