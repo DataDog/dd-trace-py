@@ -62,7 +62,7 @@ required_modules = []
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.aiohttp.patch` directly
+        # Required to allow users to import from `ddtrace.contrib.asgi.patch` directly
         from . import middleware as _  # noqa: F401, I001
 
         from ..internal.asgi.middleware import TraceMiddleware
