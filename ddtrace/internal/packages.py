@@ -1,5 +1,6 @@
 import logging
 import os
+from os import fspath
 import sys
 import sysconfig
 from types import ModuleType
@@ -13,41 +14,6 @@ from ddtrace.settings.third_party import config as tp_config
 
 
 LOG = logging.getLogger(__name__)
-
-
-try:
-    fspath = os.fspath
-except AttributeError:
-    # Stolen from Python 3.10
-    def fspath(path):
-        # For testing purposes, make sure the function is available when the C
-        # implementation exists.
-        """Return the path representation of a path-like object.
-
-        If str or bytes is passed in, it is returned unchanged. Otherwise the
-        os.PathLike interface is used to get the path representation. If the
-        path representation is not str or bytes, TypeError is raised. If the
-        provided path is not str, bytes, or os.PathLike, TypeError is raised.
-        """
-        if isinstance(path, (str, bytes)):
-            return path
-
-        # Work from the object's type to match method resolution of other magic
-        # methods.
-        path_type = type(path)
-        try:
-            path_repr = path_type.__fspath__(path)
-        except AttributeError:
-            if hasattr(path_type, "__fspath__"):
-                raise
-            else:
-                raise TypeError("expected str, bytes or os.PathLike object, not " + path_type.__name__)
-        if isinstance(path_repr, (str, bytes)):
-            return path_repr
-        raise TypeError(
-            "expected {}.__fspath__() to return str or bytes, "
-            "not {}".format(path_type.__name__, type(path_repr).__name__)
-        )
 
 
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
@@ -203,9 +169,7 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
     try:
         path = Path(filename) if isinstance(filename, str) else filename
         return mapping.get(_root_module(path.resolve()))
-    except ValueError:
-        return None
-    except OSError:
+    except (ValueError, OSError):
         return None
 
 
