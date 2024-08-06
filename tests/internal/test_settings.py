@@ -567,7 +567,7 @@ with tracer.trace("test") as span:
     )
 
     assert status == 0, err
-    trace_id = "{:032x}".format(out.decode("utf-8").strip().split("\n")[0])
+    trace_id = "{:032x}".format(int(out.decode("utf-8").strip().split("\n")[0]))
     log_enabled, log_disabled = map(json.loads, err.decode("utf-8").strip().split("\n")[0:2])
     assert log_enabled["dd.trace_id"] == trace_id
     assert "dd.trace_id" not in log_disabled

@@ -204,6 +204,7 @@ def test_log_DD_TAGS():
     from loguru import logger
 
     from ddtrace import tracer
+    from ddtrace.internal.constants import MAX_UINT_64BITS
 
     captured_logs = []
     logger.remove()
@@ -213,8 +214,12 @@ def test_log_DD_TAGS():
     logger.debug("Hello!")
     span.finish()
 
+    trace_id = span.trace_id
+    if span.trace_id > MAX_UINT_64BITS:
+        trace_id = "{:032x}".format(span.trace_id)
+
     assert "Hello" in json.loads(captured_logs[0])["text"]
-    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(span._trace_id_64bits)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(trace_id)
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.span_id"] == str(span.span_id)
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.env"] == "ddenv"
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.service"] == "ddtagservice"
@@ -249,6 +254,7 @@ def test_configured_format():
 
     from ddtrace import config
     from ddtrace import tracer
+    from ddtrace.internal.constants import MAX_UINT_64BITS
 
     config.service = "logging"
     config.env = "global.env"
@@ -262,8 +268,12 @@ def test_configured_format():
     logger.debug("Hello!")
     span.finish()
 
+    trace_id = span.trace_id
+    if span.trace_id > MAX_UINT_64BITS:
+        trace_id = "{:032x}".format(span.trace_id)
+
     assert "Hello" in json.loads(captured_logs[0])["text"]
-    assert json.loads(captured_logs[0])["dd.trace_id"] == str(span._trace_id_64bits)
+    assert json.loads(captured_logs[0])["dd.trace_id"] == str(trace_id)
     assert json.loads(captured_logs[0])["dd.span_id"] == str(span.span_id)
     assert json.loads(captured_logs[0])["dd.env"] == "global.env"
     assert json.loads(captured_logs[0])["dd.service"] == "logging"

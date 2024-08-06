@@ -153,6 +153,7 @@ def test_log_DD_TAGS():
     from ddtrace import tracer
     from ddtrace.contrib.logbook import patch
     from ddtrace.contrib.logbook import unpatch
+    from ddtrace.internal.constants import MAX_UINT_64BITS
 
     handler = TestHandler()
 
@@ -163,8 +164,12 @@ def test_log_DD_TAGS():
     logbook.info("Hello!")
     span.finish()
 
+    trace_id = span.trace_id
+    if span.trace_id > MAX_UINT_64BITS:
+        trace_id = "{:032x}".format(span.trace_id)
+
     assert handler.records[0].message == "Hello!"
-    assert handler.records[0].extra["dd.trace_id"] == str(span._trace_id_64bits)
+    assert handler.records[0].extra["dd.trace_id"] == str(trace_id)
     assert handler.records[0].extra["dd.span_id"] == str(span.span_id)
     assert handler.records[0].extra["dd.env"] == "ddenv"
     assert handler.records[0].extra["dd.service"] == "ddtagservice"

@@ -98,7 +98,7 @@ class LoggingTestCase(TracerTestCase):
             else:
                 assert not isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
-    def _test_logging(self, create_span, service="", version="", env="", bit_128_logging_enabled=False):
+    def _test_logging(self, create_span, service="", version="", env=""):
         def func():
             span = create_span()
             logger.info("Hello!")
@@ -112,7 +112,7 @@ class LoggingTestCase(TracerTestCase):
             trace_id = 0
             span_id = 0
             if span:
-                trace_id = span._trace_id_64bits if not bit_128_logging_enabled else span.trace_id
+                trace_id = span.trace_id if span.trace_id < MAX_UINT_64BITS else "{:032x}".format(span.trace_id)
                 span_id = span.span_id
 
             assert output.startswith(
@@ -156,7 +156,7 @@ class LoggingTestCase(TracerTestCase):
             return span
 
         with self.override_global_config(dict(version="v1.666", env="test")):
-            self._test_logging(create_span=create_span, version="v1.666", env="test", bit_128_logging_enabled=True)
+            self._test_logging(create_span=create_span, version="v1.666", env="test")
             # makes sense that this fails because _test_logging looks for the 64 bit trace id
 
     def test_log_trace_service(self):
@@ -236,8 +236,8 @@ class LoggingTestCase(TracerTestCase):
 
             lines = output.splitlines()
             assert (
-                "Hello! [dd.service= dd.env= dd.version= dd.trace_id={} dd.span_id={}]".format(
-                    span._trace_id_64bits, span.span_id
+                "Hello! [dd.service= dd.env= dd.version= dd.trace_id={:032x} dd.span_id={}]".format(
+                    span.trace_id, span.span_id
                 )
                 == lines[0]
             )
@@ -247,8 +247,9 @@ class LoggingTestCase(TracerTestCase):
 
                 lines = output.splitlines()
                 expected = (
-                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={} dd.span_id={}]"
-                ).format(span._trace_id_64bits, span.span_id)
+                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={:032x} \
+                    dd.span_id={}]"
+                ).format(span.trace_id, span.span_id)
                 assert expected == lines[0]
 
     def test_log_strformat_style_format(self):
@@ -264,11 +265,13 @@ class LoggingTestCase(TracerTestCase):
             with self.tracer.trace("test.logging") as span:
                 record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)
                 log = formatter.format(record)
-                expected = "Manual log record [dd.service= dd.env= dd.version= dd.trace_id={} dd.span_id={}]".format(
-                    span._trace_id_64bits, span.span_id
+                expected = (
+                    "Manual log record [dd.service= dd.env= dd.version= dd.trace_id={:032x} dd.span_id={}]".format(
+                        span.trace_id, span.span_id
+                    )
                 )
                 assert log == expected
 
                 assert not hasattr(record, "dd")
-                assert getattr(record, RECORD_ATTR_TRACE_ID) == str(span._trace_id_64bits)
+                assert getattr(record, RECORD_ATTR_TRACE_ID) == "{:032x}".format(span.trace_id)
                 assert getattr(record, RECORD_ATTR_SPAN_ID) == str(span.span_id)
