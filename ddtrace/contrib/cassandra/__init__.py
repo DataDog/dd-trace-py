@@ -28,7 +28,6 @@ required_modules = ["cassandra.cluster"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
         from ..internal.cassandra.patch import patch
