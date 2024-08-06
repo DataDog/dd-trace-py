@@ -60,11 +60,8 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     // Get the sv for the key
     const std::string_view key_sv = to_string(key);
 
-    // If either the val or the key are empty, we don't add the label, but
-    // we don't return error
-    // TODO is this what we want?
     if (val.empty() || key_sv.empty()) {
-        return true;
+        return false;
     }
 
     // Otherwise, persist the val string and add the label
@@ -78,12 +75,10 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 bool
 Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
 {
-    // Get the sv for the key.  If there is no key, then there
-    // is no label.  Right now this is OK.
-    // TODO make this not OK
+    // Error if lookup fails
     const std::string_view key_sv = to_string(key);
     if (key_sv.empty()) {
-        return true;
+        return false;
     }
 
     auto& label = labels.emplace_back();
