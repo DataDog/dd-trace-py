@@ -365,8 +365,7 @@ class RemoteConfigClient:
         return json.loads(data)
 
     @staticmethod
-    def _extract_target_file(payload, target, config):
-        # type: (AgentPayload, str, ConfigMetadata) -> Optional[Dict[str, Any]]
+    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[Dict[str, Any]]:
         candidates = [item.raw for item in payload.target_files if item.path == target]
         if len(candidates) != 1 or candidates[0] is None:
             log.debug(
@@ -390,8 +389,7 @@ class RemoteConfigClient:
         except Exception:
             raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
 
-    def _build_payload(self, state):
-        # type: (Mapping[str, Any]) -> Mapping[str, Any]
+    def _build_payload(self, state: Mapping[str, Any]) -> Mapping[str, Any]:
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
         capabilities = (
             appsec_rc_capabilities()
@@ -517,8 +515,9 @@ class RemoteConfigClient:
         else:
             self.cached_target_files = []
 
-    def _validate_config_exists_in_target_paths(self, payload_client_configs, payload_target_files):
-        # type: (Set[str], List[TargetFile]) -> None
+    def _validate_config_exists_in_target_paths(
+        self, payload_client_configs: Set[str], payload_target_files: List[TargetFile]
+    ) -> None:
         paths = {_.path for _ in payload_target_files}
         paths = paths.union({_["path"] for _ in self.cached_target_files})
 
@@ -537,13 +536,11 @@ class RemoteConfigClient:
                     "target file %s not exists in client_config and signed targets" % (target.path,)
                 )
 
-    def _publish_configuration(self, list_callbacks):
-        # type: (List[PubSub]) -> None
+    def _publish_configuration(self, list_callbacks: List[PubSub]) -> None:
         for callback_to_dispach in list_callbacks:
             callback_to_dispach.publish()
 
-    def _process_targets(self, payload):
-        # type: (AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[TargetsType]]
+    def _process_targets(self, payload: AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[TargetsType]]:
         if payload.targets is None:
             # no targets received
             return None, None, None

@@ -194,8 +194,7 @@ class SpanSamplingRule:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-def get_span_sampling_rules():
-    # type: () -> List[SpanSamplingRule]
+def get_span_sampling_rules() -> List[SpanSamplingRule]:
     json_rules = _get_span_sampling_json()
     sampling_rules = []
     for rule in json_rules:
@@ -205,7 +204,8 @@ def get_span_sampling_rules():
         name = rule.get("name")
 
         if not service and not name:
-            raise ValueError("Sampling rules must supply at least 'service' or 'name', got {}".format(json.dumps(rule)))
+            log.warning("Sampling rules must supply at least 'service' or 'name', got {}".format(json.dumps(rule)))
+            return []
 
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
@@ -219,13 +219,12 @@ def get_span_sampling_rules():
                 sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
             )
         except Exception as e:
-            raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
+            log.warning("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
         sampling_rules.append(sampling_rule)
     return sampling_rules
 
 
-def _get_span_sampling_json():
-    # type: () -> List[Dict[str, Any]]
+def _get_span_sampling_json() -> List[Dict[str, Any]]:
     env_json_rules = _get_env_json()
     file_json_rules = _get_file_json()
 
@@ -240,8 +239,7 @@ def _get_span_sampling_json():
     return env_json_rules or file_json_rules or []
 
 
-def _get_file_json():
-    # type: () -> Optional[List[Dict[str, Any]]]
+def _get_file_json() -> Optional[List[Dict[str, Any]]]:
     file_json_raw = config._sampling_rules_file
     if file_json_raw:
         with open(file_json_raw) as f:
@@ -249,28 +247,27 @@ def _get_file_json():
     return None
 
 
-def _get_env_json():
-    # type: () -> Optional[List[Dict[str, Any]]]
+def _get_env_json() -> Optional[List[Dict[str, Any]]]:
     env_json_raw = config._sampling_rules
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None
 
 
-def _load_span_sampling_json(raw_json_rules):
-    # type: (str) -> List[Dict[str, Any]]
+def _load_span_sampling_json(raw_json_rules: str) -> List[Dict[str, Any]]:
     try:
         json_rules = json.loads(raw_json_rules)
         if not isinstance(json_rules, list):
-            raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
+            log.warning("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
+            return []
     except JSONDecodeError:
-        raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % raw_json_rules)
+        log.warning("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % raw_json_rules)
+        return []
 
     return json_rules
 
 
-def _check_unsupported_pattern(string):
-    # type: (str) -> None
+def _check_unsupported_pattern(string: str) -> None:
     # We don't support pattern bracket expansion or escape character
     unsupported_chars = {"[", "]", "\\"}
     for char in string:

@@ -373,7 +373,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
 
-    def flush_queue(self, raise_exc=False):
+    def flush_queue(self, raise_exc: bool = False):
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
@@ -416,9 +416,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _stop_service(
         self,
-        timeout=None,  # type: Optional[float]
-    ):
-        # type: (...) -> None
+        timeout: Optional[float] = None,
+    ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(HTTPWriter, self)._stop_service()
         self.join(timeout=timeout)
@@ -450,23 +449,22 @@ class AgentWriter(HTTPWriter):
 
     def __init__(
         self,
-        agent_url,  # type: str
-        priority_sampling=False,  # type: bool
-        processing_interval=None,  # type: Optional[float]
+        agent_url: str,
+        priority_sampling: bool = False,
+        processing_interval: Optional[float] = None,
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=None,  # type: Optional[int]
-        max_payload_size=None,  # type: Optional[int]
-        timeout=None,  # type: Optional[float]
+        buffer_size: Optional[int] = None,
+        max_payload_size: Optional[int] = None,
+        timeout: Optional[float] = None,
         dogstatsd: Optional[DogStatsd] = None,
-        report_metrics=True,  # type: bool
-        sync_mode=False,  # type: bool
-        api_version=None,  # type: Optional[str]
-        reuse_connections=None,  # type: Optional[bool]
-        headers=None,  # type: Optional[Dict[str, str]]
-        response_callback=None,  # type: Optional[Callable[[AgentResponse], None]]
-    ):
-        # type: (...) -> None
+        report_metrics: bool = True,
+        sync_mode: bool = False,
+        api_version: Optional[str] = None,
+        reuse_connections: Optional[bool] = None,
+        headers: Optional[Dict[str, str]] = None,
+        response_callback: Optional[Callable[[AgentResponse], None]] = None,
+    ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
@@ -498,7 +496,7 @@ class AgentWriter(HTTPWriter):
         try:
             client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
         except KeyError:
-            raise ValueError(
+            log.warning(
                 "Unsupported api version: '%s'. The supported versions are: %r"
                 % (self._api_version, ", ".join(sorted(WRITER_CLIENTS.keys())))
             )
@@ -575,7 +573,6 @@ class AgentWriter(HTTPWriter):
             # These endpoints share the same encoding, so we can try sending the
             # same payload over the downgraded endpoint.
             return payload
-        raise ValueError()
 
     def _send_payload(self, payload, count, client):
         # type: (...) -> Response

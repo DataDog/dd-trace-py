@@ -81,8 +81,7 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
         super(RemoteConfigPublisherMergeDicts, self).__init__(data_connector, preprocess_func)
         self._configs = {}  # type: Dict[str, Any]
 
-    def append(self, config_content, target, config_metadata=None):
-        # type: (Optional[Any], str, Optional[Any]) -> None
+    def append(self, config_content: Optional[Any], target: str, config_metadata: Optional[Any] = None) -> None:
         if target not in self._configs:
             self._configs[target] = {}
 
@@ -102,7 +101,7 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
             if isinstance(config_content, dict):
                 self._configs[target].update(config_content)
             else:
-                raise ValueError("target %s config %s has type of %s" % (target, config_content, type(config_content)))
+                log.warning("target %s config %s has type of %s" % (target, config_content, type(config_content)))
 
     def dispatch(self, pubsub_instance=None):
         # type: (Optional[Any]) -> None
