@@ -1,0 +1,23 @@
+name: "Profiling Native Tests"
+
+on:
+  push:
+    paths:
+      - ddtrace/internal/datadog/profiling/**
+
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+      - name: get cppcheck
+        uses: actions/download-artifact@v4
+        with:
+          name: cppcheck-latest
+          path: /usr/local/bin/cppcheck
+      - name: cppcheck (dd_wrapper)
+        run: ./build_standalone.sh -C -- dd_wrapper
+        working-directory: "ddtrace/internal/datadog/profiling"
