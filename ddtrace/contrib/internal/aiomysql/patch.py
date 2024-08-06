@@ -50,9 +50,10 @@ async def patched_connect(connect_func, _, args, kwargs):
         if hasattr(conn, attr):
             tags[tag] = trace_utils._convert_to_string(getattr(conn, attr, None))
     tags[db.SYSTEM] = "mysql"
+    pin = Pin(tags=tags)
 
-    c = AIOTracedConnection(conn)
-    Pin(tags=tags).onto(c)
+    c = AIOTracedConnection(conn, pin=pin)
+    pin.onto(c)
     return c
 
 
