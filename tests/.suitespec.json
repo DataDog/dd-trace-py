@@ -487,7 +487,8 @@
             "@contrib",
             "@aiokafka",
             "@datastreams",
-            "tests/contrib/aiokafka/*"
+            "tests/contrib/aiokafka/*",
+            "tests/snapshots/tests.contrib.aiokafka.*"
         ],
         "tracer": [
             "@tracing",
