@@ -1,21 +1,28 @@
-from ..internal.asyncpg.patch import *  # noqa: F401,F403
+from typing import TYPE_CHECKING  # noqa:I001
+from types import ModuleType
+import asyncpg
 
+from ddtrace import Pin
+from ddtrace import config
+from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor import wrapt
 
-from ...constants import SPAN_KIND
-from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanKind
-from ...ext import SpanTypes
-from ...ext import db
-from ...ext import net
-from ...internal.logger import get_logger
-from ...internal.schema import schematize_database_operation
-from ...internal.schema import schematize_service_name
-from ...internal.utils import get_argument_value
-from ...propagation._database_monitoring import _DBM_Propagator
-from ..trace_utils import ext_service
-from ..trace_utils import unwrap
-from ..trace_utils import wrap
-from ..trace_utils_async import with_traced_module
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
+from ddtrace.ext import net
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.contrib.trace_utils import wrap
+from ddtrace.contrib.trace_utils_async import with_traced_module
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -55,7 +62,6 @@ def _get_connection_tags(conn):
     return {
         net.TARGET_HOST: host,
         net.TARGET_PORT: port,
-        net.SERVER_ADDRESS: host,
         db.USER: params.user,
         db.NAME: params.database,
     }
@@ -163,4 +169,3 @@ def unpatch():
     _unpatch(asyncpg)
 
     asyncpg._datadog_patch = False
-
