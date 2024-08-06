@@ -129,7 +129,7 @@ def _get_rate_limiter() -> RateLimiter:
 
 @dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-    rules: str = dataclasses.field(default_factory=get_rules)
+    rule_filename: str = dataclasses.field(default_factory=get_rules)
     obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
     obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
@@ -145,29 +145,36 @@ class AppSecSpanProcessor(SpanProcessor):
 
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
-
+        self._rules = None
         try:
-            with open(self.rules, "r") as f:
-                rules = json.load(f)
+            with open(self.rule_filename, "r") as f:
+                self._rules = json.load(f)
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
-                log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules)
+                log.error(
+                    "[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist",
+                    self.rule_filename,
+                )
             else:
                 # TODO: try to log reasons
-                log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
+                log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rule_filename)
             raise
         except JSONDecodeError:
-            log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rules)
+            log.error(
+                "[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rule_filename
+            )
             raise
         except Exception:
             # TODO: try to log reasons
-            log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
+            log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rule_filename)
             raise
         try:
-            self._ddwaf = DDWaf(rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp)
+            self._ddwaf = DDWaf(
+                self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+            )
             if not self._ddwaf._handle or self._ddwaf.info.failed:
                 stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
-                    rules,
+                    self._rules,
                     self._ddwaf.info.loaded,
                     self._ddwaf.info.errors,
                 )
@@ -212,8 +219,8 @@ class AppSecSpanProcessor(SpanProcessor):
         return WAF_DATA_NAMES.LFI_ADDRESS in self._addresses_to_keep
 
     @property
-    def rasp_shi_enabled(self) -> bool:
-        return WAF_DATA_NAMES.SHI_ADDRESS in self._addresses_to_keep
+    def rasp_cmdi_enabled(self) -> bool:
+        return WAF_DATA_NAMES.CMDI_ADDRESS in self._addresses_to_keep
 
     @property
     def rasp_ssrf_enabled(self) -> bool:
