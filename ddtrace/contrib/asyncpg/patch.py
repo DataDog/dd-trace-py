@@ -1,5 +1,12 @@
-from ..internal.asyncpg.patch import *  # noqa: F401,F403
+from typing import TYPE_CHECKING  # noqa:I001
+from types import ModuleType
+import asyncpg
 
+from ddtrace import Pin
+from ddtrace import config
+from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor import wrapt
 
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -12,6 +19,7 @@ from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...propagation._database_monitoring import _DBM_Propagator
+from ..internal.asyncpg.patch import *  # noqa: F401,F403
 from ..trace_utils import ext_service
 from ..trace_utils import unwrap
 from ..trace_utils import wrap
@@ -163,4 +171,3 @@ def unpatch():
     _unpatch(asyncpg)
 
     asyncpg._datadog_patch = False
-
