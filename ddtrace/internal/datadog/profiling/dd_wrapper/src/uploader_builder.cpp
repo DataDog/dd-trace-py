@@ -1,5 +1,5 @@
-#include "uploader_builder.hpp"
 #include "libdatadog_helpers.hpp"
+#include "uploader_builder.hpp"
 
 #include <mutex>
 #include <numeric>
@@ -170,7 +170,9 @@ Datadog::UploaderBuilder::build()
         std::string errmsg = Datadog::err_to_msg(&err, "Error setting timeout on exporter");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
         // If set_timeout had failed, then the ddog_exporter must have been a
-        // null pointer, so it's redundant to drop it here.
+        // null pointer, so it's redundant to drop it here but it should also
+        // be safe to do so.
+        ddog_prof_Exporter_drop(ddog_exporter);
         return errmsg;
     }
 
