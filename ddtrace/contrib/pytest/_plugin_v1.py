@@ -33,6 +33,7 @@ from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.utils import _is_pytest_8_or_later
+from ddtrace.contrib.pytest.utils import _is_test_unskippable
 from ddtrace.contrib.pytest.utils import _pytest_version_supports_itr
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
@@ -40,7 +41,6 @@ from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
-from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
@@ -279,18 +279,6 @@ def _get_module_path(item):
     return module_path
 
 
-def _is_test_unskippable(item):
-    return any(
-        [
-            True
-            for marker in item.iter_markers(name="skipif")
-            if marker.args[0] is False
-            and "reason" in marker.kwargs
-            and marker.kwargs["reason"] is ITR_UNSKIPPABLE_REASON
-        ]
-    )
-
-
 def _module_is_package(pytest_package_item=None, pytest_module_item=None):
     # Pytest 8+ module items have a pytest.Dir object as their parent instead of the session object
     if _is_pytest_8_or_later():
@@ -437,7 +425,6 @@ class _PytestDDTracePluginV1:
     @staticmethod
     def pytest_configure(config):
         unpatch_unittest()
-        # config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
         if is_enabled(config):
             take_over_logger_stream_handler()
             _CIVisibility.enable(config=ddtrace.config.pytest)

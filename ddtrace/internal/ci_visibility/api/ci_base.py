@@ -55,7 +55,7 @@ class CIVisibilitySessionSettings:
     module_operation_name: str
     suite_operation_name: str
     test_operation_name: str
-    root_dir: Path
+    workspace_path: Path
     is_unknown_ci: bool = False
     reject_unknown_items: bool = True
     reject_duplicates: bool = True
@@ -66,9 +66,9 @@ class CIVisibilitySessionSettings:
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
             raise TypeError("tracer must be a ddtrace.Tracer")
-        if not isinstance(self.root_dir, Path):
+        if not isinstance(self.workspace_path, Path):
             raise TypeError("root_dir must be a pathlib.Path")
-        if not self.root_dir.is_absolute():
+        if not self.workspace_path.is_absolute():
             raise ValueError("root_dir must be an absolute pathlib.Path")
         if not isinstance(self.test_framework_metric_name, TEST_FRAMEWORKS):
             raise TypeError("test_framework_metric must be a TEST_FRAMEWORKS enum")
@@ -199,7 +199,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             if self._source_file_info.path:
                 # Set source file path to be relative to the root directory
                 try:
-                    relative_path = self._source_file_info.path.relative_to(self._session_settings.root_dir)
+                    relative_path = self._source_file_info.path.relative_to(self._session_settings.workspace_path)
                 except ValueError:
                     log.debug("Source file path is not within the root directory, replacing with absolute path")
                     relative_path = self._source_file_info.path
@@ -342,10 +342,16 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         record_itr_skipped(self.event_type_metric_name)
         self._is_itr_skipped = True
 
+    def is_itr_skipped(self):
+        return self._is_itr_skipped
+
     def mark_itr_unskippable(self):
         """Per RFC, unskippable only applies to a given item, not its ancestors"""
         record_itr_unskippable(self.event_type_metric_name)
         self._is_itr_unskippable = True
+
+    def is_itr_unskippable(self):
+        return self._is_itr_unskippable
 
     def mark_itr_forced_run(self):
         """If any item is forced to run, all ancestors are forced to run and increment by one"""
@@ -398,7 +404,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
     def _add_coverage_data(self):
         if self._coverage_data:
             self._span.set_tag_str(
-                COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.root_dir)
+                COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.workspace_path)
             )
 
 

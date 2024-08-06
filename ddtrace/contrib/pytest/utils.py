@@ -11,6 +11,7 @@ from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
+from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.logger import get_logger
 
 
@@ -104,3 +105,24 @@ def _is_pytest_8_or_later() -> bool:
 
 def _pytest_version_supports_itr() -> bool:
     return _get_pytest_version_tuple() >= ITR_MIN_SUPPORTED_VERSION
+
+
+def _pytest_marked_to_skip(item: pytest.Item) -> bool:
+    """Checks whether Pytest will skip an item"""
+    if item.get_closest_marker("skip") is not None:
+        return True
+
+    return any([True for marker in item.iter_markers(name="skipif") if marker.args[0] is True])
+
+
+def _is_test_unskippable(item: pytest.Item) -> bool:
+    """Returns True if a test has a skipif marker with value false and reason ITR_UNSKIPPABLE_REASON"""
+    return any(
+        [
+            True
+            for marker in item.iter_markers(name="skipif")
+            if marker.args[0] is False
+            and "reason" in marker.kwargs
+            and marker.kwargs["reason"] is ITR_UNSKIPPABLE_REASON
+        ]
+    )
