@@ -62,7 +62,7 @@ def get_traces(agent_client: requests.Session) -> requests.Response:
 
 
 def vulnerability_in_traces(vuln_type: str, agent_client: requests.Session) -> bool:
-    time.sleep(7)
+    time.sleep(5)
     traces = get_traces(agent_client)
     assert traces.status_code == 200
     traces_list = json.loads(traces.text)
