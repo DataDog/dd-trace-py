@@ -143,14 +143,10 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True", DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED="True"
-        )
-    )
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
     def test_log_trace_128bit_trace_ids(self):
         """
-        Check if 128bit trace ids are logged when `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED=True`
+        Check if 128bit trace ids are logged using hex
         """
 
         def create_span():
@@ -162,29 +158,6 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="v1.666", env="test")):
             self._test_logging(create_span=create_span, version="v1.666", env="test", bit_128_logging_enabled=True)
             # makes sense that this fails because _test_logging looks for the 64 bit trace id
-
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True", DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED="False"
-        )
-    )
-    def test_log_trace_128bit_trace_ids_log_64bits(self):
-        """
-        Check if a 64 bit trace trace id is logged when `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED=False`
-        """
-
-        def generate_log_in_span():
-            with self.tracer.trace("test.logging") as span:
-                logger.info("Hello!")
-            return span
-
-        output, span = capture_function_log(generate_log_in_span)
-        assert span.trace_id > MAX_UINT_64BITS
-        assert output.startswith(
-            "Hello! - dd.service= dd.version= dd.env= dd.trace_id={} dd.span_id={}".format(
-                span._trace_id_64bits, span.span_id
-            )
-        ), output
 
     def test_log_trace_service(self):
         def create_span():
