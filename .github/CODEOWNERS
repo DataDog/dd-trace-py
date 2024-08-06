@@ -123,6 +123,8 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
+docs/                               @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
