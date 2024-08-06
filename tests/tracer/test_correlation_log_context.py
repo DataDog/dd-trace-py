@@ -36,7 +36,7 @@ class TestCorrelationLogsContext(object):
             dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
             "span_id": str(span1.span_id),
-            "trace_id": str(span1._trace_id_64bits),
+            "trace_id": "{:032x}".format(span1.trace_id),
             "service": "span-service",
             "env": "test-env",
             "version": "test-version",
