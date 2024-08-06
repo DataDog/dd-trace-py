@@ -142,15 +142,6 @@ class DdtraceRunTest(BaseTestCase):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_dogstatsd.py"])
             assert out.startswith(b"Test success")
 
-    def test_priority_sampling_from_env(self):
-        """
-        DD_PRIORITY_SAMPLING enables Distributed Sampling
-        """
-
-        with self.override_env(dict(DD_PRIORITY_SAMPLING="True")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_priority_sampling.py"])
-            assert out.startswith(b"Test success")
-
     def test_patch_modules_from_env(self):
         """
         DD_PATCH_MODULES overrides the defaults for patch_all()

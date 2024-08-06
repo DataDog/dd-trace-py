@@ -117,7 +117,6 @@ def test_debug_post_configure():
     tracer.configure(
         hostname="0.0.0.0",
         port=1234,
-        priority_sampling=True,
     )
 
     f = debug.collect(tracer)

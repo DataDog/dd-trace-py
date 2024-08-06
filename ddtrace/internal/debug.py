@@ -149,7 +149,6 @@ def collect(tracer):
         health_metrics_enabled=ddtrace.config.health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
-        priority_sampling_enabled=ddtrace.config._priority_sampling,
         global_tags=os.getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,

@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tracing: Removes the `DD_PRIORITY_SAMPLING` configuration option. This option was deprecated in v1.19.0.

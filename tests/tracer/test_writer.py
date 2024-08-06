@@ -752,7 +752,7 @@ def test_writer_recreate_keeps_headers():
 
 
 @pytest.mark.parametrize(
-    "sys_platform, api_version, ddtrace_api_version, priority_sampling, raises_error, expected",
+    "sys_platform, api_version, ddtrace_api_version, _priority_sampling, raises_error, expected",
     [
         # -- win32
         # Defaults on windows
@@ -804,7 +804,14 @@ def test_writer_recreate_keeps_headers():
 )
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_writer_api_version_selection(
-    sys_platform, api_version, ddtrace_api_version, priority_sampling, raises_error, expected, monkeypatch, writer_class
+    sys_platform,
+    api_version,
+    ddtrace_api_version,
+    _priority_sampling,
+    raises_error,
+    expected,
+    monkeypatch,
+    writer_class,
 ):
     """test to verify that we are unable to select v0.5 api version when on a windows machine.
 
@@ -819,11 +826,9 @@ def test_writer_api_version_selection(
             # Create a new writer
             if ddtrace_api_version is not None:
                 with override_global_config({"_trace_api": ddtrace_api_version}):
-                    writer = writer_class(
-                        "http://dne:1234", api_version=api_version, priority_sampling=priority_sampling
-                    )
+                    writer = writer_class("http://dne:1234", api_version=api_version)
             else:
-                writer = writer_class("http://dne:1234", api_version=api_version, priority_sampling=priority_sampling)
+                writer = writer_class("http://dne:1234", api_version=api_version)
             assert writer._api_version == expected
         except RuntimeError:
             # If we were not expecting a RuntimeError, then cause the test to fail
