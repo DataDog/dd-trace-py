@@ -44,7 +44,7 @@ async def _test_dbm_propagation_comment_with_global_service_name_configured(
 
     dbm_comment = (
         f"/*dddb='{db_name}',dddbs='{db_system}',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-        "ddpv='v7343437-d7ac743'*/ "
+        "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
     )
     await _test_execute(dbm_comment, cursor, wrapped_instance)
     if execute_many:
