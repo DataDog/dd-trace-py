@@ -112,6 +112,12 @@ ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
     Datadog::SampleManager::set_timeline(enabled);
 }
 
+void
+ddup_config_output_filename(std::string_view output_filename) // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_output_filename(output_filename);
+}
+
 bool
 ddup_is_initialized() // cppcheck-suppress unusedFunction
 {

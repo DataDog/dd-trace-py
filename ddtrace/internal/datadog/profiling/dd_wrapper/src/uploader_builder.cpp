@@ -82,6 +82,14 @@ Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
     }
 }
 
+void
+Datadog::UploaderBuilder::set_output_filename(std::string_view _output_filename)
+{
+    if (!_output_filename.empty()) {
+        output_filename = _output_filename;
+    }
+}
+
 std::string
 join(const std::vector<std::string>& vec, const std::string& delim)
 {

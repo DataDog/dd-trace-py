@@ -39,6 +39,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
     void ddup_config_timeline(bint enable)
+    void ddup_config_output_filename(string_view output_filename)
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
@@ -94,6 +95,9 @@ cdef call_ddup_config_profiler_version(bytes profiler_version):
 cdef call_ddup_config_user_tag(bytes key, bytes val):
     ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
 
+cdef call_ddup_config_output_filename(bytes output_filename):
+    ddup_config_output_filename(string_view(<const char*>output_filename, len(output_filename)))
+
 
 # Conversion functions
 cdef uint64_t clamp_to_uint64_unsigned(value):
@@ -123,7 +127,8 @@ def config(
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
         url: StringType = None,
-        timeline_enabled: Optional[bool] = None) -> None:
+        timeline_enabled: Optional[bool] = None,
+        output_filename: StringType = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -136,6 +141,8 @@ def config(
         call_ddup_config_version(ensure_binary_or_empty(version))
     if url:
         call_ddup_config_url(ensure_binary_or_empty(url))
+    if output_filename:
+        call_ddup_config_output_filename(ensure_binary_or_empty(output_filename))
 
     # Inherited
     call_ddup_config_runtime(ensure_binary_or_empty(platform.python_implementation()))
