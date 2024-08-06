@@ -119,8 +119,6 @@ _module_meta = {
             "do_split_separator": ("foobar", "o"),
             "do_split_separator_and_maxsplit": ("foo bar baz", " ", 1),
             "do_splitlines_keepends": ("foo\nbar", False),
-            "do_stringio_init_and_getvalue_param": (StringIO, "foobar"),
-            "do_stringio_init_param": (StringIO, "foobar"),
             "do_tuple_string_assignment": ("foo",),
             "do_zfill": ("foobar", 10),
         },

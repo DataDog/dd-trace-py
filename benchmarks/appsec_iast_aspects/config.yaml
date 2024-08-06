@@ -1,0 +1,9 @@
+no_iast_re_sub: &no_iast_os_path
+  iast_enabled: 0
+  mod_original_name: "tests.appsec.iast.fixtures.aspects.str_methods"
+  function_name: "do_re_sub"
+  args: ["foobar", "o", "a", 1]
+
+iast_re_sub: &iast_os_path
+  << : *no_iast_os_path
+  iast_enabled: 1
