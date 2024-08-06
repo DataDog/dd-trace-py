@@ -1,5 +1,5 @@
-#include "libdatadog_helpers.hpp"
 #include "uploader_builder.hpp"
+#include "libdatadog_helpers.hpp"
 
 #include <mutex>
 #include <numeric>
