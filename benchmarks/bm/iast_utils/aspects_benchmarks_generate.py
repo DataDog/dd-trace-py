@@ -26,7 +26,7 @@ with override_env({"DD_IAST_ENABLED": "True"}):
     mod_patched_module_functions = _iast_patched_module("tests.appsec.iast.fixtures.aspects.module_functions")
 
 
-_unpatched2patched = {
+_patching_guide = {
     "str_methods": {
         "original_name": "str_methods",
         "name_unpatched": "mod_unpatched_str_methods",
@@ -149,7 +149,7 @@ def get_var_name(var):
 
 def generate_functions_dict():
     functions: dict[str, dict[str, Any]] = {}
-    for _, module_dict in _unpatched2patched.items():
+    for _, module_dict in _patching_guide.items():
         symbol_unpatched = module_dict["symbol_unpatched"]
         # get all the functions that are not classes and not imported from other modules
         base_mod_name = os.path.basename(symbol_unpatched.__file__)
