@@ -290,7 +290,9 @@ def apply_patch(parent, attribute, replacement):
         # Avoid overwriting the original function if we call this twice
         if not isinstance(current_attribute, FunctionWrapper):
             _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)] = current_attribute
-        elif isinstance(replacement, FunctionWrapper):
+        elif isinstance(replacement, FunctionWrapper) and (
+            getattr(replacement, "_self_wrapper", None) is getattr(current_attribute, "_self_wrapper", None)
+        ):
             # Avoid double patching
             return
         setattr(parent, attribute, replacement)

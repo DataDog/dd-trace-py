@@ -12,6 +12,7 @@ https://github.com/nedbat/coveragepy/blob/401a63bf08bdfd780b662f64d2dfe3603f2584
 
 import json
 import multiprocessing
+from multiprocessing.connection import Connection
 import multiprocessing.process
 from pathlib import Path
 import typing as t
@@ -38,7 +39,7 @@ def _is_patched():
 
 
 class CoverageCollectingMultiprocess(BaseProcess):
-    def _absorb_child_coverage(self):
+    def _absorb_child_coverage(self) -> None:
         if not ModuleCodeCollector.coverage_enabled() or ModuleCodeCollector._instance is None:
             return
 
@@ -58,7 +59,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
         except Exception:
             log.debug("Failed to absorb child coverage data", exc_info=True)
 
-    def _bootstrap(self, *args, **kwargs):
+    def _bootstrap(self, *args, **kwargs) -> None:
         """Wraps around the execution of the process to collect coverage data
 
         Since this method executes in the child process, it is responsible for writing final coverage data back to the
@@ -84,13 +85,13 @@ class CoverageCollectingMultiprocess(BaseProcess):
 
         return rval
 
-    def __init__(self, *posargs, **kwargs):
+    def __init__(self, *posargs, **kwargs) -> None:
         self._dd_coverage_enabled = False
-        self._dd_coverage_include_paths = []
+        self._dd_coverage_include_paths: t.List[Path] = []
 
         # If coverage is not enabled, the pipe used to communicate coverage data from child to parent is not needed
-        self._parent_conn: t.Optional[multiprocessing.Pipe] = None
-        self._child_conn: t.Optional[multiprocessing.Pipe] = None
+        self._parent_conn: t.Optional[Connection] = None
+        self._child_conn: t.Optional[Connection] = None
 
         # Only enable coverage in a child process being created if the parent process has coverage enabled
         if ModuleCodeCollector.coverage_enabled():
@@ -99,7 +100,8 @@ class CoverageCollectingMultiprocess(BaseProcess):
             self._child_conn = child_conn
 
             self._dd_coverage_enabled = True
-            self._dd_coverage_include_paths = ModuleCodeCollector._instance._include_paths
+            if ModuleCodeCollector._instance is not None:
+                self._dd_coverage_include_paths = ModuleCodeCollector._instance._include_paths
 
         base_process_init(self, *posargs, **kwargs)
 

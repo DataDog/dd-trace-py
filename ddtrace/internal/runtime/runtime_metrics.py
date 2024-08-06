@@ -71,7 +71,7 @@ class RuntimeWorker(periodic.PeriodicService):
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = forksafe.Lock()
 
-    def __init__(self, interval=_get_interval_or_default(), tracer=ddtrace.tracer, dogstatsd_url=None):
+    def __init__(self, interval=_get_interval_or_default(), tracer=ddtrace.tracer, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
