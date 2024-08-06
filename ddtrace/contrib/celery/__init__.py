@@ -49,7 +49,7 @@ required_modules = ["celery"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.cassandra.patch` directly
+        # Required to allow users to import from `ddtrace.contrib.celery.patch` directly
         from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
