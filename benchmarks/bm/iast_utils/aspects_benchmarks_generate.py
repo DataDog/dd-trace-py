@@ -23,32 +23,26 @@ from tests.appsec.iast.fixtures.aspects import str_methods_py3 as mod_unpatched_
 with override_env({"DD_IAST_ENABLED": "True"}):
     from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
-    mod_patched_methods = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
-    mod_patched_methods_py3 = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods_py3")
-    mod_patched_module_functions = _iast_patched_module("tests.appsec.iast.fixtures.aspects.module_functions")
+    mod_patched_methods = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
+    mod_patched_methods_py3 = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")
+    mod_patched_module_functions = _iast_patched_module("benchmarks.bm.iast_fixtures.module_functions")
 
 
 _patching_guide = {
     "str_methods": {
         "original_name": "str_methods",
-        "name_unpatched": "mod_unpatched_str_methods",
         "name_patched": "mod_patched_methods",
         "symbol_unpatched": mod_unpatched_str_methods,
-        "symbol_patched": mod_patched_methods,
     },
     "str_methods_py3": {
         "original_name": "str_methods_py3",
-        "name_unpatched": "mod_unpatched_str_methods_py3",
         "name_patched": "mod_patched_methods_py3",
         "symbol_unpatched": mod_unpatched_str_methods_py3,
-        "symbol_patched": mod_patched_methods_py3,
     },
     "module_functions": {
         "original_name": "module_functions",
-        "name_unpatched": "mod_unpatched_module_functions",
         "name_patched": "mod_patched_module_functions",
         "symbol_unpatched": mod_unpatched_module_functions,
-        "symbol_patched": mod_patched_module_functions,
     },
 }
 
@@ -195,7 +189,7 @@ def generate_functions_dict():
 _config_yaml_content = """\
 aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
     iast_enabled: 0
-    mod_original_name: "tests.appsec.iast.fixtures.aspects.{mod_original_name}"
+    mod_original_name: "bm.iast_fixtures.{mod_original_name}"
     function_name: "{function_name}"
     args: {args}
 
