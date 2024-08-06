@@ -1,4 +1,6 @@
 #!/bin/bash
+# This file is a standalone build script for managing some native components of the profiler.
+# Run the script with no arguments to access the online help.
 set -euo pipefail
 
 ### Useful globals
