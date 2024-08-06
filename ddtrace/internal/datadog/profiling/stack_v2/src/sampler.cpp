@@ -90,20 +90,28 @@ Sampler::one_time_setup()
 void
 Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
 {
+    // Registering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
 
+    static bool has_errored = false;
     auto it = thread_info_map.find(id);
     if (it == thread_info_map.end()) {
         try {
             thread_info_map.emplace(id, std::make_unique<ThreadInfo>(id, native_id, name));
         } catch (const ThreadInfo::Error& e) {
-            // ignore for now
+            if (!has_errored) {
+                has_errored = true;
+                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") " << name << std::endl;
+            }
         }
     } else {
         try {
             it->second = std::make_unique<ThreadInfo>(id, native_id, name);
         } catch (const ThreadInfo::Error& e) {
-            // ignore
+            if (!has_errored) {
+                has_errored = true;
+                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") " << name << std::endl;
+            }
         }
     }
 }
@@ -111,6 +119,7 @@ Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
 void
 Sampler::unregister_thread(uintptr_t id)
 {
+    // unregistering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
     thread_info_map.erase(id);
 }
