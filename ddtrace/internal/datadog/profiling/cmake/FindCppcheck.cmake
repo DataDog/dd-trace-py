@@ -5,18 +5,41 @@ endif()
 
 # Set the default value for the cppcheck option
 option(DO_CPPCHECK "Enable cppcheck" OFF)
+set(DD_CPPCHECK_VERSION "2.14.2" CACHE STRING "The version of cppcheck to use")
+set(DD_CPPCHECK_VERSION_SHORT "2.14" CACHE STRING "The minor version of cppcheck to use")
 
-include(ExternalProject)
-
-# Build cppcheck from sources
 if (DO_CPPCHECK)
-  if (NOT CPPCHECK_EXECUTABLE OR NOT EXISTS "${CPPCHECK_EXECUTABLE}")
-    ExternalProject_Add(cppcheck_project
-      GIT_REPOSITORY https://github.com/danmar/cppcheck.git
-      GIT_TAG "2.13.3"
-      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/cppcheck
-    )
-    set(CPPCHECK_EXECUTABLE ${CMAKE_BINARY_DIR}/cppcheck/bin/cppcheck)
+  if (NOT DD_CPPCHECK_EXECUTABLE)
+    # If we have a CPPCHECK_EXECUTABLE, then check that the version matches.  If it doesn't, then we need to rebuild it.
+    if (CPPCHECK_EXECUTABLE AND EXISTS ${CPPCHECK_EXECUTABLE})
+      execute_process(
+        COMMAND ${CPPCHECK_EXECUTABLE} --version
+        OUTPUT_VARIABLE CPPCHECK_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+      )
+      string(REGEX REPLACE "Cppcheck ([0-9]+\\.[0-9]+).*" "\\1" CPPCHECK_VERSION ${CPPCHECK_VERSION})
+      if (${CPPCHECK_VERSION} STREQUAL ${DD_CPPCHECK_VERSION_SHORT})
+        message(STATUS "System cppcheck version is recent enough: ${CPPCHECK_VERSION}")
+        set(DD_CPPCHECK_EXECUTABLE ${CPPCHECK_EXECUTABLE})
+      else()
+        message(STATUS "System cppcheck version mismatch: ${CPPCHECK_VERSION} != ${DD_CPPCHECK_VERSION_SHORT}")
+      endif()
+    endif()
+
+    # If we're here and we still don't have a CPPCHECK_EXECUTABLE, then we need to build it
+    if (NOT DD_CPPCHECK_EXECUTABLE)
+      include(ExternalProject)
+      ExternalProject_Add(cppcheck_project
+        GIT_REPOSITORY https://github.com/danmar/cppcheck.git
+        GIT_TAG ${DD_CPPCHECK_VERSION}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/cppcheck
+        BUILD_IN_SOURCE 1
+        UPDATE_COMMAND ""
+      )
+      set(DD_CPPCHECK_EXECUTABLE ${CMAKE_BINARY_DIR}/cppcheck/bin/cppcheck CACHE FILEPATH "Path to cppcheck executable")
+      ExternalProject_Get_Property(cppcheck_project install_dir)
+      add_custom_target(check-cppcheck ALL DEPENDS cppcheck_project)
+    endif()
   endif()
 endif()
 
@@ -35,10 +58,11 @@ function(add_cppcheck_target)
   if (DO_CPPCHECK)
     # Initialize command variable
     set(cppcheck_cmd
-      ${CPPCHECK_EXECUTABLE}
+      ${DD_CPPCHECK_EXECUTABLE}
       --enable=all
       --addon=threadsafety.py
       --addon=misc
+      --check-level=exhaustive
       --template="cppcheck:{id}:{file}:{line}:{severity}:{message}"
       --library=googletest
       --std=c++17

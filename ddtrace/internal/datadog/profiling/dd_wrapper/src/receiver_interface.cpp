@@ -14,7 +14,7 @@
 // * It's annoying to split the build into an object library for just one file
 
 bool
-crashtracker_receiver_entry() // cppcheck-suppress unusedFunction
+crashtracker_receiver_entry()
 {
     // Assumes that this will be called only in the receiver binary, which is a
     // fresh process
