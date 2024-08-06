@@ -247,8 +247,8 @@ class LoggingTestCase(TracerTestCase):
 
                 lines = output.splitlines()
                 expected = (
-                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={:032x} \
-                    dd.span_id={}]"
+                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={:032x} "
+                    + "dd.span_id={}]"
                 ).format(span.trace_id, span.span_id)
                 assert expected == lines[0]
 
