@@ -4,7 +4,7 @@
 # from being overwritten by future re-generations.
 
 from ddtrace.contrib.cassandra import get_version
-from ddtrace.contrib.internal.cassandra.patch import patch
+from ddtrace.contrib.cassandra.patch import patch
 
 
 try:
