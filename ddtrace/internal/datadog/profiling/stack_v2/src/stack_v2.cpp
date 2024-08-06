@@ -2,6 +2,9 @@
 #include "python_headers.hpp"
 #include "sampler.hpp"
 
+#include <mutex>
+#include <unordered_map>
+
 using namespace Datadog;
 
 static PyObject*
@@ -46,9 +49,45 @@ stack_v2_set_interval(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+// Echion needs us to propagate information about threads, usually at thread start by patching the threading module
+// We reference some data structures here which are internal to echion (but global in scope)
+static PyObject*
+stack_v2_thread_register(PyObject* self, PyObject* args)
+{
+
+    (void)self;
+
+    uintptr_t id;
+    uint64_t native_id;
+    const char* name;
+
+    if (!PyArg_ParseTuple(args, "KKs", &id, &native_id, &name)) {
+        return NULL;
+    }
+
+    Sampler::get().register_thread(id, native_id, name);
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_v2_thread_unregister(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t id;
+
+    if (!PyArg_ParseTuple(args, "K", &id)) {
+        return NULL;
+    }
+
+    Sampler::get().unregister_thread(id);
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef _stack_v2_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_v2_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_v2_stop, METH_VARARGS, "Stop the sampler" },
+    { "register_thread", stack_v2_thread_register, METH_VARARGS, "Register a thread" },
+    { "unregister_thread", stack_v2_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_v2_set_interval, METH_VARARGS, "Set the sampling interval" },
     { NULL, NULL, 0, NULL }
 };

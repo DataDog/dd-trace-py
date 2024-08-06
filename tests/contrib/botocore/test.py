@@ -36,8 +36,8 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.botocore.patch import _patch_submodules
 from ddtrace.contrib.botocore.patch import patch
+from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
@@ -76,7 +76,7 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     def setUp(self):
         patch()
-        _patch_submodules(True)
+        patch_submodules(True)
 
         self.session = botocore.session.get_session()
         self.session.set_credentials(access_key="access-key", secret_key="secret-key")
@@ -103,7 +103,7 @@ class BotocoreTest(TracerTestCase):
     @mock_ec2
     @mock_s3
     def test_patch_submodules(self):
-        _patch_submodules(["s3"])
+        patch_submodules(["s3"])
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
@@ -652,7 +652,7 @@ class BotocoreTest(TracerTestCase):
         # DEV: We want to mock time to ensure we only create a single bucket
         self._test_distributed_tracing_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
     def test_distributed_tracing_sns_to_sqs_raw_delivery(self, mock_encode):
         """
         Moto doesn't currently handle raw delivery message handling quite correctly.
@@ -1198,7 +1198,7 @@ class BotocoreTest(TracerTestCase):
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
         """

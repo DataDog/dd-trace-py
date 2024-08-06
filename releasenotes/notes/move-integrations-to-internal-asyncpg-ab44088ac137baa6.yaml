@@ -1,0 +1,12 @@
+---
+deprecations:
+  - |
+    asyncpg: Deprecates all modules in the ddtrace.contrib.asyncpg package. Use attributes exposed in ddtrace.contrib.asyncpg.__all__ instead.
+  - |
+    aws_lambda: Deprecates all modules in the ddtrace.contrib.aws_lambda package. Use attributes exposed in ddtrace.contrib.aws_lambda.__all__ instead.
+  - |
+    boto: Deprecates all modules in the ddtrace.contrib.boto package. Use attributes exposed in ddtrace.contrib.boto.__all__ instead.
+  - |
+    botocore: Deprecates all modules in the ddtrace.contrib.botocore package. Use attributes exposed in ddtrace.contrib.botocore.__all__ instead.
+  - |
+    bottle: Deprecates all modules in the ddtrace.contrib.bottle package. Use attributes exposed in ddtrace.contrib.bottle.__all__ instead.
