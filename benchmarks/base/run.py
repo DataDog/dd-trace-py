@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import base64
 import os
 import subprocess
 import sys
@@ -8,6 +8,20 @@ import yaml
 
 
 SHOULD_PROFILE = os.environ.get("PROFILE_BENCHMARKS", "0") == "1"
+
+
+def binary_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    return base64.b64decode(value)
+
+
+def bytearray_constructor(loader, node):
+    value = loader.construct_sequence(node)
+    return bytearray(value[0], value[1])
+
+
+yaml.add_constructor("tag:yaml.org,2002:binary", binary_constructor)
+yaml.add_constructor("tag:yaml.org,2002:python/object/apply:builtins.bytearray", bytearray_constructor)
 
 
 def read_config(path):

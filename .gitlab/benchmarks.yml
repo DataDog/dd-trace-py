@@ -108,9 +108,9 @@ appsec-iast-propagation:
     SCENARIO: "appsec_iast_propagation"
 
 appsec-iast-aspects:
-  extends: .benchmarks
-  variables:
-    SCENEARIO: "appsec_iast_aspects"
+    extends: .benchmarks
+    variables:
+        SCENARIO: "appsec_iast_aspects"
 
 # Flaky benchmark test. Timeout errors
 #benchmark-encoder:

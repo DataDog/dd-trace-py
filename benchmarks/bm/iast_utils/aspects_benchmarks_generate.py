@@ -7,9 +7,11 @@ Note that new aspect directories are not automatically added to git thus when ca
 will have to be git-added manually.
 """
 
+import base64
+import copy
 import inspect
-from io import StringIO
 import os
+import yaml
 from typing import Any
 
 from benchmarks.bm.utils import override_env
@@ -77,50 +79,47 @@ _module_meta = {
             "wrapper",
         },
         "special_arguments": {
-            "do_bytearray_append": (bytearray(b"foobar"),),
-            "do_bytearray_extend": (bytearray(b"foo"), bytearray(b"bar")),
-            "do_bytearray_to_bytes": (bytearray(b"foobar"),),
-            "do_bytearray_to_str": (bytearray(b"foobar"),),
-            "do_bytes": (bytearray(b"foobar"),),
-            "do_bytes_to_bytearray": (b"foobar",),
-            "do_bytes_to_iter_bytearray": (b"foobar",),
-            "do_bytes_to_str": (b"foobar",),
-            "do_center": ("foobar", 2),
-            "do_decode": (b"foobar",),
-            "do_decode_simple": (b"foobar",),
-            "do_encode": ("foobar", "utf-8", "strict"),
-            "do_encode_from_dict": ("foobar", "utf-8", "strict"),
-            "do_format": ("foobar{}", "baz"),
-            "do_format_map": ("foobar{baz}", {"baz": "bar"}),
-            "do_format_with_named_parameter": ("foobar{key}", "baz"),
-            "do_format_with_positional_parameter": ("foobar{}", "baz"),
-            "do_index": ("foobar", 3),
-            "do_join": ("foobar", ["baz", "pok"]),
-            "do_join_args_kwargs": (
-                "foobar",
-                ("baz", "pok"),
-            ),
-            "do_ljust": ("foobar", 2),
-            "do_ljust_2": ("foobar", 2, "x"),
-            "do_modulo": ("foobar%s", "baz"),
-            "do_partition": ("foobar", "o"),
-            "do_re_sub": ("foobar", "o", "a", 1),
-            "do_re_subn": ("foobar", "o", "a", 1),
-            "do_replace": ("foobar", "o", "a", 1),
-            "do_rplit_separator_and_maxsplit": ("foobar", "o", 1),
-            "do_rsplit": ("foo bar baz", " ", 1),
-            "do_rsplit_maxsplit": ("foo bar baz", 1),
-            "do_rsplit_separator": ("foobar", "o"),
-            "do_rsplit_separator_and_maxsplit": ("foo bar baz", " ", 1),
-            "do_slice": ("foobar", 1, 3, 1),
-            "do_slice_2": ("foobar", 1, 3, 1),
-            "do_slice_condition": ("foobar", 1, 3),
-            "do_split_maxsplit": ("foo bar baz", 1),
-            "do_split_separator": ("foobar", "o"),
-            "do_split_separator_and_maxsplit": ("foo bar baz", " ", 1),
-            "do_splitlines_keepends": ("foo\nbar", False),
-            "do_tuple_string_assignment": ("foo",),
-            "do_zfill": ("foobar", 10),
+            "do_bytearray_append": [bytearray(b"foobar")],
+            "do_bytearray_extend": [bytearray(b"foo"), bytearray(b"bar")],
+            "do_bytearray_to_bytes": [bytearray(b"foobar")],
+            "do_bytearray_to_str": [bytearray(b"foobar")],
+            "do_bytes": [bytearray(b"foobar")],
+            "do_bytes_to_bytearray": [b"foobar"],
+            "do_bytes_to_iter_bytearray": [b"foobar"],
+            "do_bytes_to_str": [b"foobar"],
+            "do_center": ["foobar", 2],
+            "do_decode": [b"foobar"],
+            "do_decode_simple": [b"foobar"],
+            "do_encode": ["foobar", "utf-8", "strict"],
+            "do_encode_from_dict": ["foobar", "utf-8", "strict"],
+            "do_format": ["foobar{}", "baz"],
+            "do_format_map": ["foobar{baz}", {"baz": "bar"}],
+            "do_format_with_named_parameter": ["foobar{key}", "baz"],
+            "do_format_with_positional_parameter": ["foobar{}", "baz"],
+            "do_index": ["foobar", 3],
+            "do_join": ["foobar", ["baz", "pok"]],
+            "do_join_args_kwargs": ["foobar", ["baz", "pok"]],
+            "do_ljust": ["foobar", 2],
+            "do_ljust_2": ["foobar", 2, "x"],
+            "do_modulo": ["foobar%s", "baz"],
+            "do_partition": ["foobar", "o"],
+            "do_re_sub": ["foobar", "o", "a", 1],
+            "do_re_subn": ["foobar", "o", "a", 1],
+            "do_replace": ["foobar", "o", "a", 1],
+            "do_rplit_separator_and_maxsplit": ["foobar", "o", 1],
+            "do_rsplit": ["foo bar baz", " ", 1],
+            "do_rsplit_maxsplit": ["foo bar baz", 1],
+            "do_rsplit_separator": ["foobar", "o"],
+            "do_rsplit_separator_and_maxsplit": ["foo bar baz", " ", 1],
+            "do_slice": ["foobar", 1, 3, 1],
+            "do_slice_2": ["foobar", 1, 3, 1],
+            "do_slice_condition": ["foobar", 1, 3],
+            "do_split_maxsplit": ["foo bar baz", 1],
+            "do_split_separator": ["foobar", "o"],
+            "do_split_separator_and_maxsplit": ["foo bar baz", " ", 1],
+            "do_splitlines_keepends": ["foo\nbar", False],
+            "do_tuple_string_assignment": ["foo"],
+            "do_zfill": ["foobar", 10],
         },
     },
     "str_methods_py3.py": {"excluded": {}, "special_arguments": {}},
@@ -129,13 +128,27 @@ _module_meta = {
             "do_os_path_splitroot",
         },
         "special_arguments": {
-            "do_os_path_basename": ("foo/bar",),
-            "do_os_path_split": ("foo/bar",),
-            "do_os_path_splitdrive": ("foo/bar",),
-            "do_os_path_splitext": ("foo/bar.txt",),
+            "do_os_path_basename": ["foo/bar"],
+            "do_os_path_split": ["foo/bar"],
+            "do_os_path_splitdrive": ["foo/bar"],
+            "do_os_path_splitext": ["foo/bar.txt"],
         },
     },
 }
+
+
+def binary_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    return base64.b64decode(value)
+
+
+def bytearray_constructor(loader, node):
+    value = loader.construct_sequence(node)
+    return bytearray(value[0], value[1])
+
+
+yaml.add_constructor("tag:yaml.org,2002:binary", binary_constructor)
+yaml.add_constructor("tag:yaml.org,2002:python/object/apply:builtins.bytearray", bytearray_constructor)
 
 
 def get_var_name(var):
@@ -173,93 +186,36 @@ def generate_functions_dict():
 
             functions[f] = {
                 "function_name": f,
-                "args": args,
-                "import_patched_name": module_dict["name_patched"],
-                "import_unpatched_name": module_dict["name_unpatched"],
+                "args": yaml.dump(args, default_flow_style=True).strip(),
                 "mod_original_name": module_dict["original_name"],
             }
     return functions
 
 
 _config_yaml_content = """\
-no_iast: &base_variant
-iast_enabled: 0
+aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
+    iast_enabled: 0
+    mod_original_name: "tests.appsec.iast.fixtures.aspects.{mod_original_name}"
+    function_name: "{function_name}"
+    args: {args}
 
-iast_enabled: &iast_enabled
-iast_enabled: 1
-"""
-
-
-_benchmark_class_template = """\
-# Note: this is autogenerated using the script benchmarks/bm/iast_utils/aspects_benchmarks_generate.py.
-# DO NOT EDIT THIS FILE MANUALLY OR IT COULD BE OVERWRITTEN.
-
-from benchmarks import bm
-from benchmarks.bm.utils import override_env
-from tests.appsec.iast.fixtures.aspects import {mod_original_name} as {import_unpatched_name}
-
-
-with override_env({{"DD_IAST_ENABLED": "True"}}):
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-
-    {import_patched_name} = _iast_patched_module("tests.appsec.iast.fixtures.aspects.{mod_original_name}")
-
-
-class IAST_Aspects_{function_name}(bm.Scenario):
-    iast_enabled: bool
-
-    def run(self):
-        def _(loops):
-            for _ in range(loops):
-                if self.iast_enabled:
-                    {import_patched_name}.{function_name}(*{args})
-                else:
-                    {import_unpatched_name}.{function_name}(*{args})
-
-        yield _
+aspect_iast_{function_name}: &aspect_iast_{function_name}
+    << : *aspect_no_iast_{function_name}
+    iast_enabled: 1
 """
 
 
 def generate_benchmark_dirs():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    benchmarks_dir = os.path.dirname(os.path.dirname(current_dir))
-
+    str_result = "# This is autogenerated by the aspects_benchmarks_generate.py script\n"
     functions = generate_functions_dict()
-    used_dirs = set()
 
     for function_name, function_dict in functions.items():
-        aspect_bm_dir_name = "appsec_iast_aspect_" + function_name
-        full_bm_dir_name = os.path.join(benchmarks_dir, aspect_bm_dir_name)
+        str_result += _config_yaml_content.format(**function_dict) + "\n"
 
-        # Create the micro benchmark directory
-        if not os.path.exists(full_bm_dir_name):
-            print("Creating new scenario: ", full_bm_dir_name)
-            os.makedirs(full_bm_dir_name)
-        else:
-            print("Updating scenario: ", full_bm_dir_name)
+    str_result += "# end content autogenerated by aspects_benchmarks_generate.py"
 
-        used_dirs.add(os.path.split(full_bm_dir_name)[1])
-
-        if not os.path.isdir(full_bm_dir_name):
-            raise ValueError(f"{full_bm_dir_name} is not a directory")
-
-        # Create the yaml config file
-        config_yaml_file = os.path.join(full_bm_dir_name, "config.yaml")
-        with open(config_yaml_file, "w") as f:
-            f.write(_config_yaml_content)
-
-        # Create the scenario.py file
-        benchmark_class_content = _benchmark_class_template.format(**function_dict)
-        scenario_file = os.path.join(full_bm_dir_name, "scenario.py")
-        with open(scenario_file, "w") as f:
-            f.write(benchmark_class_content.replace("'", '"'))
-
-    # Try to find if there are extra dirs that we didn't generate (they should be removed)
-    for root, dirs, _ in os.walk(benchmarks_dir):
-        for d in dirs:
-            if d.startswith("appsec_iast_aspect_") and d not in used_dirs:
-                print(f"\nWARNING: directory '{d}' is not used anymore. Probably needs to be removed.")
+    return str_result
 
 
 if __name__ == "__main__":
-    generate_benchmark_dirs()
+    print(generate_benchmark_dirs())

@@ -1,7 +1,25 @@
+# import base64
 import importlib
+import types
 
-from benchmarks import bm
-from benchmarks.bm.utils import override_env
+import bm
+from bm.utils import override_env
+
+from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
+
+
+def _iast_patched_module_and_patched_source(module_name, new_module_object=False):
+    module = importlib.import_module(module_name)
+    module_path, patched_source = astpatch_module(module)
+    compiled_code = compile(patched_source, module_path, "exec")
+    module_changed = types.ModuleType(module_name) if new_module_object else module
+    exec(compiled_code, module_changed.__dict__)
+    return module_changed, patched_source
+
+
+def _iast_patched_module(module_name, new_module_object=False):
+    module, _ = _iast_patched_module_and_patched_source(module_name, new_module_object)
+    return module
 
 
 class IAST_Aspects(bm.Scenario):
@@ -11,12 +29,6 @@ class IAST_Aspects(bm.Scenario):
     args: list
 
     def run(self):
-        # JJJ test
-        self.iast_enabled = True
-        self.mod_original_name = "tests.appsec.iast.fixtures.aspects.str_methods"
-        self.function_name = "do_re_sub"
-        self.args = ["foobar", "o", "a", 1]
-
         def _(loops):
             for _ in range(loops):
                 if self.iast_enabled:
