@@ -31,6 +31,7 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
+from ddtrace.contrib.trace_utils import _get_trace_details_for_log_injection
 from ddtrace.filters import TraceFilter
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
@@ -416,17 +417,17 @@ class Tracer(object):
         if self.enabled or self._apm_opt_out:
             active = self.context_provider.active()
 
+        trace_id = 0
+        span_id = 0
         if isinstance(active, Span) and active.service:
             service = active.service
         else:
             service = config.service
         if active:
-            trace_id = active.trace_id
-            if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-                trace_id = active._trace_id_64bits
+            trace_id, span_id = _get_trace_details_for_log_injection(active)
         return {
-            "trace_id": str(trace_id) if active else "0",
-            "span_id": str(active.span_id) if active else "0",
+            "trace_id": str(trace_id),
+            "span_id": str(span_id),
             "service": service or "",
             "version": config.version or "",
             "env": config.env or "",

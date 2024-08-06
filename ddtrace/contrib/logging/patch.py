@@ -5,6 +5,7 @@ from ddtrace import config
 
 from ...internal.utils import get_argument_value
 from ...vendor.wrapt import wrap_function_wrapper as _w
+from ..trace_utils import _get_trace_details_for_log_injection
 from ..trace_utils import unwrap as _u
 from .constants import RECORD_ATTR_ENV
 from .constants import RECORD_ATTR_SERVICE
@@ -83,11 +84,9 @@ def _w_makeRecord(func, instance, args, kwargs):
         span = _get_current_span(tracer=config.logging.tracer)
 
     if span:
-        trace_id = span.trace_id
-        if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-            trace_id = span._trace_id_64bits
+        trace_id, span_id = _get_trace_details_for_log_injection(span)
         setattr(record, RECORD_ATTR_TRACE_ID, str(trace_id))
-        setattr(record, RECORD_ATTR_SPAN_ID, str(span.span_id))
+        setattr(record, RECORD_ATTR_SPAN_ID, str(span_id))
     else:
         setattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO)
         setattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO)

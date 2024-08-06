@@ -11,6 +11,7 @@ from ..logging.constants import RECORD_ATTR_TRACE_ID
 from ..logging.constants import RECORD_ATTR_VALUE_EMPTY
 from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
+from ..trace_utils import _get_trace_details_for_log_injection
 from ..trace_utils import unwrap as _u
 
 
@@ -28,13 +29,7 @@ def get_version():
 def _tracer_injection(event_dict):
     span = ddtrace.tracer.current_span()
 
-    trace_id = None
-    span_id = None
-    if span:
-        span_id = span.span_id
-        trace_id = span.trace_id
-        if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-            trace_id = span._trace_id_64bits
+    trace_id, span_id = _get_trace_details_for_log_injection(span)
 
     event_dd_attributes = {}
     # add ids to loguru event dictionary
