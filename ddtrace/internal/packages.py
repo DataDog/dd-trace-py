@@ -1,3 +1,4 @@
+from functools import lru_cache as cached
 import logging
 import os
 import sys
@@ -7,7 +8,6 @@ import typing as t
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
-from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.settings.third_party import config as tp_config
 
