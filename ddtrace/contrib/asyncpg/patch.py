@@ -19,7 +19,6 @@ from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...propagation._database_monitoring import _DBM_Propagator
-from ..internal.asyncpg.patch import *  # noqa: F401,F403
 from ..trace_utils import ext_service
 from ..trace_utils import unwrap
 from ..trace_utils import wrap
