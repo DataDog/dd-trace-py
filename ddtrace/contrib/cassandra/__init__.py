@@ -30,7 +30,7 @@ with require_modules(required_modules) as missing_modules:
     if not missing_modules:
 
         # Expose public methods
-        from ..internal.cassandra.patch import patch
+        from ..internal.cassandra.session import patch
         from ..internal.cassandra.session import get_version
 
         __all__ = ["patch", "get_version"]
