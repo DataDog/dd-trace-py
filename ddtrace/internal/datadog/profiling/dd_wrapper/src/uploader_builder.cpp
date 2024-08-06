@@ -163,7 +163,7 @@ Datadog::UploaderBuilder::build()
     }
 
     // 5s is a common timeout parameter for Datadog profilers
-    const uint64_t max_timeout_ms = 5000; // 5s is a common timeout parameter for Datadog profilers
+    const uint64_t max_timeout_ms = 5000;
     ddog_prof_MaybeError maybe_err = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
     if (maybe_err.tag == DDOG_PROF_OPTION_ERROR_SOME_ERROR) {
         auto& err = maybe_err.some;
