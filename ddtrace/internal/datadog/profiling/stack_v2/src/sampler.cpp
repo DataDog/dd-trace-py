@@ -101,7 +101,8 @@ Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
         } catch (const ThreadInfo::Error& e) {
             if (!has_errored) {
                 has_errored = true;
-                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") " << name << std::endl;
+                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") "
+                          << name << std::endl;
             }
         }
     } else {
@@ -110,7 +111,8 @@ Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
         } catch (const ThreadInfo::Error& e) {
             if (!has_errored) {
                 has_errored = true;
-                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") " << name << std::endl;
+                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") "
+                          << name << std::endl;
             }
         }
     }
