@@ -47,43 +47,8 @@ def gen_pre_checks(template: dict) -> None:
             template["jobs"]["pre_check"]["steps"].append({"run": {"name": name, "command": command}})
 
     check(
-        name="Style",
-        command="hatch run lint:style",
-        paths={"docker", "*.py", "*.pyi", "hatch.toml", "pyproject.toml"},
-    )
-    check(
-        name="Typing",
-        command="hatch run lint:typing",
-        paths={"docker", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
-    )
-    check(
-        name="Security",
-        command="hatch run lint:security",
-        paths={"docker", "ddtrace/*", "hatch.toml"},
-    )
-    check(
-        name="Run riotfile.py tests",
-        command="hatch run lint:riot",
-        paths={"docker", "riotfile.py", "hatch.toml"},
-    )
-    check(
-        name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
-        paths={"docker", "tests/snapshots/*", "hatch.toml"},
-    )
-    check(
-        name="Run scripts/*.py tests",
-        command="hatch run scripts:test",
-        paths={"docker", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "tests/.suitespec.json"},
-    )
-    check(
-        name="Validate suitespec JSON file",
-        command="python -m tests.suitespec",
-        paths={"docker", "tests/.suitespec.json", "tests/suitespec.py"},
-    )
-    check(
-        name="Check suitespec coverage",
-        command="hatch run lint:suitespec-check",
+        name="Run all checks",
+        command="hatch run lint:check",
         paths={"*"},
     )
 
