@@ -1,4 +1,3 @@
-from enum import Enum
 from pathlib import Path
 from typing import Any
 from typing import Dict
@@ -9,6 +8,7 @@ from typing import Tuple
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISessionId
+from ddtrace.ext.ci_visibility.api import CITestStatus
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
@@ -46,9 +46,9 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
         log.debug("Starting CI Visibility instance %s", self.item_id)
         super().start()
 
-    def finish(self, force: bool = False, override_status: Optional[Enum] = None):
-        log.debug("Finishing CI Visibility instance %s", self.item_id)
-        super().finish()
+    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None):
+        log.debug("Finishing CI Visibility session %s", self.item_id)
+        super().finish(force=force, override_status=override_status)
 
     def _get_hierarchy_tags(self) -> Dict[str, Any]:
         return {

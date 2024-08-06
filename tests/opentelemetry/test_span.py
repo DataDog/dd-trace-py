@@ -14,7 +14,7 @@ from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
-from ddtrace.opentelemetry._span import Span
+from ddtrace.internal.opentelemetry.span import Span
 from tests.utils import flaky
 
 

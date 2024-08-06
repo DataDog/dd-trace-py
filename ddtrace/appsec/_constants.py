@@ -165,8 +165,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
 
     # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
+    CMDI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
     LFI_ADDRESS: Literal["server.io.fs.file"] = "server.io.fs.file"
-    SHI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
     SSRF_ADDRESS: Literal["server.io.net.url"] = "server.io.net.url"
     SQLI_ADDRESS: Literal["server.db.statement"] = "server.db.statement"
     SQLI_SYSTEM_ADDRESS: Literal["server.db.system"] = "server.db.system"
@@ -297,11 +297,13 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     MAX_STACK_TRACE_DEPTH: Literal["DD_APPSEC_MAX_STACK_TRACE_DEPTH"] = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
 
     class TYPE(metaclass=Constant_Class):
+        CMDI: Literal["command_injection"] = "command_injection"
         LFI: Literal["lfi"] = "lfi"
         SSRF: Literal["ssrf"] = "ssrf"
         SQLI: Literal["sql_injection"] = "sql_injection"
 
     class ADDRESS(metaclass=Constant_Class):
+        CMDI: Literal["CMDI_ADDRESS"] = "CMDI_ADDRESS"
         LFI: Literal["LFI_ADDRESS"] = "LFI_ADDRESS"
         SSRF: Literal["SSRF_ADDRESS"] = "SSRF_ADDRESS"
         SQLI: Literal["SQLI_ADDRESS"] = "SQLI_ADDRESS"

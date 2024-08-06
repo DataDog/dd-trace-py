@@ -85,25 +85,25 @@ crashtracker_set_alt_stack(bool alt_stack) // cppcheck-suppress unusedFunction
 void
 crashtracker_set_resolve_frames_disable() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_DISABLED);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_DISABLED);
 }
 
 void
 crashtracker_set_resolve_frames_fast() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS);
 }
 
 void
 crashtracker_set_resolve_frames_full() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED_WITH_INPROCESS_SYMBOLS);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_ENABLED_WITH_INPROCESS_SYMBOLS);
 }
 
 void
 crashtracker_set_resolve_frames_safe() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED_WITH_SYMBOLS_IN_RECEIVER);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_ENABLED_WITH_SYMBOLS_IN_RECEIVER);
 }
 
 bool

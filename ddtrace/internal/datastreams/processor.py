@@ -73,7 +73,7 @@ class SumCount:
 
     __slots__ = ("_sum", "_count")
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._sum: float = 0.0
         self._count: int = 0
 

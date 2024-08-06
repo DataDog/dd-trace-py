@@ -31,7 +31,7 @@ def _():
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    def __init__(self, interval=0.0):
+    def __init__(self, interval: float = 0.0) -> None:
         super().__init__()
         self._interval = interval
         self._worker: typing.Optional[PeriodicThread] = None

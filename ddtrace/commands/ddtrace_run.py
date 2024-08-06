@@ -10,22 +10,13 @@ import typing  # noqa:F401
 import ddtrace
 
 
-if hasattr(shutil, "which"):
-    _which = shutil.which
-else:
-    # Python 2 fallback
-    from distutils import spawn
-
-    _which = spawn.find_executable  # type: ignore[assignment]
-
-
-def find_executable(
-    p,  # type: str
-):
-    # type: (...) -> typing.Optional[str]
-    if os.path.isfile(p):
-        return p
-    return _which(p)
+def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Optional[str]:
+    if args is None:
+        return None
+    command = args.command[0]
+    if os.path.isfile(command):
+        return command
+    return shutil.which(command)
 
 
 # Do not use `ddtrace.internal.logger.get_logger` here
@@ -60,7 +51,7 @@ def _add_bootstrap_to_pythonpath(bootstrap_dir):
         os.environ["PYTHONPATH"] = bootstrap_dir
 
 
-def main():
+def _get_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=USAGE,
         prog="ddtrace-run",
@@ -81,8 +72,11 @@ def main():
     parser.add_argument("-p", "--profiling", help="enable profiling (disabled by default)", action="store_true")
     parser.add_argument("-v", "--version", action="version", version="%(prog)s " + ddtrace.__version__)
     parser.add_argument("-nc", "--colorless", help="print output of command without color", action="store_true")
-    args = parser.parse_args()
+    return parser
 
+
+def _prepare_env(parser: argparse.ArgumentParser):
+    args = parser.parse_args()
     if args.profiling:
         os.environ["DD_PROFILING_ENABLED"] = "true"
 
@@ -111,11 +105,24 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    # Find the executable path
-    executable = find_executable(args.command[0])
-    if executable is None:
-        print("ddtrace-run: failed to find executable '%s'.\n" % args.command[0])
-        parser.print_usage()
+    return args
+
+
+def main():
+    parser = None
+    args = None
+    executable = None
+    try:
+        parser = _get_arg_parser()
+        args = _prepare_env(parser)
+        executable = _find_executable(args)
+    except Exception:
+        log.warning("error bootstrapping Datadog tracing", exc_info=True)
+
+    if executable is None or args is None:
+        print("ddtrace-run: failed to bootstrap: args '%s'.\n" % args)
+        if parser is not None:
+            parser.print_usage()
         sys.exit(1)
 
     log.debug("program executable: %s", executable)

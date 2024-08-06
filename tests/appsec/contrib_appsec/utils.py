@@ -1288,7 +1288,15 @@ class Contrib_TestClass_For_Threats:
                 repeat=2,
             )
         ]
-        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))],
+        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))]
+        + [
+            (
+                "command_injection",
+                "cmd_1=$(cat /etc/passwd 1>%262 ; echo .)&cmd_2=$(uname -a 1>%262 ; echo .)",
+                "rasp-932-100",
+                ("system", "rasp"),
+            )
+        ],
     )
     @pytest.mark.parametrize(
         ("rule_file", "action_level"),
@@ -1461,12 +1469,12 @@ class Contrib_TestClass_For_Threats:
             raise pytest.xfail("fastapi does not fully support IAST for now")
         from ddtrace.ext import http
 
-        url = "/rasp/shell/?cmd=ls"
+        url = "/rasp/command_injection/?cmd=ls"
         self.update_tracer(interface)
         response = interface.client.get(url)
         assert self.status(response) == 200
         assert get_tag(http.STATUS_CODE) == "200"
-        assert self.body(response).startswith("shell endpoint")
+        assert self.body(response).startswith("command_injection endpoint")
         if asm_config._iast_enabled:
             assert get_tag("_dd.iast.json") is not None
         else:

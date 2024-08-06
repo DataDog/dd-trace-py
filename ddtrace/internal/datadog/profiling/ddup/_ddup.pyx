@@ -7,7 +7,7 @@ from typing import Union
 
 import ddtrace
 import platform
-from ..types import StringType
+from .._types import StringType
 from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME

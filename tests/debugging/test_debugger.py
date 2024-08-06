@@ -336,8 +336,8 @@ def test_debugger_tracer_correlation():
         )
 
         with d._tracer.trace("test-span") as span:
-            trace_id = span.trace_id
-            span_id = span.span_id
+            trace_id = str(span.trace_id)
+            span_id = str(span.span_id)
             Stuff().instancestuff()
 
         snapshots = d.uploader.wait_for_payloads()
