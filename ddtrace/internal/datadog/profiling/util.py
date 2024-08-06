@@ -4,7 +4,7 @@ from typing import Any  # noqa:F401
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.logger import get_logger
 
-from .types import StringType
+from ._types import StringType
 
 
 LOG = get_logger(__name__)

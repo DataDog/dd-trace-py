@@ -13,11 +13,14 @@ with require_modules(required_modules) as missing_modules:
 
         context_provider = DefaultContextProvider()
 
-        from .helpers import ensure_future
-        from .helpers import run_in_executor
-        from .helpers import set_call_context
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch  # noqa: F401
+        # Required to allow users to import from `ddtrace.contrib.asyncio.patch` directly
+        # Expose public methods
+        from . import patch as _  # noqa: F401, I001
+        from ..internal.asyncio.helpers import ensure_future
+        from ..internal.asyncio.helpers import run_in_executor
+        from ..internal.asyncio.helpers import set_call_context
+        from ..internal.asyncio.patch import get_version
+        from ..internal.asyncio.patch import patch
+        from ..internal.asyncio.patch import unpatch  # noqa: F401
 
         __all__ = ["context_provider", "set_call_context", "ensure_future", "run_in_executor", "patch", "get_version"]

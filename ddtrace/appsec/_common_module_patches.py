@@ -29,6 +29,7 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    try_wrap_function_wrapper("os", "system", wrapped_system_5542593D237084A7)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
@@ -160,6 +161,49 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                     raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
 
     return original_request_callable(*args, **kwargs)
+
+
+def wrapped_system_5542593D237084A7(original_command_callable, instance, args, kwargs):
+    """
+    wrapper for os.system function
+    """
+    command = args[0] if args else kwargs.get("command", None)
+    if command is not None:
+        if asm_config._iast_enabled:
+            from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
+
+            _iast_report_cmdi(command)
+
+        if (
+            asm_config._asm_enabled
+            and asm_config._ep_enabled
+            and ddtrace.tracer._appsec_processor is not None
+            and ddtrace.tracer._appsec_processor.rasp_cmdi_enabled
+        ):
+            try:
+                from ddtrace.appsec._asm_request_context import call_waf_callback
+                from ddtrace.appsec._asm_request_context import in_context
+                from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+            except ImportError:
+                return original_command_callable(*args, **kwargs)
+
+            if in_context():
+                res = call_waf_callback(
+                    {EXPLOIT_PREVENTION.ADDRESS.CMDI: command},
+                    crop_trace="wrapped_system_5542593D237084A7",
+                    rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
+                )
+                if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+                    raise BlockingException(
+                        core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "cmdi", command
+                    )
+    try:
+        return original_command_callable(*args, **kwargs)
+    except Exception as e:
+        previous_frame = e.__traceback__.tb_frame.f_back
+        raise e.with_traceback(
+            e.__traceback__.__class__(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno)
+        )
 
 
 _DB_DIALECTS = {
