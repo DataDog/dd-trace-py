@@ -2720,6 +2720,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiokafka/",
             pys=select_pys(),
             pkgs={
+                "pytest-asyncio": [latest],
                 "pytest-randomly": latest,
                 "aiokafka": latest,
             },
