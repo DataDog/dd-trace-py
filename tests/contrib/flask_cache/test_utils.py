@@ -49,7 +49,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         expected_meta = {
             "out.host": "127.0.0.1",
             "network.destination.port": MEMCACHED_CONFIG["port"],
-            "server.address": "localhost",
+            "server.address": "127.0.0.1",
         }
         assert meta == expected_meta
 
@@ -71,7 +71,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         expected_meta = {
             "out.host": "127.0.0.1",
             "network.destination.port": MEMCACHED_CONFIG["port"],
-            "server.address": "localhost",
+            "server.address": "127.0.0.1",
         }
         assert meta == expected_meta
 
