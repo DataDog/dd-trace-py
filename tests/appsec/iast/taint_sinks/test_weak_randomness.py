@@ -27,7 +27,7 @@ def test_weak_randomness(random_func, iast_span_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
 
     getattr(mod, "random_{}".format(random_func))()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     line, hash_value = get_line_and_hash(
         "weak_randomness_{}".format(random_func), VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_PATH
     )
@@ -46,7 +46,7 @@ def test_weak_randomness_no_dynamic_import(iast_span_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
 
     mod.random_dynamic_import()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report is None
 
 
@@ -59,7 +59,7 @@ def test_weak_randomness_module(random_func, iast_span_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_module")
 
     getattr(mod, "random_{}".format(random_func))()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     line, hash_value = get_line_and_hash(
         "weak_randomness_{}".format(random_func), VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_MODULE_PATH
     )
@@ -82,7 +82,7 @@ def test_weak_randomness_secure_module(random_func, iast_span_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_secure_module")
 
     getattr(mod, "random_{}".format(random_func))()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report is None
 
 
@@ -91,5 +91,5 @@ def test_weak_randomness_secrets_secure_package(iast_span_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_secrets")
 
     mod.random_choice()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report is None

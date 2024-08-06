@@ -48,7 +48,7 @@ def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_
 
         SqlInjection.report(tainted_object)
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report
 
         span_report.build_and_scrub_value_parts()

@@ -39,7 +39,7 @@ def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
     assert is_pyobject_tainted(table)
 
     mod.sqli_simple(table)
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report
     data = span_report.build_and_scrub_value_parts()
     vulnerability = data["vulnerabilities"][0]
@@ -76,7 +76,7 @@ def test_sql_injection_deduplication(fixture_path, fixture_module, iast_span_ded
     for _ in range(0, 5):
         mod.sqli_simple(table)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     assert span_report
     data = span_report.build_and_scrub_value_parts()

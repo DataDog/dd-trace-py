@@ -29,7 +29,7 @@ def test_weak_cipher_crypto_des(iast_span_defaults, mode, cipher_func):
     from Crypto.Cipher import DES
 
     cipher_des(mode=getattr(DES, mode))
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     line, hash_value = get_line_and_hash("cipher_des", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
 
     vulnerabilities = list(span_report.vulnerabilities)
@@ -53,7 +53,7 @@ def test_weak_cipher_crypto_blowfish(iast_span_defaults, mode, cipher_func):
     from Crypto.Cipher import Blowfish
 
     cipher_blowfish(mode=getattr(Blowfish, mode))
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     line, hash_value = get_line_and_hash("cipher_blowfish", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
 
     vulnerabilities = list(span_report.vulnerabilities)
@@ -77,7 +77,7 @@ def test_weak_cipher_rc2(iast_span_defaults, mode, cipher_func):
     from Crypto.Cipher import ARC2
 
     cipher_arc2(mode=getattr(ARC2, mode))
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     line, hash_value = get_line_and_hash("cipher_arc2", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
 
     vulnerabilities = list(span_report.vulnerabilities)
@@ -90,7 +90,7 @@ def test_weak_cipher_rc2(iast_span_defaults, mode, cipher_func):
 
 def test_weak_cipher_rc4(iast_span_defaults):
     cipher_arc4()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     line, hash_value = get_line_and_hash("cipher_arc4", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
 
     vulnerabilities = list(span_report.vulnerabilities)
@@ -111,7 +111,7 @@ def test_weak_cipher_rc4(iast_span_defaults):
 )
 def test_weak_cipher_cryptography_blowfish(iast_span_defaults, algorithm, cipher_func):
     cryptography_algorithm(algorithm)
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     line, hash_value = get_line_and_hash("cryptography_algorithm", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
 
@@ -126,7 +126,7 @@ def test_weak_cipher_blowfish__des_rc2_configured(iast_span_des_rc2_configured):
     from Crypto.Cipher import Blowfish
 
     cipher_blowfish(Blowfish.MODE_CBC)
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_des_rc2_configured)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     assert span_report is None
 
@@ -135,27 +135,27 @@ def test_weak_cipher_rc2__rc4_configured(iast_span_rc4_configured):
     from Crypto.Cipher import ARC2
 
     cipher_arc2(mode=ARC2.MODE_CBC)
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_rc4_configured)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     assert span_report is None
 
 
 def test_weak_cipher_cryptography_rc4_configured(iast_span_rc4_configured):
     cryptography_algorithm("ARC4")
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_rc4_configured)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     vulnerabilities = list(span_report.vulnerabilities)
     assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
 
 
 def test_weak_cipher_cryptography_blowfish__rc4_configured(iast_span_rc4_configured):
     cryptography_algorithm("Blowfish")
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_rc4_configured)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report is None
 
 
 def test_weak_cipher_cryptography_blowfish_configured(iast_span_blowfish_configured):
     cryptography_algorithm("Blowfish")
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_blowfish_configured)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     vulnerabilities = list(span_report.vulnerabilities)
     assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
 
@@ -163,7 +163,7 @@ def test_weak_cipher_cryptography_blowfish_configured(iast_span_blowfish_configu
 def test_weak_cipher_rc4_unpatched(iast_span_defaults):
     unpatch_iast()
     cipher_arc4()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     assert span_report is None
 
@@ -173,7 +173,7 @@ def test_weak_cipher_deduplication(num_vuln_expected, iast_span_deduplication_en
     for _ in range(0, 5):
         cryptography_algorithm("Blowfish")
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     if num_vuln_expected == 0:
         assert span_report is None
@@ -185,7 +185,7 @@ def test_weak_cipher_deduplication(num_vuln_expected, iast_span_deduplication_en
 
 def test_weak_cipher_secure(iast_span_defaults):
     cipher_secure()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     assert span_report is None
 
@@ -193,6 +193,6 @@ def test_weak_cipher_secure(iast_span_defaults):
 def test_weak_cipher_secure_multiple_calls_error(iast_span_defaults):
     for _ in range(50):
         cipher_secure()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     assert span_report is None

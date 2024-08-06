@@ -72,7 +72,7 @@ class VulnerabilityBase(Operation):
         if line_number is not None and (line_number == 0 or line_number < -1):
             line_number = -1
 
-        report = core.get_item(IAST.CONTEXT_KEY, span=span)
+        report = core.get_item(IAST.CONTEXT_KEY)
         vulnerability = Vulnerability(
             type=vulnerability_type,
             evidence=evidence,
@@ -84,7 +84,7 @@ class VulnerabilityBase(Operation):
             report = IastSpanReporter(vulnerabilities={vulnerability})
         report.add_ranges_to_evidence_and_extract_sources(vulnerability)
 
-        core.set_item(IAST.CONTEXT_KEY, report, span=span)
+        core.set_item(IAST.CONTEXT_KEY, report)
 
         return True
 
