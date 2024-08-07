@@ -1,4 +1,5 @@
 import os
+import sys
 
 import aiokafka
 
@@ -10,6 +11,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
+from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.schema import schematize_messaging_operation
@@ -48,8 +50,6 @@ class TracedAIOKafkaProducerMixin:
 class TracedAIOKafkaConsumerMixin:
     def __init__(self, *args, **kwargs):
         super(TracedAIOKafkaConsumerMixin, self).__init__(*args, **kwargs)
-        self._group_id = kwargs.get("group.id", "")
-        self._auto_commit = asbool(kwargs.get("enable_auto_commit", True))
 
 
 class TracedAIOKafkaProducer(TracedAIOKafkaProducerMixin, aiokafka.AIOKafkaProducer):
@@ -97,14 +97,13 @@ def unpatch():
 async def traced_send(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        return func(*args, **kwargs)
+        return await func(*args, **kwargs)
 
-    topic = get_argument_value(args, kwargs, 0, "topic") or ""
-
-    value = kwargs.get("value", None)
-    message_key = kwargs.get("key", "") or ""
-    partition = kwargs.get("partition", -1)
-    headers = kwargs.get("headers", [])
+    topic = get_argument_value(args, kwargs, 0, "topic")
+    value = get_argument_value(args, kwargs, 1, "value", True) or None
+    message_key = get_argument_value(args, kwargs, 2, "key", True) or ""
+    partition = get_argument_value(args, kwargs, 3, "partition", True) or None
+    headers = get_argument_value(args, kwargs, 5, "headers", True) or None
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
@@ -131,19 +130,97 @@ async def traced_send(func, instance, args, kwargs):
             headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
             Propagator.inject(span.context, headers)
             args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
-        return func(*args, **kwargs)
+        return await func(*args, **kwargs)
 
 
-async def traced_getone():
-    pass
+async def traced_getone(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return await func(*args, **kwargs)
+
+    # we must get start time now since execute before starting a span in order to get distributed context
+    # if it exists
+    start_ns = time_ns()
+    err = None
+    result = None
+    try:
+        result = await func(*args, **kwargs)
+    except Exception as e:
+        err = e
+        raise err
+    finally:
+        _instrument_message(result, pin, start_ns, instance, err)
+    return result
 
 
-async def traced_getmany():
-    pass
+async def traced_getmany(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return await func(*args, **kwargs)
+
+    # we must get start time now since execute before starting a span in order to get distributed context
+    # if it exists
+    start_ns = time_ns()
+    err = None
+    result = None
+    try:
+        result = await func(*args, **kwargs)
+    except Exception as e:
+        err = e
+        raise err
+    finally:
+        for tp, records in result.items():
+            for record in records:
+                _instrument_message(record, pin, start_ns, instance, err)
+    return result
+
+
+def _instrument_message(message, pin, start_ns, instance, err):
+    ctx = None
+    if message is not None and config.kafka.distributed_tracing_enabled and message.headers():
+        ctx = Propagator.extract(dict(message.headers()))
+    with pin.tracer.start_span(
+        name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
+        service=trace_utils.ext_service(pin, config.kafka),
+        span_type=SpanTypes.WORKER,
+        child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
+        activate=True,
+    ) as span:
+        # reset span start time to before function call
+        span.start_ns = start_ns
+
+        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
+        span.set_tag_str(COMPONENT, config.kafka.integration_name)
+        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
+        if message is not None:
+            message_key = message.key or ""
+            message_offset = message.offset or -1
+            span.set_tag_str(kafkax.TOPIC, message.topic)
+
+            # If this is a deserializing consumer, do not set the key as a tag since we
+            # do not have the serialization function
+            if isinstance(message_key, str) or isinstance(message_key, bytes):
+                span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
+            span.set_tag(kafkax.PARTITION, message.partition)
+            is_tombstone = False
+            try:
+                is_tombstone = len(message) == 0
+            except TypeError:  # https://github.com/confluentinc/confluent-kafka-python/issues/1192
+                pass
+            span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
+            span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
+        span.set_tag(SPAN_MEASURED_KEY)
+        rate = config.kafka.get_analytics_sample_rate()
+        if rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+
+        if err is not None:
+            span.set_exc_info(*sys.exc_info())
 
 
 async def traced_commit(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        return func(*args, **kwargs)
-    return func(*args, **kwargs)
+        return await func(*args, **kwargs)
+    return await func(*args, **kwargs)
