@@ -564,18 +564,16 @@ class AgentWriter(HTTPWriter):
         response = super(AgentWriter, self)._send_payload(payload, count, client)
         if response.status in [404, 415]:
             log.debug("calling endpoint '%s' but received %s; downgrading API", client.ENDPOINT, response.status)
-            try:
-                payload = self._downgrade(payload, response, client)
-            except ValueError:
+            payload = self._downgrade(payload, response, client)
+            if payload is not None:
+                self._send_payload(payload, count, client)
+            else:
                 log.error(
                     "unsupported endpoint '%s': received response %s from intake (%s)",
                     client.ENDPOINT,
                     response.status,
                     self.intake_url,
                 )
-            else:
-                if payload is not None:
-                    self._send_payload(payload, count, client)
         elif response.status < 400:
             if self._response_cb:
                 raw_resp = response.get_json()
