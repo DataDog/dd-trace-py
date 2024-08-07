@@ -1,5 +1,4 @@
 ---
 fixes:
   - |
-    tracing: Removes deprecation warning and adds ``ddtrace._trace.Context``. This class can now be used to propagate context across threads and processes.
-    This class must be imported from the ``ddtrace`` module (ex: ``from ddtrace import Context``).
+    tracing: Adds ``ddtrace.trace.Context`` to the public api. This class can now be used to propagate context across execution boundries (ex: threads).

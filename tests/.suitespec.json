@@ -87,6 +87,7 @@
             "ddtrace/_logger.py",
             "ddtrace/_monkey.py",
             "ddtrace/_trace/*",
+            "ddtrace/trace/*",
             "ddtrace/constants.py",
             "ddtrace/context.py",
             "ddtrace/filters.py",
