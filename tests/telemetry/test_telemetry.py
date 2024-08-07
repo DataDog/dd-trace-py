@@ -222,12 +222,8 @@ tracer.trace("hello").finish()
 
 
 def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
-
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
-    assert status == 0, stderr
-    assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace\nimport sys\nsys.exit(1)")
+    assert status == 1, stderr
 
     app_closings = test_agent_session.get_events("app-closing")
     assert len(app_closings) == 1
