@@ -44,7 +44,7 @@ SynchronizedSamplePool::get_sample()
         return static_cast<Sample*>(pop_result.ok);
     } else if (pop_result.tag == DDOG_ARRAY_QUEUE_POP_RESULT_EMPTY) {
         return std::nullopt;
-    } else if (pop_result.tag == DDOG_ARRAY_QUEUE_POP_RESULT_ERROR) {
+    } else if (pop_result.tag == DDOG_ARRAY_QUEUE_POP_RESULT_ERR) {
         auto err = pop_result.err;
         std::string errmsg = err_to_msg(&err, "Failed to get sample from pool");
         std::cerr << errmsg << std::endl;
@@ -66,7 +66,7 @@ SynchronizedSamplePool::return_sample(Sample* sample)
         return std::nullopt;
     } else if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_FULL) {
         return static_cast<Sample*>(push_result.full);
-    } else if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_ERROR) {
+    } else if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_ERR) {
         auto err = push_result.err;
         std::string errmsg = err_to_msg(&err, "Failed to return sample to pool");
         std::cerr << errmsg << std::endl;
