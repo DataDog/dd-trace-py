@@ -26,7 +26,6 @@ class Uploader
     std::string errmsg;
     static inline std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel;
     static inline std::atomic<uint64_t> upload_seq{ 0 };
-    std::string runtime_id;
     std::string output_filename;
     std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
 
