@@ -1,8 +1,10 @@
 import logging
+import time
 
 import aiokafka
 from aiokafka.admin import AIOKafkaAdminClient
 from aiokafka.admin import NewTopic
+from aiokafka.structs import TopicPartition
 import pytest
 
 from ddtrace import Pin
@@ -35,9 +37,8 @@ async def kafka_topic(request):
         await client.delete_topics([topic_name])
         await client.create_topics([NewTopic(topic_name, 1, 1)])
     except Exception as e:
-        print(f"Failed to delete/create topic '{topic_name}': {e}")
+        logger.error("Failed to delete/create topic %s: %s", topic_name, e)
     finally:
-        # Close the admin client
         await client.close()
 
     return topic_name
@@ -74,31 +75,31 @@ async def producer(tracer):
     _producer = aiokafka.AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS])
     await _producer.start()
     Pin.override(_producer, tracer=tracer)
-    return _producer
+    yield _producer
+    await _producer.stop()
 
 
 @pytest.fixture
 async def consumer(tracer, kafka_topic):
     logger.debug("Creating consumer")
     _consumer = aiokafka.AIOKafkaConsumer(
+        kafka_topic,
         bootstrap_servers=[BOOTSTRAP_SERVERS],
         auto_offset_reset="earliest",
         group_id=GROUP_ID,
+        fetch_max_wait_ms=1000,
+        consumer_timeout_ms=1000,
     )
-    logger.debug("Resetting offset for topic %s", kafka_topic)
-    # tp = TopicPartition(kafka_topic, 0)
-    # _consumer.commit({tp: OffsetAndMetadata(0, "")})
-    # Pin.override(_consumer, tracer=tracer)
-    # logger.debug("Subscribing to topic")
-    # _consumer.subscribe(topics=[kafka_topic])
-    await consumer.start()
+    Pin.override(_consumer, tracer=tracer)
+
+    await _consumer.start()
     yield _consumer
+    await _consumer.stop()
 
 
 async def test_send_single_server(dummy_tracer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
-    await producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-    await producer.stop()
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
 
     traces = dummy_tracer.pop_traces()
     assert 1 == len(traces)
@@ -109,8 +110,9 @@ async def test_send_single_server(dummy_tracer, producer, kafka_topic):
 
 async def test_send_multiple_servers(dummy_tracer, kafka_topic):
     producer = aiokafka.AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS] * 3)
+    await producer.start()
     Pin.override(producer, tracer=dummy_tracer)
-    await producer.send(kafka_topic, value=PAYLOAD, key=KEY)
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
     await producer.stop()
 
     traces = dummy_tracer.pop_traces()
@@ -122,8 +124,7 @@ async def test_send_multiple_servers(dummy_tracer, kafka_topic):
 
 async def test_send_none_key(dummy_tracer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
-    await producer.send(kafka_topic, value=PAYLOAD, key=None)
-    await producer.stop()
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=None)
 
     traces = dummy_tracer.pop_traces()
     assert 1 == len(traces), "key=None does not cause send() call to raise an exception"
@@ -135,7 +136,50 @@ async def test_send_none_key(dummy_tracer, producer, kafka_topic):
 async def test_message(producer, tombstone, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         if tombstone:
-            await producer.send(kafka_topic, value=None, key=KEY)
+            await producer.send_and_wait(kafka_topic, value=None, key=KEY)
         else:
-            await producer.send(kafka_topic, value=PAYLOAD, key=KEY)
-        await producer.stop()
+            await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+async def test_getone_with_commit(producer, consumer, kafka_topic):
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+    await producer.stop()
+    await consumer.getone()
+    await consumer.commit()
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+async def test_getmany_single_message_with_commit(producer, consumer, kafka_topic):
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+    await producer.stop()
+
+    # One message is consumed and one span is generated.
+    messages = await consumer.getmany()
+    assert len(messages) == 1
+    await consumer.commit()
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+async def test_getmany_multiple_messages_with_commit(producer, consumer, kafka_topic):
+    time.sleep(10)  # Lowering this value makes the test go flaky for some reason
+    logger.info("send messages")
+    await producer.send_and_wait(kafka_topic, value="first message".encode("utf-8"), key="1".encode("utf-8"))
+    await producer.send_and_wait(kafka_topic, value="second message".encode("utf-8"), key="2".encode("utf-8"))
+    logger.info("stop producer")
+    await producer.stop()
+
+    # Two messages are consumed but only ONE span is generated
+    logger.info("consumer getmany")
+    messages = await consumer.getmany()
+    for tp, records in messages.items():
+        assert len(records) == 2
+    await consumer.commit()
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+async def test_getone_with_commit_with_offset(producer, consumer, kafka_topic):
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+    await producer.stop()
+    result = await consumer.getone()
+    await consumer.commit({TopicPartition(result.topic, result.partition): result.offset + 1})
