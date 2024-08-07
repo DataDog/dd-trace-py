@@ -160,6 +160,27 @@ class PylibmcCore(object):
         assert get_missing_key_span.resource == "get"
         assert get_missing_key_span.get_metric("db.row_count") == 0
 
+    def test_add(self):
+        client, tracer = self.get_client()
+        # test
+        start = time.time()
+        client.add("a", "first")
+        out = client.get("a")
+        assert out == "first"
+        client.add("a", "second")
+        out = client.get("a")
+        assert out == "first"
+        end = time.time()
+        # verify
+        spans = tracer.pop()
+        for s in spans:
+            self._verify_cache_span(s, start, end)
+
+        assert spans[0].resource == "add"
+        assert spans[1].resource == "get"
+        assert spans[2].resource == "add"
+        assert spans[3].resource == "get"
+
     def test_get_multi_rowcount(self):
         client, tracer = self.get_client()
         # test

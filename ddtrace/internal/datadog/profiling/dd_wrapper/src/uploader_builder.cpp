@@ -15,6 +15,7 @@ Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
         dd_env = _dd_env;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_service(std::string_view _service)
 {
@@ -22,6 +23,7 @@ Datadog::UploaderBuilder::set_service(std::string_view _service)
         service = _service;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_version(std::string_view _version)
 {
@@ -29,41 +31,12 @@ Datadog::UploaderBuilder::set_version(std::string_view _version)
         version = _version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_runtime(std::string_view _runtime)
 {
     if (!_runtime.empty()) {
         runtime = _runtime;
-    }
-}
-void
-Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
-{
-    if (!_runtime_version.empty()) {
-        runtime_version = _runtime_version;
-    }
-}
-void
-Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
-{
-    if (!_profiler_version.empty()) {
-        profiler_version = _profiler_version;
-    }
-}
-void
-Datadog::UploaderBuilder::set_url(std::string_view _url)
-{
-    if (!_url.empty()) {
-        url = _url;
-    }
-}
-void
-Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
-{
-
-    if (!_key.empty() && !_val.empty()) {
-        const std::lock_guard<std::mutex> lock(tag_mutex);
-        user_tags[std::string(_key)] = std::string(_val);
     }
 }
 
@@ -72,6 +45,40 @@ Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
 {
     if (!_runtime_id.empty()) {
         runtime_id = _runtime_id;
+    }
+}
+
+void
+Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
+{
+    if (!_runtime_version.empty()) {
+        runtime_version = _runtime_version;
+    }
+}
+
+void
+Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
+{
+    if (!_profiler_version.empty()) {
+        profiler_version = _profiler_version;
+    }
+}
+
+void
+Datadog::UploaderBuilder::set_url(std::string_view _url)
+{
+    if (!_url.empty()) {
+        url = _url;
+    }
+}
+
+void
+Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
+{
+
+    if (!_key.empty() && !_val.empty()) {
+        const std::lock_guard<std::mutex> lock(tag_mutex);
+        user_tags[std::string(_key)] = std::string(_val);
     }
 }
 
@@ -109,6 +116,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::version, version },
         { ExportTagKey::language, language },
         { ExportTagKey::runtime, runtime },
+        { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::profiler_version, profiler_version },
     };
@@ -151,6 +159,20 @@ Datadog::UploaderBuilder::build()
         auto& err = std::get<ddog_Error>(ddog_exporter_result);
         std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
+        return errmsg;
+    }
+
+    // 5s is a common timeout parameter for Datadog profilers
+    const uint64_t max_timeout_ms = 5000;
+    ddog_prof_MaybeError set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
+    if (set_timeout_result.tag == DDOG_PROF_OPTION_ERROR_SOME_ERROR) {
+        auto& err = set_timeout_result.some;
+        std::string errmsg = Datadog::err_to_msg(&err, "Error setting timeout on exporter");
+        ddog_Error_drop(&err); // errmsg contains a copy of err.message
+        // If set_timeout had failed, then the ddog_exporter must have been a
+        // null pointer, so it's redundant to drop it here but it should also
+        // be safe to do so.
+        ddog_prof_Exporter_drop(ddog_exporter);
         return errmsg;
     }
 

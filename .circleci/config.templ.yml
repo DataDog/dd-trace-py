@@ -80,7 +80,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.19.0
+      - run: pip3 install riot==0.19.1
 
   setup_rust:
     description: "Install rust toolchain"
@@ -439,10 +439,10 @@ jobs:
           path: coverage.json
       # Print ddtrace/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=tests/ || true
+      - run: coverage report --ignore-errors --omit='tests/*' || true
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=ddtrace/ || true
+      - run: coverage report --ignore-errors --omit='ddtrace/*' || true
       # Print diff-cover report to stdout (compares against origin/1.x)
       - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml || true
 
@@ -572,6 +572,7 @@ jobs:
           pattern: "datastreams"
 
   tracer:
+    parallelism: 10
     <<: *contrib_job_large
     steps:
       - run_test:
@@ -585,6 +586,15 @@ jobs:
       - run_test:
           pattern: "ci_visibility"
           snapshot: true
+
+  dd_coverage:
+    <<: *machine_executor
+    parallelism: 6
+    steps:
+      - run_hatch_env_test:
+          env: 'dd_coverage'
+          snapshot: true
+
 
   llmobs:
     <<: *contrib_job

@@ -12,9 +12,7 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
-@pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) >= (1, 0, 0), reason="These tests are for openai < 1.0"
-)
+@pytest.mark.skipif(parse_version(openai_module.version.VERSION) >= (1, 0), reason="These tests are for openai < 1.0")
 class TestLLMObsOpenaiV0:
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -35,7 +33,7 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
-                metadata={"temperature": 0.8, "max_tokens": 10},
+                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -58,7 +56,7 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": expected_completion}],
-                metadata={"temperature": 0},
+                metadata={"stream": True},
                 token_metrics={"input_tokens": 2, "output_tokens": 16, "total_tokens": 18},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -81,11 +79,7 @@ class TestLLMObsOpenaiV0:
                 {"role": "user", "content": "Where was it played?"},
             ]
             resp = openai.ChatCompletion.create(
-                model=model,
-                messages=input_messages,
-                top_p=0.9,
-                n=2,
-                user="ddtrace-test",
+                model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -96,7 +90,7 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
-                metadata={"temperature": 0},
+                metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -118,10 +112,7 @@ class TestLLMObsOpenaiV0:
                 mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
                 expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
                 resp = openai.ChatCompletion.create(
-                    model=model,
-                    messages=input_messages,
-                    stream=True,
-                    user="ddtrace-test",
+                    model=model, messages=input_messages, stream=True, user="ddtrace-test"
                 )
                 for chunk in resp:
                     resp_model = chunk.model
@@ -134,7 +125,7 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
-                metadata={"temperature": 0},
+                metadata={"stream": True, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 8, "output_tokens": 12, "total_tokens": 20},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -154,10 +145,22 @@ class TestLLMObsOpenaiV0:
                 function_call="auto",
                 user="ddtrace-test",
             )
-        expected_output = "[function: {}]\n\n{}".format(
-            resp.choices[0].message.function_call.name,
-            resp.choices[0].message.function_call.arguments,
-        )
+        expected_output = {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "name": "extract_student_info",
+                    "arguments": {
+                        "name": "David Nguyen",
+                        "major": "computer science",
+                        "school": "Stanford University",
+                        "grades": 3.8,
+                        "clubs": ["Chess Club", "South Asian Student Association"],
+                    },
+                }
+            ],
+        }
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -166,8 +169,8 @@ class TestLLMObsOpenaiV0:
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                output_messages=[{"content": expected_output, "role": "assistant"}],
-                metadata={"temperature": 0},
+                output_messages=[expected_output],
+                metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -204,7 +207,7 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[{"content": expected_output, "role": "assistant"}],
-                metadata={"temperature": 0},
+                metadata={"stream": True, "user": "ddtrace-test", "function_call": "auto"},
                 token_metrics={"input_tokens": 63, "output_tokens": 33, "total_tokens": 96},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -222,7 +225,24 @@ class TestLLMObsOpenaiV0:
                 tool_choice="auto",
                 user="ddtrace-test",
             )
-        expected_output = '[tool: extract_student_info]\n\n{\n  "name": "David Nguyen",\n  "major": "computer science",\n  "school": "Stanford University",\n  "grades": 3.8,\n  "clubs": ["Chess Club", "South Asian Student Association"]\n}'  # noqa: E501
+        expected_output = {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "name": "extract_student_info",
+                    "arguments": {
+                        "name": "David Nguyen",
+                        "major": "computer science",
+                        "school": "Stanford University",
+                        "grades": 3.8,
+                        "clubs": ["Chess Club", "South Asian Student Association"],
+                    },
+                    "tool_id": "call_ukwJcJsOt7gOrv9xGRAntkZQ",
+                    "type": "function",
+                }
+            ],
+        }
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -231,8 +251,8 @@ class TestLLMObsOpenaiV0:
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                output_messages=[{"content": expected_output, "role": "assistant"}],
-                metadata={"temperature": 0},
+                output_messages=[expected_output],
+                metadata={"tool_choice": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -262,7 +282,7 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ""}],
-                metadata={"temperature": 0.8, "max_tokens": 10},
+                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={},
                 error="openai.error.AuthenticationError",
                 error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
@@ -285,13 +305,7 @@ class TestLLMObsOpenaiV0:
                     {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
                     {"role": "user", "content": "Where was it played?"},
                 ]
-                openai.ChatCompletion.create(
-                    model=model,
-                    messages=input_messages,
-                    top_p=0.9,
-                    n=2,
-                    user="ddtrace-test",
-                )
+                openai.ChatCompletion.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -301,7 +315,7 @@ class TestLLMObsOpenaiV0:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": ""}],
-                metadata={"temperature": 0},
+                metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
                 token_metrics={},
                 error="openai.error.AuthenticationError",
                 error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
@@ -315,9 +329,7 @@ class TestLLMObsOpenaiV0:
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
-@pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 0, 0), reason="These tests are for openai >= 1.0"
-)
+@pytest.mark.skipif(parse_version(openai_module.version.VERSION) < (1, 0), reason="These tests are for openai >= 1.0")
 class TestLLMObsOpenaiV1:
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -345,7 +357,7 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
-                metadata={"temperature": 0.8, "max_tokens": 10},
+                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -373,7 +385,7 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": expected_completion}],
-                metadata={"temperature": 0},
+                metadata={"stream": True},
                 token_metrics={"input_tokens": 2, "output_tokens": 2, "total_tokens": 4},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -395,11 +407,7 @@ class TestLLMObsOpenaiV1:
             ]
             client = openai.OpenAI()
             resp = client.chat.completions.create(
-                model=model,
-                messages=input_messages,
-                top_p=0.9,
-                n=2,
-                user="ddtrace-test",
+                model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -410,7 +418,7 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
-                metadata={"temperature": 0},
+                metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -433,10 +441,7 @@ class TestLLMObsOpenaiV1:
                     expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
                     client = openai.OpenAI()
                     resp = client.chat.completions.create(
-                        model=model,
-                        messages=input_messages,
-                        stream=True,
-                        user="ddtrace-test",
+                        model=model, messages=input_messages, stream=True, user="ddtrace-test"
                     )
                     for chunk in resp:
                         resp_model = chunk.model
@@ -449,7 +454,7 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
-                metadata={"temperature": 0},
+                metadata={"stream": True, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -468,10 +473,22 @@ class TestLLMObsOpenaiV1:
                 function_call="auto",
                 user="ddtrace-test",
             )
-        expected_output = "[function: {}]\n\n{}".format(
-            resp.choices[0].message.function_call.name,
-            resp.choices[0].message.function_call.arguments,
-        )
+        expected_output = {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "name": "extract_student_info",
+                    "arguments": {
+                        "name": "David Nguyen",
+                        "major": "computer science",
+                        "school": "Stanford University",
+                        "grades": 3.8,
+                        "clubs": ["Chess Club", "South Asian Student Association"],
+                    },
+                }
+            ],
+        }
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -480,8 +497,8 @@ class TestLLMObsOpenaiV1:
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                output_messages=[{"content": expected_output, "role": "assistant"}],
-                metadata={"temperature": 0},
+                output_messages=[expected_output],
+                metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -499,6 +516,24 @@ class TestLLMObsOpenaiV1:
                 messages=[{"role": "user", "content": chat_completion_input_description}],
                 user="ddtrace-test",
             )
+        expected_output = {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "name": "extract_student_info",
+                    "arguments": {
+                        "name": "David Nguyen",
+                        "major": "computer science",
+                        "school": "Stanford University",
+                        "grades": 3.8,
+                        "clubs": ["Chess Club", "South Asian Student Association"],
+                    },
+                    "tool_id": "call_FJStsEjxdODw9tBmQRRkm6vY",
+                    "type": "function",
+                }
+            ],
+        }
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -507,16 +542,8 @@ class TestLLMObsOpenaiV1:
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                output_messages=[
-                    {
-                        "content": "[tool: {}]\n\n{}".format(
-                            resp.choices[0].message.tool_calls[0].function.name,
-                            resp.choices[0].message.tool_calls[0].function.arguments,
-                        ),
-                        "role": "assistant",
-                    }
-                ],
-                metadata={"temperature": 0},
+                output_messages=[expected_output],
+                metadata={"user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>"},
                 integration="openai",
@@ -547,7 +574,7 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ""}],
-                metadata={"temperature": 0.8, "max_tokens": 10},
+                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={},
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
@@ -570,11 +597,7 @@ class TestLLMObsOpenaiV1:
                     {"role": "user", "content": "Where was it played?"},
                 ]
                 client.chat.completions.create(
-                    model=model,
-                    messages=input_messages,
-                    top_p=0.9,
-                    n=2,
-                    user="ddtrace-test",
+                    model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
                 )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -585,7 +608,7 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": ""}],
-                metadata={"temperature": 0},
+                metadata={"n": 2, "top_p": 0.9, "user": "ddtrace-test"},
                 token_metrics={},
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
@@ -692,10 +715,7 @@ class TestLLMObsOpenaiV1:
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_b64.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(
-                input="hello world",
-                model="text-embedding-3-small",
-                encoding_format="base64",
-                dimensions=512,
+                input="hello world", model="text-embedding-3-small", encoding_format="base64", dimensions=512
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -713,3 +733,31 @@ class TestLLMObsOpenaiV1:
                 integration="openai",
             )
         )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>", _llmobs_agentless_enabled=True)],
+)
+@pytest.mark.skipif(parse_version(openai_module.version.VERSION) < (1, 0), reason="These tests are for openai >= 1.0")
+def test_agentless_enabled_does_not_submit_metrics(
+    openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer, mock_metrics
+):
+    """Ensure openai metrics are not emitted when agentless mode is enabled."""
+    with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
+        model = "ada"
+        client = openai.OpenAI()
+        client.completions.create(
+            model=model,
+            prompt="Hello world",
+            temperature=0.8,
+            n=2,
+            stop=".",
+            max_tokens=10,
+            user="ddtrace-test",
+        )
+    assert mock_llmobs_writer.enqueue.call_count == 1
+    mock_metrics.assert_not_called()
+    assert mock_metrics.increment.call_count == 0
+    assert mock_metrics.distribution.call_count == 0
+    assert mock_metrics.gauge.call_count == 0

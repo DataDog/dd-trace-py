@@ -1,13 +1,13 @@
 # distutils: language = c++
 # cython: language_level=3
 
-import platform
 from typing import Dict
 from typing import Optional
 from typing import Union
 
 import ddtrace
-from ..types import StringType
+import platform
+from .._types import StringType
 from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME

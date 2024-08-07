@@ -198,7 +198,7 @@ def traced_produce(func, instance, args, kwargs):
             # inject headers with Datadog tags:
             headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
             Propagator.inject(span.context, headers)
-            args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers)
+            args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
         return func(*args, **kwargs)
 
 

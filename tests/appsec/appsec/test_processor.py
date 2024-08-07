@@ -4,11 +4,11 @@ import os.path
 
 import mock
 import pytest
-from six import ensure_binary
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
+from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -78,7 +78,7 @@ def test_enable_custom_rules():
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
-    assert processor.rules == rules.RULES_GOOD_PATH
+    assert processor.rule_filename == rules.RULES_GOOD_PATH
 
 
 def test_ddwaf_ctx(tracer_appsec):
@@ -173,6 +173,9 @@ def test_headers_collection(tracer_appsec):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -199,6 +202,9 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -307,6 +313,9 @@ def test_ip_update_rules_expired_no_block(tracer):
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -373,8 +382,8 @@ def test_ddwaf_not_raises_exception():
         rules_json = json.loads(rules.read())
         DDWaf(
             rules_json,
-            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP),
-            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP),
+            DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
+            DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
         )
 
 

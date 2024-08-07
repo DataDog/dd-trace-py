@@ -39,6 +39,8 @@ class Sampler
     static Sampler& get();
     void start();
     void stop();
+    void register_thread(uint64_t id, uint64_t native_id, const char* name);
+    void unregister_thread(uint64_t id);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our own
     // intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just update

@@ -40,7 +40,6 @@ from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
-from ..internal.constants import DEFAULT_LAST_PARENT_ID
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -62,19 +61,19 @@ log = get_logger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
-_HTTP_BAGGAGE_PREFIX = "ot-baggage-"
-HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
-HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
-HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
-HTTP_HEADER_ORIGIN = "x-datadog-origin"
-_HTTP_HEADER_B3_SINGLE = "b3"
-_HTTP_HEADER_B3_TRACE_ID = "x-b3-traceid"
-_HTTP_HEADER_B3_SPAN_ID = "x-b3-spanid"
-_HTTP_HEADER_B3_SAMPLED = "x-b3-sampled"
-_HTTP_HEADER_B3_FLAGS = "x-b3-flags"
-_HTTP_HEADER_TAGS = "x-datadog-tags"
-_HTTP_HEADER_TRACEPARENT = "traceparent"
-_HTTP_HEADER_TRACESTATE = "tracestate"
+_HTTP_BAGGAGE_PREFIX: Literal["ot-baggage-"] = "ot-baggage-"
+HTTP_HEADER_TRACE_ID: Literal["x-datadog-trace-id"] = "x-datadog-trace-id"
+HTTP_HEADER_PARENT_ID: Literal["x-datadog-parent-id"] = "x-datadog-parent-id"
+HTTP_HEADER_SAMPLING_PRIORITY: Literal["x-datadog-sampling-priority"] = "x-datadog-sampling-priority"
+HTTP_HEADER_ORIGIN: Literal["x-datadog-origin"] = "x-datadog-origin"
+_HTTP_HEADER_B3_SINGLE: Literal["b3"] = "b3"
+_HTTP_HEADER_B3_TRACE_ID: Literal["x-b3-traceid"] = "x-b3-traceid"
+_HTTP_HEADER_B3_SPAN_ID: Literal["x-b3-spanid"] = "x-b3-spanid"
+_HTTP_HEADER_B3_SAMPLED: Literal["x-b3-sampled"] = "x-b3-sampled"
+_HTTP_HEADER_B3_FLAGS: Literal["x-b3-flags"] = "x-b3-flags"
+_HTTP_HEADER_TAGS: Literal["x-datadog-tags"] = "x-datadog-tags"
+_HTTP_HEADER_TRACEPARENT: Literal["traceparent"] = "traceparent"
+_HTTP_HEADER_TRACESTATE: Literal["tracestate"] = "tracestate"
 
 
 def _possible_header(header):
@@ -745,7 +744,7 @@ class _TraceContext:
                 origin = _TraceContext.decode_tag_val(origin)
 
             # Get last datadog parent id, this field is used to reconnect traces with missing spans
-            lpid = dd.get("p", "0000000000000000")
+            lpid = dd.get("p")
 
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
@@ -945,7 +944,7 @@ class HTTPPropagator(object):
                     dd_context = None
                     if PROPAGATION_STYLE_DATADOG in styles_w_ctx:
                         dd_context = contexts[styles_w_ctx.index(PROPAGATION_STYLE_DATADOG)]
-                    if context._meta.get(LAST_DD_PARENT_ID_KEY, DEFAULT_LAST_PARENT_ID) != DEFAULT_LAST_PARENT_ID:
+                    if LAST_DD_PARENT_ID_KEY in context._meta:
                         # tracecontext headers contain a p value, ensure this value is sent to backend
                         primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
                     elif dd_context:

@@ -287,7 +287,7 @@ def test_debugger_invalid_source_file(log):
         Stuff().instancestuff()
 
         log.error.assert_called_once_with(
-            "Cannot inject probe %s: source file %s cannot be resolved", "invalidsource", None
+            "Cannot inject probe %s: source file %s cannot be resolved", "invalidsource", "tests/submod/bonkers.py"
         )
 
         assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidsource" for s in d.uploader.wait_for_payloads())
@@ -336,8 +336,8 @@ def test_debugger_tracer_correlation():
         )
 
         with d._tracer.trace("test-span") as span:
-            trace_id = span.trace_id
-            span_id = span.span_id
+            trace_id = str(span.trace_id)
+            span_id = str(span.span_id)
             Stuff().instancestuff()
 
         snapshots = d.uploader.wait_for_payloads()

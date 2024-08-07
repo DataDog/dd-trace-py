@@ -4,7 +4,9 @@ import pyramid
 import pyramid.config
 
 from ddtrace import config
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.debtcollector import deprecate
 
 from ...internal.utils.formats import asbool
 from .constants import SETTINGS_ANALYTICS_ENABLED
@@ -25,7 +27,7 @@ config._add(
 DD_PATCH = "_datadog_patch"
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     try:
         import importlib.metadata as importlib_metadata
@@ -33,6 +35,16 @@ def get_version():
         import importlib_metadata  # type: ignore[no-redef]
 
     return str(importlib_metadata.version(pyramid.__package__))
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -44,10 +56,10 @@ def patch():
 
     setattr(pyramid.config, DD_PATCH, True)
     _w = wrapt.wrap_function_wrapper
-    _w("pyramid.config", "Configurator.__init__", traced_init)
+    _w("pyramid.config", "Configurator.__init__", _traced_init)
 
 
-def traced_init(wrapped, instance, args, kwargs):
+def _traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop("settings", {})
     service = config._get_service(default="pyramid")
     # DEV: integration-specific analytics flag can be not set but still enabled
@@ -71,7 +83,7 @@ def traced_init(wrapped, instance, args, kwargs):
     trace_settings.update(settings)
     # If the tweens are explicitly set with 'pyramid.tweens', we need to
     # explicitly set our tween too since `add_tween` will be ignored.
-    insert_tween_if_needed(trace_settings)
+    _insert_tween_if_needed(trace_settings)
 
     # The original Configurator.__init__ looks up two levels to find the package
     # name if it is not provided. This has to be replicated here since this patched
@@ -86,7 +98,17 @@ def traced_init(wrapped, instance, args, kwargs):
     trace_pyramid(instance)
 
 
-def insert_tween_if_needed(settings):
+def traced_init(wrapped, instance, args, kwargs):
+    deprecate(
+        "traced_init is deprecated",
+        message="traced_init is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _traced_init(wrapped, instance, args, kwargs)
+
+
+def _insert_tween_if_needed(settings):
     tweens = settings.get("pyramid.tweens")
     # If the list is empty, pyramid does not consider the tweens have been
     # set explicitly.
@@ -101,3 +123,13 @@ def insert_tween_if_needed(settings):
         settings["pyramid.tweens"] = tweens + "\n" + DD_TWEEN_NAME
     else:
         settings["pyramid.tweens"] = tweens[:idx] + DD_TWEEN_NAME + "\n" + tweens[idx:]
+
+
+def insert_tween_if_needed(settings):
+    deprecate(
+        "insert_tween_if_needed is deprecated",
+        message="insert_tween_if_needed is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _insert_tween_if_needed(settings)

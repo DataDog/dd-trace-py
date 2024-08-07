@@ -1,7 +1,7 @@
 from collections import defaultdict
 import copy
 
-import bm as bm
+from bm import Scenario
 import bm.utils as utils
 
 from ddtrace import config as ddconfig
@@ -44,15 +44,15 @@ DATA_GET = dict(
 )
 
 
-class SetHttpMeta(bm.Scenario):
-    allenabled = bm.var_bool()
-    useragentvariant = bm.var(type=str)
-    obfuscation_disabled = bm.var_bool()
-    send_querystring_enabled = bm.var_bool()
-    url = bm.var(type=str)
-    querystring = bm.var(type=str)
-    ip_header = bm.var(type=str)
-    ip_enabled = bm.var_bool()
+class SetHttpMeta(Scenario):
+    useragentvariant: str
+    url: str
+    querystring: str
+    ip_header: str
+    allenabled: bool
+    obfuscation_disabled: bool
+    send_querystring_enabled: bool
+    ip_enabled: bool
 
     def run(self):
         # run scenario to also set tags on spans

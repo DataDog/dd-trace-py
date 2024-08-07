@@ -29,3 +29,11 @@ OPENAI_APM_SPAN_NAME = "openai.request"
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
 TOTAL_TOKENS_METRIC_KEY = "total_tokens"
+
+EVP_PROXY_AGENT_BASE_PATH = "evp_proxy/v2"
+EVP_PROXY_AGENT_ENDPOINT = "{}/api/v2/llmobs".format(EVP_PROXY_AGENT_BASE_PATH)
+EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
+EVP_SUBDOMAIN_HEADER_VALUE = "llmobs-intake"
+
+AGENTLESS_BASE_URL = "https://llmobs-intake"
+AGENTLESS_ENDPOINT = "api/v2/llmobs"

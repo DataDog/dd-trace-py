@@ -1,4 +1,3 @@
-from enum import Enum
 from pathlib import Path
 from typing import Dict
 from typing import List
@@ -8,6 +7,7 @@ from typing import Tuple
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISuiteId
+from ddtrace.ext.ci_visibility.api import CITestStatus
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
@@ -26,7 +26,7 @@ class CIVisibilitySuiteType:
 
 
 class CIVisibilityModule(
-    CIVisibilityChildItem[CIModuleId], CIVisibilityParentItem[CIModuleId, CISuiteId, CIVisibilitySuite]
+    CIVisibilityParentItem[CIModuleId, CISuiteId, CIVisibilitySuite], CIVisibilityChildItem[CIModuleId]
 ):
     event_type = MODULE_TYPE
     event_type_metric_name = EVENT_TYPES.MODULE
@@ -44,9 +44,9 @@ class CIVisibilityModule(
         log.debug("Starting CI Visibility module %s", self.item_id)
         super().start()
 
-    def finish(self, force: bool = False, override_status: Optional[Enum] = None):
+    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None):
         log.debug("Finishing CI Visibility module %s", self.item_id)
-        super().finish()
+        super().finish(force=force, override_status=override_status)
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
         return {

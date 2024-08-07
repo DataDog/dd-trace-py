@@ -14,7 +14,6 @@ import weakref
 
 import mock
 import pytest
-import six
 
 import ddtrace
 from ddtrace._trace.context import Context
@@ -980,11 +979,11 @@ class EnvTracerTestCase(TracerTestCase):
         assert self.tracer._tags.get("key1") == "value1"
         assert self.tracer._tags.get("key2") == "value2"
 
-    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2,key3"))
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2, key3"))
     def test_dd_tags_invalid(self):
         assert self.tracer._tags.get("key1")
         assert self.tracer._tags.get("key2")
-        assert self.tracer._tags.get("key3") is None
+        assert not self.tracer._tags.get("key3")
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
     def test_tags_from_DD_TAGS(self):
@@ -1110,6 +1109,35 @@ def test_enable():
         assert not t2.enabled
 
 
+@pytest.mark.subprocess(
+    err=b"Shutting down tracer with 2 unfinished spans. "
+    b"Unfinished spans will not be sent to Datadog: "
+    b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
+    b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
+    b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
+    b"resource=my_resource1 started=167232131231.0 sampling_priority=2\n"
+)
+def test_unfinished_span_warning_log():
+    """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
+    from ddtrace import tracer
+    from ddtrace.constants import MANUAL_KEEP_KEY
+
+    # Create two unfinished spans
+    span1 = tracer.trace("unfinished_span1", service="my_service", resource="my_resource1")
+    span2 = tracer.trace("unfinished_span2", service="my_service", resource="my_resource1")
+    # hardcode the trace_id, parent_id, span_id, sampling decision and start time to make the test deterministic
+    span1.trace_id = 123
+    span1.parent_id = 0
+    span1.span_id = 456
+    span1.start = 46121775360
+    span1.set_tag(MANUAL_KEEP_KEY)
+    span2.trace_id = 123
+    span2.parent_id = 456
+    span2.span_id = 666
+    span2.start = 167232131231
+    span2.set_tag(MANUAL_KEEP_KEY)
+
+
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
 def test_threaded_import():
     import threading
@@ -1128,7 +1156,7 @@ def test_runtime_id_parent_only():
     # Parent spans should have runtime-id
     s = tracer.trace("test")
     rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, six.string_types)
+    assert isinstance(rtid, str)
 
     # Child spans should not
     s2 = tracer.trace("test2")
@@ -1140,7 +1168,7 @@ def test_runtime_id_parent_only():
     s = tracer.trace("test")
     s.finish()
     rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, six.string_types)
+    assert isinstance(rtid, str)
 
 
 def test_runtime_id_fork():
@@ -1150,7 +1178,7 @@ def test_runtime_id_fork():
     s.finish()
 
     rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, six.string_types)
+    assert isinstance(rtid, str)
 
     pid = os.fork()
 
@@ -1160,7 +1188,7 @@ def test_runtime_id_fork():
         s.finish()
 
         rtid_child = s.get_tag("runtime-id")
-        assert isinstance(rtid_child, six.string_types)
+        assert isinstance(rtid_child, str)
         assert rtid != rtid_child
         os._exit(12)
 
