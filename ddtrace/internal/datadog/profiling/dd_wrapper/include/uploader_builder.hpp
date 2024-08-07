@@ -25,7 +25,7 @@ class UploaderBuilder
     static inline std::string profiler_version;
     static inline std::string url{ "http://localhost:8126" };
     static inline ExporterTagset user_tags{};
-    static inline std::string output_filename { "" };
+    static inline std::string output_filename{ "" };
 
     static constexpr std::string_view language{ g_language_name };
     static constexpr std::string_view family{ g_language_name };
