@@ -40,7 +40,6 @@ from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
-from ..internal.constants import DEFAULT_LAST_PARENT_ID
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -744,7 +743,7 @@ class _TraceContext:
                 origin = _TraceContext.decode_tag_val(origin)
 
             # Get last datadog parent id, this field is used to reconnect traces with missing spans
-            lpid = dd.get("p", "0000000000000000")
+            lpid = dd.get("p")
 
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
@@ -946,7 +945,7 @@ class HTTPPropagator(object):
                     dd_context = None
                     if PROPAGATION_STYLE_DATADOG in styles_w_ctx:
                         dd_context = contexts[styles_w_ctx.index(PROPAGATION_STYLE_DATADOG)]
-                    if context._meta.get(LAST_DD_PARENT_ID_KEY, DEFAULT_LAST_PARENT_ID) != DEFAULT_LAST_PARENT_ID:
+                    if LAST_DD_PARENT_ID_KEY in context._meta:
                         # tracecontext headers contain a p value, ensure this value is sent to backend
                         primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
                     elif dd_context:
