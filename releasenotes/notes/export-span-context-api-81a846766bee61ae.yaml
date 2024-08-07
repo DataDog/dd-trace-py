@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: This introduces `LLMObs.export_span_context` method to allow users to export LLM Observability spans that are used for evaluations.

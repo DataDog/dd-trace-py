@@ -38,6 +38,7 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._utils import _get_llmobs_tags
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
@@ -46,6 +47,7 @@ from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
+from ddtrace.llmobs.utils import LLMObsSpanContext
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -224,6 +226,87 @@ class LLMObs(Service):
         """Patch LLM integrations."""
         patch(**{integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()})  # type: ignore[arg-type]
         log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
+
+    @classmethod
+    def export_span_context(cls, span: Optional[Span] = None) -> Optional[LLMObsSpanContext]:
+        """
+        Returns an exported representation of a span. If not span is provided, the current
+        active LLMObs-type span will be used.
+
+        :param Optional[Span] span: a span to be exported.
+        """
+        span = span if span else cls._instance.tracer.current_span()
+        if span is None:
+            log.warning("No span provided and no active LLMObs-generated span found.")
+            return None
+        try:
+            if span.span_type != SpanTypes.LLM:
+                log.warning("Span must be an LLMObs-generated span.")
+                return None
+        except (TypeError, AttributeError):
+            log.warning("Failed to export span context. `span` must be a valid Span object.")
+            return None
+
+        if span.finished:
+            log.warning("Cannot export a finished span.")
+            return None
+
+        # (TODO): lievan - how do we make this work with finished spans where these tags are already popped?
+        exported_span = LLMObsSpanContext(
+            span_id=str(span.span_id),
+            trace_id="{:x}".format(span.trace_id),
+            name=span.name,
+            parent_id=_get_llmobs_parent_id(span),
+            kind=span.get_tag(SPAN_KIND),
+            ml_app=_get_ml_app(span),
+        )
+
+        metadata = span.get_tag(METADATA)
+        if metadata is not None:
+            exported_span.meta.metadata = json.loads(metadata)
+
+        metrics = span.get_tag(METRICS)
+        if metrics is not None:
+            exported_span.metrics = json.loads(metrics)
+
+        input_value = span.get_tag(INPUT_VALUE)
+        if input_value is not None:
+            exported_span.meta.input.value = input_value
+
+        input_documents = span.get_tag(INPUT_DOCUMENTS)
+        if input_documents is not None:
+            exported_span.meta.input.documents = json.loads(input_documents)
+
+        input_messages = span.get_tag(INPUT_MESSAGES)
+        if input_messages is not None:
+            exported_span.meta.input.messages = json.loads(input_messages)
+
+        output_value = span.get_tag(OUTPUT_VALUE)
+        if output_value is not None:
+            exported_span.meta.output.value = output_value
+
+        output_documents = span.get_tag(OUTPUT_DOCUMENTS)
+        if output_documents is not None:
+            exported_span.meta.output.documents = json.loads(output_documents)
+
+        output_messages = span.get_tag(OUTPUT_MESSAGES)
+        if output_messages is not None:
+            exported_span.meta.output.messages = json.loads(output_messages)
+
+        model_name = span.get_tag(MODEL_NAME)
+        if model_name is not None:
+            exported_span.meta.model_name = model_name
+
+        model_provider = span.get_tag(MODEL_PROVIDER)
+        if model_provider is not None:
+            exported_span.meta.model_provider = model_provider
+
+        session_id = span.get_tag(SESSION_ID)
+        if session_id is not None:
+            exported_span.session_id = session_id
+
+        exported_span.tags = _get_llmobs_tags(span, ml_app=_get_ml_app(span), session_id=_get_session_id(span))
+        return exported_span
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:

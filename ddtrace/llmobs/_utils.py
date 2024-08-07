@@ -1,8 +1,11 @@
+import json
+from typing import Dict
 from typing import Optional
 
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
@@ -11,9 +14,30 @@ from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import TAGS
 
 
 log = get_logger(__name__)
+
+
+def _get_llmobs_tags(span: Span, ml_app: str, session_id: str) -> Dict[str, str]:
+    tags = {
+        "version": config.version or "",
+        "env": config.env or "",
+        "service": span.service or "",
+        "source": "integration",
+        "ml_app": ml_app,
+        "session_id": session_id,
+        "ddtrace.version": ddtrace.__version__,
+        "error": str(span.error),
+    }
+    err_type = span.get_tag(ERROR_TYPE)
+    if err_type:
+        tags["error_type"] = err_type
+    existing_tags = span.get_tag(TAGS)
+    if existing_tags is not None:
+        tags.update(json.loads(existing_tags))
+    return tags
 
 
 def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
