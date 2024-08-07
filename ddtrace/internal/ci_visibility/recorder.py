@@ -977,9 +977,6 @@ def _register_module_handlers():
 def _on_discover_suite(discover_args: CISuite.DiscoverArgs):
     log.debug("Handling discovery for suite args %s", discover_args)
     module = CIVisibility.get_module_by_id(discover_args.suite_id.parent_id)
-    if discover_args.suite_id in module.children:
-        log.warning("Suite with id %s already exists", discover_args.suite_id)
-        return
 
     module.add_child(
         CIVisibilitySuite(
@@ -1016,8 +1013,6 @@ def _register_suite_handlers():
 def _on_discover_test(discover_args: CITest.DiscoverArgs):
     log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
-    if discover_args.test_id in suite.children:
-        log.warning("Test with id %s already exists", discover_args.test_id)
 
     suite.add_child(
         CIVisibilityTest(

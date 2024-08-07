@@ -49,7 +49,7 @@ def mock_tracer(ddtrace_global_config, anthropic):
 
 @pytest.fixture
 def mock_llmobs_writer(scope="session"):
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanAgentWriter")
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
         LLMObsSpanWriterMock = patcher.start()
         m = mock.MagicMock()
