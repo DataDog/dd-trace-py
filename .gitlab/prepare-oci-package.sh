@@ -34,3 +34,6 @@ cp ../lib-injection/telemetry-forwarder.sh sources/
 clean-apt install python3
 echo "Deduplicating package files"
 python3 ../lib-injection/dedupe.py sources/ddtrace_pkgs/
+chmod -R +r sources/ddtrace_pkgs/
+chmod -R o-w sources/ddtrace_pkgs/
+chmod -R g-w sources/ddtrace_pkgs/
