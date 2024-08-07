@@ -1,5 +1,5 @@
+import json
 import logging
-import time
 
 import aiokafka
 from aiokafka.admin import AIOKafkaAdminClient
@@ -22,12 +22,24 @@ logger = logging.getLogger(__name__)
 GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "127.0.0.1:{}".format(KAFKA_CONFIG["port"])
 KEY = bytes("test_key", encoding="utf-8")
-PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
+PAYLOAD = "hueh hueh hueh"
 
 
 @pytest.fixture()
 async def kafka_topic(request):
     topic_name = request.node.name.replace("[", "_").replace("]", "")
+    await create_topic(topic_name)
+    return topic_name
+
+
+@pytest.fixture()
+async def kafka_topic_2(request):
+    topic_name = request.node.name.replace("[", "_").replace("]", "") + "_2"
+    await create_topic(topic_name)
+    return topic_name
+
+
+async def create_topic(topic_name):
     logger.debug("Creating topic %s", topic_name)
 
     client = AIOKafkaAdminClient(bootstrap_servers=[BOOTSTRAP_SERVERS])
@@ -69,10 +81,13 @@ async def tracer():
         unpatch()
 
 
+def serializer(value):
+    return json.dumps(value).encode()
+
+
 @pytest.fixture
 async def producer(tracer):
-    logger.debug("Creating producer")
-    _producer = aiokafka.AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS])
+    _producer = aiokafka.AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS], value_serializer=serializer)
     await _producer.start()
     Pin.override(_producer, tracer=tracer)
     yield _producer
@@ -81,20 +96,19 @@ async def producer(tracer):
 
 @pytest.fixture
 async def consumer(tracer, kafka_topic):
-    logger.debug("Creating consumer")
-    _consumer = aiokafka.AIOKafkaConsumer(
-        kafka_topic,
-        bootstrap_servers=[BOOTSTRAP_SERVERS],
-        auto_offset_reset="earliest",
-        group_id=GROUP_ID,
-        fetch_max_wait_ms=1000,
-        consumer_timeout_ms=1000,
-    )
+    _consumer = get_consumer()
     Pin.override(_consumer, tracer=tracer)
-
+    _consumer.subscribe([kafka_topic])
     await _consumer.start()
     yield _consumer
     await _consumer.stop()
+
+
+def get_consumer():
+    consumer = aiokafka.AIOKafkaConsumer(
+        bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID
+    )
+    return consumer
 
 
 async def test_send_single_server(dummy_tracer, producer, kafka_topic):
@@ -112,7 +126,7 @@ async def test_send_multiple_servers(dummy_tracer, kafka_topic):
     producer = aiokafka.AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS] * 3)
     await producer.start()
     Pin.override(producer, tracer=dummy_tracer)
-    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD.encode("utf-8"), key=KEY)
     await producer.stop()
 
     traces = dummy_tracer.pop_traces()
@@ -150,32 +164,36 @@ async def test_getone_with_commit(producer, consumer, kafka_topic):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-async def test_getmany_single_message_with_commit(producer, consumer, kafka_topic):
-    time.sleep(10)  # Lowering this value makes the test go flaky for some reason
+async def test_getmany_single_message_with_commit(producer, tracer, kafka_topic):
     await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
     await producer.stop()
 
-    # One message is consumed and one span is generated.
-    messages = await consumer.getmany()
+    consumer = get_consumer()
+    Pin.override(consumer, tracer=tracer)
+    consumer.subscribe([kafka_topic])
+    await consumer.start()
+    messages = await consumer.getmany(timeout_ms=1000)
     assert len(messages) == 1
     await consumer.commit()
+    await consumer.stop()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-async def test_getmany_multiple_messages_with_commit(producer, consumer, kafka_topic):
-    time.sleep(10)  # Lowering this value makes the test go flaky for some reason
-    logger.info("send messages")
-    await producer.send_and_wait(kafka_topic, value="first message".encode("utf-8"), key="1".encode("utf-8"))
-    await producer.send_and_wait(kafka_topic, value="second message".encode("utf-8"), key="2".encode("utf-8"))
-    logger.info("stop producer")
+async def test_getmany_multiple_messages_with_commit(producer, tracer, kafka_topic):
+    await producer.send_and_wait(kafka_topic, value="first message")
+    await producer.send_and_wait(kafka_topic, value="second message")
     await producer.stop()
 
-    # Two messages are consumed but only ONE span is generated
-    logger.info("consumer getmany")
-    messages = await consumer.getmany()
+    consumer = get_consumer()
+    Pin.override(consumer, tracer=tracer)
+    consumer.subscribe([kafka_topic])
+    await consumer.start()
+    messages = await consumer.getmany(timeout_ms=1000)
+    assert len(messages) == 1
     for tp, records in messages.items():
         assert len(records) == 2
     await consumer.commit()
+    await consumer.stop()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
@@ -184,3 +202,26 @@ async def test_getone_with_commit_with_offset(producer, consumer, kafka_topic):
     await producer.stop()
     result = await consumer.getone()
     await consumer.commit({TopicPartition(result.topic, result.partition): result.offset + 1})
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+async def test_getmany_multiple_messages_multiple_topics(producer, tracer, kafka_topic, kafka_topic_2):
+    await producer.send_and_wait(kafka_topic, "1")
+    await producer.send_and_wait(kafka_topic, "2")
+    await producer.send_and_wait(kafka_topic_2, "3")
+    await producer.stop()
+
+    consumer = get_consumer()
+    Pin.override(consumer, tracer=tracer)
+    consumer.subscribe([kafka_topic, kafka_topic_2])
+    await consumer.start()
+    try:
+        results = await consumer.getmany(timeout_ms=1000)
+        assert len(results) == 2
+        for tp, records in results.items():
+            if tp.topic == kafka_topic:
+                assert len(records) == 2
+            if tp.topic == kafka_topic_2:
+                assert len(records) == 1
+    finally:
+        await consumer.stop()
