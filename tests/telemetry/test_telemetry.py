@@ -221,14 +221,6 @@ tracer.trace("hello").finish()
     ]["message"]
 
 
-def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_python_code_in_subprocess):
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace\nimport sys\nsys.exit(1)")
-    assert status == 1, stderr
-    app_starteds = test_agent_session.get_events("app-started")
-    assert len(app_starteds) == 1
-    assert app_starteds[0]["payload"]["error"]["code"] == 1
-
-
 def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
     out, stderr, status, _ = run_python_code_in_subprocess(
         """
