@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds `server.address` tag to database client integrations to comply with OpenTelemetry standards.
