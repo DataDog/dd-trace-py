@@ -58,12 +58,13 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         return false;
     }
     ddog_prof_EncodedProfile* encoded = &result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
- 
+
     if (!output_filename.empty()) {
         bool ret = export_to_file(encoded);
         ddog_prof_EncodedProfile_drop(encoded);
         return ret;
- 
+    }
+
     // Build the request object
     const ddog_prof_Exporter_File file = {
         .name = to_slice("auto.pprof"),
