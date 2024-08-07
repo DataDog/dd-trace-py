@@ -1,7 +1,7 @@
 from typing import Dict
 from typing import Optional
 from typing import Union
-from ..types import StringType
+from .._types import StringType
 from ddtrace._trace.span import Span
 
 def config(

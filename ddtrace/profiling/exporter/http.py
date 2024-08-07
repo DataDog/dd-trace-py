@@ -235,7 +235,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
                 {
                     "name": b"code-provenance",
                     "filename": b"code-provenance.json",
-                    "content-type": b"application/json",
+                    "content-type": b"application/octet-stream",
                     "data": code_provenance.getvalue(),
                 }
             )
