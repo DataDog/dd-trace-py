@@ -68,6 +68,20 @@ compiler_args["infer"]="-DDO_INFER=ON"
 compiler_args["clangtidy"]="-DDO_CLANGTIDY=ON"
 compiler_args["clangtidy_cmd"]="-DCLANGTIDY_CMD=${CLANGTIDY_CMD}"
 
+# Helper function for adding sccache support if it's detected
+add_sccache() {
+  # First check the SCCACHE_PATH variable
+  if [ -n "${SCCACHE_PATH:-}" ]; then
+    if [ -x "${SCCACHE_PATH}" ]; then
+      echo "Using sccache at ${SCCACHE_PATH}"
+      cmake_args+=(-DCMAKE_C_COMPILER_LAUNCHER=${SCCACHE_PATH} -DCMAKE_CXX_COMPILER_LAUNCHER=${SCCACHE_PATH})
+    fi
+  elif command -v sccache &> /dev/null; then
+    echo "Using sccache at $(which sccache)"
+    cmake_args+=(-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache)
+  fi
+}
+
 # Initial cmake args
 cmake_args=(
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -77,6 +91,8 @@ cmake_args=(
   -DPython3_EXECUTABLE=$(which python3)
   -DPython3_LIBRARY=$(python3 -c "import distutils.sysconfig as sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
 )
+
+add_sccache
 
 # Initial build targets; no matter what, dd_wrapper is the base dependency, so it's always built
 targets=("dd_wrapper")

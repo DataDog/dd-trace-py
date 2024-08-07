@@ -78,6 +78,25 @@ jobs:
         with:
           platforms: all
 
+      # Conditionally imports and enables sccache for release builds
+      # Note that this requires collaboration between multiple levels
+      #  - sccache is brought in at the host level, but cibuildwheel is run in a container
+      #    so we need to surface the SCCACHE_PATH to the github environment in order to detect it in
+      #    the cibuildwheel step, so we can use the `/host` mount in the container to access the binary.
+      # - cmake needs to have launcher environment variables propagated
+      - name: Run sccache-cache for non-release builds
+        if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
+        uses: mozilla-actions/sccache-action@v0.0.5
+
+      # Crucially: give sccache a different port downstream
+      - name: Enable sccache-cache for non-release builds
+        if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
+        run: |
+          echo "SCCACHE_GHA_ENABLED=on" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "SCCACHE_PATH=$SCCACHE_PATH" >> $GITHUB_ENV
+          echo "SCCACHE_PORT=4096" >> $GITHUB_ENV
+
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
         run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --only ${{ matrix.only }}
@@ -86,13 +105,30 @@ jobs:
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
           CIBW_BEFORE_ALL: >
+            cp /host${{ env.SCCACHE_PATH }} /usr/local/bin/sccache &&
+            sccache --start-server &&
+            sccache --help &&
+            echo "#!/bin/sh" > /tmp/sccache_gcc &&
+            echo "exec sccache ${CC} \"\$@\"" >> /tmp/sccache_gcc &&
+            echo "#!/bin/sh" > /tmp/sccache_g++ &&
+            echo "exec sccache ${CXX} \"\$@\"" >> /tmp/sccache_g++ &&
+            chmod +x /tmp/sccache_gcc /tmp/sccache_g++ &&
+            export CC=/tmp/sccache_gcc &&
+            export CXX=/tmp/sccache_g++ &&
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
               curl -sSf https://sh.rustup.rs | sh -s -- -y;
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
-          CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
+          CIBW_ENVIRONMENT_LINUX: |
+            PATH=$HOME/.cargo/bin:$PATH
+            ACTIONS_CACHE_URL=${{ env.ACTIONS_CACHE_URL }}
+            ACTIONS_RUNTIME_TOKEN=${{ env.ACTIONS_RUNTIME_TOKEN }}
+            RUSTC_WRAPPER=${{ env.RUSTC_WRAPPER }}
+            SCCACHE_GHA_ENABLED=${{ env.SCCACHE_GHA_ENABLED }}
+            SCCACHE_PORT=${{ env.SCCACHE_PORT }}
+            CMAKE_BUILD_PARALLEL_LEVEL=24
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
@@ -101,7 +137,8 @@ jobs:
               python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
               mv $w {dest_dir}
             done &&
-            rm -rf ./tempwheelhouse
+            rm -rf ./tempwheelhouse &&
+            sccache --show-stats --stats-format json > /host/tmp/sccache_stats.json
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
             zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
             delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
@@ -110,7 +147,7 @@ jobs:
             7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
             move "{wheel}" "{dest_dir}"
           # DEV: Uncomment to debug MacOS
-          # CIBW_BUILD_VERBOSITY_MACOS: 3
+          CIBW_BUILD_VERBOSITY: 3
 
       - name: Build wheels
         if: matrix.os != 'arm-4core-linux'
@@ -122,14 +159,31 @@ jobs:
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
           CIBW_BEFORE_ALL: >
+            cp /host${{ env.SCCACHE_PATH }} /usr/local/bin/sccache &&
+            sccache --start-server &&
+            sccache --help &&
+            echo "#!/bin/sh" > /tmp/sccache_gcc &&
+            echo "exec sccache ${CC} \"\$@\"" >> /tmp/sccache_gcc &&
+            echo "#!/bin/sh" > /tmp/sccache_g++ &&
+            echo "exec sccache ${CXX} \"\$@\"" >> /tmp/sccache_g++ &&
+            chmod +x /tmp/sccache_gcc /tmp/sccache_g++ &&
+            export CC=/tmp/sccache_gcc &&
+            export CXX=/tmp/sccache_g++ &&
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
               curl -sSf https://sh.rustup.rs | sh -s -- -y;
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
-          CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
-          CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
+          CIBW_ENVIRONMENT_LINUX: >
+            PATH=$HOME/.cargo/bin:$PATH
+            ACTIONS_CACHE_URL=${{ env.ACTIONS_CACHE_URL }}
+            ACTIONS_RUNTIME_TOKEN=${{ env.ACTIONS_RUNTIME_TOKEN }}
+            RUSTC_WRAPPER=${{ env.RUSTC_WRAPPER }}
+            SCCACHE_GHA_ENABLED=${{ env.SCCACHE_GHA_ENABLED }}
+            SCCACHE_PORT=${{ env.SCCACHE_PORT }}
+            CMAKE_BUILD_PARALLEL_LEVEL=24
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
             auditwheel repair -w ./tempwheelhouse {wheel} &&
@@ -137,7 +191,8 @@ jobs:
               python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
               mv $w {dest_dir}
             done &&
-            rm -rf ./tempwheelhouse
+            rm -rf ./tempwheelhouse &&
+            sccache --show-stats --stats-format json > /host/tmp/sccache_stats.json
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
             zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
             delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
@@ -159,3 +214,9 @@ jobs:
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl
+
+      - name: Upload sccache stats
+        uses: actions/upload-artifact@v4
+        with:
+          name: sccache_stats-${{ matrix.only }}
+          path: /tmp/sccache_stats.json

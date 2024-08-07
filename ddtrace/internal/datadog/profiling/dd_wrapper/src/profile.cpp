@@ -139,7 +139,7 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     if (mask_as_int == 0) {
         // This can't happen in contemporary dd-trace-py, but we need better handling around this case
         // TODO fix this
-        std::cerr << "No valid sample types were enabled" << std::endl;
+        std::cerr << "No valid sample types enabled" << std::endl;
         return;
     }
     type_mask = static_cast<SampleType>(mask_as_int);

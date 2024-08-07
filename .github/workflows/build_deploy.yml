@@ -38,6 +38,14 @@ jobs:
         name: Install Python
         with:
           python-version: '3.7'
+      - name: Run sccache-cache for non-release builds
+        if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
+        uses: mozilla-actions/sccache-action@v0.0.5
+      - name: Enable sccache-cache for non-release builds
+        if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       - name: Build sdist
         run: |
           pip install "setuptools_scm[toml]>=4" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"
