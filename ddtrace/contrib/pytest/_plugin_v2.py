@@ -51,9 +51,9 @@ _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$"
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
-    """Checks whether a test should be skipped, and returns a code collector if needed.
+    """Checks whether a test should be skipped
 
-    The code collector serves as an indication to the post-run method that coverage was expected to be collected.
+    This function has the side effect of marking the test as skipped immediately if it should be skipped.
     """
     if not CISession.is_test_skipping_enabled():
         return False
