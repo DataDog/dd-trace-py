@@ -151,16 +151,12 @@ Datadog::UploaderBuilder::build()
         return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
     }
 
-    ddog_prof_Endpoint endpoint;
-    if (!output_filename.empty()) {
-        endpoint = ddog_prof_Endpoint_file(to_slice(output_filename))
-    } else {
-        endpoint = ddog_prof_Endpoint_agent(to_slice(url));
-    }
-
     // If we're here, the tags are good, so we can initialize the exporter
-    ddog_prof_Exporter_NewResult res =
-      ddog_prof_Exporter_new(to_slice("dd-trace-py"), to_slice(profiler_version), to_slice(family), &tags, endpoint);
+    ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
+                                                              to_slice(profiler_version),
+                                                              to_slice(family),
+                                                              &tags,
+                                                              ddog_prof_Endpoint_agent(to_slice(url)));
     ddog_Vec_Tag_drop(tags);
 
     auto ddog_exporter_result = Datadog::get_newexporter_result(res);
@@ -174,5 +170,5 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    return Datadog::Uploader{ url, ddog_exporter };
+    return Datadog::Uploader{ output_filename, ddog_exporter };
 }
