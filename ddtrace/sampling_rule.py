@@ -1,4 +1,7 @@
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any
+from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.compat import pattern_type
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -10,10 +13,6 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Optional  # noqa:F401
-    from typing import Tuple  # noqa:F401
-
     from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
@@ -29,14 +28,13 @@ class SamplingRule(object):
 
     def __init__(
         self,
-        sample_rate,  # type: float
-        service=NO_RULE,  # type: Any
-        name=NO_RULE,  # type: Any
-        resource=NO_RULE,  # type: Any
-        tags=NO_RULE,  # type: Any
-        provenance="default",  # type: str
-    ):
-        # type: (...) -> None
+        sample_rate: float,
+        service: Any = NO_RULE,
+        name: Any = NO_RULE,
+        resource: Any = NO_RULE,
+        tags: Any = NO_RULE,
+        provenance: str = "default",
+    ) -> None:
         """
         Configure a new :class:`SamplingRule`
 
@@ -80,13 +78,11 @@ class SamplingRule(object):
         self.provenance = provenance
 
     @property
-    def sample_rate(self):
-        # type: () -> float
+    def sample_rate(self) -> float:
         return self._sample_rate
 
     @sample_rate.setter
-    def sample_rate(self, sample_rate):
-        # type: (float) -> None
+    def sample_rate(self, sample_rate: float) -> None:
         self._sample_rate = sample_rate
         self._sampling_id_threshold = sample_rate * _MAX_UINT_64BITS
 
@@ -122,8 +118,7 @@ class SamplingRule(object):
         return prop == pattern
 
     @cachedmethod()
-    def _matches(self, key):
-        # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
+    def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
         # self._matches exists to maintain legacy pattern values such as regex and functions
         service, name, resource = key
         for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
