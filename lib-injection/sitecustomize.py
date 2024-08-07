@@ -21,7 +21,8 @@ Version = namedtuple("Version", ["version", "constraint"])
 
 
 def parse_version(version: str) -> Tuple:
-    constraint_idx = re.search(r"\d", version).start()
+    v = re.search(r"\d", version)
+    constraint_idx = v.start() if v is not None else 0
     numeric = version[constraint_idx:]
     constraint = version[:constraint_idx]
     parsed_version = tuple(int(re.sub("[^0-9]", "", p)) for p in numeric.split("."))
