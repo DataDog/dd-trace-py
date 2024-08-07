@@ -71,6 +71,7 @@ def get_psycopg2_extensions(psycopg_module):
             self._datadog_tags = {
                 net.TARGET_HOST: dsn.get("host"),
                 net.TARGET_PORT: dsn.get("port"),
+                net.SERVER_ADDRESS: dsn.get("host"),
                 db.NAME: dsn.get("dbname"),
                 db.USER: dsn.get("user"),
                 db.SYSTEM: config.psycopg.dbms_name,
