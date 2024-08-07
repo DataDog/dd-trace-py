@@ -117,7 +117,6 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         self._span: Optional[Span] = None
         self._tags: Dict[str, Any] = initial_tags if initial_tags else {}
-        self._children: Optional[Dict[ANYIDT, "CIVisibilityChildItem"]] = None
 
         # ITR-related attributes
         self._is_itr_skipped: bool = False
@@ -423,10 +422,10 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
         initial_tags: Optional[Dict[str, Any]],
     ):
         super().__init__(item_id, session_settings, initial_tags)
-        self.children: Dict[CIDT, CITEMT] = {}
+        self._children: Dict[CIDT, CITEMT] = {}
 
     def _are_all_children_finished(self):
-        return all(child._is_finished() for child in self.children.values())
+        return all(child._is_finished() for child in self._children.values())
 
     def get_status(self) -> Union[CITestStatus, SPECIAL_STATUS]:
         """Recursively computes status based on all children's status
@@ -438,7 +437,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
 
         The caller of get_status() must decide what to do if the result is UNFINISHED
         """
-        if self.children is None:
+        if self._children is None:
             return self.get_raw_status()
 
         # We use values because enum entries do not hash stably
@@ -448,7 +447,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
             CITestStatus.PASS.value: 0,
         }
 
-        for child in self.children.values():
+        for child in self._children.values():
             child_status = child.get_status()
             if child_status == SPECIAL_STATUS.UNFINISHED:
                 # There's no point in continuing to count if we care about unfinished children
@@ -460,7 +459,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
 
         if children_status_counts[CITestStatus.FAIL.value] > 0:
             return CITestStatus.FAIL
-        if children_status_counts[CITestStatus.SKIP.value] == len(self.children):
+        if children_status_counts[CITestStatus.SKIP.value] == len(self._children):
             return CITestStatus.SKIP
         # We can assume the current item passes if not all children are skipped, and there were no failures
         if children_status_counts[CITestStatus.FAIL.value] == 0:
@@ -490,7 +489,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
         if item_status == SPECIAL_STATUS.UNFINISHED:
             if force:
                 # Finish all children regardless of their status
-                for child in self.children.values():
+                for child in self._children.values():
                     if not child.is_finished():
                         child.finish(force=force)
                 self.set_status(self.get_raw_status())
@@ -503,23 +502,23 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
 
     def add_child(self, child: CITEMT):
         child.parent = self
-        if child.item_id in self.children:
+        if child.item_id in self._children:
             if self._session_settings.reject_duplicates:
                 error_msg = f"{child.item_id} already exists in {self.item_id}'s children"
                 log.warning(error_msg)
                 raise CIVisibilityDataError(error_msg)
             # If duplicates are allowed, we don't need to do anything
             return
-        self.children[child.item_id] = child
+        self._children[child.item_id] = child
 
     def get_child_by_id(self, child_id: CIDT) -> CITEMT:
-        if child_id in self.children:
-            return self.children[child_id]
+        if child_id in self._children:
+            return self._children[child_id]
         error_msg = f"{child_id} not found in {self.item_id}'s children"
         raise CIVisibilityDataError(error_msg)
 
     def _set_itr_tags(self):
         """Only parent items set skipped counts because tests would always be 1 or 0"""
         super()._set_itr_tags()
-        if self.children:
+        if self._children:
             self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)

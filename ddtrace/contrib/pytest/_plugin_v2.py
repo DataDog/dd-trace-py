@@ -62,7 +62,6 @@ def _handle_itr_should_skip(item, test_id) -> bool:
             CITest.mark_itr_forced_run(test_id)
         else:
             CITest.mark_itr_skipped(test_id)
-            CISuite.mark_itr_skipped(test_id.parent_id)
             item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
             return True
 
@@ -218,7 +217,10 @@ class _PytestDDTracePluginV2:
         # - we trust that the next item is in the same module if it is in the same suite
         next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
         if next_test_id is None or next_test_id.parent_id != suite_id:
-            CISuite.finish(suite_id)
+            if CISuite.was_item_skipped_by_itr(suite_id):
+                CISuite.mark_itr_skipped(suite_id)
+            else:
+                CISuite.finish(suite_id)
             if nextitem is None or next_test_id.parent_id.parent_id != module_id:
                 CIModule.finish(module_id)
 
@@ -248,6 +250,7 @@ class _PytestDDTracePluginV2:
         # that's why no XFAIL_REASON or test.RESULT tags will be added.
         if result.skipped:
             if CITest.was_item_skipped_by_itr(test_id):
+                # Items that were skipped by ITR already have their status set
                 return
 
             if xfail and not has_skip_keyword:

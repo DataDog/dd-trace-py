@@ -341,19 +341,19 @@ class CIITRMixin(CIBase):
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_skipped(item_id: Union[CISuiteId, CITestId]):
-        log.debug("Marking test %s as skipped by ITR", item_id)
+        log.debug("Marking item %s as skipped by ITR", item_id)
         core.dispatch("ci_visibility.itr.finish_skipped_by_itr", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_unskippable(item_id: Union[CISuiteId, CITestId]):
-        log.debug("Marking test %s as unskippable by ITR", item_id)
+        log.debug("Marking item %s as unskippable by ITR", item_id)
         core.dispatch("ci_visibility.itr.mark_unskippable", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_forced_run(item_id: Union[CISuiteId, CITestId]):
-        log.debug("Marking test %s as unskippable by ITR", item_id)
+        log.debug("Marking item %s as unskippable by ITR", item_id)
         core.dispatch("ci_visibility.itr.mark_forced_run", (item_id,))
 
     @staticmethod
@@ -385,11 +385,11 @@ class CIITRMixin(CIBase):
     def was_item_skipped_by_itr(item_id: Union[CISuiteId, CITestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Checking if item %s was skipped by ITR", item_id)
-        is_item_skippable = bool(
-            core.dispatch_with_results("ci_visibility.itr.is_item_skippable", (item_id,)).is_item_skippable.value
+        was_item_skipped = bool(
+            core.dispatch_with_results("ci_visibility.itr.was_item_skipped", (item_id,)).was_item_skipped.value
         )
-        log.debug("Item %s was skipped by ITR: %s", item_id, is_item_skippable)
-        return is_item_skippable
+        log.debug("Item %s was skipped by ITR: %s", item_id, was_item_skipped)
+        return was_item_skipped
 
     class AddCoverageArgs(NamedTuple):
         item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
