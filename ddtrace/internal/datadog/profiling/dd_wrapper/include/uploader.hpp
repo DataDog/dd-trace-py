@@ -24,7 +24,6 @@ class Uploader
     static inline std::mutex upload_lock{};
     std::string errmsg;
     static inline std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel;
-    std::string runtime_id;
     std::string url;
     std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
 
