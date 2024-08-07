@@ -34,6 +34,7 @@ def get_version():
 
 
 def patch():
+    print("===starting request patch===")
     """Activate http calls tracing"""
     if getattr(requests, "__datadog_patch", False):
         return

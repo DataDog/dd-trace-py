@@ -556,6 +556,13 @@ jobs:
           pattern: 'aws_lambda'
           snapshot: true
 
+   azure:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'azure'
+          snapshot: true
+
   internal:
     <<: *contrib_job_small
     docker:
