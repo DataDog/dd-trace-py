@@ -13,19 +13,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 # Includes
 include(FetchContent)
 include(ExternalProject)
-# include(FindLibdatadog)
+include(FindLibdatadog)
 include(AnalysisFunc)
 include(FindClangtidy)
 include(FindCppcheck)
 include(FindInfer)
-
-if(TARGET Datadog::Profiling)
-
-else()
-    set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "/opt/libdatadog")
-    find_package(Datadog REQUIRED)
-endif()
-
 
 # Library sources
 add_library(dd_wrapper SHARED

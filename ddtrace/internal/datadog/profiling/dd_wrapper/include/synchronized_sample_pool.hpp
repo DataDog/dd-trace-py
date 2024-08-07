@@ -13,7 +13,7 @@ namespace Datadog {
 
 struct Deleter
 {
-    void operator()(ddog_ArrayQueue* object) { ddog_array_queue_drop(object); }
+    void operator()(ddog_ArrayQueue* object) { ddog_ArrayQueue_drop(object); }
 };
 
 class SynchronizedSamplePool
