@@ -44,7 +44,7 @@ def _get_version():
 
 def get_version():
     deprecate(
-        message="get_version is deprecated",
+        "get_version is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
@@ -121,7 +121,7 @@ def _patched_api_call(original_func, instance, args, kwargs):
 
 def patched_api_call(original_func, instance, args, kwargs):
     deprecate(
-        message="patched_api_call is deprecated",
+        "patched_api_call is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )

@@ -35,7 +35,7 @@ def _get_version():
 
 def get_version():
     deprecate(
-        message="get_version is deprecated",
+        "get_version is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
@@ -77,7 +77,7 @@ def _patch_pymongo_module():
 
 def patch_pymongo_module():
     deprecate(
-        message="patch_pymongo_module is deprecated",
+        "patch_pymongo_module is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
@@ -95,7 +95,7 @@ def _unpatch_pymongo_module():
 
 def unpatch_pymongo_module():
     deprecate(
-        message="unpatch_pymongo_module is deprecated",
+        "unpatch_pymongo_module is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
@@ -129,7 +129,7 @@ def _traced_get_socket(wrapped, instance, args, kwargs):
 
 def traced_get_socket(wrapped, instance, args, kwargs):
     deprecate(
-        message="traced_get_socket is deprecated",
+        "traced_get_socket is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )

@@ -85,7 +85,7 @@ def _get_version():
 
 def get_version():
     deprecate(
-        message="get_version is deprecated",
+        "get_version is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
@@ -102,7 +102,7 @@ def _get_versions():
 
 def get_versions():
     deprecate(
-        message="get_versions is deprecated",
+        "get_versions is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
@@ -236,7 +236,7 @@ def _init_cursor_from_connection_factory(psycopg_module):
 
 def init_cursor_from_connection_factory(psycopg_module):
     deprecate(
-        message="init_cursor_from_connection_factory is deprecated",
+        "init_cursor_from_connection_factory is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
