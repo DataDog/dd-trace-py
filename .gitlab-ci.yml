@@ -1,4 +1,5 @@
 stages:
+  - build
   - package
   - shared-pipeline
   - dogfood
@@ -15,6 +16,28 @@ include:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
+
+build_ddtrace_linux:
+  image: registry.ddbuild.io/images/mirror/python:3.12
+  tags: [ "arch:amd64" ]
+  stage: build
+  # make a docker daemon available for cibuildwheel to use
+  services:
+    - name: docker:dind
+      entrypoint: ["env", "-u", "DOCKER_HOST"]
+      command: ["dockerd-entrypoint.sh"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375/
+    DOCKER_DRIVER: overlay2
+    # See https://github.com/docker-library/docker/pull/166
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - curl -sSL https://get.docker.com/ | sh
+    - python -m pip install cibuildwheel==2.20.0
+    - cibuildwheel --output-dir wheelhouse
+  artifacts:
+    paths:
+      - wheelhouse/
 
 download_ddtrace_wheels:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
