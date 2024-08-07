@@ -21,8 +21,8 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
             "module:method1,method2;mod2:m1,m2",
             [("module", "method1"), ("module", "method2"), ("mod2", "m1"), ("mod2", "m2")],
         ),
-        ("mod.submod:m1,m2,m3", [("mod.submod", "m1"), ("mod.submod", "m2"), ("mod.submod", "m3")], False),
-        ("mod.submod.subsubmod:m1,m2", [("mod.submod.subsubmod", "m1"), ("mod.submod.subsubmod", "m2")], False),
+        ("mod.submod:m1,m2,m3", [("mod.submod", "m1"), ("mod.submod", "m2"), ("mod.submod", "m3")]),
+        ("mod.submod.subsubmod:m1,m2", [("mod.submod.subsubmod", "m1"), ("mod.submod.subsubmod", "m2")]),
         (
             "mod.mod2.mod3:Class.test_method,Class.test_method2",
             [("mod.mod2.mod3", "Class.test_method"), ("mod.mod2.mod3", "Class.test_method2")],

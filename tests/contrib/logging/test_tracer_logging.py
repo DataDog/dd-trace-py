@@ -386,7 +386,7 @@ for attempt in range(100):
 
 def test_unknown_log_level_error(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
     """
-    When DD_TRACE_LOG_FILE_LEVEL is set to an unknown env var, WARNING is used as a default.
+    When DD_TRACE_LOG_FILE_LEVEL is set to an unknown env var, the application raises an error and no logs are written.
     """
     env = os.environ.copy()
     env["DD_TRACE_LOG_FILE_LEVEL"] = "UNKNOWN"
@@ -400,8 +400,9 @@ import ddtrace
 """
 
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
-    assert status == 0, err
-    assert out != b""
+    assert status == 1, err
+    assert "ValueError" in str(err)
+    assert out == b""
 
     assert_log_files(tmpdir.strpath, "testlog.log", 0)
 

@@ -206,18 +206,19 @@ def get_span_sampling_rules() -> List[SpanSamplingRule]:
 
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
-        if service:
-            _check_unsupported_pattern(service)
-        if name:
-            _check_unsupported_pattern(name)
 
         try:
+            if service:
+                _check_unsupported_pattern(service)
+            if name:
+                _check_unsupported_pattern(name)
             sampling_rule = SpanSamplingRule(
                 sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
             )
         except Exception as e:
             log.warning("Error creating single span sampling rule %s: %s", json.dumps(rule), e)
-        sampling_rules.append(sampling_rule)
+        else:
+            sampling_rules.append(sampling_rule)
     return sampling_rules
 
 
@@ -268,7 +269,7 @@ def _check_unsupported_pattern(string: str) -> None:
     # We don't support pattern bracket expansion or escape character
     unsupported_chars = {"[", "]", "\\"}
     for char in string:
-        if char in unsupported_chars:
+        if char in unsupported_chars and config._raise:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 

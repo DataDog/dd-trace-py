@@ -89,8 +89,7 @@ class RateSampler(BaseSampler):
         self.set_sample_rate(sample_rate)
         log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
 
-    def set_sample_rate(self, sample_rate):
-        # type: (float) -> None
+    def set_sample_rate(self, sample_rate: float) -> None:
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
