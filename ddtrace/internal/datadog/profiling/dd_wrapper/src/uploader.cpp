@@ -1,6 +1,7 @@
 #include "uploader.hpp"
 #include "libdatadog_helpers.hpp"
 
+#include <fstream>
 #include <sstream>
 #include <unistd.h>
 
@@ -15,7 +16,7 @@ DdogCancellationTokenDeleter::operator()(ddog_CancellationToken* ptr) const
     }
 }
 
-Datadog::Uploader::Uploader(std::string_view output_filename, ddog_prof_Exporter* _ddog_exporter)
+Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_Exporter* _ddog_exporter)
   : output_filename{ _output_filename }
   , ddog_exporter{ _ddog_exporter }
 {
@@ -31,10 +32,10 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
     // <output_filename>.<process_id>.<sequence_number>
     std::ostringstream oss;
     oss << output_filename << "." << getpid() << "." << upload_seq;
-    std::string output_filename = oss.str();
-    std::ofstream out(output_filename, std::ios::binary);
+    std::string filename = oss.str();
+    std::ofstream out(filename.c_str(), std::ios::binary);
     if (!out.is_open()) {
-        errmsg = "Error opening output file " + output_filename;
+        errmsg = "Error opening output file " + filename;
         std::cerr << errmsg << std::endl;
         return false;
     }
