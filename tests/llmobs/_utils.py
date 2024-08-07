@@ -324,7 +324,7 @@ def _large_event():
             "output": {
                 "messages": [
                     {
-                        "content": "A" * 2_600_000,
+                        "content": "A" * 3_000_000,
                         "role": "assistant",
                     },
                 ]
