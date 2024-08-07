@@ -83,4 +83,3 @@ class IastPropagation(bm.Scenario):
                 launch_function(self.iast_enabled, func, self.internal_loop, caller_loop)
 
         yield _
-

@@ -1,10 +1,5 @@
 """
-Script used to generate the micro benchmarks for individual aspects. This will re-generate all the
-"appsec_iast_aspect_micro_[aspect_name]" directories and their content. The directories will contain the
-benchmark class for each aspect function and the yaml config file.
-
-Note that new aspect directories are not automatically added to git thus when calling the script new ones
-will have to be git-added manually.
+Script used to generate the config.yaml for the individual aspect benchmarks.
 """
 
 import base64
