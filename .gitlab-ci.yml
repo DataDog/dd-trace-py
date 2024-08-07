@@ -18,22 +18,29 @@ variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
 
 build_ddtrace_linux:
-  image: registry.ddbuild.io/images/mirror/python:3.12
-  tags: [ "arch:amd64" ]
+  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  tags: [ "runner:docker" ]
   stage: build
-  # make a docker daemon available for cibuildwheel to use
-  services:
-    - name: docker:dind
-      entrypoint: ["env", "-u", "DOCKER_HOST"]
-      command: ["dockerd-entrypoint.sh"]
   variables:
-    DOCKER_HOST: tcp://docker:2375/
-    DOCKER_DRIVER: overlay2
-    # See https://github.com/docker-library/docker/pull/166
-    DOCKER_TLS_CERTDIR: ""
+    CIBW_ARCHS: all
+  parallel:
+    matrix:
+      - PYTHON_VERSION: "3.7"
+        CIBW_BUILD: "cp37-*"
+      - PYTHON_VERSION: "3.8"
+        CIBW_BUILD: "cp38-*"
+      - PYTHON_VERSION: "3.9"
+        CIBW_BUILD: "cp39-*"
+      - PYTHON_VERSION: "3.10"
+        CIBW_BUILD: "cp310-*"
+      - PYTHON_VERSION: "3.11"
+        CIBW_BUILD: "cp311-*"
+      - PYTHON_VERSION: "3.12"
+        CIBW_BUILD: "cp312-*"
   script:
     - curl -sSL https://get.docker.com/ | sh
-    - python -m pip install cibuildwheel==2.20.0
+    - python -m pip install cibuildwheel
+    - cibuildwheel --print-build-identifiers
     - cibuildwheel --output-dir wheelhouse
   artifacts:
     paths:
