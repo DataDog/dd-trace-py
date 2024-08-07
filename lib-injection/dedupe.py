@@ -7,6 +7,15 @@ import subprocess
 import sys
 
 
+repo_lang = os.environ.get("REPO_LANG", "")
+if not repo_lang:
+    print("$REPO_LANG env variable is not set")
+    sys.exit(1)
+
+if repo_lang not in ("python", "ruby"):
+    print("Skipping deduplication for non-python/ruby repos")
+    sys.exit(0)
+
 if len(sys.argv) != 2:
     print("Usage: python dedupe.py <source dir>")
     print("Example: python dedupe.py sources/ddtrace_pkgs")
