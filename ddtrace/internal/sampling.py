@@ -88,9 +88,8 @@ SpanSamplingRules = TypedDict(
 
 
 def validate_sampling_decision(
-    meta,  # type: Dict[str, str]
-):
-    # type: (...) -> Dict[str, str]
+    meta: Dict[str, str],
+) -> Dict[str, str]:
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
@@ -102,10 +101,9 @@ def validate_sampling_decision(
 
 
 def set_sampling_decision_maker(
-    context,  # type: Context
-    sampling_mechanism,  # type: int
-):
-    # type: (...) -> Optional[Text]
+    context: Context,
+    sampling_mechanism: int,
+) -> Optional[Text]:
     value = "-%d" % sampling_mechanism
     context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
     return value
@@ -126,10 +124,10 @@ class SpanSamplingRule:
 
     def __init__(
         self,
-        sample_rate,  # type: float
-        max_per_second,  # type: int
-        service=None,  # type: Optional[str]
-        name=None,  # type: Optional[str]
+        sample_rate: float,
+        max_per_second: int,
+        service: Optional[str] = None,
+        name: Optional[str] = None,
     ):
         self._sample_rate = sample_rate
         self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
