@@ -63,7 +63,7 @@ aspect_no_iast_do_center: &aspect_no_iast_do_center
     iast_enabled: 0
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_center"
-    args: ['  fOobaR\t  \n', '  fOobaR\t  \n']
+    args: ['foobar', 2]
 
 aspect_iast_do_center:
     << : *aspect_no_iast_do_center

@@ -71,8 +71,8 @@ _module_meta = {
             "do_stringio_init_and_getvalue_param",
             "do_stringio_init_param",
             "wrapper",
-            # The run.py convert the args to command line and does not support yaml constructors like the ones
-            # needed for bytes or bytearray arguments
+            # Since this is exported and passed as a command line argument, bytearray() and byte arguments are not
+            # processed well
             "do_bytearray_append",
             "do_bytearray_extend",
             "do_bytearray_to_bytes",
@@ -85,6 +85,7 @@ _module_meta = {
             "do_decode_simple",
         },
         "special_arguments": {
+            "do_center": ["foobar", 2],
             "do_encode": ["foobar", "utf-8", "strict"],
             "do_encode_from_dict": ["foobar", "utf-8", "strict"],
             "do_format": ["foobar{}", "baz"],
