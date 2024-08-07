@@ -101,7 +101,7 @@ def validate_sampling_decision(
 
 
 def set_sampling_decision_maker(
-    context: Context,
+    context,  # type: Context
     sampling_mechanism: int,
 ) -> Optional[Text]:
     value = "-%d" % sampling_mechanism
