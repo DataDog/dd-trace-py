@@ -23,20 +23,17 @@ build_ddtrace_linux:
   stage: build
   variables:
     CIBW_ARCHS: all
+    CIBW_ENVIRONMENT_LINUX: "PATH=$$HOME/.cargo/bin:$$PATH"
+    CIBW_BEFORE_ALL: |
+      curl -sSf https://sh.rustup.rs | sh -s -- -y;
   parallel:
     matrix:
-      - PYTHON_VERSION: "3.7"
-        CIBW_BUILD: "cp37-*"
-      - PYTHON_VERSION: "3.8"
-        CIBW_BUILD: "cp38-*"
-      - PYTHON_VERSION: "3.9"
-        CIBW_BUILD: "cp39-*"
-      - PYTHON_VERSION: "3.10"
-        CIBW_BUILD: "cp310-*"
-      - PYTHON_VERSION: "3.11"
-        CIBW_BUILD: "cp311-*"
-      - PYTHON_VERSION: "3.12"
-        CIBW_BUILD: "cp312-*"
+      - CIBW_BUILD: "cp37-*"
+      - CIBW_BUILD: "cp38-*"
+      - CIBW_BUILD: "cp39-*"
+      - CIBW_BUILD: "cp310-*"
+      - CIBW_BUILD: "cp311-*"
+      - CIBW_BUILD: "cp312-*"
   script:
     - curl -sSL https://get.docker.com/ | sh
     - python -m pip install cibuildwheel
