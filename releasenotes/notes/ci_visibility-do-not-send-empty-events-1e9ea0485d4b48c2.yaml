@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where the periodic task would send empty events if there were no traces to send.
