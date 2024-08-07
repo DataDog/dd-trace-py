@@ -127,9 +127,12 @@ async def traced_send(func, instance, args, kwargs):
         # inject headers with Datadog tags if trace propagation is enabled
         if config.kafka.distributed_tracing_enabled:
             # inject headers with Datadog tags:
-            headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
-            Propagator.inject(span.context, headers)
-            args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
+            headers = get_argument_value(args, kwargs, 5, "headers", True) or []
+            additional_headers = {}
+            Propagator.inject(span.context, additional_headers)
+            for header, value in additional_headers.items():
+                headers.append((header, value.encode("utf-8")))
+            args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
         return await func(*args, **kwargs)
 
 
@@ -177,8 +180,8 @@ async def traced_getmany(func, instance, args, kwargs):
 
 def _instrument_message(message, pin, start_ns, instance, err):
     ctx = None
-    if message is not None and config.kafka.distributed_tracing_enabled and message.headers():
-        ctx = Propagator.extract(dict(message.headers()))
+    if message is not None and config.kafka.distributed_tracing_enabled and message.headers:
+        ctx = Propagator.extract(dict(message.headers))
     with pin.tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
