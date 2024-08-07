@@ -55,19 +55,19 @@ checks = [
     "suitespec-check",
 ]
 spelling = [
-    "codespell --skip='ddwaf.h,*cassettes*' 'ddtrace/,tests/,releasenotes/,docs/'",
+    "codespell --skip='ddwaf.h,*cassettes*' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
     "mypy {args}",
 ]
 security = [
-    "bandit -c pyproject.toml -r ddtrace/*",
+    "bandit -c pyproject.toml {args:-r ddtrace/}",
 ]
 fmt-snapshots = [
-    "ddapm-test-agent-fmt tests/snapshots/ docker hatch.toml",
+    "ddapm-test-agent-fmt {args:tests/snapshots/}",
 ]
 riot = [
-    "python -m doctest riotfile.py"
+    "python -m doctest {args} riotfile.py"
 ]
 suitespec-check = [
     "python scripts/check_suitespec_coverage.py"
@@ -140,7 +140,7 @@ extra-dependencies = [
 
 [envs.scripts.scripts]
 test = [
-    "python -m doctest docker scripts/*.py scripts/mkwheelhouse scripts/run-test-suite tests/.suitespec.json",
+    "python -m doctest {args} scripts/get-target-milestone.py scripts/needs_testrun.py tests/suitespec.py",
 ]
 
 [envs.meta-testing]
