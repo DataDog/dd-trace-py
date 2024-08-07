@@ -73,7 +73,6 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         .name = to_slice("auto.pprof"),
         .file = ddog_Vec_U8_as_slice(&encoded->buffer),
     };
-    const uint64_t max_timeout_ms = 5000; // 5s is a common timeout parameter for Datadog profilers
     auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
                                                       encoded->start,
                                                       encoded->end,
@@ -82,8 +81,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                                       &tags,
                                                       nullptr,
                                                       nullptr,
-                                                      nullptr,
-                                                      max_timeout_ms);
+                                                      nullptr);
     ddog_prof_EncodedProfile_drop(encoded);
 
     if (build_res.tag ==
