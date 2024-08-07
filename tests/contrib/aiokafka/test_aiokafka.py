@@ -225,3 +225,50 @@ async def test_getmany_multiple_messages_multiple_topics(producer, tracer, kafka
                 assert len(records) == 1
     finally:
         await consumer.stop()
+
+
+async def test_getone_without_distributed_tracing(producer, consumer, kafka_topic, tracer):
+    with override_config("kafka", dict(distributed_tracing_enabled=False)):
+        await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+        await producer.stop()
+        result = await consumer.getone()
+        await consumer.commit()
+
+        propagation_asserted = False
+        for header in result.headers:
+            if header[0] == "x-datadog-trace-id":
+                propagation_asserted = True
+
+        assert propagation_asserted is False
+
+
+async def test_getone_with_distributed_tracing_no_headers(producer, consumer, kafka_topic, tracer):
+    with override_config("kafka", dict(distributed_tracing_enabled=True)):
+        await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+        await producer.stop()
+        result = await consumer.getone()
+        await consumer.commit()
+
+        propagation_asserted = False
+        for header in result.headers:
+            if header[0] == "x-datadog-trace-id":
+                propagation_asserted = True
+
+        assert propagation_asserted is True
+
+
+async def test_getone_with_distributed_tracing_with_headers(producer, consumer, kafka_topic, tracer):
+    with override_config("kafka", dict(distributed_tracing_enabled=True)):
+        await producer.send_and_wait(
+            kafka_topic, value=PAYLOAD, key=KEY, headers=[("some_header", "some_value".encode("utf-8"))]
+        )
+        await producer.stop()
+        result = await consumer.getone()
+        await consumer.commit()
+
+        propagation_asserted = False
+        for header in result.headers:
+            if header[0] == "x-datadog-trace-id":
+                propagation_asserted = True
+
+        assert propagation_asserted is True
