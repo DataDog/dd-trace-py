@@ -33,6 +33,9 @@ from ddtrace.ext.ci_visibility.api import disable_ci_visibility
 from ddtrace.ext.ci_visibility.api import enable_ci_visibility
 from ddtrace.ext.ci_visibility.api import is_ci_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
@@ -68,9 +71,22 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     return False
 
 
+def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
+    coverage_collector = ModuleCodeCollector.CollectInContext()
+    # TODO: don't depend on internal for telemetry
+    record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
+
+    coverage_collector.__enter__()
+
+    return coverage_collector
+
+
 def _handle_collected_coverage(test_id, coverage_collector) -> None:
-    test_covered_lines = coverage_collector.get_covered_lines()
+    # TODO: clean up internal coverage API usage
+    test_covered_lines = ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
     coverage_collector.__exit__()
+
+    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
     if not test_covered_lines:
         log.debug("No covered lines found for test %s", test_id)
@@ -201,8 +217,7 @@ class _PytestDDTracePluginV2:
         # Coverage collection
         coverage_collector: t.Optional[ModuleCodeCollector.CollectInContext] = None
         if collect_test_coverage:
-            coverage_collector = ModuleCodeCollector.CollectInContext()
-            coverage_collector.__enter__()
+            coverage_collector = _start_collecting_coverage()
 
         # Yield control back to pytest to run the test
         yield
