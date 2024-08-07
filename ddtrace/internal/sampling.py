@@ -41,7 +41,6 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-
     from ddtrace._trace.context import Context  # noqa:F401
     from ddtrace._trace.span import Span  # noqa:F401
 
