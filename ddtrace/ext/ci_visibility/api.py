@@ -269,13 +269,11 @@ class CISession(CIBase):
     def should_collect_coverage(item_id: Optional[CISessionId] = None) -> bool:
         log.debug("Checking if coverage should be collected for session: %s", item_id)
 
-        item_id = item_id or CISessionId()
         _should_collect_coverage = bool(
-            core.dispatch_with_results(
-                "ci_visibility.session.should_collect_coverage", (item_id,)
-            ).should_collect_coverage.value
+            core.dispatch_with_results("ci_visibility.session.should_collect_coverage").should_collect_coverage.value
         )
         log.debug("Coverage should be collected: %s", _should_collect_coverage)
+
         return _should_collect_coverage
 
     @staticmethod
