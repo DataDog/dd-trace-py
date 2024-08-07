@@ -301,12 +301,12 @@ def _set_sampling_tags(span, sampled, sample_rate, priority_category):
         span.set_metric(SAMPLING_AGENT_DECISION, sample_rate)
     priorities = _CATEGORY_TO_PRIORITIES[priority_category]
     _set_priority(span, priorities[_KEEP_PRIORITY_INDEX] if sampled else priorities[_REJECT_PRIORITY_INDEX])
-    set_sampling_decision_maker(span.context, mechanism)
+    set_sampling_decision_maker(span._context, mechanism)
 
 
 def _set_priority(span, priority):
     # type: (Span, int) -> None
-    span.context.sampling_priority = priority
+    span._context.sampling_priority = priority
 
 
 def _get_highest_precedence_rule_matching(span, rules):

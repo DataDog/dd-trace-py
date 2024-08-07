@@ -629,7 +629,7 @@ def set_user(
             str_user_id = str(user_id)
             span.set_tag_str(user.ID, str_user_id)
             if propagate:
-                span.context.dd_user_id = str_user_id
+                span._context.dd_user_id = str_user_id
 
         # All other fields are optional
         if name:
