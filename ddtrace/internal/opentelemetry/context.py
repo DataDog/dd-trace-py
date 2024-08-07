@@ -24,7 +24,7 @@ class DDRuntimeContext:
         from opentelemetry.trace import Span as OtelSpan
         from opentelemetry.trace import get_current_span
 
-        from ddtrace.opentelemetry._span import Span
+        from .span import Span
 
         otel_span = get_current_span(otel_context)
         if otel_span:
@@ -59,7 +59,7 @@ class DDRuntimeContext:
         from opentelemetry.trace.span import TraceFlags
         from opentelemetry.trace.span import TraceState
 
-        from ddtrace.opentelemetry._span import Span
+        from .span import Span
 
         ddactive = self._ddcontext_provider.active()
         context = OtelContext()
