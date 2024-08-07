@@ -24,7 +24,6 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import container
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
@@ -235,8 +234,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
         return profile, libs
 
     def _upload(self, client, path, body, headers):
-        # Enable telemetry before the first profile is sent
-        telemetry_writer.app_started()
         try:
             client.request("POST", path, body=body, headers=headers)
             response = client.getresponse()

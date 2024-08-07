@@ -6,6 +6,7 @@ import attr
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
@@ -55,6 +56,8 @@ class Scheduler(periodic.PeriodicService):
                 self.before_flush()
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
+        # Enable telemetry before the first profile is sent
+        telemetry_writer.app_started()
         events = self.recorder.reset()
         start = self._last_export
         self._last_export = compat.time_ns()
