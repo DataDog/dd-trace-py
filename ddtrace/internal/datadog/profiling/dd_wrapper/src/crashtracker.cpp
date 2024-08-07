@@ -153,6 +153,7 @@ Datadog::Crashtracker::get_tags()
         { ExportTagKey::version, version },
         { ExportTagKey::language, family }, // Slight conflation of terms, but should be OK
         { ExportTagKey::runtime, runtime },
+        { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::library_version, library_version },
     };

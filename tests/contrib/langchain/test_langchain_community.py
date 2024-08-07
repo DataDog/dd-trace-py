@@ -276,6 +276,7 @@ async def test_openai_chat_model_async_call(langchain_openai, request_vcr):
         await chat._call_async([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
+@flaky(until=1735812000, reason="Batch call has a non-deterministic response order.")
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 async def test_openai_chat_model_async_generate(langchain_openai, request_vcr):
