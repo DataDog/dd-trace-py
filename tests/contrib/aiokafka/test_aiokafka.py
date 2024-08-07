@@ -151,6 +151,7 @@ async def test_getone_with_commit(producer, consumer, kafka_topic):
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getmany_single_message_with_commit(producer, consumer, kafka_topic):
+    time.sleep(10)  # Lowering this value makes the test go flaky for some reason
     await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
     await producer.stop()
 
