@@ -40,8 +40,11 @@ required_modules = ["bottle"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
-        from .trace import TracePlugin
+        # Required to allow users to import from `ddtrace.contrib.bottle.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        from ..internal.bottle.patch import get_version
+        from ..internal.bottle.patch import patch
+        from ..internal.bottle.trace import TracePlugin
 
         __all__ = ["TracePlugin", "patch", "get_version"]
