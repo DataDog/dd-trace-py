@@ -204,7 +204,7 @@ def get_span_sampling_rules() -> List[SpanSamplingRule]:
         name = rule.get("name")
 
         if not service and not name:
-            log.warning("Sampling rules must supply at least 'service' or 'name', got {}".format(json.dumps(rule)))
+            log.warning("Sampling rules must supply at least 'service' or 'name', got %s", json.dumps(rule))
             return []
 
         # If max_per_second not specified default to no limit
@@ -219,7 +219,7 @@ def get_span_sampling_rules() -> List[SpanSamplingRule]:
                 sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
             )
         except Exception as e:
-            log.warning("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
+            log.warning("Error creating single span sampling rule %s: %s", json.dumps(rule), e)
         sampling_rules.append(sampling_rule)
     return sampling_rules
 
@@ -258,10 +258,10 @@ def _load_span_sampling_json(raw_json_rules: str) -> List[Dict[str, Any]]:
     try:
         json_rules = json.loads(raw_json_rules)
         if not isinstance(json_rules, list):
-            log.warning("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
+            log.warning("DD_SPAN_SAMPLING_RULES is not list, got %r", json_rules)
             return []
     except JSONDecodeError:
-        log.warning("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % raw_json_rules)
+        log.warning("Unable to parse DD_SPAN_SAMPLING_RULES=%r", raw_json_rules)
         return []
 
     return json_rules

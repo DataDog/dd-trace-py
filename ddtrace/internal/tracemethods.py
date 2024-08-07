@@ -29,8 +29,8 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
                 (
                     "Invalid DD_TRACE_METHODS: %s. "
                     "Methods must be specified after a colon following the fully qualified module."
-                )
-                % qualified_methods
+                ),
+                qualified_methods,
             )
             return []
 
@@ -43,7 +43,8 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
             # application will have. __main__ when sitecustomize module is run is the builtin __main__.
             log.warning(
                 "Invalid DD_TRACE_METHODS: %s. Methods cannot be traced on the __main__ module. __main__ when "
-                "sitecustomize module is run is the builtin __main__." % qualified_methods
+                "sitecustomize module is run is the builtin __main__.",
+                qualified_methods,
             )
             return []
 
@@ -51,15 +52,13 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
         for method in methods.split(","):
             if not str.isidentifier(method.split(".")[-1]):
                 log.warning(
-                    "Invalid method name: %r. %s"
-                    % (
-                        method,
-                        (
-                            "You might have a trailing comma."
-                            if method == ""
-                            else "Method names must be valid Python identifiers."
-                        ),
-                    )
+                    "Invalid method name: %r. %s",
+                    method,
+                    (
+                        "You might have a trailing comma."
+                        if method == ""
+                        else "Method names must be valid Python identifiers."
+                    ),
                 )
                 return []
             dd_trace_methods.append((qualified_method_prefix, method))
@@ -86,8 +85,8 @@ def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
                 (
                     "Invalid DD_TRACE_METHODS: %s. "
                     "Methods must be specified in square brackets following the fully qualified module or class name."
-                )
-                % qualified_methods
+                ),
+                qualified_methods,
             )
             return []
 
@@ -98,7 +97,7 @@ def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
             # __main__ cannot be used since the __main__ that exists now is not the same as the __main__ that the user
             # application will have. __main__ when sitecustomize module is run is the builtin __main__.
             log.warning(
-                "Invalid DD_TRACE_METHODS: %s. Methods cannot be traced on the __main__ module." % qualified_methods
+                "Invalid DD_TRACE_METHODS: %s. Methods cannot be traced on the __main__ module.", qualified_methods
             )
             return []
 
@@ -113,15 +112,13 @@ def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
         for method in methods.split(","):
             if not str.isidentifier(method):
                 log.warning(
-                    "Invalid method name: %r. %s"
-                    % (
-                        method,
-                        (
-                            "You might have a trailing comma."
-                            if method == ""
-                            else "Method names must be valid Python identifiers."
-                        ),
-                    )
+                    "Invalid method name: %r. %s",
+                    method,
+                    (
+                        "You might have a trailing comma."
+                        if method == ""
+                        else "Method names must be valid Python identifiers."
+                    ),
                 )
                 return []
             dd_trace_methods.append("%s.%s" % (qualified_method_prefix, method))
@@ -156,7 +153,7 @@ def _install_trace_methods(raw_dd_trace_methods: str) -> None:
                     break
 
             if module is None:
-                log.warning("Could not import module for %r" % qualified_method)
+                log.warning("Could not import module for %r", qualified_method)
                 continue
 
             trace_method(base_module_guess, method_name)

@@ -594,7 +594,7 @@ class Span(object):
             if config._raise:
                 raise ValueError(msg)
             else:
-                log.warning(f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
+                log.warning("Invalid span or trace id. trace_id:%s span_id:%s", context.trace_id, context.span_id)
 
         if context.trace_id and context.span_id:
             self.set_link(

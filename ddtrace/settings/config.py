@@ -147,11 +147,7 @@ def _parse_propagation_styles(name, default):
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
-            log.warning(
-                "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
-                    style, name, PROPAGATION_STYLE_ALL
-                )
-            )
+            log.warning("Unknown style {!r} provided for %r, allowed values are %r", style, name, PROPAGATION_STYLE_ALL)
             continue
         styles.append(style)
     return styles
@@ -225,7 +221,7 @@ class _ConfigItem:
         elif source == "remote_config":
             self._rc_value = value
         else:
-            log.warning("Invalid source: {}".format(source))
+            log.warning("Invalid source: %s", source)
 
     def set_code(self, value: _JSONType) -> None:
         self._code_value = value
@@ -496,7 +492,8 @@ class Config(object):
                 (
                     "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
                     "only non-negative values allowed"
-                ).format(x_datadog_tags_max_length)
+                ),
+                x_datadog_tags_max_length,
             )
             return
         self._x_datadog_tags_max_length = x_datadog_tags_max_length

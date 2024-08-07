@@ -497,8 +497,9 @@ class AgentWriter(HTTPWriter):
             client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
         except KeyError:
             log.warning(
-                "Unsupported api version: '%s'. The supported versions are: %r"
-                % (self._api_version, ", ".join(sorted(WRITER_CLIENTS.keys())))
+                "Unsupported api version: '%s'. The supported versions are: %r",
+                self._api_version,
+                ", ".join(sorted(WRITER_CLIENTS.keys())),
             )
 
         _headers = {

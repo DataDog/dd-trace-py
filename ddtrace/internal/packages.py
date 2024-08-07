@@ -1,6 +1,5 @@
 import logging
-import os
-from os import fspath
+from os import fspath  # noqa:F401
 import sys
 import sysconfig
 from types import ModuleType

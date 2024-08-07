@@ -101,7 +101,7 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
             if isinstance(config_content, dict):
                 self._configs[target].update(config_content)
             else:
-                log.warning("target %s config %s has type of %s" % (target, config_content, type(config_content)))
+                log.warning("target %s config %s has type of %s", target, config_content, type(config_content))
 
     def dispatch(self, pubsub_instance=None):
         # type: (Optional[Any]) -> None
