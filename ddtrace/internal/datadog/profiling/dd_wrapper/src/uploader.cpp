@@ -32,10 +32,6 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     }
     ddog_prof_EncodedProfile* encoded = &result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
 
-    // If we have any custom tags, set them now
-    ddog_Vec_Tag tags = ddog_Vec_Tag_new();
-    add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
-
     // Build the request object
     const ddog_prof_Exporter_File file = {
         .name = to_slice("auto.pprof"),
@@ -46,7 +42,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                                       encoded->end,
                                                       ddog_prof_Exporter_Slice_File_empty(),
                                                       { .ptr = &file, .len = 1 },
-                                                      &tags,
+                                                      nullptr,
                                                       nullptr,
                                                       nullptr,
                                                       nullptr);
@@ -58,7 +54,6 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         errmsg = err_to_msg(&err, "Error building request");
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
-        ddog_Vec_Tag_drop(tags);
         return false;
     }
 
@@ -87,14 +82,11 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
             errmsg = err_to_msg(&err, "Error uploading");
             std::cerr << errmsg << std::endl;
             ddog_Error_drop(&err);
-            ddog_Vec_Tag_drop(tags);
             return false;
         }
         ddog_prof_Exporter_Request_drop(&req);
     }
 
-    // Cleanup
-    ddog_Vec_Tag_drop(tags);
     return true;
 }
 
