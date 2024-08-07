@@ -675,8 +675,9 @@ class _TraceContext:
         traceparent header.
         """
         valid_tp_values = _TRACEPARENT_HEX_REGEX.match(tp.strip())
-        if valid_tp_values is None and config._raise:
-            raise ValueError("Invalid traceparent version: %s" % tp)
+        if valid_tp_values is None:
+            log.warning("Invalid traceparent version: %s", tp)
+            return (0, 0, 0)
 
         (
             version,
@@ -684,7 +685,7 @@ class _TraceContext:
             span_id_hex,
             trace_flags_hex,
             future_vals,
-        ) = valid_tp_values.groups()  # type: Tuple[str, str, str, str, Optional[str]]
+        ) = valid_tp_values.groups()
 
         if version == "ff" and config._raise:
             # https://www.w3.org/TR/trace-context/#version
