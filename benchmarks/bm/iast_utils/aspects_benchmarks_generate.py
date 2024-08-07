@@ -8,16 +8,16 @@ will have to be git-added manually.
 """
 
 import base64
-import copy
 import inspect
 import os
-import yaml
 from typing import Any
 
+import yaml
+
+from benchmarks.bm.iast_fixtures import module_functions as mod_unpatched_module_functions
+from benchmarks.bm.iast_fixtures import str_methods as mod_unpatched_str_methods
+from benchmarks.bm.iast_fixtures import str_methods_py3 as mod_unpatched_str_methods_py3
 from benchmarks.bm.utils import override_env
-from tests.appsec.iast.fixtures.aspects import module_functions as mod_unpatched_module_functions
-from tests.appsec.iast.fixtures.aspects import str_methods as mod_unpatched_str_methods
-from tests.appsec.iast.fixtures.aspects import str_methods_py3 as mod_unpatched_str_methods_py3
 
 
 with override_env({"DD_IAST_ENABLED": "True"}):
@@ -71,19 +71,20 @@ _module_meta = {
             "do_stringio_init_and_getvalue_param",
             "do_stringio_init_param",
             "wrapper",
+            # The run.py convert the args to command line and does not support yaml constructors like the ones
+            # needed for bytes or bytearray arguments
+            "do_bytearray_append",
+            "do_bytearray_extend",
+            "do_bytearray_to_bytes",
+            "do_bytearray_to_str",
+            "do_bytes",
+            "do_bytes_to_bytearray",
+            "do_bytes_to_iter_bytearray",
+            "do_bytes_to_str",
+            "do_decode",
+            "do_decode_simple",
         },
         "special_arguments": {
-            "do_bytearray_append": [bytearray(b"foobar")],
-            "do_bytearray_extend": [bytearray(b"foo"), bytearray(b"bar")],
-            "do_bytearray_to_bytes": [bytearray(b"foobar")],
-            "do_bytearray_to_str": [bytearray(b"foobar")],
-            "do_bytes": [bytearray(b"foobar")],
-            "do_bytes_to_bytearray": [b"foobar"],
-            "do_bytes_to_iter_bytearray": [b"foobar"],
-            "do_bytes_to_str": [b"foobar"],
-            "do_center": ["foobar", 2],
-            "do_decode": [b"foobar"],
-            "do_decode_simple": [b"foobar"],
             "do_encode": ["foobar", "utf-8", "strict"],
             "do_encode_from_dict": ["foobar", "utf-8", "strict"],
             "do_format": ["foobar{}", "baz"],
@@ -178,9 +179,10 @@ def generate_functions_dict():
                 if num_args:
                     args = ["  fOobaR\t  \n"] * num_args
 
+            exported_args = repr(args)
             functions[f] = {
                 "function_name": f,
-                "args": yaml.dump(args, default_flow_style=True).strip(),
+                "args": exported_args,
                 "mod_original_name": module_dict["original_name"],
             }
     return functions
@@ -193,7 +195,7 @@ aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
     function_name: "{function_name}"
     args: {args}
 
-aspect_iast_{function_name}: &aspect_iast_{function_name}
+aspect_iast_{function_name}:
     << : *aspect_no_iast_{function_name}
     iast_enabled: 1
 """

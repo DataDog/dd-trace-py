@@ -1,4 +1,5 @@
 # import base64
+import ast
 import importlib
 import types
 
@@ -22,18 +23,20 @@ class IAST_Aspects(bm.Scenario):
     iast_enabled: bool
     mod_original_name: str
     function_name: str
-    args: list
+    args: str
 
     def run(self):
+        args = ast.literal_eval(self.args)
+
         def _(loops):
             for _ in range(loops):
                 if self.iast_enabled:
                     with override_env({"DD_IAST_ENABLED": "True"}):
                         module_patched = _iast_patched_module(self.mod_original_name)
 
-                    getattr(module_patched, self.function_name)(*self.args)
+                    getattr(module_patched, self.function_name)(*args)
                 else:
                     module_unpatched = importlib.import_module(self.mod_original_name)
-                    getattr(module_unpatched, self.function_name)(*self.args)
+                    getattr(module_unpatched, self.function_name)(*args)
 
         yield _
