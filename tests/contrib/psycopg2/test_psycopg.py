@@ -497,7 +497,7 @@ class PsycopgCore(TracerTestCase):
         cursor.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
             "/*dddb='postgres',dddbs='postgres',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+            "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
         )
         # test string queries
         cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
