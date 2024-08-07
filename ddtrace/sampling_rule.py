@@ -1,7 +1,4 @@
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any
-from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal.compat import pattern_type
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -13,6 +10,10 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
+
     from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
@@ -28,13 +29,14 @@ class SamplingRule(object):
 
     def __init__(
         self,
-        sample_rate: float,
-        service: Any = NO_RULE,
-        name: Any = NO_RULE,
-        resource: Any = NO_RULE,
-        tags: Any = NO_RULE,
-        provenance: str = "default",
-    ) -> None:
+        sample_rate,  # type: float
+        service=NO_RULE,  # type: Any
+        name=NO_RULE,  # type: Any
+        resource=NO_RULE,  # type: Any
+        tags=NO_RULE,  # type: Any
+        provenance="default",  # type: str
+    ):
+        # type: (...) -> None
         """
         Configure a new :class:`SamplingRule`
 
@@ -65,7 +67,14 @@ class SamplingRule(object):
             number of characters, and "?" meaning any one character. If all tags specified in a SamplingRule are
             matches with a given span, that span is considered to have matching tags with the rule.
         """
-        self.sample_rate = float(min(1, max(0, sample_rate)))
+        # Enforce sample rate constraints
+        if not 0.0 <= sample_rate <= 1.0:
+            raise ValueError(
+                (
+                    "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 and less than or equal to 1.0"
+                ).format(sample_rate)
+            )
+        self.sample_rate = float(sample_rate)
         # since span.py converts None to 'None' for tags, and does not accept 'None' for metrics
         # we can just create a GlobMatcher for 'None' and it will match properly
         self._tag_value_matchers = (
@@ -78,11 +87,13 @@ class SamplingRule(object):
         self.provenance = provenance
 
     @property
-    def sample_rate(self) -> float:
+    def sample_rate(self):
+        # type: () -> float
         return self._sample_rate
 
     @sample_rate.setter
-    def sample_rate(self, sample_rate: float) -> None:
+    def sample_rate(self, sample_rate):
+        # type: (float) -> None
         self._sample_rate = sample_rate
         self._sampling_id_threshold = sample_rate * _MAX_UINT_64BITS
 
@@ -118,7 +129,8 @@ class SamplingRule(object):
         return prop == pattern
 
     @cachedmethod()
-    def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
+    def _matches(self, key):
+        # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
         # self._matches exists to maintain legacy pattern values such as regex and functions
         service, name, resource = key
         for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
@@ -238,7 +250,8 @@ class SamplingRule(object):
 
     __str__ = __repr__
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other):
+        # type: (Any) -> bool
         if not isinstance(other, SamplingRule):
-            return False
+            raise TypeError("Cannot compare SamplingRule to {}".format(type(other)))
         return str(self) == str(other)
