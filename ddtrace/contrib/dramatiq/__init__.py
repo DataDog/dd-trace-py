@@ -35,7 +35,7 @@ required_modules = ["dramatiq"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.django.patch` directly
+        # Required to allow users to import from `ddtrace.contrib.dramatiq.patch` directly
         from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
