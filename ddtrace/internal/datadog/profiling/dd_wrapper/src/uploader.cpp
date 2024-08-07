@@ -1,9 +1,11 @@
 #include "uploader.hpp"
 #include "libdatadog_helpers.hpp"
 
-#include <fstream>
-#include <sstream>
-#include <unistd.h>
+#include <errno.h>  // errno
+#include <fstream>  // ofstream
+#include <sstream>  // ostringstream
+#include <string.h> // strerror
+#include <unistd.h> // getpid
 
 using namespace Datadog;
 
@@ -33,15 +35,16 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
     std::ostringstream oss;
     oss << output_filename << "." << getpid() << "." << upload_seq;
     std::string filename = oss.str();
-    std::ofstream out(filename.c_str(), std::ios::binary);
+    std::ofstream out(filename, std::ios::binary);
     if (!out.is_open()) {
-        errmsg = "Error opening output file " + filename;
-        std::cerr << errmsg << std::endl;
+        std::cerr << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
         return false;
     }
-
     out.write(reinterpret_cast<const char*>(encoded->buffer.ptr), encoded->buffer.len);
-    out.close();
+    if (out.fail()) {
+        std::cerr << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
+        return false;
+    }
     return true;
 }
 
