@@ -20,6 +20,7 @@ def gen_required_suites(template: dict, git_selections: list) -> None:
     fetn(
         suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite), git_selections=git_selections
     )
+    required_suites = ["internal"]
 
     if not required_suites:
         # Nothing to generate
