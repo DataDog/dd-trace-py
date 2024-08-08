@@ -661,7 +661,7 @@ def test_flush_connection_uds(endpoint_uds_server, writer_class):
     writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter,))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_flush_queue_raise(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://dne:1234")
@@ -672,7 +672,8 @@ def test_flush_queue_raise(writer_class):
 
         error = OSError
         with pytest.raises(error):
-            writer.write([])
+            # CIVisibilityWriter requires a non empty list
+            writer.write([Span("name")])
             writer.flush_queue(raise_exc=True)
 
 
