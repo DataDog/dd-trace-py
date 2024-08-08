@@ -490,7 +490,7 @@ class Config(object):
         if x_datadog_tags_max_length < 0:
             log.warning(
                 (
-                    "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
+                    "Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
                     "only non-negative values allowed"
                 ),
                 x_datadog_tags_max_length,

@@ -715,8 +715,8 @@ def test_additional_headers_constructor():
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_bad_encoding(monkeypatch, writer_class):
     with override_global_config({"_trace_api": "foo"}):
-        with pytest.raises(ValueError):
-            writer_class("http://localhost:9126")
+        writer = writer_class("http://localhost:9126")
+        assert writer._api_version == "v0.5"
 
 
 @pytest.mark.parametrize(
