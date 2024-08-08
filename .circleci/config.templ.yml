@@ -88,6 +88,36 @@ commands:
       -  run: curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
       -  run: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
 
+  setup_sccache:
+    description: "Install and configure sccache"
+    steps:
+      - run:
+          name: "Install sccache"
+          command: |
+              curl -L https://github.com/mozilla/sccache/releases/download/v0.8.1/sccache-v0.8.1-x86_64-unknown-linux-musl.tar.gz | tar zx --strip-components=1 -C /usr/local/bin/ sccache-v0.8.1-x86_64-unknown-linux-musl/sccache
+              echo "export RUSTC_WRAPPER=/usr/local/bin/sccache" >> "$BASH_ENV"
+              echo "export CMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/sccache" >> "$BASH_ENV"
+              echo "export CMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/sccache" >> "$BASH_ENV"
+              echo "export SCCACHE_DIR=/root/.cache/sccache" >> "$BASH_ENV"
+              echo "export SCCACHE_CACHE_SIZE=1G" >> "$BASH_ENV"
+              echo "export SCCACHE_DIRECT=true" >> "$BASH_ENV"
+              /usr/local/bin/sccache --version
+      - restore_cache:
+          name: Restore sccache cache
+          key: v0-sccache-cache-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}
+
+  save_sccache:
+   description: "Save the sccache cache"
+   steps:
+     - run:
+         name: "sccache stats"
+         command: /usr/local/bin/sccache --show-stats
+     - save_cache:
+         name: Save sccache cache
+         key: v0-sccache-cache-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
+         paths:
+           - /root/.cache/sccache/
+
   setup_hatch:
     description: "Install hatch"
     steps:
@@ -455,6 +485,7 @@ jobs:
     steps:
       - checkout
       - setup_riot
+      - setup_sccache
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
@@ -462,6 +493,7 @@ jobs:
           environment:
             CMAKE_BUILD_PARALLEL_LEVEL: 12
             PIP_VERBOSE: 1
+      - save_sccache
       - persist_to_workspace:
           root: .
           paths:
