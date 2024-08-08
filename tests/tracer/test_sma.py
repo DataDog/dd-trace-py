@@ -1,5 +1,3 @@
-import pytest
-
 from ddtrace.internal.sma import SimpleMovingAverage
 from ddtrace.internal.writer import DEFAULT_SMA_WINDOW
 
