@@ -6,6 +6,7 @@ from ddtrace.internal import agent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs._utils import _chat_completion_event
 from tests.llmobs._utils import _completion_event
+from tests.llmobs._utils import _large_event
 
 
 INTAKE_ENDPOINT = agent.get_trace_url()
@@ -23,6 +24,20 @@ def test_buffer_limit(mock_writer_logs, mock_http_writer_send_payload_response):
         llmobs_span_writer.enqueue({})
     mock_writer_logs.warning.assert_called_with(
         "%r event buffer full (limit is %d), dropping event", "LLMObsSpanEncoder", 1000
+    )
+
+
+def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(
+    mock_writer_logs, mock_http_writer_send_payload_response
+):
+    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
+    llmobs_span_writer.enqueue(_large_event())
+    llmobs_span_writer.enqueue(_large_event())
+    mock_writer_logs.debug.assert_has_calls(
+        [
+            mock.call("flushing queue because queuing next event will exceed EVP payload limit"),
+            mock.call("encode %d LLMObs span events to be sent", 1),
+        ]
     )
 
 
