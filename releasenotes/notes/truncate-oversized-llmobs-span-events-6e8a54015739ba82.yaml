@@ -1,0 +1,4 @@
+features:
+  - |
+    LLM Observability: Span events that exceed the event platform event size limit (1 MB) will now have their input
+    and output truncated. The `truncated` tag will be added to these span events.
