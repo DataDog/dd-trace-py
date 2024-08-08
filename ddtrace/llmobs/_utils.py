@@ -1,6 +1,5 @@
 from typing import Optional
 
-import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.ext import SpanTypes
@@ -8,7 +7,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 

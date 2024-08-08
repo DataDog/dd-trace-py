@@ -583,7 +583,6 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
             context_provider.activate(llmobs_context)
 
 
-
 def _flatten(
     obj,  # type: Any
     sep=".",  # type: str

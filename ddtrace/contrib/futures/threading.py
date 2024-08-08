@@ -15,6 +15,7 @@ def _wrap_submit(func, args, kwargs):
     llmobs_ctx = None
     if config._llmobs_enabled:
         from ddtrace.llmobs import LLMObs
+
         llmobs_ctx = LLMObs._instance._llmobs_context_provider.current_trace_context()
     current_ctx: Optional[Context] = ddtrace.tracer.current_trace_context()
 
@@ -40,5 +41,6 @@ def _wrap_execution(ctx: Optional[Context], fn, args, kwargs):
         ddtrace.tracer.context_provider.activate(ctx[0])
         if config._llmobs_enabled:
             from ddtrace.llmobs import LLMObs
+
             LLMObs._instance._llmobs_context_provider.activate(ctx[1])
     return fn(*args, **kwargs)
