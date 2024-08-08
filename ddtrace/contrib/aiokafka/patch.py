@@ -70,6 +70,7 @@ def patch():
     aiokafka.AIOKafkaConsumer = TracedAIOKafkaConsumer
 
     trace_utils.wrap(TracedAIOKafkaProducer, "send", traced_send)
+    trace_utils.wrap(TracedAIOKafkaProducer, "send_and_wait", traced_send_and_wait)
     trace_utils.wrap(TracedAIOKafkaConsumer, "getone", traced_getone)
     trace_utils.wrap(TracedAIOKafkaConsumer, "getmany", traced_getmany)
     trace_utils.wrap(TracedAIOKafkaConsumer, "commit", traced_commit)
@@ -84,6 +85,8 @@ def unpatch():
 
     if trace_utils.iswrapped(TracedAIOKafkaProducer.send):
         trace_utils.unwrap(TracedAIOKafkaProducer, "send")
+    if trace_utils.iswrapped(TracedAIOKafkaProducer.send_and_wait):
+        trace_utils.unwrap(TracedAIOKafkaProducer, "send_and_wait")
     if trace_utils.iswrapped(TracedAIOKafkaConsumer.getone):
         trace_utils.unwrap(TracedAIOKafkaConsumer, "getone")
     if trace_utils.iswrapped(TracedAIOKafkaConsumer.getmany):
@@ -137,6 +140,15 @@ async def traced_send(func, instance, args, kwargs):
 
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
         return await func(*args, **kwargs)
+
+
+async def traced_send_and_wait(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return await func(*args, **kwargs)
+    result = await func(*args, **kwargs)
+    core.dispatch("aiokafka.produce.completed", (result,))
+    return result
 
 
 async def traced_getone(func, instance, args, kwargs):

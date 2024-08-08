@@ -26,6 +26,7 @@ GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "127.0.0.1:{}".format(KAFKA_CONFIG["port"])
 KEY = "test_key".encode("utf-8")
 PAYLOAD = "hueh hueh hueh".encode("utf-8")
+ENABLE_AUTO_COMMIT = True
 
 
 @pytest.fixture()
@@ -94,8 +95,13 @@ async def producer(tracer):
 
 
 @pytest.fixture
-async def consumer(tracer, kafka_topic):
-    _consumer = get_consumer()
+def enable_auto_commit():
+    yield ENABLE_AUTO_COMMIT
+
+
+@pytest.fixture
+async def consumer(tracer, kafka_topic, enable_auto_commit):
+    _consumer = get_consumer(enable_auto_commit)
     Pin.override(_consumer, tracer=tracer)
     _consumer.subscribe([kafka_topic])
     await _consumer.start()
@@ -103,9 +109,12 @@ async def consumer(tracer, kafka_topic):
     await _consumer.stop()
 
 
-def get_consumer():
+def get_consumer(enable_auto_commit=ENABLE_AUTO_COMMIT):
     consumer = aiokafka.AIOKafkaConsumer(
-        bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID, enable_auto_commit=False
+        bootstrap_servers=[BOOTSTRAP_SERVERS],
+        auto_offset_reset="earliest",
+        group_id=GROUP_ID,
+        enable_auto_commit=enable_auto_commit,
     )
     return consumer
 
@@ -280,8 +289,11 @@ async def test_getone_with_distributed_tracing_with_headers(producer, consumer, 
         assert propagation_asserted is True
 
 
-@pytest.mark.parametrize("distributed_tracing_enabled", [False, True])
-async def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic, distributed_tracing_enabled):
+@pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
+@pytest.mark.parametrize("enable_auto_commit", [True, False])
+async def test_data_streams_kafka(
+    dsm_processor, consumer, producer, kafka_topic, distributed_tracing_enabled, enable_auto_commit
+):
     with override_config("kafka", dict(distributed_tracing_enabled=distributed_tracing_enabled)):
         try:
             del dsm_processor._current_context.value
@@ -327,3 +339,29 @@ async def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic
             ].edge_latency.count
             >= 1
         )
+
+
+@pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
+async def test_data_streams_kafka_produce_api_compatibility(
+    dsm_processor, producer, kafka_topic, distributed_tracing_enabled
+):
+    with override_config("kafka", dict(distributed_tracing_enabled=distributed_tracing_enabled)):
+        PAYLOAD = bytes("data streams", encoding="utf-8")
+        KEY = bytes("test_key", encoding="utf-8")
+        try:
+            del dsm_processor._current_context.value
+        except AttributeError:
+            pass
+
+        # All of these should work
+        await producer.send_and_wait(kafka_topic, PAYLOAD)
+        await producer.send_and_wait(kafka_topic, value=PAYLOAD)
+        await producer.send_and_wait(kafka_topic, PAYLOAD, key=KEY)
+        await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+        await producer.send_and_wait(kafka_topic, key=KEY)
+        await producer.stop()
+
+        buckets = dsm_processor._buckets
+        assert len(buckets) == 1
+        bucket = list(buckets.values())[0]
+        assert bucket.latest_produce_offsets[(kafka_topic, 0)] == 4

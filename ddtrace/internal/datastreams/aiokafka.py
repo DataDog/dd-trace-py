@@ -10,8 +10,7 @@ from ddtrace.internal.utils import get_argument_value
 INT_TYPES = (int,)
 
 
-def dsm_kafka_message_produce(instance, topic, value, key, headers, span):
-    # TODO this doesn't capture latency timings yet
+def dsm_aiokafka_message_produce(instance, topic, value, key, headers, span):
     from . import data_streams_processor as processor
 
     payload_size = 0
@@ -28,7 +27,14 @@ def dsm_kafka_message_produce(instance, topic, value, key, headers, span):
         headers.append((key, value.encode("utf-8")))
 
 
-def dsm_kafka_message_consume(instance, message, span):
+def dsm_aiokafka_message_produce_completed(record_metadata):
+    from . import data_streams_processor as processor
+
+    reported_offset = record_metadata.offset if isinstance(record_metadata.offset, INT_TYPES) else -1
+    processor().track_kafka_produce(record_metadata.topic, record_metadata.partition, reported_offset, time.time())
+
+
+def dsm_aiokafka_message_consume(instance, message, span):
     from . import data_streams_processor as processor
 
     headers = {header[0]: header[1].decode("utf-8") for header in (message.headers or [])}
@@ -54,7 +60,7 @@ def dsm_kafka_message_consume(instance, message, span):
         )
 
 
-def dsm_kafka_message_commit(instance, args, kwargs):
+def dsm_aiokafka_message_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 
     offsets = get_argument_value(args, kwargs, 0, "offsets", optional=True)
@@ -65,6 +71,7 @@ def dsm_kafka_message_commit(instance, args, kwargs):
 
 
 if config._data_streams_enabled:
-    core.on("aiokafka.produce.start", dsm_kafka_message_produce)
-    core.on("aiokafka.consume.start", dsm_kafka_message_consume)
-    core.on("aiokafka.commit.start", dsm_kafka_message_commit)
+    core.on("aiokafka.produce.start", dsm_aiokafka_message_produce)
+    core.on("aiokafka.produce.completed", dsm_aiokafka_message_produce_completed)
+    core.on("aiokafka.consume.start", dsm_aiokafka_message_consume)
+    core.on("aiokafka.commit.start", dsm_aiokafka_message_commit)
