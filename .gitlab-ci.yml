@@ -59,8 +59,7 @@ build_ddtrace_linux:
       - wheelhouse/
 
 build_ddtrace_windows:
-  image: registry.ddbuild.io/images/mirror/dotnet/framework:sdk-4.8-windowsservercore-ltsc2022
-  tags: [ "runner:windows" ]
+  tags: [ "runner:windows-docker", "windowsversion:1809" ]
   stage: package
   variables:
     CIBW_BUILD: "${PYTHON_ABI}-${ARCH}"
