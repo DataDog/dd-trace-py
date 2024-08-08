@@ -22,7 +22,7 @@ class SynchronizedSamplePool
     std::unique_ptr<ddog_ArrayQueue, Deleter> pool;
 
   public:
-    SynchronizedSamplePool(size_t capacity);
+    SynchronizedSamplePool();
 
     std::optional<Sample*> get_sample();
     std::optional<Sample*> return_sample(Sample* sample);
