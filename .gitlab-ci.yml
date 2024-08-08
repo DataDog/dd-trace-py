@@ -42,46 +42,34 @@ build_ddtrace_linux:
   parallel:
     matrix:
       # 3.7
-      - CIBW_BUILD: "cp37-*"
-        CIBW_ARCHS: x86_64 i686
+      - CIBW_BUILD: [ "cp37-*x86_64*", "cp37-*i686*" ]
         RUNNER: runner:docker
-      - CIBW_BUILD: "cp37-*"
-        CIBW_ARCHS: aarch64
+      - CIBW_BUILD: "cp37-*aarch64*"
         RUNNER: runner:docker-arm
       # 3.8
-      - CIBW_BUILD: "cp38-*"
-        CIBW_ARCHS: x86_64 i686
+      - CIBW_BUILD: [ "cp38-*x86_64*", "cp38-*i686*" ]
         RUNNER: runner:docker
-      - CIBW_BUILD: "cp38-*"
-        CIBW_ARCHS: aarch64
+      - CIBW_BUILD: "cp38-*aarch64*"
         RUNNER: runner:docker-arm
       # 3.9
-      - CIBW_BUILD: "cp39-*"
-        CIBW_ARCHS: x86_64 i686
+      - CIBW_BUILD: [ "cp39-*x86_64*", "cp39-*i686*" ]
         RUNNER: runner:docker
-      - CIBW_BUILD: "cp39-*"
-        CIBW_ARCHS: aarch64
+      - CIBW_BUILD: "cp39-*aarch64*"
         RUNNER: runner:docker-arm
       # 3.10
-      - CIBW_BUILD: "cp310-*"
-        CIBW_ARCHS: x86_64 i686
+      - CIBW_BUILD: [ "cp310-*x86_64*", "cp310-*i686*" ]
         RUNNER: runner:docker
-      - CIBW_BUILD: "cp310-*"
-        CIBW_ARCHS: aarch64
+      - CIBW_BUILD: "cp310-*aarch64*"
         RUNNER: runner:docker-arm
       # 3.11
-      - CIBW_BUILD: "cp311-*"
-        CIBW_ARCHS: x86_64 i686
+      - CIBW_BUILD: [ "cp311-*x86_64*", "cp311-*i686*" ]
         RUNNER: runner:docker
-      - CIBW_BUILD: "cp311-*"
-        CIBW_ARCHS: aarch64
+      - CIBW_BUILD: "cp311-*aarch64*"
         RUNNER: runner:docker-arm
       # 3.12
-      - CIBW_BUILD: "cp312-*"
-        CIBW_ARCHS: x86_64 i686
+      - CIBW_BUILD: [ "cp312-*x86_64*", "cp312-*i686*" ]
         RUNNER: runner:docker
-      - CIBW_BUILD: "cp312-*"
-        CIBW_ARCHS: aarch64
+      - CIBW_BUILD: "cp312-*aarch64*"
         RUNNER: runner:docker-arm
   script:
     - curl -sSL https://get.docker.com/ | sh
