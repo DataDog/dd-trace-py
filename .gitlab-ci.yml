@@ -21,7 +21,7 @@ build_ddtrace_linux:
   tags: [ "${RUNNER}" ]
   stage: package
   variables:
-    CIBW_ARCHS: all
+    CIBW_BUILD: "${PYTHON_ABI}-${PLATFORM}_${ARCH}"
     CIBW_PLATFORM: linux
     CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
     CIBW_ENVIRONMENT_LINUX: PATH=$$HOME/.cargo/bin:$$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
@@ -41,35 +41,13 @@ build_ddtrace_linux:
       rm -rf ./tempwheelhouse
   parallel:
     matrix:
-      # 3.7
-      - CIBW_BUILD: [ "cp37-*x86_64*", "cp37-*i686*" ]
+      - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
+        PLATFORM: ["manylinux", "musllinux"]
+        ARCH: ["x86_64", "i686"]
         RUNNER: runner:docker
-      - CIBW_BUILD: "cp37-*aarch64*"
-        RUNNER: runner:docker-arm
-      # 3.8
-      - CIBW_BUILD: [ "cp38-*x86_64*", "cp38-*i686*" ]
-        RUNNER: runner:docker
-      - CIBW_BUILD: "cp38-*aarch64*"
-        RUNNER: runner:docker-arm
-      # 3.9
-      - CIBW_BUILD: [ "cp39-*x86_64*", "cp39-*i686*" ]
-        RUNNER: runner:docker
-      - CIBW_BUILD: "cp39-*aarch64*"
-        RUNNER: runner:docker-arm
-      # 3.10
-      - CIBW_BUILD: [ "cp310-*x86_64*", "cp310-*i686*" ]
-        RUNNER: runner:docker
-      - CIBW_BUILD: "cp310-*aarch64*"
-        RUNNER: runner:docker-arm
-      # 3.11
-      - CIBW_BUILD: [ "cp311-*x86_64*", "cp311-*i686*" ]
-        RUNNER: runner:docker
-      - CIBW_BUILD: "cp311-*aarch64*"
-        RUNNER: runner:docker-arm
-      # 3.12
-      - CIBW_BUILD: [ "cp312-*x86_64*", "cp312-*i686*" ]
-        RUNNER: runner:docker
-      - CIBW_BUILD: "cp312-*aarch64*"
+      - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
+        PLATFORM: ["manylinux", "musllinux"]
+        ARCH: ["aarch64"]
         RUNNER: runner:docker-arm
   script:
     - curl -sSL https://get.docker.com/ | sh
