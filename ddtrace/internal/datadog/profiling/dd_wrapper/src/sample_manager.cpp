@@ -43,9 +43,9 @@ Datadog::SampleManager::drop_sample(Datadog::Sample* sample)
 {
     sample->clear_buffers();
     std::optional<Sample*> result_opt = sample_pool.return_sample(sample);
-    // If the pool is full, we need to delete the sample.
+    // If the pool is full, the pool returns the pointer and we need to delete the sample.
     if (result_opt.has_value()) {
-        delete result_opt.value();
+        delete result_opt.value(); // NOLINT(cppcoreguidelines-owning-memory)
     }
 }
 
