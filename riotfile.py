@@ -401,7 +401,7 @@ venv = Venv(
             name="internal",
             env={
                 "DD_TRACE_AGENT_URL": "http://localhost:8126",
-                "DD_CIVISIBILITY_LOG_LEVEL": "none",
+                "DD_CIVISIBILITY_LOG_LEVEL": "info",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
