@@ -1,8 +1,8 @@
 import json
 import os
 import textwrap
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -218,13 +218,16 @@ class PytestTestCase(TracerTestCase):
         """Test parametrize case with complex objects."""
         py_file = self.testdir.makepyfile(
             """
-            from mock import MagicMock
+            from unittest.mock import MagicMock
             import pytest
 
             class A:
                 def __init__(self, name, value):
                     self.name = name
                     self.value = value
+
+                def __repr__(self):
+                    return f"{self.__class__.__name__}(name={self.name}, value={self.value})"
 
             def item_param():
                 return 42
@@ -257,12 +260,12 @@ class PytestTestCase(TracerTestCase):
         # Since object will have arbitrary addresses, only need to ensure that
         # the params string contains most of the string representation of the object.
         expected_params_contains = [
-            "test_parameterize_case_complex_objects.A",
-            "test_parameterize_case_complex_objects.A",
+            "A(name=test_name",
+            "A(name=test_name, value=A(name=inner_name, value=value))",
             "<function item_param>",
-            "'a': <test_parameterize_case_complex_objects.A",
+            "{'a': A(name=test_name, value=value), 'b': [1, 2, 3]}",
             "<MagicMock id=",
-            "test_parameterize_case_complex_objects.A",
+            "Could not encode",
             "{('x', 'y'): 12345}",
         ]
         assert len(spans) == 10
@@ -274,7 +277,7 @@ class PytestTestCase(TracerTestCase):
         """Test parametrize case with complex objects that cannot be JSON encoded."""
         py_file = self.testdir.makepyfile(
             """
-            from mock import MagicMock
+            from unittest.mock import MagicMock
             import pytest
 
             class A:

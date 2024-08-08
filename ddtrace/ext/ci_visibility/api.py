@@ -25,6 +25,7 @@ from typing import Tuple
 from typing import Type
 from typing import Union
 
+import ddtrace
 from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
 from ddtrace.ext.ci_visibility._ci_visibility_base import CISourceFileInfoBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
@@ -112,10 +113,10 @@ class CIExcInfo:
 
 
 @_catch_and_log_exceptions
-def enable_ci_visibility():
+def enable_ci_visibility(config):
     from ddtrace.internal.ci_visibility import CIVisibility
 
-    CIVisibility.enable()
+    CIVisibility.enable(config=config)
     if not CIVisibility.enabled:
         log.warning("CI Visibility enabling failed.")
 
@@ -156,6 +157,12 @@ class CIBase(_CIVisibilityAPIBase):
     def delete_tags(item_id: CIItemId, tag_names: List[str], recurse: bool = False):
         log.debug("Deleting tags for item %s: %s", item_id, tag_names)
         core.dispatch("ci_visibility.item.delete_tags", (CIBase.DeleteTagsArgs(item_id, tag_names),))
+
+    @staticmethod
+    def get_span(item_id: CIItemId) -> ddtrace.Span:
+        log.debug("Getting span for item %s", item_id)
+        span: ddtrace.Span = core.dispatch_with_results("ci_visibility.item.get_span", (item_id,)).span.value
+        return span
 
 
 class CISession(CIBase):

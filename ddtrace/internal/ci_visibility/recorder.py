@@ -725,6 +725,9 @@ class CIVisibility(Service):
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
         if session_id not in cls._instance._session_data:
+            import traceback
+
+            traceback.print_stack()
             log.warning("Session not found: %s", session_id)
             raise CIVisibilityDataError(f"No session with id {session_id} found")
         return cls._instance._session_data[session_id]
@@ -891,7 +894,7 @@ def _requires_civisibility_enabled(func):
 def _on_discover_session(
     discover_args: CISession.DiscoverArgs, test_framework_telemetry_name: Optional[TEST_FRAMEWORKS] = None
 ):
-    log.debug("Handling session discovery")
+    log.debug("Handling session discovery for session id %s", discover_args.session_id)
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
     tracer = CIVisibility.get_tracer()
@@ -903,8 +906,14 @@ def _on_discover_session(
         log.warning(error_msg)
         raise CIVisibilityError(error_msg)
 
-    # If we're not provided a root directory, try and extract it from CWD
-    root_dir = (discover_args.root_dir or Path(extract_workspace_path())).absolute()
+    # If we're not provided a root directory, try and extract it from workspace, defaulting to CWD
+    root_dir: Optional[Path] = discover_args.root_dir
+    if root_dir is None:
+        try:
+            root_dir = Path(extract_workspace_path())
+        except ValueError:
+            log.debug("Could not extract workspace path, defaulting to current working directory", exc_info=True)
+            root_dir = Path.cwd()
 
     if test_framework_telemetry_name is None:
         test_framework_telemetry_name = TEST_FRAMEWORKS.MANUAL
@@ -1113,6 +1122,18 @@ def _register_test_handlers():
 
 
 @_requires_civisibility_enabled
+def _on_item_get_span(item_id: CIItemId):
+    log.debug("Handing get_span for item %s", item_id)
+    item = CIVisibility.get_item_by_id(item_id)
+    return item.get_span()
+
+
+def _register_item_handlers():
+    log.debug("Registering item handlers")
+    core.on("ci_visibility.item.get_span", _on_item_get_span, "span")
+
+
+@_requires_civisibility_enabled
 def _on_add_coverage_data(add_coverage_args: CIITRMixin.AddCoverageArgs):
     """Adds coverage data to an item, merging with existing coverage data if necessary"""
     item_id = add_coverage_args.item_id
@@ -1234,6 +1255,7 @@ _register_session_handlers()
 _register_module_handlers()
 _register_suite_handlers()
 _register_test_handlers()
+_register_item_handlers()
 _register_tag_handlers()
 _register_coverage_handlers()
 _register_itr_handlers()

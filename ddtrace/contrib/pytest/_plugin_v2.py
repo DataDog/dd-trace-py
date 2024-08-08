@@ -4,6 +4,7 @@ import typing as t
 
 import pytest
 
+from ddtrace import config as dd_config
 from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.coverage.data import _coverage_data
@@ -122,10 +123,10 @@ class _PytestDDTracePluginV2:
 
     @staticmethod
     def pytest_configure(config: pytest.Config) -> None:
-        unpatch_unittest()
         if is_enabled(config):
+            unpatch_unittest()
             take_over_logger_stream_handler()
-            enable_ci_visibility()
+            enable_ci_visibility(config=dd_config.pytest)
         if _is_pytest_cov_enabled(config):
             patch_coverage()
 
@@ -146,7 +147,7 @@ class _PytestDDTracePluginV2:
             session_operation_name="pytest.test_session",
             module_operation_name="pytest.test_module",
             suite_operation_name="pytest.test_suite",
-            test_operation_name="pytest.test",
+            test_operation_name=dd_config.pytest.operation_name,
             reject_duplicates=False,
             reject_unknown_items=True,
         )

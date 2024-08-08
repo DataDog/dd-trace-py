@@ -157,6 +157,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             child_of=parent_span,
             service=self._service,
             span_type=SpanTypes.TEST,
+            activate=True,
         )
 
     def _finish_span(self):
