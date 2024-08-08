@@ -19,6 +19,7 @@ from typing import cast  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import user
@@ -572,6 +573,15 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         # We have parsed a trace id from headers, and we do not already
         # have a context with the same trace id active
         tracer.context_provider.activate(context)
+
+        if config._llmobs_enabled:
+            from ddtrace.llmobs import LLMObs
+            from ddtrace.llmobs._constants import PARENT_ID_KEY
+
+            context_provider = LLMObs._instance._llmobs_context_provider
+            llmobs_context = Context(trace_id=context.trace_id, span_id=request_headers.get(PARENT_ID_KEY))
+            context_provider.activate(llmobs_context)
+
 
 
 def _flatten(

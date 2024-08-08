@@ -9,7 +9,7 @@ from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 
 
@@ -35,7 +35,7 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         return str(nearest_llmobs_ancestor.span_id)
-    return span.get_tag(PROPAGATED_PARENT_ID_KEY)
+    return span.get_tag(PARENT_ID_KEY)
 
 
 def _get_span_name(span: Span) -> str:
@@ -74,21 +74,17 @@ def _get_session_id(span: Span) -> str:
     return session_id or "{:x}".format(span.trace_id)
 
 
-def _inject_llmobs_parent_id(span_context):
+def _inject_llmobs_context(headers):
     """Inject the LLMObs parent ID into the span context for reconnecting distributed LLMObs traces."""
-    span = ddtrace.tracer.current_span()
-    if span is None:
-        log.warning("No active span to inject LLMObs parent ID info.")
-        return
-    if span.context is not span_context:
-        log.warning("The current active span and span_context do not match. Not injecting LLMObs parent ID.")
-        return
+    from ddtrace.llmobs import LLMObs
 
-    if span.span_type == SpanTypes.LLM:
-        llmobs_parent_id = str(span.span_id)
+    context_provider = LLMObs._instance._llmobs_context_provider
+    span = context_provider.active()
+    if span is None:
+        parent_id = "undefined"
     else:
-        llmobs_parent_id = _get_llmobs_parent_id(span)
-    span_context._meta[PROPAGATED_PARENT_ID_KEY] = llmobs_parent_id or "undefined"
+        parent_id = str(span.span_id)
+    headers[PARENT_ID_KEY] = parent_id
 
 
 def _unserializable_default_repr(obj):

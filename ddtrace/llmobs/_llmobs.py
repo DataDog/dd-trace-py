@@ -9,6 +9,7 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
+from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
@@ -31,16 +32,16 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
-from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+from ddtrace.llmobs._utils import _inject_llmobs_context
 from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanAgentWriter
@@ -78,6 +79,7 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
+        self._llmobs_context_provider = LLMObsContextProvider()
 
     def _configure_span_writer(self):
         if config._llmobs_agentless_enabled:
@@ -270,6 +272,8 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
+        self._activate_llmobs_span(span)
+
         span.set_tag_str(SPAN_KIND, operation_kind)
         if model_name is not None:
             span.set_tag_str(MODEL_NAME, model_name)
@@ -281,13 +285,16 @@ class LLMObs(Service):
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
-        if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
-            # For non-distributed traces or spans in the first service of a distributed trace,
-            # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
-            # in these cases to avoid conflicting with the later propagated tags.
-            parent_id = _get_llmobs_parent_id(span) or "undefined"
-            span.set_tag_str(PARENT_ID_KEY, str(parent_id))
         return span
+
+    def _activate_llmobs_span(self, span):
+        """Propagate the parent ID to the new span and activate it."""
+        llmobs_parent = self._llmobs_context_provider.active()
+        if llmobs_parent:
+            span.set_tag_str(PARENT_ID_KEY, str(llmobs_parent.span_id))
+        else:
+            span.set_tag_str(PARENT_ID_KEY, "undefined")
+        self._llmobs_context_provider.activate(span)
 
     @classmethod
     def llm(
@@ -765,7 +772,7 @@ class LLMObs(Service):
         if span is None:
             log.warning("No span provided and no currently active span found.")
             return request_headers
-        _inject_llmobs_parent_id(span.context)
+        _inject_llmobs_context(request_headers)
         HTTPPropagator.inject(span.context, request_headers)
         return request_headers
 
@@ -786,9 +793,12 @@ class LLMObs(Service):
         if context.trace_id is None or context.span_id is None:
             log.warning("Failed to extract trace ID or span ID from request headers.")
             return
-        if PROPAGATED_PARENT_ID_KEY not in context._meta:
+        if PARENT_ID_KEY not in context._meta:
             log.warning("Failed to extract LLMObs parent ID from request headers.")
         cls._instance.tracer.context_provider.activate(context)
+
+        llmobs_context = Context(trace_id=context.trace_id, span_id=context._meta.get(PARENT_ID_KEY))
+        cls._instance._llmobs_context_provider.activate(llmobs_context)
 
 
 # initialize the default llmobs instance
