@@ -715,9 +715,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             )
         )
 
-    def test_llmobs_similarity_search(
-        self, langchain_openai, langchain_pinecone, mock_llmobs_span_writer, mock_tracer
-    ):
+    def test_llmobs_similarity_search(self, langchain_openai, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
         import pinecone
 
         if langchain_pinecone is None:
