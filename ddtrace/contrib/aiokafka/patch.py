@@ -11,6 +11,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
+from ddtrace.internal import core
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
@@ -101,19 +102,21 @@ async def traced_send(func, instance, args, kwargs):
 
     topic = get_argument_value(args, kwargs, 0, "topic")
     value = get_argument_value(args, kwargs, 1, "value", True) or None
-    message_key = get_argument_value(args, kwargs, 2, "key", True) or ""
+    key = get_argument_value(args, kwargs, 2, "key", True) or ""
     partition = get_argument_value(args, kwargs, 3, "partition", True) or None
-    headers = get_argument_value(args, kwargs, 5, "headers", True) or None
+    headers = get_argument_value(args, kwargs, 5, "headers", True) or []
+
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
+        core.dispatch("aiokafka.produce.start", (instance, topic, value, key, headers, span))
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         span.set_tag_str(kafkax.TOPIC, topic)
-        span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
+        span.set_tag_str(kafkax.MESSAGE_KEY, key)
 
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
@@ -127,12 +130,12 @@ async def traced_send(func, instance, args, kwargs):
         # inject headers with Datadog tags if trace propagation is enabled
         if config.kafka.distributed_tracing_enabled:
             # inject headers with Datadog tags:
-            headers = get_argument_value(args, kwargs, 5, "headers", True) or []
             additional_headers = {}
             Propagator.inject(span.context, additional_headers)
             for header, value in additional_headers.items():
                 headers.append((header, value.encode("utf-8")))
-            args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
+
+        args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
         return await func(*args, **kwargs)
 
 
@@ -201,6 +204,9 @@ def _instrument_message(message, pin, start_ns, instance, err):
             message_offset = message.offset or -1
             span.set_tag_str(kafkax.TOPIC, message.topic)
 
+            core.set_item("kafka_topic", message.topic)
+            core.dispatch("aiokafka.consume.start", (instance, message, span))
+
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
             if isinstance(message_key, str) or isinstance(message_key, bytes):
@@ -226,4 +232,5 @@ async def traced_commit(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
+    core.dispatch("aiokafka.commit.start", (instance, args, kwargs))
     return await func(*args, **kwargs)

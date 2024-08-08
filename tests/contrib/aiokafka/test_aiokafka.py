@@ -1,17 +1,20 @@
-import json
 import logging
 
 import aiokafka
 from aiokafka.admin import AIOKafkaAdminClient
 from aiokafka.admin import NewTopic
 from aiokafka.structs import TopicPartition
+import mock
 import pytest
 
 from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace.contrib.aiokafka.patch import patch
 from ddtrace.contrib.aiokafka.patch import unpatch
+import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
+from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from tests.contrib.config import KAFKA_CONFIG
+from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
 from tests.utils import override_config
 
@@ -21,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "127.0.0.1:{}".format(KAFKA_CONFIG["port"])
-KEY = bytes("test_key", encoding="utf-8")
-PAYLOAD = "hueh hueh hueh"
+KEY = "test_key".encode("utf-8")
+PAYLOAD = "hueh hueh hueh".encode("utf-8")
 
 
 @pytest.fixture()
@@ -81,13 +84,9 @@ async def tracer():
         unpatch()
 
 
-def serializer(value):
-    return json.dumps(value).encode()
-
-
 @pytest.fixture
 async def producer(tracer):
-    _producer = aiokafka.AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS], value_serializer=serializer)
+    _producer = aiokafka.AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS])
     await _producer.start()
     Pin.override(_producer, tracer=tracer)
     yield _producer
@@ -106,9 +105,16 @@ async def consumer(tracer, kafka_topic):
 
 def get_consumer():
     consumer = aiokafka.AIOKafkaConsumer(
-        bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID
+        bootstrap_servers=[BOOTSTRAP_SERVERS], auto_offset_reset="earliest", group_id=GROUP_ID, enable_auto_commit=False
     )
     return consumer
+
+
+@pytest.fixture
+def dsm_processor(tracer):
+    processor = tracer.data_streams_processor
+    with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
+        yield processor
 
 
 async def test_send_single_server(dummy_tracer, producer, kafka_topic):
@@ -126,7 +132,7 @@ async def test_send_multiple_servers(dummy_tracer, kafka_topic):
     producer = aiokafka.AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS] * 3)
     await producer.start()
     Pin.override(producer, tracer=dummy_tracer)
-    await producer.send_and_wait(kafka_topic, value=PAYLOAD.encode("utf-8"), key=KEY)
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
     await producer.stop()
 
     traces = dummy_tracer.pop_traces()
@@ -180,8 +186,8 @@ async def test_getmany_single_message_with_commit(producer, tracer, kafka_topic)
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getmany_multiple_messages_with_commit(producer, tracer, kafka_topic):
-    await producer.send_and_wait(kafka_topic, value="first message")
-    await producer.send_and_wait(kafka_topic, value="second message")
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD)
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD)
     await producer.stop()
 
     consumer = get_consumer()
@@ -206,9 +212,9 @@ async def test_getone_with_commit_with_offset(producer, consumer, kafka_topic):
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getmany_multiple_messages_multiple_topics(producer, tracer, kafka_topic, kafka_topic_2):
-    await producer.send_and_wait(kafka_topic, "1")
-    await producer.send_and_wait(kafka_topic, "2")
-    await producer.send_and_wait(kafka_topic_2, "3")
+    await producer.send_and_wait(kafka_topic, PAYLOAD)
+    await producer.send_and_wait(kafka_topic, PAYLOAD)
+    await producer.send_and_wait(kafka_topic_2, PAYLOAD)
     await producer.stop()
 
     consumer = get_consumer()
@@ -272,3 +278,52 @@ async def test_getone_with_distributed_tracing_with_headers(producer, consumer, 
                 propagation_asserted = True
 
         assert propagation_asserted is True
+
+
+@pytest.mark.parametrize("distributed_tracing_enabled", [False, True])
+async def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic, distributed_tracing_enabled):
+    with override_config("kafka", dict(distributed_tracing_enabled=distributed_tracing_enabled)):
+        try:
+            del dsm_processor._current_context.value
+        except AttributeError:
+            pass
+
+        await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+        await producer.stop()
+        await consumer.getone()
+        await consumer.commit()
+
+        buckets = dsm_processor._buckets
+        assert len(buckets) == 1
+        first = list(buckets.values())[0].pathway_stats
+
+        ctx = DataStreamsCtx(MockedTracer().data_streams_processor, 0, 0, 0)
+        parent_hash = ctx._compute_hash(sorted(["direction:out", "type:kafka", "topic:{}".format(kafka_topic)]), 0)
+        child_hash = ctx._compute_hash(
+            sorted(["direction:in", "type:kafka", "group:test_group", "topic:{}".format(kafka_topic)]), parent_hash
+        )
+        assert (
+            first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].full_pathway_latency.count
+            >= 1
+        )
+        assert first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].edge_latency.count >= 1
+        assert (
+            first[
+                (
+                    "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
+                    child_hash,
+                    parent_hash,
+                )
+            ].full_pathway_latency.count
+            >= 1
+        )
+        assert (
+            first[
+                (
+                    "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
+                    child_hash,
+                    parent_hash,
+                )
+            ].edge_latency.count
+            >= 1
+        )
