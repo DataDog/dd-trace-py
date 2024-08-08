@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    SSI: This fixes incorrect file permissions on lib-injection images.
+    SSI: Fixes incorrect file permissions on lib-injection images.
 
