@@ -198,7 +198,7 @@ class _TelemetryClient:
         elif site == "datad0g.com":
             return "https://all-http-intake.logs.datad0g.com"
         elif site == "datadoghq.eu":
-            return "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
+            return "https://instrumentation-telemetry-intake.datadoghq.eu"
         return f"https://instrumentation-telemetry-intake.{site}/"
 
 

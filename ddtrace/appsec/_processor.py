@@ -20,6 +20,7 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -128,7 +129,7 @@ def _get_rate_limiter() -> RateLimiter:
 
 @dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-    rules: str = dataclasses.field(default_factory=get_rules)
+    rule_filename: str = dataclasses.field(default_factory=get_rules)
     obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
     obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
@@ -144,29 +145,36 @@ class AppSecSpanProcessor(SpanProcessor):
 
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
-
+        self._rules = None
         try:
-            with open(self.rules, "r") as f:
-                rules = json.load(f)
+            with open(self.rule_filename, "r") as f:
+                self._rules = json.load(f)
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
-                log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules)
+                log.error(
+                    "[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist",
+                    self.rule_filename,
+                )
             else:
                 # TODO: try to log reasons
-                log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
+                log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rule_filename)
             raise
         except JSONDecodeError:
-            log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rules)
+            log.error(
+                "[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rule_filename
+            )
             raise
         except Exception:
             # TODO: try to log reasons
-            log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
+            log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rule_filename)
             raise
         try:
-            self._ddwaf = DDWaf(rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp)
+            self._ddwaf = DDWaf(
+                self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+            )
             if not self._ddwaf._handle or self._ddwaf.info.failed:
                 stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
-                    rules,
+                    self._rules,
                     self._ddwaf.info.loaded,
                     self._ddwaf.info.errors,
                 )
@@ -205,6 +213,22 @@ class AppSecSpanProcessor(SpanProcessor):
             _set_waf_error_metric(error_msg, "", self._ddwaf.info)
         self._update_required()
         return result
+
+    @property
+    def rasp_lfi_enabled(self) -> bool:
+        return WAF_DATA_NAMES.LFI_ADDRESS in self._addresses_to_keep
+
+    @property
+    def rasp_cmdi_enabled(self) -> bool:
+        return WAF_DATA_NAMES.CMDI_ADDRESS in self._addresses_to_keep
+
+    @property
+    def rasp_ssrf_enabled(self) -> bool:
+        return WAF_DATA_NAMES.SSRF_ADDRESS in self._addresses_to_keep
+
+    @property
+    def rasp_sqli_enabled(self) -> bool:
+        return WAF_DATA_NAMES.SQLI_ADDRESS in self._addresses_to_keep
 
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib import trace_utils
@@ -310,7 +334,6 @@ class AppSecSpanProcessor(SpanProcessor):
         waf_results = self._ddwaf.run(
             ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
         )
-
         blocked = {}
         for action, parameters in waf_results.actions.items():
             if action == WAF_ACTIONS.BLOCK_ACTION:
@@ -325,6 +348,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 report_stack("exploit detected", span, crop_trace, stack_id=stack_trace_id)
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
+
+        # FingerPrinting
+        for key, value in waf_results.derivatives.items():
+            if key.startswith(FINGERPRINTING.PREFIX):
+                (span._local_root or span).set_tag_str(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)

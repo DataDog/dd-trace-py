@@ -133,7 +133,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
                     {"name": "crashtracking_debug_url", "origin": "unknown", "value": "None"},
                     {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
-                    {"name": "crashtracking_stacktrace_resolver", "origin": "unknown", "value": "None"},
+                    {"name": "crashtracking_stacktrace_resolver", "origin": "unknown", "value": "full"},
                     {"name": "crashtracking_started", "origin": "unknown", "value": False},
                     {"name": "crashtracking_stderr_filename", "origin": "unknown", "value": "None"},
                     {"name": "crashtracking_stdout_filename", "origin": "unknown", "value": "None"},
@@ -323,7 +323,7 @@ import ddtrace.auto
             {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
             {"name": "crashtracking_debug_url", "origin": "unknown", "value": "None"},
             {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
-            {"name": "crashtracking_stacktrace_resolver", "origin": "unknown", "value": "None"},
+            {"name": "crashtracking_stacktrace_resolver", "origin": "unknown", "value": "full"},
             {"name": "crashtracking_started", "origin": "unknown", "value": sys.platform == "linux"},
             {"name": "crashtracking_stderr_filename", "origin": "unknown", "value": "None"},
             {"name": "crashtracking_stdout_filename", "origin": "unknown", "value": "None"},
@@ -626,9 +626,7 @@ def test_telemetry_writer_agentless_setup_eu():
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
         assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-        assert (
-            new_telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
-        )
+        assert new_telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.datadoghq.eu"
         assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
 
 

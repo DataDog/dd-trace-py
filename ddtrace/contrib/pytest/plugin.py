@@ -118,7 +118,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
 
-            install(include_paths=[workspace_path])
+            install(include_paths=[workspace_path], collect_import_time_coverage=True)
             if COVER_SESSION:
                 ModuleCodeCollector.start_coverage()
         else:
@@ -131,6 +131,19 @@ def pytest_load_initial_conftests(early_config, parser, args):
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
+        from ddtrace.internal.utils.formats import asbool
+
+        if asbool(os.environ.get("_DD_CIVISIBILITY_USE_PYTEST_V2", "false")):
+            from ddtrace.internal.logger import get_logger
+
+            log = get_logger(__name__)
+
+            log.warning("The new ddtrace pytest plugin is in beta and is not currently supported")
+            from ._plugin_v2 import _PytestDDTracePluginV2
+
+            config.pluginmanager.register(_PytestDDTracePluginV2(), "_datadog-pytest-v2")
+            return
+
         from ._plugin_v1 import _PytestDDTracePluginV1
 
         config.pluginmanager.register(_PytestDDTracePluginV1(), "_datadog-pytest-v1")

@@ -397,10 +397,36 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
                 if integration.is_pc_sampled_span(span):
-                    span.set_tag_str(
-                        "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
-                        integration.trunc(chat_completion.text),
-                    )
+                    text = chat_completion.text
+                    message = chat_completion.message
+                    # tool calls aren't available on this property for legacy chains
+                    tool_calls = getattr(message, "tool_calls", None)
+
+                    if text:
+                        span.set_tag_str(
+                            "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
+                            integration.trunc(chat_completion.text),
+                        )
+                    if tool_calls:
+                        if not isinstance(tool_calls, list):
+                            tool_calls = [tool_calls]
+                        for tool_call_idx, tool_call in enumerate(tool_calls):
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.tool_calls.%d.id"
+                                % (message_set_idx, idx, tool_call_idx),
+                                str(tool_call.get("id", "")),
+                            )
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.tool_calls.%d.name"
+                                % (message_set_idx, idx, tool_call_idx),
+                                str(tool_call.get("name", "")),
+                            )
+                            for arg_name, arg_value in tool_call.get("args", {}).items():
+                                span.set_tag_str(
+                                    "langchain.response.completions.%d.%d.tool_calls.%d.args.%s"
+                                    % (message_set_idx, idx, tool_call_idx, arg_name),
+                                    integration.trunc(str(arg_value)),
+                                )
                 span.set_tag_str(
                     "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
                     chat_completion.message.__class__.__name__,
@@ -502,10 +528,35 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
                 if integration.is_pc_sampled_span(span):
-                    span.set_tag_str(
-                        "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
-                        integration.trunc(chat_completion.text),
-                    )
+                    text = chat_completion.text
+                    message = chat_completion.message
+                    tool_calls = getattr(message, "tool_calls", None)
+
+                    if text:
+                        span.set_tag_str(
+                            "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
+                            integration.trunc(chat_completion.text),
+                        )
+                    if tool_calls:
+                        if not isinstance(tool_calls, list):
+                            tool_calls = [tool_calls]
+                        for tool_call_idx, tool_call in enumerate(tool_calls):
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.tool_calls.%d.id"
+                                % (message_set_idx, idx, tool_call_idx),
+                                str(tool_call.get("id", "")),
+                            )
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.tool_calls.%d.name"
+                                % (message_set_idx, idx, tool_call_idx),
+                                str(tool_call.get("name", "")),
+                            )
+                            for arg_name, arg_value in tool_call.get("args", {}).items():
+                                span.set_tag_str(
+                                    "langchain.response.completions.%d.%d.tool_calls.%d.args.%s"
+                                    % (message_set_idx, idx, tool_call_idx, arg_name),
+                                    integration.trunc(str(arg_value)),
+                                )
                 span.set_tag_str(
                     "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
                     chat_completion.message.__class__.__name__,
@@ -575,11 +626,13 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
         interface_type="embedding",
         provider=provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
+    embeddings = None
     try:
         if isinstance(input_texts, str):
             if integration.is_pc_sampled_span(span):
@@ -603,6 +656,14 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "embedding",
+                span,
+                input_texts,
+                embeddings,
+                error=bool(span.error),
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
