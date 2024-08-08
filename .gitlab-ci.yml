@@ -68,7 +68,6 @@ build_ddtrace_windows:
     CIBW_ENVIRONMENT_WINDOWS: CMAKE_BUILD_PARALLEL_LEVEL=24
     CIBW_BEFORE_WINDOWS: rustup target add i686-pc-windows-msvc
     CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: |
-      choco install -y 7zip &&
       7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
       move "{wheel}" "{dest_dir}"
   parallel:
@@ -76,12 +75,10 @@ build_ddtrace_windows:
       - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
         ARCH: ["win32", "win_amd64"]
   script:
-    - choco install python -y --version 3.12.4
-    - choco install git.install -y
-    - py -m pip install cibuildwheel==2.20.0
-    - py -m pip install cibuildwheel
-    - py -m cibuildwheel --print-build-identifiers
-    - py -m cibuildwheel --output-dir wheelhouse
+    - python -m pip install cibuildwheel==2.20.0
+    - python -m pip install cibuildwheel
+    - python -m cibuildwheel --print-build-identifiers
+    - python -m cibuildwheel --output-dir wheelhouse
   artifacts:
     paths:
       - wheelhouse/
