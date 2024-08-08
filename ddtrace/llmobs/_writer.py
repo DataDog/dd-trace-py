@@ -11,6 +11,7 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
+from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
@@ -21,6 +22,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
+from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
+from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
+from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
@@ -132,23 +136,6 @@ class BaseLLMObsWriter(PeriodicService):
         raise NotImplementedError
 
 
-class LLMObsSpanWriter(BaseLLMObsWriter):
-    """Writer to the Datadog LLMObs Span Event Endpoint."""
-
-    def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
-        super(LLMObsSpanWriter, self).__init__(site, api_key, interval, timeout)
-        self._event_type = "span"
-        self._buffer = []
-        self._endpoint = "/api/v2/llmobs"  # type: str
-        self._intake = "llmobs-intake.%s" % self._site  # type: str
-
-    def enqueue(self, event: LLMObsSpanEvent) -> None:
-        self._enqueue(event)
-
-    def _data(self, events: List[LLMObsSpanEvent]) -> Dict[str, Any]:
-        return {"_dd.stage": "raw", "event_type": "span", "spans": events}
-
-
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     """Writer to the Datadog LLMObs Custom Eval Metrics Endpoint."""
 
@@ -167,7 +154,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
 
 class LLMObsSpanEncoder(BufferedEncoder):
-    """Encodes LLMObsSpanEvents to JSON in buffer, and is used in LLMObsSpanAgentWriter's LLMObsEventClient"""
+    """Encodes LLMObsSpanEvents to JSON in buffer, and is used in LLMObsSpanWriter's LLMObsEventClient"""
 
     content_type = "application/json"
 
@@ -184,6 +171,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
     def _init_buffer(self):
         with self._lock:
             self._buffer = []
+            self.buffer_size = 0
 
     def put(self, events: List[LLMObsSpanEvent]):
         # events always has only 1 event - with List type to be compatible with HTTPWriter interfaces
@@ -194,6 +182,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 )
                 return
             self._buffer.extend(events)
+            self.buffer_size += len(json.dumps(events))
 
     def encode(self):
         with self._lock:
@@ -217,11 +206,15 @@ class LLMObsEventClient(WriterClientBase):
         super(LLMObsEventClient, self).__init__(encoder)
 
 
-class LLMObsEventProxiedEventClient(LLMObsEventClient):
+class LLMObsAgentlessEventClient(LLMObsEventClient):
+    ENDPOINT = AGENTLESS_ENDPOINT
+
+
+class LLMObsProxiedEventClient(LLMObsEventClient):
     ENDPOINT = EVP_PROXY_AGENT_ENDPOINT
 
 
-class LLMObsSpanAgentWriter(HTTPWriter):
+class LLMObsSpanWriter(HTTPWriter):
     """Writer to the Datadog LLMObs Span Endpoint via Agent EvP Proxy."""
 
     RETRY_ATTEMPTS = 5
@@ -232,14 +225,23 @@ class LLMObsSpanAgentWriter(HTTPWriter):
         self,
         interval: float,
         timeout: float,
+        is_agentless: bool = True,
         dogstatsd=None,
         sync_mode=False,
         reuse_connections=None,
     ):
-        intake_url = agent.get_trace_url()
-        clients = [LLMObsEventProxiedEventClient()]  # type: List[WriterClientBase]
+        headers = {}
+        clients = []  # type: List[WriterClientBase]
+        if is_agentless:
+            clients.append(LLMObsAgentlessEventClient())
+            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, config._dd_site)
+            headers["DD-API-KEY"] = config._dd_api_key
+        else:
+            clients.append(LLMObsProxiedEventClient())
+            intake_url = agent.get_trace_url()
+            headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
-        super(LLMObsSpanAgentWriter, self).__init__(
+        super(LLMObsSpanWriter, self).__init__(
             intake_url=intake_url,
             clients=clients,
             processing_interval=interval,
@@ -247,22 +249,26 @@ class LLMObsSpanAgentWriter(HTTPWriter):
             dogstatsd=dogstatsd,
             sync_mode=sync_mode,
             reuse_connections=reuse_connections,
-            headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_VALUE, "Content-Type": "application/json"},
+            headers=headers,
         )
 
     def start(self, *args, **kwargs):
-        super(LLMObsSpanAgentWriter, self).start()
+        super(LLMObsSpanWriter, self).start()
         logger.debug("started %r to %r", self.__class__.__name__, self.intake_url)
         atexit.register(self.on_shutdown)
 
-    def on_shutdown(self):
-        self.periodic()
-
     def stop(self, timeout=None):
         if self.status != service.ServiceStatus.STOPPED:
-            super(LLMObsSpanAgentWriter, self).stop(timeout=timeout)
+            super(LLMObsSpanWriter, self).stop(timeout=timeout)
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
+        event_size = len(json.dumps(event))
+        for client in self._clients:
+            if isinstance(client, LLMObsEventClient) and isinstance(client.encoder, LLMObsSpanEncoder):
+                with client.encoder._lock:
+                    if (client.encoder.buffer_size + event_size) > EVP_PAYLOAD_SIZE_LIMIT:
+                        logger.debug("flushing queue because queuing next event will exceed EVP payload limit")
+                        self._flush_queue_with_client(client)
         self.write([event])
 
     # Noop to make it compatible with HTTPWriter interface
