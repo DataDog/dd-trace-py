@@ -58,9 +58,10 @@ def dsm_kafka_message_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 
     offsets = get_argument_value(args, kwargs, 0, "offsets", optional=True)
-    for tp, offset in offsets.items():
-        reported_offset = offset if isinstance(offset, INT_TYPES) else -1
-        processor().track_kafka_commit(instance._group_id, tp.topic, tp.partition, reported_offset, time.time())
+    if offsets:
+        for tp, offset in offsets.items():
+            reported_offset = offset if isinstance(offset, INT_TYPES) else -1
+            processor().track_kafka_commit(instance._group_id, tp.topic, tp.partition, reported_offset, time.time())
 
 
 if config._data_streams_enabled:
