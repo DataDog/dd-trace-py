@@ -36,7 +36,7 @@ build_ddtrace_linux:
       unzip -l {wheel} | grep '\.so' &&
       auditwheel repair -w ./tempwheelhouse {wheel} &&
       for w in ./tempwheelhouse/*.whl; do
-        python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+        python scripts/zip_filter.py $w "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx"
         mv $w {dest_dir}
       done &&
       rm -rf ./tempwheelhouse
