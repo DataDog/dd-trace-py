@@ -102,6 +102,7 @@ def patch():
         _patch_aio_server()
     grpc._datadog_patch = True
 
+
 def unpatch():
     _unpatch_client()
     _unpatch_server()
