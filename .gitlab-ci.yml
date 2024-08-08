@@ -27,7 +27,7 @@ build_ddtrace_linux:
     CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
     CIBW_ENVIRONMENT_LINUX: PATH=$$HOME/.cargo/bin:$$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
     CIBW_BEFORE_ALL: |
-      if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
+      if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $$1}')" != "i686-unknown-linux-musl" ]];
       then
         curl -sSf https://sh.rustup.rs | sh -s -- -y;
       fi
@@ -36,8 +36,8 @@ build_ddtrace_linux:
       unzip -l {wheel} | grep '\.so' &&
       auditwheel repair -w ./tempwheelhouse {wheel} &&
       for w in ./tempwheelhouse/*.whl; do
-        python scripts/zip_filter.py $w "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx"
-        mv $w {dest_dir}
+        python scripts/zip_filter.py $$w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+        mv $$w {dest_dir}
       done &&
       rm -rf ./tempwheelhouse
   parallel:
