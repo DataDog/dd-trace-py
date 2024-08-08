@@ -12,21 +12,21 @@ from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.pytest._utils import _get_names_from_item
+from ddtrace.contrib.pytest._utils import _get_session_command
+from ddtrace.contrib.pytest._utils import _get_session_id
+from ddtrace.contrib.pytest._utils import _get_source_file_info
+from ddtrace.contrib.pytest._utils import _get_test_id_from_item
+from ddtrace.contrib.pytest._utils import _is_test_unskippable
+from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
-from ddtrace.contrib.pytest.utils import _get_names_from_item
-from ddtrace.contrib.pytest.utils import _get_session_command
-from ddtrace.contrib.pytest.utils import _get_session_id
-from ddtrace.contrib.pytest.utils import _get_test_id_from_item
-from ddtrace.contrib.pytest.utils import _is_test_unskippable
-from ddtrace.contrib.pytest.utils import _pytest_marked_to_skip
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIExcInfo
 from ddtrace.ext.ci_visibility.api import CIModule
 from ddtrace.ext.ci_visibility.api import CISession
-from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuite
 from ddtrace.ext.ci_visibility.api import CITest
 from ddtrace.ext.ci_visibility.api import disable_ci_visibility
@@ -36,12 +36,10 @@ from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
-from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.inspection import undecorated
 
 
 log = get_logger(__name__)
@@ -173,18 +171,9 @@ class _PytestDDTracePluginV2:
 
             item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
 
-            # TODO don't depend on internal for codeowners
-            item_codeowners: t.Optional[t.List[str]] = None
-            if codeowners is not None:
-                item_codeowners = codeowners.of(str(item_path))
+            item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
 
-            # TODO: don't depend on internal for source file info
-            if hasattr(item, "_obj"):
-                test_method_object = undecorated(item._obj, item.name, item_path)
-                source_lines = get_source_lines_for_test_method(test_method_object)
-                source_file_info = CISourceFileInfo(item_path, source_lines[0], source_lines[1])
-            else:
-                source_file_info = CISourceFileInfo(item_path, item.reportinfo()[1])
+            source_file_info = _get_source_file_info(item, item_path)
 
             CITest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
 

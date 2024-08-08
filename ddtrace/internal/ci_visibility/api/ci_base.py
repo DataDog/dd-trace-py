@@ -37,6 +37,7 @@ from ddtrace.internal.ci_visibility.telemetry.events import record_event_finishe
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
@@ -184,6 +185,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             {
                 EVENT_TYPE: self.event_type,
                 SPAN_KIND: "test",
+                COMPONENT: self._session_settings.test_framework,
                 test.FRAMEWORK: self._session_settings.test_framework,
                 test.FRAMEWORK_VERSION: self._session_settings.test_framework_version,
                 test.COMMAND: self._session_settings.test_command,

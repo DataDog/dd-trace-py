@@ -9,10 +9,13 @@ import pytest
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISessionId
+from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
+from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.inspection import undecorated
 
 
 log = get_logger(__name__)
@@ -91,6 +94,21 @@ def _get_session_command(session: pytest.Session):
     if os.environ.get("PYTEST_ADDOPTS"):
         command += " {}".format(os.environ.get("PYTEST_ADDOPTS"))
     return command
+
+
+def _get_source_file_info(item, item_path) -> t.Optional[CISourceFileInfo]:
+    try:
+        # TODO: don't depend on internal for source file info
+        if hasattr(item, "_obj"):
+            test_method_object = undecorated(item._obj, item.name, item_path)
+            source_lines = get_source_lines_for_test_method(test_method_object)
+            source_file_info = CISourceFileInfo(item_path, source_lines[0], source_lines[1])
+        else:
+            source_file_info = CISourceFileInfo(item_path, item.reportinfo()[1])
+        return source_file_info
+    except Exception:
+        log.debug("Unable to get source file info for item %s (path %s)", item, item_path, exc_info=True)
+        return None
 
 
 def _get_pytest_version_tuple() -> t.Tuple[int, ...]:

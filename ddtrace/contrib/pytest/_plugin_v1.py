@@ -29,12 +29,12 @@ from ddtrace.contrib.coverage.patch import run_coverage_report
 from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.pytest._utils import _is_pytest_8_or_later
+from ddtrace.contrib.pytest._utils import _is_test_unskippable
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.pytest.utils import _is_pytest_8_or_later
-from ddtrace.contrib.pytest.utils import _is_test_unskippable
-from ddtrace.contrib.pytest.utils import _pytest_version_supports_itr
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
