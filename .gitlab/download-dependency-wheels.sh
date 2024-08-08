@@ -9,9 +9,9 @@ fi
 python3 -m pip install -U "pip>=22.0"
 python3 -m pip install packaging
 
-mkdir pywheels-dep
+mkdir wheelhouse-dep
 
-cd pywheels
+cd wheelhouse
 
 export PYTHONUNBUFFERED=TRUE
 
@@ -22,5 +22,5 @@ export PYTHONUNBUFFERED=TRUE
     --arch aarch64 \
     --platform musllinux_1_1 \
     --platform manylinux2014 \
-    --output-dir ../pywheels-dep \
+    --output-dir ../wheelhouse-dep \
     --verbose
