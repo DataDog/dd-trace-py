@@ -11,6 +11,8 @@ from django.urls import path
 import pytest
 
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
+from tests.contrib.django.soap.services import leave_status_service
+from tests.contrib.django.utils import make_soap_request
 from tests.webclient import Client
 
 
@@ -33,7 +35,7 @@ def handler(_):
     return HttpResponse("Hello!")
 
 
-urlpatterns = [path("", handler)]
+urlpatterns = [path("", handler), path("soap/", leave_status_service, name="soap_account")]
 # it would be better to check for app_is_iterator programmatically, but Django WSGI apps behave like
 # iterators for the purpose of DDWSGIMiddleware despite not having both "__next__" and "__iter__" methods
 app = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
@@ -69,3 +71,29 @@ def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddlewar
             proc.kill()
             _, output = proc.communicate()
     assert SENTINEL_LOG in str(output)
+
+
+def test_django_wsgi_soap_app_works():
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHONPATH": os.path.dirname(os.path.abspath(__file__)) + ":" + env["PYTHONPATH"],
+            "DJANGO_SETTINGS_MODULE": "test_django_wsgi",
+        }
+    )
+    cmd = ["ddtrace-run", "django-admin", "runserver", "--noreload", str(SERVER_PORT)]
+    _ = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=True,
+        env=env,
+    )
+
+    client = Client("http://localhost:%d" % SERVER_PORT)
+    client.wait()
+
+    url = "http://localhost:%d" % SERVER_PORT + "/soap/?wsdl"
+    response = make_soap_request(url)
+
+    assert response["success"] is True
