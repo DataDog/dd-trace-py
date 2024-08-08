@@ -3174,6 +3174,10 @@ venv = Venv(
         ),
         Venv(
             name="aiokafka",
+            env={
+                "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
+                "DD_DATA_STREAMS_ENABLED": "true",
+            },
             command="pytest {cmdargs} tests/contrib/aiokafka/",
             pys=select_pys(),
             pkgs={
