@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    SSI: This fixes incorrect file permissions on lib-injection images for 2.10.x releases.
+
