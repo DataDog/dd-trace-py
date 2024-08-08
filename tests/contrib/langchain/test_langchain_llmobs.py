@@ -5,6 +5,7 @@ import sys
 
 import langchain as langchain_
 import mock
+import pinecone as pinecone_
 import pytest
 
 from ddtrace import patch
@@ -20,6 +21,7 @@ from tests.utils import flaky
 
 
 LANGCHAIN_VERSION = parse_version(langchain_.__version__)
+PINECONE_VERSION = parse_version(pinecone_.__version__)
 PY39 = sys.version_info < (3, 10)
 
 if LANGCHAIN_VERSION < (0, 1):
