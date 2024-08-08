@@ -100,7 +100,7 @@ def patch():
         log.debug("The ddtrace grpc aio patch is enabled. This is an experimental feature and may not be stable.")
         _patch_aio_client()
         _patch_aio_server()
-
+    grpc._datadog_patch = True
 
 def unpatch():
     _unpatch_client()
@@ -108,6 +108,7 @@ def unpatch():
     if HAS_GRPC_AIO and config.grpc._grpc_aio_enabled:
         _unpatch_aio_client()
         _unpatch_aio_server()
+    grpc._datadog_patch = False
 
 
 def _patch_client():
