@@ -53,6 +53,8 @@ class Scheduler(periodic.PeriodicService):
         # type: (...) -> None
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
+        # Enable telemetry before the first profile is sent
+        telemetry_writer.app_started()
         if self._export_libdd_enabled:
             ddup.upload()
 
@@ -67,8 +69,6 @@ class Scheduler(periodic.PeriodicService):
                 self.before_flush()
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
-        # Enable telemetry before the first profile is sent
-        telemetry_writer.app_started()
         events: EventsType = {}
         if self.recorder:
             events = self.recorder.reset()
