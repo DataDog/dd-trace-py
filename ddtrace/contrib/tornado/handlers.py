@@ -58,7 +58,8 @@ def execute(func, handler, args, kwargs):
             request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.get("analytics_sample_rate", True))
 
         http_route = _find_route(handler.application.default_router.rules, handler.request)
-        request_span.set_tag_str("http.route", http_route)
+        if http_route is not None and isinstance(http_route, str):
+            request_span.set_tag_str("http.route", http_route)
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
         return func(*args, **kwargs)
