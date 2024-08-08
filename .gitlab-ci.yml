@@ -19,7 +19,7 @@ variables:
 
 build_ddtrace_linux:
   image: registry.ddbuild.io/images/mirror/python:3.12.0
-  tags: [ "runner:docker" ]
+  tags: [ "${RUNNER}" ]
   stage: build
   variables:
     CIBW_ARCHS: all
@@ -44,22 +44,46 @@ build_ddtrace_linux:
     matrix:
       # 3.7
       - CIBW_BUILD: "cp37-*"
-        CIBW_ARCHS: aarch64 x86_64 i686
+        CIBW_ARCHS: x86_64 i686
+        RUNNER: runner:docker
+      - CIBW_BUILD: "cp37-*"
+        CIBW_ARCHS: aarch64
+        RUNNER: runner:docker-arm
       # 3.8
       - CIBW_BUILD: "cp38-*"
-        CIBW_ARCHS: aarch64 x86_64 i686
+        CIBW_ARCHS: x86_64 i686
+        RUNNER: runner:docker
+      - CIBW_BUILD: "cp38-*"
+        CIBW_ARCHS: aarch64
+        RUNNER: runner:docker-arm
       # 3.9
       - CIBW_BUILD: "cp39-*"
-        CIBW_ARCHS: aarch64 x86_64 i686
+        CIBW_ARCHS: x86_64 i686
+        RUNNER: runner:docker
+      - CIBW_BUILD: "cp39-*"
+        CIBW_ARCHS: aarch64
+        RUNNER: runner:docker-arm
       # 3.10
       - CIBW_BUILD: "cp310-*"
-        CIBW_ARCHS: aarch64 x86_64 i686
+        CIBW_ARCHS: x86_64 i686
+        RUNNER: runner:docker
+      - CIBW_BUILD: "cp310-*"
+        CIBW_ARCHS: aarch64
+        RUNNER: runner:docker-arm
       # 3.11
       - CIBW_BUILD: "cp311-*"
-        CIBW_ARCHS: aarch64 x86_64 i686
+        CIBW_ARCHS: x86_64 i686
+        RUNNER: runner:docker
+      - CIBW_BUILD: "cp311-*"
+        CIBW_ARCHS: aarch64
+        RUNNER: runner:docker-arm
       # 3.12
       - CIBW_BUILD: "cp312-*"
-        CIBW_ARCHS: aarch64 x86_64 i686
+        CIBW_ARCHS: x86_64 i686
+        RUNNER: runner:docker
+      - CIBW_BUILD: "cp312-*"
+        CIBW_ARCHS: aarch64
+        RUNNER: runner:docker-arm
   script:
     - curl -sSL https://get.docker.com/ | sh
     - python -m pip install cibuildwheel
