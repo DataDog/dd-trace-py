@@ -495,7 +495,7 @@ class Config(object):
                 ),
                 x_datadog_tags_max_length,
             )
-            return
+            x_datadog_tags_max_length = 0
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
