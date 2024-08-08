@@ -800,7 +800,7 @@ class LLMObs(Service):
         if PARENT_ID_KEY not in request_headers:
             log.warning("Failed to extract LLMObs parent ID from request headers.")
         cls._instance.tracer.context_provider.activate(context)
-        llmobs_context = Context(trace_id=context.trace_id, span_id=request_headers.get(PARENT_ID_KEY))
+        llmobs_context = Context(trace_id=context.trace_id, span_id=int(request_headers.get(PARENT_ID_KEY)))
         cls._instance._llmobs_context_provider.activate(llmobs_context)
 
 
