@@ -21,7 +21,7 @@ class SampleManager
     static inline SampleType type_mask{ SampleType::All };
     static inline std::mutex init_mutex{};
     // TODO: configure using settings env var
-    static inline SynchronizedSamplePool sample_pool{ 8 };
+    static inline SynchronizedSamplePool sample_pool{};
 
   public:
     // Configuration
