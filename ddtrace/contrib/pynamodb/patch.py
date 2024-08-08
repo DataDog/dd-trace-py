@@ -18,6 +18,7 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
+from ...ext import net
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
@@ -84,6 +85,7 @@ def _patched_api_call(original_func, instance, args, kwargs):
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag_str(net.SERVER_ADDRESS, _PynamoDB_client.host)
 
         try:
             operation = get_argument_value(args, kwargs, 0, "operation_name")
