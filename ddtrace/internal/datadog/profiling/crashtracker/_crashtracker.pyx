@@ -6,7 +6,7 @@
 
 import os
 
-from ..types import StringType
+from .._types import StringType
 from ..util import ensure_binary_or_empty
 
 
