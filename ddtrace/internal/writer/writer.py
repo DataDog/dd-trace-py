@@ -478,14 +478,14 @@ class AgentWriter(HTTPWriter):
 
         buffer_size = buffer_size or config._trace_writer_buffer_size
         max_payload_size = max_payload_size or config._trace_writer_payload_size
-        try:
-            client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
-        except KeyError:
+        if self._api_version not in WRITER_CLIENTS:
             log.warning(
                 "Unsupported api version: '%s'. The supported versions are: %r",
                 self._api_version,
                 ", ".join(sorted(WRITER_CLIENTS.keys())),
             )
+            self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
+        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
         _headers = {
             "Datadog-Meta-Lang": "python",

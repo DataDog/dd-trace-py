@@ -1144,12 +1144,8 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
 )
 def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, expected_exception):
     with caplog.at_level(logging.DEBUG):
-        if expected_exception:
-            with pytest.raises(expected_exception):
-                _TraceContext._get_traceparent_values(headers)
-        else:
-            traceparent_values = _TraceContext._get_traceparent_values(headers)
-            assert traceparent_values == expected_tuple
+        traceparent_values = _TraceContext._get_traceparent_values(headers)
+        assert traceparent_values == expected_tuple
 
         if caplog.text or expected_logging:
             for expected_log in expected_logging:

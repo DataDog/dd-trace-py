@@ -218,7 +218,7 @@ class _DatadogMultiHeader:
     def _higher_order_is_valid(upper_64_bits: str) -> bool:
         try:
             if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) or (upper_64_bits.islower())):
-                return False
+                raise ValueError
         except ValueError:
             return False
 
@@ -665,19 +665,20 @@ class _TraceContext:
     """
 
     @staticmethod
-    def decode_tag_val(tag_val: str) -> str:
+    def decode_tag_val(tag_val):
+        # type str -> str
         return tag_val.replace("~", "=")
 
     @staticmethod
-    def _get_traceparent_values(tp: str) -> Tuple[int, int, Literal[0, 1]]:
+    def _get_traceparent_values(tp):
+        # type: (str) -> Tuple[int, int, Literal[0,1]]
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
         Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
         """
         valid_tp_values = _TRACEPARENT_HEX_REGEX.match(tp.strip())
         if valid_tp_values is None:
-            log.warning("Invalid traceparent version: %s", tp)
-            return (0, 0, 0)
+            raise ValueError("Invalid traceparent version: %s" % tp)
 
         (
             version,
@@ -685,26 +686,25 @@ class _TraceContext:
             span_id_hex,
             trace_flags_hex,
             future_vals,
-        ) = valid_tp_values.groups()
+        ) = valid_tp_values.groups()  # type: Tuple[str, str, str, str, Optional[str]]
 
-        if version == "ff" and config._raise:
+        if version == "ff":
             # https://www.w3.org/TR/trace-context/#version
             raise ValueError("ff is an invalid traceparent version: %s" % tp)
         elif version != "00":
             # currently 00 is the only version format, but if future versions come up we may need to add changes
             log.warning("unsupported traceparent version:%r, still attempting to parse", version)
-        elif version == "00" and future_vals is not None and config._raise:
+        elif version == "00" and future_vals is not None:
             raise ValueError("Traceparents with the version `00` should contain 4 values delimited by a dash: %s" % tp)
 
         trace_id = _hex_id_to_dd_id(trace_id_hex)
         span_id = _hex_id_to_dd_id(span_id_hex)
 
         # All 0s are invalid values
-        if config._raise:
-            if trace_id == 0:
-                raise ValueError("0 value for trace_id is invalid")
-            if span_id == 0:
-                raise ValueError("0 value for span_id is invalid")
+        if trace_id == 0:
+            raise ValueError("0 value for trace_id is invalid")
+        if span_id == 0:
+            raise ValueError("0 value for span_id is invalid")
 
         trace_flags = _hex_id_to_dd_id(trace_flags_hex)
         # there's currently only one trace flag, which denotes sampling priority
@@ -924,11 +924,9 @@ class HTTPPropagator(object):
                         context.trace_id,
                         context.span_id,
                         flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
-                        tracestate=(
-                            context._meta.get(W3C_TRACESTATE_KEY, "")
-                            if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
-                            else None
-                        ),
+                        tracestate=context._meta.get(W3C_TRACESTATE_KEY, "")
+                        if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
+                        else None,
                         attributes={
                             "reason": "terminated_context",
                             "context_headers": style_w_ctx,

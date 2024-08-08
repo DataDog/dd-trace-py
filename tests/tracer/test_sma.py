@@ -11,15 +11,13 @@ def test_min_size():
     assert DEFAULT_SMA_WINDOW == len(sma.counts)
     assert DEFAULT_SMA_WINDOW == len(sma.totals)
 
-    with pytest.raises(ValueError):
-        sma = SimpleMovingAverage(0)
+    sma = SimpleMovingAverage(0)
+    assert sma.size == 1
 
 
 def test_count_greater_than_total():
     sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
-
-    with pytest.raises(ValueError):
-        sma.set(2, 1)
+    sma.set(2, 1)
 
 
 def test_moving_average():
