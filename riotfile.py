@@ -325,6 +325,9 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
+            env={
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+            },
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -2780,6 +2783,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
             },
             pkgs={
                 "gunicorn": latest,
