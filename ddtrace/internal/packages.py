@@ -1,5 +1,6 @@
+from functools import lru_cache as cached
 import logging
-import os
+from os import fspath  # noqa:F401
 import sys
 import sysconfig
 from types import ModuleType
@@ -7,47 +8,11 @@ import typing as t
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
-from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.settings.third_party import config as tp_config
 
 
 LOG = logging.getLogger(__name__)
-
-
-try:
-    fspath = os.fspath
-except AttributeError:
-    # Stolen from Python 3.10
-    def fspath(path):
-        # For testing purposes, make sure the function is available when the C
-        # implementation exists.
-        """Return the path representation of a path-like object.
-
-        If str or bytes is passed in, it is returned unchanged. Otherwise the
-        os.PathLike interface is used to get the path representation. If the
-        path representation is not str or bytes, TypeError is raised. If the
-        provided path is not str, bytes, or os.PathLike, TypeError is raised.
-        """
-        if isinstance(path, (str, bytes)):
-            return path
-
-        # Work from the object's type to match method resolution of other magic
-        # methods.
-        path_type = type(path)
-        try:
-            path_repr = path_type.__fspath__(path)
-        except AttributeError:
-            if hasattr(path_type, "__fspath__"):
-                raise
-            else:
-                raise TypeError("expected str, bytes or os.PathLike object, not " + path_type.__name__)
-        if isinstance(path_repr, (str, bytes)):
-            return path_repr
-        raise TypeError(
-            "expected {}.__fspath__() to return str or bytes, "
-            "not {}".format(path_type.__name__, type(path_repr).__name__)
-        )
 
 
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
@@ -77,7 +42,7 @@ def get_distributions():
     return pkgs
 
 
-@cached()
+@cached(maxsize=256)
 def get_version_for_package(name):
     # type: (str) -> str
     """returns the version of a package"""
@@ -194,7 +159,7 @@ def _third_party_packages() -> set:
     ) - tp_config.excludes
 
 
-@cached()
+@cached(maxsize=16384)
 def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
     mapping = _package_for_root_module_mapping()
     if mapping is None:
@@ -203,13 +168,11 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
     try:
         path = Path(filename) if isinstance(filename, str) else filename
         return mapping.get(_root_module(path.resolve()))
-    except ValueError:
-        return None
-    except OSError:
+    except (ValueError, OSError):
         return None
 
 
-@cached()
+@cached(maxsize=256)
 def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
     """Returns the package distribution for a module"""
     module_origin = origin(module)
@@ -222,7 +185,7 @@ purelib_path = Path(sysconfig.get_path("purelib")).resolve()
 platlib_path = Path(sysconfig.get_path("platlib")).resolve()
 
 
-@cached()
+@cached(maxsize=256)
 def is_stdlib(path: Path) -> bool:
     rpath = path.resolve()
 
@@ -231,7 +194,6 @@ def is_stdlib(path: Path) -> bool:
     )
 
 
-@cached()
 def is_third_party(path: Path) -> bool:
     package = filename_to_package(str(path))
     if package is None:
@@ -240,12 +202,11 @@ def is_third_party(path: Path) -> bool:
     return package.name in _third_party_packages()
 
 
-@cached()
 def is_user_code(path: Path) -> bool:
     return not (is_stdlib(path) or is_third_party(path))
 
 
-@cached()
+@cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
     try:
