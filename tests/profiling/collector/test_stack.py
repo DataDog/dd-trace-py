@@ -783,4 +783,5 @@ def test_collect_ensure_all_frames_gc():
             _foo()
 
     gc.collect()  # Make sure we don't race with gc when we check frame objects
+    # DEV - this is flaky because this line returns `assert 10 == 0` in CI
     assert sum(isinstance(_, FrameType) for _ in gc.get_objects()) == 0
