@@ -41,13 +41,14 @@ urlpatterns = [path("", handler), path("soap/", leave_status_service, name="soap
 app = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
 
 
-@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="Older Django versions don't work with this use of django-admin")
-def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddleware():
+@pytest.fixture()
+def wsgi_app():
     env = os.environ.copy()
     env.update(
         {
             "PYTHONPATH": os.path.dirname(os.path.abspath(__file__)) + ":" + env["PYTHONPATH"],
             "DJANGO_SETTINGS_MODULE": "test_django_wsgi",
+            "DD_TRACE_ENABLED": "true",
         }
     )
     cmd = ["django-admin", "runserver", "--noreload", str(SERVER_PORT)]
@@ -59,6 +60,18 @@ def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddlewar
         env=env,
     )
 
+    yield proc
+
+    try:
+        proc.terminate()
+        proc.wait(timeout=5)  # Wait up to 5 seconds for the process to terminate
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="Older Django versions don't work with this use of django-admin")
+def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddleware(wsgi_app):
     client = Client("http://localhost:%d" % SERVER_PORT)
     client.wait()
     output = ""
@@ -66,30 +79,14 @@ def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddlewar
         assert client.get("/").status_code == 200
     finally:
         try:
-            _, output = proc.communicate(timeout=1)
+            _, output = wsgi_app.communicate(timeout=1)
         except subprocess.TimeoutExpired:
-            proc.kill()
-            _, output = proc.communicate()
+            wsgi_app.kill()
+            _, output = wsgi_app.communicate()
     assert SENTINEL_LOG in str(output)
 
 
-def test_django_wsgi_soap_app_works():
-    env = os.environ.copy()
-    env.update(
-        {
-            "PYTHONPATH": os.path.dirname(os.path.abspath(__file__)) + ":" + env["PYTHONPATH"],
-            "DJANGO_SETTINGS_MODULE": "test_django_wsgi",
-        }
-    )
-    cmd = ["ddtrace-run", "django-admin", "runserver", "--noreload", str(SERVER_PORT)]
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=True,
-        env=env,
-    )
-
+def test_django_wsgi_soap_app_works(wsgi_app):
     client = Client("http://localhost:%d" % SERVER_PORT)
     client.wait()
 
@@ -97,10 +94,3 @@ def test_django_wsgi_soap_app_works():
     response = make_soap_request(url)
 
     assert response["success"] is True
-
-    try:
-        proc.terminate()
-        proc.wait()
-    finally:
-        proc.kill()
-        proc.wait()
