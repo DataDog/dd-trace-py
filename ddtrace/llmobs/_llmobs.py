@@ -47,6 +47,8 @@ from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import MetaIOType
+from ddtrace.llmobs.utils import MetaType
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -227,7 +229,7 @@ class LLMObs(Service):
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
-        """Returns a simple representation of a span to export its span and trace IDs.
+        """Returns a representation of a span to be later used for evaluations.
         If no span is provided, the current active LLMObs-type span will be used.
         """
         if span:
@@ -235,18 +237,43 @@ class LLMObs(Service):
                 if span.span_type != SpanTypes.LLM:
                     log.warning("Span must be an LLMObs-generated span.")
                     return None
-                return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
             except (TypeError, AttributeError):
                 log.warning("Failed to export span. Span must be a valid Span object.")
                 return None
-        span = cls._instance.tracer.current_span()
+        else:
+            span = cls._instance.tracer.current_span()
+
         if span is None:
             log.warning("No span provided and no active LLMObs-generated span found.")
             return None
         if span.span_type != SpanTypes.LLM:
             log.warning("Span must be an LLMObs-generated span.")
             return None
-        return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+
+        exported_span = ExportedLLMObsSpan(
+            span_id=str(span.span_id),
+            trace_id="{:x}".format(span.trace_id),
+            meta=MetaType(
+                input=MetaIOType(value="", documents=[], messages=[]),
+                output=MetaIOType(value="", documents=[], messages=[]),
+                metadata=dict(),
+                tags=dict(),
+            ),
+        )
+        if span.get_tag(INPUT_VALUE):
+            exported_span["meta"]["input"]["value"] = span._meta.pop(INPUT_VALUE)
+        if span.get_tag(OUTPUT_VALUE):
+            exported_span["meta"]["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
+        if span.get_tag(INPUT_DOCUMENTS):
+            exported_span["meta"]["input"]["documents"] = json.loads(span._meta.pop(INPUT_DOCUMENTS))
+        if span.get_tag(OUTPUT_DOCUMENTS):
+            exported_span["meta"]["output"]["documents"] = json.loads(span._meta.pop(OUTPUT_DOCUMENTS))
+        if span.get_tag(INPUT_MESSAGES):
+            exported_span["meta"]["input"]["messages"] = json.loads(span._meta.pop(INPUT_MESSAGES))
+        if span.get_tag(OUTPUT_MESSAGES):
+            exported_span["meta"]["output"]["messages"] = json.loads(span._meta.pop(OUTPUT_MESSAGES))
+
+        return exported_span
 
     def _start_span(
         self,
@@ -446,7 +473,7 @@ class LLMObs(Service):
         metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
         tags: Optional[Dict[str, Any]] = None,
-    ) -> None:
+    ) -> Optional[ExportedLLMObsSpan]:
         """
         Sets parameters, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
         Note that with the exception of tags, this method will override any existing values for the provided fields.
@@ -478,17 +505,17 @@ class LLMObs(Service):
             span = cls._instance.tracer.current_span()
             if span is None:
                 log.warning("No span provided and no active LLMObs-generated span found.")
-                return
+                return None
         if span.span_type != SpanTypes.LLM:
             log.warning("Span must be an LLMObs-generated span.")
-            return
+            return None
         if span.finished:
             log.warning("Cannot annotate a finished span.")
-            return
+            return None
         span_kind = span.get_tag(SPAN_KIND)
         if not span_kind:
             log.warning("LLMObs span must have a span kind specified.")
-            return
+            return None
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
@@ -507,6 +534,7 @@ class LLMObs(Service):
             cls._tag_metrics(span, metrics)
         if tags is not None:
             cls._tag_span_tags(span, tags)
+        return LLMObs.export_span(span)
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
