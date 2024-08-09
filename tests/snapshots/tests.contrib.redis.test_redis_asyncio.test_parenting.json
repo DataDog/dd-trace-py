@@ -40,6 +40,7 @@
          "db.system": "redis",
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET blah boo",
+         "server.address": "127.0.0.1",
          "span.kind": "client"
        },
        "metrics": {
@@ -68,6 +69,7 @@
          "db.system": "redis",
          "out.host": "127.0.0.1",
          "redis.raw_command": "GET blah",
+         "server.address": "127.0.0.1",
          "span.kind": "client"
        },
        "metrics": {

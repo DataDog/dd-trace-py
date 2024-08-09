@@ -40,6 +40,7 @@
          "db.system": "redis",
          "out.host": "localhost",
          "redis.raw_command": "GET cheese",
+         "server.address": "localhost",
          "span.kind": "client"
        },
        "metrics": {

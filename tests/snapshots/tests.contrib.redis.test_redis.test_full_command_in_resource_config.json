@@ -17,6 +17,7 @@
       "out.host": "localhost",
       "redis.raw_command": "GET put_key_in_resource",
       "runtime-id": "3a1f7ba9b1ab42f4858e5effd03877ef",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
@@ -52,6 +53,7 @@
       "out.host": "localhost",
       "redis.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
       "runtime-id": "3a1f7ba9b1ab42f4858e5effd03877ef",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
