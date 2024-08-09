@@ -21,8 +21,10 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator as Propagator
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 _AIOKafkaProducer = aiokafka.AIOKafkaProducer
@@ -41,38 +43,16 @@ def get_version() -> str:
     return getattr(aiokafka, "__version__", "")
 
 
-class TracedAIOKafkaProducerMixin:
-    def __init__(self, *args, **kwargs):
-        super(TracedAIOKafkaProducerMixin, self).__init__(*args, **kwargs)
-        self._dd_bootstrap_servers = kwargs.get("bootstrap_servers")
-
-
-class TracedAIOKafkaConsumerMixin:
-    def __init__(self, *args, **kwargs):
-        super(TracedAIOKafkaConsumerMixin, self).__init__(*args, **kwargs)
-
-
-class TracedAIOKafkaProducer(TracedAIOKafkaProducerMixin, aiokafka.AIOKafkaProducer):
-    pass
-
-
-class TracedAIOKafkaConsumer(TracedAIOKafkaConsumerMixin, aiokafka.AIOKafkaConsumer):
-    pass
-
-
 def patch():
     if getattr(aiokafka, "_datadog_patch", False):
         return
     aiokafka._datadog_patch = True
 
-    aiokafka.AIOKafkaProducer = TracedAIOKafkaProducer
-    aiokafka.AIOKafkaConsumer = TracedAIOKafkaConsumer
-
-    trace_utils.wrap(TracedAIOKafkaProducer, "send", traced_send)
-    trace_utils.wrap(TracedAIOKafkaProducer, "send_and_wait", traced_send_and_wait)
-    trace_utils.wrap(TracedAIOKafkaConsumer, "getone", traced_getone)
-    trace_utils.wrap(TracedAIOKafkaConsumer, "getmany", traced_getmany)
-    trace_utils.wrap(TracedAIOKafkaConsumer, "commit", traced_commit)
+    _w("aiokafka", "AIOKafkaProducer.send", traced_send)
+    _w("aiokafka", "AIOKafkaProducer.send_and_wait", traced_send_and_wait)
+    _w("aiokafka", "AIOKafkaConsumer.getone", traced_getone)
+    _w("aiokafka", "AIOKafkaConsumer.getmany", traced_getmany)
+    _w("aiokafka", "AIOKafkaConsumer.commit", traced_commit)
 
     Pin().onto(aiokafka.AIOKafkaProducer)
     Pin().onto(aiokafka.AIOKafkaConsumer)
@@ -80,21 +60,15 @@ def patch():
 
 def unpatch():
     if getattr(aiokafka, "_datadog_patch", False):
-        aiokafka._datadog_patch = False
+        return
 
-    if trace_utils.iswrapped(TracedAIOKafkaProducer.send):
-        trace_utils.unwrap(TracedAIOKafkaProducer, "send")
-    if trace_utils.iswrapped(TracedAIOKafkaProducer.send_and_wait):
-        trace_utils.unwrap(TracedAIOKafkaProducer, "send_and_wait")
-    if trace_utils.iswrapped(TracedAIOKafkaConsumer.getone):
-        trace_utils.unwrap(TracedAIOKafkaConsumer, "getone")
-    if trace_utils.iswrapped(TracedAIOKafkaConsumer.getmany):
-        trace_utils.unwrap(TracedAIOKafkaConsumer, "getmany")
-    if trace_utils.iswrapped(TracedAIOKafkaConsumer.commit):
-        trace_utils.unwrap(TracedAIOKafkaConsumer, "commit")
+    aiokafka._datadog_patch = False
 
-    aiokafka.AIOKafkaProducer = _AIOKafkaProducer
-    aiokafka.AIOKafkaConsumer = _AIOKafkaConsumer
+    _u(aiokafka.AIOKafkaProducer, "send")
+    _u(aiokafka.AIOKafkaProducer, "send_and_wait")
+    _u(aiokafka.AIOKafkaConsumer, "getone")
+    _u(aiokafka.AIOKafkaProducer, "getmany")
+    _u(aiokafka.AIOKafkaProducer, "commit")
 
 
 async def traced_send(func, instance, args, kwargs):
@@ -123,8 +97,8 @@ async def traced_send(func, instance, args, kwargs):
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         span.set_tag(SPAN_MEASURED_KEY)
-        if instance._dd_bootstrap_servers is not None:
-            span.set_tag_str(kafkax.HOST_LIST, ",".join(instance._dd_bootstrap_servers))
+        if instance.client._bootstrap_servers is not None:
+            span.set_tag_str(kafkax.HOST_LIST, ",".join(instance.client._bootstrap_servers))
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
