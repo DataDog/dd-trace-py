@@ -44,7 +44,7 @@ SynchronizedSamplePool::SynchronizedSamplePool()
 }
 
 std::optional<Sample*>
-SynchronizedSamplePool::get_sample()
+SynchronizedSamplePool::take_sample()
 {
     std::optional<Sample*> result = std::nullopt;
 

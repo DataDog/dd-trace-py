@@ -24,7 +24,7 @@ class SynchronizedSamplePool
   public:
     SynchronizedSamplePool();
 
-    std::optional<Sample*> get_sample();
+    std::optional<Sample*> take_sample();
     std::optional<Sample*> return_sample(Sample* sample);
 };
 } // namespace Datadog

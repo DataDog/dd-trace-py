@@ -30,7 +30,7 @@ Datadog::SampleManager::set_timeline(bool enable)
 Datadog::Sample*
 Datadog::SampleManager::start_sample()
 {
-    auto sample_opt = sample_pool.get_sample();
+    auto sample_opt = sample_pool.take_sample();
     if (sample_opt.has_value()) {
         return sample_opt.value();
     }
