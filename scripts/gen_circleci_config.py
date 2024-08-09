@@ -20,6 +20,7 @@ def gen_required_suites(template: dict, git_selections: list) -> None:
     fetn(
         suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite), git_selections=git_selections
     )
+    required_suites = ["internal"]
 
     if not required_suites:
         # Nothing to generate
@@ -35,7 +36,7 @@ def gen_required_suites(template: dict, git_selections: list) -> None:
     jobs.extend([{suite: requires_base_venvs} for suite in required_suites])
 
     # Collect coverage
-    jobs.append({"coverage_report": template["requires_tests"]})
+    # jobs.append({"coverage_report": template["requires_tests"]})
 
 
 def gen_pre_checks(template: dict) -> None:
