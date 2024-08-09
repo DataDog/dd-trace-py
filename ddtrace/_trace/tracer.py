@@ -417,8 +417,6 @@ class Tracer(object):
         if self.enabled or self._apm_opt_out:
             active = self.context_provider.active()
 
-        trace_id = 0
-        span_id = 0
         if isinstance(active, Span) and active.service:
             service = active.service
         else:
