@@ -112,6 +112,21 @@ def cleanup_loaded_modules():
         logging.threading = threading
 
 
+def do_post_preload() -> None:
+    def non_ddtrace_modules():
+        return set(_ for _ in sys.modules if not (_ == "ddtrace" or _.startswith("ddtrace.")))
+
+    current_modules = non_ddtrace_modules()
+
+    for f in preload.post_preload:
+        f()
+
+    new_modules = non_ddtrace_modules() - current_modules
+    if new_modules:
+        msg = f"Modules were imported during post_preload: {new_modules}"
+        raise RuntimeError(msg)
+
+
 try:
     import ddtrace.bootstrap.preload as preload  # Perform the actual initialisation
 
@@ -163,8 +178,7 @@ try:
     # when the execution ends with a success.
     loaded = True
 
-    for f in preload.post_preload:
-        f()
+    do_post_preload()
 
 except Exception:
     loaded = False
