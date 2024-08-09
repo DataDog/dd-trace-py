@@ -290,12 +290,10 @@ def _extract_body(request):
 def _remake_body(request):
     # some libs that utilize django (Spyne) require the body stream to be unread or else will throw errors
     # see: https://github.com/arskom/spyne/blob/f105ec2f41495485fef1211fe73394231b3f76e5/spyne/server/wsgi.py#L538
-    try:
-        unread_body = io.BytesIO(request._body)
+    unread_body = io.BytesIO(request._body)
+    if unread_body.seekable():
         unread_body.seek(0)
         request.META["wsgi.input"] = unread_body
-    except Exception:
-        pass
 
 
 def _get_request_headers(request):
