@@ -1,0 +1,10 @@
+---
+deprecations:
+  - |
+    fastapi: Deprecates all modules in the ``ddtrace.contrib.fastapi`` package. Use attributes exposed in ``ddtrace.contrib.fastapi.__all__`` instead.
+  - |
+    flask: Deprecates all modules in the ``ddtrace.contrib.flask`` package. Use attributes exposed in ``ddtrace.contrib.flask.__all__`` instead.
+  - |
+    flask_cache: Deprecates all modules in the ``ddtrace.contrib.flask_cache`` package. Use attributes exposed in ``ddtrace.contrib.flask_cache.__all__`` instead.
+  - |
+    futures: Deprecates all modules in the ``ddtrace.contrib.futures`` package. Use attributes exposed in ``ddtrace.contrib.futures.__all__`` instead.
