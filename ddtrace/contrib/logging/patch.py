@@ -46,9 +46,7 @@ class DDLogRecord:
         self.env = env
 
 
-def _get_current_span(tracer=None):
-    """Helper to get the currently active span"""
-
+def _get_tracer(tracer=None):
     if not tracer:
         # With the addition of a custom ddtrace logger in _logger.py, logs that happen on startup
         # don't have access to `ddtrace.tracer`. Checking that this exists prevents an error
@@ -63,7 +61,7 @@ def _get_current_span(tracer=None):
     if not getattr(tracer, "enabled", False):
         return None
 
-    return tracer.current_span()
+    return tracer
 
 
 def _w_makeRecord(func, instance, args, kwargs):
@@ -77,14 +75,17 @@ def _w_makeRecord(func, instance, args, kwargs):
     # logs from internal logger may explicitly pass the current span to
     # avoid deadlocks in getting the current span while already in locked code.
     span_from_log = getattr(record, _LOG_SPAN_KEY, None)
+    trace_details = {}
     if isinstance(span_from_log, ddtrace.Span):
         span = span_from_log
     else:
-        span = _get_current_span(tracer=config.logging.tracer)
+        tracer = _get_tracer(tracer=config.logging.tracer)
+        if tracer:
+            span = tracer.current_span()
+            trace_details = tracer.get_log_correlation_context(active=span)
 
-    trace_details = config.logging.tracer.get_log_correlation_context(active=span)
-    setattr(record, RECORD_ATTR_TRACE_ID, trace_details["trace_id"])
-    setattr(record, RECORD_ATTR_SPAN_ID, trace_details["span_id"])
+    setattr(record, RECORD_ATTR_TRACE_ID, trace_details.get("trace_id", "0"))
+    setattr(record, RECORD_ATTR_SPAN_ID, trace_details.get("span_id", "0"))
 
     return record
 
