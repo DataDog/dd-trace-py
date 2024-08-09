@@ -1,7 +1,7 @@
 ---
 deprecations:
   - |
-    cassandra: Deprecates all modules in the ddtrace.contrib.cassandra package. Use attributes exposed in ddtrace.contrib.cassandra.__all__ instead.
+    cassandra: Deprecates all modules in the ``ddtrace.contrib.cassandra`` package. Use attributes exposed in ``ddtrace.contrib.cassandra.__all__`` instead.
   - |
     celery: Deprecates all modules in the ddtrace.contrib.celery package. Use attributes exposed in ddtrace.contrib.celery.__all__ instead.
   - |
