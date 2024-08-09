@@ -299,6 +299,7 @@ def _remake_body(request):
         except Exception:
             log.debug("Failed to remake Django request body", exc_info=True)
 
+
 def _get_request_headers(request):
     # type: (Any) -> Mapping[str, str]
     if DJANGO22:
