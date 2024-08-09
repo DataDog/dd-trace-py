@@ -259,6 +259,7 @@ def _get_address_tags(*args, **kwargs):
             host, port = args[0]
             tags[net.TARGET_HOST] = host
             tags[net.TARGET_PORT] = port
+            tags[net.SERVER_ADDRESS] = host
     except Exception:
         log.debug("Error collecting client address tags")
 

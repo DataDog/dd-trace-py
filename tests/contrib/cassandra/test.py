@@ -149,6 +149,7 @@ class CassandraBase(object):
         assert query.get_tag(cassx.PAGE_NUMBER) is None
         assert query.get_tag(cassx.PAGINATED) == "False"
         assert query.get_tag(net.TARGET_HOST) == "127.0.0.1"
+        assert query.get_tag(net.SERVER_ADDRESS) == "127.0.0.1"
         assert query.get_tag("component") == "cassandra"
         assert query.get_tag("span.kind") == "client"
         assert query.get_tag("db.system") == "cassandra"
@@ -225,6 +226,7 @@ class CassandraBase(object):
         assert dd_span.get_tag(cassx.PAGE_NUMBER) is None
         assert dd_span.get_tag(cassx.PAGINATED) == "False"
         assert dd_span.get_tag(net.TARGET_HOST) == "127.0.0.1"
+        assert dd_span.get_tag(net.SERVER_ADDRESS) == "127.0.0.1"
         assert dd_span.get_tag("component") == "cassandra"
         assert dd_span.get_tag("span.kind") == "client"
         assert dd_span.get_tag("db.system") == "cassandra"
@@ -289,6 +291,7 @@ class CassandraBase(object):
             else:
                 assert query.get_metric("db.row_count") == 1
             assert query.get_tag(net.TARGET_HOST) == "127.0.0.1"
+            assert query.get_tag(net.SERVER_ADDRESS) == "127.0.0.1"
             assert query.get_tag(cassx.PAGINATED) == "True"
             assert query.get_metric(cassx.PAGE_NUMBER) == i + 1
             assert query.get_tag("db.system") == "cassandra"

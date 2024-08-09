@@ -37,6 +37,7 @@ def get_version():
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "host",
     net.TARGET_PORT: "port",
+    net.SERVER_ADDRESS: "host",
     db.USER: "user",
     db.NAME: "db",
 }

@@ -61,7 +61,10 @@ def _connect(func, instance, args, kwargs):
 
 def _patch_conn(conn):
     try:
-        tags = {db.SYSTEM: conn.getinfo(pyodbc.SQL_DBMS_NAME), db.USER: conn.getinfo(pyodbc.SQL_USER_NAME)}
+        tags = {
+            db.SYSTEM: conn.getinfo(pyodbc.SQL_DBMS_NAME),
+            db.USER: conn.getinfo(pyodbc.SQL_USER_NAME),
+        }
     except pyodbc.Error:
         tags = {}
     pin = Pin(service=None, tags=tags)

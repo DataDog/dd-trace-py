@@ -19,6 +19,7 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "5a96dd3625244504a0af1730daf02ce1",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
@@ -52,6 +53,7 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "5a96dd3625244504a0af1730daf02ce1",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {

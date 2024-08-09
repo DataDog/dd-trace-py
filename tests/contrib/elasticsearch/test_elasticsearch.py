@@ -107,6 +107,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
         assert span.get_tag("out.host") == "localhost"
+        assert span.get_tag("server.address") == "localhost"
         assert span.get_tag("custom_tag") == "bar"
         assert span.resource == "PUT /%s" % self.ES_INDEX
 

@@ -46,6 +46,7 @@ def _connect(func, instance, args, kwargs):
     tags = {
         net.TARGET_HOST: kwargs.get("host", "127.0.0.1"),
         net.TARGET_PORT: kwargs.get("port", 3306),
+        net.SERVER_ADDRESS: kwargs.get("host", "127.0.0.1"),
         db.USER: kwargs.get("user", "test"),
         db.NAME: kwargs.get("database", "test"),
         db.SYSTEM: "mariadb",

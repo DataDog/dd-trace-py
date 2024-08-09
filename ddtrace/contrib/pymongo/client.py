@@ -346,6 +346,7 @@ def set_address_tags(span, address):
     # the address is only set after the cursor is done.
     if address:
         span.set_tag_str(netx.TARGET_HOST, address[0])
+        span.set_tag_str(netx.SERVER_ADDRESS, address[0])
         span.set_tag(netx.TARGET_PORT, address[1])
 
 

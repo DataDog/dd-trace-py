@@ -21,6 +21,7 @@
       "out.host": "127.0.0.1",
       "peer.service": "postgres",
       "runtime-id": "15db47b079fc4656b27a4ce5e5c44910",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
@@ -56,6 +57,7 @@
       "out.host": "127.0.0.1",
       "peer.service": "postgres",
       "runtime-id": "15db47b079fc4656b27a4ce5e5c44910",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
