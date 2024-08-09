@@ -5,4 +5,6 @@ deprecations:
   - |
     logbook: Deprecates the ``ddtrace.contrib.logbook`` module. Use ``ddtrace.contrib.langchain.logbook`` instead.
   - |
+    logging: Deprecates the ``ddtrace.contrib.logging`` module. Use ``ddtrace.contrib.langchain.logging`` instead.
+  - |
     loguru: Deprecates the ``ddtrace.contrib.loguru`` module. Use ``ddtrace.contrib.langchain.loguru`` instead.
