@@ -1,7 +1,7 @@
 ---
 deprecations:
   - |
-    django: Deprecates all modules in the ddtrace.contrib.django package. Use attributes exposed in ddtrace.contrib.django.__all__ instead.
+    django: Deprecates all modules in the ``ddtrace.contrib.django`` package. Use attributes exposed in ``ddtrace.contrib.django.__all__`` instead.
   - |
     dogpile_cache: Deprecates all modules in the ddtrace.contrib.dogpile_cache package. Use attributes exposed in ddtrace.contrib.dogpile_cache.__all__ instead.
   - |
