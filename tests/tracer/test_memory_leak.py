@@ -23,7 +23,8 @@ def tracer() -> Tracer:
     return Tracer()
 
 
-def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs) -> Span:
+def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs):
+    # type: (...) -> Span
     """Return a span created from ``tracer`` and add it to the given weak
     dictionary.
 
