@@ -23,9 +23,13 @@ required_modules = ["concurrent.futures"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch
+        # Required to allow users to import from `ddtrace.contrib.futures.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ..internal.futures.patch import get_version
+        from ..internal.futures.patch import patch
+        from ..internal.futures.patch import unpatch
 
         __all__ = [
             "get_version",
