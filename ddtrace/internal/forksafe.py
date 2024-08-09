@@ -80,6 +80,7 @@ def unregister_before_fork(before_fork):
 if hasattr(os, "register_at_fork"):
     os.register_at_fork(before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
 
+
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 
 
@@ -107,9 +108,7 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
 
     """
 
-    def __init__(
-        self, wrapped_class  # type: typing.Type[_T]
-    ):
+    def __init__(self, wrapped_class: typing.Type[_T]):
         # type: (...) -> None
         super(ResetObject, self).__init__(wrapped_class())
         self._self_wrapped_class = wrapped_class
@@ -133,3 +132,14 @@ def RLock():
 def Event():
     # type: (...) -> ResetObject[threading.Event]
     return ResetObject(threading.Event)
+
+
+# uWSGI pre-forking support
+try:
+    from uwsgidecorators import postfork
+
+    postfork(ddtrace_after_in_child)
+except ImportError:
+    log.debug("uwsgidecorators is not available, skipping uWSGI support")
+except Exception:
+    log.exception("Error registering post-fork hook with uWSGI postfork")
