@@ -322,6 +322,14 @@ class CMakeBuild(build_ext):
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
 
+        # If we have sccache available, default to using it
+        sccache_path = os.getenv("SCCACHE_PATH", "sccache")
+        if shutil.which(sccache_path):
+            cmake_args += [
+                "-DCMAKE_C_COMPILER_LAUNCHER=" + sccache_path,
+                "-DCMAKE_CXX_COMPILER_LAUNCHER=" + sccache_path,
+            ]
+
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
         # by setuptools/distutils, such libdd_wrapper.so
