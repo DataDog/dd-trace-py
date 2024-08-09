@@ -1,5 +1,6 @@
 import structlog
 
+import ddtrace
 from ddtrace import config
 
 from ...internal.utils import get_argument_value
@@ -26,7 +27,7 @@ def get_version():
 
 
 def _tracer_injection(_, __, event_dict):
-    trace_details = config.logging.tracer.get_log_correlation_context()
+    trace_details = ddtrace.tracer.get_log_correlation_context()
 
     # add ids to structlog event dictionary
     event_dict[RECORD_ATTR_TRACE_ID] = trace_details["trace_id"]

@@ -1,5 +1,6 @@
 import loguru
 
+import ddtrace
 from ddtrace import config
 
 from ...vendor.wrapt import wrap_function_wrapper as _w
@@ -24,7 +25,7 @@ def get_version():
 
 
 def _tracer_injection(event_dict):
-    trace_details = config.logging.tracer.get_log_correlation_context()
+    trace_details = ddtrace.tracer.get_log_correlation_context()
 
     event_dd_attributes = {}
     # add ids to loguru event dictionary
