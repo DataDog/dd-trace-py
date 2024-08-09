@@ -303,7 +303,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     ]
                 except AttributeError:
                     log.warning("Failed to extract document information from similarity search output")
-                    documents = [Document(text=d.page_content) for d in output_documents]
+                    documents = [Document(id="", text=d.page_content) for d in output_documents]
                 try:
                     span.set_tag_str(output_tag_key, json.dumps(self.format_io(documents)))
                 except TypeError:
