@@ -94,6 +94,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: PATH=/root/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
+          CIBW_BEFORE_ALL: which rustc 2>/dev/null || curl https://sh.rustup.rs -sSf | sh -s -- --profile=minimal --default-toolchain stable -y
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
@@ -131,6 +132,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: PATH=/root/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
+          CIBW_BEFORE_ALL: which rustc 2>/dev/null || curl https://sh.rustup.rs -sSf | sh -s -- --profile=minimal --default-toolchain stable -y
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
