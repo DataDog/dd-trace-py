@@ -71,22 +71,23 @@ SynchronizedSamplePool::get_sample()
 std::optional<Sample*>
 SynchronizedSamplePool::return_sample(Sample* sample)
 {
-    if (pool == nullptr) {
-        return std::nullopt;
+    std::optional<Sample*> result = std::nullopt;
+
+    if (pool != nullptr) {
+        ddog_ArrayQueue_PushResult push_result = ddog_ArrayQueue_push(pool.get(), sample);
+
+        if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_OK) {
+            // The sample was successfully returned to the pool.
+        } else if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_FULL) {
+            result = static_cast<Sample*>(push_result.full);
+        } else if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_ERR) {
+            auto err = push_result.err;
+            std::string errmsg = err_to_msg(&err, "Failed to return sample to pool");
+            std::cerr << errmsg << std::endl;
+            ddog_Error_drop(&err);
+        }
     }
-    ddog_ArrayQueue_PushResult push_result = ddog_ArrayQueue_push(pool.get(), sample);
-    if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_OK) {
-        return std::nullopt;
-    } else if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_FULL) {
-        return static_cast<Sample*>(push_result.full);
-    } else if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_ERR) {
-        auto err = push_result.err;
-        std::string errmsg = err_to_msg(&err, "Failed to return sample to pool");
-        std::cerr << errmsg << std::endl;
-        ddog_Error_drop(&err);
-        return std::nullopt;
-    }
-    // To silence the warning about missing return statement
-    return std::nullopt;
+
+    return result;
 }
 } // namespace Datadog

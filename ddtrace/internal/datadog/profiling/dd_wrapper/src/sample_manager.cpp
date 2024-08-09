@@ -35,6 +35,8 @@ Datadog::SampleManager::start_sample()
         return sample_opt.value();
     }
     // Create a new Sample if we failed to get one.
+    // Note that this could be leaked if another thread calls fork() before
+    // the Sample is returned to the pool.
     return new Datadog::Sample(type_mask, max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
 }
 
