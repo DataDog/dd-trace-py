@@ -46,6 +46,8 @@ def _expected_llmobs_llm_span_event(
     span_kind="llm",
     input_messages=None,
     input_documents=None,
+    input_value=None,
+    output_documents=None,
     output_messages=None,
     output_value=None,
     parameters=None,
@@ -62,7 +64,7 @@ def _expected_llmobs_llm_span_event(
 ):
     """
     Helper function to create an expected LLM span event.
-    span_kind: either "llm" or "agent"
+    span_kind: either "llm" or "agent" or "embedding" or "retrieval"
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
     parameters: dict of input parameters
@@ -90,6 +92,11 @@ def _expected_llmobs_llm_span_event(
             meta_dict["input"].update({"documents": input_documents})
         if output_value is not None:
             meta_dict["output"].update({"value": output_value})
+    if span_kind == "retrieval":
+        if input_value is not None:
+            meta_dict["input"].update({"value": input_value})
+        if output_documents is not None:
+            meta_dict["output"].update({"documents": output_documents})
     if not meta_dict["input"]:
         meta_dict.pop("input")
     if not meta_dict["output"]:
