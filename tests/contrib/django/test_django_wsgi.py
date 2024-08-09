@@ -21,6 +21,7 @@ ROOT_URLCONF = os.path.basename(filepath)
 WSGI_APPLICATION = os.path.basename(filepath) + ".app"
 DEBUG = True
 SERVER_PORT = 8000
+SERVER_PORT_2 = 8001
 SENTINEL_LOG = "request finished signal received"
 
 log = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ def test_django_wsgi_soap_app_works():
             "DJANGO_SETTINGS_MODULE": "test_django_wsgi",
         }
     )
-    cmd = ["ddtrace-run", "django-admin", "runserver", "--noreload", str(SERVER_PORT)]
+    cmd = ["ddtrace-run", "django-admin", "runserver", "--noreload", str(SERVER_PORT_2)]
     _ = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -90,10 +91,10 @@ def test_django_wsgi_soap_app_works():
         env=env,
     )
 
-    client = Client("http://localhost:%d" % SERVER_PORT)
+    client = Client("http://localhost:%d" % SERVER_PORT_2)
     client.wait()
 
-    url = "http://localhost:%d" % SERVER_PORT + "/soap/?wsdl"
+    url = "http://localhost:%d" % SERVER_PORT_2 + "/soap/?wsdl"
     response = make_soap_request(url)
 
     assert response["success"] is True
