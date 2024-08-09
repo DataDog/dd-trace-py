@@ -199,6 +199,7 @@ def _split_namespace(ns):
         # so force cast to unicode
         split = to_unicode(ns).split(".", 1)
         if len(split) == 1:
-            raise Exception("namespace doesn't contain period: %s" % ns)
+            log.warning("namespace doesn't contain period: %s", ns)
+            return (None, None)
         return split
     return (None, None)

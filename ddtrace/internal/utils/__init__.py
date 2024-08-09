@@ -13,13 +13,12 @@ class ArgumentError(Exception):
 
 
 def get_argument_value(
-    args,  # type: List[Any]
-    kwargs,  # type: Dict[str, Any]
-    pos,  # type: int
-    kw,  # type: str
-    optional=False,  # type: bool
-):
-    # type: (...) -> Optional[Any]
+    args: List[Any],
+    kwargs: Dict[str, Any],
+    pos: int,
+    kw: str,
+    optional: bool = False,
+) -> Optional[Any]:
     """
     This function parses the value of a target function argument that may have been
     passed in as a positional argument or a keyword argument. Because monkey-patched
@@ -46,14 +45,13 @@ def get_argument_value(
 
 
 def set_argument_value(
-    args,  # type: Tuple[Any, ...]
-    kwargs,  # type: Dict[str, Any]
-    pos,  # type: int
-    kw,  # type: str
-    value,  # type: Any
-    override_unset=False,  # type: bool
-):
-    # type: (...) -> Tuple[Tuple[Any, ...], Dict[str, Any]]
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
+    pos: int,
+    kw: str,
+    value: Any,
+    override_unset: bool = False,
+) -> Tuple[Tuple[Any, ...], Dict[str, Any]]:
     """
     Returns a new args, kwargs with the given value updated
     :param args: Positional arguments
