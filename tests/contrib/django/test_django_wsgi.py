@@ -21,7 +21,6 @@ ROOT_URLCONF = os.path.basename(filepath)
 WSGI_APPLICATION = os.path.basename(filepath) + ".app"
 DEBUG = True
 SERVER_PORT = 8000
-SERVER_PORT_2 = 8001
 SENTINEL_LOG = "request finished signal received"
 
 log = logging.getLogger(__name__)
@@ -44,6 +43,7 @@ app = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="Older Django versions don't work with this use of django-admin")
 def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddleware():
+    breakpoint()
     env = os.environ.copy()
     env.update(
         {
@@ -82,8 +82,8 @@ def test_django_wsgi_soap_app_works():
             "DJANGO_SETTINGS_MODULE": "test_django_wsgi",
         }
     )
-    cmd = ["ddtrace-run", "django-admin", "runserver", "--noreload", str(SERVER_PORT_2)]
-    _ = subprocess.Popen(
+    cmd = ["ddtrace-run", "django-admin", "runserver", "--noreload", str(SERVER_PORT)]
+    proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -91,10 +91,17 @@ def test_django_wsgi_soap_app_works():
         env=env,
     )
 
-    client = Client("http://localhost:%d" % SERVER_PORT_2)
+    client = Client("http://localhost:%d" % SERVER_PORT)
     client.wait()
 
-    url = "http://localhost:%d" % SERVER_PORT_2 + "/soap/?wsdl"
+    url = "http://localhost:%d" % SERVER_PORT + "/soap/?wsdl"
     response = make_soap_request(url)
 
     assert response["success"] is True
+
+    try:
+        proc.terminate()
+        proc.wait()
+    finally:
+        proc.kill()
+        proc.wait()
