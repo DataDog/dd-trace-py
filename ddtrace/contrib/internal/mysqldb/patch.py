@@ -51,9 +51,9 @@ def get_version():
 
 def patch():
     # patch only once
-    if getattr(MySQLdb, "__datadog_patch", False):
+    if getattr(MySQLdb, "_datadog_patch", False):
         return
-    MySQLdb.__datadog_patch = True
+    MySQLdb._datadog_patch = True
 
     Pin().onto(MySQLdb)
 
@@ -70,9 +70,9 @@ def patch():
 
 
 def unpatch():
-    if not getattr(MySQLdb, "__datadog_patch", False):
+    if not getattr(MySQLdb, "_datadog_patch", False):
         return
-    MySQLdb.__datadog_patch = False
+    MySQLdb._datadog_patch = False
 
     pin = Pin.get_from(MySQLdb)
     if pin:
