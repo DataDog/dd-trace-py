@@ -423,8 +423,8 @@ class Tracer(object):
             service = config.service
             trace_id, span_id = _get_trace_details_for_log_injection(active)
         return {
-            "trace_id": str(trace_id),
-            "span_id": str(span_id),
+            "trace_id": trace_id,
+            "span_id": span_id,
             "service": service or "",
             "version": config.version or "",
             "env": config.env or "",
