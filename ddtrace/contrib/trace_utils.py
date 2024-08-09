@@ -26,7 +26,6 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
-from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -683,17 +682,3 @@ def _convert_to_string(attr):
         else:
             return ensure_text(attr)
     return attr
-
-
-def _get_trace_details_for_log_injection(span):
-    # gets correct trace id and span id format for log injection
-    # Note: logs only supports 32 length hex representation of trace_id for 128 bit ids, no base10 int support
-    trace_id = None
-    span_id = None
-    if span:
-        span_id = span.span_id
-        trace_id = span.trace_id
-        if trace_id and isinstance(trace_id, int) and trace_id > MAX_UINT_64BITS:
-            trace_id = "{:032x}".format(trace_id)
-
-    return trace_id, span_id

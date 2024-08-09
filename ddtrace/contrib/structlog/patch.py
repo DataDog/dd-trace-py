@@ -1,6 +1,5 @@
 import structlog
 
-import ddtrace
 from ddtrace import config
 
 from ...internal.utils import get_argument_value
@@ -10,9 +9,7 @@ from ..logging.constants import RECORD_ATTR_SERVICE
 from ..logging.constants import RECORD_ATTR_SPAN_ID
 from ..logging.constants import RECORD_ATTR_TRACE_ID
 from ..logging.constants import RECORD_ATTR_VALUE_EMPTY
-from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
-from ..trace_utils import _get_trace_details_for_log_injection
 from ..trace_utils import unwrap as _u
 from ..trace_utils import wrap as _w
 
@@ -29,13 +26,11 @@ def get_version():
 
 
 def _tracer_injection(_, __, event_dict):
-    span = ddtrace.tracer.current_span()
-
-    trace_id, span_id = _get_trace_details_for_log_injection(span)
+    trace_details = config.logging.tracer.get_log_correlation_context()
 
     # add ids to structlog event dictionary
-    event_dict[RECORD_ATTR_TRACE_ID] = str(trace_id or RECORD_ATTR_VALUE_ZERO)
-    event_dict[RECORD_ATTR_SPAN_ID] = str(span_id or RECORD_ATTR_VALUE_ZERO)
+    event_dict[RECORD_ATTR_TRACE_ID] = trace_details["trace_id"]
+    event_dict[RECORD_ATTR_SPAN_ID] = trace_details["span_id"]
     # add the env, service, and version configured for the tracer
     event_dict[RECORD_ATTR_ENV] = config.env or RECORD_ATTR_VALUE_EMPTY
     event_dict[RECORD_ATTR_SERVICE] = config.service or RECORD_ATTR_VALUE_EMPTY
