@@ -1,10 +1,10 @@
 import flask
 from flask.testing import FlaskClient
+import wrapt
 
 from ddtrace import Pin
 from ddtrace.contrib.flask import patch
 from ddtrace.contrib.flask import unpatch
-from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
 
 

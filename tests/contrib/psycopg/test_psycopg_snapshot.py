@@ -3,10 +3,10 @@ import sys
 
 import psycopg
 import pytest
+import wrapt
 
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
-from ddtrace.vendor import wrapt
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import override_config
 

@@ -6,8 +6,9 @@ from typing import Dict
 from typing import Generator
 from typing import List
 
+import wrapt
+
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor import wrapt
 
 
 try:

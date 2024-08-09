@@ -13,6 +13,7 @@ from typing import List  # noqa:F401
 import urllib.parse
 
 import pytest
+import wrapt
 
 import ddtrace
 from ddtrace import Tracer
@@ -37,7 +38,6 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
 

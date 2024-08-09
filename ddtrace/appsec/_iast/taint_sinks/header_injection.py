@@ -1,9 +1,10 @@
 from typing import Text
 
+from wrapt.importer import when_imported
+
 from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.wrapt.importer import when_imported
 
 from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS

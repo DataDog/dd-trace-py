@@ -5,12 +5,12 @@ from typing import Iterable
 
 # 3p
 import pymongo
+from wrapt import ObjectProxy
 
 # project
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor.wrapt import ObjectProxy
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

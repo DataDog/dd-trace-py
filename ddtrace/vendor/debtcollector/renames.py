@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from .. import wrapt
+import wrapt
 
 from . import _utils
 

@@ -597,7 +597,7 @@ def test_wrapt_c_ext_config():
         assert _lock.WRAPT_C_EXT is False
     else:
         try:
-            import ddtrace.vendor.wrapt._wrappers as _w
+            import wrapt._wrappers as _w
         except ImportError:
             assert _lock.WRAPT_C_EXT is False
         else:

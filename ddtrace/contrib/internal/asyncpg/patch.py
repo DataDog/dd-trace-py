@@ -6,7 +6,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
+import wrapt
 
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY

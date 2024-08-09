@@ -1,6 +1,7 @@
 import os
 
 import aiohttp
+import wrapt
 from yarl import URL
 
 from ddtrace import config
@@ -22,7 +23,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)

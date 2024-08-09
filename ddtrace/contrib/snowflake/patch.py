@@ -1,8 +1,9 @@
 import os
 
+import wrapt
+
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net

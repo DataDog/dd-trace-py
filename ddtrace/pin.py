@@ -3,10 +3,11 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
+import wrapt
+
 import ddtrace
 
 from .internal.logger import get_logger
-from .vendor import wrapt
 
 
 log = get_logger(__name__)

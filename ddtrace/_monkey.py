@@ -3,7 +3,7 @@ import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
 from .internal import telemetry
 from .internal.logger import get_logger

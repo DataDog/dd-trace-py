@@ -18,6 +18,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 from urllib.parse import quote
 
+import wrapt
+
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
@@ -31,7 +33,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
 
 from ...internal import core
 

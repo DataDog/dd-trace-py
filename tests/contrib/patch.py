@@ -7,8 +7,9 @@ from tempfile import NamedTemporaryFile
 from textwrap import dedent
 import unittest
 
+import wrapt
+
 from ddtrace.internal.compat import httplib
-from ddtrace.vendor import wrapt
 from ddtrace.version import get_version
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -729,7 +730,7 @@ class PatchTestCase(object):
 
                         from ddtrace.internal.module import ModuleWatchdog
 
-                        from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
+                        from wrapt import wrap_function_wrapper as wrap
 
                         patched = False
 
