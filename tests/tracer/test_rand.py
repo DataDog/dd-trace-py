@@ -1,18 +1,18 @@
 from itertools import chain
 import multiprocessing as mp
 
+import pytest
+
 
 try:
     from multiprocessing import SimpleQueue as MPQueue
 except ImportError:
     from multiprocessing.queues import SimpleQueue as MPQueue
 
-import os
 import threading
 import time
 
 from ddtrace import tracer
-from ddtrace._trace.span import Span
 from ddtrace.internal import _rand
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import Queue
@@ -61,7 +61,13 @@ def test_rand128bit():
     assert t1 <= unix_time2 <= t2
 
 
+@pytest.mark.subprocess()
 def test_fork_no_pid_check():
+    import os
+
+    from ddtrace.internal import _rand
+    from tests.tracer.test_rand import MPQueue
+
     q = MPQueue()
     pid = os.fork()
 
@@ -88,6 +94,11 @@ def test_fork_no_pid_check():
 
 
 def test_fork_pid_check():
+    import os
+
+    from ddtrace.internal import _rand
+    from tests.tracer.test_rand import MPQueue
+
     q = MPQueue()
     pid = os.fork()
 
@@ -191,17 +202,26 @@ def test_threadsafe():
     assert len(ids) > 0
 
 
+@pytest.mark.subprocess
 def test_tracer_usage_fork():
+    from itertools import chain
+    import os
+
+    from ddtrace import tracer
+    from tests.tracer.test_rand import MPQueue
+
     q = MPQueue()
     pid = os.fork()
+
+    def get_ids():
+        with tracer.start_span("s") as s:
+            yield s.span_id, s.trace_id
 
     # Similar test to test_fork() above except we use the tracer API.
     # In this case we expect to never have collisions.
     if pid > 0:
         # parent
-        parent_ids_list = list(
-            chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(100)])
-        )
+        parent_ids_list = list(chain.from_iterable(ids for ids in [get_ids() for _ in range(100)]))
         parent_ids = set(parent_ids_list)
         assert len(parent_ids) == len(parent_ids_list), "Collisions found in parent process ids"
 
@@ -214,9 +234,7 @@ def test_tracer_usage_fork():
     else:
         # child
         try:
-            child_ids = list(
-                chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(100)])
-            )
+            child_ids = list(chain.from_iterable(ids for ids in [get_ids() for _ in range(100)]))
             q.put(child_ids)
         finally:
             # Kill the process so it doesn't continue running the rest of the
@@ -260,7 +278,14 @@ def test_tracer_usage_multiprocess():
         ids = ids | child_ids  # accumulate the ids
 
 
+@pytest.mark.subprocess
 def test_span_api_fork():
+    from itertools import chain
+    import os
+
+    from ddtrace._trace.span import Span
+    from tests.tracer.test_rand import MPQueue
+
     q = MPQueue()
     pid = os.fork()
 

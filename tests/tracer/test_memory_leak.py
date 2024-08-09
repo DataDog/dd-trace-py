@@ -2,7 +2,6 @@
 Variety of test cases ensuring that ddtrace does not leak memory.
 """
 import gc
-import os
 from threading import Thread
 from typing import TYPE_CHECKING
 from weakref import WeakValueDictionary
@@ -110,11 +109,19 @@ def test_multithread_trace(tracer):
     assert len(wd) == 0
 
 
-def test_fork_open_span(tracer):
+@pytest.mark.subprocess
+def test_fork_open_span():
     """
     When a fork occurs with an open span then the child process should not have
     a strong reference to the span because it might never be closed.
     """
+    import gc
+    import os
+    from weakref import WeakValueDictionary
+
+    from ddtrace import tracer
+    from tests.tracer.test_memory_leak import trace
+
     wd = WeakValueDictionary()
     span = trace(wd, tracer, "span")
     pid = os.fork()

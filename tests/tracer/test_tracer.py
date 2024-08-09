@@ -5,8 +5,6 @@ tests for Tracer and utilities.
 import contextlib
 import gc
 import logging
-import multiprocessing
-import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
@@ -35,6 +33,7 @@ from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
@@ -754,8 +753,14 @@ def test_tracer_dogstatsd_url():
         assert str(e) == "Unknown url format for `foo://foobar:12`"
 
 
+@pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
+@pytest.mark.subprocess
 def test_tracer_fork():
-    t = ddtrace.Tracer()
+    import contextlib
+    import multiprocessing
+
+    from ddtrace import tracer as t
+
     original_pid = t._pid
     original_writer = t._writer
 
@@ -1040,8 +1045,13 @@ def _test_tracer_runtime_tags_fork_task(tracer, q):
     span.finish()
 
 
+@pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
+@pytest.mark.subprocess
 def test_tracer_runtime_tags_fork():
-    tracer = ddtrace.Tracer()
+    import multiprocessing
+
+    from ddtrace import tracer
+    from tests.tracer.test_tracer import _test_tracer_runtime_tags_fork_task
 
     span = tracer.start_span("foobar")
     span.finish()
@@ -1171,8 +1181,15 @@ def test_runtime_id_parent_only():
     assert isinstance(rtid, str)
 
 
+@pytest.mark.skipif(
+    PYTHON_VERSION_INFO >= (3, 12),
+    reason="This test runs in a multithreaded process, using os.fork() may cause deadlocks in child proccesses",
+)
+@pytest.mark.subprocess
 def test_runtime_id_fork():
-    tracer = ddtrace.Tracer()
+    import os
+
+    from ddtrace import tracer
 
     s = tracer.trace("test")
     s.finish()
@@ -1823,7 +1840,12 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     assert len(spans) == 2
 
 
-def test_fork_manual_span_same_context(tracer):
+@pytest.mark.subprocess
+def test_fork_manual_span_same_context():
+    import os
+
+    from ddtrace import tracer
+
     span = tracer.trace("test")
     pid = os.fork()
 
@@ -1842,7 +1864,12 @@ def test_fork_manual_span_same_context(tracer):
     assert exit_code == 12
 
 
-def test_fork_manual_span_different_contexts(tracer):
+@pytest.mark.subprocess
+def test_fork_manual_span_different_contexts():
+    import os
+
+    from ddtrace import tracer
+
     span = tracer.start_span("test")
     pid = os.fork()
 
@@ -1860,7 +1887,13 @@ def test_fork_manual_span_different_contexts(tracer):
     assert exit_code == 12
 
 
-def test_fork_pid(tracer):
+@pytest.mark.subprocess
+def test_fork_pid():
+    import os
+
+    from ddtrace import tracer
+    from ddtrace.constants import PID
+
     root = tracer.trace("root_span")
     assert root.get_tag("runtime-id") is not None
     assert root.get_metric(PID) is not None
