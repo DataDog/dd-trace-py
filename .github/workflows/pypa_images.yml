@@ -11,7 +11,7 @@ on:
 
 jobs:
   build-and-publish:
-    name: "Build and publish ${{ image_name }}"
+    name: "Build and publish ${{ matrix.IMAGE_NAME }}"
     uses: "./.github/workflows/build-and-publish-image.yml"
     strategy:
       matrix:
@@ -32,9 +32,9 @@ jobs:
             BASE_IMAGE: "quay.io/pypa/manylinux2014_i686:latest"
             PLATFORM: "linux/386"
     with:
-      tags: "ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:${{ github.sha }},ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:latest"
-      platforms: "${{ PLATFORM }}"
-      build-args: "BASE_IMAGE=${{ BASE_IMAGE }}"
+      tags: "ghcr.io/datadog/dd-trace-py/${{ matrix.IMAGE_NAME }}:${{ github.sha }},ghcr.io/datadog/dd-trace-py/${{ matrix.IMAGE_NAME }}:latest"
+      platforms: "${{ matrix.PLATFORM }}"
+      build-args: "BASE_IMAGE=${{ matrix.BASE_IMAGE }}"
       context: "./docker"
       file: "Dockerfile.pypa_base"
     secrets:
@@ -42,7 +42,7 @@ jobs:
 
   # We cannot use a shared base image for musllinux i686
   build-and-publish-musllinux-i686:
-    name: "Build and publish ${{ image_name }}"
+    name: "Build and publish ${{ matrix.IMAGE_NAME }}"
     uses: "./.github/workflows/build-and-publish-image.yml"
     strategy:
       matrix:
@@ -50,9 +50,9 @@ jobs:
           - IMAGE_NAME: "pypa_musllinux_1_2_i686"
             PLATFORM: "linux/386"
     with:
-      tags: "ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:${{ github.sha }},ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:latest"
-      platforms: "${{ PLATFORM }}"
+      tags: "ghcr.io/datadog/dd-trace-py/${{ matrix.IMAGE_NAME }}:${{ github.sha }},ghcr.io/datadog/dd-trace-py/${{ matrix.IMAGE_NAME }}:latest"
+      platforms: "${{ matrix.PLATFORM }}"
       context: "./docker"
-      file: "Dockerfile.${{ DOCKER_IMAGE }}"
+      file: "Dockerfile.${{ matrix.IMAGE_NAME }}"
     secrets:
       token: "${{ secrets.GITHUB_TOKEN }}"
