@@ -51,7 +51,7 @@ def get_version():
 
 def patch():
     # patch only once
-    if getattr(MySQLdb, "_datadog_patch", False):
+    if getattr(MySQLdb, "__datadog_patch", False):
         return
     MySQLdb._datadog_patch = True
 
@@ -70,7 +70,7 @@ def patch():
 
 
 def unpatch():
-    if not getattr(MySQLdb, "_datadog_patch", False):
+    if not getattr(MySQLdb, "__datadog_patch", False):
         return
     MySQLdb._datadog_patch = False
 
