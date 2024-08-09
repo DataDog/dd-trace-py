@@ -2,7 +2,7 @@ import requests
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from wrapt import wrap_function_wrapper as _w
 
 from .connection import _wrap_send
 

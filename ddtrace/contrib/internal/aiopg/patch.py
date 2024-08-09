@@ -9,7 +9,7 @@ from ddtrace.contrib.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 config._add(

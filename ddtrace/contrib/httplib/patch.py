@@ -7,7 +7,7 @@ from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
+import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

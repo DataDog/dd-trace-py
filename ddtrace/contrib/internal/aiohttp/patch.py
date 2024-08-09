@@ -22,7 +22,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 log = get_logger(__name__)

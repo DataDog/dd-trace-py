@@ -15,7 +15,7 @@ from pymemcache.exceptions import MemcacheUnknownError
 # 3p
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
+import wrapt
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY

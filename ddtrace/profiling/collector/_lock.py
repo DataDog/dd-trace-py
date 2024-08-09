@@ -18,7 +18,7 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 LOG = get_logger(__name__)
@@ -72,7 +72,7 @@ if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
     WRAPT_C_EXT = False
 else:
     try:
-        import ddtrace.vendor.wrapt._wrappers as _w  # noqa: F401
+        import wrapt._wrappers as _w  # noqa: F401
     except ImportError:
         WRAPT_C_EXT = False
     else:

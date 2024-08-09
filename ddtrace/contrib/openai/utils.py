@@ -7,7 +7,7 @@ from typing import Generator
 from typing import List
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 try:

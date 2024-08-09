@@ -6,7 +6,7 @@ from ddtrace import config
 from ddtrace._trace.utils_redis import _instrument_redis_cmd
 from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
 from ddtrace.contrib.redis_utils import _run_redis_command_async
-from ddtrace.vendor import wrapt
+import wrapt
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN

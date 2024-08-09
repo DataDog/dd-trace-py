@@ -58,7 +58,7 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 log = get_logger(__name__)

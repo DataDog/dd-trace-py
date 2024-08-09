@@ -38,9 +38,9 @@ from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.vendor import wrapt
+import wrapt
 from ddtrace.vendor.packaging.version import parse as parse_version
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
 from ...appsec._utils import _UserInfoRetriever
 from ...ext import db

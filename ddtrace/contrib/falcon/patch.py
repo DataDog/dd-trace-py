@@ -4,7 +4,7 @@ import falcon
 
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace.vendor import wrapt
+import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version

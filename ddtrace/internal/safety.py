@@ -11,7 +11,7 @@ from ddtrace.internal.compat import BUILTIN
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 NoneType = type(None)

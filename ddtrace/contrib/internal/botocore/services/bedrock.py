@@ -10,7 +10,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 log = get_logger(__name__)

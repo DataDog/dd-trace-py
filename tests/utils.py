@@ -37,7 +37,7 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
+import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
 

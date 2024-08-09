@@ -33,7 +33,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 log = get_logger(__name__)

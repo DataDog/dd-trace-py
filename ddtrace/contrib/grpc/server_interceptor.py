@@ -5,7 +5,7 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.vendor import wrapt
+import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG

@@ -24,7 +24,7 @@ from ddtrace.contrib.psycopg.extensions import get_psycopg2_extensions
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
 from ddtrace.vendor.debtcollector import deprecate
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from wrapt import wrap_function_wrapper as _w
 
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name

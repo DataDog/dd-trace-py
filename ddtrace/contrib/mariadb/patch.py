@@ -10,7 +10,7 @@ from ddtrace.ext import net
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 config._add(

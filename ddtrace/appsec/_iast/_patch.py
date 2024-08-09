@@ -4,7 +4,7 @@ from typing import Text
 
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor.wrapt import FunctionWrapper
+from wrapt import FunctionWrapper
 
 from ._utils import _is_iast_enabled
 

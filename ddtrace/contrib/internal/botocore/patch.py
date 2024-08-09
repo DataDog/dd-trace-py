@@ -31,7 +31,7 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.pin import Pin
 from ddtrace.settings.config import Config
-from ddtrace.vendor import wrapt
+import wrapt
 
 from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call

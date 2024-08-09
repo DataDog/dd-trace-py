@@ -4,8 +4,8 @@ import molten
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+import wrapt
+from wrapt import wrap_function_wrapper as _w
 
 from ... import Pin
 from ... import config

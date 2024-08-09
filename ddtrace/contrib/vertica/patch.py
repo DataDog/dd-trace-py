@@ -3,7 +3,7 @@ import importlib
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
+import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

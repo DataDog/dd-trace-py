@@ -34,7 +34,7 @@ from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover

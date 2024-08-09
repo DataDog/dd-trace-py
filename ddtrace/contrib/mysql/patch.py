@@ -8,7 +8,7 @@ from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
+import wrapt
 
 from ...ext import db
 from ...ext import net

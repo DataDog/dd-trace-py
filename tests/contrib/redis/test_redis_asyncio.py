@@ -10,7 +10,7 @@ from ddtrace import Pin
 from ddtrace import tracer
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
-from ddtrace.vendor.wrapt import ObjectProxy
+from wrapt import ObjectProxy
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG

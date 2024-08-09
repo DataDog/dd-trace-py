@@ -8,7 +8,7 @@ import yaaredis
 from ddtrace import Pin
 from ddtrace.contrib.yaaredis.patch import patch
 from ddtrace.contrib.yaaredis.patch import unpatch
-from ddtrace.vendor.wrapt import ObjectProxy
+from wrapt import ObjectProxy
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 

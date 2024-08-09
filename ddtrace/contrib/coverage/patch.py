@@ -3,7 +3,7 @@ from ddtrace.contrib.coverage.data import _coverage_data
 from ddtrace.contrib.coverage.utils import is_coverage_loaded
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 try:

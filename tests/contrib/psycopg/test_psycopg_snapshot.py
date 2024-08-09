@@ -6,7 +6,7 @@ import pytest
 
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
-from ddtrace.vendor import wrapt
+import wrapt
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import override_config
 

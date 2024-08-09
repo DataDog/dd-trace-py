@@ -9,7 +9,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor import wrapt
+import wrapt
 from ddtrace.vendor.debtcollector import deprecate
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY

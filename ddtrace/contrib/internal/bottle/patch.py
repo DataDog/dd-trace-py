@@ -4,7 +4,7 @@ import bottle
 
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor import wrapt
+import wrapt
 
 from .trace import TracePlugin
 

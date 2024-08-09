@@ -3,7 +3,7 @@ from collections import deque
 from pathlib import Path
 
 from ddtrace.internal.utils.inspection import undecorated
-from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
+from wrapt.wrappers import FunctionWrapper
 
 
 try:

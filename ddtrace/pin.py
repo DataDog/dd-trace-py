@@ -6,7 +6,7 @@ from typing import Optional  # noqa:F401
 import ddtrace
 
 from .internal.logger import get_logger
-from .vendor import wrapt
+import wrapt
 
 
 log = get_logger(__name__)
