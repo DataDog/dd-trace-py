@@ -110,6 +110,7 @@ class LLMObs(Service):
     def enable(
         cls,
         ml_app: Optional[str] = None,
+        ml_app_version: Optional[str] = None,
         integrations_enabled: bool = True,
         agentless_enabled: bool = False,
         site: Optional[str] = None,
@@ -122,6 +123,7 @@ class LLMObs(Service):
         Enable LLM Observability tracing.
 
         :param str ml_app: The name of your ml application.
+        :param str ml_app_version: The version of your ml application.
         :param bool integrations_enabled: Set to `true` to enable LLM integrations.
         :param bool agentless_enabled: Set to `true` to disable sending data that requires a Datadog Agent.
         :param str site: Your datadog site.
@@ -146,6 +148,7 @@ class LLMObs(Service):
             log.warning("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
             config._llmobs_ml_app = ml_app or os.getenv("DD_LLMOBS_APP_NAME")
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
+        config._llmobs_ml_app_version = ml_app_version or config._llmobs_ml_app_version
 
         # validate required values for LLMObs
         if not config._llmobs_ml_app:
