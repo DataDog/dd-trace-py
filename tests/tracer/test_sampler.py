@@ -143,8 +143,8 @@ class RateSamplerTest(unittest.TestCase):
 
     def test_negative_sample_rate_raises_error(self):
         tracer = DummyTracer()
-        with pytest.raises(ValueError, match="sample_rate of -0.5 is negative"):
-            tracer._sampler = RateSampler(sample_rate=-0.5)
+        tracer._sampler = RateSampler(sample_rate=-0.5)
+        assert tracer._sampler.sample_rate == 0
 
     def test_sample_rate_0_does_not_reset_to_1(self):
         tracer = DummyTracer()
@@ -218,26 +218,24 @@ class RateByServiceSamplerTest(unittest.TestCase):
 
 
 @pytest.mark.parametrize(
-    "sample_rate,sample_rate_is_valid",
+    "sample_rate,expectation",
     [
         (0.0, True),
         (1.0, True),
         (0.000001, True),
         (0.999999, True),
-        (-0.000000001, False),
-        (1.0000000001, False),
+        (-0.000000001, 0),
+        (1.0000000001, 1),
     ]
     + [(1 / i, True) for i in range(1, 50)]
-    + [(-(1 / i), False) for i in range(1, 50)]
-    + [(1 + (1 / i), False) for i in range(1, 50)],
+    + [(-(1 / i), 0) for i in range(1, 50)]
+    + [(1 + (1 / i), 1) for i in range(1, 50)],
 )
-def test_sampling_rule_init_sample_rate(sample_rate, sample_rate_is_valid):
-    if sample_rate_is_valid:
-        rule = SamplingRule(sample_rate=sample_rate)
-        assert rule.sample_rate == sample_rate, "SamplingRule should store the rate it's initialized with"
-    else:
-        with pytest.raises(ValueError):
-            SamplingRule(sample_rate=sample_rate)
+def test_sampling_rule_init_sample_rate(sample_rate, expectation):
+    rule = SamplingRule(sample_rate=sample_rate)
+    assert rule.sample_rate == (
+        sample_rate if expectation is True else expectation
+    ), "SamplingRule should store the rate it's initialized with"
 
 
 def test_sampling_rule_init_defaults():
@@ -449,15 +447,9 @@ def test_sampling_rule_init_via_env():
     # The following error handling tests use assertions on the json items instead of the returned string due
     # to Python's undefined ordering of dictionary keys
 
-    with pytest.raises(ValueError) as excinfo:
-        with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
-            sampling_rule = DatadogSampler().rules
-    assert str(excinfo.value).endswith(
-        "SamplingRule(sample_rate=2.0) must be greater than or equal to 0.0 and less than or equal to 1.0"
-    )
-    assert '"sample_rate": 2.0' in str(excinfo.value)
-    assert '"service": "xyz"' in str(excinfo.value)
-    assert '"name": "abc"' in str(excinfo.value)
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
+        sampling_rules = DatadogSampler().rules
+    assert sampling_rules[0].sample_rate == 1
 
     with pytest.raises(KeyError) as excinfo:
         with override_global_config(dict(_trace_sampling_rules='[{"service":"xyz","name":"abc"}]')):
