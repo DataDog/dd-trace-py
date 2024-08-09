@@ -52,6 +52,7 @@ jobs:
     with:
       tags: "ghcr.io/datadog/dd-trace-py/${{ matrix.IMAGE_NAME }}:${{ github.sha }},ghcr.io/datadog/dd-trace-py/${{ matrix.IMAGE_NAME }}:latest"
       platforms: "${{ matrix.PLATFORM }}"
+      build-args: ""
       context: "./docker"
       file: "Dockerfile.${{ matrix.IMAGE_NAME }}"
     secrets:
