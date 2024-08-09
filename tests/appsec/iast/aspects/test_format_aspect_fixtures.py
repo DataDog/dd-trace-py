@@ -20,7 +20,7 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import override_env
 
 
-mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
+mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 EscapeContext = NamedTuple("EscapeContext", [("id", Any), ("position", int)])
 

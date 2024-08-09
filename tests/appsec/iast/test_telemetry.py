@@ -149,7 +149,7 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
-        _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
+        _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
     metrics_result = telemetry_writer._namespace._metrics_data
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
