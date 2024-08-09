@@ -4,9 +4,9 @@ from flask import Flask
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.utils import _extract_client
-from ddtrace.contrib.flask_cache.utils import _extract_conn_tags
-from ddtrace.contrib.flask_cache.utils import _resource_from_cache_prefix
+from ddtrace.contrib.internal.flask_cache.utils import _extract_client
+from ddtrace.contrib.internal.flask_cache.utils import _extract_conn_tags
+from ddtrace.contrib.internal.flask_cache.utils import _resource_from_cache_prefix
 
 from ..config import MEMCACHED_CONFIG
 from ..config import REDIS_CONFIG
