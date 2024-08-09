@@ -152,7 +152,9 @@ class BaseTestLLMObsLangchain:
     @classmethod
     def _similarity_search(cls, pinecone, pinecone_vector_store, embedding_model, query, k, mock_tracer, cassette_name):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
-        with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]) and get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+        with mock.patch(
+            "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]
+        ) and get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
             if PINECONE_VERSION <= (2, 2, 4):
                 pinecone.init(
                     api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
