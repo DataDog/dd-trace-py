@@ -15,22 +15,8 @@ sample_delete_fn(void* sample)
     delete static_cast<Sample*>(sample); // NOLINT(cppcoreguidelines-owning-memory)
 }
 
-SynchronizedSamplePool::SynchronizedSamplePool()
+SynchronizedSamplePool::SynchronizedSamplePool(size_t capacity)
 {
-    size_t capacity = 4;
-    const char* capacity_env = std::getenv("DD_PROFILING_SAMPLE_POOL_CAPACITY");
-    if (capacity_env) {
-        try {
-            capacity = std::stoul(capacity_env);
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to parse DD_PROFILING_SAMPLE_POOL_CAPACITY: " << e.what() << std::endl;
-        }
-        if (capacity == 0) {
-            std::cerr << "Invalid DD_PROFILING_SAMPLE_POOL_CAPACITY: " << capacity_env << std::endl;
-            capacity = 4;
-        }
-    }
-
     ddog_ArrayQueue_NewResult array_queue_new_result = ddog_ArrayQueue_new(capacity, sample_delete_fn);
     if (array_queue_new_result.tag == DDOG_ARRAY_QUEUE_NEW_RESULT_OK) {
         pool = std::unique_ptr<ddog_ArrayQueue, Deleter>(array_queue_new_result.ok);

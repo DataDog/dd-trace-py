@@ -27,13 +27,26 @@ Datadog::SampleManager::set_timeline(bool enable)
     Datadog::Sample::set_timeline(enable);
 }
 
+void
+Datadog::SampleManager::set_sample_pool_capacity(size_t capacity)
+{
+    if (capacity > 0) {
+        sample_pool_capacity = capacity;
+    }
+}
+
 Datadog::Sample*
 Datadog::SampleManager::start_sample()
 {
-    auto sample_opt = sample_pool.take_sample();
+    if (sample_pool == nullptr) {
+        return new Datadog::Sample(type_mask, max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
+    }
+
+    auto sample_opt = sample_pool->take_sample();
     if (sample_opt.has_value()) {
         return sample_opt.value();
     }
+
     // Create a new Sample if we failed to get one.
     // Note that this could be leaked if another thread calls fork() before
     // the Sample is returned to the pool.
@@ -43,8 +56,14 @@ Datadog::SampleManager::start_sample()
 void
 Datadog::SampleManager::drop_sample(Datadog::Sample* sample)
 {
+    if (sample_pool == nullptr) {
+        delete sample; // NOLINT(cppcoreguidelines-owning-memory)
+        return;
+    }
+
     sample->clear_buffers();
-    std::optional<Sample*> result_opt = sample_pool.return_sample(sample);
+
+    std::optional<Sample*> result_opt = sample_pool->return_sample(sample);
     // If the pool is full, the pool returns the pointer and we need to delete the sample.
     if (result_opt.has_value()) {
         delete result_opt.value(); // NOLINT(cppcoreguidelines-owning-memory)
@@ -60,5 +79,6 @@ Datadog::SampleManager::postfork_child()
 void
 Datadog::SampleManager::init()
 {
+    sample_pool = std::make_unique<SynchronizedSamplePool>(sample_pool_capacity);
     Datadog::Sample::profile_state.one_time_init(type_mask, max_nframes);
 }
