@@ -102,7 +102,6 @@ def test_standard_tags():
     assert f.get("log_injection_enabled") is False
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
-    assert f.get("priority_sampling_enabled") is True
     assert f.get("sampler_rules") == []
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
@@ -117,7 +116,6 @@ def test_debug_post_configure():
     tracer.configure(
         hostname="0.0.0.0",
         port=1234,
-        priority_sampling=True,
     )
 
     f = debug.collect(tracer)
@@ -166,7 +164,6 @@ class TestGlobalConfig(SubprocessTestCase):
         assert f.get("analytics_enabled") is True
         assert f.get("health_metrics_enabled") is True
         assert f.get("log_injection_enabled") is True
-        assert f.get("priority_sampling_enabled") is True
         assert f.get("env") == "prod"
         assert f.get("dd_version") == "123456"
         assert f.get("service") == "service"

@@ -1,7 +1,6 @@
 import mock
 import pytest
 
-from ddtrace import config
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.writer import AgentWriter
@@ -23,7 +22,6 @@ def snapshot_parametrized_with_writers(f):
         if writer == "sync":
             writer = AgentWriter(
                 tracer.agent_trace_url,
-                priority_sampling=config._priority_sampling,
                 sync_mode=True,
             )
             # NB Need to copy the headers, which contain the snapshot token, to associate

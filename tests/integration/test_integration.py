@@ -28,7 +28,7 @@ def test_configure_keeps_api_hostname_and_port():
     assert tracer._writer.agent_url == "http://localhost:{}".format("9126" if AGENT_VERSION == "testagent" else "8126")
     tracer.configure(hostname="127.0.0.1", port=8127)
     assert tracer._writer.agent_url == "http://127.0.0.1:8127"
-    tracer.configure(priority_sampling=True)
+    tracer.configure(api_version="v0.5")
     assert (
         tracer._writer.agent_url == "http://127.0.0.1:8127"
     ), "Previous overrides of hostname and port are retained after a configure() call without those arguments"
