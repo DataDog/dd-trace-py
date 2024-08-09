@@ -489,6 +489,7 @@
             "@serverless",
             "@remoteconfig",
             "@futures",
+            "@ci_visibility",
             "tests/tracer/*",
             "tests/snapshots/test_*"
         ],
