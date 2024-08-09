@@ -14,7 +14,9 @@ def get_version():
 
 def patch():
     mongoengine.connect = WrappedConnect(_connect)
+    mongoengine._datadog_patch = True
 
 
 def unpatch():
     mongoengine.connect = _connect
+    mongoengine._datadog_patch = False
