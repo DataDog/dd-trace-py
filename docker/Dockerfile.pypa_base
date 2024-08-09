@@ -6,4 +6,4 @@ ENV PATH=/root/.cargo/bin:$PATH
 
 # Install Rust toolchain
 RUN curl https://sh.rustup.rs -sSf | \
-    sh -s -- --default-toolchain stable -y
+    sh -s -- --profile=minimal --default-toolchain stable -y
