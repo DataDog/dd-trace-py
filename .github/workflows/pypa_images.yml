@@ -11,6 +11,7 @@ on:
 
 jobs:
   build-and-publish:
+    name: "Build and publish ${{ image_name }}"
     uses: "./.github/workflows/build-and-publish-image.yml"
     strategy:
       matrix:
@@ -41,11 +42,13 @@ jobs:
 
   # We cannot use a shared base image for musllinux i686
   build-and-publish-musllinux-i686:
+    name: "Build and publish ${{ image_name }}"
     uses: "./.github/workflows/build-and-publish-image.yml"
     strategy:
       matrix:
-        - IMAGE_NAME: "pypa_musllinux_1_2_i686"
-          PLATFORM: "linux/386"
+        include:
+          - IMAGE_NAME: "pypa_musllinux_1_2_i686"
+            PLATFORM: "linux/386"
     with:
       tags: "ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:${{ github.sha }},ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:latest"
       platforms: "${{ PLATFORM }}"
