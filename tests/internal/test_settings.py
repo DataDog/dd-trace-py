@@ -553,7 +553,6 @@ log = logging.getLogger()
 log.level = logging.CRITICAL
 logHandler = logging.StreamHandler(); logHandler.setFormatter(jsonlogger.JsonFormatter())
 log.addHandler(logHandler)
-config._128_bit_trace_id_logging_enabled = True
 # Enable logs injection
 config._handle_remoteconfig(_base_rc_config({"log_injection_enabled": True}))
 with tracer.trace("test") as span:
@@ -568,7 +567,7 @@ with tracer.trace("test") as span:
     )
 
     assert status == 0, err
-    trace_id = out.decode("utf-8").strip().split("\n")[0]
+    trace_id = "{:032x}".format(int(out.decode("utf-8").strip().split("\n")[0]))
     log_enabled, log_disabled = map(json.loads, err.decode("utf-8").strip().split("\n")[0:2])
     assert log_enabled["dd.trace_id"] == trace_id
     assert "dd.trace_id" not in log_disabled

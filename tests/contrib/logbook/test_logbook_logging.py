@@ -9,6 +9,7 @@ from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.logbook import patch
 from ddtrace.contrib.logbook import unpatch
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import override_global_config
 
 
@@ -18,8 +19,8 @@ handler = TestHandler()
 def _test_logging(span, env, service, version):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
-    if dd_trace_id != 0 and not config._128_bit_trace_id_logging_enabled:
-        dd_trace_id = span._trace_id_64bits
+    if dd_trace_id > MAX_UINT_64BITS:
+        dd_trace_id = "{:032x}".format(dd_trace_id)
 
     assert handler.records[0].message == "Hello!"
     assert handler.records[0].extra["dd.trace_id"] == str(dd_trace_id)
@@ -104,12 +105,10 @@ def test_log_trace():
     unpatch()
 
 
-@pytest.mark.subprocess(
-    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True", DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED="True")
-)
+@pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
 def test_log_trace_128bit_trace_ids():
     """
-    Check if 128bit trace ids are logged when `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED=True`
+    Check if 128bit trace ids are logged using hex
     """
 
     import logbook
@@ -136,49 +135,7 @@ def test_log_trace_128bit_trace_ids():
 
     assert span.trace_id > MAX_UINT_64BITS
     assert handler.records[0].message == "Hello!"
-    assert handler.records[0].extra["dd.trace_id"] == str(span.trace_id)
-    assert handler.records[0].extra["dd.span_id"] == str(span.span_id)
-    assert handler.records[0].extra["dd.env"] == config.env
-    assert handler.records[0].extra["dd.service"] == config.service
-    assert handler.records[0].extra["dd.version"] == config.version
-
-    handler.records.clear()
-    unpatch()
-
-
-@pytest.mark.subprocess(
-    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True", DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED="False")
-)
-def test_log_trace_128bit_trace_ids_log_64bits():
-    """
-    Check if a 64 bit trace, trace id is logged when `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED=False`
-    """
-
-    import logbook
-    from logbook import TestHandler
-
-    from ddtrace import config
-    from ddtrace import tracer
-    from ddtrace.contrib.logbook import patch
-    from ddtrace.contrib.logbook import unpatch
-    from ddtrace.internal.constants import MAX_UINT_64BITS
-
-    config.service = "logging"
-    config.env = "global.env"
-    config.version = "global.version"
-
-    handler = TestHandler()
-
-    patch()
-    handler.push_application()
-
-    span = tracer.trace("test.logging")
-    logbook.info("Hello!")
-    span.finish()
-
-    assert span.trace_id > MAX_UINT_64BITS
-    assert handler.records[0].message == "Hello!"
-    assert handler.records[0].extra["dd.trace_id"] == str(span._trace_id_64bits)
+    assert handler.records[0].extra["dd.trace_id"] == "{:032x}".format(span.trace_id)
     assert handler.records[0].extra["dd.span_id"] == str(span.span_id)
     assert handler.records[0].extra["dd.env"] == config.env
     assert handler.records[0].extra["dd.service"] == config.service
@@ -196,6 +153,7 @@ def test_log_DD_TAGS():
     from ddtrace import tracer
     from ddtrace.contrib.logbook import patch
     from ddtrace.contrib.logbook import unpatch
+    from ddtrace.internal.constants import MAX_UINT_64BITS
 
     handler = TestHandler()
 
@@ -206,8 +164,12 @@ def test_log_DD_TAGS():
     logbook.info("Hello!")
     span.finish()
 
+    trace_id = span.trace_id
+    if span.trace_id > MAX_UINT_64BITS:
+        trace_id = "{:032x}".format(span.trace_id)
+
     assert handler.records[0].message == "Hello!"
-    assert handler.records[0].extra["dd.trace_id"] == str(span._trace_id_64bits)
+    assert handler.records[0].extra["dd.trace_id"] == str(trace_id)
     assert handler.records[0].extra["dd.span_id"] == str(span.span_id)
     assert handler.records[0].extra["dd.env"] == "ddenv"
     assert handler.records[0].extra["dd.service"] == "ddtagservice"
