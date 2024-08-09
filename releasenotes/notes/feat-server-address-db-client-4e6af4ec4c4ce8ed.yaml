@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    DBM: Adds `server.address` tag to database client integrations to comply with OpenTelemetry standards.
+     database_clients: Adds ``server.address`` tag to  all ``<database>.query`` spans (ex: postgres.query). This tag stores the name of the database host.

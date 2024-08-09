@@ -265,7 +265,7 @@ def _extract_result_metas(result):
             address = deep_getattr(future, "_current_host.address")
             if address:
                 metas[net.TARGET_HOST] = address
-                metas[net.SERVER_ADDRESS] = host
+                metas[net.SERVER_ADDRESS] = address
 
         query = getattr(future, "query", None)
         if getattr(query, "consistency_level", None):
