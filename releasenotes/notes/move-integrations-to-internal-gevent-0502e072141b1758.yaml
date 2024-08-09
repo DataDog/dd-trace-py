@@ -1,0 +1,8 @@
+---
+deprecations:
+  - |
+    gevent: Deprecates all modules in the ``ddtrace.contrib.gevent`` package. Use attributes exposed in ``ddtrace.contrib.gevent.__all__`` instead.
+  - |
+    graphql  Deprecates all modules in the ``ddtrace.contrib.graphql`` package. Use attributes exposed in ``ddtrace.contrib.graphql.__all__`` instead.
+  - |
+    grpc: Deprecates all modules in the ``ddtrace.contrib.grpc`` package. Use attributes exposed in ``ddtrace.contrib.grpc.__all__`` instead.
