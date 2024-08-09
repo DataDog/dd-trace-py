@@ -35,6 +35,8 @@ from .container import ContainerID
 from .compat import text
 from .format import normalize_tags
 
+from ddtrace.internal import _threads
+
 __version__ = "0.47.0"
 
 # Logging
@@ -411,7 +413,7 @@ class DogStatsd(object):
         # a reasonable range. This both prevents thrashing and allow us to use "0.0"
         # as a value for disabling the automatic flush timer as well.
         self._flush_interval = flush_interval
-        self._flush_thread_stop = threading.Event()
+        self._flush_thread_stop = _threads.Event()
         self._start_flush_thread(self._flush_interval)
 
         self._queue = None
