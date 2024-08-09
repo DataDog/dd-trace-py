@@ -709,7 +709,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             _expected_llmobs_llm_span_event(
                 trace[0],
                 span_kind="retrieval",
-                model_provider="openai",
                 input_value="Who was Alan Turing?",
                 output_documents=[{"text": mock.ANY}],
                 tags={"ml_app": "langchain_test"},
