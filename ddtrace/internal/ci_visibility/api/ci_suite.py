@@ -36,7 +36,7 @@ class CIVisibilitySuite(
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[CISourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
-    ):
+    ) -> None:
         super().__init__(item_id, session_settings, initial_tags)
         self._codeowner = codeowners
         self._source_file_info = source_file_info
@@ -44,15 +44,15 @@ class CIVisibilitySuite(
         self._operation_name = session_settings.suite_operation_name
         self._coverage_data: CICoverageData = CICoverageData()
 
-    def start(self):
+    def start(self) -> None:
         log.debug("Starting CI Visibility suite %s", self.item_id)
         super().start()
 
-    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None):
+    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None) -> None:
         log.debug("Finishing CI Visibility suite %s", self.item_id)
         super().finish(force=force, override_status=override_status)
 
-    def finish_itr_skipped(self):
+    def finish_itr_skipped(self) -> None:
         """Suites should only count themselves as ITR-skipped of all children are ITR skipped"""
         log.debug("Finishing CI Visibility suite %s as ITR skipped", self.item_id)
         for child in self._children.values():
@@ -69,5 +69,5 @@ class CIVisibilitySuite(
             test.SUITE: self.name,
         }
 
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
         self._coverage_data.add_coverage_segments(coverage_data)

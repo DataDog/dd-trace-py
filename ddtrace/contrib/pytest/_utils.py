@@ -23,7 +23,7 @@ from ddtrace.internal.utils.inspection import undecorated
 
 log = get_logger(__name__)
 
-_NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
+_NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
 _USE_PLUGIN_V2 = asbool(os.environ.get("_DD_CIVISIBILITY_USE_PYTEST_V2", "false"))
 
@@ -52,11 +52,13 @@ def _get_names_from_item(item: pytest.Item) -> TestNames:
 
     matches = re.match(_NODEID_REGEX, item.nodeid)
     if not matches:
-        return TestNames(module="", suite="", test="")
+        return TestNames(module="unknown_module", suite="unknown_suite", test=item.name)
 
-    return TestNames(
-        module=matches.group("module").replace("/", "."), suite=matches.group("suite"), test=matches.group("name")
-    )
+    module_name = (matches.group("module") or "").replace("/", ".")
+    suite_name = matches.group("suite")
+    test_name = matches.group("name")
+
+    return TestNames(module=module_name, suite=suite_name, test=test_name)
 
 
 @cached()

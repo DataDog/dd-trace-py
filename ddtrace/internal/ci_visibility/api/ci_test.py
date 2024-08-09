@@ -52,15 +52,17 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
             test.NAME: self.name,
         }
 
-    def _set_span_tags(self):
+    def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
 
         - exc_info: because it uses span.set_exc_info()
         """
+        if self._span is None:
+            return
         if self._exc_info is not None:
             self._span.set_exc_info(self._exc_info.exc_type, self._exc_info.exc_value, self._exc_info.exc_traceback)
 
-    def start(self):
+    def start(self) -> None:
         log.debug("Starting CI Visibility test %s", self.item_id)
         super().start()
 
@@ -69,7 +71,7 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         status: CITestStatus,
         reason: Optional[str] = None,
         exc_info: Optional[CIExcInfo] = None,
-    ):
+    ) -> None:
         log.debug("Finishing CI Visibility test %s, with status: %s, reason: %s", self.item_id, status, reason)
         self.set_status(status)
         if reason is not None:
@@ -78,22 +80,22 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
             self._exc_info = exc_info
         super().finish()
 
-    def count_itr_skipped(self):
+    def count_itr_skipped(self) -> None:
         """Tests do not count skipping on themselves, so only count on the parent.
 
         When skipping at the suite level, the counting only happens when suites are finished as ITR-skipped.
         """
-        if self._session_settings.itr_test_skipping_level is TEST:
+        if self._session_settings.itr_test_skipping_level is TEST and self.parent is not None:
             self.parent.count_itr_skipped()
 
-    def finish_itr_skipped(self):
+    def finish_itr_skipped(self) -> None:
         log.debug("Finishing CI Visibility test %s with ITR skipped", self.item_id)
         self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish_test(CITestStatus.SKIP)
 
     @classmethod
-    def make_early_flake_retry_from_test(cls, original_test, retry_number: int):
+    def make_early_flake_retry_from_test(cls, original_test, retry_number: int) -> "CIVisibilityTest":
         new_test_id = CITestId(
             original_test.item_id.parent_id, original_test.name, original_test.parameters, retry_number
         )
@@ -106,5 +108,5 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
             is_early_flake_retry=True,
         )
 
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
         self._coverage_data.add_coverage_segments(coverage_data)
