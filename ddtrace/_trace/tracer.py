@@ -422,18 +422,19 @@ class Tracer(object):
             service = config.service
 
         if active:
-            span_id = active.span_id
-            trace_id = active.trace_id
+            span_id = str(active.span_id)
             # check if we are using 128 bit ids, and switch trace id to hex since backend needs hex 128 bit ids
-            if trace_id and trace_id > MAX_UINT_64BITS:
-                trace_id = "{:032x}".format(trace_id)
+            if active.trace_id and active.trace_id > MAX_UINT_64BITS:
+                trace_id = "{:032x}".format(active.trace_id)
+            else:
+                trace_id = str(active.trace_id)
         else:
             span_id = "0"
             trace_id = "0"
 
         return {
-            "trace_id": str(trace_id),
-            "span_id": str(span_id),
+            "trace_id": trace_id,
+            "span_id": span_id,
             "service": service or "",
             "version": config.version or "",
             "env": config.env or "",
