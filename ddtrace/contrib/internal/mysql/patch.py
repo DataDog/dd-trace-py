@@ -51,6 +51,7 @@ def patch():
 
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
+    mysql.connector._datadog_patch = True
 
 
 def unpatch():
@@ -58,6 +59,7 @@ def unpatch():
         mysql.connector.connect = mysql.connector.connect.__wrapped__
         if hasattr(mysql.connector, "Connect"):
             mysql.connector.Connect = mysql.connector.connect
+    mysql.connector._datadog_patch = False
 
 
 def _connect(func, instance, args, kwargs):
