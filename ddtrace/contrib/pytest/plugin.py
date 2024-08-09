@@ -17,7 +17,7 @@ from typing import Dict  # noqa:F401
 
 import pytest
 
-from ddtrace.contrib.pytest.utils import _pytest_version_supports_itr
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
 
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."

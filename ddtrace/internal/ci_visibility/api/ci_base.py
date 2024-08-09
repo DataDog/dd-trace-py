@@ -37,6 +37,7 @@ from ddtrace.internal.ci_visibility.telemetry.events import record_event_finishe
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
@@ -55,7 +56,7 @@ class CIVisibilitySessionSettings:
     module_operation_name: str
     suite_operation_name: str
     test_operation_name: str
-    root_dir: Path
+    workspace_path: Path
     is_unknown_ci: bool = False
     reject_unknown_items: bool = True
     reject_duplicates: bool = True
@@ -66,9 +67,9 @@ class CIVisibilitySessionSettings:
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
             raise TypeError("tracer must be a ddtrace.Tracer")
-        if not isinstance(self.root_dir, Path):
+        if not isinstance(self.workspace_path, Path):
             raise TypeError("root_dir must be a pathlib.Path")
-        if not self.root_dir.is_absolute():
+        if not self.workspace_path.is_absolute():
             raise ValueError("root_dir must be an absolute pathlib.Path")
         if not isinstance(self.test_framework_metric_name, TEST_FRAMEWORKS):
             raise TypeError("test_framework_metric must be a TEST_FRAMEWORKS enum")
@@ -117,7 +118,6 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         self._span: Optional[Span] = None
         self._tags: Dict[str, Any] = initial_tags if initial_tags else {}
-        self._children: Optional[Dict[ANYIDT, "CIVisibilityChildItem"]] = None
 
         # ITR-related attributes
         self._is_itr_skipped: bool = False
@@ -185,6 +185,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             {
                 EVENT_TYPE: self.event_type,
                 SPAN_KIND: "test",
+                COMPONENT: self._session_settings.test_framework,
                 test.FRAMEWORK: self._session_settings.test_framework,
                 test.FRAMEWORK_VERSION: self._session_settings.test_framework_version,
                 test.COMMAND: self._session_settings.test_command,
@@ -199,7 +200,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             if self._source_file_info.path:
                 # Set source file path to be relative to the root directory
                 try:
-                    relative_path = self._source_file_info.path.relative_to(self._session_settings.root_dir)
+                    relative_path = self._source_file_info.path.relative_to(self._session_settings.workspace_path)
                 except ValueError:
                     log.debug("Source file path is not within the root directory, replacing with absolute path")
                     relative_path = self._source_file_info.path
@@ -342,10 +343,16 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         record_itr_skipped(self.event_type_metric_name)
         self._is_itr_skipped = True
 
+    def is_itr_skipped(self):
+        return self._is_itr_skipped
+
     def mark_itr_unskippable(self):
         """Per RFC, unskippable only applies to a given item, not its ancestors"""
         record_itr_unskippable(self.event_type_metric_name)
         self._is_itr_unskippable = True
+
+    def is_itr_unskippable(self):
+        return self._is_itr_unskippable
 
     def mark_itr_forced_run(self):
         """If any item is forced to run, all ancestors are forced to run and increment by one"""
@@ -398,7 +405,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
     def _add_coverage_data(self):
         if self._coverage_data:
             self._span.set_tag_str(
-                COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.root_dir)
+                COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.workspace_path)
             )
 
 
@@ -417,10 +424,10 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
         initial_tags: Optional[Dict[str, Any]],
     ):
         super().__init__(item_id, session_settings, initial_tags)
-        self.children: Dict[CIDT, CITEMT] = {}
+        self._children: Dict[CIDT, CITEMT] = {}
 
     def _are_all_children_finished(self):
-        return all(child._is_finished() for child in self.children.values())
+        return all(child._is_finished() for child in self._children.values())
 
     def get_status(self) -> Union[CITestStatus, SPECIAL_STATUS]:
         """Recursively computes status based on all children's status
@@ -432,7 +439,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
 
         The caller of get_status() must decide what to do if the result is UNFINISHED
         """
-        if self.children is None:
+        if self._children is None:
             return self.get_raw_status()
 
         # We use values because enum entries do not hash stably
@@ -442,7 +449,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
             CITestStatus.PASS.value: 0,
         }
 
-        for child in self.children.values():
+        for child in self._children.values():
             child_status = child.get_status()
             if child_status == SPECIAL_STATUS.UNFINISHED:
                 # There's no point in continuing to count if we care about unfinished children
@@ -454,7 +461,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
 
         if children_status_counts[CITestStatus.FAIL.value] > 0:
             return CITestStatus.FAIL
-        if children_status_counts[CITestStatus.SKIP.value] == len(self.children):
+        if children_status_counts[CITestStatus.SKIP.value] == len(self._children):
             return CITestStatus.SKIP
         # We can assume the current item passes if not all children are skipped, and there were no failures
         if children_status_counts[CITestStatus.FAIL.value] == 0:
@@ -484,7 +491,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
         if item_status == SPECIAL_STATUS.UNFINISHED:
             if force:
                 # Finish all children regardless of their status
-                for child in self.children.values():
+                for child in self._children.values():
                     if not child.is_finished():
                         child.finish(force=force)
                 self.set_status(self.get_raw_status())
@@ -497,23 +504,23 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
 
     def add_child(self, child: CITEMT):
         child.parent = self
-        if child.item_id in self.children:
+        if child.item_id in self._children:
             if self._session_settings.reject_duplicates:
                 error_msg = f"{child.item_id} already exists in {self.item_id}'s children"
                 log.warning(error_msg)
                 raise CIVisibilityDataError(error_msg)
             # If duplicates are allowed, we don't need to do anything
             return
-        self.children[child.item_id] = child
+        self._children[child.item_id] = child
 
     def get_child_by_id(self, child_id: CIDT) -> CITEMT:
-        if child_id in self.children:
-            return self.children[child_id]
+        if child_id in self._children:
+            return self._children[child_id]
         error_msg = f"{child_id} not found in {self.item_id}'s children"
         raise CIVisibilityDataError(error_msg)
 
     def _set_itr_tags(self):
         """Only parent items set skipped counts because tests would always be 1 or 0"""
         super()._set_itr_tags()
-        if self.children:
+        if self._children:
             self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)

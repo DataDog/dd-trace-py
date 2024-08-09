@@ -53,7 +53,12 @@ class CIVisibilitySuite(
         super().finish(force=force, override_status=override_status)
 
     def finish_itr_skipped(self):
-        log.debug("Finishing CI Visibility suite %s with ITR skipped", self.item_id)
+        """Suites should only count themselves as ITR-skipped of all children are ITR skipped"""
+        log.debug("Finishing CI Visibility suite %s as ITR skipped", self.item_id)
+        for child in self._children.values():
+            if not (child.is_finished() and child.is_itr_skipped()):
+                log.debug("Not finishing CI Visibility suite %s child test %s was not skipped by ITR", self.item_id)
+                return
         self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish()

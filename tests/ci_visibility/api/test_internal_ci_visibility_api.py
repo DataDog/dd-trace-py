@@ -28,7 +28,7 @@ def _get_default_civisibility_settings():
         module_operation_name="module_operation_name",
         suite_operation_name="suite_operation_name",
         test_operation_name="test_operation_name",
-        root_dir=Path("/absolute/path/to/root_dir"),
+        workspace_path=Path("/absolute/path/to/root_dir"),
     )
 
 
@@ -108,7 +108,7 @@ class TestCIVisibilityItems:
 class TestCIVisibilitySessionSettings:
     def test_civisibility_sessionsettings_root_dir_accepts_absolute_path(self):
         settings = _get_default_civisibility_settings()
-        assert settings.root_dir.is_absolute()
+        assert settings.workspace_path.is_absolute()
 
     def test_civisibility_sessionsettings_root_dir_rejects_relative_path(self):
         with pytest.raises(ValueError):
@@ -123,7 +123,7 @@ class TestCIVisibilitySessionSettings:
                 module_operation_name="module_operation_name",
                 suite_operation_name="suite_operation_name",
                 test_operation_name="test_operation_name",
-                root_dir=Path("relative/path/to/root_dir"),
+                workspace_path=Path("relative/path/to/root_dir"),
             )
 
     def test_civisibility_sessionsettings_root_dir_rejects_non_path(self):
@@ -139,7 +139,7 @@ class TestCIVisibilitySessionSettings:
                 module_operation_name="module_operation_name",
                 suite_operation_name="suite_operation_name",
                 test_operation_name="test_operation_name",
-                root_dir="not_even_a_path",
+                workspace_path="not_even_a_path",
             )
 
     def test_civisibility_sessionsettings_rejects_non_tracer(self):
@@ -155,5 +155,5 @@ class TestCIVisibilitySessionSettings:
                 module_operation_name="module_operation_name",
                 suite_operation_name="suite_operation_name",
                 test_operation_name="test_operation_name",
-                root_dir=Path("/absolute/path/to/root_dir"),
+                workspace_path=Path("/absolute/path/to/root_dir"),
             )
