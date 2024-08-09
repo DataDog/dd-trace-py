@@ -234,6 +234,7 @@ class _ProfilerInstance(service.Service):
                     max_nframes=config.max_frames,
                     url=endpoint,
                     timeline_enabled=config.timeline_enabled,
+                    output_filename=config.output_pprof,
                 )
                 ddup.start()
 
