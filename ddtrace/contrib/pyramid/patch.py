@@ -40,7 +40,6 @@ def _get_version():
 def get_version():
     deprecate(
         "get_version is deprecated",
-        message="get_version is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
@@ -100,8 +99,7 @@ def _traced_init(wrapped, instance, args, kwargs):
 
 def traced_init(wrapped, instance, args, kwargs):
     deprecate(
-        "traced_init is deprecated",
-        message="traced_init is deprecated",
+        prefix="traced_init is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
@@ -128,7 +126,6 @@ def _insert_tween_if_needed(settings):
 def insert_tween_if_needed(settings):
     deprecate(
         "insert_tween_if_needed is deprecated",
-        message="insert_tween_if_needed is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )

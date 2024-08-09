@@ -32,7 +32,6 @@ def _get_version():
 def get_version():
     deprecate(
         "get_version is deprecated",
-        message="get_version is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
@@ -100,7 +99,6 @@ def _wrap_function(name):
 def wrap_function(name):
     deprecate(
         "wrap_function is deprecated",
-        message="get_version is deprecated",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
