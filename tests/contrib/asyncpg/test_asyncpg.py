@@ -409,7 +409,7 @@ class AsyncPgTestCase(AsyncioTestCase):
             await conn.execute(create_table_query)
             dbm_comment = (
                 f"/*dddb='{db_name}',dddbs='postgres',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-                "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
+                "ddpv='v7343437-d7ac743'*/ "
             )
             assert (
                 patched.call_args_list[0][0][4] == dbm_comment + create_table_query
@@ -446,7 +446,7 @@ class AsyncPgTestCase(AsyncioTestCase):
             await conn.execute(create_table_query)
             dbm_comment = (
                 f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-                "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
+                "ddpv='v7343437-d7ac743'*/ "
             )
             assert (
                 patched.call_args_list[0][0][4] == dbm_comment + create_table_query
@@ -485,7 +485,7 @@ class AsyncPgTestCase(AsyncioTestCase):
             await conn.execute(create_table_query)
             dbm_comment = (
                 f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-                "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
+                "ddpv='v7343437-d7ac743'*/ "
             )
             assert (
                 patched.call_args_list[0][0][4] == dbm_comment + create_table_query
@@ -522,7 +522,7 @@ class AsyncPgTestCase(AsyncioTestCase):
             await conn.execute(create_table_query)
             dbm_comment = (
                 f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-                "ddpv='v7343437-d7ac743',ddsa='127.0.0.1'*/ "
+                "ddpv='v7343437-d7ac743'*/ "
             )
             assert (
                 patched.call_args_list[0][0][4] == dbm_comment + create_table_query

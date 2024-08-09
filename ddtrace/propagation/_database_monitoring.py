@@ -36,7 +36,6 @@ DBM_ENVIRONMENT_KEY: Literal["dde"] = "dde"
 DBM_VERSION_KEY: Literal["ddpv"] = "ddpv"
 DBM_TRACE_PARENT_KEY: Literal["traceparent"] = "traceparent"
 DBM_TRACE_INJECTED_TAG: Literal["_dd.dbm_trace_injected"] = "_dd.dbm_trace_injected"
-DBM_SERVER_ADDRESS: Literal["ddsa"] = "ddsa"
 
 log = get_logger(__name__)
 
@@ -66,7 +65,6 @@ class _DBM_Propagator(object):
         peer_hostname_tag="out.host",
         peer_db_name_tag="db.name",
         peer_service_tag="peer.service",
-        server_address_tag="server.address",
     ):
         self.sql_pos = sql_pos
         self.sql_kw = sql_kw
@@ -74,7 +72,6 @@ class _DBM_Propagator(object):
         self.peer_hostname_tag = peer_hostname_tag
         self.peer_db_name_tag = peer_db_name_tag
         self.peer_service_tag = peer_service_tag
-        self.server_address_tag = server_address_tag
 
     def inject(self, dbspan, args, kwargs):
         # run sampling before injection to propagate correct sampling priority
@@ -130,10 +127,6 @@ class _DBM_Propagator(object):
         peer_service = db_span.get_tag(self.peer_service_tag)
         if peer_service:
             dbm_tags[DBM_PEER_SERVICE_KEY] = peer_service
-
-        server_address = db_span.get_tag(self.server_address_tag)
-        if server_address:
-            dbm_tags[DBM_SERVER_ADDRESS] = server_address
 
         if dbm_config.propagation_mode == "full":
             db_span.set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
