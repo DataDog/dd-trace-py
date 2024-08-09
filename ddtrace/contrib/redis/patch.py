@@ -1,6 +1,7 @@
 import os
 
 import redis
+import wrapt
 
 from ddtrace import config
 from ddtrace._trace.utils_redis import _instrument_redis_cmd
@@ -8,7 +9,6 @@ from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
 from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.redis_utils import determine_row_count
 from ddtrace.internal import core
-import wrapt
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN

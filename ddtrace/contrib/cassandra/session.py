@@ -18,6 +18,7 @@ from cassandra.query import BatchStatement
 from cassandra.query import BoundStatement
 from cassandra.query import PreparedStatement
 from cassandra.query import SimpleStatement
+import wrapt
 
 from ddtrace import Span
 from ddtrace import config
@@ -40,7 +41,6 @@ from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
-import wrapt
 
 
 log = get_logger(__name__)

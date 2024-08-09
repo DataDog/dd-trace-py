@@ -2,6 +2,7 @@ import os
 
 # 3p
 import kombu
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -10,7 +11,6 @@ from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
-import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

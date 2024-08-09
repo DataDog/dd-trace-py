@@ -9,6 +9,8 @@ import starlette
 from starlette import requests as starlette_requests
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
+from wrapt import ObjectProxy
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
@@ -22,8 +24,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.packaging.version import parse as parse_version
-from wrapt import ObjectProxy
-from wrapt import wrap_function_wrapper as _w
 
 from ...internal import core
 from .. import trace_utils

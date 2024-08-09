@@ -1,5 +1,4 @@
 import rest_framework.views
-
 from wrapt import wrap_function_wrapper as wrap
 
 from ..trace_utils import iswrapped

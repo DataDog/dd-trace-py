@@ -1,11 +1,11 @@
 import os
 
 import molten
+import wrapt
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-import wrapt
-from wrapt import wrap_function_wrapper as _w
 
 from ... import Pin
 from ... import config

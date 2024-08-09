@@ -3,6 +3,7 @@ import os
 import sys
 
 import aioredis
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.utils_redis import _instrument_redis_cmd
@@ -14,7 +15,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
-from wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

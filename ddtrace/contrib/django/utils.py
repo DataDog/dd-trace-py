@@ -8,6 +8,7 @@ from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
+from wrapt import FunctionWrapper
 import xmltodict
 
 from ddtrace import config
@@ -25,7 +26,6 @@ from ddtrace.propagation._utils import from_wsgi_header
 from ...internal import core
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
-from wrapt import FunctionWrapper
 from .. import trace_utils
 from .compat import get_resolver
 from .compat import user_is_authenticated

@@ -12,6 +12,9 @@ from inspect import isclass
 from inspect import isfunction
 import os
 
+import wrapt
+from wrapt.importer import when_imported
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace._trace.trace_handlers import _ctype_from_headers
@@ -38,9 +41,7 @@ from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
-import wrapt
 from ddtrace.vendor.packaging.version import parse as parse_version
-from wrapt.importer import when_imported
 
 from ...appsec._utils import _UserInfoRetriever
 from ...ext import db

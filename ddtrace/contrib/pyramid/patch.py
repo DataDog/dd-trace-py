@@ -2,10 +2,10 @@ import os
 
 import pyramid
 import pyramid.config
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-import wrapt
 from ddtrace.vendor.debtcollector import deprecate
 
 from ...internal.utils.formats import asbool

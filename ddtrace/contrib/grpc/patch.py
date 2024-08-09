@@ -1,11 +1,11 @@
 import os
 
 import grpc
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.schema import schematize_service_name
-from wrapt import wrap_function_wrapper as _w
 
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value

@@ -1,12 +1,12 @@
 import os
 
 import pymysql
+import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-import wrapt
 from ddtrace.vendor.debtcollector import deprecate
 
 from ...ext import db

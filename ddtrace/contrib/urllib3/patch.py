@@ -1,6 +1,7 @@
 import os
 
 import urllib3
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
@@ -10,7 +11,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.pin import Pin
 from ddtrace.settings.asm import config as asm_config
-from wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

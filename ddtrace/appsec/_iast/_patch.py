@@ -2,9 +2,10 @@ import sys
 from typing import Callable
 from typing import Text
 
+from wrapt import FunctionWrapper
+
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
-from wrapt import FunctionWrapper
 
 from ._utils import _is_iast_enabled
 

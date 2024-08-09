@@ -1,6 +1,7 @@
 import os
 
 import MySQLdb
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
@@ -13,7 +14,6 @@ from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.settings.asm import config as asm_config
-from wrapt import wrap_function_wrapper as _w
 
 from ...ext import SpanKind
 from ...ext import SpanTypes

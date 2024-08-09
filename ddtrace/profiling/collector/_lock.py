@@ -7,6 +7,8 @@ import sys
 import types
 import typing
 
+import wrapt
+
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
@@ -18,7 +20,6 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
-import wrapt
 
 
 LOG = get_logger(__name__)

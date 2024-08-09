@@ -1,10 +1,10 @@
 import logbook
+from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
 
 from ...internal.utils import get_argument_value
-from wrapt import wrap_function_wrapper as _w
 from ..logging.constants import RECORD_ATTR_ENV
 from ..logging.constants import RECORD_ATTR_SERVICE
 from ..logging.constants import RECORD_ATTR_SPAN_ID

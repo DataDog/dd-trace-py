@@ -37,6 +37,8 @@ except ImportError:
     except ImportError:
         get_openai_token_cost_for_model = None
 
+import wrapt
+
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.contrib.langchain.constants import API_KEY
@@ -58,7 +60,6 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
-import wrapt
 
 
 log = get_logger(__name__)

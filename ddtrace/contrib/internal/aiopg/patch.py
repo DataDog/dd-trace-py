@@ -1,6 +1,7 @@
 # 3p
 import aiopg.connection
 import psycopg2.extensions
+import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.aiopg.connection import AIOTracedConnection
@@ -9,7 +10,6 @@ from ddtrace.contrib.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
-import wrapt
 
 
 config._add(

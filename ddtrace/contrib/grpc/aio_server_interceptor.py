@@ -11,6 +11,7 @@ from grpc.aio._typing import RequestIterableType
 from grpc.aio._typing import RequestType
 from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
+import wrapt
 
 from ddtrace import Pin  # noqa:F401
 from ddtrace import Span  # noqa:F401
@@ -18,7 +19,6 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
