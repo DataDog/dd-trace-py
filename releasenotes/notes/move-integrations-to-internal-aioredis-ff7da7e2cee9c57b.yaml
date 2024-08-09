@@ -1,7 +1,7 @@
 ---
 deprecations:
   - |
-    aioredis: Deprecates all modules in the ddtrace.contrib.aioredis package. Use attributes exposed in ddtrace.contrib.aioredis.__all__ instead.
+    aioredis: Deprecates all modules in the ``ddtrace.contrib.aioredis`` package. Use attributes exposed in ``ddtrace.contrib.aioredis.__all__`` instead.
   - |
     algoliasearch: Deprecates all modules in the ddtrace.contrib.algoliasearch package. Use attributes exposed in ddtrace.contrib.algoliasearch.__all__ instead.
   - |
