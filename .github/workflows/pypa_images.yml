@@ -1,0 +1,53 @@
+name: PyPA linux CI images
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "docker/**"
+
+jobs:
+  build-and-publish:
+    uses: "./.github/workflows/build-and-publish-image.yml"
+    strategy:
+      matrix:
+        - IMAGE_NAME: "pypa_musllinux_1_2_aarch64"
+          BASE_IMAGE: "quay.io/pypa/musllinux_1_2_aarch64:latest"
+          PLATFORM: "linux/arm64"
+        - IMAGE_NAME: "pypa_musllinux_1_2_x86_64"
+          BASE_IMAGE: "quay.io/pypa/musllinux_1_2_x86_64:latest"
+          PLATFORM: "linux/amd64"
+        - IMAGE_NAME: "pypa_manylinux2014_aarch64"
+          BASE_IMAGE: "quay.io/pypa/manylinux2014_aarch64:latest"
+          PLATFORM: "linux/arm64"
+        - IMAGE_NAME: "pypa_manylinux2014_x86_64"
+          BASE_IMAGE: "quay.io/pypa/manylinux2014_x86_64:latest"
+          PLATFORM: "linux/amd64"
+        - IMAGE_NAME: "pypa_manylinux2014_i686"
+          BASE_IMAGE: "quay.io/pypa/manylinux2014_i686:latest"
+          PLATFORM: "linux/386"
+    with:
+      tags: "ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:${{ github.sha }},ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:latest"
+      platforms: "${{ PLATFORM }}"
+      build-args: "BASE_IMAGE=${{ BASE_IMAGE }}"
+      context: "./docker"
+      file: "Dockerfile.pypa_base"
+    secrets:
+      token: "${{ secrets.GITHUB_TOKEN }}"
+
+  # We cannot use a shared base image for musllinux i686
+  build-and-publish-musllinux-i686:
+    uses: "./.github/workflows/build-and-publish-image.yml"
+    strategy:
+      matrix:
+        - IMAGE_NAME: "pypa_musllinux_1_2_i686"
+          PLATFORM: "linux/386"
+    with:
+      tags: "ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:${{ github.sha }},ghcr.io/datadog/dd-trace-py/${{ IMAGE_NAME }}:latest"
+      platforms: "${{ PLATFORM }}"
+      context: "./docker"
+      file: "Dockerfile.${{ DOCKER_IMAGE }}"
+    secrets:
+      token: "${{ secrets.GITHUB_TOKEN }}"

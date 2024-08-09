@@ -1,0 +1,6 @@
+ARG BASE_IMAGE
+FROM quay.io/pypa/${BASE_IMAGE}:latest
+
+# Install Rust toolchain
+RUN curl https://sh.rustup.rs -sSf | \
+    sh -s -- --default-toolchain stable -y
