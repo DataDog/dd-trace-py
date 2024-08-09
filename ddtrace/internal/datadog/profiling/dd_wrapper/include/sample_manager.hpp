@@ -2,14 +2,12 @@
 
 #include "constants.hpp"
 #include "sample.hpp"
+#include "synchronized_sample_pool.hpp"
 #include "types.hpp"
 
 #include <array>
 #include <atomic>
-#include <mutex>
 #include <optional>
-
-#include <vector>
 
 namespace Datadog {
 
@@ -18,7 +16,8 @@ class SampleManager
   private:
     static inline unsigned int max_nframes{ g_default_max_nframes };
     static inline SampleType type_mask{ SampleType::All };
-    static inline std::mutex init_mutex{};
+
+    static inline SynchronizedSamplePool sample_pool;
 
   public:
     // Configuration
