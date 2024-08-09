@@ -1,0 +1,12 @@
+---
+deprecations:
+  - |
+    cassandra: Deprecates all modules in the ``ddtrace.contrib.cassandra`` package. Use attributes exposed in ``ddtrace.contrib.cassandra.__all__`` instead.
+  - |
+    celery: Deprecates all modules in the ``ddtrace.contrib.celery`` package. Use attributes exposed in ``ddtrace.contrib.celery.__all__`` instead.
+  - |
+    cherrypy: Deprecates all modules in the ``ddtrace.contrib.cherrypy`` package. Use attributes exposed in ``ddtrace.contrib.cherrypy.__all__`` instead.
+  - |
+    consul: Deprecates all modules in the ``ddtrace.contrib.consul`` package. Use attributes exposed in ``ddtrace.contrib.consul.__all__`` instead.
+  - |
+    coverage: Deprecates all modules in the ``ddtrace.contrib.coverage`` package. Use attributes exposed in ``ddtrace.contrib.coverage.__all__`` instead.
