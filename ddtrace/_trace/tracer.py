@@ -421,7 +421,6 @@ class Tracer(object):
             service = active.service
         else:
             service = config.service
-        if active:
             trace_id, span_id = _get_trace_details_for_log_injection(active)
         return {
             "trace_id": str(trace_id),
