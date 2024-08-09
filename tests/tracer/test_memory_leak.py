@@ -22,7 +22,6 @@ def tracer():
 
 
 def trace(weakdict, tracer, *args, **kwargs):
-    # type: (WeakValueDictionary, Tracer, ...) -> Span
     """Return a span created from ``tracer`` and add it to the given weak
     dictionary.
 
@@ -36,15 +35,14 @@ def trace(weakdict, tracer, *args, **kwargs):
 
 def test_leak(tracer):
     wd = WeakValueDictionary()
-    span = trace(wd, tracer, "span1")
-    span2 = trace(wd, tracer, "span2")
+    with trace(wd, tracer, "span1") as span:
+        with trace(wd, tracer, "span2") as span2:
+            pass
     assert len(wd) == 2
 
     # The spans are still open and referenced so they should not be gc'd
     gc.collect()
     assert len(wd) == 2
-    span2.finish()
-    span.finish()
     del span, span2
     gc.collect()
     assert len(wd) == 0
@@ -96,14 +94,13 @@ def test_multithread_trace(tracer):
             assert len(wd) == 2
         state.append(1)
 
-    span = trace(wd, tracer, "")
-    t = Thread(target=_target, args=(span.context,))
-    t.start()
-    t.join()
-    # Ensure thread finished successfully
-    assert state == [1]
+    with trace(wd, tracer, "") as span:
+        t = Thread(target=_target, args=(span.context,))
+        t.start()
+        t.join()
+        # Ensure thread finished successfully
+        assert state == [1]
 
-    span.finish()
     del span
     gc.collect()
     assert len(wd) == 0

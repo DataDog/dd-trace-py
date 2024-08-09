@@ -345,17 +345,16 @@ class TracerTestCases(TracerTestCase):
 
     def test_global_context(self):
         # the tracer uses a global thread-local Context
-        span = self.trace("fake_span")
-        ctx = self.tracer.current_trace_context()
-        assert ctx.trace_id == span.trace_id
-        assert ctx.span_id == span.span_id
-        assert ctx._is_remote is False
+        with self.trace("fake_span") as span:
+            ctx = self.tracer.current_trace_context()
+            assert ctx.trace_id == span.trace_id
+            assert ctx.span_id == span.span_id
+            assert ctx._is_remote is False
 
     def test_tracer_current_span(self):
         # the current span is in the local Context()
-        span = self.trace("fake_span")
-        assert self.tracer.current_span() == span
-        span.finish()
+        with self.trace("fake_span") as span:
+            assert self.tracer.current_span() == span
 
         with self.trace("fake_span") as span:
             assert self.tracer.current_span() == span
@@ -375,18 +374,18 @@ class TracerTestCases(TracerTestCase):
         # this could happen in distributed tracing
         ctx = Context(trace_id=42, span_id=100)
         self.tracer.context_provider.activate(ctx)
-        span = self.trace("web.request")
-        span.assert_matches(name="web.request", trace_id=42, parent_id=100)
+        with self.trace("web.request") as span:
+            span.assert_matches(name="web.request", trace_id=42, parent_id=100)
 
     def test_start_span(self):
         # it should create a root Span
-        span = self.tracer.start_span("web.request")
-        assert span.name == "web.request"
-        assert span.parent_id is None
-        span.finish()
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        assert spans[0] is span
+        with self.tracer.start_span("web.request") as span:
+            assert span.name == "web.request"
+            assert span.parent_id is None
+            span.finish()
+            spans = self.pop_spans()
+            assert len(spans) == 1
+            assert spans[0] is span
 
     def test_start_span_optional(self):
         # it should create a root Span with arguments
@@ -512,62 +511,62 @@ class TracerTestCases(TracerTestCase):
         assert tracer._writer.dogstatsd.socket_path == "/foo.sock"
 
     def test_tracer_set_user(self):
-        span = self.trace("fake_span")
-        set_user(
-            self.tracer,
-            user_id="usr.id",
-            email="usr.email",
-            name="usr.name",
-            session_id="usr.session_id",
-            role="usr.role",
-            scope="usr.scope",
-        )
-        assert span.get_tag(user.ID)
-        assert span.get_tag(user.EMAIL)
-        assert span.get_tag(user.SESSION_ID)
-        assert span.get_tag(user.NAME)
-        assert span.get_tag(user.ROLE)
-        assert span.get_tag(user.SCOPE)
-        assert span.context.dd_user_id is None
+        with self.trace("fake_span") as span:
+            set_user(
+                self.tracer,
+                user_id="usr.id",
+                email="usr.email",
+                name="usr.name",
+                session_id="usr.session_id",
+                role="usr.role",
+                scope="usr.scope",
+            )
+            assert span.get_tag(user.ID)
+            assert span.get_tag(user.EMAIL)
+            assert span.get_tag(user.SESSION_ID)
+            assert span.get_tag(user.NAME)
+            assert span.get_tag(user.ROLE)
+            assert span.get_tag(user.SCOPE)
+            assert span.context.dd_user_id is None
 
     def test_tracer_set_user_in_span(self):
-        parent_span = self.trace("root_span")
-        user_span = self.trace("user_span")
-        user_span.parent_id = parent_span.span_id
-        set_user(
-            self.tracer,
-            user_id="usr.id",
-            email="usr.email",
-            name="usr.name",
-            session_id="usr.session_id",
-            role="usr.role",
-            scope="usr.scope",
-            span=user_span,
-        )
-        assert user_span.get_tag(user.ID) and parent_span.get_tag(user.ID) is None
-        assert user_span.get_tag(user.EMAIL) and parent_span.get_tag(user.EMAIL) is None
-        assert user_span.get_tag(user.SESSION_ID) and parent_span.get_tag(user.SESSION_ID) is None
-        assert user_span.get_tag(user.NAME) and parent_span.get_tag(user.NAME) is None
-        assert user_span.get_tag(user.ROLE) and parent_span.get_tag(user.ROLE) is None
-        assert user_span.get_tag(user.SCOPE) and parent_span.get_tag(user.SCOPE) is None
-        assert user_span.context.dd_user_id is None
+        with self.trace("root_span") as parent_span:
+            with self.trace("user_span") as user_span:
+                user_span.parent_id = parent_span.span_id
+                set_user(
+                    self.tracer,
+                    user_id="usr.id",
+                    email="usr.email",
+                    name="usr.name",
+                    session_id="usr.session_id",
+                    role="usr.role",
+                    scope="usr.scope",
+                    span=user_span,
+                )
+                assert user_span.get_tag(user.ID) and parent_span.get_tag(user.ID) is None
+                assert user_span.get_tag(user.EMAIL) and parent_span.get_tag(user.EMAIL) is None
+                assert user_span.get_tag(user.SESSION_ID) and parent_span.get_tag(user.SESSION_ID) is None
+                assert user_span.get_tag(user.NAME) and parent_span.get_tag(user.NAME) is None
+                assert user_span.get_tag(user.ROLE) and parent_span.get_tag(user.ROLE) is None
+                assert user_span.get_tag(user.SCOPE) and parent_span.get_tag(user.SCOPE) is None
+                assert user_span.context.dd_user_id is None
 
     def test_tracer_set_user_mandatory(self):
-        span = self.trace("fake_span")
-        set_user(
-            self.tracer,
-            user_id="usr.id",
-        )
-        span_keys = list(span.get_tags().keys())
-        span_keys.sort()
-        assert span_keys == ["runtime-id", "usr.id"]
-        assert span.get_tag(user.ID)
-        assert span.get_tag(user.EMAIL) is None
-        assert span.get_tag(user.SESSION_ID) is None
-        assert span.get_tag(user.NAME) is None
-        assert span.get_tag(user.ROLE) is None
-        assert span.get_tag(user.SCOPE) is None
-        assert span.context.dd_user_id is None
+        with self.trace("fake_span") as span:
+            set_user(
+                self.tracer,
+                user_id="usr.id",
+            )
+            span_keys = list(span.get_tags().keys())
+            span_keys.sort()
+            assert span_keys == ["runtime-id", "usr.id"]
+            assert span.get_tag(user.ID)
+            assert span.get_tag(user.EMAIL) is None
+            assert span.get_tag(user.SESSION_ID) is None
+            assert span.get_tag(user.NAME) is None
+            assert span.get_tag(user.ROLE) is None
+            assert span.get_tag(user.SCOPE) is None
+            assert span.context.dd_user_id is None
 
     def test_tracer_set_user_warning_no_span(self):
         with self._caplog.at_level(logging.WARNING):
@@ -578,61 +577,61 @@ class TracerTestCases(TracerTestCase):
             assert "No root span in the current execution. Skipping set_user tags" in self._caplog.records[0].message
 
     def test_tracer_set_user_propagation(self):
-        span = self.trace("fake_span")
-        user_id_string = "usr.id"
-        set_user(
-            self.tracer,
-            user_id=user_id_string,
-            email="usr.email",
-            name="usr.name",
-            session_id="usr.session_id",
-            role="usr.role",
-            scope="usr.scope",
-            propagate=True,
-        )
-        user_id = span.context._meta.get("_dd.p.usr.id")
+        with self.trace("fake_span") as span:
+            user_id_string = "usr.id"
+            set_user(
+                self.tracer,
+                user_id=user_id_string,
+                email="usr.email",
+                name="usr.name",
+                session_id="usr.session_id",
+                role="usr.role",
+                scope="usr.scope",
+                propagate=True,
+            )
+            user_id = span.context._meta.get("_dd.p.usr.id")
 
-        assert span.get_tag(user.ID) == user_id_string
-        assert span.context.dd_user_id == user_id_string
-        assert user_id == "dXNyLmlk"
+            assert span.get_tag(user.ID) == user_id_string
+            assert span.context.dd_user_id == user_id_string
+            assert user_id == "dXNyLmlk"
 
     def test_tracer_set_user_propagation_empty(self):
-        span = self.trace("fake_span")
-        user_id_string = ""
-        set_user(
-            self.tracer,
-            user_id=user_id_string,
-            email="usr.email",
-            name="usr.name",
-            session_id="usr.session_id",
-            role="usr.role",
-            scope="usr.scope",
-            propagate=True,
-        )
-        user_id = span.context._meta.get("_dd.p.usr.id")
+        with self.trace("fake_span") as span:
+            user_id_string = ""
+            set_user(
+                self.tracer,
+                user_id=user_id_string,
+                email="usr.email",
+                name="usr.name",
+                session_id="usr.session_id",
+                role="usr.role",
+                scope="usr.scope",
+                propagate=True,
+            )
+            user_id = span.context._meta.get("_dd.p.usr.id")
 
-        assert span.get_tag(user.ID) is None
-        assert span.context.dd_user_id is None
-        assert not user_id
+            assert span.get_tag(user.ID) is None
+            assert span.context.dd_user_id is None
+            assert not user_id
 
     def test_tracer_set_user_propagation_string_error(self):
-        span = self.trace("fake_span")
-        user_id_string = "ユーザーID"
-        set_user(
-            self.tracer,
-            user_id=user_id_string,
-            email="usr.email",
-            name="usr.name",
-            session_id="usr.session_id",
-            role="usr.role",
-            scope="usr.scope",
-            propagate=True,
-        )
-        user_id = span.context._meta.get("_dd.p.usr.id")
+        with self.trace("fake_span") as span:
+            user_id_string = "ユーザーID"
+            set_user(
+                self.tracer,
+                user_id=user_id_string,
+                email="usr.email",
+                name="usr.name",
+                session_id="usr.session_id",
+                role="usr.role",
+                scope="usr.scope",
+                propagate=True,
+            )
+            user_id = span.context._meta.get("_dd.p.usr.id")
 
-        assert span.get_tag(user.ID) == user_id_string
-        assert span.context.dd_user_id == user_id_string
-        assert user_id == "44Om44O844K244O8SUQ="
+            assert span.get_tag(user.ID) == user_id_string
+            assert span.context.dd_user_id == user_id_string
+            assert user_id == "44Om44O844K244O8SUQ="
 
 
 def test_tracer_url():
@@ -1164,15 +1163,13 @@ def test_runtime_id_parent_only():
     tracer = ddtrace.Tracer()
 
     # Parent spans should have runtime-id
-    s = tracer.trace("test")
-    rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, str)
+    with tracer.trace("test") as s:
+        rtid = s.get_tag("runtime-id")
+        assert isinstance(rtid, str)
 
-    # Child spans should not
-    s2 = tracer.trace("test2")
-    assert s2.get_tag("runtime-id") is None
-    s2.finish()
-    s.finish()
+        # Child spans should not
+        with tracer.trace("test2") as s2:
+            assert s2.get_tag("runtime-id") is None
 
     # Parent spans should have runtime-id
     s = tracer.trace("test")
