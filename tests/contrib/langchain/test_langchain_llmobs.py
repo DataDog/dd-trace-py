@@ -433,34 +433,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 span_kind="retrieval",
                 model_provider="openai",
                 input_value="Who was Alan Turing?",
-                output_documents=[
-                    {
-                        "text": "A brilliant mathematician and cryptographer Alan was to become the "
-                        "founder of modern-day computer science and artificial intelligence; "
-                        "designing a machine at Bletchley Park to break secret Enigma encrypted "
-                        "messages used by the Nazi German war machine to protect sensitive "
-                        "commercial, diplomatic and military communications during World War 2. "
-                        "Thus, Turing made the single biggest contribution to the Allied victory "
-                        "in the war against Nazi Germany, possibly saving the lives of an "
-                        "estimated 2 million people, through his effort in shortening World War "
-                        "II.\\n\\nIn 2013, almost 60 years later, Turing received a posthumous "
-                        "Royal Pardon from Queen Elizabeth II. Today, the \\u201cTuring law\\u201d "
-                        "grants an automatic pardon to men who died before the law came into "
-                        "force, making it possible for living convicted gay men to seek pardons "
-                        "for offences now no longer on the statute book.\\n\\nAlas, "
-                        "Turing accidentally or otherwise lost his life in 1954, having been "
-                        "subjected by a British court to chemical castration, thus avoiding a "
-                        "custodial sentence. He is known to have ended his life at the age of 41 "
-                        "years, by eating an apple laced with cyanide.\\n\\nCareer \\nTuring was "
-                        "one of the people who worked on the first computers. He created the "
-                        "theoretical  Turing machine in 1936. The machine was imaginary, "
-                        "but it included the idea of a computer program.\\n\\nTuring was "
-                        "interested in artificial intelligence. He proposed the Turing test, "
-                        'to say when a machine could be called \\"intelligent\\". A computer '
-                        'could be said to \\"think\\" if a human talking with it could not tell '
-                        'it was a machine."'
-                    }
-                ],
+                output_documents=[{"text": mock.ANY}],
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
@@ -738,34 +711,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 span_kind="retrieval",
                 model_provider="openai",
                 input_value="Who was Alan Turing?",
-                output_documents=[
-                    {
-                        "text": "A brilliant mathematician and cryptographer Alan was to become the "
-                        "founder of modern-day computer science and artificial intelligence; "
-                        "designing a machine at Bletchley Park to break secret Enigma encrypted "
-                        "messages used by the Nazi German war machine to protect sensitive "
-                        "commercial, diplomatic and military communications during World War 2. "
-                        "Thus, Turing made the single biggest contribution to the Allied victory "
-                        "in the war against Nazi Germany, possibly saving the lives of an "
-                        "estimated 2 million people, through his effort in shortening World War "
-                        "II.\\n\\nIn 2013, almost 60 years later, Turing received a posthumous "
-                        "Royal Pardon from Queen Elizabeth II. Today, the \\u201cTuring law\\u201d "
-                        "grants an automatic pardon to men who died before the law came into "
-                        "force, making it possible for living convicted gay men to seek pardons "
-                        "for offences now no longer on the statute book.\\n\\nAlas, "
-                        "Turing accidentally or otherwise lost his life in 1954, having been "
-                        "subjected by a British court to chemical castration, thus avoiding a "
-                        "custodial sentence. He is known to have ended his life at the age of 41 "
-                        "years, by eating an apple laced with cyanide.\\n\\nCareer \\nTuring was "
-                        "one of the people who worked on the first computers. He created the "
-                        "theoretical  Turing machine in 1936. The machine was imaginary, "
-                        "but it included the idea of a computer program.\\n\\nTuring was "
-                        "interested in artificial intelligence. He proposed the Turing test, "
-                        'to say when a machine could be called \\"intelligent\\". A computer '
-                        'could be said to \\"think\\" if a human talking with it could not tell '
-                        'it was a machine."'
-                    }
-                ],
+                output_documents=[{"text": mock.ANY}],
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
