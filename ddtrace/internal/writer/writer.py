@@ -127,7 +127,6 @@ class LogWriter(TraceWriter):
         # type: (Optional[List[Span]]) -> None
         if not spans:
             return
-
         encoded = self.encoder.encode_traces([spans])
         self.out.write(encoded + "\n")
         self.out.flush()
@@ -321,6 +320,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
+        # Queues an app-started event before the first ci-visibility/llmobs/trace payload is sent
+        telemetry_writer.app_started()
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
@@ -607,9 +608,6 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            if config._telemetry_enabled and not telemetry_writer.started:
-                telemetry_writer._app_started_event()
-
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
             if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (

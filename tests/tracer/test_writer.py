@@ -672,7 +672,7 @@ def test_flush_queue_raise(writer_class):
 
         error = OSError
         with pytest.raises(error):
-            writer.write([])
+            writer.write([Span("name")])
             writer.flush_queue(raise_exc=True)
 
 
