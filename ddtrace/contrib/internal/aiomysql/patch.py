@@ -55,6 +55,7 @@ async def patched_connect(connect_func, _, args, kwargs):
     Pin(tags=tags).onto(c)
     return c
 
+
 class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a aiomysql cursor and traces its queries."""
 
