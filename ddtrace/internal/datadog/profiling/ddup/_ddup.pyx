@@ -125,7 +125,7 @@ def config(
         max_nframes: Optional[int] = None,
         url: StringType = None,
         timeline_enabled: Optional[bool] = None,
-        sample_pool_caapcity: Optional[int] = None) -> None:
+        sample_pool_capacity: Optional[int] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -153,8 +153,8 @@ def config(
 
     if timeline_enabled is True:
         ddup_config_timeline(True)
-    if sample_pool_caapcity:
-        ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_caapcity))
+    if sample_pool_capacity:
+        ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
 
 def start() -> None:
