@@ -154,7 +154,7 @@ def config(
     if timeline_enabled is True:
         ddup_config_timeline(True)
     if sample_pool_caapcity:
-        ddup_config_sample_type(clamp_to_uint64_unsigned(sample_pool_caapcity))
+        ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_caapcity))
 
 
 def start() -> None:
