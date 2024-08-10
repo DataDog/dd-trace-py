@@ -79,6 +79,8 @@ Datadog::SampleManager::postfork_child()
 void
 Datadog::SampleManager::init()
 {
-    sample_pool = std::make_unique<SynchronizedSamplePool>(sample_pool_capacity);
+    if (sample_pool == nullptr) {
+        sample_pool = std::make_unique<SynchronizedSamplePool>(sample_pool_capacity);
+    }
     Datadog::Sample::profile_state.one_time_init(type_mask, max_nframes);
 }
