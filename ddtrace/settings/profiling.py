@@ -254,7 +254,7 @@ class ProfilingConfig(En):
         help="Whether to enable debug assertions in the profiler code",
     )
 
-    _sample_pool_capacity = En.v(
+    sample_pool_capacity = En.v(
         int,
         "sample_pool_capacity",
         default=4,
