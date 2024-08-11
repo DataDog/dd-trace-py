@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
 import re
 import typing as t
 
@@ -87,11 +88,16 @@ def _get_test_id_from_item(item: pytest.Item) -> CITestId:
             except Exception:
                 parameters["arguments"][param_name] = "Could not encode"
                 log.warning("Failed to encode %r", param_name, exc_info=True)
+
         parameters_json = json.dumps(parameters)
 
     test_id = CITestId(suite_id, test_name, parameters_json)
 
     return test_id
+
+
+def _get_module_path_from_item(item: pytest.Item) -> Path:
+    return Path(item.nodeid.rpartition("/")[0]).absolute()
 
 
 def _get_session_command(session: pytest.Session):

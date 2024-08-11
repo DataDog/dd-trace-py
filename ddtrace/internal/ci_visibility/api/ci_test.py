@@ -33,14 +33,20 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         source_file_info: Optional[CISourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
         is_early_flake_retry: bool = False,
+        resource: Optional[str] = None,
     ):
-        super().__init__(item_id, session_settings, initial_tags)
+        super().__init__(
+            item_id,
+            session_settings,
+            initial_tags,
+            session_settings.test_operation_name,
+            resource=resource if resource is not None else item_id.name,
+        )
         self.parameters = item_id.parameters
         self._codeowners = codeowners
         self._source_file_info = source_file_info
         self._original_test: Optional[CIVisibilityTest] = None
         self._is_early_flake_retry = is_early_flake_retry  # NOTE: currently unused
-        self._operation_name = session_settings.test_operation_name
         self._exc_info: Optional[CIExcInfo] = None
         self._coverage_data: CICoverageData = CICoverageData()
 

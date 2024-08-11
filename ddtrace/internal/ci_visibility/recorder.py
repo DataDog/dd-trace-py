@@ -725,9 +725,6 @@ class CIVisibility(Service):
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
         if session_id not in cls._instance._session_data:
-            import traceback
-
-            traceback.print_stack()
             log.warning("Session not found: %s", session_id)
             raise CIVisibilityDataError(f"No session with id {session_id} found")
         return cls._instance._session_data[session_id]
@@ -936,6 +933,7 @@ def _on_discover_session(
         itr_enabled=CIVisibility.is_itr_enabled(),
         itr_test_skipping_enabled=CIVisibility.test_skipping_enabled(),
         itr_test_skipping_level=SUITE if instance._suite_skipping_mode else TEST,
+        itr_correlation_id=instance._itr_meta.get(ITR_CORRELATION_ID_TAG_NAME, ""),
     )
 
     session = CIVisibilitySession(
@@ -991,8 +989,8 @@ def _register_session_handlers():
     core.on("ci_visibility.session.discover", _on_discover_session)
     core.on("ci_visibility.session.start", _on_start_session)
     core.on("ci_visibility.session.finish", _on_finish_session)
-    core.on("ci_visibility.session.get_codeowners", _on_session_get_workspace_path, "get_codeowners")
-    core.on("ci_visibility.session.get_workspace_path", _on_session_get_workspace_path, "get_workspace_path")
+    core.on("ci_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
+    core.on("ci_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
     core.on(
         "ci_visibility.session.should_collect_coverage", _on_session_should_collect_coverage, "should_collect_coverage"
     )
@@ -1011,6 +1009,7 @@ def _on_discover_module(discover_args: CIModule.DiscoverArgs):
     session.add_child(
         CIVisibilityModule(
             discover_args.module_id,
+            discover_args.module_path,
             CIVisibility.get_session_settings(discover_args.module_id),
         )
     )
@@ -1080,8 +1079,9 @@ def _on_discover_test(discover_args: CITest.DiscoverArgs):
         CIVisibilityTest(
             discover_args.test_id,
             CIVisibility.get_session_settings(discover_args.test_id),
-            discover_args.codeowners,
-            discover_args.source_file_info,
+            codeowners=discover_args.codeowners,
+            source_file_info=discover_args.source_file_info,
+            resource=discover_args.resource,
         )
     )
 
@@ -1231,6 +1231,8 @@ def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
 @_requires_civisibility_enabled
 def _on_itr_is_item_unskippable(item_id: Union[CISuiteId, CITestId]) -> bool:
     log.debug("Handling marking %s as forced run", item_id)
+    if not isinstance(item_id, (CISuiteId, CITestId)):
+        raise CIVisibilityError("Only suites or tests can be unskippable")
     return CIVisibility.get_item_by_id(item_id).is_itr_unskippable()
 
 

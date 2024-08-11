@@ -14,6 +14,7 @@ from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api.ci_coverage_data import CICoverageData
 from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
+from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
@@ -37,11 +38,10 @@ class CIVisibilitySuite(
         source_file_info: Optional[CISourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
-        super().__init__(item_id, session_settings, initial_tags)
+        super().__init__(item_id, session_settings, initial_tags, session_settings.suite_operation_name)
         self._codeowner = codeowners
         self._source_file_info = source_file_info
 
-        self._operation_name = session_settings.suite_operation_name
         self._coverage_data: CICoverageData = CICoverageData()
 
     def start(self) -> None:
@@ -59,6 +59,7 @@ class CIVisibilitySuite(
             if not (child.is_finished() and child.is_itr_skipped()):
                 log.debug("Not finishing CI Visibility suite %s child test %s was not skipped by ITR", self.item_id)
                 return
+
         self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish()
@@ -68,6 +69,13 @@ class CIVisibilitySuite(
             SUITE_ID: str(self.get_span_id()),
             test.SUITE: self.name,
         }
+
+    def _set_itr_tags(self, itr_enabled: bool) -> None:
+        """Set suite-level tags based on ITR enablement status"""
+        super()._set_itr_tags(itr_enabled)
+
+        if itr_enabled and self._session_settings.itr_correlation_id:
+            self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)
 
     def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
         self._coverage_data.add_coverage_segments(coverage_data)

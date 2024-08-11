@@ -18,7 +18,6 @@ from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
-from ddtrace.ext.ci_visibility.api import DEFAULT_OPERATION_NAMES
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
@@ -63,6 +62,7 @@ class CIVisibilitySessionSettings:
     itr_enabled: bool = False
     itr_test_skipping_enabled: bool = False
     itr_test_skipping_level: str = ""
+    itr_correlation_id: str = ""
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
@@ -116,7 +116,9 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         item_id: ANYIDT,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, Any]],
+        operation_name: str,
         parent: Optional["CIVisibilityParentItem"] = None,
+        resource: Optional[str] = None,
     ) -> None:
         self.item_id: ANYIDT = item_id
         self.parent: Optional["CIVisibilityItemBase"] = parent
@@ -125,7 +127,8 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._session_settings: CIVisibilitySessionSettings = session_settings
         self._tracer: Tracer = session_settings.tracer
         self._service: str = session_settings.test_service
-        self._operation_name: str = DEFAULT_OPERATION_NAMES.UNSET.value
+        self._operation_name: str = operation_name
+        self._resource: Optional[str] = resource if resource is not None else operation_name
 
         self._span: Optional[Span] = None
         self._tags: Dict[str, Any] = initial_tags if initial_tags else {}
@@ -159,16 +162,20 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             try:
                 if isinstance(tag_value, str):
                     self._span.set_tag_str(tag, tag_value)
+                elif isinstance(tag_value, bool):
+                    self._span.set_tag_str(tag, "true" if tag_value else "false")
                 else:
                     self._span.set_tag(tag, tag_value)
             except Exception as e:
                 log.debug("Error setting tag %s: %s", tag, e)
 
     def _start_span(self) -> None:
-        parent_span = self.get_parent_span()
+        # Test items do not use a parent, and are instead their own trace's root span
+        parent_span = self.get_parent_span() if isinstance(self, CIVisibilityParentItem) else None
 
         self._span = self._tracer._start_span(
             self._operation_name,
+            resource=self._resource if self._resource else self._operation_name,
             child_of=parent_span,
             service=self._service,
             span_type=SpanTypes.TEST,
@@ -185,8 +192,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._add_coverage_data_tag()
 
         # ITR-related tags should only be set if ITR is enabled in the first place
-        if self._session_settings.itr_enabled:
-            self._set_itr_tags()
+        self._set_itr_tags(self._session_settings.itr_enabled)
 
         # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
         self._set_span_tags()
@@ -230,8 +236,11 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             if self._source_file_info.end_line is not None:
                 self.set_tag(test.SOURCE_END, self._source_file_info.end_line)
 
-    def _set_itr_tags(self) -> None:
+    def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Note: some tags are also added in the parent class as well as some individual item classes"""
+        if not itr_enabled:
+            return
+
         if self._is_itr_skipped:
             self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
             self.set_tag(test.ITR_SKIPPED, "true")
@@ -446,8 +455,9 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
         item_id: PIDT,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, Any]],
+        operation_name: str,
     ) -> None:
-        super().__init__(item_id, session_settings, initial_tags)
+        super().__init__(item_id, session_settings, initial_tags, operation_name)
         self._children: Dict[CIDT, CITEMT] = {}
 
     def get_status(self) -> Union[CITestStatus, SPECIAL_STATUS]:
@@ -540,8 +550,16 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
         error_msg = f"{child_id} not found in {self.item_id}'s children"
         raise CIVisibilityDataError(error_msg)
 
-    def _set_itr_tags(self) -> None:
-        """Only parent items set skipped counts because tests would always be 1 or 0"""
-        super()._set_itr_tags()
+    def _set_itr_tags(self, itr_enabled: bool) -> None:
+        """Set tags on parent items based on ITR enablement status"""
+        super()._set_itr_tags(itr_enabled)
+
+        # Some tags are set no matter what
+        self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)
+
+        if not itr_enabled:
+            return
+
+        # Only parent items set skipped counts because tests would always be 1 or 0
         if self._children:
             self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)

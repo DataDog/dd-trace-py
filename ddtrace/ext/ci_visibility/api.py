@@ -57,7 +57,6 @@ class DEFAULT_OPERATION_NAMES(Enum):
     MODULE = "ci_visibility.module"
     SUITE = "ci_visibility.suite"
     TEST = "ci_visibility.test"
-    UNSET = "ci_visibility.unset"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -268,7 +267,7 @@ class CISession(CIBase):
         item_id = item_id or CISessionId()
         workspace_path: Path = core.dispatch_with_results(
             "ci_visibility.session.get_workspace_path", (item_id,)
-        ).get_workspace_path.value
+        ).workspace_path.value
         return workspace_path
 
     @staticmethod
@@ -304,6 +303,7 @@ class CISession(CIBase):
 class CIModule(CIBase):
     class DiscoverArgs(NamedTuple):
         module_id: CIModuleId
+        module_path: Optional[Path] = None
 
     class FinishArgs(NamedTuple):
         module_id: CIModuleId
@@ -312,9 +312,9 @@ class CIModule(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def discover(item_id: CIModuleId):
+    def discover(item_id: CIModuleId, module_path: Optional[Path] = None):
         log.debug("Registered module %s", item_id)
-        core.dispatch("ci_visibility.module.discover", (CIModule.DiscoverArgs(item_id),))
+        core.dispatch("ci_visibility.module.discover", (CIModule.DiscoverArgs(item_id, module_path),))
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -459,6 +459,7 @@ class CITest(CIITRMixin, CIBase):
         test_id: CITestId
         codeowners: Optional[List[str]] = None
         source_file_info: Optional[CISourceFileInfo] = None
+        resource: Optional[str] = None
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -467,15 +468,19 @@ class CITest(CIITRMixin, CIBase):
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[CISourceFileInfo] = None,
         is_early_flake_detection: bool = False,
+        resource: Optional[str] = None,
     ):
         """Registers a test with the CI Visibility service."""
         log.debug(
-            "Discovering test %s, codeowners: %s, source file: %s",
+            "Discovering test %s, codeowners: %s, source file: %s, resource: %s",
             item_id,
             codeowners,
             source_file_info,
+            resource,
         )
-        core.dispatch("ci_visibility.test.discover", (CITest.DiscoverArgs(item_id, codeowners, source_file_info),))
+        core.dispatch(
+            "ci_visibility.test.discover", (CITest.DiscoverArgs(item_id, codeowners, source_file_info, resource),)
+        )
 
     class DiscoverEarlyFlakeRetryArgs(NamedTuple):
         test_id: CITestId

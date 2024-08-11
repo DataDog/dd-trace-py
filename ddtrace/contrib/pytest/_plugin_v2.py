@@ -13,6 +13,7 @@ from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
 from ddtrace.contrib.pytest._utils import _get_session_command
 from ddtrace.contrib.pytest._utils import _get_session_id
@@ -57,7 +58,7 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     if not CISession.is_test_skipping_enabled():
         return False
 
-    item_is_unskippable = CITest.is_item_itr_unskippable(item) or CISuite.is_item_itr_unskippable(test_id.parent_id)
+    item_is_unskippable = CITest.is_item_itr_unskippable(test_id) or CISuite.is_item_itr_unskippable(test_id.parent_id)
 
     if CISuite.is_item_itr_skippable(test_id.parent_id):
         if item_is_unskippable:
@@ -155,34 +156,6 @@ class _PytestDDTracePluginV2:
         CISession.start(session_id)
 
     @staticmethod
-    def pytest_collection_modifyitems(session, config, items) -> None:
-        if not is_ci_visibility_enabled():
-            return
-
-        codeowners = CISession.get_codeowners()
-
-        for item in items:
-            test_id = _get_test_id_from_item(item)
-            suite_id = test_id.parent_id
-            module_id = suite_id.parent_id
-
-            # TODO: don't rediscover modules and suites if already discovered
-            CIModule.discover(module_id)
-            CISuite.discover(suite_id)
-
-            item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
-
-            item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
-
-            source_file_info = _get_source_file_info(item, item_path)
-
-            CITest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
-
-            if CISession.is_test_skipping_enabled() and _is_test_unskippable(item):
-                CITest.mark_itr_unskippable(test_id)
-                CISuite.mark_itr_unskippable(suite_id)
-
-    @staticmethod
     @pytest.hookimpl(tryfirst=True, hookwrapper=True)
     def pytest_runtest_protocol(item, nextitem) -> None:
         if not is_ci_visibility_enabled():
@@ -192,10 +165,24 @@ class _PytestDDTracePluginV2:
         test_id = _get_test_id_from_item(item)
         suite_id = test_id.parent_id
         module_id = suite_id.parent_id
+        item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
 
-        # TODO: don't start modules if already started
+        codeowners = CISession.get_codeowners()
+        item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
+
+        # TODO: don't re-discover and start modules if already started
+        CIModule.discover(module_id, _get_module_path_from_item(item))
         CIModule.start(module_id)
+        CISuite.discover(suite_id)
         CISuite.start(suite_id)
+
+        source_file_info = _get_source_file_info(item, item_path)
+        CITest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
+
+        if CISession.is_test_skipping_enabled() and _is_test_unskippable(item):
+            CITest.mark_itr_unskippable(test_id)
+            CISuite.mark_itr_unskippable(suite_id)
+
         CITest.start(test_id)
 
         _handle_itr_should_skip(item, test_id)
@@ -222,7 +209,7 @@ class _PytestDDTracePluginV2:
         # - we trust that the next item is in the same module if it is in the same suite
         next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
         if next_test_id is None or next_test_id.parent_id != suite_id:
-            if CISuite.was_item_skipped_by_itr(suite_id):
+            if CISuite.is_item_itr_skippable(suite_id):
                 CISuite.mark_itr_skipped(suite_id)
             else:
                 CISuite.finish(suite_id)
@@ -240,11 +227,9 @@ class _PytestDDTracePluginV2:
 
         test_id = _get_test_id_from_item(item)
 
-        # Setup and teardown only impact results if an exception occurred
-        is_setup_or_teardown = call.when == "setup" or call.when == "teardown"
+        # Only capture result if there is an exception, or if we are tearing down the test
         has_exception = call.excinfo is not None
-
-        if is_setup_or_teardown and not has_exception:
+        if call.when != "teardown" and not has_exception:
             return
 
         result = outcome.get_result()
