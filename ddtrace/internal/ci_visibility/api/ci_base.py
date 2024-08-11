@@ -181,6 +181,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             span_type=SpanTypes.TEST,
             activate=True,
         )
+        log.debug("Started span %s for item %s", self._span, self.item_id)
 
     @_require_span
     def _finish_span(self) -> None:
@@ -243,12 +244,10 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         if self._is_itr_skipped:
             self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
-            self.set_tag(test.ITR_SKIPPED, "true")
+        self.set_tag(test.ITR_SKIPPED, True)
 
-        if self._is_itr_unskippable:
-            self.set_tag(test.ITR_UNSKIPPABLE, "true")
-        if self._is_itr_forced_run:
-            self.set_tag(test.ITR_FORCED_RUN, "true")
+        self.set_tag(test.ITR_UNSKIPPABLE, self._is_itr_unskippable)
+        self.set_tag(test.ITR_FORCED_RUN, self._is_itr_forced_run)
 
     def _set_span_tags(self):
         """This is effectively a callback method for exceptional cases where the item span
@@ -376,9 +375,10 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         return self._is_itr_skipped
 
     def mark_itr_unskippable(self) -> None:
-        """Per RFC, unskippable only applies to a given item, not its ancestors"""
         record_itr_unskippable(self.event_type_metric_name)
         self._is_itr_unskippable = True
+        if self.parent is not None:
+            self.parent.mark_itr_unskippable()
 
     def is_itr_unskippable(self) -> bool:
         return self._is_itr_unskippable
@@ -389,6 +389,9 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._is_itr_forced_run = True
         if self.parent is not None:
             self.parent.mark_itr_forced_run()
+
+    def was_itr_forced_run(self) -> bool:
+        return self._is_itr_forced_run
 
     @_require_not_finished
     def set_tag(self, tag_name: str, tag_value: Any) -> None:

@@ -1128,9 +1128,16 @@ def _on_item_get_span(item_id: CIItemId):
     return item.get_span()
 
 
+@_requires_civisibility_enabled
+def _on_item_is_finished(item_id: CIItemId) -> bool:
+    log.debug("Handling is finished for item %s", item_id)
+    return CIVisibility.get_item_by_id(item_id).is_finished()
+
+
 def _register_item_handlers():
     log.debug("Registering item handlers")
     core.on("ci_visibility.item.get_span", _on_item_get_span, "span")
+    core.on("ci_visibility.item.is_finished", _on_item_is_finished, "is_finished")
 
 
 @_requires_civisibility_enabled
@@ -1213,6 +1220,12 @@ def _on_itr_mark_forced_run(item_id: Union[CISuiteId, CITestId]) -> None:
 
 
 @_requires_civisibility_enabled
+def _on_itr_was_forced_run(item_id: CIItemId) -> bool:
+    log.debug("Handling marking %s as forced run", item_id)
+    return CIVisibility.get_item_by_id(item_id).was_itr_forced_run()
+
+
+@_requires_civisibility_enabled
 def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
     """Skippable items are fetched as part CIVisibility.enable(), so they are assumed to be available."""
     log.debug("Handling is item skippable for item id %s", item_id)
@@ -1230,7 +1243,7 @@ def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
 
 @_requires_civisibility_enabled
 def _on_itr_is_item_unskippable(item_id: Union[CISuiteId, CITestId]) -> bool:
-    log.debug("Handling marking %s as forced run", item_id)
+    log.debug("Handling marking %s as unskippable", item_id)
     if not isinstance(item_id, (CISuiteId, CITestId)):
         raise CIVisibilityError("Only suites or tests can be unskippable")
     return CIVisibility.get_item_by_id(item_id).is_itr_unskippable()
@@ -1238,7 +1251,7 @@ def _on_itr_is_item_unskippable(item_id: Union[CISuiteId, CITestId]) -> bool:
 
 @_requires_civisibility_enabled
 def _on_itr_was_item_skipped(item_id: Union[CISuiteId, CITestId]) -> bool:
-    log.debug("Handling marking %s as forced run", item_id)
+    log.debug("Handling was item skipped for %s", item_id)
     return CIVisibility.get_item_by_id(item_id).is_itr_skipped()
 
 
@@ -1251,6 +1264,7 @@ def _register_itr_handlers():
     core.on("ci_visibility.itr.is_item_unskippable", _on_itr_is_item_unskippable, "is_item_unskippable")
     core.on("ci_visibility.itr.mark_forced_run", _on_itr_mark_forced_run)
     core.on("ci_visibility.itr.mark_unskippable", _on_itr_mark_unskippable)
+    core.on("ci_visibility.itr.was_forced_run", _on_itr_was_forced_run, "was_forced_run")
 
 
 _register_session_handlers()

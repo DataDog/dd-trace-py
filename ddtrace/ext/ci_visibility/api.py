@@ -163,6 +163,13 @@ class CIBase(_CIVisibilityAPIBase):
         span: ddtrace.Span = core.dispatch_with_results("ci_visibility.item.get_span", (item_id,)).span.value
         return span
 
+    @staticmethod
+    def is_finished(item_id: CIItemId) -> bool:
+        log.debug("Checking if item %s is finished", item_id)
+        _is_finished = bool(core.dispatch_with_results("ci_visibility.item.is_finished", (item_id,)).is_finished.value)
+        log.debug("Item %s is finished: %s", item_id, _is_finished)
+        return _is_finished
+
 
 class CISession(CIBase):
     class DiscoverArgs(NamedTuple):
@@ -360,6 +367,17 @@ class CIITRMixin(CIBase):
     def mark_itr_forced_run(item_id: Union[CISuiteId, CITestId]):
         log.debug("Marking item %s as unskippable by ITR", item_id)
         core.dispatch("ci_visibility.itr.mark_forced_run", (item_id,))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def was_forced_run(item_id: Union[CISuiteId, CITestId]) -> bool:
+        """Skippable items are not currently tied to a test session, so no session ID is passed"""
+        log.debug("Checking if item %s was forced to run", item_id)
+        _was_forced_run = bool(
+            core.dispatch_with_results("ci_visibility.itr.was_forced_run", (item_id,)).was_forced_run.value
+        )
+        log.debug("Item %s was forced run: %s", item_id, _was_forced_run)
+        return _was_forced_run
 
     @staticmethod
     @_catch_and_log_exceptions

@@ -58,13 +58,24 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     if not CISession.is_test_skipping_enabled():
         return False
 
-    item_is_unskippable = CITest.is_item_itr_unskippable(test_id) or CISuite.is_item_itr_unskippable(test_id.parent_id)
+    suite_id = test_id.parent_id
 
-    if CISuite.is_item_itr_skippable(test_id.parent_id):
+    item_is_unskippable = _is_test_unskippable(item)
+
+    # Pytest markers do not allow us to determine if the test or the suite was marked as unskippable, but any test
+    # marked unskippable in a suite makes the entire suite unskippable (since we are in suite skipping mode)
+    if item_is_unskippable:
+        CITest.mark_itr_unskippable(test_id)
+        CISuite.mark_itr_unskippable(suite_id)
+
+    if CISuite.is_item_itr_skippable(suite_id):
         if item_is_unskippable:
             CITest.mark_itr_forced_run(test_id)
+            CISuite.mark_itr_forced_run(suite_id)
+            return False
         else:
             CITest.mark_itr_skipped(test_id)
+            # Marking the test as skipped by ITR so that it appears in pytest's output
             item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
             return True
 
@@ -167,21 +178,16 @@ class _PytestDDTracePluginV2:
         module_id = suite_id.parent_id
         item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
 
-        codeowners = CISession.get_codeowners()
-        item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
-
         # TODO: don't re-discover and start modules if already started
         CIModule.discover(module_id, _get_module_path_from_item(item))
         CIModule.start(module_id)
         CISuite.discover(suite_id)
         CISuite.start(suite_id)
 
+        codeowners = CISession.get_codeowners()
+        item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
         source_file_info = _get_source_file_info(item, item_path)
         CITest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
-
-        if CISession.is_test_skipping_enabled() and _is_test_unskippable(item):
-            CITest.mark_itr_unskippable(test_id)
-            CISuite.mark_itr_unskippable(suite_id)
 
         CITest.start(test_id)
 
@@ -209,7 +215,7 @@ class _PytestDDTracePluginV2:
         # - we trust that the next item is in the same module if it is in the same suite
         next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
         if next_test_id is None or next_test_id.parent_id != suite_id:
-            if CISuite.is_item_itr_skippable(suite_id):
+            if CISuite.is_item_itr_skippable(suite_id) and not CISuite.was_forced_run(suite_id):
                 CISuite.mark_itr_skipped(suite_id)
             else:
                 CISuite.finish(suite_id)
@@ -225,11 +231,16 @@ class _PytestDDTracePluginV2:
         if not is_ci_visibility_enabled():
             return
 
-        test_id = _get_test_id_from_item(item)
-
         # Only capture result if there is an exception, or if we are tearing down the test
+        # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
         has_exception = call.excinfo is not None
         if call.when != "teardown" and not has_exception:
+            return
+
+        test_id = _get_test_id_from_item(item)
+
+        # We may have already finished this item (eg: if it was skipped by ITR, or if it was marked to skip)
+        if CITest.is_finished(test_id):
             return
 
         result = outcome.get_result()

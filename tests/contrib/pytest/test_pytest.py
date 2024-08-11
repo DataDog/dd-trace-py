@@ -3097,14 +3097,19 @@ class PytestTestCase(TracerTestCase):
         with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch.object(
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), override_env(
+            dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True", DD_TRACE_DEBUG="1", DD_TESTING_RAISE="true")
+        ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
             [
                 "test_outer_package/test_inner_package/test_inner_abc.py",
             ],
         ):
-            self.inline_run("--ddtrace")
+            self.inline_run("--ddtrace", "-v")
 
         spans = self.pop_spans()
         assert len(spans) == 12
