@@ -1,4 +1,5 @@
 import math
+import os
 import typing as t
 
 from envier import En
@@ -77,15 +78,60 @@ def _check_for_stack_v2_available():
 
 
 def _is_libdd_required(config):
-    return config.stack.v2_enabled or config.export._libdd_enabled
+    # This function consolidates the logic for force-enabling the libdd uploader.  Otherwise this will get enabled in
+    # a bunch of separate places and it'll be tough to manage.
+    # v2 requires libdd because it communicates over a pure-native channel
+    # libdd... requires libdd
+    # injected environments _cannot_ deploy protobuf, so they must use libdd
+    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected
+
+
+# This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
+# indicate whether profiling was enabled.
+_profiling_injected = False
+
+
+def _parse_profiling_enabled(raw: str) -> bool:
+    global _profiling_injected
+
+    # Try to derive two bits of information
+    # - Are we injected (DD_INJECTION_ENABLED set)
+    # - Is profiling enabled ("profiler" in the list)
+    if os.environ.get("DD_INJECTION_ENABLED") is not None:
+        _profiling_injected = True
+        for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
+            if tok.strip().lower() == "profiler":
+                return True
+
+    # This is the normal check
+    raw_lc = raw.lower()
+    if raw_lc in ("1", "true", "yes", "on"):
+        return True
+
+    # In addition to everything else, we have to check for the `auto` value of `DD_PROFILING_ENABLED`.
+    # This value simultaneously enables the profiler and indicates the environment is injected.
+    if raw_lc == "auto":
+        _profiling_injected = True
+        return True
+
+    # If it wasn't enabled, then disable it
+    return False
+
+
+def _check_for_injected():
+    global _profiling_injected
+    return _profiling_injected
 
 
 class ProfilingConfig(En):
     __prefix__ = "dd.profiling"
 
+    # Note that the parser here has a side-effect, since SSI has changed the once-truthy value of the envvar to
+    # truthy + "auto", which has a special meaning.
     enabled = En.v(
         bool,
         "enabled",
+        parser=_parse_profiling_enabled,
         default=False,
         help_type="Boolean",
         help="Enable Datadog profiling when using ``ddtrace-run``",
@@ -208,6 +254,16 @@ class ProfilingConfig(En):
         help="Whether to enable debug assertions in the profiler code",
     )
 
+    sample_pool_capacity = En.v(
+        int,
+        "sample_pool_capacity",
+        default=4,
+        help_type="Integer",
+        help="The number of Sample objects to keep in the pool for reuse. "
+        "Increasing this can reduce the overhead from frequently allocating "
+        "and deallocating Sample objects.",
+    )
+
 
 class ProfilingConfigStack(En):
     __item__ = __prefix__ = "stack"
@@ -314,6 +370,12 @@ ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
+
+# If during processing we discover that the configuration was injected, we need to do a few things
+# - Mark it as such
+# - Force libdd to be enabled, disabling the profiler otherwise the service might crash
+#   (this is done in the _is_libdd_required function)
+config._injected = _check_for_injected()
 
 # Force the enablement of libdd if the user requested a feature which requires it; otherwise the user has to manage
 # configuration too intentionally and we'll need to change the API too much over time.

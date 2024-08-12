@@ -2,7 +2,6 @@
 # require iast, ddwaf or any native optional module.
 
 import ctypes
-import gc
 import os
 from typing import Any
 from typing import Callable
@@ -15,6 +14,7 @@ from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
@@ -290,7 +290,9 @@ def apply_patch(parent, attribute, replacement):
         # Avoid overwriting the original function if we call this twice
         if not isinstance(current_attribute, FunctionWrapper):
             _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)] = current_attribute
-        elif isinstance(replacement, FunctionWrapper):
+        elif isinstance(replacement, FunctionWrapper) and (
+            getattr(replacement, "_self_wrapper", None) is getattr(current_attribute, "_self_wrapper", None)
+        ):
             # Avoid double patching
             return
         setattr(parent, attribute, replacement)

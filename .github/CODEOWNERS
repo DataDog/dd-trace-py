@@ -65,6 +65,8 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 
 # ASM
 benchmarks/appsec*                  @DataDog/asm-python
+benchmarks/bm/iast_utils*           @DataDog/asm-python
+benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/settings/asm.py             @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
@@ -121,6 +123,7 @@ ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
+docs/                               @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
