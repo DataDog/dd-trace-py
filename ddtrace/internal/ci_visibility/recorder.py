@@ -44,7 +44,6 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
-from ...ext.git import extract_workspace_path
 from .. import agent
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
@@ -591,6 +590,9 @@ class CIVisibility(Service):
                 return
 
         if cls._instance is not None:
+            import traceback
+
+            traceback.print_stack()
             log.debug("%s already enabled", cls.__name__)
             return
 
@@ -904,16 +906,9 @@ def _on_discover_session(
         raise CIVisibilityError(error_msg)
 
     # If we're not provided a root directory, try and extract it from workspace, defaulting to CWD
-    root_dir: Optional[Path] = discover_args.root_dir
-    if root_dir is None:
-        try:
-            root_dir = Path(extract_workspace_path())
-        except ValueError:
-            log.debug("Could not extract workspace path, defaulting to current working directory", exc_info=True)
-            root_dir = Path.cwd()
+    workspace_path = discover_args.root_dir or Path(CIVisibility.get_workspace_path() or os.getcwd())
 
-    if test_framework_telemetry_name is None:
-        test_framework_telemetry_name = TEST_FRAMEWORKS.MANUAL
+    test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
 
     session_settings = CIVisibilitySessionSettings(
         tracer=tracer,
@@ -928,7 +923,7 @@ def _on_discover_session(
         module_operation_name=discover_args.module_operation_name,
         suite_operation_name=discover_args.suite_operation_name,
         test_operation_name=discover_args.test_operation_name,
-        workspace_path=root_dir,
+        workspace_path=workspace_path,
         is_unknown_ci=CIVisibility.is_unknown_ci(),
         itr_enabled=CIVisibility.is_itr_enabled(),
         itr_test_skipping_enabled=CIVisibility.test_skipping_enabled(),
@@ -940,6 +935,7 @@ def _on_discover_session(
         discover_args.session_id,
         session_settings,
     )
+
     CIVisibility.add_session(session)
 
 

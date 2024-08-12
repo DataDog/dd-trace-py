@@ -28,7 +28,7 @@ from tests.utils import override_env
 
 
 def _get_spans_from_list(
-    spans: t.List[ddtrace.Span], span_type: str, name: t.Optional[str] = None
+    spans: t.List[ddtrace.Span], span_type: str, name: t.Optional[str] = None, status: t.Optional[str] = None
 ) -> t.List[ddtrace.Span]:
     _names_map = {
         "session": ("test_session_end",),
@@ -45,7 +45,12 @@ def _get_spans_from_list(
     return [
         span
         for span in spans
-        if span.get_tag("type") == target_type and (span.get_tag(target_name) == name if name else True)
+        if span.get_tag("type") == target_type
+        and (
+            span.get_tag(target_name) == name
+            if name
+            else True and (span.get_tag("test.status") == status if status else True)
+        )
     ]
 
 
@@ -1549,6 +1554,7 @@ class PytestTestCase(TracerTestCase):
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test_with_itr_skipped(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1615,6 +1621,7 @@ class PytestTestCase(TracerTestCase):
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test_with_pytest_mark_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -2604,6 +2611,9 @@ class PytestTestCase(TracerTestCase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
         ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
@@ -2617,68 +2627,60 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 12
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        session_span = _get_spans_from_list(spans, "session")[0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
         assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
         assert session_span.get_tag("test.itr.unskippable") == "true"
         assert session_span.get_tag("test.itr.forced_run") == "true"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = _get_spans_from_list(spans, "module")
         assert len(module_spans) == 2
 
-        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
+        outer_module_span = _get_spans_from_list(module_spans, "module", "test_outer_package")[0]
         assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
         assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
         assert outer_module_span.get_tag("test.itr.forced_run") == "false"
 
-        inner_module_span = [
-            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
-        ][0]
+        inner_module_span = _get_spans_from_list(module_spans, "module", "test_outer_package.test_inner_package")[0]
         assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
         assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
         assert inner_module_span.get_tag("test.itr.forced_run") == "true"
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = _get_spans_from_list(spans, "suite")
         assert len(test_suite_spans) == 2
 
-        inner_suite_span = [span for span in test_suite_spans if span.get_tag("test.suite") == "test_inner_abc.py"][0]
+        inner_suite_span = _get_spans_from_list(test_suite_spans, "suite", "test_inner_abc.py")[0]
         assert inner_suite_span.get_tag("test.itr.forced_run") == "true"
         assert inner_suite_span.get_tag("test.itr.unskippable") == "true"
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = _get_spans_from_list(spans, "test")
         assert len(test_spans) == 7
-        passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
+        passed_test_spans = _get_spans_from_list(test_spans, "test", status="pass")
         assert len(passed_test_spans) == 4
-        skipped_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "skip"]
+        skipped_test_spans = _get_spans_from_list(test_spans, "test", status="skip")
         assert len(skipped_test_spans) == 3
 
         test_inner_ok_span = [span for span in spans if span.get_tag("test.name") == "test_inner_ok"][0]
         assert test_inner_ok_span.get_tag("test.itr.forced_run") == "true"
 
-        test_inner_unskippable_span = [span for span in spans if span.get_tag("test.name") == "test_inner_unskippable"][
-            0
-        ]
+        test_inner_unskippable_span = _get_spans_from_list(spans, "test", "test_inner_unskippable")[0]
         assert test_inner_unskippable_span.get_tag("test.itr.unskippable") == "true"
         assert test_inner_unskippable_span.get_tag("test.itr.forced_run") == "true"
 
-        test_inner_shouldskip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skipif"
-        ][0]
+        test_inner_shouldskip_skipif_span = _get_spans_from_list(spans, "test", "test_inner_shouldskip_skipif")[0]
         assert test_inner_shouldskip_skipif_span.get_tag("test.itr.unskippable") == "true"
         assert test_inner_shouldskip_skipif_span.get_tag("test.status") == "skip"
 
-        test_inner_shouldskip_skip_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skip"
-        ][0]
+        test_inner_shouldskip_skip_span = _get_spans_from_list(spans, "test", "test_inner_shouldskip_skip")[0]
         assert test_inner_shouldskip_skip_span.get_tag("test.itr.unskippable") == "true"
         assert test_inner_shouldskip_skip_span.get_tag("test.status") == "skip"
 
-        test_inner_wasnot_going_to_skip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_wasnot_going_to_skip_skipif"
-        ][0]
+        test_inner_wasnot_going_to_skip_skipif_span = _get_spans_from_list(
+            spans, "test", "test_inner_wasnot_going_to_skip_skipif"
+        )[0]
         assert test_inner_wasnot_going_to_skip_skipif_span.get_tag("test.itr.unskippable") == "true"
 
     @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
@@ -2971,7 +2973,12 @@ class PytestTestCase(TracerTestCase):
         with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch.object(
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), override_env(
+            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
+        ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
             [

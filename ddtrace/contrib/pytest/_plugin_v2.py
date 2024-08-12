@@ -60,13 +60,7 @@ def _handle_itr_should_skip(item, test_id) -> bool:
 
     suite_id = test_id.parent_id
 
-    item_is_unskippable = _is_test_unskippable(item)
-
-    # Pytest markers do not allow us to determine if the test or the suite was marked as unskippable, but any test
-    # marked unskippable in a suite makes the entire suite unskippable (since we are in suite skipping mode)
-    if item_is_unskippable:
-        CITest.mark_itr_unskippable(test_id)
-        CISuite.mark_itr_unskippable(suite_id)
+    item_is_unskippable = CISuite.is_item_itr_unskippable(suite_id)
 
     if CISuite.is_item_itr_skippable(suite_id):
         if item_is_unskippable:
@@ -167,6 +161,42 @@ class _PytestDDTracePluginV2:
         CISession.start(session_id)
 
     @staticmethod
+    def pytest_collection_finish(session) -> None:
+        """Discover modules, suites, and tests that have been selected by pytest
+
+        NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
+        tests that pytest has selection for run (eg: with the use of -k as an argument).
+        """
+        if not is_ci_visibility_enabled():
+            return
+
+        codeowners = CISession.get_codeowners()
+
+        for item in session.items:
+            test_id = _get_test_id_from_item(item)
+            suite_id = test_id.parent_id
+            module_id = suite_id.parent_id
+
+            # TODO: don't rediscover modules and suites if already discovered
+            CIModule.discover(module_id, _get_module_path_from_item(item))
+            CISuite.discover(suite_id)
+
+            item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
+
+            item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
+
+            source_file_info = _get_source_file_info(item, item_path)
+
+            CITest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
+
+            # Pytest markers do not allow us to determine if the test or the suite was marked as unskippable, but any
+            # test marked unskippable in a suite makes the entire suite unskippable (since we are in suite skipping
+            # mode)
+            if CISession.is_test_skipping_enabled() and _is_test_unskippable(item):
+                CITest.mark_itr_unskippable(test_id)
+                CISuite.mark_itr_unskippable(suite_id)
+
+    @staticmethod
     @pytest.hookimpl(tryfirst=True, hookwrapper=True)
     def pytest_runtest_protocol(item, nextitem) -> None:
         if not is_ci_visibility_enabled():
@@ -176,18 +206,10 @@ class _PytestDDTracePluginV2:
         test_id = _get_test_id_from_item(item)
         suite_id = test_id.parent_id
         module_id = suite_id.parent_id
-        item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
 
-        # TODO: don't re-discover and start modules if already started
-        CIModule.discover(module_id, _get_module_path_from_item(item))
+        # TODO: don't re-start modules if already started
         CIModule.start(module_id)
-        CISuite.discover(suite_id)
         CISuite.start(suite_id)
-
-        codeowners = CISession.get_codeowners()
-        item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
-        source_file_info = _get_source_file_info(item, item_path)
-        CITest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
 
         CITest.start(test_id)
 

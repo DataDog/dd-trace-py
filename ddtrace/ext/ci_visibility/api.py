@@ -203,11 +203,8 @@ class CISession(CIBase):
         item_id = item_id or CISessionId()
 
         log.debug("Registering session %s with test command: %s", item_id, test_command)
-        from ddtrace.internal.ci_visibility import CIVisibility
-
-        CIVisibility.enable()
-        if not CIVisibility.enabled:
-            log.debug("CI Visibility enabling failed, session not registered.")
+        if not is_ci_visibility_enabled():
+            log.debug("CI Visibility is not enabled, session not registered.")
             return
 
         core.dispatch(

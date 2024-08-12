@@ -102,7 +102,7 @@ def _git_subprocess_cmd_with_details(*cmd, cwd=None, std_in=None):
         - the time it took to execute the command, in milliseconds
         - the exit code
     """
-    git_cmd = _get_executable_path("git")
+    git_cmd = _get_executable_path("git123")
     if git_cmd is None:
         raise FileNotFoundError("Git executable not found")
     git_cmd = [git_cmd]

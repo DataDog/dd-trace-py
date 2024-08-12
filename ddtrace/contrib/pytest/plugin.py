@@ -115,7 +115,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
             try:
                 workspace_path = Path(extract_workspace_path())
-            except ValueError:
+            except (ValueError, FileNotFoundError):
                 workspace_path = Path(os.getcwd())
 
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])

@@ -144,19 +144,14 @@ def _pytest_marked_to_skip(item: pytest.Item) -> bool:
     if item.get_closest_marker("skip") is not None:
         return True
 
-    return any([True for marker in item.iter_markers(name="skipif") if marker.args[0] is True])
+    return any(marker.args[0] for marker in item.iter_markers(name="skipif"))
 
 
 def _is_test_unskippable(item: pytest.Item) -> bool:
     """Returns True if a test has a skipif marker with value false and reason ITR_UNSKIPPABLE_REASON"""
     return any(
-        [
-            True
-            for marker in item.iter_markers(name="skipif")
-            if marker.args[0] is False
-            and "reason" in marker.kwargs
-            and marker.kwargs["reason"] is ITR_UNSKIPPABLE_REASON
-        ]
+        (marker.args[0] is False and marker.kwargs.get("reason") is ITR_UNSKIPPABLE_REASON)
+        for marker in item.iter_markers(name="skipif")
     )
 
 
