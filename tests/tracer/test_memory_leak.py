@@ -1,6 +1,7 @@
 """
 Variety of test cases ensuring that ddtrace does not leak memory.
 """
+
 import gc
 from threading import Thread
 from typing import TYPE_CHECKING
@@ -16,12 +17,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @pytest.fixture
-def tracer():
-    # type: (...) -> Tracer
+def tracer() -> Tracer:
     return Tracer()
 
 
-def trace(weakdict, tracer, *args, **kwargs):
+def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs):
+    # type: (...) -> Span
     """Return a span created from ``tracer`` and add it to the given weak
     dictionary.
 

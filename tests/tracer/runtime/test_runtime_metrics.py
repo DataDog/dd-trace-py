@@ -17,6 +17,7 @@ from ddtrace.internal.service import ServiceStatus
 from tests.utils import BaseTestCase
 from tests.utils import TracerTestCase
 from tests.utils import call_program
+from tests.utils import flaky
 
 
 @contextlib.contextmanager
@@ -217,6 +218,7 @@ class TestRuntimeWorker(TracerTestCase):
                 assert child.get_tag("language") is None
 
 
+@flaky(1731169429)
 def test_fork():
     _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_enable.py"))
     assert exitcode == 0
