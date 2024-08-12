@@ -112,6 +112,12 @@ ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
     Datadog::SampleManager::set_timeline(enabled);
 }
 
+void
+ddup_config_sample_pool_capacity(size_t capacity) // cppcheck-suppress unusedFunction
+{
+    Datadog::SampleManager::set_sample_pool_capacity(capacity);
+}
+
 bool
 ddup_is_initialized() // cppcheck-suppress unusedFunction
 {

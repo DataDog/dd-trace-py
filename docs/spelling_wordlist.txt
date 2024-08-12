@@ -71,6 +71,7 @@ datastore
 datastores
 dbapi
 ddtrace
+deallocating
 deprecations
 deserializing
 django
