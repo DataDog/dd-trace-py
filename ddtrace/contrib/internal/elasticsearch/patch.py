@@ -171,6 +171,7 @@ def _get_perform_request_coro(transport):
                 hostname, _ = extract_netloc_and_query_info_from_url(connection.host)
                 if hostname:
                     span.set_tag_str(net.TARGET_HOST, hostname)
+                    span.set_tag_str(net.SERVER_ADDRESS, hostname)
                     break
 
             if config.elasticsearch.trace_query_string:
