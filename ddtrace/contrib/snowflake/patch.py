@@ -86,6 +86,7 @@ def patched_connect(connect_func, _, args, kwargs):
     tags = {
         net.TARGET_HOST: conn.host,
         net.TARGET_PORT: conn.port,
+        net.SERVER_ADDRESS: conn.host,
         db.NAME: conn.database,
         db.SYSTEM: "snowflake",
         db.USER: conn.user,
