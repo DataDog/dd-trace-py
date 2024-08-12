@@ -259,12 +259,14 @@ def _extract_result_metas(result):
         if host:
             host, _, port = host.partition(":")
             metas[net.TARGET_HOST] = host
+            metas[net.SERVER_ADDRESS] = host
             if port:
                 metas[net.TARGET_PORT] = int(port)
         elif hasattr(future, "_current_host"):
             address = deep_getattr(future, "_current_host.address")
             if address:
                 metas[net.TARGET_HOST] = address
+                metas[net.SERVER_ADDRESS] = address
 
         query = getattr(future, "query", None)
         if getattr(query, "consistency_level", None):
