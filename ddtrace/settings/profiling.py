@@ -254,6 +254,16 @@ class ProfilingConfig(En):
         help="Whether to enable debug assertions in the profiler code",
     )
 
+    sample_pool_capacity = En.v(
+        int,
+        "sample_pool_capacity",
+        default=4,
+        help_type="Integer",
+        help="The number of Sample objects to keep in the pool for reuse. "
+        "Increasing this can reduce the overhead from frequently allocating "
+        "and deallocating Sample objects.",
+    )
+
 
 class ProfilingConfigStack(En):
     __item__ = __prefix__ = "stack"
