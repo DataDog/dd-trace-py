@@ -268,8 +268,8 @@ def test_cgroup_info_from_line(line, expected_info):
 2:hugetlb:/garden/6f265890-5165-7fab-6b52-18d1
 1:name=systemd:/system.slice/garden.service/garden/6f265890-5165-7fab-6b52-18d1
             """,
+            "6f265890-5165-7fab-6b52-18d1",
             None,
-            1234,
         ),
         # Linux non-containerized file
         (

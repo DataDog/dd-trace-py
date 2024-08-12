@@ -634,7 +634,11 @@ class TracerTestCases(TracerTestCase):
             assert user_id == "44Om44O844K244O8SUQ="
 
 
+@pytest.mark.subprocess(env=dict(DD_AGENT_PORT="", DD_AGENT_HOST="", DD_TRACE_AGENT_URL=""))
 def test_tracer_url():
+    import ddtrace
+    import pytest
+
     t = ddtrace.Tracer()
     assert t._writer.agent_url == "http://localhost:8126"
 
@@ -946,7 +950,7 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "django"
                     assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
 
-    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="", DD_TRACE_AGENT_URL="", DATADOG_TRACE_AGENT_HOSTNAME=""))
     def test_detect_agentless_env_with_lambda(self):
         assert in_aws_lambda()
         assert not has_aws_lambda_agent_extension()
@@ -1693,7 +1697,10 @@ def test_service_mapping():
             assert _.service == "fu"
 
 
+@pytest.mark.subprocess(env=dict(DD_AGENT_PORT="", DD_AGENT_HOST="", DD_TRACE_AGENT_URL=""))
 def test_configure_url_partial():
+    import ddtrace
+
     tracer = ddtrace.Tracer()
     tracer.configure(hostname="abc")
     assert tracer._writer.agent_url == "http://abc:8126"
