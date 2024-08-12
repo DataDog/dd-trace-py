@@ -106,6 +106,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
             "": ("",),
         },
         "django.utils.html": {"": ("format_html", "format_html_join")},
+        "sqlalchemy.sql.compiler": {"": ("_requires_quotes",)},
     },
     # This is a set since all functions will be replaced by taint_sink_functions
     "taint_sinks": {
