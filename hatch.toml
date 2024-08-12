@@ -45,6 +45,16 @@ fmt = [
     "ruff --fix {args:.}",
     "style",
 ]
+# checks should encapsulate all rules used in pre-check
+checks = [
+    "style",
+    "typing",
+    "spelling",
+    "riot",
+    "security",
+    "test",
+    "suitespec-check",
+]
 spelling = [
     "codespell --skip='ddwaf.h,*cassettes*' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
