@@ -4,7 +4,6 @@ Script used to generate the config.yaml for the individual aspect benchmarks.
 
 import base64
 import inspect
-import os
 from typing import Any
 
 import yaml
