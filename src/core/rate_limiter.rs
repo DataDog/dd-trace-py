@@ -111,7 +111,10 @@ impl RateLimiterPy {
     #[new]
     fn new(rate_limit: i32, time_window: Option<f64>) -> Self {
         RateLimiterPy {
-            rate_limiter: Arc::new(Mutex::new(RateLimiter::new(rate_limit, time_window.unwrap_or(1e9)))),
+            rate_limiter: Arc::new(Mutex::new(RateLimiter::new(
+                rate_limit,
+                time_window.unwrap_or(1e9),
+            ))),
         }
     }
 
