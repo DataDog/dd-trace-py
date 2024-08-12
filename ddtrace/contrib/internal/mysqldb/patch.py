@@ -39,6 +39,7 @@ config._add(
 
 KWPOS_BY_TAG = {
     net.TARGET_HOST: ("host", 0),
+    net.SERVER_ADDRESS: ("host", 0),
     db.USER: ("user", 1),
     db.NAME: ("db", 3),
 }
