@@ -61,13 +61,13 @@ import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 
-telemetry_writer._app_started_event()
+telemetry_writer.app_started()
 
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
-    telemetry_writer._app_started_event()
-    telemetry_writer._app_started_event()
-    telemetry_writer._app_started_event()
+    telemetry_writer.app_started()
+    telemetry_writer.app_started()
+    telemetry_writer.app_started()
 else:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
