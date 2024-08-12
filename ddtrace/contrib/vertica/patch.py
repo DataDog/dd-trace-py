@@ -47,6 +47,8 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     tags = {}
     tags[net.TARGET_HOST] = instance.options["host"]
     tags[net.TARGET_PORT] = instance.options["port"]
+    tags[net.SERVER_ADDRESS] = instance.options["host"]
+
     if "user" in instance.options:
         tags[dbx.USER] = instance.options["user"]
     if "database" in instance.options:

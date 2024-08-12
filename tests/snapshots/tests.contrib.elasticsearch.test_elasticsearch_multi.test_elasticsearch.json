@@ -20,6 +20,7 @@
       "language": "python",
       "out.host": "localhost",
       "runtime-id": "c1d592d8db0149c5b140e4dab7d9f84f",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
@@ -54,6 +55,7 @@
       "language": "python",
       "out.host": "localhost",
       "runtime-id": "c1d592d8db0149c5b140e4dab7d9f84f",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
