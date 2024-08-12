@@ -358,7 +358,7 @@ f.wsgi_app()
     (flask_integration,) = [integration for integration in integrations if integration["name"] == "flask"]
 
     assert flask_integration["enabled"] is True
-    assert flask_integration["compatible"] is False
+    assert flask_integration["compatible"] is True
     assert "ddtrace/contrib/internal/flask/patch.py:" in flask_integration["error"]
     assert "not enough values to unpack (expected 2, got 0)" in flask_integration["error"]
 
