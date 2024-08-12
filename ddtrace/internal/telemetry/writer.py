@@ -867,6 +867,11 @@ class TelemetryWriter(PeriodicService):
                 # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
                 if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
                     integration_name = dir_parts[contrib_index + 1]
+                    if "internal" in dir_parts:
+                        # Check if the filename has the format:
+                        # `../ddtrace/contrib/internal/integration_name/..(subpath and/or file)...`
+                        internal_index = dir_parts.index("internal")
+                        integration_name = dir_parts[internal_index + 1]
                     self.add_count_metric(
                         "tracers",
                         "integration_errors",
