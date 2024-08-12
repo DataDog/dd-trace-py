@@ -299,7 +299,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if isinstance(payload, bytes):
                     log_args += (binascii.hexlify(payload).decode(),)  # type: ignore
                 else:
-                    log_args += (payload,)  # type: ignore
+                    log_args += (payload,)
 
             log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
