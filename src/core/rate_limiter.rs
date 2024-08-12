@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use std::sync::Arc;
 use std::sync::Mutex;
 
 // Token bucket rate limiter
@@ -12,7 +13,6 @@ struct RateLimiter {
     tokens_allowed: i32,
     tokens_total: i32,
     prev_window_rate: Option<f64>,
-    _lock: Mutex<()>,
 }
 
 impl RateLimiter {
@@ -27,13 +27,10 @@ impl RateLimiter {
             tokens_allowed: 0,
             tokens_total: 0,
             prev_window_rate: None,
-            _lock: Mutex::new(()),
         }
     }
 
     pub fn _is_allowed(&mut self, timestamp_ns: f64) -> bool {
-        let mut _lock = self._lock.lock().unwrap();
-
         let allowed = (|| -> bool {
             // Rate limit of 0 is always disallowed. Negative rate limits are always allowed.
             match self.rate_limit {
@@ -106,7 +103,7 @@ impl RateLimiter {
 
 #[pyclass(name = "RateLimiter", subclass, module = "ddtrace.internal.core._core")]
 pub struct RateLimiterPy {
-    rate_limiter: RateLimiter,
+    rate_limiter: Arc<Mutex<RateLimiter>>,
 }
 
 #[pymethods]
@@ -114,66 +111,66 @@ impl RateLimiterPy {
     #[new]
     fn new(rate_limit: i32, time_window: Option<f64>) -> Self {
         RateLimiterPy {
-            rate_limiter: RateLimiter::new(rate_limit, time_window.unwrap_or(1e9)),
+            rate_limiter: Arc::new(Mutex::new(RateLimiter::new(rate_limit, time_window.unwrap_or(1e9)))),
         }
     }
 
     pub fn _is_allowed(&mut self, py: Python<'_>, timestamp_ns: f64) -> bool {
-        py.allow_threads(|| self.rate_limiter._is_allowed(timestamp_ns))
+        py.allow_threads(|| self.rate_limiter.lock().unwrap()._is_allowed(timestamp_ns))
     }
 
     #[getter]
     pub fn effective_rate(&self) -> f64 {
-        self.rate_limiter.effective_rate()
+        self.rate_limiter.lock().unwrap().effective_rate()
     }
 
     #[getter]
     pub fn current_window_rate(&self) -> f64 {
-        self.rate_limiter.current_window_rate()
+        self.rate_limiter.lock().unwrap().current_window_rate()
     }
 
     #[getter]
     pub fn rate_limit(&self) -> i32 {
-        self.rate_limiter.rate_limit
+        self.rate_limiter.lock().unwrap().rate_limit
     }
 
     #[getter]
     pub fn time_window(&self) -> f64 {
-        self.rate_limiter.time_window
+        self.rate_limiter.lock().unwrap().time_window
     }
 
     #[getter]
     pub fn tokens(&self) -> f64 {
-        self.rate_limiter.tokens
+        self.rate_limiter.lock().unwrap().tokens
     }
 
     #[getter]
     pub fn max_tokens(&self) -> f64 {
-        self.rate_limiter.max_tokens
+        self.rate_limiter.lock().unwrap().max_tokens
     }
 
     #[getter]
     pub fn last_update_ns(&self) -> f64 {
-        self.rate_limiter.last_update_ns
+        self.rate_limiter.lock().unwrap().last_update_ns
     }
 
     #[getter]
     pub fn current_window_ns(&self) -> f64 {
-        self.rate_limiter.current_window_ns
+        self.rate_limiter.lock().unwrap().current_window_ns
     }
 
     #[getter]
     pub fn prev_window_rate(&self) -> Option<f64> {
-        self.rate_limiter.prev_window_rate
+        self.rate_limiter.lock().unwrap().prev_window_rate
     }
 
     #[getter]
     pub fn tokens_allowed(&self) -> i32 {
-        self.rate_limiter.tokens_allowed
+        self.rate_limiter.lock().unwrap().tokens_allowed
     }
 
     #[getter]
     pub fn tokens_total(&self) -> i32 {
-        self.rate_limiter.tokens_total
+        self.rate_limiter.lock().unwrap().tokens_total
     }
 }
