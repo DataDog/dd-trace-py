@@ -265,6 +265,7 @@ class ProfilingConfig(En):
         help_type="Boolean",
         help="Exclusively used in testing environments to force the use of the legacy exporter. This parameter is "
         "not for general use and will be removed in the near future.",
+    )
 
     sample_pool_capacity = En.v(
         int,
