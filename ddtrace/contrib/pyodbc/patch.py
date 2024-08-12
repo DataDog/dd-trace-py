@@ -3,6 +3,8 @@ import os
 import pyodbc
 
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 from ... import Pin
 from ... import config
@@ -24,9 +26,19 @@ config._add(
 )
 
 
-def get_version():
+def _get_version():
     # type: () -> str
     return pyodbc.version
+
+
+def get_version():
+    deprecate(
+        "get_version is deprecated",
+        message="get_version is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _get_version()
 
 
 def patch():
@@ -44,18 +56,31 @@ def unpatch():
 
 def _connect(func, instance, args, kwargs):
     conn = func(*args, **kwargs)
-    return patch_conn(conn)
+    return _patch_conn(conn)
 
 
-def patch_conn(conn):
+def _patch_conn(conn):
     try:
-        tags = {db.SYSTEM: conn.getinfo(pyodbc.SQL_DBMS_NAME), db.USER: conn.getinfo(pyodbc.SQL_USER_NAME)}
+        tags = {
+            db.SYSTEM: conn.getinfo(pyodbc.SQL_DBMS_NAME),
+            db.USER: conn.getinfo(pyodbc.SQL_USER_NAME),
+        }
     except pyodbc.Error:
         tags = {}
     pin = Pin(service=None, tags=tags)
     wrapped = PyODBCTracedConnection(conn, pin=pin)
     pin.onto(wrapped)
     return wrapped
+
+
+def patch_conn(conn):
+    deprecate(
+        "patch_conn is deprecated",
+        message="patch_conn is deprecated",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return _patch_conn(conn)
 
 
 class PyODBCTracedCursor(TracedCursor):

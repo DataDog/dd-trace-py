@@ -204,7 +204,9 @@ PACKAGES = [
         import_module_to_validate="boto3.session",
     ),
     PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
-    PackageForTesting("cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model"),
+    PackageForTesting(
+        "cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model", extras=[("setuptools", "72.1.0")]
+    ),
     PackageForTesting(
         "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
     ),
@@ -871,12 +873,12 @@ def _assert_results(response, package):
         assert content["param"] == package.expected_param
 
     if type(content["result1"]) in (str, bytes):
-        assert content["result1"].startswith(package.expected_result1)
+        assert content["result1"].startswith(str(package.expected_result1))
     else:
         assert content["result1"] == package.expected_result1
 
     if type(content["result2"]) in (str, bytes):
-        assert content["result2"].startswith(package.expected_result2)
+        assert content["result2"].startswith(str(package.expected_result2))
     else:
         assert content["result2"] == package.expected_result2
 

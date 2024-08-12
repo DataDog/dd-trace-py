@@ -116,6 +116,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::version, version },
         { ExportTagKey::language, language },
         { ExportTagKey::runtime, runtime },
+        { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::profiler_version, profiler_version },
     };
@@ -158,6 +159,20 @@ Datadog::UploaderBuilder::build()
         auto& err = std::get<ddog_Error>(ddog_exporter_result);
         std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
+        return errmsg;
+    }
+
+    // 5s is a common timeout parameter for Datadog profilers
+    const uint64_t max_timeout_ms = 5000;
+    ddog_prof_MaybeError set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
+    if (set_timeout_result.tag == DDOG_PROF_OPTION_ERROR_SOME_ERROR) {
+        auto& err = set_timeout_result.some;
+        std::string errmsg = Datadog::err_to_msg(&err, "Error setting timeout on exporter");
+        ddog_Error_drop(&err); // errmsg contains a copy of err.message
+        // If set_timeout had failed, then the ddog_exporter must have been a
+        // null pointer, so it's redundant to drop it here but it should also
+        // be safe to do so.
+        ddog_prof_Exporter_drop(ddog_exporter);
         return errmsg;
     }
 

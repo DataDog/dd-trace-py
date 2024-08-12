@@ -53,7 +53,7 @@ STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.18.0"
+LIBDDWAF_VERSION = "1.19.1"
 
 RUST_MINIMUM_VERSION = "1.71"  # Safe guess:  1.71 is about a year old as of 2024-07-03
 
@@ -472,13 +472,6 @@ if not IS_PYSTON:
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
             extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
-        ),
-        Extension(
-            "ddtrace.internal.coverage._native",
-            sources=[
-                "ddtrace/internal/coverage/_native.c",
-            ],
-            extra_compile_args=debug_compile_args,
         ),
     ]
     if platform.system() not in ("Windows", ""):
