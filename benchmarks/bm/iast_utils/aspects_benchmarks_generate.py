@@ -250,18 +250,20 @@ def generate_functions_dict():
 _config_yaml_content = """\
 aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
     iast_enabled: 0
+    processes: 5
     loops: 1
-    values: 10
-    warmups: 3
+    values: 3
+    warmups: 1
     mod_original_name: "bm.iast_fixtures.{mod_original_name}"
     function_name: "{function_name}"
     args: {args}
 
 aspect_iast_{function_name}:
     << : *aspect_no_iast_{function_name}
+    processes: 5
     loops: 1
-    values: 10
-    warmups: 5
+    values: 3
+    warmups: 1
     iast_enabled: 1
 """
 
