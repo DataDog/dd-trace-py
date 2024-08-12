@@ -72,16 +72,18 @@ def _w_makeRecord(func, instance, args, kwargs):
     setattr(record, RECORD_ATTR_ENV, config.env or RECORD_ATTR_VALUE_EMPTY)
     setattr(record, RECORD_ATTR_SERVICE, config.service or RECORD_ATTR_VALUE_EMPTY)
 
+    tracer = _get_tracer(tracer=config.logging.tracer)
+    trace_details = {}
+    span = None
+
     # logs from internal logger may explicitly pass the current span to
     # avoid deadlocks in getting the current span while already in locked code.
     span_from_log = getattr(record, _LOG_SPAN_KEY, None)
-    trace_details = {}
     if isinstance(span_from_log, ddtrace.Span):
         span = span_from_log
-    else:
-        tracer = _get_tracer(tracer=config.logging.tracer)
-        if tracer:
-            trace_details = tracer.get_log_correlation_context()
+
+    if tracer:
+        trace_details = tracer.get_log_correlation_context(active=span)
 
     setattr(record, RECORD_ATTR_TRACE_ID, trace_details.get("trace_id", "0"))
     setattr(record, RECORD_ATTR_SPAN_ID, trace_details.get("span_id", "0"))
