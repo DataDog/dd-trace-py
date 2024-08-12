@@ -2,8 +2,8 @@
 aspect_no_iast_do_add_and_uppercase: &aspect_no_iast_do_add_and_uppercase
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_add_and_uppercase"
     args: ['  fOobaR\t  \n', '  fOobaR\t  \n']
@@ -11,15 +11,15 @@ aspect_no_iast_do_add_and_uppercase: &aspect_no_iast_do_add_and_uppercase
 aspect_iast_do_add_and_uppercase:
     << : *aspect_no_iast_do_add_and_uppercase
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_add_re_compile: &aspect_no_iast_do_add_re_compile
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_add_re_compile"
     args: []
@@ -27,15 +27,15 @@ aspect_no_iast_do_add_re_compile: &aspect_no_iast_do_add_re_compile
 aspect_iast_do_add_re_compile:
     << : *aspect_no_iast_do_add_re_compile
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_capitalize: &aspect_no_iast_do_capitalize
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_capitalize"
     args: ['  fOobaR\t  \n']
@@ -43,15 +43,15 @@ aspect_no_iast_do_capitalize: &aspect_no_iast_do_capitalize
 aspect_iast_do_capitalize:
     << : *aspect_no_iast_do_capitalize
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_casefold: &aspect_no_iast_do_casefold
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_casefold"
     args: ['  fOobaR\t  \n']
@@ -59,15 +59,15 @@ aspect_no_iast_do_casefold: &aspect_no_iast_do_casefold
 aspect_iast_do_casefold:
     << : *aspect_no_iast_do_casefold
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_center: &aspect_no_iast_do_center
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_center"
     args: ['foobar', 2]
@@ -75,15 +75,15 @@ aspect_no_iast_do_center: &aspect_no_iast_do_center
 aspect_iast_do_center:
     << : *aspect_no_iast_do_center
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_customspec_ascii: &aspect_no_iast_do_customspec_ascii
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_customspec_ascii"
     args: []
@@ -91,15 +91,15 @@ aspect_no_iast_do_customspec_ascii: &aspect_no_iast_do_customspec_ascii
 aspect_iast_do_customspec_ascii:
     << : *aspect_no_iast_do_customspec_ascii
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_encode: &aspect_no_iast_do_encode
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_encode"
     args: ['foobar', 'utf-8', 'strict']
@@ -107,15 +107,15 @@ aspect_no_iast_do_encode: &aspect_no_iast_do_encode
 aspect_iast_do_encode:
     << : *aspect_no_iast_do_encode
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_expandtabs: &aspect_no_iast_do_expandtabs
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_expandtabs"
     args: ['  fOobaR\t  \n']
@@ -123,15 +123,15 @@ aspect_no_iast_do_expandtabs: &aspect_no_iast_do_expandtabs
 aspect_iast_do_expandtabs:
     << : *aspect_no_iast_do_expandtabs
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_exporttype_member_format: &aspect_no_iast_do_exporttype_member_format
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_exporttype_member_format"
     args: []
@@ -139,15 +139,15 @@ aspect_no_iast_do_exporttype_member_format: &aspect_no_iast_do_exporttype_member
 aspect_iast_do_exporttype_member_format:
     << : *aspect_no_iast_do_exporttype_member_format
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_format_map: &aspect_no_iast_do_format_map
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_format_map"
     args: ['foobar{baz}', {'baz': 'bar'}]
@@ -155,15 +155,15 @@ aspect_no_iast_do_format_map: &aspect_no_iast_do_format_map
 aspect_iast_do_format_map:
     << : *aspect_no_iast_do_format_map
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_fstring: &aspect_no_iast_do_fstring
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_fstring"
     args: ['  fOobaR\t  \n', '  fOobaR\t  \n']
@@ -171,15 +171,15 @@ aspect_no_iast_do_fstring: &aspect_no_iast_do_fstring
 aspect_iast_do_fstring:
     << : *aspect_no_iast_do_fstring
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_index: &aspect_no_iast_do_index
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_index"
     args: ['foobar', 3]
@@ -187,15 +187,15 @@ aspect_no_iast_do_index: &aspect_no_iast_do_index
 aspect_iast_do_index:
     << : *aspect_no_iast_do_index
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_join: &aspect_no_iast_do_join
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_join"
     args: ['foobar', ['baz', 'pok']]
@@ -203,15 +203,15 @@ aspect_no_iast_do_join: &aspect_no_iast_do_join
 aspect_iast_do_join:
     << : *aspect_no_iast_do_join
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_ljust: &aspect_no_iast_do_ljust
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_ljust"
     args: ['foobar', 2]
@@ -219,15 +219,15 @@ aspect_no_iast_do_ljust: &aspect_no_iast_do_ljust
 aspect_iast_do_ljust:
     << : *aspect_no_iast_do_ljust
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_lower: &aspect_no_iast_do_lower
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_lower"
     args: ['  fOobaR\t  \n']
@@ -235,15 +235,15 @@ aspect_no_iast_do_lower: &aspect_no_iast_do_lower
 aspect_iast_do_lower:
     << : *aspect_no_iast_do_lower
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_lstrip: &aspect_no_iast_do_lstrip
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_lstrip"
     args: ['  fOobaR\t  \n']
@@ -251,15 +251,15 @@ aspect_no_iast_do_lstrip: &aspect_no_iast_do_lstrip
 aspect_iast_do_lstrip:
     << : *aspect_no_iast_do_lstrip
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_modulo: &aspect_no_iast_do_modulo
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_modulo"
     args: ['foobar%s', 'baz']
@@ -267,15 +267,15 @@ aspect_no_iast_do_modulo: &aspect_no_iast_do_modulo
 aspect_iast_do_modulo:
     << : *aspect_no_iast_do_modulo
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_multiple_string_assigment: &aspect_no_iast_do_multiple_string_assigment
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_multiple_string_assigment"
     args: ['  fOobaR\t  \n']
@@ -283,15 +283,15 @@ aspect_no_iast_do_multiple_string_assigment: &aspect_no_iast_do_multiple_string_
 aspect_iast_do_multiple_string_assigment:
     << : *aspect_no_iast_do_multiple_string_assigment
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_namedtuple: &aspect_no_iast_do_namedtuple
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_namedtuple"
     args: ['  fOobaR\t  \n']
@@ -299,15 +299,15 @@ aspect_no_iast_do_namedtuple: &aspect_no_iast_do_namedtuple
 aspect_iast_do_namedtuple:
     << : *aspect_no_iast_do_namedtuple
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_operator_add_params: &aspect_no_iast_do_operator_add_params
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_operator_add_params"
     args: ['  fOobaR\t  \n', '  fOobaR\t  \n']
@@ -315,15 +315,15 @@ aspect_no_iast_do_operator_add_params: &aspect_no_iast_do_operator_add_params
 aspect_iast_do_operator_add_params:
     << : *aspect_no_iast_do_operator_add_params
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_partition: &aspect_no_iast_do_partition
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_partition"
     args: ['foobar', 'o']
@@ -331,15 +331,15 @@ aspect_no_iast_do_partition: &aspect_no_iast_do_partition
 aspect_iast_do_partition:
     << : *aspect_no_iast_do_partition
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_re_sub: &aspect_no_iast_do_re_sub
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_re_sub"
     args: ['foobar', 'o', 'a', 1]
@@ -347,31 +347,15 @@ aspect_no_iast_do_re_sub: &aspect_no_iast_do_re_sub
 aspect_iast_do_re_sub:
     << : *aspect_no_iast_do_re_sub
     loops: 1
-    values: 50
-    warmups: 5
-    iast_enabled: 1
-
-aspect_no_iast_do_re_subn: &aspect_no_iast_do_re_subn
-    iast_enabled: 0
-    loops: 1
-    values: 50
-    warmups: 5
-    mod_original_name: "bm.iast_fixtures.str_methods"
-    function_name: "do_re_subn"
-    args: ['foobar', 'o', 'a', 1]
-
-aspect_iast_do_re_subn:
-    << : *aspect_no_iast_do_re_subn
-    loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_replace: &aspect_no_iast_do_replace
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_replace"
     args: ['foobar', 'o', 'a', 1]
@@ -379,15 +363,15 @@ aspect_no_iast_do_replace: &aspect_no_iast_do_replace
 aspect_iast_do_replace:
     << : *aspect_no_iast_do_replace
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_repr: &aspect_no_iast_do_repr
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_repr"
     args: ['  fOobaR\t  \n']
@@ -395,31 +379,15 @@ aspect_no_iast_do_repr: &aspect_no_iast_do_repr
 aspect_iast_do_repr:
     << : *aspect_no_iast_do_repr
     loops: 1
-    values: 50
-    warmups: 5
-    iast_enabled: 1
-
-aspect_no_iast_do_rsplit_separator_and_maxsplit: &aspect_no_iast_do_rsplit_separator_and_maxsplit
-    iast_enabled: 0
-    loops: 1
-    values: 50
-    warmups: 5
-    mod_original_name: "bm.iast_fixtures.str_methods"
-    function_name: "do_rsplit_separator_and_maxsplit"
-    args: ['foo bar baz', ' ', 1]
-
-aspect_iast_do_rsplit_separator_and_maxsplit:
-    << : *aspect_no_iast_do_rsplit_separator_and_maxsplit
-    loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_sensitive_variables: &aspect_no_iast_do_sensitive_variables
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_sensitive_variables"
     args: ['  fOobaR\t  \n']
@@ -427,15 +395,15 @@ aspect_no_iast_do_sensitive_variables: &aspect_no_iast_do_sensitive_variables
 aspect_iast_do_sensitive_variables:
     << : *aspect_no_iast_do_sensitive_variables
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_slice: &aspect_no_iast_do_slice
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_slice"
     args: ['foobar', 1, 3, 1]
@@ -443,15 +411,15 @@ aspect_no_iast_do_slice: &aspect_no_iast_do_slice
 aspect_iast_do_slice:
     << : *aspect_no_iast_do_slice
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_split_separator_and_maxsplit: &aspect_no_iast_do_split_separator_and_maxsplit
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_split_separator_and_maxsplit"
     args: ['foo bar baz', ' ', 1]
@@ -459,15 +427,15 @@ aspect_no_iast_do_split_separator_and_maxsplit: &aspect_no_iast_do_split_separat
 aspect_iast_do_split_separator_and_maxsplit:
     << : *aspect_no_iast_do_split_separator_and_maxsplit
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_splitlines_keepends: &aspect_no_iast_do_splitlines_keepends
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_splitlines_keepends"
     args: ['foo\nbar', False]
@@ -475,15 +443,15 @@ aspect_no_iast_do_splitlines_keepends: &aspect_no_iast_do_splitlines_keepends
 aspect_iast_do_splitlines_keepends:
     << : *aspect_no_iast_do_splitlines_keepends
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_str: &aspect_no_iast_do_str
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_str"
     args: ['  fOobaR\t  \n']
@@ -491,47 +459,15 @@ aspect_no_iast_do_str: &aspect_no_iast_do_str
 aspect_iast_do_str:
     << : *aspect_no_iast_do_str
     loops: 1
-    values: 50
-    warmups: 5
-    iast_enabled: 1
-
-aspect_no_iast_do_str_to_bytearray: &aspect_no_iast_do_str_to_bytearray
-    iast_enabled: 0
-    loops: 1
-    values: 50
-    warmups: 5
-    mod_original_name: "bm.iast_fixtures.str_methods"
-    function_name: "do_str_to_bytearray"
-    args: ['  fOobaR\t  \n']
-
-aspect_iast_do_str_to_bytearray:
-    << : *aspect_no_iast_do_str_to_bytearray
-    loops: 1
-    values: 50
-    warmups: 5
-    iast_enabled: 1
-
-aspect_no_iast_do_str_to_bytes: &aspect_no_iast_do_str_to_bytes
-    iast_enabled: 0
-    loops: 1
-    values: 50
-    warmups: 5
-    mod_original_name: "bm.iast_fixtures.str_methods"
-    function_name: "do_str_to_bytes"
-    args: ['  fOobaR\t  \n']
-
-aspect_iast_do_str_to_bytes:
-    << : *aspect_no_iast_do_str_to_bytes
-    loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_string_assignment: &aspect_no_iast_do_string_assignment
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_string_assignment"
     args: ['  fOobaR\t  \n']
@@ -539,15 +475,15 @@ aspect_no_iast_do_string_assignment: &aspect_no_iast_do_string_assignment
 aspect_iast_do_string_assignment:
     << : *aspect_no_iast_do_string_assignment
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_stringio_init_and_read: &aspect_no_iast_do_stringio_init_and_read
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_stringio_init_and_read"
     args: ['  fOobaR\t  \n']
@@ -555,15 +491,15 @@ aspect_no_iast_do_stringio_init_and_read: &aspect_no_iast_do_stringio_init_and_r
 aspect_iast_do_stringio_init_and_read:
     << : *aspect_no_iast_do_stringio_init_and_read
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_swapcase: &aspect_no_iast_do_swapcase
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_swapcase"
     args: ['  fOobaR\t  \n']
@@ -571,15 +507,15 @@ aspect_no_iast_do_swapcase: &aspect_no_iast_do_swapcase
 aspect_iast_do_swapcase:
     << : *aspect_no_iast_do_swapcase
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_title: &aspect_no_iast_do_title
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_title"
     args: ['  fOobaR\t  \n']
@@ -587,15 +523,15 @@ aspect_no_iast_do_title: &aspect_no_iast_do_title
 aspect_iast_do_title:
     << : *aspect_no_iast_do_title
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_translate: &aspect_no_iast_do_translate
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_translate"
     args: ['  fOobaR\t  \n', '  fOobaR\t  \n']
@@ -603,15 +539,31 @@ aspect_no_iast_do_translate: &aspect_no_iast_do_translate
 aspect_iast_do_translate:
     << : *aspect_no_iast_do_translate
     loops: 1
-    values: 50
+    values: 10
+    warmups: 5
+    iast_enabled: 1
+
+aspect_no_iast_do_tuple_string_assignment: &aspect_no_iast_do_tuple_string_assignment
+    iast_enabled: 0
+    loops: 1
+    values: 10
+    warmups: 3
+    mod_original_name: "bm.iast_fixtures.str_methods"
+    function_name: "do_tuple_string_assignment"
+    args: ['foo']
+
+aspect_iast_do_tuple_string_assignment:
+    << : *aspect_no_iast_do_tuple_string_assignment
+    loops: 1
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_upper: &aspect_no_iast_do_upper
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_upper"
     args: ['  fOobaR\t  \n']
@@ -619,15 +571,15 @@ aspect_no_iast_do_upper: &aspect_no_iast_do_upper
 aspect_iast_do_upper:
     << : *aspect_no_iast_do_upper
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_zfill: &aspect_no_iast_do_zfill
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_zfill"
     args: ['foobar', 10]
@@ -635,15 +587,15 @@ aspect_no_iast_do_zfill: &aspect_no_iast_do_zfill
 aspect_iast_do_zfill:
     << : *aspect_no_iast_do_zfill
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_fmt_value: &aspect_no_iast_do_fmt_value
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods_py3"
     function_name: "do_fmt_value"
     args: ['  fOobaR\t  \n']
@@ -651,15 +603,15 @@ aspect_no_iast_do_fmt_value: &aspect_no_iast_do_fmt_value
 aspect_iast_do_fmt_value:
     << : *aspect_no_iast_do_fmt_value
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_repr_fstring: &aspect_no_iast_do_repr_fstring
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.str_methods_py3"
     function_name: "do_repr_fstring"
     args: ['  fOobaR\t  \n']
@@ -667,63 +619,15 @@ aspect_no_iast_do_repr_fstring: &aspect_no_iast_do_repr_fstring
 aspect_iast_do_repr_fstring:
     << : *aspect_no_iast_do_repr_fstring
     loops: 1
-    values: 50
-    warmups: 5
-    iast_enabled: 1
-
-aspect_no_iast_do_repr_fstring_with_expression1: &aspect_no_iast_do_repr_fstring_with_expression1
-    iast_enabled: 0
-    loops: 1
-    values: 50
-    warmups: 5
-    mod_original_name: "bm.iast_fixtures.str_methods_py3"
-    function_name: "do_repr_fstring_with_expression1"
-    args: []
-
-aspect_iast_do_repr_fstring_with_expression1:
-    << : *aspect_no_iast_do_repr_fstring_with_expression1
-    loops: 1
-    values: 50
-    warmups: 5
-    iast_enabled: 1
-
-aspect_no_iast_do_repr_fstring_with_format: &aspect_no_iast_do_repr_fstring_with_format
-    iast_enabled: 0
-    loops: 1
-    values: 50
-    warmups: 5
-    mod_original_name: "bm.iast_fixtures.str_methods_py3"
-    function_name: "do_repr_fstring_with_format"
-    args: ['  fOobaR\t  \n']
-
-aspect_iast_do_repr_fstring_with_format:
-    << : *aspect_no_iast_do_repr_fstring_with_format
-    loops: 1
-    values: 50
-    warmups: 5
-    iast_enabled: 1
-
-aspect_no_iast_do_zero_padding_fstring: &aspect_no_iast_do_zero_padding_fstring
-    iast_enabled: 0
-    loops: 1
-    values: 50
-    warmups: 5
-    mod_original_name: "bm.iast_fixtures.str_methods_py3"
-    function_name: "do_zero_padding_fstring"
-    args: ['  fOobaR\t  \n']
-
-aspect_iast_do_zero_padding_fstring:
-    << : *aspect_no_iast_do_zero_padding_fstring
-    loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_os_path_basename: &aspect_no_iast_do_os_path_basename
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.module_functions"
     function_name: "do_os_path_basename"
     args: ['foo/bar']
@@ -731,15 +635,15 @@ aspect_no_iast_do_os_path_basename: &aspect_no_iast_do_os_path_basename
 aspect_iast_do_os_path_basename:
     << : *aspect_no_iast_do_os_path_basename
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_os_path_dirname: &aspect_no_iast_do_os_path_dirname
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.module_functions"
     function_name: "do_os_path_dirname"
     args: ['  fOobaR\t  \n']
@@ -747,15 +651,15 @@ aspect_no_iast_do_os_path_dirname: &aspect_no_iast_do_os_path_dirname
 aspect_iast_do_os_path_dirname:
     << : *aspect_no_iast_do_os_path_dirname
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_os_path_join: &aspect_no_iast_do_os_path_join
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.module_functions"
     function_name: "do_os_path_join"
     args: ['  fOobaR\t  \n', '  fOobaR\t  \n']
@@ -763,15 +667,15 @@ aspect_no_iast_do_os_path_join: &aspect_no_iast_do_os_path_join
 aspect_iast_do_os_path_join:
     << : *aspect_no_iast_do_os_path_join
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_os_path_normcase: &aspect_no_iast_do_os_path_normcase
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.module_functions"
     function_name: "do_os_path_normcase"
     args: ['  fOobaR\t  \n']
@@ -779,15 +683,15 @@ aspect_no_iast_do_os_path_normcase: &aspect_no_iast_do_os_path_normcase
 aspect_iast_do_os_path_normcase:
     << : *aspect_no_iast_do_os_path_normcase
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_os_path_split: &aspect_no_iast_do_os_path_split
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.module_functions"
     function_name: "do_os_path_split"
     args: ['foo/bar']
@@ -795,15 +699,15 @@ aspect_no_iast_do_os_path_split: &aspect_no_iast_do_os_path_split
 aspect_iast_do_os_path_split:
     << : *aspect_no_iast_do_os_path_split
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_os_path_splitdrive: &aspect_no_iast_do_os_path_splitdrive
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.module_functions"
     function_name: "do_os_path_splitdrive"
     args: ['foo/bar']
@@ -811,15 +715,15 @@ aspect_no_iast_do_os_path_splitdrive: &aspect_no_iast_do_os_path_splitdrive
 aspect_iast_do_os_path_splitdrive:
     << : *aspect_no_iast_do_os_path_splitdrive
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 aspect_no_iast_do_os_path_splitext: &aspect_no_iast_do_os_path_splitext
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.module_functions"
     function_name: "do_os_path_splitext"
     args: ['foo/bar.txt']
@@ -827,8 +731,9 @@ aspect_no_iast_do_os_path_splitext: &aspect_no_iast_do_os_path_splitext
 aspect_iast_do_os_path_splitext:
     << : *aspect_no_iast_do_os_path_splitext
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 
 # end content autogenerated by aspects_benchmarks_generate.py
+

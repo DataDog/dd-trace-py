@@ -142,7 +142,14 @@ _module_meta = {
         "do_str_to_bytes_to_bytearray_to_str",
         "do_stringio_init",
         "do_stringio_init_and_getvalue",
-        "do_tuple_string_assignment",
+        "do_multiple_string_assignment",
+        "do_re_subn",
+        "do_rsplit_separator_and_maxsplit",
+        "do_str_to_bytearray",
+        "do_str_to_bytes",
+        "do_repr_fstring_with_expression1",
+        "do_repr_fstring_with_format",
+        "do_zero_padding_fstring",
     },
     "special_arguments": {
         "do_center": ["foobar", 2],
@@ -244,8 +251,8 @@ _config_yaml_content = """\
 aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
     iast_enabled: 0
     loops: 1
-    values: 50
-    warmups: 5
+    values: 10
+    warmups: 3
     mod_original_name: "bm.iast_fixtures.{mod_original_name}"
     function_name: "{function_name}"
     args: {args}
@@ -253,7 +260,7 @@ aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
 aspect_iast_{function_name}:
     << : *aspect_no_iast_{function_name}
     loops: 1
-    values: 50
+    values: 10
     warmups: 5
     iast_enabled: 1
 """
