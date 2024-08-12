@@ -369,7 +369,7 @@ f.wsgi_app()
     assert metric_events[0]["payload"]["series"][0]["type"] == "count"
     assert len(metric_events[0]["payload"]["series"][0]["points"]) == 1
     assert metric_events[0]["payload"]["series"][0]["points"][0][1] == 1
-    assert metric_events[0]["payload"]["series"][0]["tags"] == ["integration_name:internal", "error_type:valueerror"]
+    assert metric_events[0]["payload"]["series"][0]["tags"] == ["integration_name:flask", "error_type:valueerror"]
 
 
 def test_app_started_with_install_metrics(test_agent_session, run_python_code_in_subprocess):
