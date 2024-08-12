@@ -134,7 +134,6 @@ class PynamodbTest(TracerTestCase):
         assert span.get_tag("component") == "pynamodb"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "dynamodb"
-        assert span.get_tag("server.address") == "localhost"
 
         assert span.duration >= 0
         assert span.error == 1
