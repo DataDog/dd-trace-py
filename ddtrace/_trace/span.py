@@ -158,12 +158,15 @@ class Span(object):
         if not (span_id is None or isinstance(span_id, int)):
             if config._raise:
                 raise TypeError("span_id must be an integer")
+            return
         if not (trace_id is None or isinstance(trace_id, int)):
             if config._raise:
                 raise TypeError("trace_id must be an integer")
+            return
         if not (parent_id is None or isinstance(parent_id, int)):
             if config._raise:
                 raise TypeError("parent_id must be an integer")
+            return
 
         self.name = name
         self.service = service
@@ -594,7 +597,7 @@ class Span(object):
             if config._raise:
                 raise ValueError(msg)
             else:
-                log.warning("Invalid span or trace id. trace_id:%s span_id:%s", context.trace_id, context.span_id)
+                log.warning(msg)
 
         if context.trace_id and context.span_id:
             self.set_link(

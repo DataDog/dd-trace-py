@@ -272,7 +272,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             headers.update(client._headers)
         return headers
 
-    def _send_payload(self, payload, count, client) -> Response:
+    def _send_payload(self, payload: bytes, count: int, client: WriterClientBase) -> Response:
         headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")

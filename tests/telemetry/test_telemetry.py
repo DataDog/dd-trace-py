@@ -61,13 +61,13 @@ import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 
-telemetry_writer.app_started()
+telemetry_writer._app_started_event()
 
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
-    telemetry_writer.app_started()
-    telemetry_writer.app_started()
-    telemetry_writer.app_started()
+    telemetry_writer._app_started_event()
+    telemetry_writer._app_started_event()
+    telemetry_writer._app_started_event()
 else:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
@@ -219,6 +219,27 @@ tracer.trace("hello").finish()
     assert pattern.match(app_started_events[0]["payload"]["error"]["message"]), app_started_events[0]["payload"][
         "error"
     ]["message"]
+
+
+def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    assert status == 1, stderr
+    assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
+
+    app_closings = test_agent_session.get_events("app-closing")
+    assert len(app_closings) == 1
+    app_starteds = test_agent_session.get_events("app-started")
+    assert len(app_starteds) == 1
+
+    # Same runtime id is used
+    assert app_closings[0]["runtime_id"] == app_starteds[0]["runtime_id"]
+
+    assert app_starteds[0]["payload"]["error"]["code"] == 1
+    assert "ddtrace/internal/sampling.py" in app_starteds[0]["payload"]["error"]["message"]
+    assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in app_starteds[0]["payload"]["error"]["message"]
 
 
 def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
