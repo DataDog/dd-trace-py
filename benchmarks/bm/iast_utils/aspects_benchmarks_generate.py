@@ -217,7 +217,6 @@ def generate_functions_dict():
     for _, module_dict in _patching_guide.items():
         symbol_unpatched = module_dict["symbol_unpatched"]
         # get all the functions that are not classes and not imported from other modules
-        base_mod_name = os.path.basename(symbol_unpatched.__file__)
 
         for f in dir(symbol_unpatched):
             if f.startswith("_"):
