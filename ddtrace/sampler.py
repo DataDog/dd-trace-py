@@ -85,6 +85,7 @@ class RateSampler(BaseSampler):
     """
 
     def __init__(self, sample_rate: float = 1.0) -> None:
+        """sample_rate is clamped between 0 and 1 inclusive"""
         sample_rate = min(1, max(0, sample_rate))
         self.set_sample_rate(sample_rate)
         log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
@@ -245,9 +246,10 @@ class DatadogSampler(RateByServiceSampler):
             self.rules = []
             # Validate that rules is a list of SampleRules
             for rule in rules:
-                if config._raise and not isinstance(rule, SamplingRule):
+                if isinstance(rule, SamplingRule):
+                    self.rules.append(rule)
+                elif config._raise:
                     raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
-                self.rules.append(rule)
 
         # DEV: Default sampling rule must come last
         if default_sample_rate is not None:

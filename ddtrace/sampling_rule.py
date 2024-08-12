@@ -55,7 +55,7 @@ class SamplingRule(object):
             ])
 
         :param sample_rate: The sample rate to apply to any matching spans
-        :type sample_rate: :obj:`float` greater than or equal to 0.0 and less than or equal to 1.0
+        :type sample_rate: :obj:`float` clamped between 0.0 and 1.0 inclusive
         :param service: Rule to match the `span.service` on, default no rule defined
         :type service: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
         :param name: Rule to match the `span.name` on, default no rule defined
