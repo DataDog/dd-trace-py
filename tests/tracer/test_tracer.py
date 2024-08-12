@@ -636,8 +636,9 @@ class TracerTestCases(TracerTestCase):
 
 @pytest.mark.subprocess(env=dict(DD_AGENT_PORT="", DD_AGENT_HOST="", DD_TRACE_AGENT_URL=""))
 def test_tracer_url():
-    import ddtrace
     import pytest
+
+    import ddtrace
 
     t = ddtrace.Tracer()
     assert t._writer.agent_url == "http://localhost:8126"
@@ -950,7 +951,11 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "django"
                     assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
 
-    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="", DD_TRACE_AGENT_URL="", DATADOG_TRACE_AGENT_HOSTNAME=""))
+    @run_in_subprocess(
+        env_overrides=dict(
+            AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="", DD_TRACE_AGENT_URL="", DATADOG_TRACE_AGENT_HOSTNAME=""
+        )
+    )
     def test_detect_agentless_env_with_lambda(self):
         assert in_aws_lambda()
         assert not has_aws_lambda_agent_extension()
@@ -1184,7 +1189,7 @@ def test_runtime_id_parent_only():
 
 @pytest.mark.skipif(
     PYTHON_VERSION_INFO >= (3, 12),
-    reason="This test runs in a multithreaded process, using os.fork() may cause deadlocks in child proccesses",
+    reason="This test runs in a multithreaded process, using os.fork() may cause deadlocks in child processes",
 )
 @pytest.mark.subprocess
 def test_runtime_id_fork():
