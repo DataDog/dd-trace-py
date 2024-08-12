@@ -375,4 +375,4 @@ pytest = ["~=6.0", ">7"]
 
 [[envs.pytest_plugin_v2.matrix]]
 python = ["3.10", "3.12"]
-pytest = ["~=6.2", "~=7.0", ">7"]
+pytest = ["~=6.0", "~=7.0", ">7"]
