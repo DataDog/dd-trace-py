@@ -4,6 +4,17 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.10.4
+
+
+### Bug Fixes
+
+- SSI: Fixes incorrect file permissions on lib-injection images.
+- profiling: Shows lock init location in Lock Name and hides profiler internal frames from Stack Frame in Timeline Details tab.
+
+
+---
+
 ## 2.10.3
 
 ### Bug Fixes
