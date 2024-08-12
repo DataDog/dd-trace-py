@@ -713,7 +713,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=3)
         spans = self.pop_spans()
 
-        assert len(spans) == (6 if _USE_PLUGIN_V2 else 7)
+        assert len(spans) == (6 if _USE_PLUGIN_V2 else 8)
         non_session_spans = [span for span in spans if span.get_tag("type") != "test_session_end"]
         for span in non_session_spans:
             if span.get_tag("type") == "test_suite_end":
@@ -1026,11 +1026,12 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
         test_session_span = _get_spans_from_list(spans, "session")[0]
-        test_a_module_span = _get_spans_from_list(spans, "module")[0]
+        test_module_spans = _get_spans_from_list(spans, "module")
+        test_a_module_span = test_module_spans[0]
         assert test_a_module_span.get_tag("type") == "test_module_end"
         test_a_suite_span = _get_spans_from_list(spans, "suite", "test_a.py")[0]
         assert test_a_suite_span.get_tag("type") == "test_suite_end"
-        test_b_module_span = _get_spans_from_list(spans, "module")[0]
+        test_b_module_span = test_module_spans[0] if _USE_PLUGIN_V2 else test_module_spans[1]
         assert test_b_module_span.get_tag("type") == "test_module_end"
         test_b_suite_span = _get_spans_from_list(spans, "suite", "test_b.py")[0]
         assert test_b_suite_span.get_tag("type") == "test_suite_end"
@@ -1062,11 +1063,12 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
         test_session_span = _get_spans_from_list(spans, "session")[0]
-        test_a_module_span = _get_spans_from_list(spans, "module")[0]
+        test_module_spans = _get_spans_from_list(spans, "module")
+        test_a_module_span = test_module_spans[0]
         assert test_a_module_span.get_tag("type") == "test_module_end"
         test_a_suite_span = _get_spans_from_list(spans, "suite", "test_a.py")[0]
         assert test_a_suite_span.get_tag("type") == "test_suite_end"
-        test_b_module_span = _get_spans_from_list(spans, "module")[0]
+        test_b_module_span = test_module_spans[0] if _USE_PLUGIN_V2 else test_module_spans[1]
         assert test_b_module_span.get_tag("type") == "test_module_end"
         test_b_suite_span = _get_spans_from_list(spans, "suite", "test_b.py")[0]
         assert test_b_suite_span.get_tag("type") == "test_suite_end"
@@ -1168,11 +1170,11 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=1, passed=1)
         spans = self.pop_spans()
-        test_span_skipped = spans[0]
-        test_span_ok = spans[1]
-        test_suite_span = spans[4]
-        test_session_span = spans[2]
-        test_module_span = spans[3]
+        test_session_span = _get_spans_from_list(spans, "session")[0]
+        test_module_span = _get_spans_from_list(spans, "module")[0]
+        test_suite_span = _get_spans_from_list(spans, "suite")[0]
+        test_span_skipped = _get_spans_from_list(spans, "test", "test_not_ok_but_skipped")[0]
+        test_span_ok = _get_spans_from_list(spans, "test", "test_ok")[0]
         assert test_suite_span.get_tag("type") == "test_suite_end"
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_session_span.get_tag("type") == "test_session_end"
@@ -2340,6 +2342,8 @@ class PytestTestCase(TracerTestCase):
         self.testdir.chdir()
         with override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled", return_value=True
         ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",

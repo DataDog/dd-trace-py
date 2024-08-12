@@ -266,20 +266,22 @@ class _PytestDDTracePluginV2:
         # add it as a tag immediately:
         if getattr(result, "wasxfail", None):
             CITest.set_tag(test_id, XFAIL_REASON, result.wasxfail)
+        elif getattr(result, "longrepr", None):
+            CITest.set_tag(test_id, XFAIL_REASON, result.longrepr)
 
         # Only capture result if:
         # - there is an exception
+        # - the test failed
         # - the test passed with xfail
         # - we are tearing down the test
         # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
 
-        if call.when != "teardown" and not has_exception:
+        if call.when != "teardown" and not (has_exception or result.failed):
             return
 
-        # There are scenarios in which we may have already finished this item
-        # - if it was skipped by ITR
+        # There are scenarios in which we may have already finished this item in setup or call, eg:
+        # - it was skipped by ITR
         # - it was marked with skipif
-        # - it passed but was xfail
         if CITest.is_finished(test_id):
             return
 
@@ -321,6 +323,8 @@ class _PytestDDTracePluginV2:
             if xfail_reason_tag is None:
                 CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
             CITest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
+            CITest.mark_fail(test_id)
+            return
 
         exc_info = CIExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 

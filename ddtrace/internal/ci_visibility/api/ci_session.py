@@ -61,10 +61,9 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
         """Set session-level tags based in ITR enablement status"""
         super()._set_itr_tags(itr_enabled)
 
-        self.set_tag(test.ITR_TEST_SKIPPING_ENABLED, self._session_settings.itr_test_skipping_enabled)
-        self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)
-
         if itr_enabled:
+            self.set_tag(test.ITR_TEST_SKIPPING_ENABLED, self._session_settings.itr_test_skipping_enabled)
+            self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)
             self.set_tag(test.ITR_TEST_SKIPPING_TYPE, self._session_settings.itr_test_skipping_level)
 
     def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
