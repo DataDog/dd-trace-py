@@ -65,7 +65,7 @@ def _check_for_stack_v2_available():
 # We don't check for the availability of the ddup module when determining whether libdd is _required_,
 # since it's up to the application code to determine what happens in that failure case.
 def _is_libdd_required(config):
-    return config.stack.v2.enabled or config._libdd_required
+    return config.stack.v2.enabled or config._libdd_required or config.timeline_enabled
 
 
 class ProfilingConfig(En):
