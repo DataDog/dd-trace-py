@@ -23,12 +23,10 @@ from ddtrace.contrib.internal.psycopg.extensions import _unpatch_extensions
 from ddtrace.contrib.internal.psycopg.extensions import get_psycopg2_extensions
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
@@ -77,37 +75,17 @@ config._add(
 )
 
 
-def _get_version():
+def get_version():
     # type: () -> str
     return ""
-
-
-def get_version():
-    deprecate(
-        "get_version is deprecated",
-        message="get_version is deprecated",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    return _get_version()
 
 
 PATCHED_VERSIONS = {}
 
 
-def _get_versions():
+def get_versions():
     # type: () -> List[str]
     return PATCHED_VERSIONS
-
-
-def get_versions():
-    deprecate(
-        "get_versions is deprecated",
-        message="get_versions is deprecated",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    return _get_versions()
 
 
 def _psycopg_modules():
@@ -150,8 +128,8 @@ def _patch(psycopg_module):
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
-        _w(psycopg_module, "Cursor", _init_cursor_from_connection_factory(psycopg_module))
-        _w(psycopg_module, "AsyncCursor", _init_cursor_from_connection_factory(psycopg_module))
+        _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
+        _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
 
         _w(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module.AsyncConnection, "connect", patched_connect_async_factory(psycopg_module))
@@ -188,7 +166,7 @@ def _unpatch(psycopg_module):
             pin.remove_from(psycopg_module)
 
 
-def _init_cursor_from_connection_factory(psycopg_module):
+def init_cursor_from_connection_factory(psycopg_module):
     def init_cursor_from_connection(wrapped_cursor_cls, _, args, kwargs):
         connection = kwargs.pop("connection", None)
         if not connection:
@@ -233,13 +211,3 @@ def _init_cursor_from_connection_factory(psycopg_module):
         return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
 
     return init_cursor_from_connection
-
-
-def init_cursor_from_connection_factory(psycopg_module):
-    deprecate(
-        "init_cursor_from_connection_factory is deprecated",
-        message="init_cursor_from_connection_factory is deprecated",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
-    return _init_cursor_from_connection_factory(psycopg_module)
