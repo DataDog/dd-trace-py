@@ -14,6 +14,9 @@ constexpr unsigned int g_backend_max_nframes = 512;
 // Maximum amount of time, in seconds, to wait for crashtracker send operations
 constexpr uint64_t g_crashtracker_timeout_secs = 5;
 
+// Default value for the max number of samples to keep in the SynchronizedSamplePool
+constexpr size_t g_default_sample_pool_capacity = 4;
+
 // Default name of the runtime.  This will almost certainly get overridden by the caller, but we set it here
 // as a reasonable default just in case.
 constexpr std::string_view g_runtime_name = "CPython";
