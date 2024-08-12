@@ -57,6 +57,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         try:
             span_event = self._llmobs_span_event(span)
+            print(span_event)
             self._span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
@@ -65,6 +66,8 @@ class LLMObsTraceProcessor(TraceProcessor):
         """Span event object structure."""
         span_kind = span._meta.pop(SPAN_KIND)
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
+        if span.get_tag("PROMPT_TEMPLATE") is not None:
+            meta["input"]["prompt_template"] = json.loads(span._meta.pop("PROMPT_TEMPLATE"))
         if span_kind in ("llm", "embedding") and span.get_tag(MODEL_NAME) is not None:
             meta["model_name"] = span._meta.pop(MODEL_NAME)
             meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom").lower()

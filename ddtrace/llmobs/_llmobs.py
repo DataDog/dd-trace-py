@@ -50,6 +50,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import LLMObsSpanContext
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import SpanField
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -267,7 +268,7 @@ class LLMObs(Service):
             trace_id="{:x}".format(span.trace_id),
             name=span.name,
             parent_id=_get_llmobs_parent_id(span),
-            kind=span.get_tag(SPAN_KIND),
+            span=SpanField(kind=span.get_tag(SPAN_KIND)),
             ml_app=_get_ml_app(span),
         )
 
@@ -315,7 +316,10 @@ class LLMObs(Service):
         if session_id is not None:
             exported_span.session_id = session_id
 
-        exported_span.tags = _get_llmobs_tags(span, ml_app=_get_ml_app(span), session_id=_get_session_id(span))
+        tagDict = _get_llmobs_tags(span, ml_app=_get_ml_app(span), session_id=_get_session_id(span))
+        tags = ["{}:{}".format(k, v) for k, v in tagDict.items()]
+        exported_span.tags = tags
+
         return exported_span
 
     @classmethod
@@ -539,6 +543,7 @@ class LLMObs(Service):
         metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
         tags: Optional[Dict[str, Any]] = None,
+        prompt_template=None,
     ) -> None:
         """
         Sets parameters, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
@@ -585,6 +590,9 @@ class LLMObs(Service):
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
+        if prompt_template is not None:
+            span.set_tag_str("PROMPT_TEMPLATE", json.dumps(prompt_template))
+
         if input_data or output_data:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)

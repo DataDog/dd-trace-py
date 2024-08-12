@@ -28,11 +28,27 @@ class MetaIO(BaseModel):
     messages: Optional[List[Dict[str, str]]] = None
 
 
+class Prompt(BaseModel):
+    template: str = ""
+    variables: Dict = {}
+    prompt_version: str = ""
+
+
+class SpanField(BaseModel):
+    kind: str = ""
+
+
+class Error(BaseModel):
+    message: str = ""
+    stack: str = ""
+
+
 class Meta(BaseModel):
     # model_* is a protected namespace in pydantic, so we need to add this line to allow
     # for model_* fields
     model_config = ConfigDict(protected_namespaces=())
-
+    span: SpanField = SpanField()
+    error: Error = Error()
     input: MetaIO = MetaIO()
     output: MetaIO = MetaIO()
     metadata: Dict = {}
@@ -45,12 +61,11 @@ class LLMObsSpanContext(BaseModel):
     span_id: str
     trace_id: str
     name: str
-    kind: str
     ml_app: str
     meta: Meta = Meta()
     session_id: str = ""
     metrics: Dict[str, Union[int, float]] = {}
-    tags: Dict[str, str] = {}
+    tags: List[str] = []
 
 
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
