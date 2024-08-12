@@ -102,7 +102,9 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
             _initializer_size = initializer_size()
             assert _initializer_size > 0
 
-        assert _num_objects_tainted == num_objects_tainted()
+        # Some tainted pyobject is freed, and Python may reuse the memory address
+        # hence the number of tainted objects may be the same or less
+        assert _num_objects_tainted in (num_objects_tainted(), num_objects_tainted() - 1)
         assert _active_map_addreses_size == active_map_addreses_size()
         assert _initializer_size == initializer_size()
         reset_context()
