@@ -7,7 +7,6 @@ from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SERVICE
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SPAN_ID
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_TRACE_ID
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_VALUE_EMPTY
-from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_VALUE_ZERO
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_VERSION
 from ddtrace.contrib.trace_utils import unwrap as _u
 from ddtrace.internal.utils import get_argument_value
@@ -26,19 +25,11 @@ def get_version():
 
 
 def _tracer_injection(event_dict):
-    span = ddtrace.tracer.current_span()
-
-    trace_id = None
-    span_id = None
-    if span:
-        span_id = span.span_id
-        trace_id = span.trace_id
-        if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-            trace_id = span._trace_id_64bits
+    trace_details = ddtrace.tracer.get_log_correlation_context()
 
     # add ids to logbook event dictionary
-    event_dict[RECORD_ATTR_TRACE_ID] = str(trace_id or RECORD_ATTR_VALUE_ZERO)
-    event_dict[RECORD_ATTR_SPAN_ID] = str(span_id or RECORD_ATTR_VALUE_ZERO)
+    event_dict[RECORD_ATTR_TRACE_ID] = trace_details["trace_id"]
+    event_dict[RECORD_ATTR_SPAN_ID] = trace_details["span_id"]
     # add the env, service, and version configured for the tracer
     event_dict[RECORD_ATTR_ENV] = config.env or RECORD_ATTR_VALUE_EMPTY
     event_dict[RECORD_ATTR_SERVICE] = config.service or RECORD_ATTR_VALUE_EMPTY
