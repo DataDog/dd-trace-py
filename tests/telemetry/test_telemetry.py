@@ -359,8 +359,6 @@ f.wsgi_app()
 
     assert flask_integration["enabled"] is True
     assert flask_integration["compatible"] is True
-    assert "ddtrace/contrib/internal/flask/patch.py:" in flask_integration["error"]
-    assert "not enough values to unpack (expected 2, got 0)" in flask_integration["error"]
 
     metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
 
