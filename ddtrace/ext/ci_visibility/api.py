@@ -138,6 +138,14 @@ def disable_ci_visibility():
 
 class CIBase(_CIVisibilityAPIBase):
     @staticmethod
+    def get_tag(item_id: CIItemId, tag_name: str) -> Any:
+        log.debug("Getting tag for item %s: %s", item_id, tag_name)
+        tag_value = core.dispatch_with_results(
+            "ci_visibility.item.get_tag", (CIBase.GetTagArgs(item_id, tag_name),)
+        ).tag_value.value
+        return tag_value
+
+    @staticmethod
     def set_tag(item_id: CIItemId, tag_name: str, tag_value: Any, recurse: bool = False):
         log.debug("Setting tag for item %s: %s=%s", item_id, tag_name, tag_value)
         core.dispatch("ci_visibility.item.set_tag", (CIBase.SetTagArgs(item_id, tag_name, tag_value),))

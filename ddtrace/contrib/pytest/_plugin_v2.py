@@ -189,6 +189,10 @@ class _PytestDDTracePluginV2:
 
             CITest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
 
+            markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
+            for tags in markers:
+                CITest.set_tags(test_id, tags)
+
             # Pytest markers do not allow us to determine if the test or the suite was marked as unskippable, but any
             # test marked unskippable in a suite makes the entire suite unskippable (since we are in suite skipping
             # mode)
@@ -249,24 +253,38 @@ class _PytestDDTracePluginV2:
     def pytest_runtest_makereport(item, call) -> None:
         """Store outcome for tracing."""
         outcome: pytest.TestReport = yield
+        result = outcome.get_result()
 
         if not is_ci_visibility_enabled():
             return
 
-        # Only capture result if there is an exception, or if we are tearing down the test
-        # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
+        test_id = _get_test_id_from_item(item)
+
         has_exception = call.excinfo is not None
+
+        # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
+        # add it as a tag immediately:
+        if getattr(result, "wasxfail", None):
+            CITest.set_tag(test_id, XFAIL_REASON, result.wasxfail)
+
+        # Only capture result if:
+        # - there is an exception
+        # - the test passed with xfail
+        # - we are tearing down the test
+        # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
+
         if call.when != "teardown" and not has_exception:
             return
 
-        test_id = _get_test_id_from_item(item)
-
-        # We may have already finished this item (eg: if it was skipped by ITR, or if it was marked to skip)
+        # There are scenarios in which we may have already finished this item
+        # - if it was skipped by ITR
+        # - it was marked with skipif
+        # - it passed but was xfail
         if CITest.is_finished(test_id):
             return
 
-        result = outcome.get_result()
         xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
+        xfail_reason_tag = CITest.get_tag(test_id, XFAIL_REASON) if xfail else None
         has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
         # If run with --runxfail flag, tests behave as if they were not marked with xfail,
@@ -280,7 +298,8 @@ class _PytestDDTracePluginV2:
                 # XFail tests that fail are recorded skipped by pytest, should be passed instead
                 if not item.config.option.runxfail:
                     CITest.set_tag(test_id, test.RESULT, test.Status.XFAIL.value)
-                    CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                    if xfail_reason_tag is None:
+                        CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
                     CITest.mark_pass(test_id)
                     return
 
@@ -290,7 +309,8 @@ class _PytestDDTracePluginV2:
         if result.passed:
             if xfail and not has_skip_keyword and not item.config.option.runxfail:
                 # XPass (strict=False) are recorded passed by pytest
-                CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                if xfail_reason_tag is None:
+                    CITest.set_tag(test_id, XFAIL_REASON, "XFail")
                 CITest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
 
             CITest.mark_pass(test_id)
@@ -298,7 +318,8 @@ class _PytestDDTracePluginV2:
 
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
-            CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
+            if xfail_reason_tag is None:
+                CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
             CITest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
 
         exc_info = CIExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None

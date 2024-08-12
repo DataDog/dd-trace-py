@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Union  # noqa:F401
@@ -79,7 +80,6 @@ from .writer import CIVisibilityWriter
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
     from typing import DefaultDict  # noqa:F401
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
@@ -1157,6 +1157,14 @@ def _register_coverage_handlers():
 
 
 @_requires_civisibility_enabled
+def _on_get_tag(get_tag_args: CIBase.GetTagArgs) -> Any:
+    item_id = get_tag_args.item_id
+    key = get_tag_args.name
+    log.debug("Handling get tag for item id %s, key %s", item_id, key)
+    return CIVisibility.get_item_by_id(item_id).get_tag(key)
+
+
+@_requires_civisibility_enabled
 def _on_set_tag(set_tag_args: CIBase.SetTagArgs) -> None:
     item_id = set_tag_args.item_id
     key = set_tag_args.name
@@ -1191,6 +1199,7 @@ def _on_delete_tags(delete_tags_args: CIBase.DeleteTagsArgs) -> None:
 
 def _register_tag_handlers():
     log.debug("Registering tag handlers")
+    core.on("ci_visibility.item.get_tag", _on_get_tag, "tag_value")
     core.on("ci_visibility.item.set_tag", _on_set_tag)
     core.on("ci_visibility.item.set_tags", _on_set_tags)
     core.on("ci_visibility.item.delete_tag", _on_delete_tag)

@@ -513,15 +513,17 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 5
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        assert test_spans[0].get_tag(test.STATUS) == test.Status.PASS.value
-        assert test_spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
-        assert test_spans[0].get_tag(XFAIL_REASON) == "test should fail"
-        assert test_spans[1].get_tag(test.STATUS) == test.Status.PASS.value
-        assert test_spans[1].get_tag(test.RESULT) == test.Status.XPASS.value
-        assert test_spans[1].get_tag(XFAIL_REASON) == "test should not xfail"
-        assert test_spans[0].get_tag("component") == "pytest"
-        assert test_spans[1].get_tag("component") == "pytest"
+        test_should_fail_span = _get_spans_from_list(spans, "test", "test_should_fail_but_passes")[0]
+        assert test_should_fail_span.get_tag(test.STATUS) == test.Status.PASS.value
+        assert test_should_fail_span.get_tag(test.RESULT) == test.Status.XPASS.value
+        assert test_should_fail_span.get_tag(XFAIL_REASON) == "test should fail"
+        assert test_should_fail_span.get_tag("component") == "pytest"
+
+        test_should_not_fail_span = _get_spans_from_list(spans, "test", "test_should_not_fail")[0]
+        assert test_should_not_fail_span.get_tag(test.STATUS) == test.Status.PASS.value
+        assert test_should_not_fail_span.get_tag(test.RESULT) == test.Status.XPASS.value
+        assert test_should_not_fail_span.get_tag(XFAIL_REASON) == "test should not xfail"
+        assert test_should_not_fail_span.get_tag("component") == "pytest"
 
     def test_xpass_strict(self):
         """Test xpass (unexpected passing) with strict=True, should be marked as fail."""
@@ -540,7 +542,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        span = [span for span in spans if span.get_tag("type") == "test"][0]
+        span = _get_spans_from_list(spans, "test")[0]
         assert span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert span.get_tag(test.RESULT) == test.Status.XPASS.value
         # Note: XFail (strict=True) does not mark the reason with result.wasxfail but into result.longrepr,
