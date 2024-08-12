@@ -85,6 +85,7 @@ psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
 DB_CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "HOST",
     net.TARGET_PORT: "PORT",
+    net.SERVER_ADDRESS: "HOST",
     db.USER: "USER",
     db.NAME: "NAME",
 }
