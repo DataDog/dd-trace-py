@@ -45,85 +45,98 @@ _patching_guide = {
 # functions).
 # special_arguments = use other arguments than the default "  fOo\t  \n", and "  bAr\t  \n"
 _module_meta = {
-    "str_methods.py": {
-        "excluded": {
-            "do_args_kwargs_1",
-            "do_args_kwargs_2",
-            "do_args_kwargs_3",
-            "do_args_kwargs_4",
-            "do_decorated_function",
-            "do_format_key_error",
-            "do_join_map_unpack_with_call",
-            "do_join_tuple_unpack_with_call",
-            "do_join_tuple_unpack_with_call_for_mock",
-            "do_join_tuple_unpack_with_call_no_replace",
-            "do_join_tuple_unpack_with_call_with_methods",
-            "do_json_loads",
-            "do_methodcaller",
-            "do_return_a_decorator",
-            "do_slice_2_and_two_strings",
-            "do_slice_complex",
-            "do_stringio_init_and_getvalue_param",
-            "do_stringio_init_param",
-            "wrapper",
-            # Since this is exported and passed as a command line argument, bytearray() and byte arguments are not
-            # processed well
-            "do_bytearray_append",
-            "do_bytearray_extend",
-            "do_bytearray_to_bytes",
-            "do_bytearray_to_str",
-            "do_bytes",
-            "do_bytes_to_bytearray",
-            "do_bytes_to_iter_bytearray",
-            "do_bytes_to_str",
-            "do_decode",
-            "do_decode_simple",
-        },
-        "special_arguments": {
-            "do_center": ["foobar", 2],
-            "do_encode": ["foobar", "utf-8", "strict"],
-            "do_encode_from_dict": ["foobar", "utf-8", "strict"],
-            "do_format": ["foobar{}", "baz"],
-            "do_format_map": ["foobar{baz}", {"baz": "bar"}],
-            "do_format_with_named_parameter": ["foobar{key}", "baz"],
-            "do_format_with_positional_parameter": ["foobar{}", "baz"],
-            "do_index": ["foobar", 3],
-            "do_join": ["foobar", ["baz", "pok"]],
-            "do_join_args_kwargs": ["foobar", ["baz", "pok"]],
-            "do_ljust": ["foobar", 2],
-            "do_ljust_2": ["foobar", 2, "x"],
-            "do_modulo": ["foobar%s", "baz"],
-            "do_partition": ["foobar", "o"],
-            "do_re_sub": ["foobar", "o", "a", 1],
-            "do_re_subn": ["foobar", "o", "a", 1],
-            "do_replace": ["foobar", "o", "a", 1],
-            "do_rplit_separator_and_maxsplit": ["foobar", "o", 1],
-            "do_rsplit": ["foo bar baz", " ", 1],
-            "do_rsplit_maxsplit": ["foo bar baz", 1],
-            "do_rsplit_separator": ["foobar", "o"],
-            "do_rsplit_separator_and_maxsplit": ["foo bar baz", " ", 1],
-            "do_slice": ["foobar", 1, 3, 1],
-            "do_slice_2": ["foobar", 1, 3, 1],
-            "do_slice_condition": ["foobar", 1, 3],
-            "do_split_maxsplit": ["foo bar baz", 1],
-            "do_split_separator": ["foobar", "o"],
-            "do_split_separator_and_maxsplit": ["foo bar baz", " ", 1],
-            "do_splitlines_keepends": ["foo\nbar", False],
-            "do_tuple_string_assignment": ["foo"],
-            "do_zfill": ["foobar", 10],
-        },
+    "excluded": {
+        "do_args_kwargs_1",
+        "do_args_kwargs_2",
+        "do_args_kwargs_3",
+        "do_args_kwargs_4",
+        "do_decorated_function",
+        "do_format_key_error",
+        "do_join_map_unpack_with_call",
+        "do_join_tuple_unpack_with_call",
+        "do_join_tuple_unpack_with_call_for_mock",
+        "do_join_tuple_unpack_with_call_no_replace",
+        "do_join_tuple_unpack_with_call_with_methods",
+        "do_json_loads",
+        "do_methodcaller",
+        "do_return_a_decorator",
+        "do_slice_2_and_two_strings",
+        "do_slice_complex",
+        "do_stringio_init_and_getvalue_param",
+        "do_stringio_init_param",
+        "wrapper",
+        # Since this is exported and passed as a command line argument, bytearray() and byte arguments are not
+        # processed well
+        "do_bytearray_append",
+        "do_bytearray_extend",
+        "do_bytearray_to_bytes",
+        "do_bytearray_to_str",
+        "do_bytes",
+        "do_bytes_to_bytearray",
+        "do_bytes_to_iter_bytearray",
+        "do_bytes_to_str",
+        "do_decode",
+        "do_decode_simple",
+        # Error checking for not string arguments
+        "do_capitalize_not_str",
+        "do_casefold_not_str",
+        "do_center_not_str",
+        "do_encode_not_str",
+        "do_expandtabs_not_str",
+        "do_format_map_not_str",
+        "do_format_not_str",
+        "do_ljust_not_str",
+        "do_lower_not_str",
+        "do_lstrip_not_str",
+        "do_os_path_splitroot",
+        "do_partition_not_str",
+        "do_replace_not_str",
+        "do_rpartition_not_str",
+        "do_rsplit_not_str",
+        "do_rstrip_not_str",
+        "do_split_not_str",
+        "do_splitlines_not_str",
+        "do_swapcase_not_str",
+        "do_title_not_str",
+        "do_upper_not_str",
+        "do_zfill_not_str",
     },
-    "str_methods_py3.py": {"excluded": {}, "special_arguments": {}},
-    "module_functions.py": {
-        "excluded": {
-            "do_os_path_splitroot",
-        },
-        "special_arguments": {
-            "do_os_path_basename": ["foo/bar"],
-            "do_os_path_split": ["foo/bar"],
-            "do_os_path_splitdrive": ["foo/bar"],
-            "do_os_path_splitext": ["foo/bar.txt"],
-        },
+    "special_arguments": {
+        "do_center": ["foobar", 2],
+        "do_encode": ["foobar", "utf-8", "strict"],
+        "do_encode_from_dict": ["foobar", "utf-8", "strict"],
+        "do_format": ["foobar{}", "baz"],
+        "do_format_map": ["foobar{baz}", {"baz": "bar"}],
+        "do_format_with_named_parameter": ["foobar{key}", "baz"],
+        "do_format_with_positional_parameter": ["foobar{}", "baz"],
+        "do_index": ["foobar", 3],
+        "do_join": ["foobar", ["baz", "pok"]],
+        "do_join_args_kwargs": ["foobar", ["baz", "pok"]],
+        "do_ljust": ["foobar", 2],
+        "do_ljust_2": ["foobar", 2, "x"],
+        "do_modulo": ["foobar%s", "baz"],
+        "do_partition": ["foobar", "o"],
+        "do_re_sub": ["foobar", "o", "a", 1],
+        "do_re_subn": ["foobar", "o", "a", 1],
+        "do_replace": ["foobar", "o", "a", 1],
+        "do_rplit_separator_and_maxsplit": ["foobar", "o", 1],
+        "do_rsplit": ["foo bar baz", " ", 1],
+        "do_rsplit_maxsplit": ["foo bar baz", 1],
+        "do_rsplit_separator": ["foobar", "o"],
+        "do_rsplit_separator_and_maxsplit": ["foo bar baz", " ", 1],
+        "do_slice": ["foobar", 1, 3, 1],
+        "do_slice_2": ["foobar", 1, 3, 1],
+        "do_slice_condition": ["foobar", 1, 3],
+        "do_split_maxsplit": ["foo bar baz", 1],
+        "do_split_separator": ["foobar", "o"],
+        "do_split_separator_and_maxsplit": ["foo bar baz", " ", 1],
+        "do_splitlines_keepends": ["foo\nbar", False],
+        "do_tuple_string_assignment": ["foo"],
+        "do_zfill": ["foobar", 10],
+        "do_os_path_basename": ["foo/bar"],
+        "do_os_path_split": ["foo/bar"],
+        "do_os_path_splitdrive": ["foo/bar"],
+        "do_os_path_splitext": ["foo/bar.txt"],
     },
 }
 
@@ -161,14 +174,14 @@ def generate_functions_dict():
                 continue
             if not f.startswith("do_"):
                 continue
-            if f in _module_meta[base_mod_name]["excluded"]:
+            if f in _module_meta["excluded"]:
                 continue
 
             args = []
             unpatched_func = getattr(symbol_unpatched, f)
 
-            if f in _module_meta[base_mod_name]["special_arguments"]:
-                args = _module_meta[base_mod_name]["special_arguments"][f]
+            if f in _module_meta["special_arguments"]:
+                args = _module_meta["special_arguments"][f]
             else:
                 # get the number of arguments that f takes
                 num_args = len(inspect.signature(unpatched_func).parameters)
@@ -187,12 +200,18 @@ def generate_functions_dict():
 _config_yaml_content = """\
 aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
     iast_enabled: 0
+    loops: 1
+    values: 50
+    warmups: 5
     mod_original_name: "bm.iast_fixtures.{mod_original_name}"
     function_name: "{function_name}"
     args: {args}
 
 aspect_iast_{function_name}:
     << : *aspect_no_iast_{function_name}
+    loops: 1
+    values: 50
+    warmups: 5
     iast_enabled: 1
 """
 
