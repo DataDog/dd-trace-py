@@ -349,7 +349,7 @@ f.wsgi_app()
     app_started_event = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_event) == 1
     assert app_started_event[0]["payload"]["error"]["code"] == 1
-    # assert "ddtrace/contrib/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
+    assert "ddtrace/contrib/internal/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
     assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
 
     integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
@@ -359,7 +359,7 @@ f.wsgi_app()
 
     assert flask_integration["enabled"] is True
     assert flask_integration["compatible"] is False
-    assert "ddtrace/contrib/flask/patch.py:" in flask_integration["error"]
+    assert "ddtrace/contrib/internal/flask/patch.py:" in flask_integration["error"]
     assert "not enough values to unpack (expected 2, got 0)" in flask_integration["error"]
 
     metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
