@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix errors parsing postgres DSNs that can occur if using psycopg2 and psycopg3
+    simultaneously.

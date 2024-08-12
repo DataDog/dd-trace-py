@@ -11,6 +11,7 @@ instance you are using::
 
     engine.connect().execute('select count(*) from users')
 """
+
 # 3p
 import sqlalchemy
 from sqlalchemy.event import listen
@@ -156,9 +157,9 @@ def _set_tags_from_cursor(span, vendor, cursor):
     """attempt to set db connection tags by introspecting the cursor."""
     if "postgres" == vendor:
         if hasattr(cursor, "connection"):
-            dsn = getattr(cursor.connection, "dsn", None)
+            dsn = sqlx.parse_pg_conn_dsn(cursor.connection)
+
             if dsn:
-                d = sqlx.parse_pg_dsn(dsn)
-                span.set_tag_str(sqlx.DB, d.get("dbname"))
-                span.set_tag_str(netx.TARGET_HOST, d.get("host"))
-                span.set_metric(netx.TARGET_PORT, int(d.get("port")))
+                span.set_tag_str(sqlx.DB, dsn.get("dbname"))
+                span.set_tag_str(netx.TARGET_HOST, dsn.get("host"))
+                span.set_metric(netx.TARGET_PORT, int(dsn.get("port")))
