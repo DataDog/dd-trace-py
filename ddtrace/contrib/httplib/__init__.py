@@ -58,10 +58,18 @@ The integration can be configured per instance::
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
+from ...internal.utils.importlib import require_modules
 
-from ..internal.httplib.patch import get_version
-from ..internal.httplib.patch import patch
-from ..internal.httplib.patch import unpatch
+
+required_modules = ["http.client"]
+
+with require_modules(required_modules) as missing_modules:
+    if not missing_modules:
+        from . import patch as _  # noqa: F401, I001
+
+        from ..internal.httplib.patch import get_version
+        from ..internal.httplib.patch import patch
+        from ..internal.httplib.patch import unpatch
 
 
 __all__ = ["patch", "unpatch", "get_version"]
