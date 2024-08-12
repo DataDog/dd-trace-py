@@ -265,6 +265,15 @@ class ProfilingConfig(En):
         help_type="Boolean",
         help="Exclusively used in testing environments to force the use of the legacy exporter. This parameter is "
         "not for general use and will be removed in the near future.",
+
+    sample_pool_capacity = En.v(
+        int,
+        "sample_pool_capacity",
+        default=4,
+        help_type="Integer",
+        help="The number of Sample objects to keep in the pool for reuse. "
+        "Increasing this can reduce the overhead from frequently allocating "
+        "and deallocating Sample objects.",
     )
 
 
