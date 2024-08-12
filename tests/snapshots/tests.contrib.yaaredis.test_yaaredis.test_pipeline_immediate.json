@@ -18,6 +18,7 @@
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",
       "runtime-id": "4d0d479c17be4095b8e0dee5a0839596",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
@@ -53,6 +54,7 @@
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",
       "runtime-id": "4d0d479c17be4095b8e0dee5a0839596",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
