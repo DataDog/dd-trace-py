@@ -9,7 +9,6 @@ from ..logging.constants import RECORD_ATTR_SERVICE
 from ..logging.constants import RECORD_ATTR_SPAN_ID
 from ..logging.constants import RECORD_ATTR_TRACE_ID
 from ..logging.constants import RECORD_ATTR_VALUE_EMPTY
-from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
 from ..trace_utils import unwrap as _u
 
@@ -26,20 +25,12 @@ def get_version():
 
 
 def _tracer_injection(event_dict):
-    span = ddtrace.tracer.current_span()
-
-    trace_id = None
-    span_id = None
-    if span:
-        span_id = span.span_id
-        trace_id = span.trace_id
-        if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-            trace_id = span._trace_id_64bits
+    trace_details = ddtrace.tracer.get_log_correlation_context()
 
     event_dd_attributes = {}
     # add ids to loguru event dictionary
-    event_dd_attributes[RECORD_ATTR_TRACE_ID] = str(trace_id or RECORD_ATTR_VALUE_ZERO)
-    event_dd_attributes[RECORD_ATTR_SPAN_ID] = str(span_id or RECORD_ATTR_VALUE_ZERO)
+    event_dd_attributes[RECORD_ATTR_TRACE_ID] = trace_details["trace_id"]
+    event_dd_attributes[RECORD_ATTR_SPAN_ID] = trace_details["span_id"]
     # add the env, service, and version configured for the tracer
     event_dd_attributes[RECORD_ATTR_ENV] = config.env or RECORD_ATTR_VALUE_EMPTY
     event_dd_attributes[RECORD_ATTR_SERVICE] = config.service or RECORD_ATTR_VALUE_EMPTY
