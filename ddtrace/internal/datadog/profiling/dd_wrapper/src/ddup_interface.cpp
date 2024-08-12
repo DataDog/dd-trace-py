@@ -118,6 +118,12 @@ ddup_config_output_filename(std::string_view output_filename) // cppcheck-suppre
     Datadog::UploaderBuilder::set_output_filename(output_filename);
 }
 
+void
+ddup_config_sample_pool_capacity(size_t capacity) // cppcheck-suppress unusedFunction
+{
+    Datadog::SampleManager::set_sample_pool_capacity(capacity);
+}
+
 bool
 ddup_is_initialized() // cppcheck-suppress unusedFunction
 {
