@@ -83,9 +83,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return True
 
             self.start()
-            forksafe.register(self.reset_at_fork)
-            if not rc_config.skip_shutdown:
-                atexit.register(self.disable)
+
             return True
         return False
 

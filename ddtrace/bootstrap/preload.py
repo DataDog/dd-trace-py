@@ -4,20 +4,21 @@ Add all monkey-patching that needs to run by default here
 """
 
 import os  # noqa:I001
+import atexit  # noqa:I001
 
 from ddtrace import config  # noqa:F401
-from ddtrace.debugging._config import di_config  # noqa:F401
-from ddtrace.debugging._config import er_config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
+from ddtrace.internal import forksafe  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
 from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
-from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.internal.uwsgi import check_uwsgi  # noqa:F401
+from ddtrace.internal.uwsgi import uWSGIMasterProcess  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
-from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
 
 
@@ -61,21 +62,6 @@ if profiling_config.enabled:
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
 
-if symdb_config.enabled:
-    from ddtrace.internal import symbol_db
-
-    symbol_db.bootstrap()
-
-if di_config.enabled:  # Dynamic Instrumentation
-    from ddtrace.debugging import DynamicInstrumentation
-
-    DynamicInstrumentation.enable()
-
-if er_config.enabled:  # Exception Replay
-    from ddtrace.debugging._exception.replay import SpanExceptionProcessor
-
-    SpanExceptionProcessor().register()
-
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
@@ -88,17 +74,6 @@ if asbool(os.getenv("DD_IAST_ENABLED", False)):
     from ddtrace.appsec._iast import enable_iast_propagation
 
     enable_iast_propagation()
-
-if config._remote_config_enabled:
-    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-    remoteconfig_poller.enable()
-    config.enable_remote_configuration()
-
-if asm_config._asm_enabled or config._remote_config_enabled:
-    from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-
-    enable_appsec_rc()
 
 if config._otel_enabled:
 
@@ -140,3 +115,31 @@ if "DD_TRACE_GLOBAL_TAGS" in os.environ:
 @register_post_preload
 def _():
     tracer._generate_diagnostic_logs()
+
+
+def do_products():
+    # Start all products
+    manager.start_products()
+
+    # Restart products on fork
+    forksafe.register(manager.restart_products)
+
+    # Stop all products on exit
+    atexit.register(manager.exit_products)
+
+
+try:
+    check_uwsgi(worker_callback=forksafe.ddtrace_after_in_child)
+except uWSGIMasterProcess:
+    # We are in the uWSGI master process, we should handle products in the
+    # post-fork callback
+    @forksafe.register
+    def _():
+        do_products()
+        forksafe.unregister(_)
+
+else:
+    do_products()
+
+# Post preload operations
+register_post_preload(manager.post_preload_products)
