@@ -250,7 +250,7 @@ def generate_functions_dict():
 _config_yaml_content = """\
 aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
     iast_enabled: 0
-    processes: 2
+    processes: 5
     loops: 1
     values: 3
     warmups: 1
@@ -260,7 +260,7 @@ aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
 
 aspect_iast_{function_name}:
     << : *aspect_no_iast_{function_name}
-    processes: 2
+    processes: 5
     loops: 1
     values: 3
     warmups: 1
