@@ -252,7 +252,8 @@ class _PytestDDTracePluginV2:
     @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_makereport(item, call) -> None:
         """Store outcome for tracing."""
-        outcome: pytest.TestReport = yield
+        outcome: pytest.TestReport
+        outcome = yield
         result = outcome.get_result()
 
         if not is_ci_visibility_enabled():
