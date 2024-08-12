@@ -63,6 +63,7 @@ class CIVisibilitySessionSettings:
     itr_test_skipping_enabled: bool = False
     itr_test_skipping_level: str = ""
     itr_correlation_id: str = ""
+    coverage_enabled: bool = False
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
@@ -557,11 +558,10 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
         """Set tags on parent items based on ITR enablement status"""
         super()._set_itr_tags(itr_enabled)
 
-        # Some tags are set no matter what
-        self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)
-
         if not itr_enabled:
             return
+
+        self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)
 
         # Only parent items set skipped counts because tests would always be 1 or 0
         if self._children:

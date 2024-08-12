@@ -929,6 +929,7 @@ def _on_discover_session(
         itr_test_skipping_enabled=CIVisibility.test_skipping_enabled(),
         itr_test_skipping_level=SUITE if instance._suite_skipping_mode else TEST,
         itr_correlation_id=instance._itr_meta.get(ITR_CORRELATION_ID_TAG_NAME, ""),
+        coverage_enabled=CIVisibility.should_collect_coverage(),
     )
 
     session = CIVisibilitySession(

@@ -2396,13 +2396,17 @@ class PytestTestCase(TracerTestCase):
                 assert True"""
             )
         self.testdir.chdir()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_tests_to_skip",
-            {
-                "test_outer_package/test_inner_package/test_inner_abc.py": ["test_inner_ok"],
-                "test_outer_package/test_outer_abc.py": ["test_outer_ok"],
-            },
+        with (
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled", return_value=True),
+            mock.patch.object(
+                ddtrace.internal.ci_visibility.recorder.CIVisibility,
+                "_tests_to_skip",
+                {
+                    "test_outer_package/test_inner_package/test_inner_abc.py": ["test_inner_ok"],
+                    "test_outer_package/test_outer_abc.py": ["test_outer_ok"],
+                },
+            ),
         ):
             self.inline_run("--ddtrace")
 
