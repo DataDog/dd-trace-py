@@ -81,8 +81,7 @@ def _w_makeRecord(func, instance, args, kwargs):
     else:
         tracer = _get_tracer(tracer=config.logging.tracer)
         if tracer:
-            span = tracer.current_span()
-            trace_details = tracer.get_log_correlation_context(active=span)
+            trace_details = tracer.get_log_correlation_context()
 
     setattr(record, RECORD_ATTR_TRACE_ID, trace_details.get("trace_id", "0"))
     setattr(record, RECORD_ATTR_SPAN_ID, trace_details.get("span_id", "0"))
