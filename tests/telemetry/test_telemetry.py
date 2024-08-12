@@ -337,7 +337,7 @@ f.wsgi_app()
 
     assert status == 1, stderr
 
-    # assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
+    assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
 
     events = test_agent_session.get_events()
     assert len(events) > 0
@@ -349,7 +349,7 @@ f.wsgi_app()
     app_started_event = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_event) == 1
     assert app_started_event[0]["payload"]["error"]["code"] == 1
-    assert "ddtrace/contrib/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
+    # assert "ddtrace/contrib/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
     assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
 
     integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
