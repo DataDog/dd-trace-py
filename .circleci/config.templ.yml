@@ -577,7 +577,7 @@ jobs:
     steps:
       - run_test:
           pattern: "tracer"
-          trace_agent_url: ""
+          snapshot: true
 
   ci_visibility:
     <<: *machine_executor
