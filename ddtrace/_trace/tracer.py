@@ -427,7 +427,7 @@ class Tracer(object):
             span_id = str(active.span_id if active.span_id else span_id)
             trace_id = str(active.trace_id if active.trace_id else trace_id)
             # check if we are using 128 bit ids, and switch trace id to hex since backend needs hex 128 bit ids
-            if int(trace_id) > MAX_UINT_64BITS:
+            if active.trace_id and active.trace_id > MAX_UINT_64BITS:
                 trace_id = "{:032x}".format(active.trace_id)
 
         return {
