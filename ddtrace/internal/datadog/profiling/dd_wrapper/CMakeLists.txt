@@ -30,6 +30,7 @@ add_library(dd_wrapper SHARED
     src/crashtracker.cpp
     src/crashtracker_interface.cpp
     src/receiver_interface.cpp
+    src/synchronized_sample_pool.cpp
 )
 
 # Add common configuration flags

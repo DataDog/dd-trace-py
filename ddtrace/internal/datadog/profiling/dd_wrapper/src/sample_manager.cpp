@@ -30,13 +30,21 @@ Datadog::SampleManager::set_timeline(bool enable)
 Datadog::Sample*
 Datadog::SampleManager::start_sample()
 {
+    auto sample_opt = sample_pool.get_sample();
+    if (sample_opt.has_value()) {
+        return sample_opt.value();
+    }
+
+    // Create a new sample if the pool is empty
     return new Datadog::Sample(type_mask, max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void
 Datadog::SampleManager::drop_sample(Datadog::Sample* sample)
 {
-    delete sample; // NOLINT(cppcoreguidelines-owning-memory)
+    // Reset the sample's state
+    sample->clear_buffers();
+    sample_pool.return_sample(sample);
 }
 
 void
