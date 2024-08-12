@@ -1050,7 +1050,7 @@ jobs:
     parallelism: 10
     steps:
      - run_hatch_env_test:
-          env: 'pytest_v2'
+          env: 'pytest_plugin_v2'
           snapshot: true
 
   unittest:
