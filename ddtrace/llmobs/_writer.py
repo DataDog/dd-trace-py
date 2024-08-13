@@ -24,12 +24,12 @@ from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
+from ddtrace.llmobs._constants import DROPPED_IO_TAG
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
-from ddtrace.llmobs._constants import TRUNCATION_TAG
 
 
 logger = get_logger(__name__)
@@ -293,62 +293,41 @@ class LLMObsSpanWriter(HTTPWriter):
         )
 
 
-IO_SIZE_LIMIT = 400 * (1 << 10)
+DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the event size limit.]"
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
-    remaining_input_limit = IO_SIZE_LIMIT
-    remaining_output_limit = IO_SIZE_LIMIT
     if "value" in event["meta"]["input"]:
-        event["meta"]["input"]["value"] = event["meta"]["input"]["value"][:remaining_input_limit]
-        remaining_input_limit -= len(event["meta"]["input"]["value"])
+        event["meta"]["input"]["value"] = DROPPED_VALUE_TEXT
     if "value" in event["meta"]["output"]:
-        event["meta"]["output"]["value"] = event["meta"]["output"]["value"][:remaining_output_limit]
-        remaining_output_limit -= len(event["meta"]["output"]["value"])
+        event["meta"]["output"]["value"] = DROPPED_VALUE_TEXT
 
     if "messages" in event["meta"]["input"]:
-        event["meta"]["input"]["messages"] = _truncate_messages(
-            event["meta"]["input"]["messages"], remaining_input_limit
-        )
-        remaining_input_limit -= len(json.dumps(event["meta"]["input"]["messages"]))
+        event["meta"]["input"]["messages"] = _truncate_messages(event["meta"]["input"]["messages"])
     if "messages" in event["meta"]["output"]:
-        event["meta"]["output"]["messages"] = _truncate_messages(
-            event["meta"]["output"]["messages"], remaining_output_limit
-        )
-        remaining_output_limit -= len(json.dumps(event["meta"]["output"]["messages"]))
+        event["meta"]["output"]["messages"] = _truncate_messages(event["meta"]["output"]["messages"])
 
     if "documents" in event["meta"]["input"]:
-        event["meta"]["input"]["documents"] = _truncate_documents(
-            event["meta"]["input"]["documents"], remaining_input_limit
-        )
-        remaining_input_limit -= len(json.dumps(event["meta"]["input"]["documents"]))
+        event["meta"]["input"]["documents"] = _truncate_documents(event["meta"]["input"]["documents"])
     if "documents" in event["meta"]["output"]:
-        event["meta"]["output"]["documents"] = _truncate_documents(
-            event["meta"]["output"]["documents"], remaining_output_limit
-        )
-        remaining_output_limit -= len(json.dumps(event["meta"]["output"]["documents"]))
+        event["meta"]["output"]["documents"] = _truncate_documents(event["meta"]["output"]["documents"])
 
-    event["tags"].append(TRUNCATION_TAG)
+    event["tags"].append(DROPPED_IO_TAG)
     return event
 
 
-def _truncate_messages(messages: List[str], limit: int) -> List[str]:
-    truncated_messages = []
-    size = 0
-    for message in messages:
-        size += len(json.dumps(message))
-        if size > limit:
-            break
-        truncated_messages.append(message)
-    return truncated_messages
+def _truncate_messages(messages: List[Any]) -> List[Any]:
+    return [
+        {
+            "content": "[%d message(s) have been dropped because this span's size exceeds the event size limit.]"
+            % len(messages),
+            "role": "",
+        }
+    ]
 
 
-def _truncate_documents(documents: Dict[str, Any], limit: int) -> Dict[str, Any]:
-    truncated_documents = {}
-    size = 0
-    for key, value in documents.items():
-        size += len(key) + len(json.dumps(value))
-        if size > limit:
-            break
-        truncated_documents[key] = value
-    return truncated_documents
+def _truncate_documents(documents: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "_": "[%d document(s) have been dropped because this span's size exceeds the event size limit.]"
+        % len(documents)
+    }

@@ -40,4 +40,4 @@ EVP_EVENT_SIZE_LIMIT = (1 << 20) - 1024  # 999KB (actual limit is 1MB)
 AGENTLESS_BASE_URL = "https://llmobs-intake"
 AGENTLESS_ENDPOINT = "api/v2/llmobs"
 
-TRUNCATION_TAG = "truncated"
+DROPPED_IO_TAG = "dropped_io:1"
