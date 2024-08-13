@@ -41,6 +41,7 @@ def patch():
     """
     if getattr(pyramid.config, DD_PATCH, False):
         return
+    pyramid._datadog_patch = True
 
     setattr(pyramid.config, DD_PATCH, True)
     _w = wrapt.wrap_function_wrapper
