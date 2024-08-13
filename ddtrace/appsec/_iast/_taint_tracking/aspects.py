@@ -1087,6 +1087,8 @@ def re_sub_aspect(
         # This patch is unexpected, so we fallback
         # to executing the original function
         return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].sub
 
     self = args[0]
     args = args[(flag_added_args or 1) :]
