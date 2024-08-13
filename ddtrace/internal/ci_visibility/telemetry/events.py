@@ -72,7 +72,7 @@ def record_event_finished(
     event_type: EVENT_TYPES,
     test_framework: Optional[TEST_FRAMEWORKS],
     has_codeowners: bool = False,
-    unsupported_ci: bool = False,
+    is_unsupported_ci: bool = False,
     is_benchmark: bool = False,
 ):
     _record_event(
@@ -80,7 +80,7 @@ def record_event_finished(
         event_type=event_type,
         test_framework=test_framework,
         has_codeowners=has_codeowners,
-        is_unsupported_ci=unsupported_ci,
+        is_unsupported_ci=is_unsupported_ci,
         is_benchmark=is_benchmark,
     )
 
