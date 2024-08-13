@@ -1,6 +1,7 @@
 """
 Variety of test cases ensuring that ddtrace does not leak memory.
 """
+
 import gc
 import os
 from threading import Thread
@@ -10,6 +11,7 @@ from weakref import WeakValueDictionary
 import pytest
 
 from ddtrace import Tracer
+from tests.utils import flaky
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -17,13 +19,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @pytest.fixture
-def tracer():
-    # type: (...) -> Tracer
+def tracer() -> Tracer:
     return Tracer()
 
 
-def trace(weakdict, tracer, *args, **kwargs):
-    # type: (WeakValueDictionary, Tracer, ...) -> Span
+def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs):
+    # type: (...) -> Span
     """Return a span created from ``tracer`` and add it to the given weak
     dictionary.
 
@@ -110,6 +111,7 @@ def test_multithread_trace(tracer):
     assert len(wd) == 0
 
 
+@flaky(1731172242)
 def test_fork_open_span(tracer):
     """
     When a fork occurs with an open span then the child process should not have

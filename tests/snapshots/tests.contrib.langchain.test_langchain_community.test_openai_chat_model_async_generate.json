@@ -6,11 +6,11 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "llm",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ebafd500000000",
+      "_dd.p.tid": "66a7ed9200000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.messages.0.0.content": "Respond like a frat boy.",
       "langchain.request.messages.0.0.message_type": "SystemMessage",
@@ -21,6 +21,7 @@
       "langchain.request.messages.1.1.content": "How does one get to Bikini Bottom from New York?",
       "langchain.request.messages.1.1.message_type": "HumanMessage",
       "langchain.request.model": "gpt-3.5-turbo",
+      "langchain.request.openai.parameters.logprobs": "False",
       "langchain.request.openai.parameters.max_tokens": "256",
       "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
       "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
@@ -29,24 +30,24 @@
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
       "langchain.request.type": "chat_model",
-      "langchain.response.completions.0.0.content": "Bro, Equinox Hudson Yards is where it's at! It's just a few blocks away from the main entrance. You gotta check it out, they've ...",
+      "langchain.response.completions.0.0.content": "Bro, Equinox Hudson Yards is just a few blocks away from the main entrance, you can't miss it! Get your pump on and show those w...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
-      "langchain.response.completions.1.0.content": "Arrr matey, ye be needin' to sail the high seas to reach Bikini Bottom from New York! Hoist the sails, chart a course southward,...",
+      "langchain.response.completions.1.0.content": "Arrr matey, ye be needin' to sail the high seas to reach Bikini Bottom from New York! Hoist the sails, set a course for the east...",
       "langchain.response.completions.1.0.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "9f52b7e016c04b4a994ec1df509018a4"
+      "runtime-id": "878729bb4463422abd45c94b7e5f3c04"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 166,
+      "langchain.tokens.completion_tokens": 150,
       "langchain.tokens.prompt_tokens": 60,
-      "langchain.tokens.total_cost": 0.00042200000000000007,
-      "langchain.tokens.total_tokens": 226,
-      "process_id": 88379
+      "langchain.tokens.total_cost": 0.00038999999999999994,
+      "langchain.tokens.total_tokens": 210,
+      "process_id": 58590
     },
-    "duration": 9263000,
-    "start": 1709944789248938000
+    "duration": 45084000,
+    "start": 1722281362764762000
   }]]

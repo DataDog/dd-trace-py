@@ -1,5 +1,4 @@
 import json
-import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -14,7 +13,6 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
@@ -27,6 +25,7 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
@@ -46,7 +45,6 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def __init__(self, llmobs_span_writer):
         self._span_writer = llmobs_span_writer
-        self._no_apm_traces = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -54,7 +52,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         for span in trace:
             if span.span_type == SpanTypes.LLM:
                 self.submit_llmobs_span(span)
-        return None if self._no_apm_traces else trace
+        return None if config._llmobs_agentless_enabled else trace
 
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
@@ -100,11 +98,12 @@ class LLMObsTraceProcessor(TraceProcessor):
         span.set_tag_str(ML_APP, ml_app)
         session_id = _get_session_id(span)
         span.set_tag_str(SESSION_ID, session_id)
-
+        parent_id = str(_get_llmobs_parent_id(span) or "undefined")
+        span._meta.pop(PARENT_ID_KEY, None)
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
-            "parent_id": str(_get_llmobs_parent_id(span) or "undefined"),
+            "parent_id": parent_id,
             "session_id": session_id,
             "name": _get_span_name(span),
             "tags": self._llmobs_tags(span, ml_app=ml_app, session_id=session_id),

@@ -3,6 +3,8 @@ import json
 import mock
 import pytest
 
+import ddtrace
+from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -17,6 +19,7 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -31,6 +34,11 @@ from tests.utils import override_global_config
 
 class Unserializable:
     pass
+
+
+class ReallyUnserializable:
+    def __repr__(self):
+        return Unserializable()
 
 
 @pytest.fixture
@@ -91,7 +99,7 @@ def test_service_enable_no_api_key():
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(_tracer=dummy_tracer)
+            llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=True)
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
@@ -105,6 +113,18 @@ def test_service_enable_no_ml_app_specified():
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
+
+
+def test_service_enable_deprecated_ml_app_name(monkeypatch, mock_logs):
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
+        dummy_tracer = DummyTracer()
+        monkeypatch.setenv("DD_LLMOBS_APP_NAME", "test_ml_app")
+        llmobs_service.enable(_tracer=dummy_tracer)
+        assert llmobs_service.enabled is True
+        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
+        mock_logs.warning.assert_called_once_with("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
+        llmobs_service.disable()
 
 
 def test_service_enable_already_enabled(mock_logs):
@@ -174,6 +194,15 @@ def test_session_id_becomes_top_level_field(LLMObs, mock_llmobs_span_writer):
     )
 
 
+def test_session_id_becomes_top_level_field_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    session_id = "test_session_id"
+    with AgentlessLLMObs.task(session_id=session_id) as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "task", session_id=session_id)
+    )
+
+
 def test_llm_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         assert span.name == "test_llm_call"
@@ -185,6 +214,21 @@ def test_llm_span(LLMObs, mock_llmobs_span_writer):
         assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
+    )
+
+
+def test_llm_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        assert span.name == "test_llm_call"
+        assert span.resource == "llm"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "llm"
+        assert span.get_tag(MODEL_NAME) == "test_model"
+        assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
+
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
     )
 
@@ -219,6 +263,15 @@ def test_tool_span(LLMObs, mock_llmobs_span_writer):
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
 
 
+def test_tool_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.tool(name="test_tool") as span:
+        assert span.name == "test_tool"
+        assert span.resource == "tool"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "tool"
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
+
+
 def test_task_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.task(name="test_task") as span:
         assert span.name == "test_task"
@@ -226,6 +279,15 @@ def test_task_span(LLMObs, mock_llmobs_span_writer):
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "task"
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
+
+
+def test_task_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.task(name="test_task") as span:
+        assert span.name == "test_task"
+        assert span.resource == "task"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "task"
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
 
 
 def test_workflow_span(LLMObs, mock_llmobs_span_writer):
@@ -237,6 +299,15 @@ def test_workflow_span(LLMObs, mock_llmobs_span_writer):
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
 
 
+def test_workflow_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.workflow(name="test_workflow") as span:
+        assert span.name == "test_workflow"
+        assert span.resource == "workflow"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "workflow"
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
+
+
 def test_agent_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
@@ -244,6 +315,15 @@ def test_agent_span(LLMObs, mock_llmobs_span_writer):
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "agent"
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
+
+
+def test_agent_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.agent(name="test_agent") as span:
+        assert span.name == "test_agent"
+        assert span.resource == "agent"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "agent"
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
 def test_embedding_span_no_model_raises_error(LLMObs):
@@ -282,6 +362,23 @@ def test_embedding_span(LLMObs, mock_llmobs_span_writer):
     )
 
 
+def test_embedding_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.embedding(
+        model_name="test_model", name="test_embedding", model_provider="test_provider"
+    ) as span:
+        assert span.name == "test_embedding"
+        assert span.resource == "embedding"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "embedding"
+        assert span.get_tag(MODEL_NAME) == "test_model"
+        assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
+
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
+    )
+
+
 def test_annotate_no_active_span_logs_warning(LLMObs, mock_logs):
     LLMObs.annotate(parameters={"test": "test"})
     mock_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
@@ -316,14 +413,29 @@ def test_annotate_metadata(LLMObs):
         assert json.loads(span.get_tag(METADATA)) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
 
 
-def test_annotate_metadata_wrong_type(LLMObs, mock_logs):
+def test_annotate_metadata_wrong_type_raises_warning(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, metadata="wrong_metadata")
         assert span.get_tag(METADATA) is None
         mock_logs.warning.assert_called_once_with("metadata must be a dictionary of string key-value pairs.")
         mock_logs.reset_mock()
 
-        LLMObs.annotate(span=span, metadata={"unserializable": Unserializable()})
+
+def test_annotate_metadata_non_serializable_marks_with_placeholder_value(LLMObs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
+            LLMObs.annotate(span=span, metadata={"unserializable": Unserializable()})
+            metadata = json.loads(span.get_tag(METADATA))
+            assert metadata is not None
+            assert "[Unserializable object:" in metadata["unserializable"]
+            mock_logs.warning.assert_called_once_with(
+                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+            )
+
+
+def test_annotate_metadata_non_serializable_no_repr_raises_warning(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.annotate(span=span, metadata={"unserializable": ReallyUnserializable()})
         assert span.get_tag(METADATA) is None
         mock_logs.warning.assert_called_once_with(
             "Failed to parse span metadata. Metadata key-value pairs must be JSON serializable."
@@ -343,9 +455,23 @@ def test_annotate_tag_wrong_type(LLMObs, mock_logs):
         mock_logs.warning.assert_called_once_with(
             "span_tags must be a dictionary of string key - primitive value pairs."
         )
-        mock_logs.reset_mock()
 
-        LLMObs.annotate(span=span, tags={"unserializable": Unserializable()})
+
+def test_annotate_tag_non_serializable_marks_with_placeholder_value(LLMObs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
+            LLMObs.annotate(span=span, tags={"unserializable": Unserializable()})
+            tags = json.loads(span.get_tag(TAGS))
+            assert tags is not None
+            assert "[Unserializable object:" in tags["unserializable"]
+            mock_logs.warning.assert_called_once_with(
+                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+            )
+
+
+def test_annotate_tag_non_serializable_no_repr_raises_warning(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.annotate(span=span, tags={"unserializable": ReallyUnserializable()})
         assert span.get_tag(TAGS) is None
         mock_logs.warning.assert_called_once_with(
             "Failed to parse span tags. Tag key-value pairs must be JSON serializable."
@@ -391,32 +517,44 @@ def test_annotate_input_serializable_value(LLMObs):
         assert retrieval_span.get_tag(INPUT_VALUE) == "[0, 1, 2, 3, 4]"
 
 
-def test_annotate_input_value_wrong_type(LLMObs, mock_logs):
-    with LLMObs.workflow() as llm_span:
-        LLMObs.annotate(span=llm_span, input_data=Unserializable())
-        assert llm_span.get_tag(INPUT_VALUE) is None
+def test_annotate_input_value_non_serializable_marks_with_placeholder_value(LLMObs):
+    with LLMObs.workflow() as span:
+        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
+            LLMObs.annotate(span=span, input_data=Unserializable())
+            input_value = span.get_tag(INPUT_VALUE)
+            assert input_value is not None
+            assert "[Unserializable object:" in input_value
+            mock_logs.warning.assert_called_once_with(
+                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+            )
+
+
+def test_annotate_input_value_non_serializable_no_repr_raises_warning(LLMObs, mock_logs):
+    with LLMObs.workflow() as span:
+        LLMObs.annotate(span=span, input_data=ReallyUnserializable())
+        assert span.get_tag(TAGS) is None
         mock_logs.warning.assert_called_once_with("Failed to parse input value. Input value must be JSON serializable.")
 
 
 def test_annotate_input_llm_message(LLMObs):
-    with LLMObs.llm(model_name="test_model") as llm_span:
-        LLMObs.annotate(span=llm_span, input_data=[{"content": "test_input", "role": "human"}])
-        assert json.loads(llm_span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input", "role": "human"}]
+    with LLMObs.llm(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data=[{"content": "test_input", "role": "human"}])
+        assert json.loads(span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input", "role": "human"}]
 
 
 def test_annotate_input_llm_message_wrong_type(LLMObs, mock_logs):
-    with LLMObs.llm(model_name="test_model") as llm_span:
-        LLMObs.annotate(span=llm_span, input_data=[{"content": Unserializable()}])
-        assert llm_span.get_tag(INPUT_MESSAGES) is None
+    with LLMObs.llm(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data=[{"content": Unserializable()}])
+        assert span.get_tag(INPUT_MESSAGES) is None
         mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
 
 
 def test_llmobs_annotate_incorrect_message_content_type_raises_warning(LLMObs, mock_logs):
-    with LLMObs.llm(model_name="test_model") as llm_span:
-        LLMObs.annotate(span=llm_span, input_data={"role": "user", "content": {"nested": "yes"}})
+    with LLMObs.llm(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data={"role": "user", "content": {"nested": "yes"}})
         mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
         mock_logs.reset_mock()
-        LLMObs.annotate(span=llm_span, output_data={"role": "user", "content": {"nested": "yes"}})
+        LLMObs.annotate(span=span, output_data={"role": "user", "content": {"nested": "yes"}})
         mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
@@ -483,26 +621,46 @@ def test_annotate_incorrect_document_type_raises_warning(LLMObs, mock_logs):
     with LLMObs.embedding(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data={"text": 123})
         mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
-    mock_logs.reset_mock()
-    with LLMObs.embedding(model_name="test_model") as span:
+        mock_logs.reset_mock()
         LLMObs.annotate(span=span, input_data=123)
         mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
-    mock_logs.reset_mock()
-    with LLMObs.embedding(model_name="test_model") as span:
+        mock_logs.reset_mock()
         LLMObs.annotate(span=span, input_data=Unserializable())
         mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
-    mock_logs.reset_mock()
+        mock_logs.reset_mock()
     with LLMObs.retrieval() as span:
         LLMObs.annotate(span=span, output_data=[{"score": 0.9, "id": "id", "name": "name"}])
         mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
-    mock_logs.reset_mock()
-    with LLMObs.retrieval() as span:
+        mock_logs.reset_mock()
         LLMObs.annotate(span=span, output_data=123)
         mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
-    mock_logs.reset_mock()
-    with LLMObs.retrieval() as span:
+        mock_logs.reset_mock()
         LLMObs.annotate(span=span, output_data=Unserializable())
         mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+
+
+def test_annotate_output_embedding_non_serializable_marks_with_placeholder_value(LLMObs):
+    with LLMObs.embedding(model_name="test_model") as span:
+        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
+            LLMObs.annotate(span=span, output_data=Unserializable())
+            output_value = json.loads(span.get_tag(OUTPUT_VALUE))
+            assert output_value is not None
+            assert "[Unserializable object:" in output_value
+            mock_logs.warning.assert_called_once_with(
+                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+            )
+
+
+def test_annotate_input_retrieval_non_serializable_marks_with_placeholder_value(LLMObs):
+    with LLMObs.retrieval() as span:
+        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
+            LLMObs.annotate(span=span, input_data=Unserializable())
+            input_value = json.loads(span.get_tag(INPUT_VALUE))
+            assert input_value is not None
+            assert "[Unserializable object:" in input_value
+            mock_logs.warning.assert_called_once_with(
+                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+            )
 
 
 def test_annotate_document_no_text_raises_warning(LLMObs, mock_logs):
@@ -576,9 +734,21 @@ def test_annotate_output_serializable_value(LLMObs):
         assert agent_span.get_tag(OUTPUT_VALUE) == "test_output"
 
 
-def test_annotate_output_value_wrong_type(LLMObs, mock_logs):
+def test_annotate_output_value_non_serializable_marks_with_placeholder_value(LLMObs):
+    with LLMObs.workflow() as span:
+        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
+            LLMObs.annotate(span=span, output_data=Unserializable())
+            output_value = json.loads(span.get_tag(OUTPUT_VALUE))
+            assert output_value is not None
+            assert "[Unserializable object:" in output_value
+            mock_logs.warning.assert_called_once_with(
+                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+            )
+
+
+def test_annotate_output_value_non_serializable_no_repr_raises_warning(LLMObs, mock_logs):
     with LLMObs.workflow() as llm_span:
-        LLMObs.annotate(span=llm_span, output_data=Unserializable())
+        LLMObs.annotate(span=llm_span, output_data=ReallyUnserializable())
         assert llm_span.get_tag(OUTPUT_VALUE) is None
         mock_logs.warning.assert_called_once_with(
             "Failed to parse output value. Output value must be JSON serializable."
@@ -600,8 +770,8 @@ def test_annotate_output_llm_message_wrong_type(LLMObs, mock_logs):
 
 def test_annotate_metrics(LLMObs):
     with LLMObs.llm(model_name="test_model") as span:
-        LLMObs.annotate(span=span, metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30})
-        assert json.loads(span.get_tag(METRICS)) == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+        LLMObs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30})
+        assert json.loads(span.get_tag(METRICS)) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
 
 
 def test_annotate_metrics_wrong_type(LLMObs, mock_logs):
@@ -634,6 +804,22 @@ def test_span_error_sets_error(LLMObs, mock_llmobs_span_writer):
     )
 
 
+def test_span_error_sets_error_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with pytest.raises(ValueError):
+        with AgentlessLLMObs.llm(model_name="test_model", model_provider="test_model_provider") as span:
+            raise ValueError("test error message")
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name="test_model",
+            model_provider="test_model_provider",
+            error="builtins.ValueError",
+            error_message="test error message",
+            error_stack=span.get_tag("error.stack"),
+        )
+    )
+
+
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
@@ -642,6 +828,22 @@ def test_tags(ddtrace_global_config, LLMObs, mock_llmobs_span_writer, monkeypatc
     with LLMObs.task(name="test_task") as span:
         pass
     mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "task",
+            tags={"version": "1.2.3", "env": "test_env", "service": "test_service", "ml_app": "test_app_name"},
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
+)
+def test_tags_agentless(ddtrace_global_config, AgentlessLLMObs, mock_llmobs_span_agentless_writer, monkeypatch):
+    with AgentlessLLMObs.task(name="test_task") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(
             span,
             "task",
@@ -688,6 +890,48 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
     with LLMObs.retrieval(name="test_retrieval", ml_app="test_app") as span:
         pass
     mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "retrieval", tags={"ml_app": "test_app"})
+    )
+
+
+def test_ml_app_override_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.task(name="test_task", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "task", tags={"ml_app": "test_app"})
+    )
+    with AgentlessLLMObs.tool(name="test_tool", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "tool", tags={"ml_app": "test_app"})
+    )
+    with AgentlessLLMObs.llm(model_name="model_name", name="test_llm", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span, "llm", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        )
+    )
+    with AgentlessLLMObs.embedding(model_name="model_name", name="test_embedding", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span, "embedding", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        )
+    )
+    with AgentlessLLMObs.workflow(name="test_workflow", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "workflow", tags={"ml_app": "test_app"})
+    )
+    with AgentlessLLMObs.agent(name="test_agent", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "agent", tags={"ml_app": "test_app"})
+    )
+    with AgentlessLLMObs.retrieval(name="test_retrieval", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "retrieval", tags={"ml_app": "test_app"})
     )
 
@@ -740,6 +984,20 @@ def test_submit_evaluation_llmobs_disabled_raises_warning(LLMObs, mock_logs):
     )
 
 
+def test_submit_evaluation_no_api_key_raises_warning(AgentlessLLMObs, mock_logs):
+    with override_global_config(dict(_dd_api_key="")):
+        AgentlessLLMObs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+        )
+        mock_logs.warning.assert_called_once_with(
+            "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+            "Ensure this configuration is set before running your application."
+        )
+
+
 def test_submit_evaluation_span_context_incorrect_type_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(span_context="asd", label="toxicity", metric_type="categorical", value="high")
     mock_logs.warning.assert_called_once_with(
@@ -773,26 +1031,107 @@ def test_submit_evaluation_incorrect_metric_type_raises_warning(LLMObs, mock_log
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
     )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
     mock_logs.reset_mock()
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
     )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
+
+
+def test_submit_evaluation_numerical_value_raises_unsupported_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value="high"
+    )
+    mock_logs.warning.assert_has_calls(
+        [
+            mock.call(
+                "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+                "Converting `numerical` metric to `score` type."
+            ),
+        ]
+    )
 
 
 def test_submit_evaluation_incorrect_numerical_value_type_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value="high"
     )
-    mock_logs.warning.assert_called_once_with("value must be an integer or float for a numerical/score metric.")
+    mock_logs.warning.assert_has_calls(
+        [
+            mock.call("value must be an integer or float for a score metric."),
+        ]
+    )
 
 
 def test_submit_evaluation_incorrect_score_value_type_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="score", value="high"
     )
-    mock_logs.warning.assert_called_once_with("value must be an integer or float for a numerical/score metric.")
+    mock_logs.warning.assert_called_once_with("value must be an integer or float for a score metric.")
+
+
+def test_submit_evaluation_invalid_tags_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags=["invalid"],
+    )
+    mock_logs.warning.assert_called_once_with("tags must be a dictionary of string key-value pairs.")
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_ml_app="test_app_name")],
+)
+def test_submit_evaluation_non_string_tags_raises_warning_but_still_submits(
+    LLMObs, mock_logs, mock_llmobs_eval_metric_writer
+):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={1: 2, "foo": "bar"},
+    )
+    mock_logs.warning.assert_called_once_with("Failed to parse tags. Tags for evaluation metrics must be strings.")
+    mock_logs.reset_mock()
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:test_app_name", "foo:bar"],
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(ddtrace="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
+)
+def test_submit_evaluation_metric_tags(LLMObs, mock_llmobs_eval_metric_writer):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+        )
+    )
 
 
 def test_submit_evaluation_enqueues_writer_with_categorical_metric(LLMObs, mock_llmobs_eval_metric_writer):
@@ -845,13 +1184,15 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(LLMObs, mock_llmobs
     )
 
 
-def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metric(
+    LLMObs, mock_llmobs_eval_metric_writer
+):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value=35
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
-            span_id="123", trace_id="456", label="token_count", metric_type="numerical", numerical_value=35
+            span_id="123", trace_id="456", label="token_count", metric_type="score", score_value=35
         )
     )
     mock_llmobs_eval_metric_writer.reset_mock()
@@ -864,15 +1205,17 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
             span_id=str(span.span_id),
             trace_id="{:x}".format(span.trace_id),
             label="token_count",
-            metric_type="numerical",
-            numerical_value=35,
+            metric_type="score",
+            score_value=35,
         )
     )
 
 
-def test_flush_calls_periodic(LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
-    LLMObs.flush()
-    mock_llmobs_span_writer.periodic.assert_called_once()
+def test_flush_calls_periodic_agentless(
+    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer
+):
+    AgentlessLLMObs.flush()
+    mock_llmobs_span_agentless_writer.periodic.assert_called_once()
     mock_llmobs_eval_metric_writer.periodic.assert_called_once()
 
 
@@ -887,3 +1230,115 @@ def test_flush_does_not_call_period_when_llmobs_is_disabled(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
     LLMObs.enable()
+
+
+def test_flush_does_not_call_period_when_llmobs_is_disabled_agentless(
+    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, mock_logs
+):
+    AgentlessLLMObs.disable()
+    AgentlessLLMObs.flush()
+    mock_llmobs_span_agentless_writer.periodic.assert_not_called()
+    mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_logs.warning.assert_has_calls(
+        [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
+    )
+    AgentlessLLMObs.enable()
+
+
+def test_inject_distributed_headers_llmobs_disabled_does_nothing(LLMObs, mock_logs):
+    LLMObs.disable()
+    headers = LLMObs.inject_distributed_headers({}, span=None)
+    mock_logs.warning.assert_called_once_with(
+        "LLMObs.inject_distributed_headers() called when LLMObs is not enabled. "
+        "Distributed context will not be injected."
+    )
+    assert headers == {}
+
+
+def test_inject_distributed_headers_not_dict_logs_warning(LLMObs, mock_logs):
+    headers = LLMObs.inject_distributed_headers("not a dictionary", span=None)
+    mock_logs.warning.assert_called_once_with("request_headers must be a dictionary of string key-value pairs.")
+    assert headers == "not a dictionary"
+    mock_logs.reset_mock()
+    headers = LLMObs.inject_distributed_headers(123, span=None)
+    mock_logs.warning.assert_called_once_with("request_headers must be a dictionary of string key-value pairs.")
+    assert headers == 123
+    mock_logs.reset_mock()
+    headers = LLMObs.inject_distributed_headers(None, span=None)
+    mock_logs.warning.assert_called_once_with("request_headers must be a dictionary of string key-value pairs.")
+    assert headers is None
+
+
+def test_inject_distributed_headers_no_active_span_logs_warning(LLMObs, mock_logs):
+    headers = LLMObs.inject_distributed_headers({}, span=None)
+    mock_logs.warning.assert_called_once_with("No span provided and no currently active span found.")
+    assert headers == {}
+
+
+def test_inject_distributed_headers_span_calls_httppropagator_inject(LLMObs, mock_logs):
+    span = LLMObs._instance.tracer.trace("test_span")
+    with mock.patch("ddtrace.propagation.http.HTTPPropagator.inject") as mock_inject:
+        LLMObs.inject_distributed_headers({}, span=span)
+        assert mock_inject.call_count == 1
+        mock_inject.assert_called_once_with(span.context, {})
+
+
+def test_inject_distributed_headers_current_active_span_injected(LLMObs, mock_logs):
+    span = LLMObs._instance.tracer.trace("test_span")
+    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.inject") as mock_inject:
+        LLMObs.inject_distributed_headers({}, span=None)
+        assert mock_inject.call_count == 1
+        mock_inject.assert_called_once_with(span.context, {})
+
+
+def test_activate_distributed_headers_llmobs_disabled_does_nothing(LLMObs, mock_logs):
+    LLMObs.disable()
+    LLMObs.activate_distributed_headers({})
+    mock_logs.warning.assert_called_once_with(
+        "LLMObs.activate_distributed_headers() called when LLMObs is not enabled. "
+        "Distributed context will not be activated."
+    )
+
+
+def test_activate_distributed_headers_calls_httppropagator_extract(LLMObs, mock_logs):
+    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
+        LLMObs.activate_distributed_headers({})
+        assert mock_extract.call_count == 1
+        mock_extract.assert_called_once_with({})
+
+
+def test_activate_distributed_headers_no_trace_id_does_nothing(LLMObs, mock_logs):
+    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
+        mock_extract.return_value = Context(span_id="123", meta={PROPAGATED_PARENT_ID_KEY: "123"})
+        LLMObs.activate_distributed_headers({})
+        assert mock_extract.call_count == 1
+        mock_logs.warning.assert_called_once_with("Failed to extract trace ID or span ID from request headers.")
+
+
+def test_activate_distributed_headers_no_span_id_does_nothing(LLMObs, mock_logs):
+    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
+        mock_extract.return_value = Context(trace_id="123", meta={PROPAGATED_PARENT_ID_KEY: "123"})
+        LLMObs.activate_distributed_headers({})
+        assert mock_extract.call_count == 1
+        mock_logs.warning.assert_called_once_with("Failed to extract trace ID or span ID from request headers.")
+
+
+def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(LLMObs, mock_logs):
+    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
+        dummy_context = Context(trace_id="123", span_id="456")
+        mock_extract.return_value = dummy_context
+        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
+            LLMObs.activate_distributed_headers({})
+            assert mock_extract.call_count == 1
+            mock_logs.warning.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
+            mock_activate.assert_called_once_with(dummy_context)
+
+
+def test_activate_distributed_headers_activates_context(LLMObs, mock_logs):
+    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
+        dummy_context = Context(trace_id="123", span_id="456", meta={PROPAGATED_PARENT_ID_KEY: "789"})
+        mock_extract.return_value = dummy_context
+        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
+            LLMObs.activate_distributed_headers({})
+            assert mock_extract.call_count == 1
+            mock_activate.assert_called_once_with(dummy_context)

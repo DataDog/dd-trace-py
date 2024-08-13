@@ -1,3 +1,5 @@
+import os
+import sqlite3
 import tempfile
 
 import django
@@ -22,6 +24,12 @@ if django.VERSION >= (2, 0, 0):
     from django.urls import path
 else:
     from django.conf.urls import url as path
+
+
+# for user events
+
+
+# creating users at start
 
 
 @csrf_exempt
@@ -56,6 +64,13 @@ def multi_view(request, param_int=0, param_str=""):
     for k, v in response_headers.items():
         json_response[k] = v
     return json_response
+
+
+DB = sqlite3.connect(":memory:")
+DB.execute("CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)")
+DB.execute("INSERT INTO users (id, name) VALUES ('1_secret_id', 'Alice')")
+DB.execute("INSERT INTO users (id, name) VALUES ('2_secret_id', 'Bob')")
+DB.execute("INSERT INTO users (id, name) VALUES ('3_secret_id', 'Christophe')")
 
 
 @csrf_exempt
@@ -101,22 +116,59 @@ def rasp(request, endpoint: str):
                     res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
-    elif endpoint == "shell":
-        res = ["shell endpoint"]
+    elif endpoint == "sql_injection":
+        res = ["sql_injection endpoint"]
+        for param in query_params:
+            if param.startswith("user_id"):
+                user_id = query_params[param]
+            try:
+                if param.startswith("user_id"):
+                    cursor = DB.execute(f"SELECT * FROM users WHERE id = {user_id}")
+                    res.append(f"Url: {list(cursor)}")
+            except Exception as e:
+                res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        return HttpResponse("<\\br>\n".join(res))
+    elif endpoint == "command_injection":
+        res = ["command_injection endpoint"]
         for param in query_params:
             if param.startswith("cmd"):
                 cmd = query_params[param]
                 try:
-                    import subprocess
-
-                    with subprocess.Popen(cmd, stdout=subprocess.PIPE) as f:
-                        res.append(f"cmd stdout: {f.stdout.read()}")
+                    res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
     tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
     return HttpResponse(f"Unknown endpoint: {endpoint}")
+
+
+@csrf_exempt
+def login_user(request):
+    from django.contrib.auth import authenticate
+    from django.contrib.auth import get_user_model
+    from django.contrib.auth import login
+
+    for username, email, passwd, last_name, user_id in [
+        ("test", "testuser@ddog.com", "1234", "test", "social-security-id"),
+        ("testuuid", "testuseruuid@ddog.com", "1234", "testuuid", "591dc126-8431-4d0f-9509-b23318d3dce4"),
+    ]:
+        try:
+            CustomUser = get_user_model()
+            if not CustomUser.objects.filter(id=user_id).exists():
+                user = CustomUser.objects.create_user(username, email, passwd, last_name=last_name, id=user_id)
+                user.save()
+        except Exception:
+            pass
+
+    username = request.GET.get("username")
+    password = request.GET.get("password")
+    user = authenticate(username=username, password=password)
+    if user is not None:
+        login(request, user)
+        return HttpResponse("OK")
+    return HttpResponse("login failure", status=401)
 
 
 @csrf_exempt
@@ -165,6 +217,8 @@ if django.VERSION >= (2, 0, 0):
         path("new_service/<str:service_name>", new_service, name="new_service"),
         path("rasp/<str:endpoint>/", rasp, name="rasp"),
         path("rasp/<str:endpoint>", rasp, name="rasp"),
+        path("login/", login_user, name="login"),
+        path("login", login_user, name="login"),
     ]
 else:
     urlpatterns += [
@@ -174,4 +228,6 @@ else:
         path(r"new_service/(?P<service_name>\w+)$", new_service, name="new_service"),
         path(r"rasp/(?P<endpoint>\w+)/$", new_service, name="rasp"),
         path(r"rasp/(?P<endpoint>\w+)$", new_service, name="rasp"),
+        path("login/", login_user, name="login"),
+        path("login", login_user, name="login"),
     ]

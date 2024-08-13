@@ -28,8 +28,6 @@ def patch():
         return
 
     if not getattr(os, "_datadog_cmdi_patch", False):
-        trace_utils.wrap(os, "system", _iast_cmdi_ossystem)
-
         # all os.spawn* variants eventually use this one:
         trace_utils.wrap(os, "_spawnvef", _iast_cmdi_osspawn)
 
@@ -49,11 +47,6 @@ def unpatch() -> None:
 
     os._datadog_cmdi_patch = False  # type: ignore[attr-defined]
     subprocess._datadog_cmdi_patch = False  # type: ignore[attr-defined]
-
-
-def _iast_cmdi_ossystem(wrapped, instance, args, kwargs):
-    _iast_report_cmdi(args[0])
-    return wrapped(*args, **kwargs)
 
 
 def _iast_cmdi_osspawn(wrapped, instance, args, kwargs):

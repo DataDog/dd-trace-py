@@ -1,6 +1,8 @@
 import contextlib
+import http.server
 import os
 import socket
+import socketserver
 import sys
 import tempfile
 import threading
@@ -9,8 +11,6 @@ import time
 import mock
 import msgpack
 import pytest
-from six.moves import BaseHTTPServer
-from six.moves import socketserver
 
 import ddtrace
 from ddtrace import config
@@ -186,6 +186,41 @@ class AgentWriterTests(BaseTestCase):
                 ],
                 any_order=True,
             )
+
+    def test_report_metrics_disabled(self):
+        statsd = mock.Mock()
+        with override_global_config(dict(health_metrics_enabled=True)):
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False, report_metrics=False)
+
+            # Queue 3 health metrics where each metric has the same name but different tags
+            writer.write([Span(name="name", trace_id=1, span_id=1, parent_id=None)])
+            writer._metrics_dist("test_trace.queued", 1, ["k1:v1"])
+            writer.write([Span(name="name", trace_id=2, span_id=2, parent_id=None)])
+            writer._metrics_dist(
+                "test_trace.queued",
+                1,
+                [
+                    "k2:v2",
+                    "k22:v22",
+                ],
+            )
+            writer.write([Span(name="name", trace_id=3, span_id=3, parent_id=None)])
+            writer._metrics_dist("test_trace.queued", 1)
+
+            # Ensure that the metrics are not reported
+            call_args = statsd.distribution.call_args
+            if call_args is not None:
+                assert (
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=["k1:v1"])
+                    not in call_args
+                )
+                assert (
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=["k2:v2", "k22:v22"])
+                    not in call_args
+                )
+                assert (
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=None) not in call_args
+                )
 
     def test_write_sync(self):
         statsd = mock.Mock()
@@ -444,7 +479,7 @@ def test_humansize():
     assert _human_size(1000000000) == "1GB"
 
 
-class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+class _BaseHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     error_message_format = "%(message)s\n"
     error_content_type = "text/plain"
 
@@ -479,9 +514,9 @@ _TIMEOUT_PORT = _PORT + 1
 _RESET_PORT = _TIMEOUT_PORT + 1
 
 
-class UDSHTTPServer(socketserver.UnixStreamServer, BaseHTTPServer.HTTPServer):
+class UDSHTTPServer(socketserver.UnixStreamServer, http.server.HTTPServer):
     def server_bind(self):
-        BaseHTTPServer.HTTPServer.server_bind(self)
+        http.server.HTTPServer.server_bind(self)
 
 
 def _make_uds_server(path, request_handler):
@@ -521,7 +556,7 @@ def endpoint_uds_server():
 
 
 def _make_server(port, request_handler):
-    server = BaseHTTPServer.HTTPServer((_HOST, port), request_handler)
+    server = http.server.HTTPServer((_HOST, port), request_handler)
     t = threading.Thread(target=server.serve_forever)
     # Set daemon just in case something fails
     t.daemon = True
@@ -637,7 +672,7 @@ def test_flush_queue_raise(writer_class):
 
         error = OSError
         with pytest.raises(error):
-            writer.write([])
+            writer.write([Span("name")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -704,6 +739,16 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
+
+
+def test_writer_recreate_keeps_headers():
+    writer = AgentWriter("http://dne:1234", headers={"Datadog-Client-Computed-Stats": "yes"})
+    assert "Datadog-Client-Computed-Stats" in writer._headers
+    assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
+
+    writer = writer.recreate()
+    assert "Datadog-Client-Computed-Stats" in writer._headers
+    assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
 
 
 @pytest.mark.parametrize(

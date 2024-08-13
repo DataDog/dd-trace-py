@@ -14,6 +14,7 @@ to be run at specific points during pytest execution. The most important hooks u
 from doctest import DocTest
 import json
 import os
+from pathlib import Path
 import re
 from typing import Dict  # noqa:F401
 
@@ -28,6 +29,9 @@ from ddtrace.contrib.coverage.patch import run_coverage_report
 from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.pytest._utils import _is_pytest_8_or_later
+from ddtrace.contrib.pytest._utils import _is_test_unskippable
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
@@ -37,7 +41,6 @@ from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
-from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
@@ -64,6 +67,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.inspection import undecorated
 
 
 log = get_logger(__name__)
@@ -73,12 +77,6 @@ _global_skipped_elements = 0
 # COVER_SESSION is an experimental feature flag that provides full coverage (similar to coverage run), and is an
 # experimental feature. It currently significantly increases test import time and should not be used.
 COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
-
-
-def _is_pytest_8_or_later():
-    if hasattr(pytest, "version_tuple"):
-        return pytest.version_tuple >= (8, 0, 0)
-    return False
 
 
 def encode_test_parameter(parameter):
@@ -100,7 +98,7 @@ def _is_pytest_cov_enabled(config) -> bool:
     nocov_option = config.getoption("--no-cov", default=False)
     if nocov_option is True:
         return False
-    if type(cov_option) == list and cov_option == [True] and not nocov_option:
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
         return True
     return cov_option
 
@@ -281,18 +279,6 @@ def _get_module_path(item):
     return module_path
 
 
-def _is_test_unskippable(item):
-    return any(
-        [
-            True
-            for marker in item.iter_markers(name="skipif")
-            if marker.args[0] is False
-            and "reason" in marker.kwargs
-            and marker.kwargs["reason"] is ITR_UNSKIPPABLE_REASON
-        ]
-    )
-
-
 def _module_is_package(pytest_package_item=None, pytest_module_item=None):
     # Pytest 8+ module items have a pytest.Dir object as their parent instead of the session object
     if _is_pytest_8_or_later():
@@ -439,7 +425,6 @@ class _PytestDDTracePluginV1:
     @staticmethod
     def pytest_configure(config):
         unpatch_unittest()
-        # config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
         if is_enabled(config):
             take_over_logger_stream_handler()
             _CIVisibility.enable(config=ddtrace.config.pytest)
@@ -452,6 +437,13 @@ class _PytestDDTracePluginV1:
             log.debug("CI Visibility enabled - starting test session")
             global _global_skipped_elements
             _global_skipped_elements = 0
+
+            workspace_path = _CIVisibility.get_workspace_path()
+            if workspace_path is None:
+                workspace_path = session.config.rootdir
+
+            session.config._dd_workspace_path = workspace_path
+
             test_session_span = _CIVisibility._instance.tracer.trace(
                 "pytest.test_session",
                 service=_CIVisibility._instance._service,
@@ -664,8 +656,14 @@ class _PytestDDTracePluginV1:
             if item.location and item.location[0]:
                 _CIVisibility.set_codeowners_of(item.location[0], span=span)
             if hasattr(item, "_obj"):
-                test_method_object = item._obj
-                _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name, item.config.rootdir)
+                item_path = Path(item.path if hasattr(item, "path") else item.fspath)
+                test_method_object = undecorated(item._obj, item.name, item_path)
+                _add_start_end_source_file_path_data_to_span(
+                    span,
+                    test_method_object,
+                    test_name,
+                    getattr(item.session.config, "_dd_workspace_path", item.config.rootdir),
+                )
 
             # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
             # (where the actual test status is set), it means there was a pytest error
@@ -868,13 +866,20 @@ class _PytestDDTracePluginV1:
                 return "%s.%s" % (item.cls.__name__, item.name)
         return item.name
 
-    @staticmethod
-    @pytest.hookimpl(trylast=True)
-    def pytest_terminal_summary(terminalreporter, exitstatus, config):
-        # Reports coverage if experimental session-level coverage is enabled.
-        if USE_DD_COVERAGE and COVER_SESSION:
-            ModuleCodeCollector.report()
-            try:
-                ModuleCodeCollector.write_json_report_to_file("dd_coverage.json")
-            except Exception:
-                log.debug("Failed to write coverage report to file", exc_info=True)
+    # Internal coverage is only used for ITR at the moment, so the hook is only added if the pytest version supports it
+    if _pytest_version_supports_itr():
+
+        @staticmethod
+        @pytest.hookimpl(trylast=True)
+        def pytest_terminal_summary(terminalreporter, exitstatus, config):
+            # Reports coverage if experimental session-level coverage is enabled.
+            if USE_DD_COVERAGE and COVER_SESSION:
+                workspace_path = getattr(config, "_dd_workspace_path", None)
+                if workspace_path is None:
+                    workspace_path = Path(os.getcwd())
+
+                ModuleCodeCollector.report(workspace_path)
+                try:
+                    ModuleCodeCollector.write_json_report_to_file("dd_coverage.json", workspace_path)
+                except Exception:
+                    log.debug("Failed to write coverage report to file", exc_info=True)

@@ -112,8 +112,8 @@ def mock_metrics():
         patcher.stop()
 
 
-@pytest.fixture
-def mock_logs(scope="session"):
+@pytest.fixture(scope="session")
+def mock_logs():
     """
     Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
     before it is instantiated.
@@ -128,8 +128,8 @@ def mock_logs(scope="session"):
         patcher.stop()
 
 
-@pytest.fixture
-def mock_llmobs_writer(scope="session"):
+@pytest.fixture()
+def mock_llmobs_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
         LLMObsSpanWriterMock = patcher.start()
@@ -191,7 +191,7 @@ def mock_tracer(ddtrace_global_config, openai, patch_openai, mock_logs, mock_met
     if ddtrace_global_config.get("_llmobs_enabled", False):
         # Have to disable and re-enable LLMObs to use to mock tracer.
         LLMObs.disable()
-        LLMObs.enable(_tracer=mock_tracer, integrations=["openai"])
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
 
     yield mock_tracer
 

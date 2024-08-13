@@ -2,8 +2,10 @@ SPAN_KIND = "_ml_obs.meta.span.kind"
 SESSION_ID = "_ml_obs.session_id"
 METADATA = "_ml_obs.meta.metadata"
 METRICS = "_ml_obs.metrics"
-TAGS = "_ml_obs.tags"
 ML_APP = "_ml_obs.meta.ml_app"
+PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
+PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
+TAGS = "_ml_obs.tags"
 
 MODEL_NAME = "_ml_obs.meta.model_name"
 MODEL_PROVIDER = "_ml_obs.meta.model_provider"
@@ -22,3 +24,17 @@ SPAN_START_WHILE_DISABLED_WARNING = (
 )
 
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
+OPENAI_APM_SPAN_NAME = "openai.request"
+
+INPUT_TOKENS_METRIC_KEY = "input_tokens"
+OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
+TOTAL_TOKENS_METRIC_KEY = "total_tokens"
+
+EVP_PROXY_AGENT_BASE_PATH = "evp_proxy/v2"
+EVP_PROXY_AGENT_ENDPOINT = "{}/api/v2/llmobs".format(EVP_PROXY_AGENT_BASE_PATH)
+EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
+EVP_SUBDOMAIN_HEADER_VALUE = "llmobs-intake"
+EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB
+
+AGENTLESS_BASE_URL = "https://llmobs-intake"
+AGENTLESS_ENDPOINT = "api/v2/llmobs"

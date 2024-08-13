@@ -1,5 +1,6 @@
 import platform
 import sys
+import sysconfig
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -125,3 +126,16 @@ def get_host_info():
             "container_id": _get_container_id(),
         }
     return _host_info
+
+
+def _get_sysconfig_var(key: str) -> str:
+    return sysconfig.get_config_var(key) or ""
+
+
+def get_python_config_vars() -> List[Tuple[str, str, str]]:
+    # DEV: Use "unknown" since these aren't user or dd defined values
+    return [
+        ("python_soabi", _get_sysconfig_var("SOABI"), "unknown"),
+        ("python_host_gnu_type", _get_sysconfig_var("HOST_GNU_TYPE"), "unknown"),
+        ("python_build_gnu_type", _get_sysconfig_var("BUILD_GNU_TYPE"), "unknown"),
+    ]

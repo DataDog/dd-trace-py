@@ -36,6 +36,7 @@ machine_executor: &machine_executor
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
     - PYTHONUNBUFFERED: 1
+    - CMAKE_BUILD_PARALLEL_LEVEL: 12
   steps:
     - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
     - &pyenv-set-global
@@ -79,7 +80,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.19.0
+      - run: pip3 install riot==0.19.1
 
   setup_rust:
     description: "Install rust toolchain"
@@ -349,18 +350,26 @@ executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
+        environment:
+          - CMAKE_BUILD_PARALLEL_LEVEL: 6
     resource_class: medium
   python310:
     docker:
       - image: *python310_image
+        environment:
+          - CMAKE_BUILD_PARALLEL_LEVEL: 12
     resource_class: large
   ddtrace_dev:
     docker:
       - image: *ddtrace_dev_image
+        environment:
+          - CMAKE_BUILD_PARALLEL_LEVEL: 6
     resource_class: *default_resource_class
   ddtrace_dev_small:
     docker:
       - image: *ddtrace_dev_image
+        environment:
+          - CMAKE_BUILD_PARALLEL_LEVEL: 4
     resource_class: small
 
 # Common configuration blocks as YAML anchors
@@ -405,15 +414,6 @@ jobs:
           name: "Spelling"
           command: hatch run lint:spelling
 
-  ccheck:
-    executor: cimg_base
-    steps:
-      - checkout
-      - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format cppcheck
-      - run: scripts/cformat.sh
-      - run: scripts/cppcheck.sh
-
   coverage_report:
     executor: python310
     steps:
@@ -439,10 +439,10 @@ jobs:
           path: coverage.json
       # Print ddtrace/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=tests/ || true
+      - run: coverage report --ignore-errors --omit='tests/*' || true
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=ddtrace/ || true
+      - run: coverage report --ignore-errors --omit='ddtrace/*' || true
       # Print diff-cover report to stdout (compares against origin/1.x)
       - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml || true
 
@@ -451,7 +451,7 @@ jobs:
     resource_class: large
     docker:
       - image: *ddtrace_dev_image
-    parallelism: 8
+    parallelism: 6
     steps:
       - checkout
       - setup_riot
@@ -459,6 +459,9 @@ jobs:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
           command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY"
+          environment:
+            CMAKE_BUILD_PARALLEL_LEVEL: 12
+            PIP_VERBOSE: 1
       - persist_to_workspace:
           root: .
           paths:
@@ -495,10 +498,16 @@ jobs:
 
   appsec_iast_packages:
     <<: *machine_executor
+    parallelism: 5
     steps:
-      - run_test:
-          pattern: 'appsec_iast_packages'
-          snapshot: true
+      - when:
+          condition:
+            matches: { pattern: "main", value: << pipeline.git.branch >> }
+          steps:
+            - run_test:
+                pattern: 'appsec_iast_packages'
+                snapshot: true
+      - run: echo "This test is skipped outside of main branch"
 
   appsec_integrations:
     <<: *machine_executor
@@ -563,6 +572,7 @@ jobs:
           pattern: "datastreams"
 
   tracer:
+    parallelism: 10
     <<: *contrib_job_large
     steps:
       - run_test:
@@ -576,6 +586,15 @@ jobs:
       - run_test:
           pattern: "ci_visibility"
           snapshot: true
+
+  dd_coverage:
+    <<: *machine_executor
+    parallelism: 6
+    steps:
+      - run_hatch_env_test:
+          env: 'dd_coverage'
+          snapshot: true
+
 
   llmobs:
     <<: *contrib_job
@@ -1296,6 +1315,14 @@ jobs:
     steps:
       - run_test:
           pattern: "langchain"
+          snapshot: true
+
+  anthropic:
+    <<: *machine_executor
+    parallelism: 3
+    steps:
+      - run_test:
+          pattern: "anthropic"
           snapshot: true
 
   logbook:

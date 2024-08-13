@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from dataclasses import field
 import sys
 from typing import Any
 from typing import Dict
@@ -5,8 +7,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import cast
-
-import attr
 
 from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
@@ -76,19 +76,19 @@ _EMPTY_CAPTURED_CONTEXT = _capture_context(
 )
 
 
-@attr.s
+@dataclass
 class Snapshot(LogSignal):
     """Raw snapshot.
 
     Used to collect the minimum amount of information from a firing probe.
     """
 
-    entry_capture = attr.ib(type=Optional[dict], default=None)
-    return_capture = attr.ib(type=Optional[dict], default=None)
-    line_capture = attr.ib(type=Optional[dict], default=None)
-
-    _message = attr.ib(type=Optional[str], default=None)
-    duration = attr.ib(type=Optional[int], default=None)  # nanoseconds
+    entry_capture: Optional[dict] = field(default=None)
+    return_capture: Optional[dict] = field(default=None)
+    line_capture: Optional[dict] = field(default=None)
+    _stack: Optional[list] = field(default=None)
+    _message: Optional[str] = field(default=None)
+    duration: Optional[int] = field(default=None)  # nanoseconds
 
     def _eval_segment(self, segment: TemplateSegment, _locals: Dict[str, Any]) -> str:
         probe = cast(LogProbeMixin, self.probe)
@@ -159,7 +159,7 @@ class Snapshot(LogSignal):
             return
 
         _locals = list(_safety.get_locals(self.frame))
-        _, exc, _ = exc_info
+        _, exc, tb = exc_info
         if exc is None:
             _locals.append(("@return", retval))
         else:
@@ -173,6 +173,19 @@ class Snapshot(LogSignal):
         self.state = SignalState.DONE
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
             self._eval_message(dict(_args))
+
+        stack = utils.capture_stack(self.frame)
+
+        # Fix the line number of the top frame. This might have been mangled by
+        # the instrumented exception handling of function probes.
+        while tb is not None:
+            frame = tb.tb_frame
+            if frame == self.frame:
+                stack[0]["lineNumber"] = tb.tb_lineno
+                break
+            tb = tb.tb_next
+
+        self._stack = stack
 
     def line(self):
         if not isinstance(self.probe, LogLineProbe):
@@ -198,6 +211,9 @@ class Snapshot(LogSignal):
             )
 
         self._eval_message(frame.f_locals)
+
+        self._stack = utils.capture_stack(frame)
+
         self.state = SignalState.DONE
 
     @property
@@ -209,7 +225,6 @@ class Snapshot(LogSignal):
 
     @property
     def data(self):
-        frame = self.frame
         probe = self.probe
 
         captures = None
@@ -223,7 +238,7 @@ class Snapshot(LogSignal):
                 }
 
         return {
-            "stack": utils.capture_stack(frame),
+            "stack": self._stack,
             "captures": captures,
             "duration": self.duration,
         }

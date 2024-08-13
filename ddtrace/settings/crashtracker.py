@@ -1,0 +1,103 @@
+import typing as t
+
+from envier import En
+
+from ddtrace.internal.utils.formats import parse_tags_str
+
+
+resolver_default = "full"
+
+
+def _derive_stacktrace_resolver(config: "CrashtrackerConfig") -> t.Optional[str]:
+    resolver = str(config._stacktrace_resolver or "")
+    resolver = resolver.lower()
+    if resolver == "none":
+        return None
+    if resolver in ("fast", "full", "safe"):
+        return resolver
+
+    # Invalid values should degrade to the default
+    return resolver_default
+
+
+def _check_for_crashtracker_available() -> bool:
+    from ddtrace.internal.datadog.profiling import crashtracker
+
+    return crashtracker.is_available
+
+
+def _derive_crashtracker_enabled(config: "CrashtrackerConfig") -> bool:
+    if not _check_for_crashtracker_available():
+        return False
+    return bool(config._enabled)
+
+
+class CrashtrackerConfig(En):
+    __prefix__ = "dd.crashtracker"
+
+    _enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Enables the crashtracker",
+    )
+
+    enabled = En.d(bool, _derive_crashtracker_enabled)
+
+    debug_url = En.v(
+        t.Optional[str],
+        "debug_url",
+        default=None,
+        help_type="String",
+        help="Overrides the URL parameter set by the ddtrace library. "
+        "This is generally useful only for dd-trace-py development.",
+    )
+
+    stdout_filename = En.v(
+        t.Optional[str],
+        "stdout_filename",
+        default=None,
+        help_type="String",
+        help="The destination filename for crashtracker stdout",
+    )
+
+    stderr_filename = En.v(
+        t.Optional[str],
+        "stderr_filename",
+        default=None,
+        help_type="String",
+        help="The destination filename for crashtracker stderr",
+    )
+
+    alt_stack = En.v(
+        bool,
+        "alt_stack",
+        default=False,
+        help_type="Boolean",
+        help="Whether to use an alternate stack for the crashtracker."
+        "This is generally useful only for dd-trace-py development.",
+    )
+
+    _stacktrace_resolver = En.v(
+        t.Optional[str],
+        "stacktrace_resolver",
+        default=resolver_default,
+        help_type="String",
+        help="How to collect native stack traces during a crash, if at all.  Accepted values are 'none', 'fast',"
+        " 'safe', and 'full'.  The default value is '" + resolver_default + "'.",
+    )
+    stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)
+
+    tags = En.v(
+        dict,
+        "tags",
+        parser=parse_tags_str,
+        default={},
+        help_type="Mapping",
+        help="Additional crashtracking tags. Must be a list in the ``key1:value,key2:value2`` format. "
+        "This is generally useful only for dd-trace-py development.",
+    )
+
+
+config = CrashtrackerConfig()

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    opentelemetry: Adds support for span events.

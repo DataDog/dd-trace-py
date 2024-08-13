@@ -19,6 +19,7 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
+from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -32,7 +33,7 @@ from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
-from ..serverless import in_azure_function_consumption_plan
+from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
@@ -126,7 +127,6 @@ class LogWriter(TraceWriter):
         # type: (Optional[List[Span]]) -> None
         if not spans:
             return
-
         encoded = self.encoder.encode_traces([spans])
         self.out.write(encoded + "\n")
         self.out.flush()
@@ -157,6 +157,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         sync_mode=False,  # type: bool
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
+        report_metrics=True,  # type: bool
     ):
         # type: (...) -> None
 
@@ -174,6 +175,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._clients = clients
         self.dogstatsd = dogstatsd
         self._metrics = defaultdict(int)  # type: Dict[str, int]
+        self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._conn = None  # type: Optional[ConnectionType]
@@ -210,6 +212,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _metrics_dist(self, name, count=1, tags=None):
         # type: (str, int, Optional[List]) -> None
+        if not self._report_metrics:
+            return
         if config.health_metrics_enabled and self.dogstatsd:
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
@@ -316,6 +320,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
+        # Queues an app-started event before the first ci-visibility/llmobs/trace payload is sent
+        telemetry_writer.app_started()
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
@@ -454,7 +460,7 @@ class AgentWriter(HTTPWriter):
         max_payload_size=None,  # type: Optional[int]
         timeout=None,  # type: Optional[float]
         dogstatsd: Optional[DogStatsd] = None,
-        report_metrics=False,  # type: bool
+        report_metrics=True,  # type: bool
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
@@ -478,7 +484,7 @@ class AgentWriter(HTTPWriter):
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
 
         default_api_version = "v0.5"
-        if is_windows or in_gcp_function() or in_azure_function_consumption_plan() or asm_config._asm_enabled:
+        if is_windows or in_gcp_function() or in_azure_function() or asm_config._asm_enabled:
             default_api_version = "v0.4"
 
         self._api_version = api_version or config._trace_api or default_api_version
@@ -515,6 +521,7 @@ class AgentWriter(HTTPWriter):
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
         self._response_cb = response_callback
+        self._report_metrics = report_metrics
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
             clients=[client],
@@ -526,6 +533,7 @@ class AgentWriter(HTTPWriter):
             sync_mode=sync_mode,
             reuse_connections=reuse_connections,
             headers=_headers,
+            report_metrics=report_metrics,
         )
 
     def recreate(self):
@@ -539,6 +547,8 @@ class AgentWriter(HTTPWriter):
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
             api_version=self._api_version,
+            headers=self._headers,
+            report_metrics=self._report_metrics,
         )
 
     @property
@@ -599,14 +609,6 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            if config._telemetry_enabled:
-                from ...internal import telemetry
-
-                if telemetry.telemetry_writer.started:
-                    return
-
-                telemetry.telemetry_writer._app_started_event()
-
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
             if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    SSI: Introduces generic safeguards for automatic instrumentation when using single step install in the form of early exit conditions.
+    Early exit from instrumentation is triggered if a version of software in the environment is not explicitly supported by ddtrace. The Python runtime
+    itself and many Python packages are checked for explicit support on the basis of their version.

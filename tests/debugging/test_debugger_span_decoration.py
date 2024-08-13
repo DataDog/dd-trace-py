@@ -113,7 +113,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             (signal,) = d.test_queue
             assert signal.errors == [EvaluationError(expr="test", message="Failed to evaluate condition: 'notathing'")]
 
-            ((payload,),) = d.uploader.wait_for_payloads()
+            (payload,) = d.uploader.wait_for_payloads()
             assert payload["message"] == "Condition evaluation errors for probe span-decoration"
 
     def test_debugger_span_decoration_probe_in_inner_function_active_span(self):

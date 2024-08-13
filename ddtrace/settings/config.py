@@ -11,8 +11,8 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal.compat import get_mp_context
-from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal._file_queue import File_Queue
+from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -334,8 +334,6 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = None if in_aws_lambda() else get_mp_context().Queue(512)
-
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -443,10 +441,11 @@ class Config(object):
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
-        if self.service is None and in_azure_function_consumption_plan():
+        if self.service is None and in_azure_function():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
         self._extra_services = set()
+        self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -475,6 +474,13 @@ class Config(object):
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+        if self._128_bit_trace_id_logging_enabled:
+            deprecate(
+                "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
+                message="Log injection format is now configured automatically.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
@@ -510,7 +516,7 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
 
-        trace_compute_stats_default = in_gcp_function() or in_azure_function_consumption_plan()
+        trace_compute_stats_default = in_gcp_function() or in_azure_function()
         self._trace_compute_stats = asbool(
             os.getenv(
                 "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
@@ -560,7 +566,12 @@ class Config(object):
 
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
-        self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
+        self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP")
+        self._llmobs_agentless_enabled = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
+
+        self._inject_force = asbool(os.getenv("DD_INJECT_FORCE", False))
+        self._lib_was_injected = False
+        self._inject_was_attempted = asbool(os.getenv("_DD_INJECT_WAS_ATTEMPTED", False))
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -573,23 +584,16 @@ class Config(object):
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
             return
-        if self._remote_config_enabled and service_name != self.service:
-            try:
-                self._extra_services_queue.put_nowait(service_name)
-            except Exception:  # nosec
-                pass
+        if service_name != self.service:
+            self._extra_services_queue.put(service_name)
 
     def _get_extra_services(self):
         # type: () -> set[str]
         if self._extra_services_queue is None:
             return set()
-        try:
-            while True:
-                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
-                if len(self._extra_services) > 64:
-                    self._extra_services.pop()
-        except Exception:  # nosec
-            pass
+        self._extra_services.update(self._extra_services_queue.get_all())
+        while len(self._extra_services) > 64:
+            self._extra_services.pop()
         return self._extra_services
 
     def get_from(self, obj):

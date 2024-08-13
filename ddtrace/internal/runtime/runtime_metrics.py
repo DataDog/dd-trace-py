@@ -4,12 +4,12 @@ from typing import ClassVar  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 
-import attr
-
 import ddtrace
-from ddtrace import config
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal import telemetry
+from ddtrace.internal.telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
@@ -22,10 +22,6 @@ from .tag_collectors import TracerTagCollector
 
 
 log = get_logger(__name__)
-
-if config._telemetry_enabled:
-    import ddtrace.internal.telemetry as telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 
 
 class RuntimeCollectorsIterable(object):
@@ -66,27 +62,24 @@ def _get_interval_or_default():
     return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
 
-@attr.s(eq=False)
 class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd
     client.
     """
 
-    _interval = attr.ib(type=float, factory=_get_interval_or_default)
-    tracer = attr.ib(type=ddtrace.Tracer, default=None)
-    dogstatsd_url = attr.ib(type=Optional[str], default=None)
-    _dogstatsd_client = attr.ib(init=False, repr=False)
-    _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
-    _services = attr.ib(type=Set[str], init=False, factory=set)
-
     enabled = False
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = forksafe.Lock()
 
-    def __attrs_post_init__(self):
-        # type: () -> None
-        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
-        self.tracer = self.tracer or ddtrace.tracer
+    def __init__(self, interval=_get_interval_or_default(), tracer=ddtrace.tracer, dogstatsd_url=None) -> None:
+        super().__init__(interval=interval)
+        self.dogstatsd_url: Optional[str] = dogstatsd_url
+        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
+            self.dogstatsd_url or ddtrace.internal.agent.get_stats_url()
+        )
+        self.tracer: Optional[ddtrace.Tracer] = tracer
+        self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
+        self._services: Set[str] = set()
 
     @classmethod
     def disable(cls):
@@ -111,8 +104,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = False
 
         # Report status to telemetry
-        if config._telemetry_enabled:
-            telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="unknown")
+        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="unknown")
 
     @classmethod
     def _restart(cls):
@@ -127,7 +119,7 @@ class RuntimeWorker(periodic.PeriodicService):
                 return
             if flush_interval is None:
                 flush_interval = _get_interval_or_default()
-            runtime_worker = cls(flush_interval, tracer, dogstatsd_url)  # type: ignore[arg-type]
+            runtime_worker = cls(flush_interval, tracer, dogstatsd_url)
             runtime_worker.start()
             # force an immediate update constant tags
             runtime_worker.update_runtime_tags()
@@ -139,14 +131,13 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = True
 
         # Report status to telemetry
-        if config._telemetry_enabled:
-            telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
+        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
 
     def flush(self):
         # type: () -> None
         # The constant tags for the dogstatsd client needs to updated with any new
         # service(s) that may have been added.
-        if self._services != self.tracer._services:
+        if self.tracer and self._services != self.tracer._services:
             self._services = self.tracer._services
             self.update_runtime_tags()
 

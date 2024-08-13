@@ -1,4 +1,3 @@
-from enum import Enum
 from pathlib import Path
 from typing import Dict
 from typing import List
@@ -9,6 +8,7 @@ from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
+from ddtrace.ext.ci_visibility.api import CITestStatus
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
@@ -24,7 +24,7 @@ log = get_logger(__name__)
 
 
 class CIVisibilitySuite(
-    CIVisibilityChildItem[CISuiteId], CIVisibilityParentItem[CISuiteId, CITestId, CIVisibilityTest]
+    CIVisibilityParentItem[CISuiteId, CITestId, CIVisibilityTest], CIVisibilityChildItem[CISuiteId]
 ):
     event_type = SUITE_TYPE
     event_type_metric_name = EVENT_TYPES.SUITE
@@ -48,12 +48,17 @@ class CIVisibilitySuite(
         log.debug("Starting CI Visibility suite %s", self.item_id)
         super().start()
 
-    def finish(self, force: bool = False, override_status: Optional[Enum] = None):
+    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None):
         log.debug("Finishing CI Visibility suite %s", self.item_id)
-        super().finish()
+        super().finish(force=force, override_status=override_status)
 
     def finish_itr_skipped(self):
-        log.debug("Finishing CI Visibility suite %s with ITR skipped", self.item_id)
+        """Suites should only count themselves as ITR-skipped of all children are ITR skipped"""
+        log.debug("Finishing CI Visibility suite %s as ITR skipped", self.item_id)
+        for child in self._children.values():
+            if not (child.is_finished() and child.is_itr_skipped()):
+                log.debug("Not finishing CI Visibility suite %s child test %s was not skipped by ITR", self.item_id)
+                return
         self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish()

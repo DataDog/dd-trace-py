@@ -45,7 +45,9 @@ def _expected_llmobs_llm_span_event(
     span,
     span_kind="llm",
     input_messages=None,
+    input_documents=None,
     output_messages=None,
+    output_value=None,
     parameters=None,
     metadata=None,
     token_metrics=None,
@@ -78,22 +80,28 @@ def _expected_llmobs_llm_span_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
     )
     meta_dict = {"input": {}, "output": {}}
-    if input_messages is not None:
-        meta_dict["input"].update({"messages": input_messages})
-    if output_messages is not None:
-        meta_dict["output"].update({"messages": output_messages})
-    if metadata is not None:
-        meta_dict.update({"metadata": metadata})
-    if parameters is not None:
-        meta_dict["input"].update({"parameters": parameters})
-    if model_name is not None:
-        meta_dict.update({"model_name": model_name})
-    if model_provider is not None:
-        meta_dict.update({"model_provider": model_provider})
+    if span_kind == "llm":
+        if input_messages is not None:
+            meta_dict["input"].update({"messages": input_messages})
+        if output_messages is not None:
+            meta_dict["output"].update({"messages": output_messages})
+    if span_kind == "embedding":
+        if input_documents is not None:
+            meta_dict["input"].update({"documents": input_documents})
+        if output_value is not None:
+            meta_dict["output"].update({"value": output_value})
     if not meta_dict["input"]:
         meta_dict.pop("input")
     if not meta_dict["output"]:
         meta_dict.pop("output")
+    if model_name is not None:
+        meta_dict.update({"model_name": model_name})
+    if model_provider is not None:
+        meta_dict.update({"model_provider": model_provider})
+    if metadata is not None:
+        meta_dict.update({"metadata": metadata})
+    if parameters is not None:
+        meta_dict["input"].update({"parameters": parameters})
     span_event["meta"].update(meta_dict)
     if token_metrics is not None:
         span_event["metrics"].update(token_metrics)
@@ -161,12 +169,17 @@ def _llmobs_base_span_event(
     error_stack=None,
     integration=None,
 ):
+    span_name = span.name
+    if integration == "langchain":
+        span_name = span.resource
+    elif integration == "openai":
+        span_name = "openai.{}".format(span.resource)
     span_event = {
-        "span_id": str(span.span_id),
         "trace_id": "{:x}".format(span.trace_id),
+        "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
         "session_id": session_id or "{:x}".format(span.trace_id),
-        "name": span.resource if integration == "langchain" else span.name,
+        "name": span_name,
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
@@ -192,13 +205,130 @@ def _get_llmobs_parent_id(span: Span):
 
 
 def _expected_llmobs_eval_metric_event(
-    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None
+    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None, tags=None
 ):
-    eval_metric_event = {"span_id": span_id, "trace_id": trace_id, "metric_type": metric_type, "label": label}
+    eval_metric_event = {
+        "span_id": span_id,
+        "trace_id": trace_id,
+        "metric_type": metric_type,
+        "label": label,
+        "tags": ["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:{}".format("unnamed-ml-app")],
+    }
     if categorical_value is not None:
         eval_metric_event["categorical_value"] = categorical_value
     if score_value is not None:
         eval_metric_event["score_value"] = score_value
     if numerical_value is not None:
         eval_metric_event["numerical_value"] = numerical_value
+    if tags is not None:
+        eval_metric_event["tags"] = tags
+
     return eval_metric_event
+
+
+def _completion_event():
+    return {
+        "kind": "llm",
+        "span_id": "12345678901",
+        "trace_id": "98765432101",
+        "parent_id": "",
+        "session_id": "98765432101",
+        "name": "completion_span",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223236,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "ada",
+            "model_provider": "openai",
+            "input": {
+                "messages": [{"content": "who broke enigma?"}],
+                "parameters": {"temperature": 0, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."  # noqa: E501
+                    }
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _chat_completion_event():
+    return {
+        "span_id": "12345678902",
+        "trace_id": "98765432102",
+        "parent_id": "",
+        "session_id": "98765432102",
+        "name": "chat_completion_span",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "Ah, a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very well, little creature, I shall play along. But know that I am always watching, and your quest will not go unnoticed",  # noqa: E501
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _large_event():
+    return {
+        "span_id": "12345678903",
+        "trace_id": "98765432103",
+        "parent_id": "",
+        "session_id": "98765432103",
+        "name": "large_span",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "A" * 3_000_000,
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }

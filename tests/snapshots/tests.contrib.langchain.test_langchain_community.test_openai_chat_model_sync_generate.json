@@ -6,11 +6,11 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "llm",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ebafc800000000",
+      "_dd.p.tid": "6697185500000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.messages.0.0.content": "Respond like a frat boy.",
       "langchain.request.messages.0.0.message_type": "SystemMessage",
@@ -29,24 +29,24 @@
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
       "langchain.request.type": "chat_model",
-      "langchain.response.completions.0.0.content": "Bro, Equinox Hudson Yards is just a few blocks away from the main entrance. You can't miss it, dude. Get your pump on and show t...",
+      "langchain.response.completions.0.0.content": "Bro, Equinox Hudson Yards is just a few blocks away from the main entrance, you can't miss it! Get your pump on and show those w...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
-      "langchain.response.completions.1.0.content": "Arrr, ye be wantin' to sail the high seas from New York to Bikini Bottom, eh? Well, ye best be gettin' yerself a trusty ship and...",
+      "langchain.response.completions.1.0.content": "Arrr matey, ye be needin' to sail the high seas to reach Bikini Bottom from New York! Hoist the sails, chart a course, and bewar...",
       "langchain.response.completions.1.0.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "9f52b7e016c04b4a994ec1df509018a4"
+      "runtime-id": "83d5f8c67690465e800659270e2abb1a"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 158,
+      "langchain.tokens.completion_tokens": 110,
       "langchain.tokens.prompt_tokens": 60,
-      "langchain.tokens.total_cost": 0.000406,
-      "langchain.tokens.total_tokens": 218,
-      "process_id": 88379
+      "langchain.tokens.total_cost": 0.00031,
+      "langchain.tokens.total_tokens": 170,
+      "process_id": 66487
     },
-    "duration": 9272000,
-    "start": 1709944776521887000
+    "duration": 6795000,
+    "start": 1721178197571648000
   }]]

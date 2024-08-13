@@ -71,6 +71,7 @@ datastore
 datastores
 dbapi
 ddtrace
+deallocating
 deprecations
 deserializing
 django
@@ -127,6 +128,7 @@ kwarg
 kwargs
 LLM
 langchain
+langchain_community
 lifecycle
 linters
 lockfiles
