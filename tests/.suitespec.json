@@ -164,7 +164,7 @@
             "ddtrace/contrib/aiopg/*",
             "ddtrace/contrib/internal/aiopg/*",
             "ddtrace/contrib/asyncpg/*",
-            "ddtrace/contrib/internal/psycopg/*"
+            "ddtrace/contrib/internal/psycopg/*",
             "ddtrace/contrib/internal/asyncpg/*",
             "ddtrace/contrib/psycopg/*"
         ],
