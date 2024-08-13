@@ -111,14 +111,18 @@ required_modules = ["tornado"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .stack_context import TracerStackContext
-        from .stack_context import run_with_trace_context
+        # Required to allow users to import from `ddtrace.contrib.tornado.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ..internal.tornado.stack_context import TracerStackContext
+        from ..internal.tornado.stack_context import run_with_trace_context
 
         context_provider = TracerStackContext()
 
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch
+        from ..internal.tornado.patch import get_version
+        from ..internal.tornado.patch import patch
+        from ..internal.tornado.patch import unpatch
 
         __all__ = [
             "patch",

@@ -149,6 +149,7 @@
             "ddtrace/contrib/aredis/*",
             "ddtrace/contrib/internal/aredis/*",
             "ddtrace/contrib/yaaredis/*",
+            "ddtrace/contrib/internal/yaaredis/*",
             "ddtrace/_trace/utils_redis.py",
             "ddtrace/contrib/redis_utils.py",
             "ddtrace/contrib/trace_utils_redis.py",
@@ -205,7 +206,8 @@
             "ddtrace/opentracer/*"
         ],
         "tornado": [
-            "ddtrace/contrib/tornado/*"
+            "ddtrace/contrib/tornado/*",
+            "ddtrace/contrib/internal/tornado/*"
         ],
         "pynamodb": [
             "ddtrace/contrib/pynamodb/*"
@@ -285,13 +287,16 @@
             "ddtrace/vendor/*"
         ],
         "urllib3": [
-            "ddtrace/contrib/urllib3/*"
+            "ddtrace/contrib/urllib3/*",
+            "ddtrace/contrib/internal/urllib3/*"
         ],
         "webbrowser": [
-            "ddtrace/contrib/webbrowser/*"
+            "ddtrace/contrib/webbrowser/*",
+            "ddtrace/contrib/internal/webbrowser/*"
         ],
         "urllib": [
-            "ddtrace/contrib/urllib/*"
+            "ddtrace/contrib/urllib/*",
+            "ddtrace/contrib/internal/urllib/*"
         ],
         "rq": [
             "ddtrace/contrib/rq/*"
@@ -309,10 +314,12 @@
             "ddtrace/ext/kombu.py"
         ],
         "wsgi": [
-            "ddtrace/contrib/wsgi/*"
+            "ddtrace/contrib/wsgi/*",
+            "ddtrace/contrib/internal/wsgi/*"
         ],
         "vertica": [
-            "ddtrace/contrib/vertica/*"
+            "ddtrace/contrib/vertica/*",
+            "ddtrace/contrib/internal/vertica/*"
         ],
         "algoliasearch": [
             "ddtrace/contrib/algoliasearch/*",
@@ -458,7 +465,8 @@
             "ddtrace/contrib/pytest_benchmark/*"
         ],
         "unittest": [
-            "ddtrace/contrib/unittest/*"
+            "ddtrace/contrib/unittest/*",
+            "ddtrace/contrib/internal/unittest/*"
         ],
         "appsec": [
             "ddtrace/appsec/*",
