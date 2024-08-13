@@ -590,9 +590,6 @@ class CIVisibility(Service):
                 return
 
         if cls._instance is not None:
-            import traceback
-
-            traceback.print_stack()
             log.debug("%s already enabled", cls.__name__)
             return
 

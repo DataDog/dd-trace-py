@@ -64,8 +64,8 @@ def _handle_itr_should_skip(item, test_id) -> bool:
 
     if CISuite.is_item_itr_skippable(suite_id):
         if item_is_unskippable:
+            # Marking the test as forced run also applies to its hierarchy
             CITest.mark_itr_forced_run(test_id)
-            CISuite.mark_itr_forced_run(suite_id)
             return False
         else:
             CITest.mark_itr_skipped(test_id)
