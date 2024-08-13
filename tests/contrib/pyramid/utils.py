@@ -323,8 +323,7 @@ class PyramidTestCase(PyramidBase):
         settings = {"pyramid.tweens": "a.random.tween\nand.another.one"}
         insert_tween_if_needed(settings)
         assert (
-            settings["pyramid.tweens"]
-            == "a.random.tween\nand.another.one\nddtrace.contrib.pyramid:trace_tween_factory"
+            settings["pyramid.tweens"] == "a.random.tween\nand.another.one\nddtrace.contrib.pyramid:trace_tween_factory"
         )
 
     def test_include_conflicts(self):
