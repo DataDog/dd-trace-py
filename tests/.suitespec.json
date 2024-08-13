@@ -162,7 +162,9 @@
         ],
         "pg": [
             "ddtrace/contrib/aiopg/*",
+            "ddtrace/contrib/internal/aiopg/*",
             "ddtrace/contrib/asyncpg/*",
+            "ddtrace/contrib/internal/asyncpg/*",
             "ddtrace/contrib/psycopg/*",
             "ddtrace/contrib/internal/psycopg/*"
         ],
@@ -342,15 +344,19 @@
         ],
         "botocore": [
             "ddtrace/contrib/botocore/*",
+            "ddtrace/contrib/internal/botocore/*",
             "ddtrace/contrib/boto/*",
-            "ddtrace/contrib/aiobotocore/*"
+            "ddtrace/contrib/internal/boto/*",
+            "ddtrace/contrib/aiobotocore/*",
+            "ddtrace/contrib/internal/aiobotocore/*"
         ],
         "mysql": [
             "ddtrace/contrib/mysql/*",
             "ddtrace/contrib/mysqldb/*",
             "ddtrace/contrib/pymysql/*",
             "ddtrace/contrib/internal/pymysql/*",
-            "ddtrace/contrib/aiomysql/*"
+            "ddtrace/contrib/aiomysql/*",
+            "ddtrace/contrib/internal/aiomysql/*"
         ],
         "pylibmc": [
             "ddtrace/contrib/pylibmc/*",
@@ -383,11 +389,14 @@
         ],
         "aws_lambda": [
             "ddtrace/contrib/aws_lambda/*",
+            "ddtrace/contrib/internal/aws_lambda/*",
             "ddtrace/ext/aws.py"
         ],
         "aiohttp": [
             "ddtrace/contrib/aiohttp/*",
-            "ddtrace/contrib/aiohttp_jinja2/*"
+            "ddtrace/contrib/internal/aiohttp/*",
+            "ddtrace/contrib/aiohttp_jinja2/*",
+            "ddtrace/contrib/internal/aiohttp_jinja2/*"
         ],
         "openai": [
             "ddtrace/contrib/openai/*",
@@ -421,7 +430,8 @@
             "ddtrace/ext/cassandra.py"
         ],
         "bottle": [
-            "ddtrace/contrib/bottle/*"
+            "ddtrace/contrib/bottle/*",
+            "ddtrace/contrib/internal/bottle/*"
         ],
         "consul": [
             "ddtrace/contrib/consul/*",
@@ -432,7 +442,8 @@
             "ddtrace/contrib/internal/django/*"
         ],
         "aiopg": [
-            "ddtrace/contrib/aiopg/*"
+            "ddtrace/contrib/aiopg/*",
+            "ddtrace/contrib/internal/aiopg/*"
         ],
         "pytest": [
             "ddtrace/contrib/pytest/*",
