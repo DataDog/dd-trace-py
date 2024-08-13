@@ -42,16 +42,23 @@ def _get_spans_from_list(
 
     target_type = _names_map[span_type][0]
     target_name = _names_map[span_type][1] if name else None
-    return [
-        span
-        for span in spans
-        if span.get_tag("type") == target_type
-        and (
-            span.get_tag(target_name) == name
-            if name
-            else True and (span.get_tag("test.status") == status if status else True)
-        )
-    ]
+
+    selected_spans = []
+
+    for span in spans:
+        # filter out spans that don't match our desired criteria
+        if span.get_tag("type") != target_type:
+            continue
+
+        if name is not None and span.get_tag(target_name) != name:
+            continue
+
+        if status is not None and span.get_tag("test.status") != status:
+            continue
+
+        selected_spans.append(span)
+
+    return selected_spans
 
 
 class PytestTestCase(TracerTestCase):
