@@ -2,6 +2,7 @@
 """
 
 import os
+import re
 import subprocess  # nosec
 
 from flask import Flask
@@ -185,7 +186,8 @@ def appsec_body_hang():
 @app.route("/iast-cmdi-vulnerability", methods=["GET"])
 def iast_cmdi_vulnerability():
     filename = request.args.get("filename")
-    subp = subprocess.Popen(args=["ls", "-la", filename])
+    changed = re.sub(r"(\s+)", "", filename)
+    subp = subprocess.Popen(args=["ls", "-la", changed])
     subp.communicate()
     subp.wait()
     resp = Response("OK")
