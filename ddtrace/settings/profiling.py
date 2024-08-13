@@ -77,7 +77,7 @@ def _check_for_stack_v2_available():
 
 
 def _is_libdd_required(config):
-    return config.stack.v2.enabled or config.export._libdd_enabled or config.timeline_enabled
+    return config.stack.v2_enabled or config.export._libdd_enabled or config.timeline_enabled
 
 
 class ProfilingConfig(En):
