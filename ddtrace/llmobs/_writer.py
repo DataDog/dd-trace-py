@@ -293,41 +293,12 @@ class LLMObsSpanWriter(HTTPWriter):
         )
 
 
-DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the event size limit.]"
+DROPPED_VALUE_TEXT = {"value": "[This value has been dropped because this span's size exceeds the event size limit.]"}
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
-    if "value" in event["meta"]["input"]:
-        event["meta"]["input"]["value"] = DROPPED_VALUE_TEXT
-    if "value" in event["meta"]["output"]:
-        event["meta"]["output"]["value"] = DROPPED_VALUE_TEXT
-
-    if "messages" in event["meta"]["input"]:
-        event["meta"]["input"]["messages"] = _truncate_messages(event["meta"]["input"]["messages"])
-    if "messages" in event["meta"]["output"]:
-        event["meta"]["output"]["messages"] = _truncate_messages(event["meta"]["output"]["messages"])
-
-    if "documents" in event["meta"]["input"]:
-        event["meta"]["input"]["documents"] = _truncate_documents(event["meta"]["input"]["documents"])
-    if "documents" in event["meta"]["output"]:
-        event["meta"]["output"]["documents"] = _truncate_documents(event["meta"]["output"]["documents"])
+    event["meta"]["input"] = DROPPED_VALUE_TEXT
+    event["meta"]["output"] = DROPPED_VALUE_TEXT
 
     event["tags"].append(DROPPED_IO_TAG)
     return event
-
-
-def _truncate_messages(messages: List[Any]) -> List[Any]:
-    return [
-        {
-            "content": "[%d message(s) have been dropped because this span's size exceeds the event size limit.]"
-            % len(messages),
-            "role": "",
-        }
-    ]
-
-
-def _truncate_documents(documents: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "_": "[%d document(s) have been dropped because this span's size exceeds the event size limit.]"
-        % len(documents)
-    }
