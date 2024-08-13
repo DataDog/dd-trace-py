@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    config: DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated. Trace id logging format is now configured automatically.
