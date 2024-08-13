@@ -45,6 +45,7 @@ from .._taint_tracking import shift_taint_range
 from .._taint_tracking import taint_pyobject_with_ranges
 from .._taint_tracking._native import aspects  # noqa: F401
 
+from re import Pattern
 
 TEXT_TYPES = Union[str, bytes, bytearray]
 
@@ -61,6 +62,7 @@ __all__ = [
     "bytearray_extend_aspect",
     "decode_aspect",
     "encode_aspect",
+    "re_sub_aspect",
     "_aspect_ospathjoin",
     "_aspect_split",
     "_aspect_rsplit",
@@ -1076,3 +1078,32 @@ def translate_aspect(
 
 def empty_func(*args, **kwargs):
     pass
+
+
+def re_sub_aspect(
+    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+) -> Union[TEXT_TYPES]:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    if not isinstance(self, Pattern):
+        # This is not the sub we're looking for
+        return result
+
+    if len(args) >= 2:
+        repl = args[0]
+        string = args[1]
+        if is_pyobject_tainted(string):
+            # Taint result
+            copy_and_shift_ranges_from_strings(string, result, 0, len(result))
+        elif is_pyobject_tainted(repl):
+            # Taint result
+            copy_and_shift_ranges_from_strings(repl, result, 0, len(result))
+
+    return result
