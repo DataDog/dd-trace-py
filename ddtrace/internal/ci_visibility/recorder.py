@@ -924,7 +924,7 @@ def _on_discover_session(
         suite_operation_name=discover_args.suite_operation_name,
         test_operation_name=discover_args.test_operation_name,
         workspace_path=workspace_path,
-        is_unknown_ci=CIVisibility.is_unknown_ci(),
+        is_unsupported_ci=CIVisibility.is_unknown_ci(),
         itr_enabled=CIVisibility.is_itr_enabled(),
         itr_test_skipping_enabled=CIVisibility.test_skipping_enabled(),
         itr_test_skipping_level=SUITE if instance._suite_skipping_mode else TEST,

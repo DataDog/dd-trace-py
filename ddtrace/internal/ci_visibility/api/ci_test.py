@@ -15,6 +15,8 @@ from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettin
 from ddtrace.internal.ci_visibility.api.ci_coverage_data import CICoverageData
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
 from ddtrace.internal.logger import get_logger
 
 
@@ -53,6 +55,9 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         if item_id.parameters:
             self.set_tag(test.PARAMETERS, item_id.parameters)
 
+        # Currently unsupported
+        self._is_benchmark = None
+
     def _get_hierarchy_tags(self) -> Dict[str, str]:
         return {
             test.NAME: self.name,
@@ -67,6 +72,20 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
             return
         if self._exc_info is not None:
             self._span.set_exc_info(self._exc_info.exc_type, self._exc_info.exc_value, self._exc_info.exc_traceback)
+
+    def _telemetry_record_event_created(self):
+        record_event_created(
+            event_type=self.event_type_metric_name,
+            test_framework=self._session_settings.test_framework_metric_name,
+            is_benchmark=self._is_benchmark if self.is_benchmark is not None else None,
+        )
+
+    def _telemetry_record_event_finished(self):
+        record_event_finished(
+            event_type=self.event_type_metric_name,
+            test_framework=self._session_settings.test_framework_metric_name,
+            is_benchmark=self._is_benchmark if self.is_benchmark is not None else None,
+        )
 
     def start(self) -> None:
         log.debug("Starting CI Visibility test %s", self.item_id)

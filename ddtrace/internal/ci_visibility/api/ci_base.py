@@ -31,8 +31,6 @@ from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
-from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
-from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
@@ -56,7 +54,7 @@ class CIVisibilitySessionSettings:
     suite_operation_name: str
     test_operation_name: str
     workspace_path: Path
-    is_unknown_ci: bool = False
+    is_unsupported_ci: bool = False
     reject_unknown_items: bool = True
     reject_duplicates: bool = True
     itr_enabled: bool = False
@@ -147,9 +145,6 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[CISourceFileInfo] = None
         self._coverage_data: Optional[CICoverageData] = None
-
-        # Currently unsupported:
-        self._is_benchmark = False
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.item_id})"
@@ -312,6 +307,16 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         """Add module, suite, and test name and id tags"""
         self.set_tags(self._collect_hierarchy_tags())
 
+    @abc.abstractmethod
+    def _telemetry_record_event_created(self):
+        # Telemetry for events created has specific tags for item types
+        raise NotImplementedError("This method must be implemented by the subclass")
+
+    @abc.abstractmethod
+    def _telemetry_record_event_finished(self):
+        # Telemetry for events created has specific tags for item types
+        raise NotImplementedError("This method must be implemented by the subclass")
+
     def start(self) -> None:
         if self.is_started():
             if self._session_settings.reject_duplicates:
@@ -319,13 +324,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
                 log.warning(error_msg)
                 raise CIVisibilityDataError(error_msg)
             return
-        record_event_created(
-            self.event_type_metric_name,
-            self._session_settings.test_framework_metric_name,
-            self._codeowners is not None,
-            self._session_settings.is_unknown_ci is not None,
-            self._is_benchmark is not None,
-        )
+        self._telemetry_record_event_created()
         self._start_span()
 
     def is_started(self) -> bool:
@@ -336,7 +335,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         Nothing should be called after this method is called.
         """
-        record_event_finished(self.event_type_metric_name, self._session_settings.test_framework_metric_name)
+        self._telemetry_record_event_finished()
         self._finish_span()
 
     def is_finished(self) -> bool:

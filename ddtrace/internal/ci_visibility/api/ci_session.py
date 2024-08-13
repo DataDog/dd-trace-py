@@ -15,6 +15,8 @@ from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
 from ddtrace.internal.logger import get_logger
 
 
@@ -67,6 +69,22 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
         if itr_enabled:
             self.set_tag(test.ITR_TEST_SKIPPING_TYPE, self._session_settings.itr_test_skipping_level)
             self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)
+
+    def _telemetry_record_event_created(self):
+        record_event_created(
+            event_type=self.event_type_metric_name,
+            test_framework=self._session_settings.test_framework_metric_name,
+            has_codeowners=self._codeowners is not None,
+            is_unsupported_ci=self._session_settings.is_unsupported_ci,
+        )
+
+    def _telemetry_record_event_finished(self):
+        record_event_finished(
+            event_type=self.event_type_metric_name,
+            test_framework=self._session_settings.test_framework_metric_name,
+            has_codeowners=self._codeowners is not None,
+            is_unsupported_ci=self._session_settings.is_unsupported_ci,
+        )
 
     def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
         raise NotImplementedError("Coverage data cannot be added to sessions.")
