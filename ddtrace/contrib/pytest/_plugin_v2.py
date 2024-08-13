@@ -1,9 +1,9 @@
 from pathlib import Path
 import re
+import typing as t
 
 import pytest
 
-import ddtrace
 from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.coverage.data import _coverage_data
@@ -12,13 +12,16 @@ from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.pytest._utils import _get_names_from_item
+from ddtrace.contrib.pytest._utils import _get_session_command
+from ddtrace.contrib.pytest._utils import _get_session_id
+from ddtrace.contrib.pytest._utils import _get_source_file_info
+from ddtrace.contrib.pytest._utils import _get_test_id_from_item
+from ddtrace.contrib.pytest._utils import _is_test_unskippable
+from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
-from ddtrace.contrib.pytest.utils import _get_names_from_item
-from ddtrace.contrib.pytest.utils import _get_session_command
-from ddtrace.contrib.pytest.utils import _get_session_id
-from ddtrace.contrib.pytest.utils import _get_test_id_from_item
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIExcInfo
@@ -26,9 +29,16 @@ from ddtrace.ext.ci_visibility.api import CIModule
 from ddtrace.ext.ci_visibility.api import CISession
 from ddtrace.ext.ci_visibility.api import CISuite
 from ddtrace.ext.ci_visibility.api import CITest
-from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.ext.ci_visibility.api import disable_ci_visibility
+from ddtrace.ext.ci_visibility.api import enable_ci_visibility
+from ddtrace.ext.ci_visibility.api import is_ci_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
+from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.logger import get_logger
 
 
@@ -36,6 +46,69 @@ log = get_logger(__name__)
 
 
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
+
+
+def _handle_itr_should_skip(item, test_id) -> bool:
+    """Checks whether a test should be skipped
+
+    This function has the side effect of marking the test as skipped immediately if it should be skipped.
+    """
+    if not CISession.is_test_skipping_enabled():
+        return False
+
+    item_is_unskippable = CITest.is_item_itr_unskippable(item) or CISuite.is_item_itr_unskippable(test_id.parent_id)
+
+    if CISuite.is_item_itr_skippable(test_id.parent_id):
+        if item_is_unskippable:
+            CITest.mark_itr_forced_run(test_id)
+        else:
+            CITest.mark_itr_skipped(test_id)
+            item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
+            return True
+
+    return False
+
+
+def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
+    coverage_collector = ModuleCodeCollector.CollectInContext()
+    # TODO: don't depend on internal for telemetry
+    record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
+
+    coverage_collector.__enter__()
+
+    return coverage_collector
+
+
+def _handle_collected_coverage(test_id, coverage_collector) -> None:
+    # TODO: clean up internal coverage API usage
+    test_covered_lines = ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
+    coverage_collector.__exit__()
+
+    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
+
+    if not test_covered_lines:
+        log.debug("No covered lines found for test %s", test_id)
+        return
+
+    # TODO: switch representation to bytearrays as part of new ITR coverage strategy
+    # This code is temporary / PoC
+
+    coverage_data: t.Dict[Path, t.List[t.Tuple[int, int]]] = {}
+
+    for path_str, covered_lines in test_covered_lines.items():
+        file_path = Path(path_str)
+        if not file_path.is_absolute():
+            file_path = file_path.resolve()
+
+        sorted_lines = sorted(covered_lines)
+
+        collapsed_ranges = collapse_ranges(sorted_lines)
+        file_segments = []
+        for file_segment in collapsed_ranges:
+            file_segments.append((file_segment[0], file_segment[1]))
+        coverage_data[file_path] = file_segments
+
+    CISuite.add_coverage_data(test_id.parent_id, coverage_data)
 
 
 class _PytestDDTracePluginV2:
@@ -50,16 +123,15 @@ class _PytestDDTracePluginV2:
     @staticmethod
     def pytest_configure(config: pytest.Config) -> None:
         unpatch_unittest()
-        # config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
         if is_enabled(config):
             take_over_logger_stream_handler()
-            CIVisibility.enable(config=ddtrace.config.pytest)
+            enable_ci_visibility()
         if _is_pytest_cov_enabled(config):
             patch_coverage()
 
     @staticmethod
     def pytest_sessionstart(session: pytest.Session) -> None:
-        if not CIVisibility.enabled:
+        if not is_ci_visibility_enabled():
             return
         log.debug("CI Visibility enabled - starting test session")
 
@@ -77,15 +149,16 @@ class _PytestDDTracePluginV2:
             test_operation_name="pytest.test",
             reject_duplicates=False,
             reject_unknown_items=True,
-            root_dir=Path(CIVisibility.get_workspace_path() or session.config.rootpath),  # TODO rootdir for pytest <6.1
         )
 
         CISession.start(session_id)
 
     @staticmethod
-    def pytest_collection_modifyitems(session, config, items):
-        if not CIVisibility.enabled:
+    def pytest_collection_modifyitems(session, config, items) -> None:
+        if not is_ci_visibility_enabled():
             return
+
+        codeowners = CISession.get_codeowners()
 
         for item in items:
             test_id = _get_test_id_from_item(item)
@@ -96,18 +169,22 @@ class _PytestDDTracePluginV2:
             CIModule.discover(module_id)
             CISuite.discover(suite_id)
 
-            CITest.discover(test_id)
+            item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
 
-            # If ITR test skipping is not enabled, no need to follow the rest of the tests
-            if not CIVisibility.test_skipping_enabled():
-                continue
+            item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
 
-            # TODO (obviously) support test skipping
+            source_file_info = _get_source_file_info(item, item_path)
+
+            CITest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
+
+            if CISession.is_test_skipping_enabled() and _is_test_unskippable(item):
+                CITest.mark_itr_unskippable(test_id)
+                CISuite.mark_itr_unskippable(suite_id)
 
     @staticmethod
     @pytest.hookimpl(tryfirst=True, hookwrapper=True)
-    def pytest_runtest_protocol(item, nextitem):
-        if not CIVisibility.enabled:
+    def pytest_runtest_protocol(item, nextitem) -> None:
+        if not is_ci_visibility_enabled():
             yield
             return
 
@@ -115,15 +192,27 @@ class _PytestDDTracePluginV2:
         suite_id = test_id.parent_id
         module_id = suite_id.parent_id
 
+        # TODO: don't start modules if already started
         CIModule.start(module_id)
         CISuite.start(suite_id)
         CITest.start(test_id)
 
-        # TODO support test skipping
+        _handle_itr_should_skip(item, test_id)
 
+        item_will_skip = _pytest_marked_to_skip(item) or CITest.was_item_skipped_by_itr(test_id)
+
+        collect_test_coverage = CISession.should_collect_coverage() and not item_will_skip
+
+        # Coverage collection
+        coverage_collector: t.Optional[ModuleCodeCollector.CollectInContext] = None
+        if collect_test_coverage:
+            coverage_collector = _start_collecting_coverage()
+
+        # Yield control back to pytest to run the test
         yield
 
-        # TODO support test skipping
+        if collect_test_coverage:
+            _handle_collected_coverage(test_id, coverage_collector)
 
         # We rely on the CI Visibility service to prevent finishing items that have been discovered and have unfinished
         # children, but as an optimization:
@@ -132,21 +221,23 @@ class _PytestDDTracePluginV2:
         # - we trust that the next item is in the same module if it is in the same suite
         next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
         if next_test_id is None or next_test_id.parent_id != suite_id:
-            CISuite.finish(suite_id)
+            if CISuite.was_item_skipped_by_itr(suite_id):
+                CISuite.mark_itr_skipped(suite_id)
+            else:
+                CISuite.finish(suite_id)
             if nextitem is None or next_test_id.parent_id.parent_id != module_id:
                 CIModule.finish(module_id)
 
     @staticmethod
     @pytest.hookimpl(hookwrapper=True)
-    def pytest_runtest_makereport(item, call):
+    def pytest_runtest_makereport(item, call) -> None:
         """Store outcome for tracing."""
-        outcome = yield
+        outcome: pytest.TestReport = yield
 
-        if not CIVisibility.enabled:
+        if not is_ci_visibility_enabled():
             return
 
         test_id = _get_test_id_from_item(item)
-        suite_id = test_id.parent_id
 
         # Setup and teardown only impact results if an exception occurred
         is_setup_or_teardown = call.when == "setup" or call.when == "teardown"
@@ -162,6 +253,10 @@ class _PytestDDTracePluginV2:
         # If run with --runxfail flag, tests behave as if they were not marked with xfail,
         # that's why no XFAIL_REASON or test.RESULT tags will be added.
         if result.skipped:
+            if CITest.was_item_skipped_by_itr(test_id):
+                # Items that were skipped by ITR already have their status set
+                return
+
             if xfail and not has_skip_keyword:
                 # XFail tests that fail are recorded skipped by pytest, should be passed instead
                 if not item.config.option.runxfail:
@@ -170,15 +265,7 @@ class _PytestDDTracePluginV2:
                     CITest.mark_pass(test_id)
                     return
 
-            reason = _extract_reason(call)
-            if reason is not None:
-                if str(reason) == SKIPPED_BY_ITR_REASON:
-                    CITest.mark_itr_skipped(test_id)
-                    if CIVisibility._instance._suite_skipping_mode:
-                        CISuite.mark_itr_skipped(suite_id)
-                    return
-
-            CITest.mark_skip(test_id, reason)
+            CITest.mark_skip(test_id, _extract_reason(call))
             return
 
         if result.passed:
@@ -201,7 +288,7 @@ class _PytestDDTracePluginV2:
 
     @staticmethod
     def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
-        if not CIVisibility.enabled:
+        if not is_ci_visibility_enabled():
             return
 
         session_id = _get_session_id(session)
@@ -220,7 +307,7 @@ class _PytestDDTracePluginV2:
             CISession.set_tag(session_id, test.TEST_LINES_PCT, lines_pct_value)
 
         CISession.finish(session_id, force_finish_children=True)
-        CIVisibility.disable()
+        disable_ci_visibility()
 
     @staticmethod
     @pytest.hookimpl(trylast=True)
