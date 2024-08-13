@@ -69,7 +69,6 @@ def _get_application(key):
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version),
-        "products": _get_products(),
     }
 
 
@@ -100,16 +99,7 @@ def get_application(service, version, env):
     # can change during runtime
     return _get_application((service, version, env))
 
-
-def _get_products():
-    # type: () -> Dict
-    return {
-        "appsec": {"version": get_version(), "enabled": asm_config._asm_enabled},
-    }
-
-
 _host_info = None
-
 
 def get_host_info():
     # type: () -> Dict

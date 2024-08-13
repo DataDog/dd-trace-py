@@ -17,6 +17,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -167,10 +168,10 @@ class LLMObs(Service):
                     "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                     "Ensure this configuration is set before running your application."
                 )
-            if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
-                config._telemetry_enabled = False
-                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
-                telemetry.telemetry_writer.disable()
+            if telemetry.telemetry_writer.enable():
+                telemetry.telemetry_writer.enable_agentless_client()
+                telemetry.telemetry_writer.product_activated (TELEMETRY_APM_PRODUCT.LLMOBS, True)
+
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")

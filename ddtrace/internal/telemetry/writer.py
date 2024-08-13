@@ -48,6 +48,7 @@ from .constants import TELEMETRY_AGENT_HOST
 from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
+from .constants import TELEMETRY_APM_PRODUCT
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_CRASHTRACKING_ALT_STACK
 from .constants import TELEMETRY_CRASHTRACKING_AVAILABLE
@@ -117,7 +118,6 @@ from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
-
 log = get_logger(__name__)
 
 
@@ -143,6 +143,7 @@ class _TelemetryClient:
         self._telemetry_url = self.get_host(config._dd_site, agentless)
         self._endpoint = self.get_endpoint(agentless)
         self._encoder = JSONEncoderV2()
+        self._agentless = agentless
 
         self._headers = {
             "Content-Type": "application/json",
@@ -264,6 +265,7 @@ class TelemetryWriter(PeriodicService):
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, Distribution] = dict()
+        self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
 
         self.started = False
 
@@ -326,6 +328,15 @@ class TelemetryWriter(PeriodicService):
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
+
+    def enable_agentless_client(self, enabled=True):
+        # type: (bool) -> None
+
+        if self._client._agentless == enabled:
+            return
+
+        with self._lock:
+            self._client = _TelemetryClient(enabled)
 
     def _is_running(self):
         # type: () -> bool
@@ -430,7 +441,7 @@ class TelemetryWriter(PeriodicService):
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
 
-    def app_started(self, register_app_shutdown=True):
+    def _app_started(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
@@ -537,12 +548,21 @@ class TelemetryWriter(PeriodicService):
         if config._config["_sca_enabled"].value() is None:
             self.remove_configuration("DD_APPSEC_SCA_ENABLED")
 
+        products = {
+            product: {
+                "version": _pep440_to_semver(),
+                "enabled": status
+            }
+            for product, status in self._product_enablement.items()
+        }
+
         payload = {
             "configuration": self._flush_configuration_queue(),
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
             },
+            "products": products
         }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
         # Add time to value telemetry metrics for single step instrumentation
         if config._telemetry_install_id or config._telemetry_install_type or config._telemetry_install_time:
@@ -626,6 +646,29 @@ class TelemetryWriter(PeriodicService):
         if packages:
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
+
+    def product_activated(self, product, enabled):
+        # type: (TELEMETRY_APM_PRODUCT, bool) -> None
+        """Adds a Telemetry event which reports the enablement of an APM product"""
+        if self._product_enablement[product.value] == enabled:
+            return
+
+        self._product_enablement[product.value] = enabled
+
+        # the product status will be sent as part of the app_started event
+        if not self.started:
+            return
+
+        payload = {
+            "products": {
+                product.value: {
+                    "version": config.version,
+                    "enabled": enabled,
+                }
+            }
+        }
+
+        self.add_event(payload, "app-product-change")
 
     def remove_configuration(self, configuration_name):
         with self._lock:
@@ -761,6 +804,10 @@ class TelemetryWriter(PeriodicService):
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
     def periodic(self, force_flush=False, shutting_down=False):
+
+        # app_started will be only sent once from the main process
+        self._app_started()
+
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
@@ -877,7 +924,7 @@ class TelemetryWriter(PeriodicService):
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             if self._enabled and not self.started:
-                self.app_started(False)
+                self._app_started(False)
 
             self.app_shutdown()
 
