@@ -260,7 +260,8 @@
             "ddtrace/contrib/pyramid/*"
         ],
         "langchain": [
-            "ddtrace/contrib/langchain/*"
+            "ddtrace/contrib/langchain/*",
+            "ddtrace/contrib/internal/langchain/*"
         ],
         "anthropic": [
             "ddtrace/contrib/anthropic/*",
@@ -363,14 +364,18 @@
             "ddtrace/contrib/internal/pylibmc/*"
         ],
         "logbook": [
-            "ddtrace/contrib/logbook/*"
+            "ddtrace/contrib/logbook/*",
+            "ddtrace/contrib/internal/logbook/*"
         ],
         "logging": [
-            "ddtrace/contrib/logging/*"
+            "ddtrace/contrib/logging/*",
+            "ddtrace/contrib/internal/logging/*"
         ],
         "loguru": [
             "ddtrace/contrib/logging/*",
-            "ddtrace/contrib/loguru/*"
+            "ddtrace/contrib/internal/logging/*",
+            "ddtrace/contrib/loguru/*",
+            "ddtrace/contrib/internal/loguru/*"
         ],
         "sqlite3": [
             "ddtrace/contrib/sqlite3/*"
