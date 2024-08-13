@@ -415,6 +415,45 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_tags_required():
+    # Tests tag ingestion in the core API
+    import ctypes
+    import os
+
+    import tests.internal.crashtracker.utils as utils
+
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
+
+    pid = os.fork()
+    if pid == 0:
+        assert utils.start_crashtracker(port)
+        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+        assert not stdout_msg
+        assert not stderr_msg
+
+        ctypes.string_at(0)
+        exit(-1)
+
+    conn = utils.listen_get_conn(sock)
+    assert conn
+    data = utils.conn_to_bytes(conn)
+    conn.close()
+    assert b"string_at" in data
+
+    # Now check for the tags
+    tags = {
+        "is_crash": "true",
+        "severity": "crash",
+    }
+    for k, v in tags.items():
+        assert k.encode() in data, k
+        assert v.encode() in data, v
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
     # Setup the listening socket before we open ddtrace
     port, sock = utils.crashtracker_receiver_bind()
