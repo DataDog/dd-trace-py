@@ -73,6 +73,7 @@ def patch_conn(conn, traced_conn_cls, pin=None):
     tags = {
         net.TARGET_HOST: dsn.get("host"),
         net.TARGET_PORT: dsn.get("port", 5432),
+        net.SERVER_ADDRESS: dsn.get("host"),
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
         "db.application": dsn.get("application_name"),
