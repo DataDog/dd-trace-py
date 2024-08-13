@@ -186,8 +186,7 @@ def appsec_body_hang():
 @app.route("/iast-cmdi-vulnerability", methods=["GET"])
 def iast_cmdi_vulnerability():
     filename = request.args.get("filename")
-    changed = re.sub(r"(\s+)", "", filename)
-    subp = subprocess.Popen(args=["ls", "-la", changed])
+    subp = subprocess.Popen(args=["ls", "-la", filename])
     subp.communicate()
     subp.wait()
     resp = Response("OK")
@@ -198,6 +197,21 @@ def iast_cmdi_vulnerability():
 @app.route("/iast-ast-patching-import-error", methods=["GET"])
 def iast_ast_patching_import_error():
     return Response(str(module_with_import_errors.verbal_kint_is_keyser_soze))
+
+
+@app.route("/iast-ast-patching-re", methods=["GET"])
+def iast_ast_patching_re():
+    filename = request.args.get("filename")
+    changed = re.sub(r"(\s+)", "", filename)
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if is_pyobject_tainted(changed):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
 
 
 if __name__ == "__main__":
