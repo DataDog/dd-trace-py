@@ -147,6 +147,7 @@
             "ddtrace/contrib/rediscluster/*",
             "ddtrace/contrib/redis/*",
             "ddtrace/contrib/aredis/*",
+            "ddtrace/contrib/internal/aredis/*",
             "ddtrace/contrib/yaaredis/*",
             "ddtrace/_trace/utils_redis.py",
             "ddtrace/contrib/redis_utils.py",
@@ -212,11 +213,14 @@
         ],
         "flask": [
             "ddtrace/contrib/flask/*",
+            "ddtrace/contrib/internal/flask/*",
             "ddtrace/contrib/flask_cache/*",
+            "ddtrace/contrib/internal/flask_cache/*",
             "ddtrace/contrib/flask_login/*"
         ],
         "fastapi": [
-            "ddtrace/contrib/fastapi/*"
+            "ddtrace/contrib/fastapi/*",
+            "ddtrace/contrib/internal/fastapi/*"
         ],
         "gevent": [
             "ddtrace/contrib/gevent/*"
@@ -231,7 +235,8 @@
             "ddtrace/contrib/structlog/*"
         ],
         "asgi": [
-            "ddtrace/contrib/asgi/*"
+            "ddtrace/contrib/asgi/*",
+            "ddtrace/contrib/internal/asgi/*"
         ],
         "pymemcache": [
             "ddtrace/contrib/pymemcache/*",
@@ -253,7 +258,8 @@
             "ddtrace/contrib/langchain/*"
         ],
         "anthropic": [
-            "ddtrace/contrib/anthropic/*"
+            "ddtrace/contrib/anthropic/*",
+            "ddtrace/contrib/internal/anthropic/*"
         ],
         "subprocess": [
             "ddtrace/contrib/subprocess/*"
@@ -303,7 +309,8 @@
             "ddtrace/contrib/vertica/*"
         ],
         "algoliasearch": [
-            "ddtrace/contrib/algoliasearch/*"
+            "ddtrace/contrib/algoliasearch/*",
+            "ddtrace/contrib/internal/algoliasearch/*"
         ],
         "kafka": [
             "ddtrace/contrib/kafka/*",
@@ -361,7 +368,8 @@
             "ddtrace/contrib/asyncio/*"
         ],
         "futures": [
-            "ddtrace/contrib/futures/*"
+            "ddtrace/contrib/futures/*",
+            "ddtrace/contrib/internal/futures/*"
         ],
         "dbapi": [
             "ddtrace/contrib/dbapi/*",
@@ -380,14 +388,17 @@
             "ddtrace/contrib/openai/*"
         ],
         "falcon": [
-            "ddtrace/contrib/falcon/*"
+            "ddtrace/contrib/falcon/*",
+            "ddtrace/contrib/internal/falcon/*"
         ],
         "elasticsearch": [
             "ddtrace/contrib/elasticsearch/*",
+            "ddtrace/contrib/internal/elasticsearch/*",
             "ddtrace/ext/elasticsearch.py"
         ],
         "dogpile_cache": [
-            "ddtrace/contrib/dogpile_cache/*"
+            "ddtrace/contrib/dogpile_cache/*",
+            "ddtrace/contrib/internal/dogpile_cache/*"
         ],
         "cherrypy": [
             "ddtrace/contrib/cherrypy/*"
@@ -396,7 +407,8 @@
             "ddtrace/contrib/celery/*"
         ],
         "dramatiq": [
-            "ddtrace/contrib/dramatiq/*"
+            "ddtrace/contrib/dramatiq/*",
+            "ddtrace/contrib/internal/dramatiq/*"
         ],
         "cassandra": [
             "ddtrace/contrib/cassandra/*",
@@ -410,7 +422,8 @@
             "ddtrace/ext/consul.py"
         ],
         "django": [
-            "ddtrace/contrib/django/*"
+            "ddtrace/contrib/django/*",
+            "ddtrace/contrib/internal/django/*"
         ],
         "aiopg": [
             "ddtrace/contrib/aiopg/*"
@@ -489,6 +502,7 @@
             "@serverless",
             "@remoteconfig",
             "@futures",
+            "@ci_visibility",
             "tests/tracer/*",
             "tests/snapshots/test_*"
         ],
@@ -661,6 +675,7 @@
         ],
         "telemetry": [
             "@bootstrap",
+            "@contrib",
             "@core",
             "@telemetry",
             "@tracing",
