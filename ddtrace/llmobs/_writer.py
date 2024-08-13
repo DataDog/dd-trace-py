@@ -25,6 +25,7 @@ from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
 from ddtrace.llmobs._constants import DROPPED_IO_TAG
+from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
@@ -293,12 +294,9 @@ class LLMObsSpanWriter(HTTPWriter):
         )
 
 
-DROPPED_VALUE_TEXT = {"value": "[This value has been dropped because this span's size exceeds the event size limit.]"}
-
-
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
-    event["meta"]["input"] = DROPPED_VALUE_TEXT
-    event["meta"]["output"] = DROPPED_VALUE_TEXT
+    event["meta"]["input"] = {"value": DROPPED_VALUE_TEXT}
+    event["meta"]["output"] = {"value": DROPPED_VALUE_TEXT}
 
     event["tags"].append(DROPPED_IO_TAG)
     return event
