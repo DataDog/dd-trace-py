@@ -231,10 +231,12 @@
             "ddtrace/ext/git.py"
         ],
         "starlette": [
-            "ddtrace/contrib/starlette/*"
+            "ddtrace/contrib/starlette/*",
+            "ddtrace/contrib/internal/starlette/*"
         ],
         "structlog": [
-            "ddtrace/contrib/structlog/*"
+            "ddtrace/contrib/structlog/*",
+            "ddtrace/contrib/internal/structlog/*"
         ],
         "asgi": [
             "ddtrace/contrib/asgi/*",
@@ -245,10 +247,12 @@
             "ddtrace/ext/memcached.py"
         ],
         "snowflake": [
-            "ddtrace/contrib/snowflake/*"
+            "ddtrace/contrib/snowflake/*",
+            "ddtrace/contrib/internal/snowflake/*"
         ],
         "sanic": [
-            "ddtrace/contrib/sanic/*"
+            "ddtrace/contrib/sanic/*",
+            "ddtrace/contrib/internal/sanic/*"
         ],
         "requests": [
             "ddtrace/contrib/requests/*"
@@ -265,10 +269,12 @@
             "ddtrace/contrib/internal/anthropic/*"
         ],
         "subprocess": [
-            "ddtrace/contrib/subprocess/*"
+            "ddtrace/contrib/subprocess/*",
+            "ddtrace/contrib/internal/subprocess/*"
         ],
         "sqlalchemy": [
-            "ddtrace/contrib/sqlalchemy/*"
+            "ddtrace/contrib/sqlalchemy/*",
+            "ddtrace/contrib/internal/sqlalchemy/*"
         ],
         "opentelemetry": [
             "ddtrace/opentelemetry/*",
@@ -373,7 +379,8 @@
             "ddtrace/contrib/internal/loguru/*"
         ],
         "sqlite3": [
-            "ddtrace/contrib/sqlite3/*"
+            "ddtrace/contrib/sqlite3/*",
+            "ddtrace/contrib/internal/sqlite3/*"
         ],
         "asyncio": [
             "ddtrace/contrib/asyncio/*"
