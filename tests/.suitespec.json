@@ -349,7 +349,7 @@
             "ddtrace/contrib/mysql/*",
             "ddtrace/contrib/mysqldb/*",
             "ddtrace/contrib/pymysql/*",
-            "ddtrace/contrib/internal/mysql/*",
+            "ddtrace/contrib/internal/pymysql/*",
             "ddtrace/contrib/aiomysql/*"
         ],
         "pylibmc": [
