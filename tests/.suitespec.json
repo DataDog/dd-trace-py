@@ -223,7 +223,8 @@
             "ddtrace/contrib/internal/fastapi/*"
         ],
         "gevent": [
-            "ddtrace/contrib/gevent/*"
+            "ddtrace/contrib/gevent/*",
+            "ddtrace/contrib/internal/gevent/*"
         ],
         "git": [
             "ddtrace/ext/git.py"
@@ -317,10 +318,12 @@
             "ddtrace/ext/kafka.py"
         ],
         "graphql": [
-            "ddtrace/contrib/graphql/*"
+            "ddtrace/contrib/graphql/*",
+            "ddtrace/contrib/internal/graphql/*"
         ],
         "grpc": [
-            "ddtrace/contrib/grpc/*"
+            "ddtrace/contrib/grpc/*",
+            "ddtrace/contrib/internal/grpc/*"
         ],
         "gunicorn": [
             "ddtrace/contrib/gunicorn/*"
