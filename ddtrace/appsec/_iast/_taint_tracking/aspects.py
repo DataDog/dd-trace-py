@@ -2,6 +2,7 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
+from re import Pattern
 from types import BuiltinFunctionType
 from typing import Any
 from typing import Callable
@@ -45,7 +46,6 @@ from .._taint_tracking import shift_taint_range
 from .._taint_tracking import taint_pyobject_with_ranges
 from .._taint_tracking._native import aspects  # noqa: F401
 
-from re import Pattern
 
 TEXT_TYPES = Union[str, bytes, bytearray]
 
