@@ -2,7 +2,7 @@ from collections import defaultdict
 from collections import deque
 from pathlib import Path
 
-from wrapt.wrappers import FunctionWrapper
+from wrapt import FunctionWrapper
 
 from ddtrace.internal.utils.inspection import undecorated
 
