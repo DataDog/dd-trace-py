@@ -11,7 +11,7 @@ from django.urls import path
 import pytest
 
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
-from tests.contrib.django.soap.services import leave_status_service
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.contrib.django.utils import make_soap_request
 from tests.webclient import Client
 
@@ -35,7 +35,15 @@ def handler(_):
     return HttpResponse("Hello!")
 
 
-urlpatterns = [path("", handler), path("soap/", leave_status_service, name="soap_account")]
+urlpatterns = [path("", handler)]
+
+# this import fails for python 3.12
+if PYTHON_VERSION_INFO < (3, 12):
+    from tests.contrib.django.soap.services import leave_status_service
+
+    urlpatterns.append(path("soap/", leave_status_service, name="soap_account"))
+
+
 # it would be better to check for app_is_iterator programmatically, but Django WSGI apps behave like
 # iterators for the purpose of DDWSGIMiddleware despite not having both "__next__" and "__iter__" methods
 app = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
@@ -86,6 +94,7 @@ def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddlewar
     assert SENTINEL_LOG in str(output)
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 12), reason="A Spyne import fails when using Python 3.12")
 def test_django_wsgi_soap_app_works(wsgi_app):
     client = Client("http://localhost:%d" % SERVER_PORT)
     client.wait()
