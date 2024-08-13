@@ -4,6 +4,7 @@ import typing as t
 
 from envier import En
 
+from ddtrace import config as core_config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
 
@@ -95,8 +96,11 @@ _profiling_injected = False
 def _parse_profiling_enabled(raw: str) -> bool:
     global _profiling_injected
 
+    # Before we do anything else, check the tracer configuration
+    _profiling_injected = core_config._lib_was_injected
+
     # Try to derive two bits of information
-    # - Are we injected (DD_INJECTION_ENABLED set)
+    # - Are we injected (DD_INJECTION_ENABLED set) (almost certainly already populated correctly by core_config)
     # - Is profiling enabled ("profiler" in the list)
     if os.environ.get("DD_INJECTION_ENABLED") is not None:
         _profiling_injected = True
@@ -255,6 +259,15 @@ class ProfilingConfig(En):
         help="Whether to enable debug assertions in the profiler code",
     )
 
+    _force_legacy_exporter = En.v(
+        bool,
+        "_force_legacy_exporter",
+        default=False,
+        help_type="Boolean",
+        help="Exclusively used in testing environments to force the use of the legacy exporter. This parameter is "
+        "not for general use and will be removed in the near future.",
+    )
+
     sample_pool_capacity = En.v(
         int,
         "sample_pool_capacity",
@@ -381,6 +394,12 @@ config._injected = _check_for_injected()
 # Force the enablement of libdd if the user requested a feature which requires it; otherwise the user has to manage
 # configuration too intentionally and we'll need to change the API too much over time.
 config.export.libdd_enabled = _is_libdd_required(config)
+
+# AFTER checking for libdd enablement, we process the override (_force_legacy_exporter), which will disable libdd.
+# This is done because we currently test in an injected posture, but the new exporter doesn't have the same
+# introspection capabilities as the legacy one.
+if config._force_legacy_exporter:
+    config.export.libdd_enabled = False
 
 # Certain features depend on libdd being available.  If it isn't for some reason, those features cannot be enabled.
 if config.stack.v2_enabled and not config.export.libdd_enabled:
