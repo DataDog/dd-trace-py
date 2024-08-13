@@ -23,7 +23,6 @@ from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.pytest.plugin import _is_enabled_early
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import test
@@ -133,12 +132,6 @@ def _disable_ci_visibility():
         disable_ci_visibility()
     except:  # noqa: E722
         log.debug("encountered error during disable_ci_visibility", exc_info=True)
-
-
-def pytest_load_initial_conftests(early_config: pytest.Config) -> None:
-    breakpoint()
-    if _is_enabled_early(early_config):
-        breakpoint()
 
 
 def pytest_configure(config: pytest.Config) -> None:
