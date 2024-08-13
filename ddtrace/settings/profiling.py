@@ -83,7 +83,8 @@ def _is_libdd_required(config):
     # v2 requires libdd because it communicates over a pure-native channel
     # libdd... requires libdd
     # injected environments _cannot_ deploy protobuf, so they must use libdd
-    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected
+    # timeline requires libdd
+    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected or config.timeline_enabled
 
 
 # This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
@@ -252,6 +253,16 @@ class ProfilingConfig(En):
         default=False,
         help_type="Boolean",
         help="Whether to enable debug assertions in the profiler code",
+    )
+
+    sample_pool_capacity = En.v(
+        int,
+        "sample_pool_capacity",
+        default=4,
+        help_type="Integer",
+        help="The number of Sample objects to keep in the pool for reuse. "
+        "Increasing this can reduce the overhead from frequently allocating "
+        "and deallocating Sample objects.",
     )
 
 
