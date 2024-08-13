@@ -15,8 +15,8 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.requests import patch
 from ddtrace.contrib.requests import unpatch
-from ddtrace.contrib.requests.connection import _extract_hostname_and_path
-from ddtrace.contrib.requests.connection import _extract_query_string
+from ddtrace.contrib.internal.requests.connection import _extract_hostname_and_path
+from ddtrace.contrib.internal.requests.connection import _extract_query_string
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
