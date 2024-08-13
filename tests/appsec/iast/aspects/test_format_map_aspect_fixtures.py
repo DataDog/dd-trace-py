@@ -11,7 +11,7 @@ from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
-mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
+mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
 class TestOperatorFormatMapReplacement(BaseReplacement):
