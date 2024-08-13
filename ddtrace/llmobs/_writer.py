@@ -269,7 +269,7 @@ class LLMObsSpanWriter(HTTPWriter):
 
         if event_size >= EVP_EVENT_SIZE_LIMIT:
             logger.warning(
-                "dropping event input/output because its size (%d) exceeds the event size limit",
+                "dropping event input/output because its size (%d) exceeds the event size limit (1MB)",
                 event_size,
             )
             event = _truncate_span_event(event)
