@@ -77,7 +77,7 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         record_event_created(
             event_type=self.event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
-            is_benchmark=self._is_benchmark if self.is_benchmark is not None else None,
+            is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
         )
 
     def _telemetry_record_event_finished(self):
