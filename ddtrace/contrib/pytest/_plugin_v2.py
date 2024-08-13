@@ -118,15 +118,6 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
     CISuite.add_coverage_data(test_id.parent_id, coverage_data)
 
 
-"""Plugin hooks (and some convenience methods) for the pytest plugin
-
-This plugin leverages the external CI Visibility API which behaves in a stateless way, where IDs are passed to the
-API calls, so each method is independent of all others, and may re-compute item ids.
-
-Methods are ordered in this class mostly in the order they are called during a test run.
-"""
-
-
 def _disable_ci_visibility():
     try:
         disable_ci_visibility()
