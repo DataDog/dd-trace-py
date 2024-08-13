@@ -1052,8 +1052,8 @@ class Contrib_TestClass_For_Threats:
             )
             assert asm_config._api_security_enabled == apisec_enabled
 
-            assert self.status(response) == 403 if blocked else 200
-            assert get_tag(http.STATUS_CODE) == "403" if blocked else "200"
+            assert self.status(response) == (403 if blocked else 200)
+            assert get_tag(http.STATUS_CODE) == ("403" if blocked else "200")
             if event:
                 assert get_triggers(root_span()) is not None
             else:
@@ -1453,8 +1453,8 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.post(
                 "/asm/324/huj/?x=1&y=2", headers={"User-Agent": "dd-test-scanner-log-block"}, data={"test": "attack"}
             )
-            assert self.status(response) == 403 if asm_enabled else 200
-            assert get_tag("http.status_code") == "403" if asm_enabled else "200"
+            assert self.status(response) == (403 if asm_enabled else 200)
+            assert get_tag("http.status_code") == ("403" if asm_enabled else "200")
             if asm_enabled:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)

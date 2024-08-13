@@ -17,7 +17,7 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_CLIENT
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
-from ddtrace.contrib.grpc.utils import _parse_rpc_repr_string
+from ddtrace.contrib.internal.grpc.utils import _parse_rpc_repr_string
 import ddtrace.vendor.packaging.version as packaging_version
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
