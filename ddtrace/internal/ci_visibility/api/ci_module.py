@@ -38,7 +38,7 @@ class CIVisibilityModule(
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
     ):
-        super().__init__(item_id, session_settings, initial_tags, session_settings.module_operation_name)
+        super().__init__(item_id, session_settings, session_settings.module_operation_name, initial_tags)
         if module_path:
             self._module_path = module_path.absolute()
 

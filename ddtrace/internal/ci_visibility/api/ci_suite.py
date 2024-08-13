@@ -38,7 +38,7 @@ class CIVisibilitySuite(
         source_file_info: Optional[CISourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
-        super().__init__(item_id, session_settings, initial_tags, session_settings.suite_operation_name)
+        super().__init__(item_id, session_settings, session_settings.suite_operation_name, initial_tags)
         self._codeowner = codeowners
         self._source_file_info = source_file_info
 

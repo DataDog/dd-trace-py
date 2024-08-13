@@ -116,8 +116,8 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self,
         item_id: ANYIDT,
         session_settings: CIVisibilitySessionSettings,
-        initial_tags: Optional[Dict[str, Any]],
         operation_name: str,
+        initial_tags: Optional[Dict[str, Any]] = None,
         parent: Optional["CIVisibilityParentItem"] = None,
         resource: Optional[str] = None,
     ) -> None:
@@ -458,10 +458,10 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
         self,
         item_id: PIDT,
         session_settings: CIVisibilitySessionSettings,
-        initial_tags: Optional[Dict[str, Any]],
         operation_name: str,
+        initial_tags: Optional[Dict[str, Any]],
     ) -> None:
-        super().__init__(item_id, session_settings, initial_tags, operation_name)
+        super().__init__(item_id, session_settings, operation_name, initial_tags)
         self._children: Dict[CIDT, CITEMT] = {}
 
     def get_status(self) -> Union[CITestStatus, SPECIAL_STATUS]:

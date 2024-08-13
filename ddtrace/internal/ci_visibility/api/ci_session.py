@@ -38,7 +38,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
         initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
         log.debug("Initializing CI Visibility session %s", item_id)
-        super().__init__(item_id, session_settings, initial_tags, session_settings.session_operation_name)
+        super().__init__(item_id, session_settings, session_settings.session_operation_name, initial_tags)
         self._test_command = self._session_settings.test_command
 
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)

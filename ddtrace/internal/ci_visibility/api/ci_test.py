@@ -35,14 +35,14 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         is_early_flake_retry: bool = False,
         resource: Optional[str] = None,
     ):
+        self.parameters = item_id.parameters
         super().__init__(
             item_id,
             session_settings,
-            initial_tags,
             session_settings.test_operation_name,
+            initial_tags,
             resource=resource if resource is not None else item_id.name,
         )
-        self.parameters = item_id.parameters
         self._codeowners = codeowners
         self._source_file_info = source_file_info
         self._original_test: Optional[CIVisibilityTest] = None
