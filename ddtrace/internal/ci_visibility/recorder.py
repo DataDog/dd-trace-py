@@ -1246,7 +1246,7 @@ def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
 
 @_requires_civisibility_enabled
 def _on_itr_is_item_unskippable(item_id: Union[CISuiteId, CITestId]) -> bool:
-    log.debug("Handling marking %s as unskippable", item_id)
+    log.debug("Handling is item unskippable for %s", item_id)
     if not isinstance(item_id, (CISuiteId, CITestId)):
         raise CIVisibilityError("Only suites or tests can be unskippable")
     return CIVisibility.get_item_by_id(item_id).is_itr_unskippable()
