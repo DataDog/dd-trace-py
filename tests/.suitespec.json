@@ -156,13 +156,15 @@
         ],
         "mongo": [
             "ddtrace/contrib/pymongo/*",
+            "ddtrace/contrib/internal/pymongo/*",
             "ddtrace/contrib/mongoengine/*",
             "ddtrace/ext/mongo.py"
         ],
         "pg": [
             "ddtrace/contrib/aiopg/*",
             "ddtrace/contrib/asyncpg/*",
-            "ddtrace/contrib/psycopg/*"
+            "ddtrace/contrib/psycopg/*",
+            "ddtrace/contrib/internal/psycopg/*"
         ],
         "datastreams": [
             "ddtrace/internal/datastreams/*",
@@ -240,6 +242,7 @@
         ],
         "pymemcache": [
             "ddtrace/contrib/pymemcache/*",
+            "ddtrace/contrib/internal/pymemcache/*",
             "ddtrace/ext/memcached.py"
         ],
         "snowflake": [
@@ -346,10 +349,12 @@
             "ddtrace/contrib/mysql/*",
             "ddtrace/contrib/mysqldb/*",
             "ddtrace/contrib/pymysql/*",
+            "ddtrace/contrib/internal/mysql/*",
             "ddtrace/contrib/aiomysql/*"
         ],
         "pylibmc": [
-            "ddtrace/contrib/pylibmc/*"
+            "ddtrace/contrib/pylibmc/*",
+            "ddtrace/contrib/internal/pylibmc/*"
         ],
         "logbook": [
             "ddtrace/contrib/logbook/*"
@@ -385,7 +390,8 @@
             "ddtrace/contrib/aiohttp_jinja2/*"
         ],
         "openai": [
-            "ddtrace/contrib/openai/*"
+            "ddtrace/contrib/openai/*",
+            "ddtrace/contrib/internal/openai/*" 
         ],
         "falcon": [
             "ddtrace/contrib/falcon/*",
