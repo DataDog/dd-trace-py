@@ -2759,6 +2759,9 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "gevent": latest,
             },
+            env={
+                "DD_AGENT_PORT": "9126",
+            },
         ),
         Venv(
             name="subprocess",
