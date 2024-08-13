@@ -133,7 +133,8 @@ def pytest_configure(config: pytest.Config) -> None:
             enable_ci_visibility(config=dd_config.pytest)
         if _is_pytest_cov_enabled(config):
             patch_coverage()
-    except:  # noqa: E722            log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
+    except:  # noqa: E722
+        log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
 
