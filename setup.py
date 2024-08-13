@@ -381,10 +381,10 @@ class CMakeBuild(build_ext):
             # using -j in the build_ext call, not supported by pip or PyPA-build.
             # DEV: -j is supported in CMake 3.12+ only.
             if hasattr(self, "parallel") and self.parallel:
-                build_args += ["-j{}".format(self.parallel)]
+                cmake_args += ["-DCMAKE_BUILD_PARALLEL_LEVEL={}".format(self.parallel)]
             else:
                 njobs = os.cpu_count() or 1
-                build_args += ["-j{}".format(njobs)]
+                cmake_args += ["-DCMAKE_BUILD_PARALLEL_LEVEL={}".format(njobs)]
 
         # Arguments to cmake --install command
         install_args = ext.install_args or []
