@@ -1,0 +1,106 @@
+build_ddtrace_sdist:
+  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  tags: [ "runner:amd64" ]
+  stage: package
+  script:
+    - curl -sSf https://sh.rustup.rs | sh -s -- -y;
+    - export PATH=$HOME/.cargo/bin:$PATH
+    - pip install build
+    - python -m build . --sdist --outdir wheelhouse/
+  artifacts:
+    paths:
+      - wheelhouse/
+
+build_ddtrace_linux:
+  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  tags: [ "${RUNNER}" ]
+  stage: package
+  variables:
+    CIBW_BUILD: "cp37-${PLATFORM}_${ARCH} cp38-${PLATFORM}_${ARCH} cp39-${PLATFORM}_${ARCH} cp310-${PLATFORM}_${ARCH} cp311-${PLATFORM}_${ARCH} cp312-${PLATFORM}_${ARCH}"
+    CIBW_PLATFORM: linux
+    CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+    CIBW_ENVIRONMENT_LINUX: PATH=$$HOME/.cargo/bin:$$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
+    CIBW_BEFORE_ALL: |
+      if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $$1}')" != "i686-unknown-linux-musl" ]];
+      then
+        curl -sSf https://sh.rustup.rs | sh -s -- -y;
+      fi
+    CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
+      mkdir ./tempwheelhouse &&
+      unzip -l {wheel} | grep '\.so' &&
+      auditwheel repair -w ./tempwheelhouse {wheel} &&
+      for w in ./tempwheelhouse/*.whl; do
+        python scripts/zip_filter.py $$w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+        mv $$w {dest_dir}
+      done &&
+      rm -rf ./tempwheelhouse
+  parallel:
+    matrix:
+      - PLATFORM: ["manylinux", "musllinux"]
+        ARCH: ["x86_64", "i686"]
+        RUNNER: runner:docker
+      - PLATFORM: ["manylinux", "musllinux"]
+        ARCH: ["aarch64"]
+        RUNNER: runner:docker-arm
+  script:
+    - curl -sSL https://get.docker.com/ | sh
+    - python -m pip install cibuildwheel
+    - cibuildwheel --print-build-identifiers
+    - cibuildwheel --output-dir wheelhouse
+  artifacts:
+    paths:
+      - wheelhouse/
+
+# build_ddtrace_windows:
+#   tags: [ "runner:windows-docker", "windowsversion:1809" ]
+#   stage: package
+#   variables:
+#     CIBW_BUILD: "${PYTHON_ABI}-${ARCH}"
+#     CIBW_PLATFORM: windows
+#     CIBW_ENVIRONMENT_WINDOWS: CMAKE_BUILD_PARALLEL_LEVEL=24
+#     CIBW_BEFORE_WINDOWS: rustup target add i686-pc-windows-msvc
+#     CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: |
+#       7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
+#       move "{wheel}" "{dest_dir}"
+#   parallel:
+#     matrix:
+#       - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
+#         ARCH: ["win32", "win_amd64"]
+#   script:
+#     - |
+#       docker run --rm mcr.microsoft.com/windows/servercore:1809 cmd.exe /C @"
+#       choco install python -y --version 3.12.4
+#       choco install git.install -y
+#       py -m pip install cibuildwheel
+#       py -m cibuildwheel --print-build-identifiers
+#       py -m cibuildwheel --output-dir wheelhouse
+#       "@
+#   artifacts:
+#     paths:
+#       - wheelhouse/
+
+download_dependency_wheels:
+  image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
+  tags: [ "arch:amd64" ]
+  stage: package
+  needs: [ build_ddtrace_linux ]
+  parallel:
+    matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
+      - PYTHON_IMAGE_TAG: "3.7"
+        PYTHON_VERSION: "3.7"
+      - PYTHON_IMAGE_TAG: "3.8"
+        PYTHON_VERSION: "3.8"
+      - PYTHON_IMAGE_TAG: "3.9.13"
+        PYTHON_VERSION: "3.9"
+      - PYTHON_IMAGE_TAG: "3.10.13"
+        PYTHON_VERSION: "3.10"
+      - PYTHON_IMAGE_TAG: "3.11.6"
+        PYTHON_VERSION: "3.11"
+      - PYTHON_IMAGE_TAG: "3.12.0"
+        PYTHON_VERSION: "3.12"
+  script:
+    - .gitlab/download-dependency-wheels.sh
+  artifacts:
+    paths:
+      - "wheelhouse-dep/"
+
