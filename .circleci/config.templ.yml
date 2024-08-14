@@ -572,11 +572,8 @@ jobs:
           pattern: "datastreams"
 
   tracer:
+    <<: *machine_executor
     parallelism: 10
-    <<: *contrib_job_large
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
     steps:
       - run_test:
           pattern: "tracer"
