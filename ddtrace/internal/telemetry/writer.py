@@ -335,8 +335,7 @@ class TelemetryWriter(PeriodicService):
         if self._client._agentless == enabled:
             return
 
-        with self._lock:
-            self._client = _TelemetryClient(enabled)
+        self._client = _TelemetryClient(enabled)
 
     def _is_running(self):
         # type: () -> bool
