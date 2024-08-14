@@ -1116,3 +1116,44 @@ def re_sub_aspect(
             copy_and_shift_ranges_from_strings(repl, result, 0, len(result))
 
     return result
+
+
+def re_subn_aspect(
+    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+) -> Union[TEXT_TYPES]:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].subn
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    if not isinstance(self, (Pattern, ModuleType)):
+        # This is not the sub we're looking for
+        return result
+    elif isinstance(self, ModuleType):
+        if self.__name__ != "re" or self.__package__ != "":
+            return result
+        # In this case, the first argument is the pattern
+        # which we don't need to check for tainted ranges
+        args = args[1:]
+    elif not isinstance(result, tuple) and not len(result) == 2:
+        return result
+
+    new_string, number = result
+
+    if len(args) >= 2:
+        repl = args[0]
+        string = args[1]
+        if is_pyobject_tainted(string):
+            # Taint result
+            copy_and_shift_ranges_from_strings(string, new_string, 0, len(new_string))
+        elif is_pyobject_tainted(repl):
+            # Taint result
+            copy_and_shift_ranges_from_strings(repl, new_string, 0, len(new_string))
+
+    return (new_string, number)
