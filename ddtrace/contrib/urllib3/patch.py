@@ -16,6 +16,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...ext import net
 from ...internal.compat import parse
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
@@ -158,5 +159,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 response_headers={} if response is None else dict(response.headers),
                 retries_remain=retries,
             )
+            span.set_tag_str(net.SERVER_ADDRESS, instance.host)
 
         return response
