@@ -991,6 +991,7 @@
             "@appsec",
             "@appsec_iast",
             "@wsgi",
+            "@redis",
             "tests/appsec/*",
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
@@ -1107,6 +1108,20 @@
             "tests/contrib/pylibmc/*"
         ],
         "pytest": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@pytest",
+            "@ci_visibility",
+            "@coverage",
+            "@codeowners",
+            "tests/contrib/pytest/*",
+            "tests/contrib/pytest_benchmark/*",
+            "tests/contrib/pytest_bdd/*",
+            "tests/snapshots/tests.contrib.pytest.*"
+        ],
+        "pytest_v2": [
             "@bootstrap",
             "@core",
             "@contrib",

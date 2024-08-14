@@ -59,6 +59,10 @@ CIItemId = TypeVar("CIItemId", bound=Union[_CIVisibilityChildItemIdBase, _CIVisi
 
 
 class _CIVisibilityAPIBase(abc.ABC):
+    class GetTagArgs(NamedTuple):
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        name: str
+
     class SetTagArgs(NamedTuple):
         item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
         name: str
