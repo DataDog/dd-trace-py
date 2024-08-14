@@ -527,7 +527,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 except Exception:
                     path = None
 
-            core.dispatch("django.start_response", (ctx, request, utils._extract_body, query, uri, path))
+            core.dispatch(
+                "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri, path)
+            )
             core.dispatch("django.start_response.post", ("Django",))
 
             if core.get_item(HTTP_REQUEST_BLOCKED):
