@@ -39,11 +39,9 @@ def patch():
     """
     Patch pyramid.config.Configurator
     """
-    if getattr(pyramid.config, DD_PATCH, False):
+    if getattr(pyramid, DD_PATCH, False):
         return
-    pyramid._datadog_patch = True
-
-    setattr(pyramid.config, DD_PATCH, True)
+    setattr(pyramid, DD_PATCH, True)
     _w = wrapt.wrap_function_wrapper
     _w("pyramid.config", "Configurator.__init__", traced_init)
 
