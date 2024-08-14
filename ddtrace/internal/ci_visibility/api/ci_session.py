@@ -15,6 +15,8 @@ from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
 from ddtrace.internal.logger import get_logger
 
 
@@ -36,17 +38,18 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
         item_id: CISessionId,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
-    ):
+    ) -> None:
         log.debug("Initializing CI Visibility session %s", item_id)
-        super().__init__(item_id, session_settings, initial_tags)
+        super().__init__(item_id, session_settings, session_settings.session_operation_name, initial_tags)
         self._test_command = self._session_settings.test_command
-        self._operation_name = self._session_settings.session_operation_name
 
-    def start(self):
+        self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
+
+    def start(self) -> None:
         log.debug("Starting CI Visibility instance %s", self.item_id)
         super().start()
 
-    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None):
+    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None) -> None:
         log.debug("Finishing CI Visibility session %s", self.item_id)
         super().finish(force=force, override_status=override_status)
 
@@ -55,13 +58,33 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
             SESSION_ID: str(self.get_span_id()),
         }
 
-    def get_session_settings(self):
+    def get_session_settings(self) -> CIVisibilitySessionSettings:
         return self._session_settings
 
-    def _set_itr_tags(self):
-        """Module (and session) items get a tag for skipping type"""
-        super()._set_itr_tags()
-        self.set_tag(test.ITR_TEST_SKIPPING_TYPE, self._session_settings.itr_test_skipping_level)
+    def _set_itr_tags(self, itr_enabled: bool) -> None:
+        """Set session-level tags based in ITR enablement status"""
+        super()._set_itr_tags(itr_enabled)
 
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        self.set_tag(test.ITR_TEST_SKIPPING_ENABLED, self._session_settings.itr_test_skipping_enabled)
+        if itr_enabled:
+            self.set_tag(test.ITR_TEST_SKIPPING_TYPE, self._session_settings.itr_test_skipping_level)
+            self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)
+
+    def _telemetry_record_event_created(self):
+        record_event_created(
+            event_type=self.event_type_metric_name,
+            test_framework=self._session_settings.test_framework_metric_name,
+            has_codeowners=self._codeowners is not None,
+            is_unsupported_ci=self._session_settings.is_unsupported_ci,
+        )
+
+    def _telemetry_record_event_finished(self):
+        record_event_finished(
+            event_type=self.event_type_metric_name,
+            test_framework=self._session_settings.test_framework_metric_name,
+            has_codeowners=self._codeowners is not None,
+            is_unsupported_ci=self._session_settings.is_unsupported_ci,
+        )
+
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
         raise NotImplementedError("Coverage data cannot be added to sessions.")
