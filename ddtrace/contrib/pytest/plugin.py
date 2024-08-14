@@ -162,7 +162,6 @@ def pytest_configure(config):
     if is_enabled(config):
         _versioned_pytest_configure(config)
 
-
 @pytest.hookimpl
 def pytest_addhooks(pluginmanager):
     from ddtrace.contrib.pytest import newhooks
@@ -203,6 +202,3 @@ def patch_all(request):
 
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
         ddtrace.patch_all()
-
-
-# from ddtrace.contrib.pytest._plugin_v2 import pytest_collection_modifyitems

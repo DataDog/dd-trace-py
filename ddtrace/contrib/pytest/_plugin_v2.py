@@ -166,7 +166,6 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
-
 def _pytest_collection_finish(session) -> None:
     """Discover modules, suites, and tests that have been selected by pytest
 
@@ -348,6 +347,8 @@ def _pytest_runtest_makereport(item, call, outcome):
             if xfail_reason_tag is None:
                 CITest.set_tag(test_id, XFAIL_REASON, "XFail")
             CITest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
+            CITest.mark_fail(test_id)
+            return
 
         CITest.mark_pass(test_id)
         return
