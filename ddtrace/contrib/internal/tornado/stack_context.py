@@ -6,6 +6,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.span import Span
 
 
+context_provider = TracerStackContext()
 # tornado.stack_context deprecated in Tornado 5 removed in Tornado 6
 # instead use DefaultContextProvider with ContextVarContextManager for asyncio
 _USE_STACK_CONTEXT = not tornado.version_info >= (5, 0)
