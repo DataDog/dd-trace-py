@@ -320,7 +320,7 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
-    env["DD_CRASHTRACKER_ENABLED"] = "false"
+    env["DD_CRASHTRACKING_ENABLED"] = "false"
     stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
     # Check for expected exit condition
@@ -375,7 +375,7 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
-    env["DD_CRASHTRACKER_STACKTRACE_RESOLVER"] = "none"
+    env["DD_CRASHTRACKING_STACKTRACE_RESOLVER"] = "none"
     stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition
@@ -401,7 +401,7 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
-    env["DD_CRASHTRACKER_ENABLED"] = "false"
+    env["DD_CRASHTRACKING_ENABLED"] = "false"
     stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition
@@ -430,7 +430,7 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
         tag_prefix + "_tag1": "quartz_flint",
         tag_prefix + "_tag2": "quartz_chert",
     }
-    env["DD_CRASHTRACKER_TAGS"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
+    env["DD_CRASHTRACKING_TAGS"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
     stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition
