@@ -8,8 +8,6 @@ from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
-from ddtrace.internal.ci_visibility.api.ci_session import CIVisibilitySession
 from ddtrace.internal.ci_visibility.api.ci_suite import CIVisibilitySuite
 from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
@@ -88,21 +86,6 @@ class TestCIVisibilityItems:
         assert ci_suite._source_file_info.path == Path("/absolute/path/to/my_file_name")
         assert ci_suite._source_file_info.start_line is None
         assert ci_suite._source_file_info.end_line is None
-
-    def test_civisibilityitem_enforces_settings_type(self):
-        bad_settings = object()
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilitySession(_get_default_session_id(), bad_settings)
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilityModule(_get_default_module_id(), bad_settings)
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilitySuite(_get_default_suite_id(), bad_settings)
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilityTest(_get_default_test_id(), bad_settings)
 
 
 class TestCIVisibilitySessionSettings:

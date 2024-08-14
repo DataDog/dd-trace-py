@@ -14,7 +14,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.grpc import constants
 from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
-from ddtrace.contrib.grpc.patch import _unpatch_server
+from ddtrace.contrib.internal.grpc.patch import _unpatch_server
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
@@ -666,7 +666,7 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
 def test_handle_response_future_like():
     from ddtrace._trace.span import Span
-    from ddtrace.contrib.grpc.client_interceptor import _handle_response
+    from ddtrace.contrib.internal.grpc.client_interceptor import _handle_response
 
     span = Span(None)
 
