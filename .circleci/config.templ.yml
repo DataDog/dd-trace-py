@@ -572,12 +572,10 @@ jobs:
           pattern: "datastreams"
 
   tracer:
-    <<: *machine_executor
-    parallelism: 10
+    <<: *contrib_job_large
     steps:
       - run_test:
           pattern: "tracer"
-          snapshot: true
 
   ci_visibility:
     <<: *machine_executor
