@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: rustc --version
+      - run: rustup default stable
 
       - name: Build docs
         run: hatch run docs:build
