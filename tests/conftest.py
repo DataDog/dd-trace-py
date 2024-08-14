@@ -66,7 +66,7 @@ if os.environ.get("CI") == "true":
                 traceback.print_exc()
 
                 sys.stderr.write(f"FDCapture: {self!r}\n")
-                for name in ("_state", "tmpfile", "syscapture", "target_save", "targetfd_save", "targetfd_invalid"):
+                for name in ("_state", "tmpfile", "syscapture", "targetfd", "targetfd_save", "targetfd_invalid"):
                     value = "<unknown>"
                     try:
                         value = getattr(self, name, "<unknown>")
