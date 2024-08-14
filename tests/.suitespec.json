@@ -985,6 +985,7 @@
             "@appsec",
             "@appsec_iast",
             "@wsgi",
+            "@redis",
             "tests/appsec/*",
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
