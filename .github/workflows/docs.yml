@@ -16,9 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: rustup default stable
+      # - run: rustup default stable
 
       - name: Build docs
+        shell: bash
         run: hatch run docs:build
 
       - uses: actions/upload-artifact@v4
