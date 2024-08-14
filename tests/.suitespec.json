@@ -161,7 +161,9 @@
         ],
         "pg": [
             "ddtrace/contrib/aiopg/*",
+            "ddtrace/contrib/internal/aiopg/*",
             "ddtrace/contrib/asyncpg/*",
+            "ddtrace/contrib/internal/asyncpg/*",
             "ddtrace/contrib/psycopg/*"
         ],
         "datastreams": [
@@ -223,7 +225,8 @@
             "ddtrace/contrib/internal/fastapi/*"
         ],
         "gevent": [
-            "ddtrace/contrib/gevent/*"
+            "ddtrace/contrib/gevent/*",
+            "ddtrace/contrib/internal/gevent/*"
         ],
         "git": [
             "ddtrace/ext/git.py"
@@ -255,7 +258,8 @@
             "ddtrace/contrib/pyramid/*"
         ],
         "langchain": [
-            "ddtrace/contrib/langchain/*"
+            "ddtrace/contrib/langchain/*",
+            "ddtrace/contrib/internal/langchain/*"
         ],
         "anthropic": [
             "ddtrace/contrib/anthropic/*",
@@ -296,10 +300,12 @@
             "ddtrace/contrib/mako/*"
         ],
         "jinja2": [
-            "ddtrace/contrib/jinja2/*"
+            "ddtrace/contrib/jinja2/*",
+            "ddtrace/contrib/internal/jinja2/*"
         ],
         "kombu": [
             "ddtrace/contrib/kombu/*",
+            "ddtrace/contrib/internal/kombu/*",
             "ddtrace/ext/kombu.py"
         ],
         "wsgi": [
@@ -314,22 +320,27 @@
         ],
         "kafka": [
             "ddtrace/contrib/kafka/*",
+            "ddtrace/contrib/internal/kafka/*",
             "ddtrace/ext/kafka.py"
         ],
         "graphql": [
-            "ddtrace/contrib/graphql/*"
+            "ddtrace/contrib/graphql/*",
+            "ddtrace/contrib/internal/graphql/*"
         ],
         "grpc": [
-            "ddtrace/contrib/grpc/*"
+            "ddtrace/contrib/grpc/*",
+            "ddtrace/contrib/internal/grpc/*"
         ],
         "gunicorn": [
             "ddtrace/contrib/gunicorn/*"
         ],
         "httplib": [
-            "ddtrace/contrib/httplib/*"
+            "ddtrace/contrib/httplib/*",
+            "ddtrace/contrib/internal/httplib/*"
         ],
         "httpx": [
-            "ddtrace/contrib/httpx/*"
+            "ddtrace/contrib/httpx/*",
+            "ddtrace/contrib/internal/httpx/*"
         ],
         "mariadb": [
             "ddtrace/contrib/mariadb/*"
@@ -339,27 +350,35 @@
         ],
         "botocore": [
             "ddtrace/contrib/botocore/*",
+            "ddtrace/contrib/internal/botocore/*",
             "ddtrace/contrib/boto/*",
-            "ddtrace/contrib/aiobotocore/*"
+            "ddtrace/contrib/internal/boto/*",
+            "ddtrace/contrib/aiobotocore/*",
+            "ddtrace/contrib/internal/aiobotocore/*"
         ],
         "mysql": [
             "ddtrace/contrib/mysql/*",
             "ddtrace/contrib/mysqldb/*",
             "ddtrace/contrib/pymysql/*",
-            "ddtrace/contrib/aiomysql/*"
+            "ddtrace/contrib/aiomysql/*",
+            "ddtrace/contrib/internal/aiomysql/*"
         ],
         "pylibmc": [
             "ddtrace/contrib/pylibmc/*"
         ],
         "logbook": [
-            "ddtrace/contrib/logbook/*"
+            "ddtrace/contrib/logbook/*",
+            "ddtrace/contrib/internal/logbook/*"
         ],
         "logging": [
-            "ddtrace/contrib/logging/*"
+            "ddtrace/contrib/logging/*",
+            "ddtrace/contrib/internal/logging/*"
         ],
         "loguru": [
             "ddtrace/contrib/logging/*",
-            "ddtrace/contrib/loguru/*"
+            "ddtrace/contrib/internal/logging/*",
+            "ddtrace/contrib/loguru/*",
+            "ddtrace/contrib/internal/loguru/*"
         ],
         "sqlite3": [
             "ddtrace/contrib/sqlite3/*"
@@ -378,11 +397,14 @@
         ],
         "aws_lambda": [
             "ddtrace/contrib/aws_lambda/*",
+            "ddtrace/contrib/internal/aws_lambda/*",
             "ddtrace/ext/aws.py"
         ],
         "aiohttp": [
             "ddtrace/contrib/aiohttp/*",
-            "ddtrace/contrib/aiohttp_jinja2/*"
+            "ddtrace/contrib/internal/aiohttp/*",
+            "ddtrace/contrib/aiohttp_jinja2/*",
+            "ddtrace/contrib/internal/aiohttp_jinja2/*"
         ],
         "openai": [
             "ddtrace/contrib/openai/*"
@@ -415,7 +437,8 @@
             "ddtrace/ext/cassandra.py"
         ],
         "bottle": [
-            "ddtrace/contrib/bottle/*"
+            "ddtrace/contrib/bottle/*",
+            "ddtrace/contrib/internal/bottle/*"
         ],
         "consul": [
             "ddtrace/contrib/consul/*",
@@ -426,7 +449,8 @@
             "ddtrace/contrib/internal/django/*"
         ],
         "aiopg": [
-            "ddtrace/contrib/aiopg/*"
+            "ddtrace/contrib/aiopg/*",
+            "ddtrace/contrib/internal/aiopg/*"
         ],
         "pytest": [
             "ddtrace/contrib/pytest/*",
