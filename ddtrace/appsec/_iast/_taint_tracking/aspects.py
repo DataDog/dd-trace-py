@@ -3,8 +3,8 @@ from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
 from re import Pattern
-from types import ModuleType
 from types import BuiltinFunctionType
+from types import ModuleType
 from typing import Any
 from typing import Callable
 from typing import Dict
