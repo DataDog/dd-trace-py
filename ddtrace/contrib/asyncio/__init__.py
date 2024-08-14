@@ -15,7 +15,11 @@ with require_modules(required_modules) as missing_modules:
 
         # Required to allow users to import from `ddtrace.contrib.asyncio.patch` directly
         # Expose public methods
-        from . import patch as _  # noqa: F401, I001
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
         from ..internal.asyncio.helpers import ensure_future
         from ..internal.asyncio.helpers import run_in_executor
         from ..internal.asyncio.helpers import set_call_context
