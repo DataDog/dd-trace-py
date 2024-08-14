@@ -38,6 +38,9 @@ def get_version():
 
 
 def patch():
+    if getattr(sqlite3, "_datadog_patch", False):
+        return
+    sqlite3._datadog_patch = True
     wrapped = wrapt.FunctionWrapper(_connect, traced_connect)
 
     sqlite3.connect = wrapped
