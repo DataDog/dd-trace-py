@@ -1095,10 +1095,12 @@ def re_sub_aspect(
     args = args[(flag_added_args or 1) :]
     result = orig_function(*args, **kwargs)
 
-    if not isinstance(self, Pattern) and not isinstance(self, ModuleType):
+    if not isinstance(self, (Pattern, ModuleType)):
         # This is not the sub we're looking for
         return result
     elif isinstance(self, ModuleType):
+        if self.__name__ != "re" or self.__package__ != "":
+            return result
         # In this case, the first argument is the pattern
         # which we don't need to check for tainted ranges
         args = args[1:]
