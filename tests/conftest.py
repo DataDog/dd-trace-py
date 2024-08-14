@@ -61,17 +61,19 @@ if os.environ.get("CI") == "true":
             except Exception as e:
                 import traceback
 
-                print("Failed to close FDCapture", e)
+                # Write to stderr since pytest captures and hides stdout by default
+                sys.stderr.write("Failed to close FDCapture: %s\n" % e)
                 traceback.print_exc()
 
-                print(f"FDCapture: {self!r}")
+                sys.stderr.write(f"FDCapture: {self!r}\n")
                 for name in ("_state", "tmpfile", "syscapture", "target_save", "targetfd_save", "targetfd_invalid"):
                     value = "<unknown>"
                     try:
                         value = getattr(self, name, "<unknown>")
                     except Exception:
                         pass
-                    print(f"FDCapture.{name}: {value!r}")
+                    sys.stderr.write(f"FDCapture.{name}: {value!r}\n")
+                sys.stderr.flush()
 
                 # Try to mark the state as done anyways....
                 try:
