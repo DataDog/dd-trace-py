@@ -11,7 +11,7 @@ class ReObject:
     def subn(self, replacement, string):
         return "fake_replacement_3", 0
 
-    def split(pattern, string, *args, **kwargs):
+    def split(self, string, *args, **kwargs):
         return ["fake_result_2", "fake_result_1", "fake_result_0"]
 
 

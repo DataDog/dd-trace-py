@@ -97,6 +97,20 @@ def split_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
                 args = args[flag_added_args:]
             return orig_function(*args, **kwargs)
     try:
+        # re.split aspect, either with pattern as first arg or with re module
+        if isinstance(args[0], Pattern) or (
+            isinstance(args[0], ModuleType) and args[0].__name__ == "re" and args[0].__package__ == ""
+        ):
+            result = args[0].split(*args[1:], **kwargs)
+            offset = 0
+            if isinstance(args[0], Pattern):
+                offset = -1
+
+            if len(args) >= (3 + offset) and is_pyobject_tainted(args[2 + offset]):
+                for i in result:
+                    copy_and_shift_ranges_from_strings(args[2 + offset], i, 0, len(i))
+            return result
+
         return _aspect_split(*args, **kwargs)
     except Exception as e:
         iast_taint_log_error("IAST propagation error. split_aspect. {}".format(e))

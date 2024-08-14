@@ -284,6 +284,48 @@ def iast_ast_patching_non_re_subn():
     return resp
 
 
+@app.route("/iast-ast-patching-re-split", methods=["GET"])
+def iast_ast_patching_re_split():
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        result = re.split(r"_", filename)
+    elif style == "re_object":
+        pattern = re.compile(r"_")
+        result = pattern.split(filename)
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if all(map(is_pyobject_tainted, result)):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-non-re-split", methods=["GET"])
+def iast_ast_patching_non_re_split():
+    import iast.fixtures.non_re_module as re
+
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        result = re.split(r"_", filename)
+    elif style == "re_object":
+        pattern = re.compile(r"_")
+        result = pattern.split(filename)
+    resp = Response("OK")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if any(map(is_pyobject_tainted, result)):
+            resp = Response("Fail")
+    except Exception as e:
+        print(e)
+    return resp
+
+
 if __name__ == "__main__":
     env_port = os.getenv("FLASK_RUN_PORT", 8000)
     ddtrace_iast_flask_patch()
