@@ -4,7 +4,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
-from ddtrace.contrib.tornado import context_provider
+from ddtrace.contrib.internal.tornado.stack_context import context_provider
 from ddtrace.internal.schema import schematize_service_name
 
 
