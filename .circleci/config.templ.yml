@@ -1347,20 +1347,6 @@ jobs:
           pattern: 'loguru'
           snapshot: true
 
-  build_docs:
-    # build documentation and store as an artifact
-    executor: ddtrace_dev
-    steps:
-      - setup_hatch
-      - checkout
-      - run:
-          command: |
-             hatch run docs:build
-             mkdir -p /tmp/docs
-             cp -r docs/_build/html/* /tmp/docs
-      - store_artifacts:
-          path: /tmp/docs
-
   slotscheck:
     executor: python310
     steps:

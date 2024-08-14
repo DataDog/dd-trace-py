@@ -1,0 +1,28 @@
+name: Build docs
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    container: ghcr.io/datadog/dd-trace-py/testrunner@sha256:9b2364afa4d1cd8382f251aca5963113cfc47e6c6b9aaed2c28e8a2a48ac1f75
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+
+      - name: Build docs
+        run: hatch run docs:build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: docs/_build/html/
