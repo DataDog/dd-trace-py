@@ -87,7 +87,14 @@ build_ddtrace_windows:
       - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
         ARCH: ["win32", "win_amd64"]
   script:
-    - docker pull mcr.microsoft.com/windows/servercore:1809
+    - |
+      docker run --rm mcr.microsoft.com/windows/servercore:1809 cmd.exe /C @"
+      choco install python -y --version 3.12.4
+      choco install git.install -y
+      py -m pip install cibuildwheel
+      py -m cibuildwheel --print-build-identifiers
+      py -m cibuildwheel --output-dir wheelhouse
+      "@
   artifacts:
     paths:
       - wheelhouse/
