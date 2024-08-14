@@ -104,6 +104,8 @@ venv = Venv(
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
+        "DD_INJECTION_ENABLED": "1",
+        "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     },
@@ -291,14 +293,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(pys=select_pys()),
-                # This test variant ensures tracer tests are compatible with both 64bit and 128bit trace ids.
-                Venv(
-                    name="tracer-128-bit-traceid-enabled",
-                    pys=MAX_PYTHON_VERSION,
-                    env={
-                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
-                    },
-                ),
+                # This test variant ensures tracer tests are compatible with both 64bit trace ids.
+                # 128bit trace ids are tested by the default case above.
                 Venv(
                     name="tracer-128-bit-traceid-disabled",
                     pys=MAX_PYTHON_VERSION,
@@ -323,6 +319,9 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
+            env={
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+            },
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -401,6 +400,7 @@ venv = Venv(
             name="internal",
             env={
                 "DD_TRACE_AGENT_URL": "http://localhost:8126",
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -503,6 +503,9 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
+            env={
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+            },
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
@@ -785,6 +788,8 @@ venv = Venv(
                 "python-memcached": latest,
                 "pytest-randomly": latest,
                 "django-q": latest,
+                "spyne": latest,
+                "zeep": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -2757,6 +2762,9 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "gevent": latest,
             },
+            env={
+                "DD_AGENT_PORT": "9126",
+            },
         ),
         Venv(
             name="subprocess",
@@ -2778,6 +2786,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
             },
             pkgs={
                 "gunicorn": latest,
