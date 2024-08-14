@@ -225,7 +225,8 @@
             "ddtrace/contrib/internal/fastapi/*"
         ],
         "gevent": [
-            "ddtrace/contrib/gevent/*"
+            "ddtrace/contrib/gevent/*",
+            "ddtrace/contrib/internal/gevent/*"
         ],
         "git": [
             "ddtrace/ext/git.py"
@@ -299,10 +300,12 @@
             "ddtrace/contrib/mako/*"
         ],
         "jinja2": [
-            "ddtrace/contrib/jinja2/*"
+            "ddtrace/contrib/jinja2/*",
+            "ddtrace/contrib/internal/jinja2/*"
         ],
         "kombu": [
             "ddtrace/contrib/kombu/*",
+            "ddtrace/contrib/internal/kombu/*",
             "ddtrace/ext/kombu.py"
         ],
         "wsgi": [
@@ -317,22 +320,27 @@
         ],
         "kafka": [
             "ddtrace/contrib/kafka/*",
+            "ddtrace/contrib/internal/kafka/*",
             "ddtrace/ext/kafka.py"
         ],
         "graphql": [
-            "ddtrace/contrib/graphql/*"
+            "ddtrace/contrib/graphql/*",
+            "ddtrace/contrib/internal/graphql/*"
         ],
         "grpc": [
-            "ddtrace/contrib/grpc/*"
+            "ddtrace/contrib/grpc/*",
+            "ddtrace/contrib/internal/grpc/*"
         ],
         "gunicorn": [
             "ddtrace/contrib/gunicorn/*"
         ],
         "httplib": [
-            "ddtrace/contrib/httplib/*"
+            "ddtrace/contrib/httplib/*",
+            "ddtrace/contrib/internal/httplib/*"
         ],
         "httpx": [
-            "ddtrace/contrib/httpx/*"
+            "ddtrace/contrib/httpx/*",
+            "ddtrace/contrib/internal/httpx/*"
         ],
         "mariadb": [
             "ddtrace/contrib/mariadb/*"
@@ -977,6 +985,7 @@
             "@appsec",
             "@appsec_iast",
             "@wsgi",
+            "@redis",
             "tests/appsec/*",
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
