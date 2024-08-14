@@ -22,10 +22,10 @@ def get_version():
 
 
 def patch():
-    if getattr(pymemcache.client, "_datadog_patch", False):
+    if getattr(pymemcache, "_datadog_patch", False):
         return
 
-    pymemcache.client._datadog_patch = True
+    pymemcache._datadog_patch = True
     pymemcache.client.base.Client = WrappedClient
     pymemcache.client.hash.Client = WrappedClient
     pymemcache.client.hash.HashClient = WrappedHashClient
@@ -37,9 +37,9 @@ def patch():
 
 def unpatch():
     """Remove pymemcache tracing"""
-    if not getattr(pymemcache.client, "_datadog_patch", False):
+    if not getattr(pymemcache, "_datadog_patch", False):
         return
-    pymemcache.client._datadog_patch = False
+    pymemcache._datadog_patch = False
     pymemcache.client.base.Client = _Client
     pymemcache.client.hash.Client = _hash_Client
     pymemcache.client.hash.HashClient = _hash_HashClient
