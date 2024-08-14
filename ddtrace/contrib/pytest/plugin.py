@@ -17,7 +17,10 @@ from typing import Dict  # noqa:F401
 
 import pytest
 
+from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
+from ddtrace.contrib.pytest._utils import _extract_span
 from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
+from ddtrace.internal.utils.formats import asbool
 
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
@@ -100,7 +103,6 @@ def pytest_load_initial_conftests(early_config, parser, args):
         # Enables experimental use of ModuleCodeCollector for coverage collection.
         from ddtrace.internal.ci_visibility.coverage import USE_DD_COVERAGE
         from ddtrace.internal.logger import get_logger
-        from ddtrace.internal.utils.formats import asbool
 
         log = get_logger(__name__)
 
@@ -113,7 +115,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
             try:
                 workspace_path = Path(extract_workspace_path())
-            except ValueError:
+            except (ValueError, FileNotFoundError):
                 workspace_path = Path(os.getcwd())
 
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
@@ -131,9 +133,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
-        from ddtrace.internal.utils.formats import asbool
-
-        if asbool(os.environ.get("_DD_CIVISIBILITY_USE_PYTEST_V2", "false")):
+        if _USE_PLUGIN_V2:
             from ddtrace.internal.logger import get_logger
 
             log = get_logger(__name__)
@@ -161,7 +161,6 @@ def ddspan(request):
     """Return the :class:`ddtrace._trace.span.Span` instance associated with the
     current test when Datadog CI Visibility is enabled.
     """
-    from ddtrace.contrib.pytest._plugin_v1 import _extract_span
     from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 
     if _CIVisibility.enabled:
