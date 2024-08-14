@@ -71,33 +71,33 @@ build_ddtrace_linux:
     paths:
       - wheelhouse/
 
-build_ddtrace_windows:
-  tags: [ "runner:windows-docker", "windowsversion:1809" ]
-  stage: package
-  variables:
-    CIBW_BUILD: "${PYTHON_ABI}-${ARCH}"
-    CIBW_PLATFORM: windows
-    CIBW_ENVIRONMENT_WINDOWS: CMAKE_BUILD_PARALLEL_LEVEL=24
-    CIBW_BEFORE_WINDOWS: rustup target add i686-pc-windows-msvc
-    CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: |
-      7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
-      move "{wheel}" "{dest_dir}"
-  parallel:
-    matrix:
-      - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
-        ARCH: ["win32", "win_amd64"]
-  script:
-    - |
-      docker run --rm mcr.microsoft.com/windows/servercore:1809 cmd.exe /C @"
-      choco install python -y --version 3.12.4
-      choco install git.install -y
-      py -m pip install cibuildwheel
-      py -m cibuildwheel --print-build-identifiers
-      py -m cibuildwheel --output-dir wheelhouse
-      "@
-  artifacts:
-    paths:
-      - wheelhouse/
+# build_ddtrace_windows:
+#   tags: [ "runner:windows-docker", "windowsversion:1809" ]
+#   stage: package
+#   variables:
+#     CIBW_BUILD: "${PYTHON_ABI}-${ARCH}"
+#     CIBW_PLATFORM: windows
+#     CIBW_ENVIRONMENT_WINDOWS: CMAKE_BUILD_PARALLEL_LEVEL=24
+#     CIBW_BEFORE_WINDOWS: rustup target add i686-pc-windows-msvc
+#     CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: |
+#       7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
+#       move "{wheel}" "{dest_dir}"
+#   parallel:
+#     matrix:
+#       - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
+#         ARCH: ["win32", "win_amd64"]
+#   script:
+#     - |
+#       docker run --rm mcr.microsoft.com/windows/servercore:1809 cmd.exe /C @"
+#       choco install python -y --version 3.12.4
+#       choco install git.install -y
+#       py -m pip install cibuildwheel
+#       py -m cibuildwheel --print-build-identifiers
+#       py -m cibuildwheel --output-dir wheelhouse
+#       "@
+#   artifacts:
+#     paths:
+#       - wheelhouse/
 
 download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
@@ -125,7 +125,7 @@ download_dependency_wheels:
       - "wheelhouse-dep/"
 
 package-oci:
-  needs: [ download_dependency_wheels ]
+  needs: [ download_dependency_wheels, build_ddtrace_sdist ]
 
 # no installer tests for python
 onboarding_tests_installer:
