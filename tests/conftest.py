@@ -1,6 +1,7 @@
 import ast
 import base64
 import contextlib
+import functools
 import importlib
 from itertools import product
 import json
@@ -41,6 +42,37 @@ from tests.utils import snapshot_context as _snapshot_context
 
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
+
+
+# Hack to try and capture more logging data from pytest failing on `internal` jobs on
+# pytest shutdown. This is a temporary workaround until we can figure out... why....
+# https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/68751/workflows/8939123d-e0bf-4fd5-a4f2-2368eb9fc141/jobs/4201092
+# OSError: [Errno 9] Bad file descriptor
+if os.environ.get("CI") == "true":
+    try:
+        from _pytest.capture import FDCapture
+
+        original_done = FDCapture.done
+
+        @functools.wraps(FDCapture.done)
+        def wrapped_done(self) -> None:
+            try:
+                original_done(self)
+            except Exception as e:
+                # Try to mark the state as done anyways.... :shrug: ?
+                try:
+                    self._state = "done"
+                except Exception:
+                    pass
+
+                import traceback
+
+                print("Failed to close FDCapture", e)
+                traceback.print_exc()
+
+        FDCapture.done = wrapped_done
+    except Exception as e:
+        print("Failed to wrap FDCapture", e)
 
 
 def pytest_configure(config):
