@@ -15,7 +15,7 @@ from ddtrace.appsec._iast._taint_tracking import taint_pyobject_with_ranges
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
-mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
+mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 EscapeContext = NamedTuple("EscapeContext", [("id", Any), ("position", int)])
 
