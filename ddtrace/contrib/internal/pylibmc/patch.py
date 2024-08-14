@@ -13,8 +13,14 @@ def get_version():
 
 
 def patch():
+    if getattr(pylibmc, "_datadog_patch", False):
+        return
+
+    pylibmc._datadog_patch = True
     pylibmc.Client = TracedClient
 
 
 def unpatch():
+    if getattr(pylibmc, "_datadog_patch", False):
+        pylibmc._datadog_patch = False
     pylibmc.Client = _Client
