@@ -51,6 +51,8 @@ def patch():
 
 
 def unpatch():
+    if getattr(sqlite3, "_datadog_patch", False):
+        sqlite3._datadog_patch = False
     sqlite3.connect = _connect
     sqlite3.dbapi2.connect = _connect
 
