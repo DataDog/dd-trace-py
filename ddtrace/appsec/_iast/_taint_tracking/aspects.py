@@ -3,6 +3,7 @@ from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
 from re import Pattern
+from types import ModuleType
 from types import BuiltinFunctionType
 from typing import Any
 from typing import Callable
@@ -1094,9 +1095,13 @@ def re_sub_aspect(
     args = args[(flag_added_args or 1) :]
     result = orig_function(*args, **kwargs)
 
-    if not isinstance(self, Pattern):
+    if not isinstance(self, Pattern) and not isinstance(self, ModuleType):
         # This is not the sub we're looking for
         return result
+    elif isinstance(self, ModuleType):
+        # In this case, the first argument is the pattern
+        # which we don't need to check for tainted ranges
+        args = args[1:]
 
     if len(args) >= 2:
         repl = args[0]

@@ -1,3 +1,5 @@
+import pytest
+
 from tests.appsec.appsec_utils import flask_server
 
 
@@ -20,7 +22,8 @@ def test_flask_iast_ast_patching_import_error():
         assert response.content == b"False"
 
 
-def test_flask_iast_ast_patching_re():
+@pytest.mark.parametrize("style", ["re_module", "re_object"])
+def test_flask_iast_ast_patching_re(style):
     """
     Tests re module patching end to end by checking that re.sub is propagating properly
     """
@@ -29,7 +32,7 @@ def test_flask_iast_ast_patching_re():
     ) as context:
         _, flask_client, pid = context
 
-        response = flask_client.get("/iast-ast-patching-re?filename=path_traversal_test_file.txt")
+        response = flask_client.get(f"/iast-ast-patching-re?style={style}&filename=path_traversal_test_file.txt")
 
         assert response.status_code == 200
         assert response.content == b"OK"
