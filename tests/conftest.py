@@ -59,16 +59,25 @@ if os.environ.get("CI") == "true":
             try:
                 original_done(self)
             except Exception as e:
-                # Try to mark the state as done anyways.... :shrug: ?
-                try:
-                    self._state = "done"
-                except Exception:
-                    pass
-
                 import traceback
 
                 print("Failed to close FDCapture", e)
                 traceback.print_exc()
+
+                print(f"FDCapture: {self!r}")
+                for name in ("_state", "tmpfile", "syscapture", "target_save", "targetfd_save", "targetfd_invalid"):
+                    value = "<unknown>"
+                    try:
+                        value = getattr(self, name, "<unknown>")
+                    except Exception:
+                        pass
+                    print(f"FDCapture.{name}: {value!r}")
+
+                # Try to mark the state as done anyways....
+                try:
+                    self._state = "done"
+                except Exception:
+                    pass
 
         FDCapture.done = wrapped_done
     except Exception as e:
