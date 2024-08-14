@@ -183,7 +183,7 @@ class CIVisibility(Service):
         self._should_upload_git_metadata = True
         self._itr_meta = {}  # type: Dict[str, Any]
 
-        self._session_data: Dict[_CIVisibilityRootItemIdBase, CIVisibilitySession] = {}
+        self._session: Optional[CIVisibilitySession] = None
 
         if service is None:
             # Use service if provided to enable() or __init__()
@@ -686,27 +686,23 @@ class CIVisibility(Service):
 
     @classmethod
     def add_session(cls, session: CIVisibilitySession):
-        log.debug("Adding session: %s", session.item_id)
+        log.debug("Adding session: %s", session)
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        session_item_id = session.item_id.get_session_id()
-        if session_item_id in cls._instance._session_data:
+        if cls._instance._session is not None:
             log.warning(
-                "Session with id %s already exists: %s", session_item_id, cls._instance._session_data[session_item_id]
-            )
+                "Session already exists: %s", cls._instance._session            )
             return
-        cls._instance._session_data[session_item_id] = session
+        cls._instance._session = session
 
     @classmethod
-    def get_item_by_id(cls, item_id: CIItemId):
+    def get_item_by_id(cls, item_id: Union[CIModuleId, CISuiteId, CITestId]) -> Union[CIVisibilityModule, CIVisibilitySuite, CIVisibilityTest]:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        if isinstance(item_id, CISessionId):
-            return cls.get_session_by_id(item_id)
         if isinstance(item_id, CIModuleId):
             return cls.get_module_by_id(item_id)
         if isinstance(item_id, CISuiteId):
@@ -718,23 +714,16 @@ class CIVisibility(Service):
         raise CIVisibilityError(error_msg)
 
     @classmethod
-    def get_session_by_id(cls, session_id: _CIVisibilityRootItemIdBase) -> CIVisibilitySession:
+    def get_session(cls) -> CIVisibilitySession:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        if session_id not in cls._instance._session_data:
-            log.warning("Session not found: %s", session_id)
-            raise CIVisibilityDataError(f"No session with id {session_id} found")
-        return cls._instance._session_data[session_id]
-
-    @classmethod
-    def get_session_settings_by_id(cls, session_id: CISessionId) -> CIVisibilitySessionSettings:
-        if cls._instance is None:
-            error_msg = "CI Visibility is not enabled"
+        if cls._instance._session is None:
+            error_msg = "No session exists"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        return cls.get_session_by_id(session_id).get_session_settings()
+        return cls._instance._session
 
     @classmethod
     def get_module_by_id(cls, module_id: CIModuleId) -> CIVisibilityModule:
@@ -742,7 +731,7 @@ class CIVisibility(Service):
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        return cls.get_session_by_id(module_id.parent_id).get_child_by_id(module_id)
+        return cls.get_session(module_id.parent_id).get_child_by_id(module_id)
 
     @classmethod
     def get_suite_by_id(cls, suite_id: CISuiteId) -> CIVisibilitySuite:
@@ -761,12 +750,12 @@ class CIVisibility(Service):
         return cls.get_suite_by_id(test_id.parent_id).get_child_by_id(test_id)
 
     @classmethod
-    def get_session_settings(cls, item_id: CIItemId) -> CIVisibilitySessionSettings:
+    def get_session_settings(cls) -> CIVisibilitySessionSettings:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        return cls._instance._session_data[item_id.get_session_id()].get_session_settings()
+        return cls.get_session().get_session_settings()
 
     @classmethod
     def get_instance(cls) -> "CIVisibility":
@@ -930,7 +919,6 @@ def _on_discover_session(
     )
 
     session = CIVisibilitySession(
-        discover_args.session_id,
         session_settings,
     )
 
@@ -940,14 +928,14 @@ def _on_discover_session(
 @_requires_civisibility_enabled
 def _on_start_session(session_id: CISessionId):
     log.debug("Handling start for session id %s", session_id)
-    session = CIVisibility.get_session_by_id(session_id)
+    session = CIVisibility.get_session(session_id)
     session.start()
 
 
 @_requires_civisibility_enabled
 def _on_finish_session(finish_args: CISession.FinishArgs):
     log.debug("Handling finish for session id %s", finish_args)
-    session = CIVisibility.get_session_by_id(finish_args.session_id)
+    session = CIVisibility.get_session(finish_args.session_id)
     session.finish(finish_args.force_finish_children, finish_args.override_status)
 
 
@@ -960,7 +948,7 @@ def _on_session_is_test_skipping_enabled() -> Path:
 @_requires_civisibility_enabled
 def _on_session_get_workspace_path(session_id: CISessionId) -> Path:
     log.debug("Handling finish for session id %s", session_id)
-    session_settings = CIVisibility.get_session_by_id(session_id).get_session_settings()
+    session_settings = CIVisibility.get_session(session_id).get_session_settings()
     return session_settings.workspace_path
 
 
@@ -998,7 +986,7 @@ def _register_session_handlers():
 @_requires_civisibility_enabled
 def _on_discover_module(discover_args: CIModule.DiscoverArgs):
     log.debug("Handling discovery for module %s", discover_args.module_id)
-    session = CIVisibility.get_session_by_id(discover_args.module_id.get_session_id())
+    session = CIVisibility.get_session(discover_args.module_id.get_session_id())
 
     session.add_child(
         CIVisibilityModule(

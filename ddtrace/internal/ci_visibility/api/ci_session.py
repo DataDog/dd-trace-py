@@ -35,22 +35,25 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
 
     def __init__(
         self,
-        item_id: CISessionId,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
-        log.debug("Initializing CI Visibility session %s", item_id)
-        super().__init__(item_id, session_settings, session_settings.session_operation_name, initial_tags)
+        log.debug("Initializing CI Visibility session")
+        super().__init__(None, session_settings, session_settings.session_operation_name, initial_tags)
         self._test_command = self._session_settings.test_command
 
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
 
+    def __repr__(self) -> str:
+        """Sessions do not have an item ID, so we overwrite the base class method"""
+        return f"{self.__class__.__name__}"
+
     def start(self) -> None:
-        log.debug("Starting CI Visibility instance %s", self.item_id)
+        log.debug("Starting CI Visibility session")
         super().start()
 
     def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None) -> None:
-        log.debug("Finishing CI Visibility session %s", self.item_id)
+        log.debug("Finishing CI Visibility session")
         super().finish(force=force, override_status=override_status)
 
     def _get_hierarchy_tags(self) -> Dict[str, Any]:

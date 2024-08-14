@@ -58,26 +58,18 @@ class DEFAULT_OPERATION_NAMES(Enum):
     SUITE = "ci_visibility.suite"
     TEST = "ci_visibility.test"
 
-
 @dataclasses.dataclass(frozen=True)
-class CISessionId(_CIVisibilityRootItemIdBase):
-    name: str = DEFAULT_SESSION_NAME
-
+class CIModuleId(_CIVisibilityRootItemIdBase):
+    name: str
     def __repr__(self):
-        return "CISessionId(name={})".format(self.name)
-
-
-@dataclasses.dataclass(frozen=True)
-class CIModuleId(_CIVisibilityChildItemIdBase[CISessionId]):
-    def __repr__(self):
-        return "CIModuleId(session={}, module={})".format(self.get_session_id().name, self.name)
+        return "CIModuleId(module={})".format(self.get_session_id().name, self.name)
 
 
 @dataclasses.dataclass(frozen=True)
 class CISuiteId(_CIVisibilityChildItemIdBase[CIModuleId]):
     def __repr__(self):
-        return "CISuiteId(session={}, module={}, suite={})".format(
-            self.get_session_id().name, self.parent_id.name, self.name
+        return "CISuiteId(module={}, suite={})".format(
+            self.parent_id.name, self.name
         )
 
 
@@ -87,8 +79,7 @@ class CITestId(_CIVisibilityChildItemIdBase[CISuiteId]):
     retry_number: int = 0
 
     def __repr__(self):
-        return "CITestId(session={}, module={}, suite={}, test={}, parameters={}, retry_number={})".format(
-            self.get_session_id().name,
+        return "CITestId(module={}, suite={}, test={}, parameters={}, retry_number={})".format(
             self.parent_id.parent_id.name,
             self.parent_id.name,
             self.name,
@@ -181,7 +172,6 @@ class CIBase(_CIVisibilityAPIBase):
 
 class CISession(CIBase):
     class DiscoverArgs(NamedTuple):
-        session_id: CISessionId
         test_command: str
         reject_unknown_items: bool
         reject_duplicates: bool
@@ -196,7 +186,6 @@ class CISession(CIBase):
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
-        item_id: Optional[CISessionId],
         test_command: str,
         test_framework: str,
         test_framework_version: str,
@@ -208,9 +197,7 @@ class CISession(CIBase):
         test_operation_name: str = DEFAULT_OPERATION_NAMES.TEST.value,
         root_dir: Optional[Path] = None,
     ):
-        item_id = item_id or CISessionId()
-
-        log.debug("Registering session %s with test command: %s", item_id, test_command)
+        log.debug("Registering session with test command: %s", test_command)
         if not is_ci_visibility_enabled():
             log.debug("CI Visibility is not enabled, session not registered.")
             return
@@ -219,7 +206,6 @@ class CISession(CIBase):
             "ci_visibility.session.discover",
             (
                 CISession.DiscoverArgs(
-                    item_id,
                     test_command,
                     reject_unknown_items,
                     reject_duplicates,
@@ -236,29 +222,24 @@ class CISession(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start(item_id: Optional[CISessionId] = None):
+    def start():
         log.debug("Starting session")
-
-        item_id = item_id or CISessionId()
-        core.dispatch("ci_visibility.session.start", (item_id,))
+        core.dispatch("ci_visibility.session.start")
 
     class FinishArgs(NamedTuple):
-        session_id: CISessionId
         force_finish_children: bool
         override_status: Optional[CITestStatus]
 
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
-        item_id: Optional[CISessionId] = None,
         force_finish_children: bool = False,
         override_status: Optional[CITestStatus] = None,
     ):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
-        item_id = item_id or CISessionId()
         core.dispatch(
-            "ci_visibility.session.finish", (CISession.FinishArgs(item_id, force_finish_children, override_status),)
+            "ci_visibility.session.finish", (CISession.FinishArgs(force_finish_children, override_status),)
         )
 
     @staticmethod
@@ -273,19 +254,18 @@ class CISession(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_workspace_path(item_id: Optional[CISessionId] = None) -> Path:
-        log.debug("Getting workspace path for session: %s", item_id)
+    def get_workspace_path() -> Path:
+        log.debug("Getting session workspace path")
 
-        item_id = item_id or CISessionId()
         workspace_path: Path = core.dispatch_with_results(
-            "ci_visibility.session.get_workspace_path", (item_id,)
+            "ci_visibility.session.get_workspace_path"
         ).workspace_path.value
         return workspace_path
 
     @staticmethod
     @_catch_and_log_exceptions
-    def should_collect_coverage(item_id: Optional[CISessionId] = None) -> bool:
-        log.debug("Checking if coverage should be collected for session: %s", item_id)
+    def should_collect_coverage() -> bool:
+        log.debug("Checking if coverage should be collected for session")
 
         _should_collect_coverage = bool(
             core.dispatch_with_results("ci_visibility.session.should_collect_coverage").should_collect_coverage.value
@@ -308,7 +288,7 @@ class CISession(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_known_tests(item_id: Optional[CISessionId] = None):
+    def get_known_tests():
         pass
 
 

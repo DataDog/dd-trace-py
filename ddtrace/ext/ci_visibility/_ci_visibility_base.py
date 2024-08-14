@@ -39,10 +39,6 @@ class _CIVisibilityIdBase(abc.ABC):
     def get_parent_id(self) -> Union["_CIVisibilityIdBase", _CIVisibilityRootItemIdBase]:
         raise NotImplementedError("This method must be implemented by the subclass")
 
-    def get_session_id(self) -> _CIVisibilityRootItemIdBase:
-        return self.get_parent_id().get_session_id()
-
-
 PT = TypeVar("PT", bound=Union[_CIVisibilityIdBase, _CIVisibilityRootItemIdBase])
 
 
