@@ -18,7 +18,6 @@ from ddtrace._trace.trace_handlers import _ctype_from_headers
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
-from ddtrace.contrib import func_name
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
@@ -42,6 +41,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
@@ -105,13 +105,13 @@ def patch_conn(django, conn):
         try:
             from psycopg.cursor import Cursor as psycopg_cursor_cls
 
-            from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+            from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
         except ImportError:
             Psycopg3TracedCursor = None
             try:
                 from psycopg2._psycopg import cursor as psycopg_cursor_cls
 
-                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
+                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
             except ImportError:
                 psycopg_cursor_cls = None
                 Psycopg2TracedCursor = None
@@ -148,12 +148,12 @@ def patch_conn(django, conn):
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg2."):
                 # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
+                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
 
                 traced_cursor_cls = Psycopg2TracedCursor
             elif type(cursor.cursor).__name__ == "Psycopg3TracedCursor":
                 # Import lazily to avoid importing psycopg if not already imported.
-                from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+                from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 
                 traced_cursor_cls = Psycopg3TracedCursor
         except AttributeError:
@@ -801,7 +801,7 @@ def unwrap_views(func, instance, args, kwargs):
     applications.
 
     Ex. ``channels.routing.URLRouter([path('', get_asgi_application())])``
-    On startup ddtrace.contrib.django.path.instrument_view() will wrap get_asgi_application in a
+    On startup ddtrace.contrib.internal.django.path.instrument_view() will wrap get_asgi_application in a
     DjangoViewProxy.
     Since get_asgi_application is not a django view callback this function will unwrap it.
     """
