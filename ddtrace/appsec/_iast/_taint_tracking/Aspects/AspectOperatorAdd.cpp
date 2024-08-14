@@ -91,7 +91,8 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         }
 
         // Quickly skip if both are noninterned-unicodes and not tainted
-        if (is_notinterned_notfasttainted_unicode(candidate_text) && is_notinterned_notfasttainted_unicode(text_to_add)) {
+        if (is_notinterned_notfasttainted_unicode(candidate_text) &&
+            is_notinterned_notfasttainted_unicode(text_to_add)) {
             return result_o;
         }
 

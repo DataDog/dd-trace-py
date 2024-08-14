@@ -2,7 +2,9 @@
 
 #include "GenericUtils.h"
 
-bool asbool(py::object value) {
+bool
+asbool(py::object value)
+{
     if (value.is_none()) {
         return false;
     }
@@ -17,15 +19,19 @@ bool asbool(py::object value) {
     throw std::invalid_argument("Invalid type for asbool function.");
 }
 
-bool asbool(const char *value) {
+bool
+asbool(const char* value)
+{
     if (value == nullptr) {
-            return false;
+        return false;
     }
     py::object debug_value_py = py::str(value);
     return asbool(debug_value_py);
 }
 
-void iast_taint_log_error(const std::string& msg) {
+void
+iast_taint_log_error(const std::string& msg)
+{
     try {
         if (!is_iast_debug_enabled()) {
             return;
@@ -57,4 +63,3 @@ void iast_taint_log_error(const std::string& msg) {
         cerr << "ddtrace: unkown error when trying to log an IAST native error";
     }
 }
-
