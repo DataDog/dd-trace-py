@@ -108,6 +108,21 @@ __all__ = [
 ]
 
 
+def asbool(value):
+    # type: (Union[str, bool, None]) -> bool
+    """Convert the given String to a boolean object.
+
+    Accepted values are `True` and `1`.
+    """
+    if value is None:
+        return False
+
+    if isinstance(value, bool):
+        return value
+
+    return value.lower() in ("true", "1")
+
+
 def _is_iast_debug_enabled():
     return asbool(os.environ.get(IAST.ENV_DEBUG, "false"))
 
@@ -119,6 +134,9 @@ def iast_taint_log_error(msg):
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
         log.debug("%s:\n%s", msg, frame_info)
+
+        from ddtrace.appsec._iast._metrics import _set_iast_error_metric  # JJ
+
         _set_iast_error_metric("IAST propagation error. %s" % msg)
 
 
