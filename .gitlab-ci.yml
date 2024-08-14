@@ -34,7 +34,7 @@ build_ddtrace_linux:
   tags: [ "${RUNNER}" ]
   stage: package
   variables:
-    CIBW_BUILD: "${PYTHON_ABI}-${PLATFORM}_${ARCH}"
+    CIBW_BUILD: "cp37-${PLATFORM}_${ARCH} cp38-${PLATFORM}_${ARCH} cp39-${PLATFORM}_${ARCH} cp310-${PLATFORM}_${ARCH} cp311-${PLATFORM}_${ARCH} cp312-${PLATFORM}_${ARCH}"
     CIBW_PLATFORM: linux
     CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
     CIBW_ENVIRONMENT_LINUX: PATH=$$HOME/.cargo/bin:$$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
@@ -54,12 +54,10 @@ build_ddtrace_linux:
       rm -rf ./tempwheelhouse
   parallel:
     matrix:
-      - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
-        PLATFORM: ["manylinux", "musllinux"]
+      - PLATFORM: ["manylinux", "musllinux"]
         ARCH: ["x86_64", "i686"]
         RUNNER: runner:docker
-      - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
-        PLATFORM: ["manylinux", "musllinux"]
+      - PLATFORM: ["manylinux", "musllinux"]
         ARCH: ["aarch64"]
         RUNNER: runner:docker-arm
   script:
