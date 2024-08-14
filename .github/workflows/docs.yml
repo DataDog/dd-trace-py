@@ -8,7 +8,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  unit-tests:
+  build-docs:
     runs-on: ubuntu-latest
     container: ghcr.io/datadog/dd-trace-py/testrunner@sha256:9b2364afa4d1cd8382f251aca5963113cfc47e6c6b9aaed2c28e8a2a48ac1f75
     strategy:
@@ -16,9 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: Install latest stable toolchain and rustfmt
-        run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
+      - run: rustc --version
 
       - name: Build docs
         run: hatch run docs:build
