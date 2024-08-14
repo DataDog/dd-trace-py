@@ -17,7 +17,7 @@ from typing import cast  # noqa:F401
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.subprocess.constants import COMMANDS
+from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import shjoin
