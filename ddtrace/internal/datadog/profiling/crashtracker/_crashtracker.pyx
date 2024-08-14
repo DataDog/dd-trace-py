@@ -98,6 +98,7 @@ def set_stderr_filename(filename: StringType) -> None:
 def set_alt_stack(alt_stack: bool) -> None:
     crashtracker_set_alt_stack(alt_stack)
 
+
 def set_wait_for_receiver(wait: bool) -> None:
     crashtracker_set_wait_for_receiver(wait)
 
