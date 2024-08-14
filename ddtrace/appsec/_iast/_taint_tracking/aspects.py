@@ -1099,7 +1099,7 @@ def re_sub_aspect(
         # This is not the sub we're looking for
         return result
     elif isinstance(self, ModuleType):
-        if self.__name__ != "re" or self.__package__ != "":
+        if self.__name__ != "re" or self.__package__ not in ("", "re"):
             return result
         # In this case, the first argument is the pattern
         # which we don't need to check for tainted ranges
