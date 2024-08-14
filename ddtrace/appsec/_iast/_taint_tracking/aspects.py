@@ -90,7 +90,9 @@ def add_aspect(op1, op2):
     return op1 + op2
 
 
-def split_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+def split_aspect(
+    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+) -> Union[List[TEXT_TYPES], TEXT_TYPES]:
     if orig_function is not None:
         if orig_function != builtin_str:
             if flag_added_args > 0:
@@ -1134,7 +1136,7 @@ def re_sub_aspect(
 
 def re_subn_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
