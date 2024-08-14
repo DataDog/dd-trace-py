@@ -146,3 +146,24 @@ class CIVisibilityWriter(HTTPWriter):
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
         )
+
+    def _put(self, data, headers, client, no_trace):
+        # type: (bytes, Dict[str, str], WriterClientBase, bool) -> Response
+        with StopWatch() as sw:
+            try:
+                response = super()._put(data, headers, client, no_trace)
+            except (TimeoutError, socket.timeout) as e:
+                record_request_error(...timeout...)
+                raise
+            except RemoteDisconnected as e:
+                record_request_error(...network...)
+                raise
+            else:
+                if response.status >= 400:
+                    record_request_error(...status...)
+            finally:
+                record_request_bytes(len(data), endpoint=...)
+                record_request_count(count=1, endpoint=...)
+                record_request_time(seconds=sw.elapsed(), endpoint=...)
+
+        return response
