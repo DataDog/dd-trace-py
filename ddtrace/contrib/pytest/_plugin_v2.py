@@ -166,6 +166,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
+
 def _pytest_collection_finish(session) -> None:
     """Discover modules, suites, and tests that have been selected by pytest
 

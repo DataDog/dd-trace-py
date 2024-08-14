@@ -162,6 +162,7 @@ def pytest_configure(config):
     if is_enabled(config):
         _versioned_pytest_configure(config)
 
+
 @pytest.hookimpl
 def pytest_addhooks(pluginmanager):
     from ddtrace.contrib.pytest import newhooks
