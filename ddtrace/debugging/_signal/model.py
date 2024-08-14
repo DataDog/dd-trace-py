@@ -1,4 +1,5 @@
 import abc
+from collections import ChainMap
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
@@ -80,14 +81,16 @@ class Signal(abc.ABC):
 
         return False
 
-    def _enrich_args(self, retval, exc_info, duration):
-        _locals = list(self.args or _safety.get_args(self.frame))
+    def _enrich_locals(self, retval, exc_info, duration):
+        frame = self.frame
+        _locals = list(self.args or _safety.get_args(frame))
         _locals.append(("@duration", duration / 1e6))  # milliseconds
 
         exc = exc_info[1]
         _locals.append(("@return", retval) if exc is None else ("@exception", exc))
 
-        return dict(_locals)
+        # Include the frame locals and globals.
+        return ChainMap(dict(_locals), frame.f_locals, frame.f_globals)
 
     @abc.abstractmethod
     def enter(self):
