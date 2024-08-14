@@ -1,5 +1,4 @@
 #include "AspectOperatorAdd.h"
-#include <iostream>  // JJJ
 
 /**
  * This function updates result_o object with taint information of candidate_text and/or text_to_add
@@ -87,7 +86,7 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         // PyNumber_Add actually works for any type!
         result_o = PyNumber_Add(candidate_text, text_to_add);
 
-        if (not all_are_text_and_same_type(candidate_text, text_to_add)) {
+        if (not args_are_text_and_same_type(candidate_text, text_to_add)) {
             return result_o;
         }
 
