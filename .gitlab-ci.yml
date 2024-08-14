@@ -16,6 +16,19 @@ include:
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
 
+build_ddtrace_sdist:
+  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  tags: [ "runner:docker" ]
+  stage: package
+  script:
+    - curl -sSf https://sh.rustup.rs | sh -s -- -y;
+    - export PATH=$HOME/.cargo/bin:$PATH
+    - pip install build
+    - python -m build . --sdist --outdir wheelhouse/
+  artifacts:
+    paths:
+      - wheelhouse/
+
 build_ddtrace_linux:
   image: registry.ddbuild.io/images/mirror/python:3.12.0
   tags: [ "${RUNNER}" ]
@@ -64,7 +77,6 @@ build_ddtrace_windows:
   variables:
     CIBW_BUILD: "${PYTHON_ABI}-${ARCH}"
     CIBW_PLATFORM: windows
-    CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
     CIBW_ENVIRONMENT_WINDOWS: CMAKE_BUILD_PARALLEL_LEVEL=24
     CIBW_BEFORE_WINDOWS: rustup target add i686-pc-windows-msvc
     CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: |
@@ -75,10 +87,7 @@ build_ddtrace_windows:
       - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
         ARCH: ["win32", "win_amd64"]
   script:
-    - python -m pip install cibuildwheel==2.20.0
-    - python -m pip install cibuildwheel
-    - python -m cibuildwheel --print-build-identifiers
-    - python -m cibuildwheel --output-dir wheelhouse
+    - docker pull mcr.microsoft.com/windows/servercore:1809
   artifacts:
     paths:
       - wheelhouse/
