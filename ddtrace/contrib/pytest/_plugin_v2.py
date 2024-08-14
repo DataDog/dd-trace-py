@@ -4,6 +4,7 @@ import typing as t
 
 import pytest
 
+from ddtrace import config as dd_config
 from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.coverage.data import _coverage_data
@@ -12,6 +13,7 @@ from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
 from ddtrace.contrib.pytest._utils import _get_session_command
 from ddtrace.contrib.pytest._utils import _get_session_id
@@ -56,13 +58,18 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     if not CISession.is_test_skipping_enabled():
         return False
 
-    item_is_unskippable = CITest.is_item_itr_unskippable(item) or CISuite.is_item_itr_unskippable(test_id.parent_id)
+    suite_id = test_id.parent_id
 
-    if CISuite.is_item_itr_skippable(test_id.parent_id):
+    item_is_unskippable = CISuite.is_item_itr_unskippable(suite_id)
+
+    if CISuite.is_item_itr_skippable(suite_id):
         if item_is_unskippable:
+            # Marking the test as forced run also applies to its hierarchy
             CITest.mark_itr_forced_run(test_id)
+            return False
         else:
             CITest.mark_itr_skipped(test_id)
+            # Marking the test as skipped by ITR so that it appears in pytest's output
             item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
             return True
 
@@ -122,10 +129,10 @@ class _PytestDDTracePluginV2:
 
     @staticmethod
     def pytest_configure(config: pytest.Config) -> None:
-        unpatch_unittest()
         if is_enabled(config):
+            unpatch_unittest()
             take_over_logger_stream_handler()
-            enable_ci_visibility()
+            enable_ci_visibility(config=dd_config.pytest)
         if _is_pytest_cov_enabled(config):
             patch_coverage()
 
@@ -146,7 +153,7 @@ class _PytestDDTracePluginV2:
             session_operation_name="pytest.test_session",
             module_operation_name="pytest.test_module",
             suite_operation_name="pytest.test_suite",
-            test_operation_name="pytest.test",
+            test_operation_name=dd_config.pytest.operation_name,
             reject_duplicates=False,
             reject_unknown_items=True,
         )
@@ -154,19 +161,24 @@ class _PytestDDTracePluginV2:
         CISession.start(session_id)
 
     @staticmethod
-    def pytest_collection_modifyitems(session, config, items) -> None:
+    def pytest_collection_finish(session) -> None:
+        """Discover modules, suites, and tests that have been selected by pytest
+
+        NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
+        tests that pytest has selection for run (eg: with the use of -k as an argument).
+        """
         if not is_ci_visibility_enabled():
             return
 
         codeowners = CISession.get_codeowners()
 
-        for item in items:
+        for item in session.items:
             test_id = _get_test_id_from_item(item)
             suite_id = test_id.parent_id
             module_id = suite_id.parent_id
 
             # TODO: don't rediscover modules and suites if already discovered
-            CIModule.discover(module_id)
+            CIModule.discover(module_id, _get_module_path_from_item(item))
             CISuite.discover(suite_id)
 
             item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
@@ -177,6 +189,13 @@ class _PytestDDTracePluginV2:
 
             CITest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
 
+            markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
+            for tags in markers:
+                CITest.set_tags(test_id, tags)
+
+            # Pytest markers do not allow us to determine if the test or the suite was marked as unskippable, but any
+            # test marked unskippable in a suite makes the entire suite unskippable (since we are in suite skipping
+            # mode)
             if CISession.is_test_skipping_enabled() and _is_test_unskippable(item):
                 CITest.mark_itr_unskippable(test_id)
                 CISuite.mark_itr_unskippable(suite_id)
@@ -192,9 +211,10 @@ class _PytestDDTracePluginV2:
         suite_id = test_id.parent_id
         module_id = suite_id.parent_id
 
-        # TODO: don't start modules if already started
+        # TODO: don't re-start modules if already started
         CIModule.start(module_id)
         CISuite.start(suite_id)
+
         CITest.start(test_id)
 
         _handle_itr_should_skip(item, test_id)
@@ -221,7 +241,7 @@ class _PytestDDTracePluginV2:
         # - we trust that the next item is in the same module if it is in the same suite
         next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
         if next_test_id is None or next_test_id.parent_id != suite_id:
-            if CISuite.was_item_skipped_by_itr(suite_id):
+            if CISuite.is_item_itr_skippable(suite_id) and not CISuite.was_forced_run(suite_id):
                 CISuite.mark_itr_skipped(suite_id)
             else:
                 CISuite.finish(suite_id)
@@ -232,22 +252,42 @@ class _PytestDDTracePluginV2:
     @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_makereport(item, call) -> None:
         """Store outcome for tracing."""
-        outcome: pytest.TestReport = yield
+        outcome: pytest.TestReport
+        outcome = yield
+        result = outcome.get_result()
 
         if not is_ci_visibility_enabled():
             return
 
         test_id = _get_test_id_from_item(item)
 
-        # Setup and teardown only impact results if an exception occurred
-        is_setup_or_teardown = call.when == "setup" or call.when == "teardown"
         has_exception = call.excinfo is not None
 
-        if is_setup_or_teardown and not has_exception:
+        # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
+        # add it as a tag immediately:
+        if getattr(result, "wasxfail", None):
+            CITest.set_tag(test_id, XFAIL_REASON, result.wasxfail)
+        elif getattr(result, "longrepr", None):
+            CITest.set_tag(test_id, XFAIL_REASON, result.longrepr)
+
+        # Only capture result if:
+        # - there is an exception
+        # - the test failed
+        # - the test passed with xfail
+        # - we are tearing down the test
+        # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
+
+        if call.when != "teardown" and not (has_exception or result.failed):
             return
 
-        result = outcome.get_result()
+        # There are scenarios in which we may have already finished this item in setup or call, eg:
+        # - it was skipped by ITR
+        # - it was marked with skipif
+        if CITest.is_finished(test_id):
+            return
+
         xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
+        xfail_reason_tag = CITest.get_tag(test_id, XFAIL_REASON) if xfail else None
         has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
         # If run with --runxfail flag, tests behave as if they were not marked with xfail,
@@ -261,7 +301,8 @@ class _PytestDDTracePluginV2:
                 # XFail tests that fail are recorded skipped by pytest, should be passed instead
                 if not item.config.option.runxfail:
                     CITest.set_tag(test_id, test.RESULT, test.Status.XFAIL.value)
-                    CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                    if xfail_reason_tag is None:
+                        CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
                     CITest.mark_pass(test_id)
                     return
 
@@ -271,7 +312,8 @@ class _PytestDDTracePluginV2:
         if result.passed:
             if xfail and not has_skip_keyword and not item.config.option.runxfail:
                 # XPass (strict=False) are recorded passed by pytest
-                CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                if xfail_reason_tag is None:
+                    CITest.set_tag(test_id, XFAIL_REASON, "XFail")
                 CITest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
 
             CITest.mark_pass(test_id)
@@ -279,8 +321,11 @@ class _PytestDDTracePluginV2:
 
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
-            CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
+            if xfail_reason_tag is None:
+                CITest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
             CITest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
+            CITest.mark_fail(test_id)
+            return
 
         exc_info = CIExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 

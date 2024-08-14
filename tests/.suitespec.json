@@ -1115,6 +1115,20 @@
             "tests/contrib/pytest_bdd/*",
             "tests/snapshots/tests.contrib.pytest.*"
         ],
+        "pytest_v2": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@pytest",
+            "@ci_visibility",
+            "@coverage",
+            "@codeowners",
+            "tests/contrib/pytest/*",
+            "tests/contrib/pytest_benchmark/*",
+            "tests/contrib/pytest_bdd/*",
+            "tests/snapshots/tests.contrib.pytest.*"
+        ],
         "unittest": [
             "@contrib",
             "@unittest",
