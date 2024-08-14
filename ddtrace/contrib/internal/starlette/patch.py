@@ -14,7 +14,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.ext import http
 from ddtrace.internal import core
