@@ -10,16 +10,24 @@ on:
 jobs:
   build-docs:
     runs-on: ubuntu-latest
-    container: ghcr.io/datadog/dd-trace-py/testrunner@sha256:9b2364afa4d1cd8382f251aca5963113cfc47e6c6b9aaed2c28e8a2a48ac1f75
     strategy:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
 
-      - run: rustup default stable
+      - uses: actions/setup-python@v5
+        name: Install Python
+        with:
+          python-version: '3.10'
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install latest stable toolchain and rustfmt
+        run: rustup update stable && rustup default stable
+
+      - name: Install hatch
+        run: pip install hatch
 
       - name: Build docs
-        shell: bash
         run: hatch run docs:build
 
       - uses: actions/upload-artifact@v4
