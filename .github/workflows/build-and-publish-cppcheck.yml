@@ -1,0 +1,40 @@
+name: Build Cppcheck
+
+on:
+  workflow_dispatch:
+
+
+jobs:
+  build-cppcheck:
+    runs-on: ubuntu-latest
+    env:
+      # Set default values for environment variables
+      CPPCHECK_VERSION: '2.14.2'
+      DESTINATION_PATH: '/usr/local/bin/cppcheck'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch and build Cppcheck Source
+        run: |
+          git clone https://github.com/danmar/cppcheck.git
+          cd cppcheck
+          git checkout tags/${{ env.CPPCHECK_VERSION }}
+          mkdir build && cd build
+          cmake ..
+          cmake --build .
+          cp bin/cppcheck ${{ env.DESTINATION_PATH }}
+
+      - name: Upload Cppcheck (versioned)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppcheck-${{ env.CPPCHECK_VERSION }}
+          path: ${{ env.DESTINATION_PATH }}
+
+      - name: Upload Cppcheck (latest)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppcheck-latest
+          path: ${{ env.DESTINATION_PATH }}
