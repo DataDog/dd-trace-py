@@ -99,7 +99,7 @@ def split_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
     try:
         # re.split aspect, either with pattern as first arg or with re module
         if isinstance(args[0], Pattern) or (
-            isinstance(args[0], ModuleType) and args[0].__name__ == "re" and args[0].__package__ == ""
+            isinstance(args[0], ModuleType) and args[0].__name__ == "re" and args[0].__package__ in ("", "re")
         ):
             result = args[0].split(*args[1:], **kwargs)
             offset = 0
@@ -1150,7 +1150,7 @@ def re_subn_aspect(
         # This is not the sub we're looking for
         return result
     elif isinstance(self, ModuleType):
-        if self.__name__ != "re" or self.__package__ != "":
+        if self.__name__ != "re" or self.__package__ not in ("", "re"):
             return result
         # In this case, the first argument is the pattern
         # which we don't need to check for tainted ranges
