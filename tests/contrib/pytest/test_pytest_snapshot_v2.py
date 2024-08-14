@@ -10,7 +10,7 @@ from tests.utils import override_env
 from tests.utils import snapshot
 
 
-pytestmark = pytest.mark.skipif(_USE_PLUGIN_V2, reason="Tests in this module are for v1 of the pytest plugin")
+pytestmark = pytest.mark.skipif(not _USE_PLUGIN_V2, reason="Tests in this module are for v2 of the pytest plugin")
 
 SNAPSHOT_IGNORES = [
     "meta.error.stack",

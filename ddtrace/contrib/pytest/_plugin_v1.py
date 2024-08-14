@@ -29,6 +29,7 @@ from ddtrace.contrib.coverage.patch import run_coverage_report
 from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.pytest._utils import _extract_span
 from ddtrace.contrib.pytest._utils import _is_pytest_8_or_later
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
@@ -101,11 +102,6 @@ def _is_pytest_cov_enabled(config) -> bool:
     if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
         return True
     return cov_option
-
-
-def _extract_span(item):
-    """Extract span from `pytest.Item` instance."""
-    return getattr(item, "_datadog_span", None)
 
 
 def _store_span(item, span):
