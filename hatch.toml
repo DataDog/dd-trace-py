@@ -345,3 +345,34 @@ test = [
 
 [[envs.dd_coverage.matrix]]
 python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.pytest_plugin_v2]
+template = "pytest_plugin_v2"
+dependencies = [
+    "httpx",
+    "msgpack",
+    "pytest",
+    "pytest-cov",  # only used so --no-cov can be passed (conflicts with setup.cfg otherwise)
+    "requests",
+    "hypothesis",
+]
+
+[envs.pytest_plugin_v2.env-vars]
+_DD_CIVISIBILITY_USE_PYTEST_V2 = "true"
+DD_AGENT_PORT = "9126"
+
+[envs.pytest_plugin_v2.scripts]
+test = [
+    "pip freeze",
+    "echo $PYTEST_ADDOPTS",
+    "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {args:}",
+]
+
+[[envs.pytest_plugin_v2.matrix]]
+python = ["3.7", "3.9"]
+pytest = ["~=6.0", ">7"]
+
+
+[[envs.pytest_plugin_v2.matrix]]
+python = ["3.10", "3.12"]
+pytest = ["~=6.0", "~=7.0", ">7"]

@@ -18,6 +18,7 @@
       "out.host": "localhost",
       "redis.raw_command": "GET here-is...",
       "runtime-id": "ea409d0295db44adbf88dda3e4806547",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
