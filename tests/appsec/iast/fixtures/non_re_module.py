@@ -27,5 +27,5 @@ def split(pattern, string, *args, **kwargs):
     return ["fake_result_0", "fake_result_1", "fake_result_2"]
 
 
-def compile(pattern):
+def compile(pattern):  # noqa: A001
     return ReObject(pattern)
