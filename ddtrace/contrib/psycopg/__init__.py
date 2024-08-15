@@ -65,7 +65,8 @@ from ...internal.utils.importlib import require_modules
 
 required_modules = ["psycopg", "psycopg2"]
 with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
+    # If psycopg and/or psycopg2 is available, patch these modules
+    if len(missing_modules) < len(required_modules):
         # Required to allow users to import from `ddtrace.contrib.openai.patch` directly
         from . import patch as _  # noqa: F401, I001
 
