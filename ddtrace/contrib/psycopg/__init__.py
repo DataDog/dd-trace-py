@@ -75,4 +75,4 @@ with require_modules(required_modules) as missing_modules:
         from ..internal.psycopg.patch import patch
 
 
-__all__ = ["patch", "get_version", "get_versions"]
+        __all__ = ["patch", "get_version", "get_versions"]
