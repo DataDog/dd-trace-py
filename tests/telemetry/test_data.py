@@ -17,7 +17,6 @@ from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
 from ddtrace.internal.telemetry.data import update_imported_dependencies
-from ddtrace.settings.asm import config as asm_config
 
 
 def test_get_application():
@@ -34,7 +33,6 @@ def test_get_application():
         "tracer_version": ddtrace.__version__,
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
-        "products": {"appsec": {"version": ddtrace.__version__, "enabled": asm_config._asm_enabled}},
     }
 
     assert get_application("", "", "") == expected_application
@@ -215,27 +213,3 @@ def test_update_imported_dependencies():
     assert isinstance(already_imported["pytest"], Distribution)
     assert already_imported["pytest"].name == "pytest"
     assert already_imported["pytest"].version == res[0]["version"]
-
-
-def test_enable_products(run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_APPSEC_ENABLED"] = "true"
-
-    out, err, status, _ = run_python_code_in_subprocess(
-        """
-import ddtrace
-from ddtrace.internal.telemetry.data import get_application
-
-application = get_application("service-x", "1.1.1", "staging")
-assert "products" in application
-
-assert application["products"] == {
-    "appsec": {
-        "version": ddtrace.__version__,
-        "enabled": True,
-    },
-}
-""",
-        env=env,
-    )
-    assert status == 0, out + err

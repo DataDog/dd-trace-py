@@ -142,6 +142,7 @@ class _TelemetryClient:
         self._telemetry_url = self.get_host(config._dd_site, agentless)
         self._endpoint = self.get_endpoint(agentless)
         self._encoder = JSONEncoderV2()
+        self._agentless = agentless
 
         self._headers = {
             "Content-Type": "application/json",
@@ -270,8 +271,11 @@ class TelemetryWriter(PeriodicService):
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
 
         self._enabled = config._telemetry_enabled
-        agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
-        if agentless and not config._dd_api_key:
+
+        if agentless is None:
+            agentless = config._dd_api_key is not None
+
+        if config._ci_visibility_agentless_enabled and not agentless:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
             self._enabled = False
         self._client = _TelemetryClient(agentless)
@@ -325,6 +329,14 @@ class TelemetryWriter(PeriodicService):
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
+
+    def enable_agentless_client(self, enabled=True):
+        # type: (bool) -> None
+
+        if self._client._agentless == enabled:
+            return
+
+        self._client = _TelemetryClient(enabled)
 
     def _is_running(self):
         # type: () -> bool
@@ -759,6 +771,9 @@ class TelemetryWriter(PeriodicService):
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
     def periodic(self, force_flush=False, shutting_down=False):
+        # ensure app_started is called at least once in case traces weren't flushed
+        self.app_started()
+
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
