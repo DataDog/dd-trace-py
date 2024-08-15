@@ -344,7 +344,7 @@ class BaseModuleWatchdog(abc.ABC):
         i = cls._find_in_meta_path()
 
         if i is None:
-            log.warning("%s is not installed" % cls.__name__)
+            log.warning("%s is not installed", cls.__name__)
             return
 
         sys.meta_path.pop(i)
@@ -555,7 +555,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
         # change, then thread-safety might become a concern.
         resolved_path = _resolve(origin)
         if resolved_path is None:
-            log.warning("Cannot resolve module origin %s" % origin)
+            log.warning("Cannot resolve module origin %s", origin)
             return
 
         path = str(resolved_path)
@@ -596,7 +596,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         if path not in instance._hook_map:
-            log.warning("No hooks registered for origin %s" % origin)
+            log.warning("No hooks registered for origin %s", origin)
             return
 
         try:
@@ -606,7 +606,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 if not hooks:
                     del instance._hook_map[path]
         except ValueError:
-            log.warning("Hook %r not registered for origin %s" % (hook, origin))
+            log.warning("Hook %r not registered for origin %s", hook, origin)
             return
 
     @classmethod
@@ -640,7 +640,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         if module not in instance._hook_map:
-            log.warning("No hooks registered for module %s" % module)
+            log.warning("No hooks registered for module %s", module)
             return
 
         try:
@@ -650,7 +650,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 if not hooks:
                     del instance._hook_map[module]
         except ValueError:
-            log.warning("Hook %r not registered for module %r" % (hook, module))
+            log.warning("Hook %r not registered for module %r", hook, module)
             return
 
     @classmethod
