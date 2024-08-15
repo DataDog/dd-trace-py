@@ -1,52 +1,52 @@
 build_ddtrace_sdist:
-  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  image: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
   tags: [ "runner:amd64" ]
   stage: package
   script:
-    - curl -sSf https://sh.rustup.rs | sh -s -- -y;
+    - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
     - export PATH=$HOME/.cargo/bin:$PATH
-    - pip install build
-    - python -m build . --sdist --outdir wheelhouse/
+    - python3.12 -m build . --sdist --outdir wheelhouse/
   artifacts:
     paths:
       - wheelhouse/
 
 build_ddtrace_linux:
-  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  image: registry.ddbuild.io/images/mirror/pypa/${PLATFORM}_${ARCH}:2024-08-12-7fde9b1
   tags: [ "${RUNNER}" ]
   stage: package
-  variables:
-    CIBW_BUILD: "cp37-${PLATFORM}_${ARCH} cp38-${PLATFORM}_${ARCH} cp39-${PLATFORM}_${ARCH} cp310-${PLATFORM}_${ARCH} cp311-${PLATFORM}_${ARCH} cp312-${PLATFORM}_${ARCH}"
-    CIBW_PLATFORM: linux
-    CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
-    CIBW_ENVIRONMENT_LINUX: PATH=$$HOME/.cargo/bin:$$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
-    CIBW_BEFORE_ALL: |
-      if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $$1}')" != "i686-unknown-linux-musl" ]];
-      then
-        curl -sSf https://sh.rustup.rs | sh -s -- -y;
-      fi
-    CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
-      mkdir ./tempwheelhouse &&
-      unzip -l {wheel} | grep '\.so' &&
-      auditwheel repair -w ./tempwheelhouse {wheel} &&
-      for w in ./tempwheelhouse/*.whl; do
-        python scripts/zip_filter.py $$w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
-        mv $$w {dest_dir}
-      done &&
-      rm -rf ./tempwheelhouse
   parallel:
     matrix:
-      - PLATFORM: ["manylinux", "musllinux"]
+      # CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+      - PLATFORM: [ "manylinux2014", "musllinux_1_2" ]
+        PYTHON_VERSION: [ "3.7", "3.8", "3.9", "3.10", "3.11", "3.12" ]
         ARCH: ["x86_64", "i686"]
-        RUNNER: runner:docker
-      - PLATFORM: ["manylinux", "musllinux"]
+        RUNNER: "arch:amd64"
+      - PLATFORM: [ "manylinux2014", "musllinux_1_2" ]
+        PYTHON_VERSION: [ "3.7", "3.8", "3.9", "3.10", "3.11", "3.12" ]
         ARCH: ["aarch64"]
-        RUNNER: runner:docker-arm
+        RUNNER: "arch:arm64"
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: 24
   script:
-    - curl -sSL https://get.docker.com/ | sh
-    - python -m pip install cibuildwheel
-    - cibuildwheel --print-build-identifiers
-    - cibuildwheel --output-dir wheelhouse
+    # Install rust
+    - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+    - export PATH=$HOME/.cargo/bin:$PATH
+    # Determine Python executable to use
+    - export py="python${PYTHON_VERSION}"
+    - $$py --version
+    - $$py -m build --version
+    # Build the wheel
+    - $$py -m build --wheel --outdir wheelhouse/
+    # Repair the wheel
+    - |
+      wheel=$$(ls wheelhouse/*.whl | head -n 1)
+      mkdir tempwheelhouse/
+      unzip -l $$wheel | grep '\.so'
+      auditwheel repair -w tempwheelhouse/ $$wheel
+      new_wheel=$$(ls tempwheelhouse/*.whl | head -n 1)
+      python scripts/zip_filter.py $$w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+      mv $$w wheelhouse/
+      rm -rf tempwheelhouse/
   artifacts:
     paths:
       - wheelhouse/
@@ -103,4 +103,3 @@ download_dependency_wheels:
   artifacts:
     paths:
       - "wheelhouse-dep/"
-
