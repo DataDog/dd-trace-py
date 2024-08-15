@@ -324,11 +324,89 @@ def _large_event():
             "output": {
                 "messages": [
                     {
-                        "content": "A" * 3_000_000,
+                        "content": "A" * 900_000,
                         "role": "assistant",
                     },
                 ]
             },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _oversized_llm_event():
+    return {
+        "span_id": "12345678904",
+        "trace_id": "98765432104",
+        "parent_id": "",
+        "session_id": "98765432104",
+        "name": "oversized_llm_event",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "A" * 700_000},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "A" * 700_000,
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _oversized_workflow_event():
+    return {
+        "span_id": "12345678905",
+        "trace_id": "98765432105",
+        "parent_id": "",
+        "session_id": "98765432105",
+        "name": "oversized_workflow_event",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "workflow",
+            "input": {"value": "A" * 700_000},
+            "output": {"value": "A" * 700_000},
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _oversized_retrieval_event():
+    return {
+        "span_id": "12345678906",
+        "trace_id": "98765432106",
+        "parent_id": "",
+        "session_id": "98765432106",
+        "name": "oversized_retrieval_event",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "retrieval",
+            "input": {"documents": {"content": "A" * 700_000}},
+            "output": {"value": "A" * 700_000},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
