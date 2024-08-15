@@ -34,7 +34,7 @@ build_ddtrace_linux:
   variables:
     DD_USE_SCCACHE: 1
     CMAKE_BUILD_PARALLEL_LEVEL: 24
-    PATH: "/root/.cargo.bin:/opt/rh/devtoolset-10/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    PATH: "/root/.cargo/bin:/opt/rh/devtoolset-10/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     SCCACHE_DIR: /root/.cache/sccache
     SCCACHE_CACHE_SIZE: 1G
     SCCACHE_DIRECT: true
