@@ -56,7 +56,7 @@ from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._signal.tracing import SpanDecoration
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal import atexit
+from ddtrace.internal import atexit, telemetry
 from ddtrace.internal import compat
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
@@ -70,6 +70,7 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.wrapping.context import WrappingContext
 
 
@@ -303,6 +304,7 @@ class Debugger(Service):
         forksafe.register(cls._restart)
         atexit.register(cls.disable)
         register_post_run_module_hook(cls._on_run_module)
+        telemetry.telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
 
         log.debug("%s enabled", cls.__name__)
 
@@ -336,6 +338,7 @@ class Debugger(Service):
             metrics.disable()
 
         di_config.enabled = False
+        telemetry.telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
 
         log.debug("%s disabled", cls.__name__)
 

@@ -202,6 +202,7 @@ class LLMObs(Service):
 
         cls.enabled = False
         cls._instance.stop()
+        telemetry.telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
 
