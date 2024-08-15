@@ -155,6 +155,8 @@ Datadog::Crashtracker::get_tags()
         { ExportTagKey::runtime, runtime },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::library_version, library_version },
+        { ExportTagKey::is_crash, g_crashtracker_is_crash },
+        { ExportTagKey::severity, g_crashtracker_severity },
     };
 
     // Add system tags
