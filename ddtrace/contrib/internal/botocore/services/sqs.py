@@ -8,6 +8,7 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.trace_utils import resolve_distributed_context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -136,9 +137,10 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
     else:
         call_name = trace_operation
 
-    child_of = parent_ctx.get_item("distributed_context")
+    child_of, links = resolve_distributed_context(pin.tracer, config.botocore, parent_ctx)
 
     if should_instrument:
+        breakpoint()
         with core.context_with_data(
             "botocore.patched_sqs_api_call",
             parent=parent_ctx,
@@ -157,8 +159,16 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             call_trace=False,
             call_key="instrumented_sqs_call",
             pin=pin,
+            integration_span_links_enabled=True,
         ) as ctx, ctx.get_item(ctx.get_item("call_key")):
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
+
+            # set links from parent context / distributed context on span
+            if links:
+                for link in links:
+                    span = ctx.get_item(ctx.get_item("call_key"))
+                    if span:
+                        span.set_link(link.trace_id, link.span_id)
 
             if should_update_messages:
                 update_messages(ctx, endpoint_service=endpoint_name)

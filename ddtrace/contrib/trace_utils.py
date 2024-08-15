@@ -574,6 +574,22 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         tracer.context_provider.activate(context)
 
 
+def resolve_distributed_context(tracer, int_config, execution_context):
+    linked_contexts = []
+    if config._span_links_propagation_enabled and int_config.span_links_propagation_enabled:
+        child_of = tracer.context_provider.active()
+        linked_context = execution_context.get_item("distributed_context")
+        if linked_context:
+            linked_contexts.append(linked_context)
+        # remove distributed context since this will be a link instead
+        execution_context._data["distributed_context"] = None
+    else:
+        child_of = execution_context.get_item("distributed_context") or tracer.context_provider.active()
+        activate_distributed_headers(tracer, int_config=int_config, context=child_of)
+
+    return child_of, linked_contexts
+
+
 def _flatten(
     obj,  # type: Any
     sep=".",  # type: str

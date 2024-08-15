@@ -485,6 +485,8 @@ class Config(object):
         self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
 
+        self._span_links_propagation_enabled = asbool(os.getenv("DD_TRACE_SPAN_LINKS_PROPAGATION_ENABLED", False))
+
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
             "DD_TRACE_PROPAGATION_STYLE", default=_PROPAGATION_STYLE_DEFAULT

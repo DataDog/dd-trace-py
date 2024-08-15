@@ -73,6 +73,9 @@ config._add(
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
         "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
+        "span_links_propagation_enabled": asbool(
+            os.getenv("DD_BOTOCORE_SPAN_LINKS_PROPAGATION_ENABLED", default=False)
+        ),
     },
 )
 
