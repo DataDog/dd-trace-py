@@ -128,7 +128,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         try:
             operation = get_argument_value(args, kwargs, 0, "operation_name")
-            params = get_argument_value(args, kwargs, 1, "params")
+            params = get_argument_value(args, kwargs, 1, "api_params")
 
             span.resource = "{}.{}".format(endpoint_name, operation.lower())
 
