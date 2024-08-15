@@ -32,14 +32,27 @@ build_ddtrace_linux:
         ARCH: ["aarch64"]
         RUNNER: "arch:arm64"
   variables:
+    DD_USE_SCCACHE: 1
     CMAKE_BUILD_PARALLEL_LEVEL: 24
     PATH: "/root/.cargo.bin:/opt/rh/devtoolset-10/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-  script:
+    SCCACHE_DIR: /root/.cache/sccache
+    SCCACHE_CACHE_SIZE: 1G
+    SCCACHE_DIRECT: true
+  cache:
+    - key: sccache-build-linux-$CI_JOB_NAME
+      paths:
+        - /root/.cache/sccache/
+  before_script:
+    # Install sccache
+    - curl -L https://github.com/mozilla/sccache/releases/download/v0.8.1/sccache-v0.8.1-x86_64-unknown-linux-musl.tar.gz | tar zx --strip-components=1 -C /usr/local/bin/ sccache-v0.8.1-x86_64-unknown-linux-musl/sccache
+    - sccache --version
     # Install rust
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
-    - export PATH=$HOME/.cargo/bin:$PATH
+    - rustc --version
+    # Check Python dependency versions
     - python${PYTHON_VERSION} --version
     - python${PYTHON_VERSION} -m build --version
+  script:
     # Build the wheel
     - python${PYTHON_VERSION} -m build --wheel --outdir wheelhouse/
     # Repair the wheel
