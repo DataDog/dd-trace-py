@@ -16,6 +16,19 @@ include:
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
 
+build_docs:
+  image: registry.ddbuild.io/images/mirror/python:3.10.13
+  tags: [ "arch:amd64" ]
+  stage: package
+  script:
+    - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+    - export PATH=$HOME/.cargo/bin:$PATH
+    - pip install hatch
+    - hatch run docs:build
+  artifacts:
+    paths:
+      - "docs/_build/html/"
+
 download_ddtrace_wheels:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
   tags: [ "arch:amd64" ]
