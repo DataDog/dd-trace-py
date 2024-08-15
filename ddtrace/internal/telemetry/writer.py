@@ -803,7 +803,6 @@ class TelemetryWriter(PeriodicService):
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
     def periodic(self, force_flush=False, shutting_down=False):
-
         # app_started will be only sent once from the main process
         self._app_started()
 
