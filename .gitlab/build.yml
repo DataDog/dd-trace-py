@@ -31,12 +31,10 @@ build_ddtrace_linux:
     # Install rust
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
     - export PATH=$HOME/.cargo/bin:$PATH
-    # Determine Python executable to use
-    - export py="python${PYTHON_VERSION}"
-    - $$py --version
-    - $$py -m build --version
+    - python${PYTHON_VERSION} --version
+    - python${PYTHON_VERSION} -m build --version
     # Build the wheel
-    - $$py -m build --wheel --outdir wheelhouse/
+    - python${PYTHON_VERSION} -m build --wheel --outdir wheelhouse/
     # Repair the wheel
     - |
       wheel=$$(ls wheelhouse/*.whl | head -n 1)
