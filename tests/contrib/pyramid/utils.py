@@ -6,7 +6,7 @@ import webtest
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.pyramid.patch import _insert_tween_if_needed
+from ddtrace.contrib.internal.pyramid.patch import insert_tween_if_needed
 from ddtrace.ext import http
 from ddtrace.internal import compat
 from tests.utils import TracerTestCase
@@ -293,17 +293,17 @@ class PyramidTestCase(PyramidBase):
 
     def test_insert_tween_if_needed_already_set(self):
         settings = {"pyramid.tweens": "ddtrace.contrib.pyramid:trace_tween_factory"}
-        _insert_tween_if_needed(settings)
+        insert_tween_if_needed(settings)
         assert settings["pyramid.tweens"] == "ddtrace.contrib.pyramid:trace_tween_factory"
 
     def test_insert_tween_if_needed_none(self):
         settings = {"pyramid.tweens": ""}
-        _insert_tween_if_needed(settings)
+        insert_tween_if_needed(settings)
         assert settings["pyramid.tweens"] == ""
 
     def test_insert_tween_if_needed_excview(self):
         settings = {"pyramid.tweens": "pyramid.tweens.excview_tween_factory"}
-        _insert_tween_if_needed(settings)
+        insert_tween_if_needed(settings)
         assert (
             settings["pyramid.tweens"]
             == "ddtrace.contrib.pyramid:trace_tween_factory\npyramid.tweens.excview_tween_factory"
@@ -311,7 +311,7 @@ class PyramidTestCase(PyramidBase):
 
     def test_insert_tween_if_needed_excview_and_other(self):
         settings = {"pyramid.tweens": "a.first.tween\npyramid.tweens.excview_tween_factory\na.last.tween\n"}
-        _insert_tween_if_needed(settings)
+        insert_tween_if_needed(settings)
         assert (
             settings["pyramid.tweens"] == "a.first.tween\n"
             "ddtrace.contrib.pyramid:trace_tween_factory\n"
@@ -321,7 +321,7 @@ class PyramidTestCase(PyramidBase):
 
     def test_insert_tween_if_needed_others(self):
         settings = {"pyramid.tweens": "a.random.tween\nand.another.one"}
-        _insert_tween_if_needed(settings)
+        insert_tween_if_needed(settings)
         assert (
             settings["pyramid.tweens"] == "a.random.tween\nand.another.one\nddtrace.contrib.pyramid:trace_tween_factory"
         )
