@@ -168,9 +168,8 @@ class LLMObs(Service):
                     "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                     "Ensure this configuration is set before running your application."
                 )
-            if telemetry.telemetry_writer.enable():
-                telemetry.telemetry_writer.enable_agentless_client()
-                telemetry.telemetry_writer.product_activated (TELEMETRY_APM_PRODUCT.LLMOBS, True)
+            telemetry.telemetry_writer.enable_agentless_client()
+            telemetry.telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
