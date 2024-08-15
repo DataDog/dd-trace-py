@@ -14,7 +14,7 @@ done
 
 for new_wheel in tempwheelhouse/*.whl; do
     echo "Removing source files from $new_wheel"
-    python scripts/zip_filter.py "$new_wheel" \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+    python3.12 scripts/zip_filter.py "$new_wheel" \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
     unzip -l "$new_wheel" | grep -E '(\.so)|(\*.c)|(\*.cpp)|(\*.cc)|(\*.h)|(\*.hpp)|(\*.pyx)'
     mv "$new_wheel" wheelhouse/
 done
