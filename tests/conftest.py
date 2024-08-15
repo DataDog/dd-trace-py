@@ -73,6 +73,21 @@ if os.environ.get("CI") == "true":
                     except Exception:
                         pass
                     sys.stderr.write(f"FDCapture.{name}: {value!r}\n")
+
+                for name in ("targetfd", "targetfd_save", "targetfd_invalid"):
+                    try:
+                        # Try to see if the file descriptor is valid, and if so print the file name from /proc/self/fd
+                        fd = getattr(self, name)
+                        if fd is not None:
+                            try:
+                                fd_path = os.readlink(f"/proc/self/fd/{fd}")
+                                sys.stderr.write(f"FDCapture.{name} path: {fd_path!r}\n")
+                            except Exception:
+                                sys.stderr.write(f"FDCapture.{name} path: unknown or invalid\n")
+                        else:
+                            sys.stderr.write(f"FD: {name} is None\n")
+                    except Exception as e:
+                        sys.stderr.write(f"Failed to get FDCapture.{name}, error: {e}\n")
                 sys.stderr.flush()
 
                 # Try to mark the state as done anyways....
