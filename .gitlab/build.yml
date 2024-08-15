@@ -38,11 +38,11 @@ build_ddtrace_linux:
     - python${PYTHON_VERSION} -m build --wheel --outdir wheelhouse/
     # Repair the wheel
     - |
-      wheel=$$(ls wheelhouse/*.whl | head -n 1)
+      wheel=$(ls wheelhouse/*.whl | head -n 1)
       mkdir tempwheelhouse/
       unzip -l $$wheel | grep '\.so'
       auditwheel repair -w tempwheelhouse/ $$wheel
-      new_wheel=$$(ls tempwheelhouse/*.whl | head -n 1)
+      new_wheel=$(ls tempwheelhouse/*.whl | head -n 1)
       python scripts/zip_filter.py $$w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
       mv $$w wheelhouse/
       rm -rf tempwheelhouse/
