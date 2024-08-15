@@ -187,7 +187,8 @@
             "ddtrace/ext/test.py"
         ],
         "coverage": [
-            "ddtrace/contrib/coverage/*"
+            "ddtrace/contrib/coverage/*",
+            "ddtrace/contrib/internal/coverage/*"
         ],
         "dd_coverage": [
             "ddtrace/internal/coverage/*"
@@ -435,10 +436,12 @@
             "ddtrace/contrib/internal/dogpile_cache/*"
         ],
         "cherrypy": [
-            "ddtrace/contrib/cherrypy/*"
+            "ddtrace/contrib/cherrypy/*",
+            "ddtrace/contrib/internal/cherrypy/*"
         ],
         "celery": [
-            "ddtrace/contrib/celery/*"
+            "ddtrace/contrib/celery/*",
+            "ddtrace/contrib/internal/celery/*"
         ],
         "dramatiq": [
             "ddtrace/contrib/dramatiq/*",
@@ -446,6 +449,7 @@
         ],
         "cassandra": [
             "ddtrace/contrib/cassandra/*",
+            "ddtrace/contrib/internal/cassandra/*",
             "ddtrace/ext/cassandra.py"
         ],
         "bottle": [
@@ -454,6 +458,7 @@
         ],
         "consul": [
             "ddtrace/contrib/consul/*",
+            "ddtrace/contrib/internal/consul/*",
             "ddtrace/ext/consul.py"
         ],
         "django": [
