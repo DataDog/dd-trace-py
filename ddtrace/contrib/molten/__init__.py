@@ -42,11 +42,15 @@ required_modules = ["molten"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.molten.patch` directly
-        from . import patch as _  # noqa: F401, I001
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
+        from ..internal.molten.patch import get_version
         from ..internal.molten.patch import patch
         from ..internal.molten.patch import unpatch
-        from ..internal.molten.patch import get_version
 
         __all__ = ["patch", "unpatch", "get_version"]
