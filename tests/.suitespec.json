@@ -145,7 +145,9 @@
         ],
         "redis": [
             "ddtrace/contrib/rediscluster/*",
+            "ddtrace/contrib/internal/rediscluster/*",
             "ddtrace/contrib/redis/*",
+            "ddtrace/contrib/internal/redis/*",
             "ddtrace/contrib/aredis/*",
             "ddtrace/contrib/internal/aredis/*",
             "ddtrace/contrib/yaaredis/*",
@@ -157,6 +159,7 @@
         "mongo": [
             "ddtrace/contrib/pymongo/*",
             "ddtrace/contrib/mongoengine/*",
+            "ddtrace/contrib/internal/mongoengine/*",
             "ddtrace/ext/mongo.py"
         ],
         "pg": [
@@ -184,7 +187,8 @@
             "ddtrace/ext/test.py"
         ],
         "coverage": [
-            "ddtrace/contrib/coverage/*"
+            "ddtrace/contrib/coverage/*",
+            "ddtrace/contrib/internal/coverage/*"
         ],
         "dd_coverage": [
             "ddtrace/internal/coverage/*"
@@ -208,10 +212,12 @@
             "ddtrace/contrib/tornado/*"
         ],
         "pynamodb": [
-            "ddtrace/contrib/pynamodb/*"
+            "ddtrace/contrib/pynamodb/*",
+            "ddtrace/contrib/internal/pynamodb/*"
         ],
         "pyodbc": [
-            "ddtrace/contrib/pyodbc/*"
+            "ddtrace/contrib/pyodbc/*",
+            "ddtrace/contrib/internal/pyodbc/*"
         ],
         "flask": [
             "ddtrace/contrib/flask/*",
@@ -256,10 +262,12 @@
             "ddtrace/contrib/internal/sanic/*"
         ],
         "requests": [
-            "ddtrace/contrib/requests/*"
+            "ddtrace/contrib/requests/*",
+            "ddtrace/contrib/internal/requests/*"
         ],
         "pyramid": [
-            "ddtrace/contrib/pyramid/*"
+            "ddtrace/contrib/pyramid/*",
+            "ddtrace/contrib/internal/pyramid/*"
         ],
         "langchain": [
             "ddtrace/contrib/langchain/*",
@@ -303,7 +311,8 @@
             "ddtrace/contrib/rq/*"
         ],
         "mako": [
-            "ddtrace/contrib/mako/*"
+            "ddtrace/contrib/mako/*",
+            "ddtrace/contrib/internal/mako/*"
         ],
         "jinja2": [
             "ddtrace/contrib/jinja2/*",
@@ -349,10 +358,12 @@
             "ddtrace/contrib/internal/httpx/*"
         ],
         "mariadb": [
-            "ddtrace/contrib/mariadb/*"
+            "ddtrace/contrib/mariadb/*",
+            "ddtrace/contrib/internal/mariadb/*"
         ],
         "molten": [
-            "ddtrace/contrib/molten/*"
+            "ddtrace/contrib/molten/*",
+            "ddtrace/contrib/internal/molten/*"
         ],
         "botocore": [
             "ddtrace/contrib/botocore/*",
@@ -364,7 +375,9 @@
         ],
         "mysql": [
             "ddtrace/contrib/mysql/*",
+            "ddtrace/contrib/internal/mysql/*",
             "ddtrace/contrib/mysqldb/*",
+            "ddtrace/contrib/internal/mysqldb/*",
             "ddtrace/contrib/pymysql/*",
             "ddtrace/contrib/aiomysql/*",
             "ddtrace/contrib/internal/aiomysql/*"
@@ -430,10 +443,12 @@
             "ddtrace/contrib/internal/dogpile_cache/*"
         ],
         "cherrypy": [
-            "ddtrace/contrib/cherrypy/*"
+            "ddtrace/contrib/cherrypy/*",
+            "ddtrace/contrib/internal/cherrypy/*"
         ],
         "celery": [
-            "ddtrace/contrib/celery/*"
+            "ddtrace/contrib/celery/*",
+            "ddtrace/contrib/internal/celery/*"
         ],
         "dramatiq": [
             "ddtrace/contrib/dramatiq/*",
@@ -441,6 +456,7 @@
         ],
         "cassandra": [
             "ddtrace/contrib/cassandra/*",
+            "ddtrace/contrib/internal/cassandra/*",
             "ddtrace/ext/cassandra.py"
         ],
         "bottle": [
@@ -449,6 +465,7 @@
         ],
         "consul": [
             "ddtrace/contrib/consul/*",
+            "ddtrace/contrib/internal/consul/*",
             "ddtrace/ext/consul.py"
         ],
         "django": [
