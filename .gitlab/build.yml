@@ -27,6 +27,7 @@ build_ddtrace_linux:
         RUNNER: "arch:arm64"
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 24
+    PATH: "/root/.cargo.bin:/opt/rh/devtoolset-10/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   script:
     # Install rust
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
