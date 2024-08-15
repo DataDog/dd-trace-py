@@ -17,6 +17,7 @@ from typing import Union
 
 from ddtrace import _hooks
 from ddtrace import config
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -746,15 +747,9 @@ class Tracer(object):
                     self.context_provider.activate(new_ctx)
                 child_of = new_ctx
 
-        parent: Optional[Span] = None
-        if child_of is not None:
-            if isinstance(child_of, Context):
-                context = child_of
-            else:
-                context = child_of.context
-                parent = child_of
-        else:
-            context = Context(is_remote=False)
+        context, parent = _get_span_context(
+            name, child_of, service, resource, span_type
+        )
 
         trace_id = context.trace_id
         parent_id = context.span_id
@@ -814,6 +809,12 @@ class Tracer(object):
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
             )
+            for link in links:
+                span.set_link(
+                    trace_id=link.trace_id,
+                    span_id=link.span_id
+                )
+
             span._local_root = span
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
@@ -1217,3 +1218,111 @@ class Tracer(object):
         sampler = DatadogSampler(rules=sampling_rules, default_sample_rate=sample_rate)
 
         self._sampler = sampler
+
+
+def _get_span_context(
+    name: str,
+    child_of: Optional[Union[Span, Context]] = None,
+    service: Optional[str] = None,
+    resource: Optional[str] = None,
+    span_type: Optional[str] = None,
+):
+    parent: Optional[Span] = None
+    if child_of is not None:
+        if isinstance(child_of, Context):
+            context = child_of
+        else:
+            context = child_of.context
+            parent = child_of
+
+        # if we find a match for any context snipping rules, we break the trace context
+        if context_snipping_matcher(
+            name,
+            child_of,
+            service,
+            resource,
+            span_type
+        ):
+            context = Context(is_remote=False)
+            if config.context_snipping_style.USE_LINKS:
+                context._span_links.append(
+                    SpanLink(
+                        trace_id=child_of.trace_id,
+                        span_id=child_of.span_id
+                    )
+                )
+            else:
+                # just start a new trace
+                pass
+            parent = None
+    else:
+        context = Context(is_remote=False)
+
+    return context, parent
+
+
+my_rule = {
+    # "SERVICE": {
+    #     "EQUALS": ""
+    # }
+    # "NAME": {
+    #     "EQUALS": "aws.request",
+    # },
+    "NAME": {
+        "EQUALS": "aws.sqs-consume-request"
+    },
+    "CHILD_OF": {
+        "NAME": {
+            "EQUALS": "sub-root"
+        }
+    }
+}
+
+
+SNIPPING_RULES = [my_rule]
+
+
+def match_rule(value: Any, condition: Dict[str, Any]) -> bool:
+    if "EQUALS" in condition:
+        return value == condition["EQUALS"]
+    elif "CONTAINS" in condition:
+        return condition["CONTAINS"] in value
+    return False
+
+def context_snipping_matcher(
+    name: str,
+    child_of: Optional[Union[Span, Context]] = None,
+    service: Optional[str] = None,
+    resource: Optional[str] = None,
+    span_type: Optional[str] = None,
+    snipping_rules = SNIPPING_RULES
+) -> bool:
+    # Iterate over each rule in the dictionary
+    for rule in snipping_rules:
+        for key, condition in rule.items():
+            if key == "NAME":
+                if not match_rule(name, condition):
+                    return False
+            elif key == "SERVICE":
+                if not match_rule(service, condition):
+                    return False
+            elif key == "RESOURCE":
+                if not match_rule(resource, condition):
+                    return False
+            elif key == "CHILD_OF":
+                if not child_of:
+                    return False
+                
+                if isinstance(child_of, Span):
+                    # Recursively evaluate the child context matcher
+                    if context_snipping_matcher(
+                        name=getattr(child_of, "name", None),
+                        child_of=None,  # Do not recurse further; only one level deep
+                        service=child_of.service,
+                        resource=child_of.resource,
+                        span_type=child_of.span_type,
+                        snipping_rules=[condition]
+                    ):
+                        return True
+    
+    return True

@@ -1,4 +1,5 @@
 from copy import deepcopy
+from enum import Enum
 import json
 import os
 import re
@@ -484,6 +485,21 @@ class Config(object):
 
         self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
+
+        class ContextSnippingConfig(Enum):
+            USE_LINKS = "USE_LINKS"
+            NEW_TRACE = "NEW_TRACE"
+
+        def _parse_context_snipping(env_var, default):
+            value = os.getenv(env_var, default.value)
+            try:
+                return ContextSnippingConfig(value)
+            except ValueError:
+                return default
+
+        self.context_snipping_style = _parse_context_snipping(
+            "DD_TRACE_CONTEXT_SNIPPING_STYLE", default=ContextSnippingConfig.USE_LINKS
+        )
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
