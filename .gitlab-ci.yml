@@ -21,6 +21,7 @@ build_docs:
   tags: [ "arch:amd64" ]
   stage: package
   script:
+    - apt-get update && apt-get install -y enchant-2
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
     - export PATH=$HOME/.cargo/bin:$PATH
     - pip install hatch
