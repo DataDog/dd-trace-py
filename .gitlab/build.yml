@@ -24,15 +24,15 @@ build_ddtrace_linux:
     matrix:
       # CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
       - PLATFORM: [ "manylinux2014", "musllinux_1_2" ]
-        PYTHON_VERSION: [ "3.7", "3.8", "3.9", "3.10", "3.11", "3.12" ]
+        PYTHON_TAG: ["cp37-cp37m", "cp38-cp38", "cp39-cp39", "cp310-cp310", "cp311-cp311", "cp312-cp312" ]
         ARCH: ["x86_64"]
         RUNNER: "arch:amd64"
       - PLATFORM: [ "manylinux2014", "musllinux_1_2" ]
-        PYTHON_VERSION: [ "3.7", "3.8", "3.9", "3.10", "3.11", "3.12" ]
+        PYTHON_TAG: ["cp37-cp37m", "cp38-cp38", "cp39-cp39", "cp310-cp310", "cp311-cp311", "cp312-cp312" ]
         ARCH: ["i686"]
         RUNNER: "runner:docker"
       - PLATFORM: [ "manylinux2014", "musllinux_1_2" ]
-        PYTHON_VERSION: [ "3.7", "3.8", "3.9", "3.10", "3.11", "3.12" ]
+        PYTHON_TAG: ["cp37-cp37m", "cp38-cp38", "cp39-cp39", "cp310-cp310", "cp311-cp311", "cp312-cp312" ]
         ARCH: ["aarch64"]
         RUNNER: "arch:arm64"
   variables:
@@ -54,11 +54,11 @@ build_ddtrace_linux:
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
     - rustc --version
     # Check Python dependency versions
-    - python${PYTHON_VERSION} --version
-    - python${PYTHON_VERSION} -m build --version
+    - /opt/python/${PYTHON_TAG}/bin/python --version
+    - /opt/python/${PYTHON_TAG}/bin/python -m build --version
   script:
     # Build the wheel
-    - python${PYTHON_VERSION} -m build --wheel --outdir wheelhouse/
+    - /opt/python/${PYTHON_TAG}/bin/python -m build --wheel --outdir wheelhouse/
     # Repair the wheel
     - ./.gitlab/repair_wheel_linux.sh wheelhouse/
   artifacts:
