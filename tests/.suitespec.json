@@ -159,6 +159,7 @@
         "mongo": [
             "ddtrace/contrib/pymongo/*",
             "ddtrace/contrib/mongoengine/*",
+            "ddtrace/contrib/internal/mongoengine/*",
             "ddtrace/ext/mongo.py"
         ],
         "pg": [
@@ -303,7 +304,8 @@
             "ddtrace/contrib/rq/*"
         ],
         "mako": [
-            "ddtrace/contrib/mako/*"
+            "ddtrace/contrib/mako/*",
+            "ddtrace/contrib/internal/mako/*"
         ],
         "jinja2": [
             "ddtrace/contrib/jinja2/*",
@@ -349,10 +351,12 @@
             "ddtrace/contrib/internal/httpx/*"
         ],
         "mariadb": [
-            "ddtrace/contrib/mariadb/*"
+            "ddtrace/contrib/mariadb/*",
+            "ddtrace/contrib/internal/mariadb/*"
         ],
         "molten": [
-            "ddtrace/contrib/molten/*"
+            "ddtrace/contrib/molten/*",
+            "ddtrace/contrib/internal/molten/*"
         ],
         "botocore": [
             "ddtrace/contrib/botocore/*",
@@ -364,7 +368,9 @@
         ],
         "mysql": [
             "ddtrace/contrib/mysql/*",
+            "ddtrace/contrib/internal/mysql/*",
             "ddtrace/contrib/mysqldb/*",
+            "ddtrace/contrib/internal/mysqldb/*",
             "ddtrace/contrib/pymysql/*",
             "ddtrace/contrib/aiomysql/*",
             "ddtrace/contrib/internal/aiomysql/*"
