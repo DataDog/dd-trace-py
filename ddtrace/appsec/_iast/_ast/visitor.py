@@ -65,6 +65,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "split": "ddtrace_aspects.split_aspect",
         "rsplit": "ddtrace_aspects.rsplit_aspect",
         "splitlines": "ddtrace_aspects.splitlines_aspect",
+        "sub": "ddtrace_aspects.re_sub_aspect",
     },
     # Replacement function for indexes and ranges
     "slices": {
