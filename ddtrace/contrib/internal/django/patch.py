@@ -106,13 +106,13 @@ def patch_conn(django, conn):
         try:
             from psycopg.cursor import Cursor as psycopg_cursor_cls
 
-            from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+            from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
         except ImportError:
             Psycopg3TracedCursor = None
             try:
                 from psycopg2._psycopg import cursor as psycopg_cursor_cls
 
-                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
+                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
             except ImportError:
                 psycopg_cursor_cls = None
                 Psycopg2TracedCursor = None
@@ -149,12 +149,12 @@ def patch_conn(django, conn):
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg2."):
                 # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
+                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
 
                 traced_cursor_cls = Psycopg2TracedCursor
             elif type(cursor.cursor).__name__ == "Psycopg3TracedCursor":
                 # Import lazily to avoid importing psycopg if not already imported.
-                from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+                from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 
                 traced_cursor_cls = Psycopg3TracedCursor
         except AttributeError:
