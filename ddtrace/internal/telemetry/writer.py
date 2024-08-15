@@ -244,8 +244,8 @@ class TelemetryWriter(PeriodicService):
     _sequence = itertools.count(1)
     _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
 
-    def __init__(self, is_periodic=True, agentless=None):
-        # type: (bool, Optional[bool]) -> None
+    def __init__(self, is_periodic=True):
+        # type: (Optional[bool]) -> None
         super(TelemetryWriter, self).__init__(interval=min(config._telemetry_heartbeat_interval, 10))
         # Decouples the aggregation and sending of the telemetry events
         # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
@@ -266,6 +266,7 @@ class TelemetryWriter(PeriodicService):
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, Distribution] = dict()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
+        self._send_product_change_updates = False
 
         self.started = False
 
@@ -273,8 +274,9 @@ class TelemetryWriter(PeriodicService):
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
 
         self._enabled = config._telemetry_enabled
-        agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
-        if agentless and not config._dd_api_key:
+
+        agentless = config._dd_api_key is not None
+        if config._ci_visibility_agentless_enabled and not agentless:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
             self._enabled = False
         self._client = _TelemetryClient(agentless)
@@ -646,28 +648,37 @@ class TelemetryWriter(PeriodicService):
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
 
+    def _app_product_change(self):
+        # type: () -> None
+        """Adds a Telemetry event which reports the enablement of an APM product"""
+
+        if not self._send_product_change_updates:
+            return
+
+        payload = {
+            "products": {
+                product: {
+                    "version": _pep440_to_semver(),
+                    "enabled": status
+                }
+                for product, status in self._product_enablement.items()
+            }
+        }
+        self.add_event(payload, "app-product-change")
+        self._send_product_change_updates = False
+
     def product_activated(self, product, enabled):
         # type: (TELEMETRY_APM_PRODUCT, bool) -> None
-        """Adds a Telemetry event which reports the enablement of an APM product"""
+        """Updates the product enablement dict"""
+
         if self._product_enablement[product.value] == enabled:
             return
 
         self._product_enablement[product.value] = enabled
 
-        # the product status will be sent as part of the app_started event
-        if not self.started:
-            return
-
-        payload = {
-            "products": {
-                product.value: {
-                    "version": config.version,
-                    "enabled": enabled,
-                }
-            }
-        }
-
-        self.add_event(payload, "app-product-change")
+        # Product status will be sent as part of the app_started event
+        if self.started:
+            self._send_product_change_updates = True
 
     def remove_configuration(self, configuration_name):
         with self._lock:
@@ -805,6 +816,7 @@ class TelemetryWriter(PeriodicService):
     def periodic(self, force_flush=False, shutting_down=False):
         # app_started will be only sent once from the main process
         self._app_started()
+        self._app_product_change()
 
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
