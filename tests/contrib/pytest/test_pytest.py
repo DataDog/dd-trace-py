@@ -679,7 +679,7 @@ class PytestTestCase(TracerTestCase):
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
         encoder = self.tracer.encoder
         encoder.put(spans)
-        trace = encoder.encode()
+        trace, _ = encoder.encode()
         (decoded_trace,) = self.tracer.encoder._decode(trace)
         assert len(decoded_trace) == 7
         for span in decoded_trace:
@@ -687,7 +687,7 @@ class PytestTestCase(TracerTestCase):
 
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         assert len(decoded_event_payload[b"events"]) == 7
         for event in decoded_event_payload[b"events"]:

@@ -4,6 +4,7 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
@@ -39,7 +40,7 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
     def encode(self, obj):
-        # type: (List[List[Any]]) -> str
+        # type: (List[List[Any]]) -> Tuple[str, int]
         """
         Defines the underlying format used during traces or services encoding.
         This method must be implemented and should only be used by the internal

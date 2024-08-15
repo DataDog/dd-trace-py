@@ -197,7 +197,8 @@ def test_resource_name_too_large():
         s.finish()
     except ValueError:
         pytest.fail()
-    encoded_spans = t._writer._encoder.encode()
+    encoded_spans, size = t._writer._encoder.encode()
+    assert size == 1
     assert b"<dropped string of length 410 because it's too long (max allowed length 409)>" in encoded_spans
 
 
