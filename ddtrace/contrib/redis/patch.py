@@ -125,6 +125,7 @@ def _run_redis_command(ctx: core.ExecutionContext, func, args, kwargs):
     parsed_command = stringify_cache_args(args)
     redis_command = parsed_command.split(" ")[0]
     rowcount = None
+    result = None
     try:
         result = func(*args, **kwargs)
         return result

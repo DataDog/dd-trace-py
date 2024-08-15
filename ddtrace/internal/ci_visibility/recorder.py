@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Union  # noqa:F401
@@ -36,6 +37,7 @@ from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
+from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
@@ -43,7 +45,6 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
-from ...ext.git import extract_workspace_path
 from .. import agent
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
@@ -79,7 +80,6 @@ from .writer import CIVisibilityWriter
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
     from typing import DefaultDict  # noqa:F401
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
@@ -238,8 +238,6 @@ class CIVisibility(Service):
         log.info("Detected configurations: %s", str(self._configurations))
 
         try:
-            from ddtrace.internal.codeowners import Codeowners
-
             self._codeowners = Codeowners()
         except ValueError:
             log.warning("CODEOWNERS file is not available")
@@ -435,6 +433,12 @@ class CIVisibility(Service):
         if not cls.enabled or asbool(os.getenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False)):
             return False
         return cls._instance and cls._instance._api_settings.skipping_enabled
+
+    @classmethod
+    def should_collect_coverage(cls):
+        return cls._instance._api_settings.coverage_enabled or asbool(
+            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
+        )
 
     def _fetch_tests_to_skip(self, skipping_mode: str):
         # Make sure git uploading has finished
@@ -799,6 +803,17 @@ class CIVisibility(Service):
         return instance._service
 
     @classmethod
+    def get_codeowners(cls) -> Optional[Codeowners]:
+        if not cls.enabled:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        instance = cls.get_instance()
+        if instance is None:
+            return None
+        return instance._codeowners
+
+    @classmethod
     def get_workspace_path(cls) -> Optional[str]:
         if not cls.enabled:
             error_msg = "CI Visibility is not enabled"
@@ -875,7 +890,7 @@ def _requires_civisibility_enabled(func):
 def _on_discover_session(
     discover_args: CISession.DiscoverArgs, test_framework_telemetry_name: Optional[TEST_FRAMEWORKS] = None
 ):
-    log.debug("Handling session discovery")
+    log.debug("Handling session discovery for session id %s", discover_args.session_id)
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
     tracer = CIVisibility.get_tracer()
@@ -887,11 +902,10 @@ def _on_discover_session(
         log.warning(error_msg)
         raise CIVisibilityError(error_msg)
 
-    # If we're not provided a root directory, try and extract it from CWD
-    root_dir = (discover_args.root_dir or Path(extract_workspace_path())).absolute()
+    # If we're not provided a root directory, try and extract it from workspace, defaulting to CWD
+    workspace_path = discover_args.root_dir or Path(CIVisibility.get_workspace_path() or os.getcwd())
 
-    if test_framework_telemetry_name is None:
-        test_framework_telemetry_name = TEST_FRAMEWORKS.MANUAL
+    test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
 
     session_settings = CIVisibilitySessionSettings(
         tracer=tracer,
@@ -906,17 +920,20 @@ def _on_discover_session(
         module_operation_name=discover_args.module_operation_name,
         suite_operation_name=discover_args.suite_operation_name,
         test_operation_name=discover_args.test_operation_name,
-        root_dir=root_dir,
-        is_unknown_ci=CIVisibility.is_unknown_ci(),
+        workspace_path=workspace_path,
+        is_unsupported_ci=CIVisibility.is_unknown_ci(),
         itr_enabled=CIVisibility.is_itr_enabled(),
         itr_test_skipping_enabled=CIVisibility.test_skipping_enabled(),
         itr_test_skipping_level=SUITE if instance._suite_skipping_mode else TEST,
+        itr_correlation_id=instance._itr_meta.get(ITR_CORRELATION_ID_TAG_NAME, ""),
+        coverage_enabled=CIVisibility.should_collect_coverage(),
     )
 
     session = CIVisibilitySession(
         discover_args.session_id,
         session_settings,
     )
+
     CIVisibility.add_session(session)
 
 
@@ -934,11 +951,48 @@ def _on_finish_session(finish_args: CISession.FinishArgs):
     session.finish(finish_args.force_finish_children, finish_args.override_status)
 
 
+@_requires_civisibility_enabled
+def _on_session_is_test_skipping_enabled() -> Path:
+    log.debug("Handling is test skipping enabled")
+    return CIVisibility.test_skipping_enabled()
+
+
+@_requires_civisibility_enabled
+def _on_session_get_workspace_path(session_id: CISessionId) -> Path:
+    log.debug("Handling finish for session id %s", session_id)
+    session_settings = CIVisibility.get_session_by_id(session_id).get_session_settings()
+    return session_settings.workspace_path
+
+
+@_requires_civisibility_enabled
+def _on_session_should_collect_coverage() -> bool:
+    """Code coverage collection is not tied to any given session ID"""
+    log.debug("Handling should collect coverage")
+    return CIVisibility.should_collect_coverage()
+
+
+@_requires_civisibility_enabled
+def _on_session_get_codeowners() -> Optional[Codeowners]:
+    """The codeowners object is not related to any given session ID"""
+    log.debug("Getting codeowners")
+    return CIVisibility.get_codeowners()
+
+
 def _register_session_handlers():
     log.debug("Registering session handlers")
     core.on("ci_visibility.session.discover", _on_discover_session)
     core.on("ci_visibility.session.start", _on_start_session)
     core.on("ci_visibility.session.finish", _on_finish_session)
+    core.on("ci_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
+    core.on("ci_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
+    core.on(
+        "ci_visibility.session.should_collect_coverage", _on_session_should_collect_coverage, "should_collect_coverage"
+    )
+    core.on(
+        "ci_visibility.session.is_test_skipping_enabled",
+        _on_session_is_test_skipping_enabled,
+        "is_test_skipping_enabled",
+    )
 
 
 @_requires_civisibility_enabled
@@ -949,6 +1003,7 @@ def _on_discover_module(discover_args: CIModule.DiscoverArgs):
     session.add_child(
         CIVisibilityModule(
             discover_args.module_id,
+            discover_args.module_path,
             CIVisibility.get_session_settings(discover_args.module_id),
         )
     )
@@ -1018,8 +1073,9 @@ def _on_discover_test(discover_args: CITest.DiscoverArgs):
         CIVisibilityTest(
             discover_args.test_id,
             CIVisibility.get_session_settings(discover_args.test_id),
-            discover_args.codeowners,
-            discover_args.source_file_info,
+            codeowners=discover_args.codeowners,
+            source_file_info=discover_args.source_file_info,
+            resource=discover_args.resource,
         )
     )
 
@@ -1060,6 +1116,25 @@ def _register_test_handlers():
 
 
 @_requires_civisibility_enabled
+def _on_item_get_span(item_id: CIItemId):
+    log.debug("Handing get_span for item %s", item_id)
+    item = CIVisibility.get_item_by_id(item_id)
+    return item.get_span()
+
+
+@_requires_civisibility_enabled
+def _on_item_is_finished(item_id: CIItemId) -> bool:
+    log.debug("Handling is finished for item %s", item_id)
+    return CIVisibility.get_item_by_id(item_id).is_finished()
+
+
+def _register_item_handlers():
+    log.debug("Registering item handlers")
+    core.on("ci_visibility.item.get_span", _on_item_get_span, "span")
+    core.on("ci_visibility.item.is_finished", _on_item_is_finished, "is_finished")
+
+
+@_requires_civisibility_enabled
 def _on_add_coverage_data(add_coverage_args: CIITRMixin.AddCoverageArgs):
     """Adds coverage data to an item, merging with existing coverage data if necessary"""
     item_id = add_coverage_args.item_id
@@ -1077,6 +1152,14 @@ def _on_add_coverage_data(add_coverage_args: CIITRMixin.AddCoverageArgs):
 def _register_coverage_handlers():
     log.debug("Registering coverage handlers")
     core.on("ci_visibility.item.add_coverage_data", _on_add_coverage_data)
+
+
+@_requires_civisibility_enabled
+def _on_get_tag(get_tag_args: CIBase.GetTagArgs) -> Any:
+    item_id = get_tag_args.item_id
+    key = get_tag_args.name
+    log.debug("Handling get tag for item id %s, key %s", item_id, key)
+    return CIVisibility.get_item_by_id(item_id).get_tag(key)
 
 
 @_requires_civisibility_enabled
@@ -1114,6 +1197,7 @@ def _on_delete_tags(delete_tags_args: CIBase.DeleteTagsArgs) -> None:
 
 def _register_tag_handlers():
     log.debug("Registering tag handlers")
+    core.on("ci_visibility.item.get_tag", _on_get_tag, "tag_value")
     core.on("ci_visibility.item.set_tag", _on_set_tag)
     core.on("ci_visibility.item.set_tags", _on_set_tags)
     core.on("ci_visibility.item.delete_tag", _on_delete_tag)
@@ -1139,6 +1223,12 @@ def _on_itr_mark_forced_run(item_id: Union[CISuiteId, CITestId]) -> None:
 
 
 @_requires_civisibility_enabled
+def _on_itr_was_forced_run(item_id: CIItemId) -> bool:
+    log.debug("Handling marking %s as forced run", item_id)
+    return CIVisibility.get_item_by_id(item_id).was_itr_forced_run()
+
+
+@_requires_civisibility_enabled
 def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
     """Skippable items are fetched as part CIVisibility.enable(), so they are assumed to be available."""
     log.debug("Handling is item skippable for item id %s", item_id)
@@ -1154,18 +1244,37 @@ def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
     return CIVisibility.is_item_itr_skippable(item_id)
 
 
+@_requires_civisibility_enabled
+def _on_itr_is_item_unskippable(item_id: Union[CISuiteId, CITestId]) -> bool:
+    log.debug("Handling is item unskippable for %s", item_id)
+    if not isinstance(item_id, (CISuiteId, CITestId)):
+        raise CIVisibilityError("Only suites or tests can be unskippable")
+    return CIVisibility.get_item_by_id(item_id).is_itr_unskippable()
+
+
+@_requires_civisibility_enabled
+def _on_itr_was_item_skipped(item_id: Union[CISuiteId, CITestId]) -> bool:
+    log.debug("Handling was item skipped for %s", item_id)
+    return CIVisibility.get_item_by_id(item_id).is_itr_skipped()
+
+
 def _register_itr_handlers():
     log.debug("Registering ITR-related handlers")
     core.on("ci_visibility.itr.finish_skipped_by_itr", _on_itr_finish_item_skipped)
     core.on("ci_visibility.itr.is_item_skippable", _on_itr_is_item_skippable, "is_item_skippable")
-    core.on("ci_visibility.itr.mark_unskippable", _on_itr_mark_unskippable)
+    core.on("ci_visibility.itr.was_item_skipped", _on_itr_was_item_skipped, "was_item_skipped")
+
+    core.on("ci_visibility.itr.is_item_unskippable", _on_itr_is_item_unskippable, "is_item_unskippable")
     core.on("ci_visibility.itr.mark_forced_run", _on_itr_mark_forced_run)
+    core.on("ci_visibility.itr.mark_unskippable", _on_itr_mark_unskippable)
+    core.on("ci_visibility.itr.was_forced_run", _on_itr_was_forced_run, "was_forced_run")
 
 
 _register_session_handlers()
 _register_module_handlers()
 _register_suite_handlers()
 _register_test_handlers()
+_register_item_handlers()
 _register_tag_handlers()
 _register_coverage_handlers()
 _register_itr_handlers()

@@ -4,6 +4,18 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.8.7
+
+
+### Bug Fixes
+
+- opentelemetry: Resolves circular imports raised by the OpenTelemetry API when the `ddcontextvars_context` entrypoint is loaded. This resolves an incompatibility introduced in `opentelemetry-api==1.25.0`.
+- opentelemetry: Resolves an issue where the `get_tracer` function would raise a `TypeError` when called with the `attribute` argument. This resolves an incompatibility introduced in `opentelemetry-api==1.26.0`.
+- opentelemetry: Resolves an edge case where distributed tracing headers could be generated before a sampling decision is made, resulting in dropped spans in downstream services.
+
+
+---
+
 ## 2.10.4
 
 
