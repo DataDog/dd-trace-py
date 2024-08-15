@@ -4,6 +4,17 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.10.6
+
+
+### Bug Fixes
+
+- tracing(django): This fix resolves a bug where ddtrace was exhausting a Django stream response before returning it to user.
+- internal: Fix `Already mutably borrowed` error by reverting back to pure-python rate limiter.
+
+
+---
+
 ## 2.8.7
 
 
