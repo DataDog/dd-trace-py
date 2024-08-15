@@ -27,7 +27,7 @@ build_ddtrace_linux:
         PYTHON_TAG: ["cp37-cp37m", "cp38-cp38", "cp39-cp39", "cp310-cp310", "cp311-cp311", "cp312-cp312" ]
         ARCH: ["x86_64"]
         RUNNER: "arch:amd64"
-      - PLATFORM: [ "manylinux2014", "musllinux_1_2" ]
+      - PLATFORM: [ "manylinux2014" ]
         PYTHON_TAG: ["cp37-cp37m", "cp38-cp38", "cp39-cp39", "cp310-cp310", "cp311-cp311", "cp312-cp312" ]
         ARCH: ["i686"]
         RUNNER: "runner:docker"
@@ -43,7 +43,7 @@ build_ddtrace_linux:
     SCCACHE_CACHE_SIZE: 1G
     SCCACHE_DIRECT: true
   cache:
-    - key: sccache-build-linux-$CI_JOB_NAME
+    - key: sccache-build-linux-$ARCH-$CI_JOB_NAME
       paths:
         - /root/.cache/sccache/
   before_script:
@@ -53,6 +53,44 @@ build_ddtrace_linux:
     # Install rust
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
     - rustc --version
+    # Check Python dependency versions
+    - /opt/python/${PYTHON_TAG}/bin/python --version
+    - /opt/python/${PYTHON_TAG}/bin/python -m build --version
+  script:
+    # Build the wheel
+    - /opt/python/${PYTHON_TAG}/bin/python -m build --wheel --outdir wheelhouse/
+    # Repair the wheel
+    - ./.gitlab/repair_wheel_linux.sh wheelhouse/
+  artifacts:
+    paths:
+      - wheelhouse/
+
+
+build_ddtrace_linux_i686_musl:
+  image: "ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest"
+  tags: [ "${RUNNER}" ]
+  stage: package
+  parallel:
+    matrix:
+      - PLATFORM: "musllinux_1_2"
+        PYTHON_TAG: ["cp37-cp37m", "cp38-cp38", "cp39-cp39", "cp310-cp310", "cp311-cp311", "cp312-cp312" ]
+        ARCH: ["i686"]
+        RUNNER: "runner:docker"
+  variables:
+    DD_USE_SCCACHE: 1
+    CMAKE_BUILD_PARALLEL_LEVEL: 24
+    PATH: "/root/.cargo/bin:/opt/rh/devtoolset-10/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    SCCACHE_DIR: /root/.cache/sccache
+    SCCACHE_CACHE_SIZE: 1G
+    SCCACHE_DIRECT: true
+  cache:
+    - key: sccache-build-linux-i686-$CI_JOB_NAME
+      paths:
+        - /root/.cache/sccache/
+  before_script:
+    # Install sccache
+    - curl -L https://github.com/mozilla/sccache/releases/download/v0.8.1/sccache-v0.8.1-${ARCH}-unknown-linux-musl.tar.gz | tar zx --strip-components=1 -C /usr/local/bin/ sccache-v0.8.1-${ARCH}-unknown-linux-musl/sccache
+    - sccache --version
     # Check Python dependency versions
     - /opt/python/${PYTHON_TAG}/bin/python --version
     - /opt/python/${PYTHON_TAG}/bin/python -m build --version
