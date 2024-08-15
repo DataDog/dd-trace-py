@@ -1,6 +1,12 @@
+variables:
+  PYPA_IMAGE_BASE: registry.ddbuild.io/images/mirror/pypa
+  PYPA_IMAGE_TAG: 2024-08-12-7fde9b1
+  PYPA_DEFAULT_IMAGE: "${PYPA_IMAGE_BASE}/manylinux2014_x86_64:${PYPA_IMAGE_TAG}"
+
+
 build_ddtrace_sdist:
-  image: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
-  tags: [ "runner:amd64" ]
+  image: "${PYPA_DEFAULT_IMAGE}"
+  tags: [ "arch:amd64" ]
   stage: package
   script:
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
@@ -11,7 +17,7 @@ build_ddtrace_sdist:
       - wheelhouse/
 
 build_ddtrace_linux:
-  image: registry.ddbuild.io/images/mirror/pypa/${PLATFORM}_${ARCH}:2024-08-12-7fde9b1
+  image: "${PYPA_IMAGE_BASE}/${PLATFORM}_${ARCH}:${PYPA_IMAGE_TAG}"
   tags: [ "${RUNNER}" ]
   stage: package
   parallel:
