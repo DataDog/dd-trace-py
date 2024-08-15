@@ -2,6 +2,7 @@
 
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
+
 import abc
 import json
 from typing import TYPE_CHECKING  # noqa:F401
@@ -10,6 +11,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ddtrace import config
 from ddtrace.constants import SAMPLING_LIMIT_DECISION
 
 from .constants import ENV_KEY
@@ -82,19 +84,13 @@ class RateSampler(BaseSampler):
     It samples randomly, its main purpose is to reduce the instrumentation footprint.
     """
 
-    def __init__(self, sample_rate=1.0):
-        # type: (float) -> None
-        if sample_rate < 0.0:
-            raise ValueError("sample_rate of {} is negative".format(sample_rate))
-        elif sample_rate > 1.0:
-            sample_rate = 1.0
-
+    def __init__(self, sample_rate: float = 1.0) -> None:
+        """sample_rate is clamped between 0 and 1 inclusive"""
+        sample_rate = min(1, max(0, sample_rate))
         self.set_sample_rate(sample_rate)
-
         log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
 
-    def set_sample_rate(self, sample_rate):
-        # type: (float) -> None
+    def set_sample_rate(self, sample_rate: float) -> None:
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
@@ -250,9 +246,10 @@ class DatadogSampler(RateByServiceSampler):
             self.rules = []
             # Validate that rules is a list of SampleRules
             for rule in rules:
-                if not isinstance(rule, SamplingRule):
+                if isinstance(rule, SamplingRule):
+                    self.rules.append(rule)
+                elif config._raise:
                     raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
-                self.rules.append(rule)
 
         # DEV: Default sampling rule must come last
         if default_sample_rate is not None:
@@ -278,10 +275,13 @@ class DatadogSampler(RateByServiceSampler):
         try:
             json_rules = json.loads(rules)
         except JSONDecodeError:
-            raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}".format(rules))
+            if config._raise:
+                raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}".format(rules))
         for rule in json_rules:
             if "sample_rate" not in rule:
-                raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
+                if config._raise:
+                    raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
+                continue
             sample_rate = float(rule["sample_rate"])
             service = rule.get("service", SamplingRule.NO_RULE)
             name = rule.get("name", SamplingRule.NO_RULE)
@@ -298,7 +298,9 @@ class DatadogSampler(RateByServiceSampler):
                     provenance=provenance,
                 )
             except ValueError as e:
-                raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
+                if config._raise:
+                    raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
+                continue
             sampling_rules.append(sampling_rule)
 
         # Sort the sampling_rules list using a lambda function as the key

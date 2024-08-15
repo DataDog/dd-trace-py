@@ -36,7 +36,11 @@ required_modules = ["pynamodb.connection.base"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
+        # Required to allow users to import from `ddtrace.contrib.pynamodb.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ..internal.pynamodb.patch import get_version
+        from ..internal.pynamodb.patch import patch
 
         __all__ = ["patch", "get_version"]

@@ -7,8 +7,8 @@ import pymongo
 # project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.pymongo.client import normalize_filter
-from ddtrace.contrib.pymongo.patch import _CHECKOUT_FN_NAME
+from ddtrace.contrib.internal.pymongo.client import normalize_filter
+from ddtrace.contrib.internal.pymongo.patch import _CHECKOUT_FN_NAME
 from ddtrace.contrib.pymongo.patch import patch
 from ddtrace.contrib.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
