@@ -1667,7 +1667,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         assert err == b""
 
 
-async def test_openai_asyncio_cancellation (openai):
+async def test_openai_asyncio_cancellation(openai):
     import asyncio
     import httpx
 
@@ -1689,7 +1689,10 @@ async def test_openai_asyncio_cancellation (openai):
             client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "user", "content": "Write a Python program that writes a Python program for a given task."},
+                    {
+                        "role": "user",
+                        "content": "Write a Python program that writes a Python program for a given task.",
+                    },
                 ],
                 user="ddtrace-test",
             ),
@@ -1703,7 +1706,6 @@ async def test_openai_asyncio_cancellation (openai):
     assert asyncio_timeout, "Expected asyncio.TimeoutError"
 
 
-# FIXME (sam.brenner)
 # @pytest.mark.skipif(
 #     parse_version(openai_module.version.VERSION) >= (1, 6, 0),
 #     reason="Streamed response context managers are only available v1.6.0+",
@@ -1749,7 +1751,7 @@ async def test_openai_asyncio_cancellation (openai):
     parse_version(openai_module.version.VERSION) < (1, 6, 0),
     reason="Streamed response context managers are only available v1.6.0+",
 )
-async def test_openai_asyncio_cancellation_stream_context_manager (openai, openai_vcr, snapshot_tracer):
+async def test_openai_asyncio_cancellation_stream_context_manager(openai, openai_vcr, snapshot_tracer):
     import asyncio
 
     span = None
@@ -1769,7 +1771,7 @@ async def test_openai_asyncio_cancellation_stream_context_manager (openai, opena
             span = snapshot_tracer.current_span()
 
             async for _ in resp:
-                await asyncio.sleep(1) # simulate lots of chunks
+                await asyncio.sleep(1)  # simulate lots of chunks
 
     asyncio_timeout = False
 
