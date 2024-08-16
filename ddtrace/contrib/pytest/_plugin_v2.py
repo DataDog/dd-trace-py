@@ -394,8 +394,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     CISession.finish(force_finish_children=True)
     disable_ci_visibility()
-        CISession.finish(force_finish_children=True)
-        disable_ci_visibility()
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
