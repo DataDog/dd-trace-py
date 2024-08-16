@@ -795,4 +795,4 @@ class LLMObs(Service):
 
 
 # initialize the default llmobs instance
-# LLMObs._instance = LLMObs()
+LLMObs._instance = LLMObs()
