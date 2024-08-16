@@ -1,17 +1,19 @@
-build_base_venvs:
+.testrunner:
   image: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
   tags: [ "arch:amd64" ]
-  stage: package
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: 24
-    PIP_VERBOSE: 1
-    PATH: /root/.pyenv/shims:/root/.pyenv/bin:/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
   before_script:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
     - pip install riot~=0.19.1
+
+build_base_venvs:
+  extends: .testrunner
+  stage: package
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: 24
+    PIP_VERBOSE: 1
   script:
     - riot -P -v generate --python=$PYTHON_VERSION
   artifacts:
