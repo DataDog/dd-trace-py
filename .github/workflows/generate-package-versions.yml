@@ -21,3 +21,14 @@ jobs:
   
     - name: Run regenerate-riot-latest
       run: ./scripts/regenerate-riot-latest.sh
+
+    - name: Create Pull Request
+      id: pr
+      uses: peter-evans/create-pull-request@v6
+      base: main
+      team-reviewers: "DataDog/apm-core-python,DataDog/apm-idm-python"
+      body: |
+        Updates the package versions
+
+
+
