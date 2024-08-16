@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes endpoing profiling for stack v2, that is when
+    ``DD_PROFILING_STACK_V2_ENABLED`` set.
+
