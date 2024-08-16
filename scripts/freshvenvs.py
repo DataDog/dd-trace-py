@@ -11,7 +11,6 @@ import typing
 
 from packaging.version import Version
 from pip import _internal
-import requests
 
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -75,6 +74,7 @@ def _get_packages_implementing(modules: typing.Set[str]) -> typing.Set[str]:
 
 
 def _get_version_extremes(package_name: str) -> typing.Tuple[str, str]:
+    """Return the (earliest, latest) supported versions of a given package"""
     with Capturing() as output:
         _internal.main(["index", "versions", package_name])
     if not output:
