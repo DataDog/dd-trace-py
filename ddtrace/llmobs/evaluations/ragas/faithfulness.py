@@ -27,10 +27,14 @@ class RagasFaithfulness(RagasBase):
         return "score"
 
     def translate_input(self, span: LLMObsSpanContext):
+        print(span)
+        if span.meta.input.prompt is None:
+            return None
         try:
-            question = span.meta.input.messages[-1]["content"]
+            question = span.meta.input.prompt["variables"]["query"]
             answer = span.meta.output.messages[0]["content"]
-            context = span.meta.metadata["prompt_template"]["variables"]["context"]
+            context = span.meta.input.prompt["variables"]["context"]
         except Exception as e:
             log.warning("Error translating input to RAGAS format: ", e)
+            return None
         return Dataset.from_dict({"question": [question], "answer": [answer], "contexts": [[context]]})

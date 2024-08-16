@@ -22,6 +22,7 @@ DocumentType = Dict[str, Union[str, int, float]]
 
 
 class MetaIO(BaseModel):
+    prompt: Optional[Dict] = None
     value: Optional[str] = None
     # (TODO): lievan, let Messages and Documents inherit from BaseModel
     documents: Optional[List[DocumentType]] = None
