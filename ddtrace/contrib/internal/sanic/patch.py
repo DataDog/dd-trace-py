@@ -1,6 +1,8 @@
 import asyncio
 
 import sanic
+import wrapt
+from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
@@ -16,8 +18,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 log = get_logger(__name__)

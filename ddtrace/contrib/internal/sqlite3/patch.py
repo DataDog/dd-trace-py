@@ -3,6 +3,8 @@ import sqlite3
 import sqlite3.dbapi2
 import sys
 
+import wrapt
+
 from ddtrace import config
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
@@ -15,7 +17,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
 
 
 # Original connect method
