@@ -17,7 +17,7 @@ cd wheelhouse
 
 export PYTHONUNBUFFERED=TRUE
 
-../lib-injection/dl_wheels.py \
+$PYTHON_EXE ../lib-injection/dl_wheels.py \
     --python-version=$PYTHON_VERSION \
     --local-ddtrace \
     --arch $ARCH \
