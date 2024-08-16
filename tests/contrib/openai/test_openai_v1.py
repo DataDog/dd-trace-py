@@ -6,7 +6,7 @@ import pytest
 
 import ddtrace
 from ddtrace import patch
-from ddtrace.contrib.openai.utils import _est_tokens
+from ddtrace.contrib.internal.openai.utils import _est_tokens
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -18,7 +18,7 @@ from tests.utils import snapshot_context
 
 TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
 pytestmark = pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 0, 0), reason="This module only tests openai >= 1.0"
+    parse_version(openai_module.version.VERSION) < (1, 0), reason="This module only tests openai >= 1.0"
 )
 
 
@@ -920,7 +920,7 @@ def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
 
 def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
@@ -958,7 +958,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
 
 async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.AsyncOpenAI()
@@ -1000,7 +1000,7 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
 )
 def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
@@ -1038,7 +1038,7 @@ def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, moc
 
 def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
             expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
             client = openai.OpenAI()
@@ -1087,7 +1087,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
 
 async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
             expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
             client = openai.AsyncOpenAI()
@@ -1139,7 +1139,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
 )
 async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
             expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
             client = openai.AsyncOpenAI()

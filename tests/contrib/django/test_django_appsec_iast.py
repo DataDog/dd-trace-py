@@ -530,6 +530,9 @@ def test_django_command_injection(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)):
         oce.reconfigure()
         patch_iast({"command_injection": True})
+        from ddtrace.appsec._common_module_patches import patch_common_modules
+
+        patch_common_modules()
         root_span, _ = _aux_appsec_get_root_span(
             client,
             test_spans,

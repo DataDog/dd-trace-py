@@ -2,6 +2,7 @@
 """
 
 import os
+import re
 import subprocess  # nosec
 
 from flask import Flask
@@ -10,6 +11,7 @@ from flask import request
 
 
 import ddtrace.auto  # noqa: F401  # isort: skip
+from ddtrace.appsec._iast import ddtrace_iast_flask_patch  # noqa: F401
 from tests.appsec.iast_packages.packages.pkg_aiohttp import pkg_aiohttp
 from tests.appsec.iast_packages.packages.pkg_aiosignal import pkg_aiosignal
 from tests.appsec.iast_packages.packages.pkg_annotated_types import pkg_annotated_types
@@ -198,6 +200,49 @@ def iast_ast_patching_import_error():
     return Response(str(module_with_import_errors.verbal_kint_is_keyser_soze))
 
 
+@app.route("/iast-ast-patching-re", methods=["GET"])
+def iast_ast_patching_re():
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        changed = re.sub(r"_", " ", filename)
+    elif style == "re_object":
+        pattern = re.compile(r"_")
+        changed = pattern.sub(" ", filename)
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if is_pyobject_tainted(changed):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-non-re", methods=["GET"])
+def iast_ast_patching_non_re():
+    import iast.fixtures.non_re_module as re
+
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        changed = re.sub(r"_", " ", filename)
+    elif style == "re_object":
+        pattern = re.compile(r"_")
+        changed = pattern.sub(" ", filename)
+    resp = Response("OK")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if is_pyobject_tainted(changed):
+            resp = Response("Fail")
+    except Exception as e:
+        print(e)
+    return resp
+
+
 if __name__ == "__main__":
     env_port = os.getenv("FLASK_RUN_PORT", 8000)
+    ddtrace_iast_flask_patch()
     app.run(debug=False, port=env_port)

@@ -24,6 +24,10 @@ from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
+from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
+from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
+from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
+from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
@@ -46,6 +50,7 @@ class LLMObsSpanEvent(TypedDict):
     status_message: str
     meta: Dict[str, Any]
     metrics: Dict[str, Any]
+    collection_errors: List[str]
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
@@ -170,6 +175,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
     def _init_buffer(self):
         with self._lock:
             self._buffer = []
+            self.buffer_size = 0
 
     def put(self, events: List[LLMObsSpanEvent]):
         # events always has only 1 event - with List type to be compatible with HTTPWriter interfaces
@@ -180,6 +186,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 )
                 return
             self._buffer.extend(events)
+            self.buffer_size += len(json.dumps(events))
 
     def encode(self):
         with self._lock:
@@ -259,6 +266,21 @@ class LLMObsSpanWriter(HTTPWriter):
             super(LLMObsSpanWriter, self).stop(timeout=timeout)
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
+        event_size = len(json.dumps(event))
+
+        if event_size >= EVP_EVENT_SIZE_LIMIT:
+            logger.warning(
+                "dropping event input/output because its size (%d) exceeds the event size limit (1MB)",
+                event_size,
+            )
+            event = _truncate_span_event(event)
+
+        for client in self._clients:
+            if isinstance(client, LLMObsEventClient) and isinstance(client.encoder, LLMObsSpanEncoder):
+                with client.encoder._lock:
+                    if (client.encoder.buffer_size + event_size) > EVP_PAYLOAD_SIZE_LIMIT:
+                        logger.debug("flushing queue because queuing next event will exceed EVP payload limit")
+                        self._flush_queue_with_client(client)
         self.write([event])
 
     # Noop to make it compatible with HTTPWriter interface
@@ -271,3 +293,11 @@ class LLMObsSpanWriter(HTTPWriter):
             interval=self._interval,
             timeout=self._timeout,
         )
+
+
+def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
+    event["meta"]["input"] = {"value": DROPPED_VALUE_TEXT}
+    event["meta"]["output"] = {"value": DROPPED_VALUE_TEXT}
+
+    event["collection_errors"] = [DROPPED_IO_COLLECTION_ERROR]
+    return event

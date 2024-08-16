@@ -17,7 +17,10 @@ from typing import Dict  # noqa:F401
 
 import pytest
 
-from ddtrace.contrib.pytest.utils import _pytest_version_supports_itr
+from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
+from ddtrace.contrib.pytest._utils import _extract_span
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
+from ddtrace.internal.utils.formats import asbool
 
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
@@ -100,7 +103,6 @@ def pytest_load_initial_conftests(early_config, parser, args):
         # Enables experimental use of ModuleCodeCollector for coverage collection.
         from ddtrace.internal.ci_visibility.coverage import USE_DD_COVERAGE
         from ddtrace.internal.logger import get_logger
-        from ddtrace.internal.utils.formats import asbool
 
         log = get_logger(__name__)
 
@@ -113,7 +115,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
             try:
                 workspace_path = Path(extract_workspace_path())
-            except ValueError:
+            except (ValueError, FileNotFoundError):
                 workspace_path = Path(os.getcwd())
 
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
@@ -128,12 +130,37 @@ def pytest_load_initial_conftests(early_config, parser, args):
                 )
 
 
+# Version-specific pytest hooks
+if _USE_PLUGIN_V2:
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_collection_finish  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_configure as _versioned_pytest_configure
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_ddtrace_get_item_module_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_ddtrace_get_item_suite_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_ddtrace_get_item_test_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_runtest_makereport  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_runtest_protocol  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_sessionfinish  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
+else:
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_collection_modifyitems  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_configure as _versioned_pytest_configure
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_ddtrace_get_item_module_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_ddtrace_get_item_suite_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_ddtrace_get_item_test_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_runtest_makereport  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_runtest_protocol  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_sessionfinish  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_sessionstart  # noqa: F401
+
+    # Internal coverage is only used for ITR at the moment, so the hook is only added if the pytest version supports it
+    if _pytest_version_supports_itr():
+        from ddtrace.contrib.pytest._plugin_v1 import pytest_terminal_summary  # noqa: F401
+
+
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
-        from ._plugin_v1 import _PytestDDTracePluginV1
-
-        config.pluginmanager.register(_PytestDDTracePluginV1(), "_datadog-pytest-v1")
+        _versioned_pytest_configure(config)
 
 
 @pytest.hookimpl
@@ -148,7 +175,6 @@ def ddspan(request):
     """Return the :class:`ddtrace._trace.span.Span` instance associated with the
     current test when Datadog CI Visibility is enabled.
     """
-    from ddtrace.contrib.pytest._plugin_v1 import _extract_span
     from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 
     if _CIVisibility.enabled:
