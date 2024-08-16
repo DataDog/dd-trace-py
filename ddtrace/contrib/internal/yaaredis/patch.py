@@ -1,5 +1,6 @@
 import os
 
+import wrapt
 import yaaredis
 
 from ddtrace import config
@@ -12,7 +13,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 config._add(

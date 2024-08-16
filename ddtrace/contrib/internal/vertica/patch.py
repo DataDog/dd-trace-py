@@ -1,5 +1,7 @@
 import importlib
 
+import wrapt
+
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -17,7 +19,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)

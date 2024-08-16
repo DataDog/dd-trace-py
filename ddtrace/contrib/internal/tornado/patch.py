@@ -1,13 +1,13 @@
 import os
 
 import tornado
+from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from . import application
 from . import decorators
