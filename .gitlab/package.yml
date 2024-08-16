@@ -8,6 +8,8 @@ build_base_venvs:
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+  before_script:
+    - pip install riot~=0.19.1
   script:
     - riot -P -v generate --python=$PYTHON_VERSION
   artifacts:
