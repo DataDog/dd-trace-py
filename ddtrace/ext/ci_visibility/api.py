@@ -113,7 +113,7 @@ class CIExcInfo:
 
 
 @_catch_and_log_exceptions
-def enable_ci_visibility(config):
+def enable_ci_visibility(config: Optional[Any] = None):
     from ddtrace.internal.ci_visibility import CIVisibility
 
     CIVisibility.enable(config=config)

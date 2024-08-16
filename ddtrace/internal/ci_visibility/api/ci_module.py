@@ -38,9 +38,8 @@ class CIVisibilityModule(CIVisibilityParentItem[CISuiteId, CIVisibilitySuite], C
         initial_tags: Optional[Dict[str, str]] = None,
     ):
         super().__init__(name, session_settings, session_settings.module_operation_name, initial_tags)
-        if module_path:
-            self._module_path = module_path.absolute()
 
+        self._module_path = module_path.absolute() if module_path else None
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:

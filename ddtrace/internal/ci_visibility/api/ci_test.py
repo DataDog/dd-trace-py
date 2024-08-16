@@ -38,7 +38,7 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         is_early_flake_retry: bool = False,
         resource: Optional[str] = None,
     ):
-        self.parameters = parameters
+        self._parameters = parameters
         super().__init__(
             name,
             session_settings,
@@ -53,11 +53,14 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         self._exc_info: Optional[CIExcInfo] = None
         self._coverage_data: CICoverageData = CICoverageData()
 
-        if self.parameters is not None:
+        if self._parameters is not None:
             self.set_tag(test.PARAMETERS, parameters)
 
         # Currently unsupported
         self._is_benchmark = None
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name}, parameters={self._parameters})"
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
         return {
@@ -128,7 +131,7 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
             self.__class__(
                 original_test_id.name,
                 self._session_settings,
-                parameters=self.parameters,
+                parameters=self._parameters,
                 codeowners=self._codeowners,
                 source_file_info=self._source_file_info,
                 initial_tags=self._tags,
