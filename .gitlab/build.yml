@@ -55,7 +55,7 @@ build_ddtrace_linux:
   before_script:
     # Install rust
     - >
-      if [ "$ARCH" == "i686" && "$PLATFORM" == "musllinux_1_2" ];
+      if [ "$ARCH" == "i686" ] && [ "$PLATFORM" == "musllinux_1_2" ];
       then
         apk add --no-cache gcc libgcc libstdc++ llvm15-libs musl musl-dev rust-stdlib
         apk add --no-cache rust cargo
@@ -72,8 +72,11 @@ build_ddtrace_linux:
     # Repair the wheel
     - ./.gitlab/repair_wheel_linux.sh wheelhouse/
     # Download wheel dependencies (only for x86_64 and aarch64)
-    - |
-      [ "$ARCH" == "x86_64" || "$ARCH" == "aarch64" ] && .gitlab/download-dependency-wheels.sh /opt/python/${PYTHON_TAG}/bin/python
+    - >
+      if [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "aarch64" ];
+      then
+        .gitlab/download-dependency-wheels.sh /opt/python/${PYTHON_TAG}/bin/python
+      fi
   artifacts:
     paths:
       - wheelhouse/
