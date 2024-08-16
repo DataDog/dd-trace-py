@@ -16,7 +16,7 @@ iast_taint_log_error(const std::string&);
 inline bool
 is_iast_debug_enabled()
 {
-    const char* debug_value = std::getenv("IAST_DEBUG");
+    const char* debug_value = std::getenv("_DD_IAST_DEBUG");
     if (debug_value == nullptr) {
         return false;
     }
