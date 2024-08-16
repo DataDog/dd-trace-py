@@ -31,3 +31,9 @@ get_python_logger()
     py::object native_logger = get_logger("native");
     return native_logger;
 }
+
+inline bool
+is_some_number(PyObject* obj)
+{
+    return PyLong_Check(obj) || PyFloat_Check(obj) || PyComplex_Check(obj);
+}
