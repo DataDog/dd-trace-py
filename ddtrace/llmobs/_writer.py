@@ -291,6 +291,7 @@ class LLMObsSpanWriter(HTTPWriter):
         return self.__class__(
             interval=self._interval,
             timeout=self._timeout,
+            is_agentless=config._llmobs_agentless_enabled,
         )
 
 
