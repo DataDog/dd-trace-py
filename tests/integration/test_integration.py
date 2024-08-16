@@ -551,7 +551,7 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
-            return "bad_payload"
+            return "bad_payload", 1
 
         def encode_traces(self, traces):
             return "bad_payload"
