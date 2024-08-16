@@ -3,16 +3,16 @@ build_base_venvs:
   stage: package
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 24
-    PIP_VERBOSE: 1  
+    PIP_VERBOSE: 1
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
   script:
     - riot -P -v generate --python=$PYTHON_VERSION
   artifacts:
-    - name: venv_$PYTHON_VERSION
-      paths:
-        - .riot/venv_*
+    name: venv_$PYTHON_VERSION
+    paths:
+      - .riot/venv_*
 
 download_ddtrace_wheels:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
