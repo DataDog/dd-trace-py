@@ -747,9 +747,7 @@ class Tracer(object):
                     self.context_provider.activate(new_ctx)
                 child_of = new_ctx
 
-        context, parent = _get_span_context(
-            name, child_of, service, resource, span_type
-        )
+        context, parent = _get_span_context(name, child_of, service, resource, span_type)
 
         trace_id = context.trace_id
         parent_id = context.span_id
@@ -810,10 +808,8 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             for link in links:
-                span.set_link(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id
-                )
+                span.set_link(trace_id=link.trace_id, span_id=link.span_id)
+                span._links[link.span_id].span = link.span
 
             span._local_root = span
             if config.report_hostname:
@@ -1227,6 +1223,7 @@ def _get_span_context(
     resource: Optional[str] = None,
     span_type: Optional[str] = None,
 ):
+    # breakpoint()
     parent: Optional[Span] = None
     if child_of is not None:
         if isinstance(child_of, Context):
@@ -1236,21 +1233,11 @@ def _get_span_context(
             parent = child_of
 
         # if we find a match for any context snipping rules, we break the trace context
-        if context_snipping_matcher(
-            name,
-            child_of,
-            service,
-            resource,
-            span_type
-        ):
+        if context_snipping_matcher(name, child_of, service, resource, span_type):
             context = Context(is_remote=False)
             if config.context_snipping_style.USE_LINKS:
-                context._span_links.append(
-                    SpanLink(
-                        trace_id=child_of.trace_id,
-                        span_id=child_of.span_id
-                    )
-                )
+                context._span_links.append(SpanLink(trace_id=child_of.trace_id, span_id=child_of.span_id))
+                context._span_links[0].span = child_of
             else:
                 # just start a new trace
                 pass
@@ -1261,33 +1248,25 @@ def _get_span_context(
     return context, parent
 
 
-my_rule = {
-    # "SERVICE": {
-    #     "EQUALS": ""
-    # }
-    # "NAME": {
-    #     "EQUALS": "aws.request",
-    # },
-    "NAME": {
-        "EQUALS": "aws.sqs-consume-request"
-    },
-    "CHILD_OF": {
-        "NAME": {
-            "EQUALS": "sub-root"
-        }
-    }
-}
+my_rule = {"SERVICE": {"EQUALS": "postgres"}, "CHILD_OF": {"NAME": {"CONTAINS": "myapp.multi-operation"}}}
+
+my_rule_2 = {"SERVICE": {"EQUALS": "requests"}, "CHILD_OF": {"NAME": {"CONTAINS": "myapp.multi-operation"}}}
+
+my_rule_3 = {"SERVICE": {"EQUALS": "requests"}, "CHILD_OF": {"NAME": {"CONTAINS": "__main__"}}}
+
+my_rule_4 = {"SERVICE": {"EQUALS": "postgres"}, "CHILD_OF": {"NAME": {"CONTAINS": "__main__"}}}
 
 
-SNIPPING_RULES = [my_rule]
+SNIPPING_RULES = [my_rule, my_rule_2, my_rule_3, my_rule_4]
 
 
-def match_rule(value: Any, condition: Dict[str, Any]) -> bool:
+def apply_condition(value: Any, condition: Dict[str, Any]) -> bool:
     if "EQUALS" in condition:
         return value == condition["EQUALS"]
     elif "CONTAINS" in condition:
         return condition["CONTAINS"] in value
     return False
+
 
 def context_snipping_matcher(
     name: str,
@@ -1295,24 +1274,16 @@ def context_snipping_matcher(
     service: Optional[str] = None,
     resource: Optional[str] = None,
     span_type: Optional[str] = None,
-    snipping_rules = SNIPPING_RULES
+    snipping_rules=SNIPPING_RULES,
+    require_child_of=True,
 ) -> bool:
     # Iterate over each rule in the dictionary
     for rule in snipping_rules:
-        for key, condition in rule.items():
-            if key == "NAME":
-                if not match_rule(name, condition):
-                    return False
-            elif key == "SERVICE":
-                if not match_rule(service, condition):
-                    return False
-            elif key == "RESOURCE":
-                if not match_rule(resource, condition):
-                    return False
-            elif key == "CHILD_OF":
+        if apply_condition(rule, service, name, resource):
+            if "CHILD_OF" in rule:
                 if not child_of:
                     return False
-                
+
                 if isinstance(child_of, Span):
                     # Recursively evaluate the child context matcher
                     if context_snipping_matcher(
@@ -1321,8 +1292,25 @@ def context_snipping_matcher(
                         service=child_of.service,
                         resource=child_of.resource,
                         span_type=child_of.span_type,
-                        snipping_rules=[condition]
+                        snipping_rules=[rule["CHILD_OF"]],
+                        require_child_of=False,
                     ):
                         return True
-    
-    return True
+            else:
+                return not require_child_of
+
+    return False
+
+
+def rule_match(rule, service, name, resource):
+    for key, condition in rule.items():
+        if key == "NAME":
+            if apply_condition(name, condition):
+                return True
+        elif key == "SERVICE":
+            if apply_condition(service, condition):
+                return True
+        elif key == "RESOURCE":
+            if apply_condition(resource, condition):
+                return True
+    return False

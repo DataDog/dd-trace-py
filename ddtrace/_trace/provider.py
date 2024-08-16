@@ -94,7 +94,15 @@ class DatadogContextMixin(object):
         if span.finished:
             new_active: Optional[Span] = span
             while new_active and new_active.finished:
-                new_active = new_active._parent
+                if new_active._parent:
+                    new_active = new_active._parent
+
+                # if we are using context snipping with links, the active may be the last link
+                elif len(new_active._links) > 0:
+                    i = list(new_active._links.keys())[-1]
+                    new_active = new_active._links[i].span
+                else:
+                    new_active = new_active._parent
             self.activate(new_active)
             return new_active
         return span

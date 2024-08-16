@@ -157,7 +157,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             call_trace=False,
             call_key="instrumented_sqs_call",
             pin=pin,
-            resource=".".join((endpoint_name, operation.lower()))
+            resource=".".join((endpoint_name, operation.lower())),
         ) as ctx, ctx.get_item(ctx.get_item("call_key")):
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
 

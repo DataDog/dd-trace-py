@@ -24,6 +24,7 @@ SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
     s1.link_span(s2.context, link_attributes)
 """
 import dataclasses
+from typing import Any
 from typing import Optional
 
 from ddtrace.internal.utils.formats import flatten_key_value
@@ -51,6 +52,7 @@ class SpanLink:
 
     trace_id: int
     span_id: int
+    span: Optional[Any] = None
     tracestate: Optional[str] = None
     flags: Optional[int] = None
     attributes: dict = dataclasses.field(default_factory=dict)
