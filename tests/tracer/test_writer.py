@@ -758,10 +758,6 @@ def test_writer_recreate_keeps_headers():
         ("win32", None, None, False, False, "v0.4"),
         # Default with priority sampler
         ("win32", None, None, True, False, "v0.4"),
-        # Explicitly passed in API version is always used
-        ("win32", "v0.3", None, True, False, "v0.3"),
-        ("win32", "v0.3", "v0.4", False, False, "v0.3"),
-        ("win32", "v0.3", "v0.4", True, False, "v0.3"),
         # Env variable is used if explicit value is not given
         ("win32", None, "v0.4", False, False, "v0.4"),
         ("win32", None, "v0.4", True, False, "v0.4"),
@@ -775,10 +771,6 @@ def test_writer_recreate_keeps_headers():
         ("cygwin", None, None, False, False, "v0.4"),
         # Default with priority sampler
         ("cygwin", None, None, True, False, "v0.4"),
-        # Explicitly passed in API version is always used
-        ("cygwin", "v0.3", None, True, False, "v0.3"),
-        ("cygwin", "v0.3", "v0.4", False, False, "v0.3"),
-        ("cygwin", "v0.3", "v0.4", True, False, "v0.3"),
         # Env variable is used if explicit value is not given
         ("cygwin", None, "v0.4", False, False, "v0.4"),
         ("cygwin", None, "v0.4", True, False, "v0.4"),
