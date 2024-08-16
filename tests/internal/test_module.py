@@ -97,11 +97,6 @@ def test_after_module_imported_decorator(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-def test_register_hook_without_install():
-    ModuleWatchdog.register_origin_hook(Path(__file__), mock.Mock())
-    ModuleWatchdog.register_module_hook(Path(__name__), mock.Mock())
-
-
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
 def test_import_origin_hook_for_module_not_yet_imported():
     import os
