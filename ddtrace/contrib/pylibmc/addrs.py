@@ -1,14 +1,15 @@
-translate_server_specs = None
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
-try:
-    # NOTE: we rely on an undocumented method to parse addresses,
-    # so be a bit defensive and don't assume it exists.
-    from pylibmc.client import translate_server_specs
-except ImportError:
-    pass
+from ..internal.pylibmc.addrs import *  # noqa: F401,F403
 
 
-def parse_addresses(addrs):
-    if not translate_server_specs:
-        return []
-    return translate_server_specs(addrs)
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

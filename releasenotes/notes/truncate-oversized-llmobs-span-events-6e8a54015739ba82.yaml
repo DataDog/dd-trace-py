@@ -1,4 +1,3 @@
 features:
   - |
-    LLM Observability: Span events that exceed the event platform event size limit (1 MB) will now have their inputs
-    and outputs dropped. The `dropped_io:1` tag will be added to these span events.
+    LLM Observability: Span events that exceed the event platform event size limit (1 MB) will now have their inputs and outputs dropped.

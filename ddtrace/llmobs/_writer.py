@@ -24,7 +24,7 @@ from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
-from ddtrace.llmobs._constants import DROPPED_IO_TAG
+from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
@@ -50,6 +50,7 @@ class LLMObsSpanEvent(TypedDict):
     status_message: str
     meta: Dict[str, Any]
     metrics: Dict[str, Any]
+    collection_errors: List[str]
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
@@ -298,5 +299,5 @@ def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
     event["meta"]["input"] = {"value": DROPPED_VALUE_TEXT}
     event["meta"]["output"] = {"value": DROPPED_VALUE_TEXT}
 
-    event["tags"].append(DROPPED_IO_TAG)
+    event["collection_errors"] = [DROPPED_IO_COLLECTION_ERROR]
     return event
