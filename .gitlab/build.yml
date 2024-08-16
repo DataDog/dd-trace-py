@@ -3,7 +3,7 @@ variables:
   PYPA_IMAGE_TAG: 2024-08-12-7fde9b1
   PYPA_DEFAULT_IMAGE: "${PYPA_IMAGE_BASE}/manylinux2014_x86_64:${PYPA_IMAGE_TAG}"
 
-.python_tags: &.python_tags
+.python_tags: &python_tags
   - "cp37-cp37m"
   - "cp38-cp38"
   - "cp39-cp39"
@@ -11,7 +11,7 @@ variables:
   - "cp311-cp311"
   - "cp312-cp312"
 
-.linux_platforms: &.linux_platforms
+.linux_platforms: &linux_platforms
   - "manylinux2014"
   - "musllinux_1_2"
 
@@ -39,17 +39,17 @@ build_ddtrace_linux:
   tags: [ "${RUNNER}" ]
   parallel:
     matrix:
-      - PLATFORM: *.linux_platforms
-        PYTHON_TAG: *.python_tags
+      - PLATFORM: *linux_platforms
+        PYTHON_TAG: *python_tags
         ARCH: ["x86_64"]
         RUNNER: "arch:amd64"
       # Use runner:docker for i686 since we don't have a k8s linux/386 runner
-      - PLATFORM: *.linux_platforms
-        PYTHON_TAG: *.python_tags
+      - PLATFORM: *linux_platforms
+        PYTHON_TAG: *python_tags
         ARCH: ["i686"]
         RUNNER: "runner:docker"
-      - PLATFORM: *.linux_platforms
-        PYTHON_TAG: *.python_tags
+      - PLATFORM: *linux_platforms
+        PYTHON_TAG: *python_tags
         ARCH: ["aarch64"]
         RUNNER: "arch:arm64"
   before_script:
