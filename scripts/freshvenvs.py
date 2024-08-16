@@ -99,6 +99,7 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[str, str]:
 
 
 def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.List[typing.Tuple[str, str]]:
+    """Return the list of package versions that are tested"""
     with open(f".riot/requirements/{env}.txt", "r") as lockfile:
         lockfile_content = lockfile.readlines()
     lock_packages = []
@@ -110,6 +111,7 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
 
 
 def _versions_fully_cover_bounds(bounds: typing.Tuple[str, str], versions: typing.List[str]) -> bool:
+    """Return whether the tested versions cover the full range of supported versions"""
     if not versions:
         return False
     return versions[0] >= Version(bounds[1]) and versions[-1] <= Version(bounds[0])
