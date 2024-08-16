@@ -12,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
@@ -34,6 +35,9 @@ def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
         return
 
     input_obj["_datadog"] = {}
+    HTTPPropagator.inject(ctx.get_item(ctx["call_key"]).context, input_obj["_datadog"])
+    input_json = json.dumps(input_obj)
+    params["input"] = input_json  # we have to re-write the new JSON string back to params.input
 
     core.dispatch("botocore.stepfunctions.update_input", [ctx, None, None, input_obj["_datadog"], None])
 
