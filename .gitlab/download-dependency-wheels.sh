@@ -2,6 +2,9 @@
 set -eo pipefail
 
 PYTHON_EXE=${1:-python3}
+PYTHON_VERSION=$($PYTHON_EXE -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+ARCH=${2}
+PLATFORM=${3}
 
 if [ -z "$CI_COMMIT_SHA" ]; then
   echo "Error: CI_COMMIT_SHA was not provided"

@@ -76,7 +76,7 @@ build_ddtrace_linux:
     - >
       if [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "aarch64" ];
       then
-        .gitlab/download-dependency-wheels.sh /opt/python/${PYTHON_TAG}/bin/python
+        .gitlab/download-dependency-wheels.sh "/opt/python/${PYTHON_TAG}/bin/python" "${ARCH}" "${PLATFORM}"
       fi
   artifacts:
     name: wheelhouse-${PYTHON_TAG}-${PLATFORM}_${ARCH}
