@@ -69,7 +69,8 @@ api_set_ranges_on_splitted(const StrType& source_str,
 bool
 has_pyerr();
 
-std::string has_pyerr_as_string();
+std::string
+has_pyerr_as_string();
 
 void
 pyexport_aspect_helpers(py::module& m);
