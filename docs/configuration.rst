@@ -304,7 +304,7 @@ The following environment variables for the tracer are supported:
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
-         Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
+         Currently, the supported versions are: ``v0.4`` and ``v0.5``.
      version_added:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.

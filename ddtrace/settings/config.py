@@ -398,6 +398,14 @@ class Config(object):
             )
         )
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        if self._trace_api == "v0.3":
+            deprecate(
+                "Using DD_TRACE_API_VERSION=v0.3 is deprecated.",
+                message="The v0.3/traces agent endpoint is no longer supported. v0.4/traces will be used instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._trace_api = "v0.4"
         self._trace_writer_buffer_size = int(
             os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
         )
