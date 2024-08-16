@@ -16,7 +16,6 @@ from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
 from ddtrace.contrib.pytest._utils import _get_session_command
-from ddtrace.contrib.pytest._utils import _get_session_id
 from ddtrace.contrib.pytest._utils import _get_source_file_info
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
@@ -145,11 +144,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     log.debug("CI Visibility enabled - starting test session")
 
     try:
-        session_id = _get_session_id(session)
         command = _get_session_command(session)
 
         CISession.discover(
-            session_id,
             test_command=command,
             test_framework=FRAMEWORK,
             test_framework_version=pytest.__version__,
@@ -158,10 +155,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             suite_operation_name="pytest.test_suite",
             test_operation_name=dd_config.pytest.operation_name,
             reject_duplicates=False,
-            reject_unknown_items=True,
         )
 
-        CISession.start(session_id)
+        CISession.start()
     except:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
@@ -383,8 +379,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_ci_visibility_enabled():
         return
 
-    session_id = _get_session_id(session)
-
     # TODO: make coverage officially part of test session object so we don't use set_tag() directly.
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
@@ -396,10 +390,12 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if not isinstance(lines_pct_value, float):
             log.warning("Tried to add total covered percentage to session span but the format was unexpected")
             return
-        CISession.set_tag(session_id, test.TEST_LINES_PCT, lines_pct_value)
+        CISession.set_tag(test.TEST_LINES_PCT, lines_pct_value)
 
-    CISession.finish(session_id, force_finish_children=True)
+    CISession.finish(force_finish_children=True)
     disable_ci_visibility()
+        CISession.finish(force_finish_children=True)
+        disable_ci_visibility()
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

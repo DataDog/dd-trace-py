@@ -24,26 +24,27 @@ log = get_logger(__name__)
 
 
 class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
-    event_type = TEST
-    event_type_metric_name = EVENT_TYPES.TEST
+    _event_type = TEST
+    _event_type_metric_name = EVENT_TYPES.TEST
 
     def __init__(
         self,
-        item_id: CITestId,
+        name: str,
         session_settings: CIVisibilitySessionSettings,
+        parameters: Optional[str] = None,
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[CISourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
         is_early_flake_retry: bool = False,
         resource: Optional[str] = None,
     ):
-        self.parameters = item_id.parameters
+        self.parameters = parameters
         super().__init__(
-            item_id,
+            name,
             session_settings,
             session_settings.test_operation_name,
             initial_tags,
-            resource=resource if resource is not None else item_id.name,
+            resource=resource if resource is not None else name,
         )
         self._codeowners = codeowners
         self._source_file_info = source_file_info
@@ -52,8 +53,8 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         self._exc_info: Optional[CIExcInfo] = None
         self._coverage_data: CICoverageData = CICoverageData()
 
-        if item_id.parameters:
-            self.set_tag(test.PARAMETERS, item_id.parameters)
+        if self.parameters is not None:
+            self.set_tag(test.PARAMETERS, parameters)
 
         # Currently unsupported
         self._is_benchmark = None
@@ -75,21 +76,17 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
 
     def _telemetry_record_event_created(self):
         record_event_created(
-            event_type=self.event_type_metric_name,
+            event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
             is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
         )
 
     def _telemetry_record_event_finished(self):
         record_event_finished(
-            event_type=self.event_type_metric_name,
+            event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
             is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
         )
-
-    def start(self) -> None:
-        log.debug("Starting CI Visibility test %s", self.item_id)
-        super().start()
 
     def finish_test(
         self,
@@ -97,7 +94,7 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         reason: Optional[str] = None,
         exc_info: Optional[CIExcInfo] = None,
     ) -> None:
-        log.debug("Finishing CI Visibility test %s, with status: %s, reason: %s", self.item_id, status, reason)
+        log.debug("CI Visibility: finishing %s, with status: %s, reason: %s", self, status, reason)
         self.set_status(status)
         if reason is not None:
             self.set_tag(test.SKIP_REASON, reason)
@@ -114,23 +111,29 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
             self.parent.count_itr_skipped()
 
     def finish_itr_skipped(self) -> None:
-        log.debug("Finishing CI Visibility test %s with ITR skipped", self.item_id)
+        log.debug("Finishing CI Visibility test %s with ITR skipped", self)
         self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish_test(CITestStatus.SKIP)
 
-    @classmethod
-    def make_early_flake_retry_from_test(cls, original_test, retry_number: int) -> "CIVisibilityTest":
+    def make_early_flake_retry_from_test(self, original_test_id: CITestId, retry_number: int) -> None:
+        if self.parent is None:
+            raise ValueError("Cannot make early flake retry from test without a parent")
+
         new_test_id = CITestId(
-            original_test.item_id.parent_id, original_test.name, original_test.parameters, retry_number
+            original_test_id.parent_id, original_test_id.name, original_test_id.parameters, retry_number
         )
-        return cls(
+        self.parent.add_child(
             new_test_id,
-            original_test._session_settings,
-            codeowners=original_test._codeowners,
-            source_file_info=original_test._source_file_info,
-            initial_tags=original_test._tags,
-            is_early_flake_retry=True,
+            self.__class__(
+                original_test_id.name,
+                self._session_settings,
+                parameters=self.parameters,
+                codeowners=self._codeowners,
+                source_file_info=self._source_file_info,
+                initial_tags=self._tags,
+                is_early_flake_retry=True,
+            ),
         )
 
     def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:

@@ -7,8 +7,6 @@ from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISessionId
-from ddtrace.ext.ci_visibility.api import CITestStatus
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
@@ -23,15 +21,15 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisibilityModule]):
+class CIVisibilitySession(CIVisibilityParentItem[CIModuleId, CIVisibilityModule]):
     """This class represents a CI session and is the top level in the hierarchy of CI visibility items.
 
     It does not access its skip-level descendents directly as they are expected to be managed through their own parent
     instances.
     """
 
-    event_type = SESSION_TYPE
-    event_type_metric_name = EVENT_TYPES.SESSION
+    _event_type = SESSION_TYPE
+    _event_type_metric_name = EVENT_TYPES.SESSION
 
     def __init__(
         self,
@@ -39,22 +37,12 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
         initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
         log.debug("Initializing CI Visibility session")
-        super().__init__(None, session_settings, session_settings.session_operation_name, initial_tags)
+        super().__init__(
+            "ci_visibility_session", session_settings, session_settings.session_operation_name, initial_tags
+        )
         self._test_command = self._session_settings.test_command
 
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
-
-    def __repr__(self) -> str:
-        """Sessions do not have an item ID, so we overwrite the base class method"""
-        return f"{self.__class__.__name__}"
-
-    def start(self) -> None:
-        log.debug("Starting CI Visibility session")
-        super().start()
-
-    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None) -> None:
-        log.debug("Finishing CI Visibility session")
-        super().finish(force=force, override_status=override_status)
 
     def _get_hierarchy_tags(self) -> Dict[str, Any]:
         return {
@@ -75,7 +63,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
 
     def _telemetry_record_event_created(self):
         record_event_created(
-            event_type=self.event_type_metric_name,
+            event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
             has_codeowners=self._codeowners is not None,
             is_unsupported_ci=self._session_settings.is_unsupported_ci,
@@ -83,7 +71,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
 
     def _telemetry_record_event_finished(self):
         record_event_finished(
-            event_type=self.event_type_metric_name,
+            event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
             has_codeowners=self._codeowners is not None,
             is_unsupported_ci=self._session_settings.is_unsupported_ci,
