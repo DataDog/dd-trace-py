@@ -98,6 +98,7 @@ def get_application(service, version, env):
     # can change during runtime
     return _get_application((service, version, env))
 
+
 _host_info = None
 
 
