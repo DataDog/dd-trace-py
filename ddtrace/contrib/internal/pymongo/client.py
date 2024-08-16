@@ -5,6 +5,7 @@ from typing import Iterable
 
 # 3p
 import pymongo
+from wrapt import ObjectProxy
 
 # project
 import ddtrace
@@ -22,7 +23,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.vendor.wrapt import ObjectProxy
 
 from .parse import parse_msg
 from .parse import parse_query
