@@ -1,15 +1,8 @@
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+COMPONENT_VALUE = "unittest"
+FRAMEWORK = "unittest"
+KIND = "test"
 
-from ..internal.unittest.constants import *  # noqa: F401,F403
-
-
-def __getattr__(name):
-    deprecate(
-        ("%s.%s is deprecated" % (__name__, name)),
-        category=DDTraceDeprecationWarning,
-    )
-
-    if name in globals():
-        return globals()[name]
-    raise AttributeError("%s has no attribute %s", __name__, name)
+TEST_OPERATION_NAME = "unittest.test"
+SUITE_OPERATION_NAME = "unittest.test_suite"
+SESSION_OPERATION_NAME = "unittest.test_session"
+MODULE_OPERATION_NAME = "unittest.test_module"
