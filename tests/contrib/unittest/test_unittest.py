@@ -7,7 +7,6 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal.unittest.patch import _set_tracer
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.unittest.constants import FRAMEWORK
 from ddtrace.contrib.unittest.constants import KIND
@@ -15,6 +14,7 @@ from ddtrace.contrib.unittest.constants import MODULE_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import TEST_OPERATION_NAME
+from ddtrace.contrib.unittest.patch import _set_tracer
 from ddtrace.contrib.unittest.patch import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test

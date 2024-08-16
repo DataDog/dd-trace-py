@@ -3,8 +3,6 @@ deprecations:
   - |
     tornado: Deprecates all modules in the ``ddtrace.contrib.tornado`` package. Use attributes exposed in ``ddtrace.contrib.tornado.__all__`` instead.
   - |
-    unittest: Deprecates the ``ddtrace.contrib.unittest`` module. Use attributes exposed in ``ddtrace.contrib.unittest.__all__`` instead.
-  - |
     urllib: Deprecates the ``ddtrace.contrib.urllib`` module. Use attributes exposed in ``ddtrace.contrib.urllib.__all__`` instead.
   - |
     urllib3: Deprecates the ``ddtrace.contrib.urllib3`` module. Use attributes exposed in ``ddtrace.contrib.urllib3.__all__`` instead.

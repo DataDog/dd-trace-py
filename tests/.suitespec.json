@@ -488,8 +488,7 @@
             "ddtrace/contrib/pytest_benchmark/*"
         ],
         "unittest": [
-            "ddtrace/contrib/unittest/*",
-            "ddtrace/contrib/internal/unittest/*"
+            "ddtrace/contrib/unittest/*"
         ],
         "appsec": [
             "ddtrace/appsec/*",
