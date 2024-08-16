@@ -101,18 +101,17 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
             return result_o;
         }
 
-        auto res = add_aspect(result_o, candidate_text, text_to_add, tx_map);
-        return res;
+        return add_aspect(result_o, candidate_text, text_to_add, tx_map);
     } catch (const py::error_already_set& e) {
-        std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
+        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
         iast_taint_log_error(error_message);
         return result_o;
     } catch (const std::exception& e) {
-        std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
+        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
         iast_taint_log_error(error_message);
         return result_o;
     } catch (...) {
-        std::string error_message = "Unkown IAST propagation error in add_aspect. ";
+        const std::string error_message = "Unkown IAST propagation error in add_aspect. ";
         iast_taint_log_error(error_message);
         return result_o;
     }
