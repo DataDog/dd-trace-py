@@ -3,12 +3,12 @@ import os
 
 import aredis
 import pytest
+from wrapt import ObjectProxy
 
 from ddtrace import Pin
 from ddtrace.contrib.aredis.patch import patch
 from ddtrace.contrib.aredis.patch import unpatch
 from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
-from ddtrace.vendor.wrapt import ObjectProxy
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 

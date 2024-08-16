@@ -3,6 +3,7 @@ Trace queries to botocore api done via a pynamodb client
 """
 
 import pynamodb.connection.base
+import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -20,7 +21,6 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 # Pynamodb connection class
