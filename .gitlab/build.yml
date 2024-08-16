@@ -50,10 +50,12 @@ build_ddtrace_linux:
     - /opt/python/${PYTHON_TAG}/bin/python -m build --wheel --outdir wheelhouse/
     # Repair the wheel
     - ./.gitlab/repair_wheel_linux.sh wheelhouse/
+    # Download wheel dependencies
+    - .gitlab/download-dependency-wheels.sh /opt/python/${PYTHON_TAG}/bin/python
   artifacts:
     paths:
       - wheelhouse/
-
+      - wheelhouse-dep/
 
 build_ddtrace_linux_i686_musl:
   image: "ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest"
@@ -78,59 +80,11 @@ build_ddtrace_linux_i686_musl:
     - /opt/python/${PYTHON_TAG}/bin/python -m build --wheel --outdir wheelhouse/
     # Repair the wheel
     - ./.gitlab/repair_wheel_linux.sh wheelhouse/
+    # Download wheel dependencies
+    - .gitlab/download-dependency-wheels.sh /opt/python/${PYTHON_TAG}/bin/python
   artifacts:
     paths:
       - wheelhouse/
+      - wheelhouse-dep/
 
-# build_ddtrace_windows:
-#   tags: [ "runner:windows-docker", "windowsversion:1809" ]
-#   stage: package
-#   variables:
-#     CIBW_BUILD: "${PYTHON_ABI}-${ARCH}"
-#     CIBW_PLATFORM: windows
-#     CIBW_ENVIRONMENT_WINDOWS: CMAKE_BUILD_PARALLEL_LEVEL=24
-#     CIBW_BEFORE_WINDOWS: rustup target add i686-pc-windows-msvc
-#     CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: |
-#       7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
-#       move "{wheel}" "{dest_dir}"
-#   parallel:
-#     matrix:
-#       - PYTHON_ABI: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
-#         ARCH: ["win32", "win_amd64"]
-#   script:
-#     - |
-#       docker run --rm mcr.microsoft.com/windows/servercore:1809 cmd.exe /C @"
-#       choco install python -y --version 3.12.4
-#       choco install git.install -y
-#       py -m pip install cibuildwheel
-#       py -m cibuildwheel --print-build-identifiers
-#       py -m cibuildwheel --output-dir wheelhouse
-#       "@
-#   artifacts:
-#     paths:
-#       - wheelhouse/
-
-download_dependency_wheels:
-  image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
-  tags: [ "arch:amd64" ]
-  stage: package
-  needs: [ build_ddtrace_linux ]
-  parallel:
-    matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
-      - PYTHON_IMAGE_TAG: "3.7"
-        PYTHON_VERSION: "3.7"
-      - PYTHON_IMAGE_TAG: "3.8"
-        PYTHON_VERSION: "3.8"
-      - PYTHON_IMAGE_TAG: "3.9.13"
-        PYTHON_VERSION: "3.9"
-      - PYTHON_IMAGE_TAG: "3.10.13"
-        PYTHON_VERSION: "3.10"
-      - PYTHON_IMAGE_TAG: "3.11.6"
-        PYTHON_VERSION: "3.11"
-      - PYTHON_IMAGE_TAG: "3.12.0"
-        PYTHON_VERSION: "3.12"
-  script:
-    - .gitlab/download-dependency-wheels.sh
-  artifacts:
-    paths:
-      - "wheelhouse-dep/"
+# TODO: Windows and MacOS Builds
