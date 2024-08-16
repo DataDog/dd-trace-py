@@ -5,6 +5,6 @@ from ddtrace.vendor.debtcollector import deprecate
 
 deprecate(
     "The ddtrace.context module is deprecated and will be removed from the public API.",
-    message="Context class should be imported from ddtrace.trace package",
+    message="Context should be imported from the ddtrace.trace package",
     category=DDTraceDeprecationWarning,
 )
