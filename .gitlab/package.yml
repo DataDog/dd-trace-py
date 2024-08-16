@@ -1,5 +1,6 @@
 build_base_venvs:
   image: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
+  tags: [ "arch:amd64" ]
   stage: package
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 24
