@@ -14,8 +14,6 @@ from pip import _internal
 
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
-from riotfile import SUPPORTED_PYTHON_VERSIONS  # noqa:E402
-
 
 CONTRIB_ROOT = "ddtrace/contrib"
 
