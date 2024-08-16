@@ -65,18 +65,19 @@ def test_string_index(input_str, index_pos, expected_result, tainted):
 
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_index_error_with_tainted_gives_one_log_metric(telemetry_writer):
-    string_input = taint_pyobject(
-        pyobject="abcde",
-        source_name="test_add_aspect_tainting_left_hand",
-        source_value="abcde",
-        source_origin=OriginType.PARAMETER,
-    )
-    with pytest.raises(IndexError):
-        mod.do_index(string_input, 100)
+    with override_env({IAST.ENV_DEBUG: "true"}):
+        string_input = taint_pyobject(
+            pyobject="abcde",
+            source_name="test_add_aspect_tainting_left_hand",
+            source_value="abcde",
+            source_origin=OriginType.PARAMETER,
+        )
+        with pytest.raises(IndexError):
+            mod.do_index(string_input, 100)
 
-    list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 1
-    assert "IAST propagation error. index_aspect" in list_metrics_logs[0]["message"]
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 1
+        assert "IAST propagation error. index_aspect" in list_metrics_logs[0]["message"]
 
 
 @pytest.mark.skip_iast_check_logs

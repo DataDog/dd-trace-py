@@ -3,7 +3,7 @@
 #include "GenericUtils.h"
 
 bool
-asbool(py::object value)
+asbool(const py::object& value)
 {
     if (value.is_none()) {
         return false;
@@ -12,7 +12,7 @@ asbool(py::object value)
         return value.cast<bool>();
     }
     if (py::isinstance<py::str>(value)) {
-        std::string str_value = value.cast<std::string>();
+        auto str_value = value.cast<std::string>();
         std::transform(str_value.begin(), str_value.end(), str_value.begin(), ::tolower);
         return str_value == "true" || str_value == "1";
     }
@@ -25,15 +25,17 @@ asbool(const char* value)
     if (value == nullptr) {
         return false;
     }
-    py::object debug_value_py = py::str(value);
+    const py::object debug_value_py = py::str(value);
     return asbool(debug_value_py);
 }
 
 void
 iast_taint_log_error(const std::string& msg)
 {
+    cerr << "JJJ taint_log_1\n";
     try {
         if (!is_iast_debug_enabled()) {
+    cerr << "JJJ taint_log_2\n";
             return;
         }
 
@@ -41,12 +43,14 @@ iast_taint_log_error(const std::string& msg)
         py::list stack = inspect.attr("stack")();
         std::string frame_info;
 
+    cerr << "JJJ taint_log_3\n";
         for (size_t i = 0; i < std::min(stack.size(), static_cast<size_t>(7)); ++i) {
             py::object frame = stack[i];
             py::object frame_info_obj = frame.attr("frame");
             std::string filename = py::str(frame_info_obj.attr("f_code").attr("co_filename"));
             int lineno = py::int_(frame_info_obj.attr("f_lineno"));
             frame_info += filename + ", " + std::to_string(lineno) + "\n";
+    cerr << "JJJ taint_log_4\n";
         }
 
         auto log = get_python_logger();
@@ -54,12 +58,16 @@ iast_taint_log_error(const std::string& msg)
 
         py::module metrics = py::module::import("ddtrace.appsec._iast._metrics");
         metrics.attr("_set_iast_error_metric")("IAST propagation error. " + msg);
+    cerr << "JJJ taint_log_5\n";
 
     } catch (const py::error_already_set& e) {
+    cerr << "JJJ taint_log_6\n";
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
     } catch (const std::exception& e) {
+    cerr << "JJJ taint_log_7\n";
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
     } catch (...) {
+    cerr << "JJJ taint_log_8\n";
         cerr << "ddtrace: unkown error when trying to log an IAST native error";
     }
 }
