@@ -94,3 +94,15 @@ class AwakeablePeriodicService(PeriodicService):
         # type: (...) -> None
         if self._worker:
             self._worker.awake()
+
+
+class ForksafeAwakeablePeriodicService(AwakeablePeriodicService):
+    """An awakeable periodic service that auto-restarts on fork."""
+
+    def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        super()._start_service(*args, **kwargs)
+        forksafe.register(super()._start_service)
+
+    def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        forksafe.unregister(super()._start_service)
+        super()._stop_service(*args, **kwargs)

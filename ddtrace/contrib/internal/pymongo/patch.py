@@ -1,6 +1,7 @@
 import contextlib
 
 import pymongo
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
@@ -13,7 +14,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import mongo
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .client import TracedMongoClient
 from .client import set_address_tags
