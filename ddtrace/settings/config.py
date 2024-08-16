@@ -473,6 +473,13 @@ class Config(object):
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+        if self._128_bit_trace_id_logging_enabled:
+            deprecate(
+                "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
+                message="Log injection format is now configured automatically.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")

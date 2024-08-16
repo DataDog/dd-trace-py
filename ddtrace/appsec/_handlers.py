@@ -3,6 +3,8 @@ import functools
 import io
 import json
 
+from wrapt import when_imported
+from wrapt import wrap_function_wrapper as _w
 import xmltodict
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -16,8 +18,6 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.wrapt import when_imported
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 MessageMapContainer = None

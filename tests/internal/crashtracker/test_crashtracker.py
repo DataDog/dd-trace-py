@@ -320,7 +320,7 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
-    env["DD_CRASHTRACKER_ENABLED"] = "false"
+    env["DD_CRASHTRACKING_ENABLED"] = "false"
     stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
     # Check for expected exit condition
@@ -375,7 +375,7 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
-    env["DD_CRASHTRACKER_STACKTRACE_RESOLVER"] = "none"
+    env["DD_CRASHTRACKING_STACKTRACE_RESOLVER"] = "none"
     stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition
@@ -401,7 +401,7 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
-    env["DD_CRASHTRACKER_ENABLED"] = "false"
+    env["DD_CRASHTRACKING_ENABLED"] = "false"
     stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition
@@ -412,6 +412,45 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
     # Wait for the connection, which should fail
     conn = utils.listen_get_conn(sock)
     assert not conn
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_tags_required():
+    # Tests tag ingestion in the core API
+    import ctypes
+    import os
+
+    import tests.internal.crashtracker.utils as utils
+
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
+
+    pid = os.fork()
+    if pid == 0:
+        assert utils.start_crashtracker(port)
+        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+        assert not stdout_msg
+        assert not stderr_msg
+
+        ctypes.string_at(0)
+        exit(-1)
+
+    conn = utils.listen_get_conn(sock)
+    assert conn
+    data = utils.conn_to_bytes(conn)
+    conn.close()
+    assert b"string_at" in data
+
+    # Now check for the tags
+    tags = {
+        "is_crash": "true",
+        "severity": "crash",
+    }
+    for k, v in tags.items():
+        assert k.encode() in data, k
+        assert v.encode() in data, v
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -430,7 +469,7 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
         tag_prefix + "_tag1": "quartz_flint",
         tag_prefix + "_tag2": "quartz_chert",
     }
-    env["DD_CRASHTRACKER_TAGS"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
+    env["DD_CRASHTRACKING_TAGS"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
     stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition

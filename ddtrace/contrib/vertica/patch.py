@@ -1,9 +1,10 @@
 import importlib
 
+import wrapt
+
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -47,6 +48,8 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     tags = {}
     tags[net.TARGET_HOST] = instance.options["host"]
     tags[net.TARGET_PORT] = instance.options["port"]
+    tags[net.SERVER_ADDRESS] = instance.options["host"]
+
     if "user" in instance.options:
         tags[dbx.USER] = instance.options["user"]
     if "database" in instance.options:
