@@ -5,6 +5,7 @@ build_base_venvs:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 24
     PIP_VERBOSE: 1
+    PATH: /root/.pyenv/shims:/root/.pyenv/bin:/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
