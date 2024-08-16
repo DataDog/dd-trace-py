@@ -37,7 +37,6 @@ from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
-from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase  # noqa:F401
 
@@ -571,11 +570,6 @@ class AgentWriter(HTTPWriter):
                 "endpoint available, or explicitly set the trace API version to, e.g., v0.4."
             )
             return None
-        if client.ENDPOINT == "v0.4/traces":
-            self._clients = [AgentWriterClientV3(self._buffer_size, self._max_payload_size)]
-            # These endpoints share the same encoding, so we can try sending the
-            # same payload over the downgraded endpoint.
-            return payload
         raise ValueError()
 
     def _send_payload(self, payload, count, client):

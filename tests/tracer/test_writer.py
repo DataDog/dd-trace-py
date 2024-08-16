@@ -723,7 +723,6 @@ def test_bad_encoding(monkeypatch, writer_class):
     "init_api_version,api_version,endpoint,encoder_cls",
     [
         (None, "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
-        ("v0.3", "v0.3", "v0.3/traces", MSGPACK_ENCODERS["v0.3"]),
         ("v0.4", "v0.4", "v0.4/traces", MSGPACK_ENCODERS["v0.4"]),
         ("v0.5", "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
     ],

@@ -552,7 +552,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         raise NotImplementedError()
 
 
-cdef class MsgpackEncoderV03(MsgpackEncoderBase):
+cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cpdef flush(self):
         with self._lock:
             try:
