@@ -14,7 +14,6 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
 
 from ...settings import _config as config  # noqa:F401
-from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
 
 
