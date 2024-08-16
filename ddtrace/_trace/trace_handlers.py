@@ -645,9 +645,10 @@ def _on_botocore_kinesis_update_record(ctx, stream, data_obj: Dict, record, inje
         HTTPPropagator.inject(ctx[ctx["call_key"]].context, data_obj["_datadog"])
 
 
-def _on_botocore_update_messages(ctx, span, _, trace_data, __, message=None):
+def _on_botocore_update_messages(ctx, span, _, trace_data, __, message=None) -> Dict:
     context = span.context if span else ctx[ctx["call_key"]].context
-    HTTPPropagator.inject(context, trace_data)
+    HTTPPropagator.inject(context, trace_data["_datadog"])
+    return trace_data
 
 
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
@@ -789,7 +790,7 @@ def listen():
     core.on("botocore.sqs_sns.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_stepfunctions_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_stepfunctions_api_call.exception", _on_botocore_patched_api_call_exception)
-    core.on("botocore.stepfunctions.update_messages", _on_botocore_update_messages)
+    core.on("botocore.stepfunctions.update_input", _on_botocore_update_messages)
     core.on("botocore.eventbridge.update_messages", _on_botocore_update_messages)
     core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)

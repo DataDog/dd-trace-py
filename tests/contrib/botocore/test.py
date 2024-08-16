@@ -1046,14 +1046,17 @@ class BotocoreTest(TracerTestCase):
             roleArn="arn:aws:iam::012345678901:role/DummyRole",
         )
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
-        sf.start_execution(
-            stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln", input='{"baz":1}'
-        )
+        start_execution_dict = {
+            "stateMachineArn": "arn:aws:states:us-west-2:000000000000:stateMachine:lincoln",
+            input: '{"baz": 1}',
+        }
+        sf.start_execution(**start_execution_dict)
         # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
         spans = self.get_spans()
         assert spans
         span = spans[0]
         assert span.name == "states.command"  # This confirms our patch is working
+        assert start_execution_dict["input"] == "blah"
         sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln")
 
     @mock_stepfunctions
