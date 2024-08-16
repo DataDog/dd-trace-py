@@ -18,7 +18,7 @@ inline bool
 is_iast_debug_enabled()
 {
     cerr << "JJJ is_iast_debug_enabled 1\n";
-    const char* debug_value = std::getenv("IAST_DEBUG");
+    const char* debug_value = std::getenv("_DD_IAST_DEBUG");
     if (debug_value == nullptr) {  // JJJ
         cerr << "JJJ is_iast_debug_enabled 1.5, debug_value is nullptr" << endl;
     }
