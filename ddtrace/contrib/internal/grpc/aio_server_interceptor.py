@@ -11,6 +11,7 @@ from grpc.aio._typing import RequestIterableType
 from grpc.aio._typing import RequestType
 from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
+import wrapt
 
 from ddtrace import Pin  # noqa:F401
 from ddtrace import Span  # noqa:F401
@@ -29,7 +30,6 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.vendor import wrapt
 
 
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
