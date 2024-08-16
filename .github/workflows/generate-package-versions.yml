@@ -29,6 +29,3 @@ jobs:
       team-reviewers: "DataDog/apm-core-python,DataDog/apm-idm-python"
       body: |
         Updates the package versions
-
-
-
