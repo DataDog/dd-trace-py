@@ -9,6 +9,7 @@ from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
+from wrapt import FunctionWrapper
 import xmltodict
 
 from ddtrace import config
@@ -28,7 +29,6 @@ from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._utils import from_wsgi_header
-from ddtrace.vendor.wrapt import FunctionWrapper
 
 
 try:

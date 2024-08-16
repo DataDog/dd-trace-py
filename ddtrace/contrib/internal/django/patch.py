@@ -12,6 +12,9 @@ from inspect import isclass
 from inspect import isfunction
 import os
 
+import wrapt
+from wrapt.importer import when_imported
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace._trace.trace_handlers import _ctype_from_headers
@@ -45,9 +48,7 @@ from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.vendor import wrapt
 from ddtrace.vendor.packaging.version import parse as parse_version
-from ddtrace.vendor.wrapt.importer import when_imported
 
 
 log = get_logger(__name__)

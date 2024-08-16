@@ -105,7 +105,7 @@ class TestLLMObsOpenaiV0:
         if not hasattr(openai, "ChatCompletion"):
             pytest.skip("ChatCompletion not supported for this version of openai")
         with get_openai_vcr(subdirectory_name="v0").use_cassette("chat_completion_streamed.yaml"):
-            with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
                 model = "gpt-3.5-turbo"
                 resp_model = model
                 input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
@@ -182,7 +182,7 @@ class TestLLMObsOpenaiV0:
         if not hasattr(openai, "ChatCompletion"):
             pytest.skip("ChatCompletion not supported for this version of openai")
         with get_openai_vcr(subdirectory_name="v0").use_cassette("chat_completion_function_call_streamed.yaml"):
-            with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
                 model = "gpt-3.5-turbo"
                 resp_model = model
                 mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -366,8 +366,8 @@ class TestLLMObsOpenaiV1:
 
     def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
-            with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.contrib.openai.utils._est_tokens") as mock_est:
+            with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
+                with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
                     mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
                     mock_est.return_value = 2
                     model = "ada"
@@ -431,8 +431,8 @@ class TestLLMObsOpenaiV1:
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
         """
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
-            with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.contrib.openai.utils._est_tokens") as mock_est:
+            with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
+                with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
                     mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
                     mock_est.return_value = 8
                     model = "gpt-3.5-turbo"

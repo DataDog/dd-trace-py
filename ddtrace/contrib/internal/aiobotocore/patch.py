@@ -1,6 +1,7 @@
 import os
 
 import aiobotocore.client
+import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -20,7 +21,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
@@ -128,7 +128,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         try:
             operation = get_argument_value(args, kwargs, 0, "operation_name")
-            params = get_argument_value(args, kwargs, 1, "params")
+            params = get_argument_value(args, kwargs, 1, "api_params")
 
             span.resource = "{}.{}".format(endpoint_name, operation.lower())
 
