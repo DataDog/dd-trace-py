@@ -249,6 +249,7 @@ def test_string_slice_2_and_two_strings_two_tainted_overlap_tained(
     ],
 )
 def test_string_slice_with_none_params(input_str, start_pos, end_pos, step, expected_result, tainted):
+    print("JJJPY input_str: %s start_pos: %s end_post: %s step: %s" % (input_str, start_pos, end_pos, step))
     result = mod.do_slice(input_str, start_pos, end_pos, step)  # pylint: disable=no-member
     assert result == expected_result
 

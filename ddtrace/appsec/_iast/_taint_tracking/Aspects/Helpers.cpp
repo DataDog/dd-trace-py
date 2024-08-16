@@ -2,6 +2,7 @@
 #include "Initializer/Initializer.h"
 #include <algorithm>
 #include <regex>
+#include <iostream>  // JJJ
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -423,26 +424,28 @@ parse_params(size_t position,
 bool
 has_pyerr()
 {
-    return has_pyerr_as_cstring() != nullptr;
+    return !has_pyerr_as_string().empty();
 }
 
-const char* has_pyerr_as_cstring()
+std::string has_pyerr_as_string()
 {
 
-    if (const auto exception = PyErr_Occurred()) {
+    if (PyErr_Occurred()) {
         PyObject *extype, *value, *traceback;
         PyErr_Fetch(&extype, &value, &traceback);
         PyErr_NormalizeException(&extype, &value, &traceback);
-        const auto exception_msg_as_pyobject = py::str(PyObject_Str(value));
-        const auto exception_msg_as_charptr = py::str(exception_msg_as_pyobject).cast<std::string>().c_str();
-        py::set_error(extype, exception_msg_as_pyobject);
+        const auto exception_msg_as_pystr = py::str(PyObject_Str(value));
+        cerr << "JJJ has_pyerr_as_string, exception_msg_as_pystr: " << exception_msg_as_pystr << endl;
+        const auto exception_msg_as_string = std::string(PyUnicode_AsUTF8(exception_msg_as_pystr.ptr()));
+        cerr << "JJJ has_pyerr_as_string, exception_msg_as_charptr: " << exception_msg_as_string << endl;
+        py::set_error(extype, exception_msg_as_pystr);
         Py_DecRef(extype);
         Py_DecRef(value);
         Py_DecRef(traceback);
-        return exception_msg_as_charptr;
+        return exception_msg_as_string;
     }
 
-    return nullptr;
+    return {};
 }
 
 void
@@ -533,5 +536,5 @@ pyexport_aspect_helpers(py::module& m)
           py::return_value_policy::move);
     m.def("parse_params", &parse_params);
     m.def("has_pyerr", &has_pyerr);
-    m.def("has_pyerr_as_cstring", &has_pyerr_as_cstring);
+    m.def("has_pyerr_as_string", &has_pyerr_as_string);
 }

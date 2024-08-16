@@ -32,42 +32,70 @@ asbool(const char* value)
 void
 iast_taint_log_error(const std::string& msg)
 {
-    cerr << "JJJ taint_log_1\n";
+    cerr << "JJJ taint_log_1===================\n";
     try {
         if (!is_iast_debug_enabled()) {
-    cerr << "JJJ taint_log_2\n";
+            cerr << "JJJ taint_log_2\n";
             return;
         }
 
-        py::object inspect = py::module::import("inspect");
-        py::list stack = inspect.attr("stack")();
+        // Try to get the file and line number of the caller
         std::string frame_info;
+        try {
+            cerr << "JJJ taint_log_1.1\n";
+            const py::module inspect = py::module::import("inspect");
+            cerr << "JJJ taint_log_1.2\n";
+            const py::list stack = inspect.attr("stack")();
+            cerr << "JJJ taint_log_1.3\n";
+            cerr << "JJJ taint_log_1.4\n";
 
-    cerr << "JJJ taint_log_3\n";
-        for (size_t i = 0; i < std::min(stack.size(), static_cast<size_t>(7)); ++i) {
-            py::object frame = stack[i];
-            py::object frame_info_obj = frame.attr("frame");
-            std::string filename = py::str(frame_info_obj.attr("f_code").attr("co_filename"));
-            int lineno = py::int_(frame_info_obj.attr("f_lineno"));
-            frame_info += filename + ", " + std::to_string(lineno) + "\n";
-    cerr << "JJJ taint_log_4\n";
+            cerr << "JJJ taint_log_3\n";
+            for (size_t i = 0; i < std::min(stack.size(), static_cast<size_t>(7)); ++i) {
+                py::object frame = stack[i];
+                py::object frame_info_obj = frame.attr("frame");
+                std::string filename = py::str(frame_info_obj.attr("f_code").attr("co_filename"));
+                const int lineno = py::int_(frame_info_obj.attr("f_lineno"));
+                frame_info += filename + ", " + std::to_string(lineno) + "\n";
+                cerr << "JJJ taint_log_4\n";
+            }
+        } catch (const py::error_already_set& e) {
+            cerr << "JJJ taint_log_5\n";
+            cerr << "ddtrace: error in iast_taint_log_error trying to retrieve file and line: " << e.what() << "\n";
+            PyErr_Clear(); // Clear the error state
+            frame_info = "(unkown file)";
         }
 
-        auto log = get_python_logger();
+        const auto log = get_python_logger();
         log.attr("debug")(msg + ": " + frame_info);
 
-        py::module metrics = py::module::import("ddtrace.appsec._iast._metrics");
+        const py::module metrics = py::module::import("ddtrace.appsec._iast._metrics");
         metrics.attr("_set_iast_error_metric")("IAST propagation error. " + msg);
-    cerr << "JJJ taint_log_5\n";
+        cerr << "JJJ taint_log_5\n";
 
     } catch (const py::error_already_set& e) {
-    cerr << "JJJ taint_log_6\n";
+        cerr << "JJJ iast_taint_log_error exception 1\n";
+        if (!e.trace().is_none()) {
+            cerr << "JJJ exc: 1, what: " << e.what() << "\n";
+            cerr << "JJJ exc: 2\n";
+
+            PyObject *type, *value, *tb;
+            PyErr_Fetch(&type, &value, &tb);
+            if (value) {
+                std::cerr << "Exception value: " << py::str(value).cast<std::string>() << "\n";
+            }
+            if (tb) {
+                std::cerr << "Traceback:\n" << py::str(tb).cast<std::string>() << "\n";
+            }
+        }
+        cerr << "JJJ exc: 6\n";
+        // std::cerr << "Traceback: " << e.trace().cast<std::string>() << "\n";      // Print the traceback
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
+        PyErr_Clear(); // Clear the error state
     } catch (const std::exception& e) {
-    cerr << "JJJ taint_log_7\n";
+        cerr << "JJJ iast_taint_log_error exception 2\n";
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
     } catch (...) {
-    cerr << "JJJ taint_log_8\n";
+        cerr << "JJJ iast_taint_log_error exception 3\n";
         cerr << "ddtrace: unkown error when trying to log an IAST native error";
     }
 }
