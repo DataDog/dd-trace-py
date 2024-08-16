@@ -835,3 +835,12 @@ def test_json_encoder_traces_bytes():
     assert "\\x80span.a" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]
+
+
+@pytest.mark.subprocess(
+    env={"DD_TRACE_API_VERSION": "v0.3"}, err=".*Using DD_TRACE_API_VERSION=v0.3 is deprecated. Use v0.4 instead.*"
+)
+def test_v03_trace_api_deprecation():
+    from ddtrace import config
+
+    assert config._trace_api == "v0.4"
