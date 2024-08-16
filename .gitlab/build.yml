@@ -30,6 +30,7 @@ build_ddtrace_sdist:
     - export PATH=$HOME/.cargo/bin:$PATH
     - python3.12 -m build . --sdist --outdir wheelhouse/
   artifacts:
+    name: ddtrace-sdist
     paths:
       - wheelhouse/
 
@@ -78,6 +79,7 @@ build_ddtrace_linux:
         .gitlab/download-dependency-wheels.sh /opt/python/${PYTHON_TAG}/bin/python
       fi
   artifacts:
+    name: wheelhouse-${PYTHON_TAG}-${PLATFORM}_${ARCH}
     paths:
       - wheelhouse/
       - wheelhouse-dep/
