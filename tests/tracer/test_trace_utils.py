@@ -402,13 +402,16 @@ def test_set_http_meta(
     uri,
     path_params,
     cookies,
-    appsec_enabled,
     span_type,
+    appsec_enabled,
 ):
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
     span.span_type = span_type
     with override_global_config({"_asm_enabled": appsec_enabled}):
+        from ddtrace.appsec import _handlers
+
+        _handlers.listen()
         trace_utils.set_http_meta(
             span,
             int_config,
