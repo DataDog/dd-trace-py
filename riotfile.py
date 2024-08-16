@@ -292,12 +292,79 @@ venv = Venv(
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
             },
             venvs=[
-                Venv(pys=select_pys()),
+                Venv(name="tracer--runtime", command="pytest -v {cmdargs} tests/tracer/runtime", pys=select_pys()),
+                Venv(
+                    name="tracer--1",
+                    command="pytest -v {cmdargs} tests/tracer/test_agent.py "
+                    + "tests/tracer/test_atexit.py tests/tracer/test_ci.py "
+                    + "tests/tracer/test_compat.py",
+                    pys=select_pys(),
+                ),
+                Venv(
+                    name="tracer--2",
+                    command="pytest -v {cmdargs} tests/tracer/test_constants.py "
+                    + "tests/tracer/test_context.py tests/tracer/test_correlation_log_context.py "
+                    + "tests/tracer/test_encoders.py",
+                    pys=select_pys(),
+                ),
+                Venv(
+                    name="tracer--3",
+                    command="pytest -v {cmdargs} tests/tracer/test_env_vars.py "
+                    + "tests/tracer/test_filters.py tests/tracer/test_gitmetadata.py "
+                    + "tests/tracer/test_global_config.py",
+                    pys=select_pys(),
+                ),
+                Venv(
+                    name="tracer--4",
+                    command="pytest -v {cmdargs} tests/tracer/test_hooks.py "
+                    + "tests/tracer/test_hostname.py tests/tracer/test_http.py "
+                    + "tests/tracer/test_instance_config.py",
+                    pys=select_pys(),
+                ),
+                Venv(
+                    name="tracer--5",
+                    command="pytest -v {cmdargs} tests/tracer/test_logger.py "
+                    + "tests/tracer/test_memory_leak.py tests/tracer/test_monkey.py "
+                    + "tests/tracer/test_pin.py",
+                    pys=select_pys(),
+                ),
+                Venv(
+                    name="tracer--6",
+                    command="pytest -v {cmdargs} tests/tracer/test_processors.py "
+                    + "tests/tracer/test_propagation.py tests/tracer/test_rand.py "
+                    + "tests/tracer/test_rate_limiter.py",
+                    pys=select_pys(),
+                ),
+                Venv(
+                    name="tracer--7",
+                    command="pytest -v {cmdargs} tests/tracer/test_sampler.py "
+                    + "tests/tracer/test_service.py tests/tracer/test_settings.py "
+                    + "tests/tracer/test_single_span_sampling_rules.py",
+                    pys=select_pys(),
+                ),
+                Venv(
+                    name="tracer--8",
+                    command="pytest -v {cmdargs} tests/tracer/test_sma.py "
+                    + "tests/tracer/test_span.py tests/tracer/test_tagset.py "
+                    + "tests/tracer/test_trace_utils.py",
+                    pys=select_pys(),
+                ),
+                Venv(
+                    name="tracer--9",
+                    command="pytest -v {cmdargs} tests/tracer/test_tracer.py "
+                    + "tests/tracer/test_utils.py tests/tracer/test_version.py "
+                    + "tests/tracer/test_writer.py",
+                    pys=select_pys(),
+                ),
                 # This test variant ensures tracer tests are compatible with both 64bit trace ids.
                 # 128bit trace ids are tested by the default case above.
                 Venv(
                     name="tracer-128-bit-traceid-disabled",
                     pys=MAX_PYTHON_VERSION,
+                    command="pytest -v {cmdargs} tests/tracer/test_processors.py "
+                    + "tests/tracer/test_writer.py tests/tracer/test_span.py "
+                    + "tests/tracer/test_propagation.py tests/tracer/test_correlation_log_context.py "
+                    + "tests/treacer/test_sampler.py",
                     env={
                         "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
                     },
@@ -305,12 +372,14 @@ venv = Venv(
                 Venv(
                     name="tracer-python-optimize",
                     env={"PYTHONOPTIMIZE": "1"},
+                    command="pytest -v {cmdargs} tests/tracer/test_tracer.py",
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
                 ),
                 Venv(
                     name="tracer-legacy-attrs",
                     pkgs={"cattrs": "<23.2.0", "attrs": "==22.1.0"},
+                    command="pytest -v {cmdargs} tests/tracer/test_tracer.py",
                     # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
                     pys=MIN_PYTHON_VERSION,
                 ),

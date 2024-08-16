@@ -603,12 +603,84 @@ jobs:
       - run_test:
           pattern: "datastreams"
 
-  tracer:
-    parallelism: 10
+  tracer-runtime:
+    parallelism: 5
     <<: *contrib_job_large
     steps:
       - run_test:
-          pattern: "tracer"
+          pattern: "tracer--runtime"
+          trace_agent_url: ""
+
+  tracer--1:
+    parallelism: 5
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer--1"
+          trace_agent_url: ""
+
+  tracer--2:
+    parallelism: 5
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer--2"
+          trace_agent_url: ""
+
+  tracer--3:
+    parallelism: 5
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer--3"
+          trace_agent_url: ""
+
+  tracer--4:
+    parallelism: 5
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer--4"
+          trace_agent_url: ""
+
+  tracer--5:
+    parallelism: 5
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer--5"
+          trace_agent_url: ""
+
+  tracer--6:
+    parallelism: 5
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer--6"
+          trace_agent_url: ""
+
+  tracer--7:
+    parallelism: 5
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer--7"
+          trace_agent_url: ""
+
+  tracer--8:
+    parallelism: 5
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer--8"
+          trace_agent_url: ""
+
+  tracer--9:
+    parallelism: 5
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer--9"
           trace_agent_url: ""
 
   ci_visibility:
