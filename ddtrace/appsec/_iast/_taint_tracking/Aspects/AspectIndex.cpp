@@ -44,19 +44,45 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
     }
-    auto ctx_map = initializer->get_tainting_map();
 
-    PyObject* candidate_text = args[0];
-    PyObject* idx = args[1];
+    PyObject* result_o = nullptr;
 
-    PyObject* result_o = PyObject_GetItem(candidate_text, idx);
-    if (has_pyerr()) {
-        return nullptr;
-    }
+    try {
+        auto ctx_map = initializer->get_tainting_map();
 
-    if (not ctx_map or ctx_map->empty()) {
+        PyObject* candidate_text = args[0];
+        if (!is_text(candidate_text)) {
+            py::set_error(PyExc_TypeError, "The candidate text must be a string.");
+            return nullptr;
+        }
+
+        PyObject* idx = args[1];
+        if (!is_some_number(idx)) {
+            py::set_error(PyExc_TypeError, "The index must be a number.");
+            return nullptr;
+        }
+
+        result_o = PyObject_GetItem(candidate_text, idx);
+        if (not ctx_map or ctx_map->empty()) {
+            return result_o;
+        }
+
+        if (has_pyerr()) {
+            return nullptr;
+        }
+
+        return index_aspect(result_o, candidate_text, idx, ctx_map);
+    } catch (const py::error_already_set& e) {
+        const std::string error_message = "IAST propagation error in index_aspect. " + std::string(e.what());
+        iast_taint_log_error(error_message);
+        return result_o;
+    } catch (const std::exception& e) {
+        const std::string error_message = "IAST propagation error in index_aspect. " + std::string(e.what());
+        iast_taint_log_error(error_message);
+        return result_o;
+    } catch (...) {
+        const std::string error_message = "Unkown IAST propagation error in index_aspect. ";
+        iast_taint_log_error(error_message);
         return result_o;
     }
-    auto res = index_aspect(result_o, candidate_text, idx, ctx_map);
-    return res;
 }
