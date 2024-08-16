@@ -1234,15 +1234,16 @@ def _get_span_context(
             parent = child_of
 
         # if we find a match for any context snipping rules, we break the trace context
-        if context_snipping_matcher(name, child_of, service, resource, span_type):
-            context = Context(is_remote=False)
-            if config.context_snipping_style.USE_LINKS:
-                context._span_links.append(SpanLink(trace_id=child_of.trace_id, span_id=child_of.span_id))
-                context._span_links[0].span = child_of
-            else:
-                # just start a new trace
-                pass
-            parent = None
+        if config.context_snipping_enabled:
+            if context_snipping_matcher(name, child_of, service, resource, span_type):
+                context = Context(is_remote=False)
+                if config.context_snipping_style.USE_LINKS:
+                    context._span_links.append(SpanLink(trace_id=child_of.trace_id, span_id=child_of.span_id))
+                    context._span_links[0].span = child_of
+                else:
+                    # just start a new trace, no links
+                    pass
+                parent = None
     else:
         context = Context(is_remote=False)
 

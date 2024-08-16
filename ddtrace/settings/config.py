@@ -497,6 +497,8 @@ class Config(object):
             except ValueError:
                 return default
 
+        self.context_snipping_enabled = asbool(os.getenv("DD_TRACE_CONTEXT_SNIPPING_ENABLED", False))
+
         self.context_snipping_style = _parse_context_snipping(
             "DD_TRACE_CONTEXT_SNIPPING_STYLE", default=ContextSnippingConfig.USE_LINKS
         )

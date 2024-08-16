@@ -1,4 +1,7 @@
-from typing import Any, Dict, Optional, Union
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Union
 
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
