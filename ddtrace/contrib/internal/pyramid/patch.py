@@ -2,10 +2,10 @@ import os
 
 import pyramid
 import pyramid.config
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor import wrapt
 
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
