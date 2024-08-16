@@ -17,14 +17,10 @@ variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
 
 build_docs:
-  image: registry.ddbuild.io/images/mirror/python:3.10.13
+  image: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
   tags: [ "arch:amd64" ]
   stage: package
   script:
-    - apt-get update && apt-get install -y enchant-2
-    - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
-    - export PATH=$HOME/.cargo/bin:$PATH
-    - pip install hatch
     - hatch run docs:build
   artifacts:
     paths:
