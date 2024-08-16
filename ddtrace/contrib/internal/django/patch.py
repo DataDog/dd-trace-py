@@ -12,6 +12,9 @@ from inspect import isclass
 from inspect import isfunction
 import os
 
+import wrapt
+from wrapt.importer import when_imported
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace._trace.trace_handlers import _ctype_from_headers
@@ -45,9 +48,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.vendor import wrapt
 from ddtrace.vendor.packaging.version import parse as parse_version
-from ddtrace.vendor.wrapt.importer import when_imported
 
 
 log = get_logger(__name__)
@@ -105,13 +106,13 @@ def patch_conn(django, conn):
         try:
             from psycopg.cursor import Cursor as psycopg_cursor_cls
 
-            from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+            from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
         except ImportError:
             Psycopg3TracedCursor = None
             try:
                 from psycopg2._psycopg import cursor as psycopg_cursor_cls
 
-                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
+                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
             except ImportError:
                 psycopg_cursor_cls = None
                 Psycopg2TracedCursor = None
@@ -148,12 +149,12 @@ def patch_conn(django, conn):
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg2."):
                 # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
+                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
 
                 traced_cursor_cls = Psycopg2TracedCursor
             elif type(cursor.cursor).__name__ == "Psycopg3TracedCursor":
                 # Import lazily to avoid importing psycopg if not already imported.
-                from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+                from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 
                 traced_cursor_cls = Psycopg3TracedCursor
         except AttributeError:
