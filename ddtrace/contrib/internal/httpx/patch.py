@@ -1,6 +1,8 @@
 import os
 
 import httpx
+from wrapt import BoundFunctionWrapper
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -22,8 +24,6 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor.wrapt import BoundFunctionWrapper
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
