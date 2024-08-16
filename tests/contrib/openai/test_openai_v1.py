@@ -1701,3 +1701,85 @@ async def test_openai_asyncio_cancellation (openai):
         assert False, f"Unexpected exception: {e}"
 
     assert asyncio_timeout, "Expected asyncio.TimeoutError"
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 6, 0),
+    reason="Streamed response context managers are only available v1.6.0+",
+)
+async def test_openai_asyncio_cancellation_stream (openai, openai_vcr, snapshot_tracer):
+    import asyncio
+    import time
+
+    span = None
+
+    async def call_and_process_chunks():
+        client = openai.AsyncOpenAI()
+        resp = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                ],
+                stream=True,
+                user="ddtrace-test",
+            )
+        nonlocal span
+        span = snapshot_tracer.current_span()
+
+        async for _ in resp:
+            pass
+
+    asyncio_timeout = False
+
+    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
+        try:
+            await asyncio.wait_for(call_and_process_chunks(), timeout=1)
+        except asyncio.TimeoutError:
+            asyncio_timeout = True
+        except Exception as e:
+            assert False, f"Unexpected exception: {e}"
+
+    assert asyncio_timeout, "Expected asyncio.TimeoutError"
+    assert span, "Expected span to be created"
+    assert span.duration, "Expected span to have been finished"
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 6, 0),
+    reason="Streamed response context managers are only available v1.6.0+",
+)
+async def test_openai_asyncio_cancellation_stream_context_manager (openai, openai_vcr, snapshot_tracer):
+    import asyncio
+
+    span = None
+
+    async def call_and_process_chunks():
+        client = openai.AsyncOpenAI()
+        async with await client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            stream=True,
+            user="ddtrace-test",
+            n=None,
+        ) as resp:
+            nonlocal span
+            span = snapshot_tracer.current_span()
+
+            async for _ in resp:
+                await asyncio.sleep(1) # simulate lots of chunks
+
+    asyncio_timeout = False
+
+    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
+        try:
+            await asyncio.wait_for(call_and_process_chunks(), timeout=1)
+        except asyncio.TimeoutError:
+            asyncio_timeout = True
+        except Exception as e:
+            assert False, f"Unexpected exception: {e}"
+
+    assert asyncio_timeout, "Expected asyncio.TimeoutError"
+    assert span, "Expected span to be created"
+    assert span.duration, "Expected span to have been finished"
