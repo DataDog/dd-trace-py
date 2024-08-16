@@ -209,7 +209,7 @@ def pytest_collection_finish(session) -> None:
         return
 
     try:
-        _pytest_collection_finish(session)
+        return _pytest_collection_finish(session)
     except:  # noqa: E722
         log.debug("encountered error during collection finish, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
@@ -282,13 +282,12 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     yield
 
     try:
-        _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
+        return _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
     except:  # noqa: E722
         log.debug("encountered error during post-test", exc_info=True)
         return
 
 
-@pytest.hookimpl(hookwrapper=True)
 def _pytest_runtest_makereport(item, call, outcome):
     result = outcome.get_result()
 
@@ -348,8 +347,6 @@ def _pytest_runtest_makereport(item, call, outcome):
             if xfail_reason_tag is None:
                 CITest.set_tag(test_id, XFAIL_REASON, "XFail")
             CITest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
-            CITest.mark_fail(test_id)
-            return
 
         CITest.mark_pass(test_id)
         return
@@ -377,7 +374,7 @@ def pytest_runtest_makereport(item, call) -> None:
         return
 
     try:
-        _pytest_runtest_makereport(item, call, outcome)
+        return _pytest_runtest_makereport(item, call, outcome)
     except Exception:  # noqa: E722
         log.debug("encountered error during makereport", exc_info=True)
 
