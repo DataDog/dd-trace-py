@@ -86,14 +86,14 @@ class _EncoderBase(object):
         return d
 
 
-class JSONEncoder(json.JSONEncoder, _EncoderBase):
+class JSONEncoder(_EncoderBase):
     content_type = "application/json"
 
     def encode_traces(self, traces):
         normalized_traces = [
             [JSONEncoder._normalize_span(JSONEncoder._span_to_dict(span)) for span in trace] for trace in traces
         ]
-        return self.encode(normalized_traces)
+        return self.encode(normalized_traces)[0]
 
     @staticmethod
     def _normalize_span(span):
@@ -112,6 +112,9 @@ class JSONEncoder(json.JSONEncoder, _EncoderBase):
 
         return ensure_text(obj, errors="backslashreplace")
 
+    def encode(self, obj):
+        return json.JSONEncoder().encode(obj), len(obj)
+
 
 class JSONEncoderV2(JSONEncoder):
     """
@@ -123,7 +126,7 @@ class JSONEncoderV2(JSONEncoder):
     def encode_traces(self, traces):
         # type: (List[List[Span]]) -> str
         normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
-        return self.encode({"traces": normalized_traces})
+        return self.encode({"traces": normalized_traces})[0]
 
     @staticmethod
     def _convert_span(span):
@@ -141,6 +144,10 @@ class JSONEncoderV2(JSONEncoder):
         if not dd_id:
             return "0000000000000000"
         return "%0.16X" % int(dd_id)
+
+    def encode(self, obj):
+        res, _ = super().encode(obj)
+        return res, len(obj.get("traces", []))
 
 
 MSGPACK_ENCODERS = {
