@@ -36,12 +36,13 @@ from ddtrace.ext.ci_visibility.api import enable_ci_visibility
 from ddtrace.ext.ci_visibility.api import is_ci_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
-from ddtrace.internal.coverage.util import collapse_ranges
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -96,25 +97,14 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
 
     if not test_covered_lines:
         log.debug("No covered lines found for test %s", test_id)
+        record_code_coverage_empty()
         return
 
-    # TODO: switch representation to bytearrays as part of new ITR coverage strategy
-    # This code is temporary / PoC
-
-    coverage_data: t.Dict[Path, t.List[t.Tuple[int, int]]] = {}
+    coverage_data: t.Dict[Path, CoverageLines] = {}
 
     for path_str, covered_lines in test_covered_lines.items():
-        file_path = Path(path_str)
-        if not file_path.is_absolute():
-            file_path = file_path.resolve()
-
-        sorted_lines = sorted(covered_lines)
-
-        collapsed_ranges = collapse_ranges(sorted_lines)
-        file_segments = []
-        for file_segment in collapsed_ranges:
-            file_segments.append((file_segment[0], file_segment[1]))
-        coverage_data[file_path] = file_segments
+        # Collapse ranges to avoid sending a large amount of data
+        coverage_data[Path(path_str).absolute()] = covered_lines
 
     CISuite.add_coverage_data(test_id.parent_id, coverage_data)
 
@@ -144,7 +134,8 @@ def pytest_load_initial_conftests(early_config, parser, args):
                 workspace_path = Path.cwd().absolute()
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
-    except:  # noqa: E722            log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
+    except:  # noqa: E722
+        log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
 
