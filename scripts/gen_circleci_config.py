@@ -88,16 +88,6 @@ def gen_pre_checks(template: dict) -> None:
     )
 
 
-def gen_build_docs(template: dict) -> None:
-    """Include the docs build step if the docs have changed."""
-    from needs_testrun import pr_matches_patterns
-
-    if pr_matches_patterns(
-        {"docker", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
-    ):
-        template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
-
-
 def gen_slotscheck(template: dict) -> None:
     """Include the slotscheck if the Python source has changed."""
     from needs_testrun import pr_matches_patterns

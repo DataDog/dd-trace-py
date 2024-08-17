@@ -7,6 +7,10 @@ if [[ "${CIRCLECI}" = "true" ]]; then
 elif [[ "${READTHEDOCS}" = "True" ]]; then
     # We skip here because we do not check spelling in RTD
     echo "Skipping install"
+elif [[ "${GITHUB_ACTIONS}" = "true" ]]; then
+    echo "Skipping install"
+elif [[ "${CI}" = "true" ]]; then
+    echo "Skipping install"
 else
     export DEBIAN_FRONTEND="noninteractive"
     export DEBCONF_NOWARNINGS="yes"

@@ -16,6 +16,16 @@ include:
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
 
+build_docs:
+  image: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
+  tags: [ "arch:amd64" ]
+  stage: package
+  script:
+    - hatch run docs:build
+  artifacts:
+    paths:
+      - "docs/_build/html/"
+
 download_ddtrace_wheels:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
   tags: [ "arch:amd64" ]
