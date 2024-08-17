@@ -10,7 +10,7 @@ stages:
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/benchmarks.yml"
-  - local: ".gitlab/build.yml"
+  - local: ".gitlab/package.yml"
   - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/dogfood.yml"
 

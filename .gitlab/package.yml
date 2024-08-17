@@ -2,6 +2,18 @@ variables:
   PYPA_IMAGE_BASE: registry.ddbuild.io/images/mirror/pypa
   PYPA_IMAGE_TAG: 2024-08-12-7fde9b1
   PYPA_DEFAULT_IMAGE: "${PYPA_IMAGE_BASE}/manylinux2014_x86_64:${PYPA_IMAGE_TAG}"
+  TESTRUNNER_IMAGE_BASE: ghcr.io/datadog/dd-trace-py/testrunner
+  TESTRUNNER_IMAGE_TAG: 81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
+  TESTRUNNER_IMAGE: ${TESTRUNNER_IMAGE_BASE}:${TESTRUNNER_IMAGE_TAG}
+  GITHUB_CLI_IMAGE: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  RIOT_VERSION: ~=0.19.1
+
+.testrunner:
+  image: ${TESTRUNNER_IMAGE}
+  tags: [ "arch:amd64" ]
+  before_script:
+    - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
+    - pip install riot${RIOT_VERSION}
 
 .python_tags: &python_tags
   - "cp37-cp37m"
@@ -14,6 +26,24 @@ variables:
 .linux_platforms: &linux_platforms
   - "manylinux2014"
   - "musllinux_1_2"
+
+build_base_venvs:
+  extends: .testrunner
+  stage: package
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: 24
+    PIP_VERBOSE: 1
+  script:
+    - riot -P -v generate --python=$PYTHON_VERSION
+  artifacts:
+    name: venv_$PYTHON_VERSION
+    paths:
+      - .riot/venv_*
+      - ddtrace/**/*.so*
+      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe
 
 .build_ddtrace_base:
   stage: package
@@ -72,7 +102,7 @@ build_ddtrace_linux:
     - /opt/python/${PYTHON_TAG}/bin/python -m build --wheel --outdir wheelhouse/
     # Repair the wheel
     - ./.gitlab/repair_wheel_linux.sh wheelhouse/
-    # Download wheel dependencies (only for x86_64 and aarch64)
+    # Download wheel dependencies (only for linux x86_64 and aarch64)
     - >
       if [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "aarch64" ];
       then
@@ -84,5 +114,20 @@ build_ddtrace_linux:
       - wheelhouse/
       - wheelhouse-dep/
 
-
 # TODO: Windows and MacOS Builds
+
+# Download wheels from GitHub Actions which we didn't build locally here
+# DEV: Wait until we have built wheels locally here so we known which to copy from GitHub Actions
+download_ddtrace_wheels:
+  image: ${GITHUB_CLI_IMAGE}
+  tags: [ "arch:amd64" ]
+  stage: package
+  needs: [ build_ddtrace_linux ]
+  script:
+    - aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+    - gh auth login --with-token < token
+    - rm token
+    - .gitlab/download-wheels-from-gh-actions.sh
+  artifacts:
+    paths:
+      - "wheelhouse/*.whl"
