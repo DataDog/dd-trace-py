@@ -38,31 +38,13 @@ cd gh_wheels
 echo "Github workflow finished. Downloading wheels"
 
 # download all wheels
-gh run download $RUN_ID --repo DataDog/dd-trace-py
+gh run download $RUN_ID --repo DataDog/dd-trace-py --pattern "*win32*" --pattern "*win_amd64*" --pattern "*macosx*"
 
 cd ..
 
 echo "Finished downloading wheels. Fixing directory structure"
 
 # Flatten directory structure so all wheels are top level
-find gh_wheels -type f -exec mv {} gh_wheels \;
-
-# Copy Windows and MacOS wheels to wheelhouse
-for f in gh_wheels/*.whl;
-do
-    name=$(basename $f)
-    if [[ $f == *"win32.whl" ]] || [[ $f == *"win_amd64.whl" ]] || [[ $f == *"macosx"* ]];
-    then
-        if [ ! -f ./wheelhouse/$name ];
-        then
-            echo "Copying $f to wheelhouse"
-            cp $f ./wheelhouse
-        else
-            echo "Skipping $name as it already exists in wheelhouse"
-        fi
-    else
-        echo "Skipping $name as it is not a Windows or MacOS wheel"
-    fi
-done
-
+mkdir wheelhouse
+find gh_wheels -type f -name '*.whl' -exec mv {} wheelhouse \;
 echo "Done"
