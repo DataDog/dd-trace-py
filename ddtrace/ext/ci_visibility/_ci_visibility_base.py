@@ -86,17 +86,17 @@ class _CIVisibilityAPIBase(abc.ABC):
         raise NotImplementedError("This class is not meant to be instantiated")
 
     @staticmethod
-    # @abc.abstractmethod
+    @abc.abstractmethod
     def discover(item_id: CIItemId, *args, **kwargs):
         pass
 
     @staticmethod
-    # @abc.abstractmethod
+    @abc.abstractmethod
     def start(item_id: CIItemId, *args, **kwargs):
         pass
 
     @staticmethod
-    # @abc.abstractmethod
+    @abc.abstractmethod
     def finish(
         item_id: _CIVisibilityRootItemIdBase,
         override_status: Optional[Enum],
