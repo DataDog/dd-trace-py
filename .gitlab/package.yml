@@ -6,14 +6,13 @@ variables:
   TESTRUNNER_IMAGE_TAG: 81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
   TESTRUNNER_IMAGE: ${TESTRUNNER_IMAGE_BASE}:${TESTRUNNER_IMAGE_TAG}
   GITHUB_CLI_IMAGE: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
-  RIOT_VERSION: ~=0.19.1
 
 .testrunner:
   image: ${TESTRUNNER_IMAGE}
   tags: [ "arch:amd64" ]
   before_script:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
-    - pip install riot${RIOT_VERSION}
+    - pip install riot~=0.19.1
 
 .python_tags: &python_tags
   - "cp37-cp37m"
