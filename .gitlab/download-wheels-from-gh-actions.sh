@@ -30,7 +30,7 @@ echo "Found RUN_ID: $RUN_ID"
 echo "Waiting for workflow to finish"
 
 # wait for run to finish
-gh run watch $RUN_ID --interval 45 --exit-status 1 --repo DataDog/dd-trace-py
+gh run watch $RUN_ID --interval 120 --exit-status 1 --repo DataDog/dd-trace-py
 
 mkdir gh_wheels
 cd gh_wheels
