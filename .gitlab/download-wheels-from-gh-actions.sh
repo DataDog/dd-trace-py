@@ -47,16 +47,21 @@ echo "Finished downloading wheels. Fixing directory structure"
 # Flatten directory structure so all wheels are top level
 find gh_wheels -type f -exec mv {} gh_wheels \;
 
-# Only keep wheels which we do not already have an artifact for
+# Copy Windows and MacOS wheels to wheelhouse
 for f in gh_wheels/*.whl;
 do
     name=$(basename $f)
-    if [ ! -f ./wheelhouse/$name ];
+    if [[ $f == *"win32.whl" ]] || [[ $f == *"win_amd64.whl" ]] || [[ $f == *"macosx"* ]];
     then
-        echo "Copying $f to wheelhouse"
-        cp $f ../wheelhouse
+        if [ ! -f ./wheelhouse/$name ];
+        then
+            echo "Copying $f to wheelhouse"
+            cp $f ./wheelhouse
+        else
+            echo "Skipping $name as it already exists in wheelhouse"
+        fi
     else
-        echo "Skipping $name as it already exists in wheelhouse"
+        echo "Skipping $name as it is not a Windows or MacOS wheel"
     fi
 done
 
