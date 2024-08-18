@@ -1,0 +1,10 @@
+.test_base_hatch:
+  extends: .testrunner
+  stage: tests
+  needs: [ build_base_venvs ]
+  parallel: 4
+  script:
+    - ./scripts/run-test-suite-hatch "${SUITE_NAME}" "0"
+
+include:
+  - local: ".gitlab/tests/appsec.yml"

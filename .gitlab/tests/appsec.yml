@@ -1,0 +1,17 @@
+appsec_threats django:
+  extends: .test_base_hatch
+  parallel: 11
+  variables:
+    SUITE_NAME: "appsec_threats_django"
+
+appsec_threats flask:
+  extends: .test_base_hatch
+  parallel: 10
+  variables:
+    SUITE_NAME: "appsec_threats_flask"
+
+appsec_threats fastapi:
+  extends: .test_base_hatch
+  parallel: 9
+  variables:
+    SUITE_NAME: "appsec_threats_fastapi"
