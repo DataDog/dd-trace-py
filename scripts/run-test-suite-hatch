@@ -15,18 +15,16 @@ if [[ ${#HATCH_ENVS[@]} -eq 0 ]]; then
     exit 1
 fi
 
-if [[ -v CIRCLECI ]]; then
-    # circleci tests splits expects one test per line
-    HATCH_ENVS=( $( printf '%s\n' "${HATCH_ENVS[@]}"  | circleci tests split) )
-    if [[ ${#HATCH_ENVS[@]} -eq 0 ]]; then
-        echo "No hatch env after split, halting."
+# circleci tests splits expects one test per line
+HATCH_ENVS=( $( printf '%s\n' "${HATCH_ENVS[@]}"  | ./.gitlab/ci-split-input.sh) )
+if [[ ${#HATCH_ENVS[@]} -eq 0 ]]; then
+    echo "No hatch env after split, halting."
+    if [[ -v CIRCLECI ]]; then
         circleci step halt
-        exit 0
     fi
-    echo "${#HATCH_ENVS[@]} hatch env split for CircleCI: ${HATCH_ENVS[@]}"
+    exit 0
 fi
-
-
+echo "${#HATCH_ENVS[@]} hatch env split for CI: ${HATCH_ENVS[@]}"
 
 set -e
 
