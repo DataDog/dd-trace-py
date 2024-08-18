@@ -83,8 +83,7 @@ benchmark-serverless:
   image: $SLS_CI_IMAGE
   tags: ["arch:amd64"]
   when: on_success
-  needs:
-    - benchmark-serverless-trigger
+  needs: [ "benchmark-serverless-trigger" ]
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
     - ./ci/check_trigger_status.sh
@@ -96,6 +95,7 @@ benchmark-serverless-trigger:
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
+  needs: []
   allow_failure: true
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
