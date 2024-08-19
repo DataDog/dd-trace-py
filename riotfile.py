@@ -309,7 +309,7 @@ venv = Venv(
                 ),
                 Venv(
                     name="tracer--3",
-                    command="pytest -v {cmdargs} tests/tracer/test_env_vars.py "
+                    command="pip install setuptools && pytest -v {cmdargs} tests/tracer/test_env_vars.py "
                     + "tests/tracer/test_filters.py tests/tracer/test_gitmetadata.py "
                     + "tests/tracer/test_global_config.py",
                     pys=select_pys(),
