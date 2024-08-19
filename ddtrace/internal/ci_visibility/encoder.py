@@ -66,8 +66,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return self._build_payload(traces=traces)
 
     def encode(self):
-        # number of spans = events count = len(normalized_spans)
-        # build_payload + msgpack = serialization ms
         with self._lock:
             with StopWatch() as sw:
                 payload = self._build_payload(self.buffer)
@@ -216,7 +214,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         converted_span = {
             "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
-            "files": json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"],  ## <<----
+            "files": json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"],
         }
 
         if not self.itr_suite_skipping_mode:
