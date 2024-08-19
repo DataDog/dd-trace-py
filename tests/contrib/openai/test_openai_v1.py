@@ -1669,6 +1669,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
 
 async def test_openai_asyncio_cancellation(openai):
     import asyncio
+
     import httpx
 
     class DelayedTransport(httpx.AsyncBaseTransport):
