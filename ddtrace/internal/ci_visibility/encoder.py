@@ -197,7 +197,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         # type: (List[List[Span]]) -> Optional[bytes]
         normalized_covs = [
             self._convert_span(span, "") for trace in traces for span in trace if COVERAGE_TAG_NAME in span.get_tags()
-        ] # <<-- number of events for coverage
+        ]
         if not normalized_covs:
             return None
         record_endpoint_payload_events_count(endpoint=ENDPOINT.CODE_COVERAGE, count=len(normalized_covs))
