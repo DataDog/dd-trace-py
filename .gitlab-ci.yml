@@ -18,7 +18,7 @@ variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
 
 package-oci:
-  needs: [ build_ddtrace_linux ]
+  needs: [ build_ddtrace linux ]
 
 # no installer tests for python
 onboarding_tests_installer:

@@ -50,7 +50,7 @@ build_base_venvs:
     CMAKE_BUILD_PARALLEL_LEVEL: 24
     PATH: "/root/.cargo/bin:/opt/rh/devtoolset-10/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-build_ddtrace_sdist:
+build_ddtrace sdist:
   extends: .build_ddtrace_base
   image: "${PYPA_DEFAULT_IMAGE}"
   tags: [ "arch:amd64" ]
@@ -63,7 +63,7 @@ build_ddtrace_sdist:
     paths:
       - wheelhouse/
 
-build_ddtrace_linux:
+build_ddtrace linux:
   extends: .build_ddtrace_base
   image: "${PYPA_IMAGE_BASE}/${PLATFORM}_${ARCH}:${PYPA_IMAGE_TAG}"
   tags: [ "${RUNNER}" ]
