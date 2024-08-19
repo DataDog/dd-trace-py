@@ -1,4 +1,6 @@
 import os
+import socket
+from http.client import RemoteDisconnected
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -27,6 +29,7 @@ from .telemetry.payload import record_endpoint_payload_request
 from .telemetry.payload import record_endpoint_payload_request_error
 from .telemetry.payload import record_endpoint_payload_request_time
 from .telemetry.payload import REQUEST_ERROR_TYPE
+from ddtrace.internal.utils.time import StopWatch
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict  # noqa:F401
@@ -157,17 +160,17 @@ class CIVisibilityWriter(HTTPWriter):
             try:
                 response = super()._put(data, headers, client, no_trace)
             except (TimeoutError, socket.timeout) as e:
-                record_endpoint_payload_request_error(endpoint=self.encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.TIMEOUT)
+                record_endpoint_payload_request_error(endpoint=self._encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.TIMEOUT)
                 raise
             except RemoteDisconnected as e:
-                record_endpoint_payload_request_error(endpoint=self.encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.NETWORK)
+                record_endpoint_payload_request_error(endpoint=self._encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.NETWORK)
                 raise
             else:
                 if response.status >= 400:
-                    record_endpoint_payload_request_error(endpoint=self.encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.STATUS_CODE)
+                    record_endpoint_payload_request_error(endpoint=self._encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.STATUS_CODE)
             finally:
-                record_endpoint_payload_bytes(endpoint=self.encoder.ENDPOINT_TYPE, nbytes=len(data))
-                record_endpoint_payload_request(endpoint=self.encoder.ENDPOINT_TYPE)
-                record_endpoint_payload_request_time(endpoint=self.encoder.ENDPOINT_TYPE, seconds=sw.elapsed())
+                record_endpoint_payload_bytes(endpoint=self._encoder.ENDPOINT_TYPE, nbytes=len(data))
+                record_endpoint_payload_request(endpoint=self._encoder.ENDPOINT_TYPE)
+                record_endpoint_payload_request_time(endpoint=self._encoder.ENDPOINT_TYPE, seconds=sw.elapsed())
 
         return response
