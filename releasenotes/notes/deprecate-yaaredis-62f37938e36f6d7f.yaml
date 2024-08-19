@@ -1,5 +1,0 @@
----
-deprecations:
-  - |
-    yaaredis: The yaaredis integration is deprecated and will be removed in a future version.
-    The redis integration supports all yaaredis functionality and should be used instead.
