@@ -26,43 +26,36 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilitySuite(
-    CIVisibilityParentItem[CISuiteId, CITestId, CIVisibilityTest], CIVisibilityChildItem[CISuiteId]
-):
-    event_type = SUITE_TYPE
-    event_type_metric_name = EVENT_TYPES.SUITE
+class CIVisibilitySuite(CIVisibilityParentItem[CITestId, CIVisibilityTest], CIVisibilityChildItem[CISuiteId]):
+    _event_type = SUITE_TYPE
+    _event_type_metric_name = EVENT_TYPES.SUITE
 
     def __init__(
         self,
-        item_id: CISuiteId,
+        name: str,
         session_settings: CIVisibilitySessionSettings,
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[CISourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
-        super().__init__(item_id, session_settings, session_settings.suite_operation_name, initial_tags)
+        super().__init__(name, session_settings, session_settings.suite_operation_name, initial_tags)
         self._codeowner = codeowners
         self._source_file_info = source_file_info
 
         self._coverage_data: CICoverageData = CICoverageData()
 
-    def start(self) -> None:
-        log.debug("Starting CI Visibility suite %s", self.item_id)
-        super().start()
-
     def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None) -> None:
-        log.debug("Finishing CI Visibility suite %s", self.item_id)
         super().finish(force=force, override_status=override_status)
 
     def finish_itr_skipped(self) -> None:
         """Suites should only count themselves as ITR-skipped of all children are ITR skipped"""
-        log.debug("Finishing CI Visibility suite %s as ITR skipped", self.item_id)
+        log.debug("Finishing CI Visibility suite %s as ITR skipped", self)
         for child in self._children.values():
             if not (child.is_finished() and child.is_itr_skipped()):
                 log.debug(
                     "Not finishing CI Visibility suite %s child test %s was not skipped by ITR",
-                    self.item_id,
-                    child.item_id,
+                    self,
+                    child,
                 )
                 return
 
@@ -85,13 +78,13 @@ class CIVisibilitySuite(
 
     def _telemetry_record_event_created(self):
         record_event_created(
-            event_type=self.event_type_metric_name,
+            event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
     def _telemetry_record_event_finished(self):
         record_event_finished(
-            event_type=self.event_type_metric_name,
+            event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
