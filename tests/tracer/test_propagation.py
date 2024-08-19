@@ -1151,7 +1151,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             traceparent_values = _TraceContext._get_traceparent_values(headers)
             assert traceparent_values == expected_tuple
 
-        if caplog.text or expected_logging:
+        if expected_logging:
             for expected_log in expected_logging:
                 assert expected_log in caplog.text
 
