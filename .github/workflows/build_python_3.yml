@@ -20,6 +20,9 @@ jobs:
       include: ${{steps.set-matrix.outputs.include}}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Do not checkout the merge commit ref
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.8'
@@ -52,6 +55,9 @@ jobs:
         # Include all history and tags
         with:
           fetch-depth: 0
+          # Do not checkout the merge commit ref
+          ref: ${{ github.event.pull_request.head.sha }}
+
 
       - uses: actions/setup-python@v5
         if: matrix.os != 'arm-4core-linux'
