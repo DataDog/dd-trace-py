@@ -33,8 +33,6 @@ jobs:
         # Include all history and tags
         with:
           fetch-depth: 0
-          # Do not checkout the merge commit ref
-          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: actions/setup-python@v5
         name: Install Python
@@ -58,9 +56,6 @@ jobs:
       image: python:3.9-alpine
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Do not checkout the merge commit ref
-          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/download-artifact@v4
         with:
           name: source-dist
