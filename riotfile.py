@@ -286,6 +286,7 @@ venv = Venv(
                 "fastapi": latest,
                 "httpx": latest,
                 "pytest-randomly": latest,
+                "setuptools": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
@@ -312,9 +313,6 @@ venv = Venv(
                     + "tests/tracer/test_filters.py tests/tracer/test_gitmetadata.py "
                     + "tests/tracer/test_global_config.py",
                     pys=select_pys(),
-                    pkgs={
-                        "setuptools": latest,
-                    },
                 ),
                 Venv(
                     name="tracer--4",
