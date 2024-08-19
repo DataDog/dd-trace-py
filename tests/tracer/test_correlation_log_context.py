@@ -29,6 +29,13 @@ def tracer_injection(logger, log_method, event_dict):
     return event_dict
 
 
+def format_trace_id(span):
+    if config._128_bit_trace_id_enabled:
+        return "{:032x}".format(span.trace_id)
+    else:
+        return str(span._trace_id_64bits)
+
+
 class TestCorrelationLogsContext(object):
     def test_get_log_correlation_service(self, global_config):
         """Ensure expected DDLogRecord service is generated via get_correlation_log_record."""
@@ -36,7 +43,7 @@ class TestCorrelationLogsContext(object):
             dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
             "span_id": str(span1.span_id),
-            "trace_id": str(span1._trace_id_64bits),
+            "trace_id": format_trace_id(span1),
             "service": "span-service",
             "env": "test-env",
             "version": "test-version",
@@ -47,7 +54,7 @@ class TestCorrelationLogsContext(object):
             dd_log_record = test_tracer.get_log_correlation_context()
         assert dd_log_record == {
             "span_id": str(span2.span_id),
-            "trace_id": str(span2._trace_id_64bits),
+            "trace_id": format_trace_id(span2),
             "service": "span-service",
             "env": "test-env",
             "version": "test-version",
@@ -60,7 +67,7 @@ class TestCorrelationLogsContext(object):
             dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
             "span_id": str(span1.span_id),
-            "trace_id": str(span1._trace_id_64bits),
+            "trace_id": format_trace_id(span1),
             "service": "test-service",
             "env": "test-env",
             "version": "test-version",
@@ -70,7 +77,7 @@ class TestCorrelationLogsContext(object):
             dd_log_record = test_tracer.get_log_correlation_context()
         assert dd_log_record == {
             "span_id": str(span2.span_id),
-            "trace_id": str(span2._trace_id_64bits),
+            "trace_id": format_trace_id(span2),
             "service": "test-service",
             "env": "test-env",
             "version": "test-version",
@@ -98,7 +105,7 @@ class TestCorrelationLogsContext(object):
             dd_log_record = ot_tracer.get_log_correlation_context()
         assert dd_log_record == {
             "span_id": str(dd_span.span_id),
-            "trace_id": str(dd_span._trace_id_64bits),
+            "trace_id": format_trace_id(dd_span),
             "service": "test-service",
             "env": "test-env",
             "version": "test-version",
@@ -144,7 +151,7 @@ class TestCorrelationLogsContext(object):
         dd_log_record = capture_log.entries[0]["dd"]
         assert dd_log_record == {
             "span_id": str(span.span_id),
-            "trace_id": str(span._trace_id_64bits),
+            "trace_id": format_trace_id(span),
             "service": "",
             "env": "",
             "version": "",
@@ -166,7 +173,7 @@ class TestCorrelationLogsContext(object):
         dd_log_record = capture_log.entries[0]["dd"]
         assert dd_log_record == {
             "span_id": str(span.span_id),
-            "trace_id": str(span._trace_id_64bits),
+            "trace_id": format_trace_id(span),
             "service": "global-service",
             "env": "global-env",
             "version": "global-version",

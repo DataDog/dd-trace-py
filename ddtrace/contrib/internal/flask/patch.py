@@ -26,6 +26,8 @@ try:
 except ImportError:
     _HAS_JSON_MIXIN = False
 
+from wrapt import wrap_function_wrapper as _w
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap as _u
@@ -34,7 +36,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .wrappers import _wrap_call_with_pin_check
 from .wrappers import get_current_app

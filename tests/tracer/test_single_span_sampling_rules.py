@@ -96,36 +96,31 @@ def test_rule_init_via_env_only_name():
 
 def test_rule_init_via_env_no_name_or_service():
     with override_global_config(dict(_sampling_rules='[{"sample_rate":1.0}]')):
-        with pytest.raises(ValueError):
-            get_span_sampling_rules()
+        assert get_span_sampling_rules() == []
 
 
 def test_rule_init_via_env_service_pattern_contains_unsupported_char():
     with override_global_config(dict(_sampling_rules='[{"service":"h[!a]i"}]')):
-        with pytest.raises(ValueError):
-            get_span_sampling_rules()
+        assert get_span_sampling_rules() == []
 
 
 def test_rule_init_via_env_name_pattern_contains_unsupported_char():
     with override_global_config(dict(_sampling_rules='[{"name":"h[!a]i"}]')):
-        with pytest.raises(ValueError):
-            get_span_sampling_rules()
+        assert get_span_sampling_rules() == []
 
 
 def test_rule_init_via_env_json_not_list():
     with override_global_config(
         dict(_sampling_rules='{"sample_rate":0.5,"service":"xyz","name":"abc","max_per_second":100}')
     ):
-        with pytest.raises(TypeError):
-            get_span_sampling_rules()
+        assert get_span_sampling_rules() == []
 
 
 def test_rule_init_via_env_json_not_valid():
     with override_global_config(
         dict(_sampling_rules='{"sample_rate":0.5,"service":"xyz","name":"abc","max_per_second":100')
     ):
-        with pytest.raises(ValueError):
-            get_span_sampling_rules()
+        assert get_span_sampling_rules() == []
 
 
 def test_env_rules_cause_matching_span_to_be_sampled():
