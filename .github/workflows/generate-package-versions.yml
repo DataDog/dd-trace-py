@@ -8,9 +8,6 @@ jobs:
   generate-package-versions:
     name: Generate package versions
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ddtrace
     steps:
       - uses: actions/checkout@v4
         with:
