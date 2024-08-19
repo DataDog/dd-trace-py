@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    openai: Fixes a bug where `asyncio.TimeoutError`s were not being propogated correctly from canceled OpenAI API requests.
+    openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
