@@ -22,7 +22,11 @@ from .constants import EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
-
+from .telemetry.payload import record_endpoint_payload_bytes
+from .telemetry.payload import record_endpoint_payload_request
+from .telemetry.payload import record_endpoint_payload_request_error
+from .telemetry.payload import record_endpoint_payload_request_time
+from .telemetry.payload import REQUEST_ERROR_TYPE
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict  # noqa:F401
@@ -153,17 +157,17 @@ class CIVisibilityWriter(HTTPWriter):
             try:
                 response = super()._put(data, headers, client, no_trace)
             except (TimeoutError, socket.timeout) as e:
-                record_request_error(...timeout...)
+                record_endpoint_payload_request_error(endpoint=self.encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.TIMEOUT)
                 raise
             except RemoteDisconnected as e:
-                record_request_error(...network...)
+                record_endpoint_payload_request_error(endpoint=self.encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.NETWORK)
                 raise
             else:
                 if response.status >= 400:
-                    record_request_error(...status...)
+                    record_endpoint_payload_request_error(endpoint=self.encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.STATUS_CODE)
             finally:
-                record_request_bytes(len(data), endpoint=...)
-                record_request_count(count=1, endpoint=...)
-                record_request_time(seconds=sw.elapsed(), endpoint=...)
+                record_endpoint_payload_bytes(endpoint=self.encoder.ENDPOINT_TYPE, nbytes=len(data))
+                record_endpoint_payload_request(endpoint=self.encoder.ENDPOINT_TYPE)
+                record_endpoint_payload_request_time(endpoint=self.encoder.ENDPOINT_TYPE, seconds=sw.elapsed())
 
         return response

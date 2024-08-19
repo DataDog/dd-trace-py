@@ -34,6 +34,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     PAYLOAD_FORMAT_VERSION = 1
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
+    ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
@@ -146,6 +147,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
 class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
+    ENDPOINT_TYPE = ENDPOINT.CODE_COVERAGE
     boundary = uuid4().hex
     content_type = "multipart/form-data; boundary=%s" % boundary
     itr_suite_skipping_mode = False
