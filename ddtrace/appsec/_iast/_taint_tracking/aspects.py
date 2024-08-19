@@ -110,7 +110,8 @@ def split_aspect(
 
             if len(args) >= (3 + offset) and is_pyobject_tainted(args[2 + offset]):
                 for i in result:
-                    copy_and_shift_ranges_from_strings(args[2 + offset], i, 0, len(i))
+                    if len(i):
+                        copy_and_shift_ranges_from_strings(args[2 + offset], i, 0, len(i))
             return result
 
         return _aspect_split(*args, **kwargs)
