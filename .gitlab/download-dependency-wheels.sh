@@ -1,26 +1,29 @@
 #!/bin/bash
 set -eo pipefail
 
+PYTHON_EXE=${1:-python3}
+PYTHON_VERSION=$($PYTHON_EXE -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+ARCH=${2}
+PLATFORM=${3}
+
 if [ -z "$CI_COMMIT_SHA" ]; then
   echo "Error: CI_COMMIT_SHA was not provided"
   exit 1
 fi
 
-python3 -m pip install -U "pip>=22.0"
-python3 -m pip install packaging
+$PYTHON_EXE -m pip install -U "pip>=22.0"
+$PYTHON_EXE -m pip install packaging
 
-mkdir pywheels-dep
+mkdir wheelhouse-dep
 
-cd pywheels
+cd wheelhouse
 
 export PYTHONUNBUFFERED=TRUE
 
-../lib-injection/dl_wheels.py \
+$PYTHON_EXE ../lib-injection/dl_wheels.py \
     --python-version=$PYTHON_VERSION \
     --local-ddtrace \
-    --arch x86_64 \
-    --arch aarch64 \
-    --platform musllinux_1_1 \
-    --platform manylinux2014 \
-    --output-dir ../pywheels-dep \
+    --arch $ARCH \
+    --platform $PLATFORM \
+    --output-dir ../wheelhouse-dep \
     --verbose

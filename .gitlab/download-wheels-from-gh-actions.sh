@@ -30,21 +30,21 @@ echo "Found RUN_ID: $RUN_ID"
 echo "Waiting for workflow to finish"
 
 # wait for run to finish
-gh run watch $RUN_ID --interval 45 --exit-status 1 --repo DataDog/dd-trace-py
+gh run watch $RUN_ID --interval 120 --exit-status 1 --repo DataDog/dd-trace-py
 
-mkdir pywheels
-cd pywheels
+mkdir gh_wheels
+cd gh_wheels
 
 echo "Github workflow finished. Downloading wheels"
 
 # download all wheels
-gh run download $RUN_ID --repo DataDog/dd-trace-py
+gh run download $RUN_ID --repo DataDog/dd-trace-py --pattern "*win32*" --pattern "*win_amd64*" --pattern "*macosx*"
 
 cd ..
 
 echo "Finished downloading wheels. Fixing directory structure"
 
 # Flatten directory structure so all wheels are top level
-find pywheels -type f -exec mv {} pywheels \;
-
+mkdir wheelhouse
+find gh_wheels -type f -name '*.whl' -exec mv {} wheelhouse \;
 echo "Done"
