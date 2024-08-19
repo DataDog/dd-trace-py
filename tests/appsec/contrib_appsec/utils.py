@@ -79,6 +79,8 @@ class Contrib_TestClass_For_Threats:
 
     def check_rules_triggered(self, rule_id: List[str], root_span):
         triggers = get_triggers(root_span())
+        if triggers is None and not rule_id:
+            return
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
@@ -1478,7 +1480,7 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled:
                 self.check_single_rule_triggered("trc-001-001", root_span)
             else:
-                pass
+                self.check_rules_triggered([], root_span)
 
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:

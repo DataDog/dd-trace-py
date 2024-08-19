@@ -156,8 +156,8 @@ if _DDWAF_LOADED:
         def run(
             self,
             ctx: ddwaf_context_capsule,
-            data: dict[str, DDWafRulesType],
-            ephemeral_data: Optional[dict[str, DDWafRulesType]] = None,
+            data: Dict[str, DDWafRulesType],
+            ephemeral_data: Optional[Dict[str, DDWafRulesType]] = None,
             timeout_ms: float = DEFAULT.WAF_TIMEOUT,
         ) -> DDWaf_result:
             start = time.time()
