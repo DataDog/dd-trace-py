@@ -1,5 +1,15 @@
+import typing as t
+
+
+def _bit_count_compat(_byte: int) -> int:
+    return bin(_byte).count("1")
+
+
+_bit_count: t.Callable[[int], int] = int.bit_count if hasattr(int, "bit_count") else _bit_count_compat
+
+
 class CoverageLines:
-    def __init__(self, initial_size: int = 8):
+    def __init__(self, initial_size: int = 32):
         # Initial size of 8 chosen based on p50 length of files in code base being 240 at time of writing
         self._lines = bytearray(initial_size)
 
@@ -18,7 +28,7 @@ class CoverageLines:
         return f"CoverageLines(num_lines={self._num_lines()})"
 
     def _num_lines(self) -> int:
-        return sum([bin(byte).count("1") for byte in self._lines])
+        return sum(_bit_count(byte) for byte in self._lines)
 
     def add(self, line_number: int):
         lines_byte = line_number // 8
