@@ -57,7 +57,7 @@ Example::
 """
 from ...internal.utils.importlib import require_modules
 
-
+g
 required_modules = ["sanic"]
 
 with require_modules(required_modules) as missing_modules:
@@ -68,6 +68,7 @@ with require_modules(required_modules) as missing_modules:
         with _w.catch_warnings():
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
+    
         # Expose public methods
         from ..internal.sanic.patch import get_version
         from ..internal.sanic.patch import patch
