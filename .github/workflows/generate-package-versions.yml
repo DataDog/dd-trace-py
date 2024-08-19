@@ -6,6 +6,7 @@ on:
 
 jobs:
   generate-package-versions:
+    name: Generate package versions
     runs-on: ubuntu-latest
     defaults:
       run:
