@@ -1464,6 +1464,22 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
 
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    def test_truncating_headers(self, interface, root_span, get_tag, asm_enabled):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _asm_static_rule_file=rules.RULES_TRUNCATION, _waf_max_container_size=80)
+        ):
+            self.update_tracer(interface)
+            HEADERS = {str(i): f"content_{i}" for i in range(100)}
+            HEADERS["User-Agent"] = "dd-test-scanner-log"
+            response = interface.client.post("/asm/324/huj/?x=1&y=2", headers=HEADERS, data={"test": "attack"})
+            assert self.status(response) == (403 if asm_enabled else 200)
+            assert get_tag("http.status_code") == ("403" if asm_enabled else "200")
+            if asm_enabled:
+                self.check_single_rule_triggered("trc-001-001", root_span)
+            else:
+                pass
+
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
             raise pytest.xfail("fastapi does not fully support IAST for now")

@@ -273,6 +273,9 @@ class DEFAULT(metaclass=Constant_Class):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
     TRACE_RATE_LIMIT = 100
+    WAF_MAX_STRING_LENGTH = 4096
+    WAF_MAX_CONTAINER_DEPTH = 20
+    WAF_MAX_CONTAINER_SIZE = 256
     WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
         r"(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer[_-]?"

@@ -14,6 +14,7 @@ RULES_BAD_VERSION = os.path.join(ROOT_DIR, "rules-bad_version.json")
 RULES_EXPLOIT_PREVENTION = os.path.join(ROOT_DIR, "rules-rasp.json")
 RULES_EXPLOIT_PREVENTION_BLOCKING = os.path.join(ROOT_DIR, "rules-rasp-blocking.json")
 RULES_EXPLOIT_PREVENTION_DISABLED = os.path.join(ROOT_DIR, "rules-rasp-disabled.json")
+RULES_TRUNCATION = os.path.join(ROOT_DIR, "rules-truncation.json")
 
 RESPONSE_CUSTOM_JSON = os.path.join(ROOT_DIR, "response-custom.json")
 RESPONSE_CUSTOM_HTML = os.path.join(ROOT_DIR, "response-custom.html")

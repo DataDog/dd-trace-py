@@ -126,6 +126,9 @@ class ASMConfig(Env):
         help_type=float,
         help="Timeout in milliseconds for WAF computations",
     )
+    _waf_max_string_length = DEFAULT.WAF_MAX_STRING_LENGTH
+    _waf_max_container_depth = DEFAULT.WAF_MAX_CONTAINER_DEPTH
+    _waf_max_container_size = DEFAULT.WAF_MAX_CONTAINER_SIZE
 
     _asm_obfuscation_parameter_key_regexp = Env.var(
         str, APPSEC.OBFUSCATION_PARAMETER_KEY_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
@@ -187,6 +190,9 @@ class ASMConfig(Env):
         "_api_security_sample_rate",
         "_api_security_sample_delay",
         "_api_security_parse_response_body",
+        "_waf_max_string_length",
+        "_waf_max_container_depth",
+        "_waf_max_container_size",
         "_waf_timeout",
         "_iast_redaction_enabled",
         "_iast_redaction_name_pattern",

@@ -95,7 +95,7 @@ if _DDWAF_LOADED:
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
-            diagnostics = ddwaf_object()
+            diagnostics = ddwaf_object(None, _observator(), 0, 0, 0)
             ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
             self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(diagnostics))
             self._set_info(diagnostics)
@@ -130,7 +130,7 @@ if _DDWAF_LOADED:
         def update_rules(self, new_rules: Dict[str, DDWafRulesType]) -> bool:
             """update the rules of the WAF instance. return True if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
-            diagnostics = ddwaf_object()
+            diagnostics = ddwaf_object(None, _observator(), 0, 0, 0)
             result = py_ddwaf_update(self._handle, rules, diagnostics)
             self._set_info(diagnostics)
             ddwaf_object_free(rules)
@@ -156,8 +156,8 @@ if _DDWAF_LOADED:
         def run(
             self,
             ctx: ddwaf_context_capsule,
-            data: DDWafRulesType,
-            ephemeral_data: DDWafRulesType = None,
+            data: dict[str, DDWafRulesType],
+            ephemeral_data: Optional[dict[str, DDWafRulesType]] = None,
             timeout_ms: float = DEFAULT.WAF_TIMEOUT,
         ) -> DDWaf_result:
             start = time.time()
@@ -167,8 +167,30 @@ if _DDWAF_LOADED:
 
             result = ddwaf_result()
             observator = _observator()
-            wrapper = ddwaf_object(data, observator=observator)
-            wrapper_ephemeral = ddwaf_object(ephemeral_data, observator=observator) if ephemeral_data else None
+            wrapper = ddwaf_object(
+                data,
+                observator,
+                asm_config._waf_max_container_size,
+                asm_config._waf_max_container_depth,
+                asm_config._waf_max_string_length,
+            )
+            if observator._payload:
+                if ephemeral_data:
+                    ephemeral_data.update(observator._payload)
+                else:
+                    ephemeral_data = observator._payload
+
+            wrapper_ephemeral = (
+                ddwaf_object(
+                    ephemeral_data,
+                    observator,
+                    asm_config._waf_max_container_size,
+                    asm_config._waf_max_container_depth,
+                    asm_config._waf_max_string_length,
+                )
+                if ephemeral_data
+                else None
+            )
             error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result), int(timeout_ms * 1000))
             if error < 0:
                 LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
