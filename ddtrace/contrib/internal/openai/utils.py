@@ -102,11 +102,6 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            # the stream was finished with some error, end the span
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
         await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
     def __aiter__(self):
