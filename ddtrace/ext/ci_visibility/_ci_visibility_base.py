@@ -18,15 +18,20 @@ log = get_logger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
+class _CISessionId:
+    """Placeholder ID without attributes
+
+    Allows reusing the same _CIVisibilityAPIBase methods for sessions which do not have individual session IDs
+    """
+
+
+@dataclasses.dataclass(frozen=True)
 class _CIVisibilityRootItemIdBase:
     """This class exists for the ABC class below"""
 
     name: str
 
     def get_parent_id(self) -> "_CIVisibilityRootItemIdBase":
-        return self
-
-    def get_session_id(self) -> "_CIVisibilityRootItemIdBase":
         return self
 
 
@@ -38,9 +43,6 @@ class _CIVisibilityIdBase(abc.ABC):
     @abc.abstractmethod
     def get_parent_id(self) -> Union["_CIVisibilityIdBase", _CIVisibilityRootItemIdBase]:
         raise NotImplementedError("This method must be implemented by the subclass")
-
-    def get_session_id(self) -> _CIVisibilityRootItemIdBase:
-        return self.get_parent_id().get_session_id()
 
 
 PT = TypeVar("PT", bound=Union[_CIVisibilityIdBase, _CIVisibilityRootItemIdBase])
@@ -55,29 +57,29 @@ class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[PT]):
         return self.parent_id
 
 
-CIItemId = TypeVar("CIItemId", bound=Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase])
+CIItemId = TypeVar("CIItemId", bound=Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId])
 
 
 class _CIVisibilityAPIBase(abc.ABC):
     class GetTagArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
         name: str
 
     class SetTagArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
         name: str
         value: Any
 
     class DeleteTagArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
         name: str
 
     class SetTagsArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
         tags: Dict[str, Any]
 
     class DeleteTagsArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
         names: List[str]
 
     def __init__(self):
@@ -103,26 +105,6 @@ class _CIVisibilityAPIBase(abc.ABC):
         **kwargs,
     ):
         pass
-
-    @staticmethod
-    @abc.abstractmethod
-    def set_tag(item_id: CIItemId, tag_name: str, tag_value: Any):
-        raise NotImplementedError("This method must be implemented by the subclass")
-
-    @staticmethod
-    @abc.abstractmethod
-    def set_tags(item_id: CIItemId, tags: Dict[str, Any]):
-        raise NotImplementedError("This method must be implemented by the subclass")
-
-    @staticmethod
-    @abc.abstractmethod
-    def delete_tag(item_id: CIItemId, tag_name: str):
-        raise NotImplementedError("This method must be implemented by the subclass")
-
-    @staticmethod
-    @abc.abstractmethod
-    def delete_tags(item_id: CIItemId, tag_names: List[str]):
-        raise NotImplementedError("This method must be implemented by the subclass")
 
 
 @dataclasses.dataclass(frozen=True)

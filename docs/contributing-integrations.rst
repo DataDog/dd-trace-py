@@ -25,11 +25,10 @@ What tools does an integration rely on?
 
 Integrations rely primarily on Wrapt, the Pin API, and the Core API.
 
-The `Wrapt <https://pypi.org/project/wrapt/>`_ library, vendored in ``ddtrace.vendor.wrapt``, is the main
-piece of code that ``ddtrace`` uses to hook into the runtime execution of third-party libraries. The essential
-task of writing an integration is determining the functions in the third-party library that would serve as
-useful entrypoints and wrapping them with ``wrap_function_wrapper``. There are exceptions, but this is
-generally a useful starting point.
+The `Wrapt <https://pypi.org/project/wrapt/>`_ library is the main piece of code that ``ddtrace`` uses to hook
+into the runtime execution of third-party libraries. The essential task of writing an integration is determining
+the functions in the third-party library that would serve as useful entrypoints and wrapping them with ``wrap_function_wrapper``.
+There are exceptions, but this is generally a useful starting point.
 
 The Pin API in ``ddtrace.pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
 that can store configuration data in memory in a manner that is accessible from within functions wrapped by Wrapt.
@@ -116,7 +115,7 @@ Many of the tests are based on "snapshots": saved copies of actual traces sent t
 1. Update the library and test code to generate new traces.
 2. Delete the snapshot file corresponding to your test at ``tests/snapshots/<snapshot_file>`` (if applicable).
 3. Use `docker-compose up -d testagent` to start the APM test agent, and then re-run the test. Use `--pass-env` as described
-   `here <../README.md#use-the-apm-test-agent>`_ to ensure that your test run can talk to the test agent. 
+   `here <../README.md#use-the-apm-test-agent>`_ to ensure that your test run can talk to the test agent.
 
 Once the run finishes, the snapshot file will have been regenerated.
 
