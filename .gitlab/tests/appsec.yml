@@ -1,6 +1,6 @@
 appsec_threats django:
   extends: .test_base_hatch
-  parallel: 11
+  parallel: 12
   variables:
     SUITE_NAME: "appsec_threats_django"
 
