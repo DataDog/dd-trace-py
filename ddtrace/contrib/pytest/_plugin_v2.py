@@ -144,7 +144,8 @@ def pytest_load_initial_conftests(early_config, parser, args):
                 workspace_path = Path.cwd().absolute()
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
-    except:  # noqa: E722            log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
+    except:  # noqa: E722            
+        log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
 
