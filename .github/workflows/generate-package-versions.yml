@@ -1,8 +1,10 @@
 name: Generate Package Versions
+
+
 on:
-  schedule:
-    - cron: '0 0 * * 0' # runs weekly on Sunday
-  workflow_dispatch: # we can trigger manually
+  push:
+    branches:
+      - main
 
 jobs:
   generate-package-versions:
