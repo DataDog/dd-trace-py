@@ -4,12 +4,7 @@
   needs: [ build_base_venvs ]
   parallel: 4
   script:
-    - >
-      hatch env show --json |
-        jq -r 'keys[] | select(. | contains("${SUITE_NAME}"))' |
-        sort |
-        ./.gitlab/ci-split-input.sh |
-        xargs -n 1 -I {} hatch run {}:test
+    - hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh | xargs -n 1 -I {} hatch run {}:test
 
 include:
   - local: ".gitlab/tests/appsec.yml"
