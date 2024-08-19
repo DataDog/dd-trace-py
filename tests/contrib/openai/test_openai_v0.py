@@ -280,7 +280,7 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/completions,openai.request.method:POST,openai.request.model:ada,model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": "{:x}".format(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "Hello world",
@@ -340,7 +340,7 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
         assert log["service"] == "test-svc"
         assert (
             log["ddtags"]
-            == "env:staging,version:1234,openai.request.endpoint:/v1/completions,openai.request.method:POST,openai.request.model:ada,model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>"  # noqa: E501
+            == "env:staging,version:1234,openai.request.endpoint:/v1/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>"  # noqa: E501
         )
 
 
