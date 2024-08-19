@@ -16,12 +16,12 @@ from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.ci_visibility.telemetry.payload import ENDPOINT
+from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_count
+from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
-from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_count
-from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
-from ddtrace.internal.ci_visibility.telemetry.payload import ENDPOINT
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
