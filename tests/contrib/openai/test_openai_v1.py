@@ -1667,7 +1667,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         assert err == b""
 
 
-async def test_openai_asyncio_cancellation (openai):
+async def test_openai_asyncio_cancellation(openai):
     import asyncio
     import httpx
 
@@ -1689,7 +1689,10 @@ async def test_openai_asyncio_cancellation (openai):
             client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "user", "content": "Write a Python program that writes a Python program for a given task."},
+                    {
+                        "role": "user",
+                        "content": "Write a Python program that writes a Python program for a given task.",
+                    },
                 ],
                 user="ddtrace-test",
             ),
