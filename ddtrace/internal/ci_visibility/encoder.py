@@ -19,7 +19,9 @@ from ddtrace.internal.ci_visibility.telemetry.payload import ENDPOINT
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
-
+from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_count
+from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
+from ddtrace.internal.ci_visibility.telemetry.payload import ENDPOINT
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
@@ -69,7 +71,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         with self._lock:
             with StopWatch() as sw:
                 payload = self._build_payload(self.buffer)
-            record_events_serialization_time(seconds=sw.elapsed(), endpoint=...)
+            record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
             self._init_buffer()
             return payload
 
@@ -77,7 +79,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         normalized_spans = [self._convert_span(span, trace[0].context.dd_origin) for trace in traces for span in trace]
         if not normalized_spans:
             return None
-        record_events_count(count=len(normalized_covs), endpoint="test_cycle")
+        record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return CIVisibilityEncoderV01._pack_payload(
@@ -198,7 +200,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         ] # <<-- number of events for coverage
         if not normalized_covs:
             return None
-        record_events_count(count=len(normalized_covs), endpoint="code_coverage")
+        record_endpoint_payload_events_count(endpoint=ENDPOINT.CODE_COVERAGE, count=len(normalized_covs))
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 

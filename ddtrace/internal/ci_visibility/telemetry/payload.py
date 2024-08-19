@@ -52,13 +52,13 @@ def record_endpoint_payload_request_error(endpoint: ENDPOINT, error_type: REQUES
     telemetry_writer.add_count_metric(_NAMESPACE, ENDPOINT_PAYLOAD_TELEMETRY.REQUESTS_ERRORS, 1, tags)
 
 
-def record_endpoint_payload_events_count(endpoint: ENDPOINT, events: int) -> None:
-    log.debug("Recording endpoint payload events count: %s, %s", endpoint, events)
+def record_endpoint_payload_events_count(endpoint: ENDPOINT, count: int) -> None:
+    log.debug("Recording endpoint payload events count: %s, %s", endpoint, count)
     tags = (("endpoint", ENDPOINT),)
-    telemetry_writer.add_distribution_metric(_NAMESPACE, ENDPOINT_PAYLOAD_TELEMETRY.EVENTS_COUNT, events, tags)
+    telemetry_writer.add_distribution_metric(_NAMESPACE, ENDPOINT_PAYLOAD_TELEMETRY.EVENTS_COUNT, count, tags)
 
 
 def record_endpoint_payload_events_serialization_time(endpoint: ENDPOINT, seconds: float) -> None:
-    log.debug("Recording endpoint payload serialization time: %s, %s seconds", endpoint, nbytes)
+    log.debug("Recording endpoint payload serialization time: %s, %s seconds", endpoint, seconds)
     tags = (("endpoint", ENDPOINT),)
     telemetry_writer.add_distribution_metric(_NAMESPACE, ENDPOINT_PAYLOAD_TELEMETRY.EVENTS_SERIALIZATION_MS, seconds*1000, tags)
