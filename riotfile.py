@@ -104,6 +104,8 @@ venv = Venv(
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
+        "DD_INJECTION_ENABLED": "1",
+        "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     },
@@ -207,7 +209,6 @@ venv = Venv(
                 "protobuf": ">=3",
                 "typing_extensions": latest,
                 "xmltodict": ">=0.12",
-                "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
             },
@@ -285,20 +286,15 @@ venv = Venv(
                 "fastapi": latest,
                 "httpx": latest,
                 "pytest-randomly": latest,
+                "setuptools": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
             },
             venvs=[
                 Venv(pys=select_pys()),
-                # This test variant ensures tracer tests are compatible with both 64bit and 128bit trace ids.
-                Venv(
-                    name="tracer-128-bit-traceid-enabled",
-                    pys=MAX_PYTHON_VERSION,
-                    env={
-                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
-                    },
-                ),
+                # This test variant ensures tracer tests are compatible with both 64bit trace ids.
+                # 128bit trace ids are tested by the default case above.
                 Venv(
                     name="tracer-128-bit-traceid-disabled",
                     pys=MAX_PYTHON_VERSION,
@@ -323,6 +319,9 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
+            env={
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+            },
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -401,6 +400,7 @@ venv = Venv(
             name="internal",
             env={
                 "DD_TRACE_AGENT_URL": "http://localhost:8126",
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -418,9 +418,16 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "pytest-asyncio": "~=0.23.7",
+                        "setuptools": latest,
                     },
                 ),
             ],
@@ -496,6 +503,9 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
+            env={
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+            },
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
@@ -778,6 +788,8 @@ venv = Venv(
                 "python-memcached": latest,
                 "pytest-randomly": latest,
                 "django-q": latest,
+                "spyne": latest,
+                "zeep": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -819,6 +831,7 @@ venv = Venv(
                     "==3.10.0",
                 ],
                 "pytest-randomly": latest,
+                "setuptools": latest,
             },
             venvs=[
                 Venv(
@@ -2349,14 +2362,13 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            # FIXME: this test suite breaks on 3.7
             pys=select_pys(min_version="3.8"),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
-                "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
-                "opentelemetry-instrumentation-flask": "<=0.37b0",
-                # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
+                # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
+                "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
+                "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,
                 "gevent": latest,
@@ -2563,9 +2575,9 @@ venv = Venv(
         ),
         Venv(
             name="langchain",
-            command="pytest {cmdargs} tests/contrib/langchain",
+            command="pytest -v {cmdargs} tests/contrib/langchain",
             pkgs={
-                "vcrpy": latest,
+                "pytest-asyncio": "==0.23.7",
                 "tiktoken": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
@@ -2574,11 +2586,11 @@ venv = Venv(
                 "pytest-randomly": "==3.10.1",
                 "numexpr": "==2.8.5",
                 "greenlet": "==3.0.3",
-                "pytest-asyncio": "==0.23.7",
             },
             venvs=[
                 Venv(
                     pkgs={
+                        "vcrpy": "==6.0.1",
                         "langchain": "==0.0.192",
                         "langchain-community": "==0.0.14",
                         "openai": "==0.27.8",
@@ -2589,6 +2601,7 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
                         "langchain-community": "==0.0.38",
                         "langchain-core": "==0.1.52",
@@ -2602,12 +2615,14 @@ venv = Venv(
                         "botocore": "==1.34.51",
                         "boto3": "==1.34.51",
                         "cohere": "==5.4.0",
+                        "anthropic": "==0.26.0",
                         "faiss-cpu": "==1.8.0",
                     },
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": "==0.2.0",
                         "langchain-core": "==0.2.0",
                         "langchain-openai": latest,
@@ -2620,12 +2635,13 @@ venv = Venv(
                         "botocore": "==1.34.51",
                         "boto3": "==1.34.51",
                         "cohere": latest,
-                        "anthropic": latest,
+                        "anthropic": "==0.26.0",
                     },
                     pys=select_pys(min_version="3.9"),
                 ),
                 Venv(
                     pkgs={
+                        "vcrpy": "==5.1.0",
                         "langchain": latest,
                         "langchain-community": latest,
                         "langchain-core": latest,
@@ -2732,19 +2748,22 @@ venv = Venv(
             command="pytest {cmdargs} tests/sourcecode",
             pys=select_pys(),
             pkgs={
-                "setuptools": ["<=67.6.0"],
+                "setuptools": latest,
                 "pytest-randomly": latest,
             },
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility tests/coverage",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pys=select_pys(),
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
                 "pytest-randomly": latest,
                 "gevent": latest,
+            },
+            env={
+                "DD_AGENT_PORT": "9126",
             },
         ),
         Venv(
@@ -2767,6 +2786,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
             },
             pkgs={
                 "gunicorn": latest,

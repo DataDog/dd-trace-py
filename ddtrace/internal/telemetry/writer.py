@@ -43,7 +43,6 @@ from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
-from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
 from .constants import TELEMETRY_AGENT_HOST
 from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
@@ -198,7 +197,7 @@ class _TelemetryClient:
         elif site == "datad0g.com":
             return "https://all-http-intake.logs.datad0g.com"
         elif site == "datadoghq.eu":
-            return "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
+            return "https://instrumentation-telemetry-intake.datadoghq.eu"
         return f"https://instrumentation-telemetry-intake.{site}/"
 
 
@@ -430,7 +429,7 @@ class TelemetryWriter(PeriodicService):
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
 
-    def _app_started_event(self, register_app_shutdown=True):
+    def app_started(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
@@ -474,7 +473,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
                 (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
-                (TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, config._128_bit_trace_id_logging_enabled, "unknown"),
                 (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
                 (
                     TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN,
@@ -770,9 +768,7 @@ class TelemetryWriter(PeriodicService):
             self._generate_logs_event(logs_metrics)
 
         # Telemetry metrics and logs should be aggregated into payloads every time periodic is called.
-        # This ensures metrics and logs are submitted in 0 to 10 second time buckets.
-        # Optimization: All other events should be aggregated using `config._telemetry_heartbeat_interval`.
-        # Telemetry payloads will be submitted according to `config._telemetry_heartbeat_interval`.
+        # This ensures metrics and logs are submitted in 10 second time buckets.
         if self._is_periodic and force_flush is False:
             if self._periodic_count < self._periodic_threshold:
                 self._periodic_count += 1
@@ -869,6 +865,11 @@ class TelemetryWriter(PeriodicService):
                 # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
                 if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
                     integration_name = dir_parts[contrib_index + 1]
+                    if "internal" in dir_parts:
+                        # Check if the filename has the format:
+                        # `../ddtrace/contrib/internal/integration_name/..(subpath and/or file)...`
+                        internal_index = dir_parts.index("internal")
+                        integration_name = dir_parts[internal_index + 1]
                     self.add_count_metric(
                         "tracers",
                         "integration_errors",
@@ -879,7 +880,7 @@ class TelemetryWriter(PeriodicService):
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             if self._enabled and not self.started:
-                self._app_started_event(False)
+                self.app_started(False)
 
             self.app_shutdown()
 

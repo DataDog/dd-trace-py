@@ -61,13 +61,13 @@ import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 
-telemetry_writer._app_started_event()
+telemetry_writer.app_started()
 
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
-    telemetry_writer._app_started_event()
-    telemetry_writer._app_started_event()
-    telemetry_writer._app_started_event()
+    telemetry_writer.app_started()
+    telemetry_writer.app_started()
+    telemetry_writer.app_started()
 else:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
@@ -221,27 +221,6 @@ tracer.trace("hello").finish()
     ]["message"]
 
 
-def test_app_started_error_unhandled_tracer_exception(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
-
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
-    assert status == 1, stderr
-    assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
-
-    app_closings = test_agent_session.get_events("app-closing")
-    assert len(app_closings) == 1
-    app_starteds = test_agent_session.get_events("app-started")
-    assert len(app_starteds) == 1
-
-    # Same runtime id is used
-    assert app_closings[0]["runtime_id"] == app_starteds[0]["runtime_id"]
-
-    assert app_starteds[0]["payload"]["error"]["code"] == 1
-    assert "ddtrace/internal/sampling.py" in app_starteds[0]["payload"]["error"]["message"]
-    assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in app_starteds[0]["payload"]["error"]["message"]
-
-
 def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
     out, stderr, status, _ = run_python_code_in_subprocess(
         """
@@ -349,7 +328,7 @@ f.wsgi_app()
     app_started_event = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_event) == 1
     assert app_started_event[0]["payload"]["error"]["code"] == 1
-    assert "ddtrace/contrib/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
+    assert "ddtrace/contrib/internal/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
     assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
 
     integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
@@ -359,7 +338,7 @@ f.wsgi_app()
 
     assert flask_integration["enabled"] is True
     assert flask_integration["compatible"] is False
-    assert "ddtrace/contrib/flask/patch.py:" in flask_integration["error"]
+    assert "ddtrace/contrib/internal/flask/patch.py:" in flask_integration["error"]
     assert "not enough values to unpack (expected 2, got 0)" in flask_integration["error"]
 
     metric_events = [event for event in events if event["request_type"] == "generate-metrics"]

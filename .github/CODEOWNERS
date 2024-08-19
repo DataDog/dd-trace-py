@@ -43,10 +43,10 @@ ddtrace/ext/ci_visibility           @DataDog/ci-app-libraries
 ddtrace/ext/test.py                 @DataDog/ci-app-libraries
 ddtrace/internal/ci_visibility      @DataDog/ci-app-libraries
 ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
-ddtrace/internal/coverage           @DataDog/apm-core-python @datadog/ci-app-libraries @Datadog/debugger-python
+ddtrace/internal/coverage           @DataDog/apm-core-python @datadog/ci-app-libraries
 tests/internal/test_codeowners.py   @datadog/ci-app-libraries
 tests/ci_visibility                 @DataDog/ci-app-libraries
-tests/coverage                      @DataDog/apm-core-python @DataDog/ci-app-libraries @Datadog/debugger-python
+tests/coverage                      @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/tracer/test_ci.py             @DataDog/ci-app-libraries
 ddtrace/ext/git.py                  @DataDog/ci-app-libraries @DataDog/apm-core-python
 
@@ -65,6 +65,8 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 
 # ASM
 benchmarks/appsec*                  @DataDog/asm-python
+benchmarks/bm/iast_utils*           @DataDog/asm-python
+benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/settings/asm.py             @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
@@ -121,6 +123,7 @@ ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
+docs/                               @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
@@ -128,7 +131,8 @@ tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-pyt
 # API SDK
 ddtrace/_trace/                                    @DataDog/apm-sdk-api-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-api-python
-ddtrace/opentracer/                             @DataDog/apm-sdk-api-python
+ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-api-python
+ddtrace/opentracer/                                @DataDog/apm-sdk-api-python
 ddtrace/propagation/                               @DataDog/apm-sdk-api-python
 ddtrace/filters.py                                 @DataDog/apm-sdk-api-python
 ddtrace/pin.py                                     @DataDog/apm-sdk-api-python

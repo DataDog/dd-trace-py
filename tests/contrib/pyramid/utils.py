@@ -6,7 +6,7 @@ import webtest
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
+from ddtrace.contrib.internal.pyramid.patch import insert_tween_if_needed
 from ddtrace.ext import http
 from ddtrace.internal import compat
 from tests.utils import TracerTestCase

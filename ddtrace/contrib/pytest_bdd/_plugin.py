@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from ddtrace.contrib.pytest._plugin_v1 import _extract_span as _extract_feature_span
+from ddtrace.contrib.pytest._utils import _extract_span as _extract_feature_span
 from ddtrace.contrib.pytest_bdd import get_version
 from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.pytest_bdd.constants import STEP_KIND

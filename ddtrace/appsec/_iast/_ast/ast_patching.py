@@ -60,6 +60,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pytest",  # Testing framework
     "setuptools",
     "sklearn",  # Machine learning library
+    "sqlalchemy.orm.interfaces",  # Performance optimization
     "tomli",
     "typing_extensions",
     "unittest.mock",

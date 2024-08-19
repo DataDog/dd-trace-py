@@ -474,6 +474,13 @@ class Config(object):
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+        if self._128_bit_trace_id_logging_enabled:
+            deprecate(
+                "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
+                message="Log injection format is now configured automatically.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
@@ -560,6 +567,7 @@ class Config(object):
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
         self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP")
+        self._llmobs_agentless_enabled = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
 
         self._inject_force = asbool(os.getenv("DD_INJECT_FORCE", False))
         self._lib_was_injected = False
