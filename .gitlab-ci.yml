@@ -3,7 +3,6 @@ stages:
   - shared-pipeline
   - dogfood
   - benchmarks
-  - benchmarks-pr-comment
   - macrobenchmarks
   - dogfood
 
