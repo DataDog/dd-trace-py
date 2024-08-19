@@ -542,7 +542,7 @@ def test_logs_image_create(openai_vcr, openai, ddtrace_config_openai, mock_logs,
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/generations,openai.request.method:POST,openai.request.model:dall-e,model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/generations,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": "{:x}".format(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "sleepy capybara with monkey on top",
@@ -629,7 +629,7 @@ def test_logs_image_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, m
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/edits,openai.request.method:POST,openai.request.model:dall-e,model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/edits,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": "{:x}".format(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "A sunlit indoor lounge area with a pool containing a flamingo",
@@ -910,7 +910,7 @@ def test_logs_transcribe(openai_vcr, openai, ddtrace_config_openai, mock_logs, m
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/audio/transcriptions,openai.request.method:POST,openai.request.model:whisper-1,model:whisper-1,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/audio/transcriptions,openai.request.method:POST,openai.request.model:whisper-1,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": "{:x}".format(trace_id),
                     "dd.span_id": str(span_id),
                     "file": "english_audio.mp3",
@@ -998,7 +998,7 @@ def test_logs_translate(openai_vcr, openai, ddtrace_config_openai, mock_logs, mo
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/audio/translations,openai.request.method:POST,openai.request.model:whisper-1,model:whisper-1,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/audio/translations,openai.request.method:POST,openai.request.model:whisper-1,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": "{:x}".format(trace_id),
                     "dd.span_id": str(span_id),
                     "file": "french_audio.mp3",
