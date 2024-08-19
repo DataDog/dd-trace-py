@@ -9,7 +9,6 @@ import pytest
 
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
 from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITest
@@ -43,11 +42,6 @@ def _encode_test_parameter(parameter: t.Any) -> str:
     return re.sub(r" at 0[xX][0-9a-fA-F]+", "", param_repr)
 
 
-def _get_session_id(session: pytest.Session):
-    """The session name is constant as multiple test sessions are not currently supported"""
-    return CISessionId("pytest_session")
-
-
 def _get_names_from_item(item: pytest.Item) -> TestNames:
     """Gets an item's module, suite, and test names by leveraging the plugin hooks"""
 
@@ -74,8 +68,7 @@ def _get_test_id_from_item(item: pytest.Item) -> CITestId:
     suite_name = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
     test_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
 
-    session_id = _get_session_id(item.session)
-    module_id = CIModuleId(session_id, module_name)
+    module_id = CIModuleId(module_name)
     suite_id = CISuiteId(module_id, suite_name)
 
     # Test parameters are part of the test ID

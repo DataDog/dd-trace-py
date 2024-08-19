@@ -540,7 +540,7 @@ def test_debugger_multiple_function_probes_on_same_lazy_module():
 
 
 # DEV: The following tests are to ensure compatibility with the tracer
-import ddtrace.vendor.wrapt as wrapt  # noqa:E402,F401
+import wrapt  # noqa:E402,F401
 
 
 def wrapper(wrapped, instance, args, kwargs):

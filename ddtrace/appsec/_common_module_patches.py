@@ -7,6 +7,9 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 
+from wrapt import FunctionWrapper
+from wrapt import resolve_path
+
 import ddtrace
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -18,8 +21,6 @@ from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.wrapt import FunctionWrapper
-from ddtrace.vendor.wrapt import resolve_path
 
 
 log = get_logger(__name__)

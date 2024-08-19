@@ -78,9 +78,7 @@ class TestCIITRMixin:
             assert CIVisibility.enabled is True
             assert CIVisibility._instance._suite_skipping_mode is False
 
-            session_id = api.CISessionId("session_id")
-
-            skippable_module_id = api.CIModuleId(session_id, "skippable_module")
+            skippable_module_id = api.CIModuleId("skippable_module")
 
             skippable_suite_id = api.CISuiteId(skippable_module_id, "suite.py")
             skippable_test_id = api.CITestId(skippable_suite_id, "skippable_test")
@@ -109,9 +107,7 @@ class TestCIITRMixin:
             assert CIVisibility.enabled is True
             assert CIVisibility._instance._suite_skipping_mode is False
 
-            session_id = api.CISessionId("session_id")
-
-            skippable_module_id = api.CIModuleId(session_id, "skippable_module")
+            skippable_module_id = api.CIModuleId("skippable_module")
 
             skippable_suite_id = api.CISuiteId(skippable_module_id, "suite.py")
             skippable_test_id = api.CITestId(skippable_suite_id, "skippable_test")
@@ -138,13 +134,11 @@ class TestCIITRMixin:
             assert CIVisibility.enabled is True
             assert CIVisibility._instance._suite_skipping_mode is True
 
-            session_id = api.CISessionId("session_id")
-
-            skippable_module_id = api.CIModuleId(session_id, "skippable_module")
+            skippable_module_id = api.CIModuleId("skippable_module")
             skippable_suite_id = api.CISuiteId(skippable_module_id, "skippable_suite.py")
             non_skippable_suite_id = api.CISuiteId(skippable_module_id, "non_skippable_suite.py")
 
-            non_skippable_module_id = api.CIModuleId(session_id, "non_skippable_module")
+            non_skippable_module_id = api.CIModuleId("non_skippable_module")
             non_skippable_module_skippable_suite_id = api.CISuiteId(non_skippable_module_id, "skippable_suite.py")
 
             assert api.CISuite.is_item_itr_skippable(skippable_suite_id) is True
@@ -165,13 +159,11 @@ class TestCIITRMixin:
             assert CIVisibility.enabled is True
             assert CIVisibility._instance._suite_skipping_mode is True
 
-            session_id = api.CISessionId("session_id")
-
-            skippable_module_id = api.CIModuleId(session_id, "skippable_module")
+            skippable_module_id = api.CIModuleId("skippable_module")
             skippable_suite_id = api.CISuiteId(skippable_module_id, "skippable_suite.py")
             non_skippable_suite_id = api.CISuiteId(skippable_module_id, "non_skippable_suite.py")
 
-            non_skippable_module_id = api.CIModuleId(session_id, "non_skippable_module")
+            non_skippable_module_id = api.CIModuleId("non_skippable_module")
             non_skippable_module_skippable_suite_id = api.CISuiteId(non_skippable_module_id, "skippable_suite.py")
 
             assert api.CISuite.is_item_itr_skippable(skippable_suite_id) is False

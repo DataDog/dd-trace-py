@@ -3,7 +3,6 @@ from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.aioredis.patch import *  # noqa: F401,F403
 
-
 def __getattr__(name):
     deprecate(
         ("%s.%s is deprecated" % (__name__, name)),

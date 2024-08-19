@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import random
 
 import pylibmc
+from wrapt import ObjectProxy
 
 # project
 import ddtrace
@@ -20,7 +21,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.vendor.wrapt import ObjectProxy
 
 
 # Original Client class
