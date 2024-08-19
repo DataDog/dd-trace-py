@@ -1,6 +1,6 @@
 .testrunner:
   image: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
-  tags: [ "arch:amd64" ]
+  tags: [ "arch:arm64" ]
   before_script:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
     - pip install riot~=0.19.1
