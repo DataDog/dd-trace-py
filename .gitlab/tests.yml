@@ -28,3 +28,4 @@ variables:
 
 include:
   - local: ".gitlab/tests/appsec.yml"
+  - local: ".gitlab/tests/tracer.yml"
