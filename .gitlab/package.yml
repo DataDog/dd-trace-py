@@ -28,7 +28,8 @@ download_ddtrace_artifacts:
     - .gitlab/download-wheels-from-gh-actions.sh
   artifacts:
     paths:
-      - "pywheels/"
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
 
 download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
