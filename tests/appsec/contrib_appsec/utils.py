@@ -1473,12 +1473,11 @@ class Contrib_TestClass_For_Threats:
         ):
             self.update_tracer(interface)
             HEADERS = {str(i): f"content_{i}" for i in range(100)}
-            HEADERS["User-Agent"] = "dd-test-scanner-log"
             response = interface.client.post("/asm/324/huj/?x=1&y=2", headers=HEADERS, data={"test": "attack"})
             assert self.status(response) == (403 if asm_enabled else 200)
             assert get_tag("http.status_code") == ("403" if asm_enabled else "200")
             if asm_enabled:
-                self.check_single_rule_triggered("trc-001-001", root_span)
+                self.check_rules_triggered(["trc-001-001"], root_span)
             else:
                 self.check_rules_triggered([], root_span)
 

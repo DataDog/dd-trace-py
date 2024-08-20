@@ -77,8 +77,8 @@ def test_small_objects(obj, res):
 def test_limits(obj, res, trunc):
     # truncation of max_string_length takes the last C null byte into account
     obs = _observator()
-    dd_obj = ddwaf_object(obj, observator=obs, max_objects=1, max_depth=1, max_string_length=3)
-    assert dd_obj.struct == res
+    dd_obj = ddwaf_object({"ad": obj}, observator=obs, max_objects=1, max_depth=2, max_string_length=3)
+    assert dd_obj.struct["ad"] == res
     assert obs.truncation == trunc
 
 
