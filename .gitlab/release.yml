@@ -1,0 +1,81 @@
+variables:
+  PYPI_PUBLISH_IMAGE: registry.ddbuild.io/images/mirror/python:3.12.0
+  DATADOG_CI_IMAGE: datadog/ci:v2.42.0
+  GITHUB_CLI_IMAGE: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+
+.release_base:
+  stage: release
+  only:
+    # v2.10.0
+    # v2.10.1
+    # v2.10.0rc0
+    # v2.10.0rc5
+    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+
+.release_pypi:
+  extends: .release_base
+  image: ${PYPI_PUBLISH_IMAGE}
+  tags: [ "arch:amd64" ]
+  variables:
+    TWINE_USERNAME: "__token__"
+    TWINE_NON_INTERACTIVE: "1"
+  before_script:
+    - export TWINE_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name "ci.${CI_PROJECT_NAME}.${PYPI_REPOSITORY}_token" --with-decryption --query "Parameter.Value" --out text)
+    - python -m pip install twine
+    - python -m twine check --strict wheelhouse/*
+  script:
+    - echo "python -m twine upload --repository ${PYPI_REPOSITORY} wheelhouse/*"
+  artifacts:
+    paths:
+      - wheelhouse/*.whl
+      - wheelhouse/*.tar.gz
+
+release_pypi_test:
+  extends: .release_pypi
+  dependencies: [ "build_ddtrace_linux", "build_ddtrace_sdist", "download_ddtrace_wheels" ]
+  variables:
+    PYPI_REPOSITORY: testpypi
+
+# TODO: Replace GitHub Action PyPI upload with this job
+# release_pypi_prod:
+#   extends: .release_pypi
+#   needs: [ "release_pypi_test" ]
+#   variables:
+#     PYPI_REPOSITORY: pypi
+
+get_gh_release_created_at:
+  extends: .release_base
+  image: ${GITHUB_CLI_IMAGE}
+  tags: [ "arch:amd64" ]
+  before_script:
+    - aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+    - gh auth login --with-token < token
+    - rm token
+  script:
+    - mkdir gh_release
+    - gh release view --repo "DataDog/${CI_PROJECT_NAME}" --json createdAt --jq '.createdAt | fromdate' "${CI_COMMIT_TAG}" > gh_release/created_at
+  artifacts:
+    paths:
+      - "gh_release/created_at"
+
+report_dora_deployment:
+  extends: .release_base
+  image: ${DATADOG_CI_IMAGE}
+  tags: [ "arch:amd64" ]
+  needs:
+    # TODO: Update to `release_pypi_prod`
+    - job: release_pypi_test
+      artifacts: false
+    - job: get_gh_release_created_at
+  variables:
+    DD_BETA_COMMANDS_ENABLED: 1
+  before_script:
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.$CI_PROJECT_NAME.dd_api_key" --with-decryption --query "Parameter.Value" --out text)
+  script:
+    - |
+      datadog-ci dora deployment
+        --service "${CI_PROJECT_NAME}"
+        --env test
+        --started-at "$(< gh_release/created_at)"
+        --git-repository-url "https://github.com/DataDog/${CI_PROJECT_NAME}.git"
+        --git-commit-sha "${CI_COMMIT_SHA}"
