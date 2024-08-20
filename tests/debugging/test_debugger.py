@@ -336,8 +336,8 @@ def test_debugger_tracer_correlation():
         )
 
         with d._tracer.trace("test-span") as span:
-            trace_id = span.trace_id
-            span_id = span.span_id
+            trace_id = str(span.trace_id)
+            span_id = str(span.span_id)
             Stuff().instancestuff()
 
         snapshots = d.uploader.wait_for_payloads()
@@ -540,7 +540,7 @@ def test_debugger_multiple_function_probes_on_same_lazy_module():
 
 
 # DEV: The following tests are to ensure compatibility with the tracer
-import ddtrace.vendor.wrapt as wrapt  # noqa:E402,F401
+import wrapt  # noqa:E402,F401
 
 
 def wrapper(wrapped, instance, args, kwargs):

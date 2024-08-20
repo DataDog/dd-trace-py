@@ -3,11 +3,14 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import snapshot
 
+
+pytestmark = pytest.mark.skipif(_USE_PLUGIN_V2, reason="Tests in this module are for v1 of the pytest plugin")
 
 SNAPSHOT_IGNORES = [
     "meta.error.stack",

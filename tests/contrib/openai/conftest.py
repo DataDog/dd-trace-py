@@ -112,8 +112,8 @@ def mock_metrics():
         patcher.stop()
 
 
-@pytest.fixture
-def mock_logs(scope="session"):
+@pytest.fixture(scope="session")
+def mock_logs():
     """
     Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
     before it is instantiated.
@@ -128,9 +128,9 @@ def mock_logs(scope="session"):
         patcher.stop()
 
 
-@pytest.fixture
-def mock_llmobs_writer(scope="session"):
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanAgentWriter")
+@pytest.fixture()
+def mock_llmobs_writer():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
         LLMObsSpanWriterMock = patcher.start()
         m = mock.MagicMock()

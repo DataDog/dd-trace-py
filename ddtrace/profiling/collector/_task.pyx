@@ -2,7 +2,7 @@ import sys
 from types import ModuleType
 import weakref
 
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
 from .. import _asyncio
 from .. import _threading

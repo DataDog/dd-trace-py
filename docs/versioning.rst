@@ -82,9 +82,9 @@ The definition of the **public** interface:
 
 
 The definition of the **internal** interface:
-    The ``ddtrace.internal`` module is internal
-
     The ``ddtrace.vendor`` module is internal
+
+    Any package with the name ``internal`` is internal (e.g. ``ddtrace.internal``, ``ddtrace.contrib.internal``)
 
     Any module, function, class or attribute that is prefixed with a single underscore is internal
 

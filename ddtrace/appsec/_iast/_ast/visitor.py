@@ -65,6 +65,8 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "split": "ddtrace_aspects.split_aspect",
         "rsplit": "ddtrace_aspects.rsplit_aspect",
         "splitlines": "ddtrace_aspects.splitlines_aspect",
+        "sub": "ddtrace_aspects.re_sub_aspect",
+        "subn": "ddtrace_aspects.re_subn_aspect",
     },
     # Replacement function for indexes and ranges
     "slices": {
@@ -106,6 +108,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
             "": ("",),
         },
         "django.utils.html": {"": ("format_html", "format_html_join")},
+        "sqlalchemy.sql.compiler": {"": ("_requires_quotes",)},
     },
     # This is a set since all functions will be replaced by taint_sink_functions
     "taint_sinks": {
