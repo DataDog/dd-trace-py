@@ -328,15 +328,10 @@ def test_environment_header_tags():
         (dict(), (512, True)),
         (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="0"), (0, False)),
         (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="1024"), (1024, True)),
-        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="-1"), (ValueError, "Invalid value -1")),
+        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="-1"), (0, False)),
     ),
 )
 def test_x_datadog_tags(env, expected):
     with override_env(env):
-        if expected[0] == ValueError:
-            with pytest.raises(expected[0]) as exc:
-                _ = Config()
-            assert expected[1] in exc.value.args[0]
-        else:
-            _ = Config()
-            assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
+        _ = Config()
+        assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
