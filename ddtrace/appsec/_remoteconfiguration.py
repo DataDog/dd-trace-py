@@ -8,6 +8,7 @@ from typing import Optional
 
 from ddtrace import Tracer
 from ddtrace.appsec._capabilities import _asm_feature_is_required
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
@@ -66,6 +67,7 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
 
     if _asm_feature_is_required():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
+        remoteconfig_poller.register(PRODUCTS.DEBUG, asm_callback)  # DEBUG
 
     if tracer._asm_enabled and asm_config._asm_static_rule_file is None:
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
@@ -221,6 +223,11 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
                     tracer.configure(appsec_enabled=False)
                 else:
                     asm_config._asm_enabled = False
+    # WAF_LIMITS
+    waf_limits = features.get("waf", {}).get("limits", {})
+    asm_config._waf_max_container_size = waf_limits.get("max_container_size", DEFAULT.WAF_MAX_CONTAINER_SIZE)
+    asm_config._waf_max_container_depth = waf_limits.get("max_container_depth", DEFAULT.WAF_MAX_CONTAINER_DEPTH)
+    asm_config._waf_max_string_length = waf_limits.get("max_string_length", DEFAULT.WAF_MAX_STRING_LENGTH)
 
 
 def _appsec_auto_user_mode(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:

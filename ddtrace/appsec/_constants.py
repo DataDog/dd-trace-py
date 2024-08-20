@@ -250,6 +250,7 @@ class PRODUCTS(metaclass=Constant_Class):
     ASM_DATA: Literal["ASM_DATA"] = "ASM_DATA"
     ASM_DD: Literal["ASM_DD"] = "ASM_DD"
     ASM_FEATURES: Literal["ASM_FEATURES"] = "ASM_FEATURES"
+    DEBUG: Literal["DEBUG"] = "DEBUG"
 
 
 class LOGIN_EVENTS_MODE(metaclass=Constant_Class):
