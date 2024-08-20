@@ -17,7 +17,7 @@ build_base_venvs:
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe
 
-download_ddtrace_artifacts:
+download_ddtrace_wheels:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
   tags: [ "arch:amd64" ]
   stage: package
@@ -28,13 +28,13 @@ download_ddtrace_artifacts:
     - .gitlab/download-wheels-from-gh-actions.sh
   artifacts:
     paths:
-      - "pywheels/"
+      - "pywheels/*.whl"
 
 download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
   tags: [ "arch:amd64" ]
   stage: package
-  needs: [ download_ddtrace_artifacts ]
+  needs: [ download_ddtrace_wheels ]
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.7"
