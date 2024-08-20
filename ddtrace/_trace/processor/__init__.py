@@ -103,7 +103,7 @@ class SpanProcessor(metaclass=abc.ABCMeta):
         try:
             SpanProcessor.__processors__.remove(self)
         except ValueError:
-            raise ValueError("Span processor %r not registered" % self)
+            log.warning("Span processor %r not registered", self)
 
 
 class TraceSamplingProcessor(TraceProcessor):

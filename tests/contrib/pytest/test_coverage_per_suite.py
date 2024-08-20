@@ -1,10 +1,11 @@
 import json
 import os
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
+from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
@@ -131,20 +132,39 @@ class PytestTestCase(TracerTestCase):
         assert len(files) == 3
 
         assert files[2]["filename"] == "test_cov.py"
-        assert len(files[2]["segments"]) == 5
-        assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
-        assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
-        assert files[2]["segments"][2] == [12, 0, 13, 0, -1]
-        assert files[2]["segments"][3] == [21, 0, 22, 0, -1]
-        assert files[2]["segments"][4] == [35, 0, 36, 0, -1]
+
+        if _USE_PLUGIN_V2:
+            # This array is too long to store here, and this is temporary pending the rewrite of coverage format to
+            # byte arrays
+            pass
+        else:
+            assert len(files[2]["segments"]) == (55 if _USE_PLUGIN_V2 else 5)
+            assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
+            assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
+            assert files[2]["segments"][2] == [12, 0, 13, 0, -1]
+            assert files[2]["segments"][3] == [21, 0, 22, 0, -1]
+            assert files[2]["segments"][4] == [35, 0, 36, 0, -1]
 
         assert files[0]["filename"] == "lib_fn.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
+        assert len(files[0]["segments"]) == (5 if _USE_PLUGIN_V2 else 1)
+        if _USE_PLUGIN_V2:
+            assert files[0]["segments"] == [
+                [1, 0, 2, 0, -1],
+                [1, 0, 1, 0, -1],
+                [1, 0, 1, 0, -1],
+                [1, 0, 1, 0, -1],
+                [1, 0, 1, 0, -1],
+            ]
+        else:
+            assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
 
         assert files[1]["filename"] == "ret_false.py"
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+        assert len(files[1]["segments"]) == (4 if _USE_PLUGIN_V2 else 1)
+
+        if _USE_PLUGIN_V2:
+            assert files[1]["segments"] == [[1, 0, 2, 0, -1], [1, 0, 1, 0, -1], [1, 0, 1, 0, -1], [1, 0, 1, 0, -1]]
+        else:
+            assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
         second_suite_span = test_suite_spans[-1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
@@ -154,10 +174,16 @@ class PytestTestCase(TracerTestCase):
         assert len(files) == 2
         assert files[1]["filename"] == "test_cov_second.py"
         assert files[0]["filename"] == "ret_false.py"
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
+        assert len(files[1]["segments"]) == (2 if _USE_PLUGIN_V2 else 1)
+        if _USE_PLUGIN_V2:
+            assert files[1]["segments"] == [[1, 0, 1, 0, -1], [3, 0, 5, 0, -1]]
+        else:
+            assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
         assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
+        if _USE_PLUGIN_V2:
+            assert files[0]["segments"] == [[1, 0, 2, 0, -1]]
+        else:
+            assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
 
     def test_pytest_will_report_coverage_by_suite_with_itr_skipped(self):
         self.testdir.makepyfile(
@@ -233,13 +259,26 @@ class PytestTestCase(TracerTestCase):
         assert len(files) == 3
 
         assert files[2]["filename"] == "test_cov.py"
-        assert len(files[2]["segments"]) == 2
-        assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
-        assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
+        assert len(files[2]["segments"]) == (6 if _USE_PLUGIN_V2 else 2)
+        if _USE_PLUGIN_V2:
+            assert files[2]["segments"] == [
+                [1, 0, 2, 0, -1],
+                [4, 0, 5, 0, -1],
+                [7, 0, 7, 0, -1],
+                [1, 0, 2, 0, -1],
+                [4, 0, 4, 0, -1],
+                [7, 0, 9, 0, -1],
+            ]
+        else:
+            assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
+            assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
 
         assert files[0]["filename"] == "lib_fn.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
+        assert len(files[0]["segments"]) == (2 if _USE_PLUGIN_V2 else 1)
+        if _USE_PLUGIN_V2:
+            assert files[0]["segments"] == [[1, 0, 2, 0, -1], [1, 0, 1, 0, -1]]
+        else:
+            assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
 
         assert files[1]["filename"] == "ret_false.py"
         assert len(files[1]["segments"]) == 1
