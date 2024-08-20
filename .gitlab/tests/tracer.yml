@@ -4,3 +4,4 @@ tracer:
   variables:
     SUITE_NAME: "tracer"
     DD_ENV: ""
+    DD_SERVICE: ""
