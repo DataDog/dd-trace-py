@@ -10,28 +10,31 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import kafka as kafkax
+from ddtrace.ext.kafka import CONSUME
+from ddtrace.ext.kafka import GROUP_ID
+from ddtrace.ext.kafka import HOST_LIST
+from ddtrace.ext.kafka import MESSAGE_KEY
+from ddtrace.ext.kafka import MESSAGE_OFFSET
+from ddtrace.ext.kafka import PARTITION
+from ddtrace.ext.kafka import PRODUCE
+from ddtrace.ext.kafka import SERVICE
+from ddtrace.ext.kafka import TOMBSTONE
+from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
-from ddtrace.propagation.http import HTTPPropagator as Propagator
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
-_AIOKafkaProducer = aiokafka.AIOKafkaProducer
-_AIOKafkaConsumer = aiokafka.AIOKafkaConsumer
-
 config._add(
-    "kafka",
+    "aiokafka",
     dict(
         _default_service=schematize_service_name("kafka"),
         distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
@@ -48,11 +51,8 @@ def patch():
         return
     aiokafka._datadog_patch = True
 
-    _w("aiokafka", "AIOKafkaProducer.send", traced_send)
     _w("aiokafka", "AIOKafkaProducer.send_and_wait", traced_send_and_wait)
     _w("aiokafka", "AIOKafkaConsumer.getone", traced_getone)
-    _w("aiokafka", "AIOKafkaConsumer.getmany", traced_getmany)
-    _w("aiokafka", "AIOKafkaConsumer.commit", traced_commit)
 
     Pin().onto(aiokafka.AIOKafkaProducer)
     Pin().onto(aiokafka.AIOKafkaConsumer)
@@ -64,64 +64,67 @@ def unpatch():
 
     aiokafka._datadog_patch = False
 
-    _u(aiokafka.AIOKafkaProducer, "send")
     _u(aiokafka.AIOKafkaProducer, "send_and_wait")
     _u(aiokafka.AIOKafkaConsumer, "getone")
-    _u(aiokafka.AIOKafkaProducer, "getmany")
-    _u(aiokafka.AIOKafkaProducer, "commit")
 
 
-async def traced_send(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return await func(*args, **kwargs)
+def bootstrap_servers(instance):
+    if hasattr(instance, "client"):
+        client = instance.client
+    if hasattr(instance, "_client"):
+        client = instance._client
+    if client._bootstrap_servers is not None:
+        return ",".join(client._bootstrap_servers)
 
+
+def create_send_span_tags(instance, args, kwargs):
     topic = get_argument_value(args, kwargs, 0, "topic")
-    value = get_argument_value(args, kwargs, 1, "value", True) or None
-    key = get_argument_value(args, kwargs, 2, "key", True) or ""
+    tags = {
+        COMPONENT: config.aiokafka.integration_name,
+        SPAN_KIND: SpanKind.PRODUCER,
+        TOPIC: topic,
+        HOST_LIST: bootstrap_servers(instance),
+        MESSAGING_SYSTEM: SERVICE,
+    }
     partition = get_argument_value(args, kwargs, 3, "partition", True) or None
-    headers = get_argument_value(args, kwargs, 5, "headers", True) or []
-
-    with pin.tracer.trace(
-        schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
-        service=trace_utils.ext_service(pin, config.kafka),
-        span_type=SpanTypes.WORKER,
-    ) as span:
-        core.dispatch("aiokafka.produce.start", (instance, topic, value, key, headers, span))
-        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span.set_tag_str(COMPONENT, config.kafka.integration_name)
-        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-        span.set_tag_str(kafkax.TOPIC, topic)
-        span.set_tag_str(kafkax.MESSAGE_KEY, key)
-
-        span.set_tag(kafkax.PARTITION, partition)
-        span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
-        span.set_tag(SPAN_MEASURED_KEY)
-        if instance.client._bootstrap_servers is not None:
-            span.set_tag_str(kafkax.HOST_LIST, ",".join(instance.client._bootstrap_servers))
-        rate = config.kafka.get_analytics_sample_rate()
-        if rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
-
-        # inject headers with Datadog tags if trace propagation is enabled
-        if config.kafka.distributed_tracing_enabled:
-            # inject headers with Datadog tags:
-            additional_headers = {}
-            Propagator.inject(span.context, additional_headers)
-            for header, value in additional_headers.items():
-                headers.append((header, value.encode("utf-8")))
-
-        args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
-        return await func(*args, **kwargs)
+    if partition:
+        tags[PARTITION] = partition
+    key = get_argument_value(args, kwargs, 2, "key", True) or None
+    if key:
+        tags[MESSAGE_KEY] = key.decode("utf-8")
+    value = get_argument_value(args, kwargs, 1, "value", True) or None
+    tags[TOMBSTONE] = str(value is None).lower()
+    return tags
 
 
 async def traced_send_and_wait(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
-    result = await func(*args, **kwargs)
-    core.dispatch("aiokafka.produce.completed", (result,))
-    return result
+
+    with core.context_with_data(
+        "aiokafka.send_and_wait",
+        parent=None,
+        span_name=schematize_messaging_operation(PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
+        span_type=SpanTypes.WORKER,
+        service=trace_utils.ext_service(pin, config.aiokafka),
+        tags=create_send_span_tags(instance, args, kwargs),
+        pin=pin,
+    ) as ctx:
+        result = await func(*args, **kwargs)
+        core.dispatch("aiokafka.send_and_wait.post", (ctx,))
+        return result
+
+
+def create_get_span_tags(instance, args, kwargs):
+    tags = {
+        COMPONENT: config.aiokafka.integration_name,
+        SPAN_KIND: SpanKind.CONSUMER,
+        HOST_LIST: bootstrap_servers(instance),
+        MESSAGING_SYSTEM: SERVICE,
+        GROUP_ID: instance._group_id,
+    }
+    return tags
 
 
 async def traced_getone(func, instance, args, kwargs):
@@ -129,93 +132,44 @@ async def traced_getone(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    # we must get start time now since execute before starting a span in order to get distributed context
-    # if it exists
-    start_ns = time_ns()
-    err = None
-    result = None
-    try:
-        result = await func(*args, **kwargs)
-    except Exception as e:
-        err = e
-        raise err
-    finally:
-        _instrument_message(result, pin, start_ns, instance, err)
-    return result
-
-
-async def traced_getmany(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return await func(*args, **kwargs)
-
-    # we must get start time now since execute before starting a span in order to get distributed context
-    # if it exists
-    start_ns = time_ns()
-    err = None
-    result = None
-    try:
-        result = await func(*args, **kwargs)
-    except Exception as e:
-        err = e
-        raise err
-    finally:
-        for tp, records in result.items():
-            for record in records:
-                _instrument_message(record, pin, start_ns, instance, err)
-    return result
-
-
-def _instrument_message(message, pin, start_ns, instance, err):
-    ctx = None
-    if message is not None and config.kafka.distributed_tracing_enabled and message.headers:
-        ctx = Propagator.extract(dict(message.headers))
-    with pin.tracer.start_span(
-        name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
-        service=trace_utils.ext_service(pin, config.kafka),
+    with core.context_with_data(
+        "aiokafka.getone",
+        parent=None,
+        span_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
         span_type=SpanTypes.WORKER,
-        child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
-        activate=True,
-    ) as span:
-        # reset span start time to before function call
-        span.start_ns = start_ns
-
-        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span.set_tag_str(COMPONENT, config.kafka.integration_name)
-        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-        span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
-        if message is not None:
-            message_key = message.key or ""
-            message_offset = message.offset or -1
-            span.set_tag_str(kafkax.TOPIC, message.topic)
-
-            core.set_item("kafka_topic", message.topic)
-            core.dispatch("aiokafka.consume.start", (instance, message, span))
-
-            # If this is a deserializing consumer, do not set the key as a tag since we
-            # do not have the serialization function
-            if isinstance(message_key, str) or isinstance(message_key, bytes):
-                span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
-            span.set_tag(kafkax.PARTITION, message.partition)
-            is_tombstone = False
-            try:
-                is_tombstone = len(message) == 0
-            except TypeError:  # https://github.com/confluentinc/confluent-kafka-python/issues/1192
-                pass
-            span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
-            span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-        span.set_tag(SPAN_MEASURED_KEY)
-        rate = config.kafka.get_analytics_sample_rate()
-        if rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
-
-        if err is not None:
-            span.set_exc_info(*sys.exc_info())
+        service=trace_utils.ext_service(pin, config.aiokafka),
+        tags=create_get_span_tags(instance, args, kwargs),
+        pin=pin,
+    ) as ctx:
+        err = None
+        result = None
+        try:
+            result = await func(*args, **kwargs)
+        except Exception as e:
+            err = e
+            raise err
+        finally:
+            _instrument_message(ctx["call"], result, err)
+            ctx["call"].finish()
+        return result
 
 
-async def traced_commit(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return await func(*args, **kwargs)
-    core.dispatch("aiokafka.commit.start", (instance, args, kwargs))
-    return await func(*args, **kwargs)
+def _instrument_message(span, message, err):
+    span.set_tag(TOMBSTONE, str(message is None).lower())
+    if message is not None:
+        message_key = message.key or ""
+        message_offset = message.offset or -1
+        span.set_tag_str(TOPIC, message.topic)
+
+    if isinstance(message_key, str) or isinstance(message_key, bytes):
+        span.set_tag_str(MESSAGE_KEY, message_key)
+
+    span.set_tag(PARTITION, message.partition)
+    span.set_tag(MESSAGE_OFFSET, message_offset)
+    span.set_tag(SPAN_MEASURED_KEY)
+    rate = config.kafka.get_analytics_sample_rate()
+    if rate is not None:
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+
+    if err is not None:
+        span.set_exc_info(*sys.exc_info())

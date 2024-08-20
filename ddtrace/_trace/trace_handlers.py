@@ -746,6 +746,11 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
+def _on_aiokafka_send_and_wait_post(ctx: core.ExecutionContext):
+    span = ctx["call"]
+    span.finish()
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -798,6 +803,7 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("aiokafka.send_and_wait.post", _on_aiokafka_send_and_wait_post)
 
     for context_name in (
         "flask.call",
@@ -816,6 +822,8 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "aiokafka.send_and_wait",
+        "aiokafka.getone",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
