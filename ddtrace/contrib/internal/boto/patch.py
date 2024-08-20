@@ -138,7 +138,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
     # Go up the stack until we get the first non-ddtrace module
     # DEV: For `lambda.list_functions()` this should be:
-    #        - ddtrace.contrib.boto.patch
+    #        - ddtrace.contrib.internal.boto.patch
     #        - wrapt.wrappers
     #        - boto.awslambda.layer1 (make_request)
     #        - boto.awslambda.layer1 (list_functions)
