@@ -200,8 +200,8 @@ def iast_ast_patching_import_error():
     return Response(str(module_with_import_errors.verbal_kint_is_keyser_soze))
 
 
-@app.route("/iast-ast-patching-re", methods=["GET"])
-def iast_ast_patching_re():
+@app.route("/iast-ast-patching-re-sub", methods=["GET"])
+def iast_ast_patching_re_sub():
     filename = request.args.get("filename")
     style = request.args.get("style")
     if style == "re_module":
@@ -220,8 +220,8 @@ def iast_ast_patching_re():
     return resp
 
 
-@app.route("/iast-ast-patching-non-re", methods=["GET"])
-def iast_ast_patching_non_re():
+@app.route("/iast-ast-patching-non-re-sub", methods=["GET"])
+def iast_ast_patching_non_re_sub():
     import iast.fixtures.non_re_module as re
 
     filename = request.args.get("filename")
@@ -236,6 +236,90 @@ def iast_ast_patching_non_re():
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if is_pyobject_tainted(changed):
+            resp = Response("Fail")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-re-subn", methods=["GET"])
+def iast_ast_patching_re_subn():
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        changed, number = re.subn(r"_", " ", filename)
+    elif style == "re_object":
+        pattern = re.compile(r"_")
+        changed, number = pattern.subn(" ", filename)
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if is_pyobject_tainted(changed):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-non-re-subn", methods=["GET"])
+def iast_ast_patching_non_re_subn():
+    import iast.fixtures.non_re_module as re
+
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        changed, number = re.subn(r"_", " ", filename)
+    elif style == "re_object":
+        pattern = re.compile(r"_")
+        changed, number = pattern.subn(" ", filename)
+    resp = Response("OK")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if is_pyobject_tainted(changed):
+            resp = Response("Fail")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-re-split", methods=["GET"])
+def iast_ast_patching_re_split():
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        result = re.split(r"_", filename)
+    elif style == "re_object":
+        pattern = re.compile(r"_")
+        result = pattern.split(filename)
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if all(map(is_pyobject_tainted, result)):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-non-re-split", methods=["GET"])
+def iast_ast_patching_non_re_split():
+    import iast.fixtures.non_re_module as re
+
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        result = re.split(r"_", filename)
+    elif style == "re_object":
+        pattern = re.compile(r"_")
+        result = pattern.split(filename)
+    resp = Response("OK")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if any(map(is_pyobject_tainted, result)):
             resp = Response("Fail")
     except Exception as e:
         print(e)
