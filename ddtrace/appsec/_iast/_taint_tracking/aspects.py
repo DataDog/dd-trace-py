@@ -63,7 +63,6 @@ __all__ = [
     "bytearray_extend_aspect",
     "decode_aspect",
     "encode_aspect",
-    "re_sub_aspect",
     "_aspect_ospathjoin",
     "_aspect_split",
     "_aspect_rsplit",
@@ -87,21 +86,6 @@ def split_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
                 args = args[flag_added_args:]
             return orig_function(*args, **kwargs)
     try:
-        # re.split aspect, either with pattern as first arg or with re module
-        if isinstance(args[0], Pattern) or (
-            isinstance(args[0], ModuleType) and args[0].__name__ == "re" and args[0].__package__ in ("", "re")
-        ):
-            result = args[0].split(*args[1:], **kwargs)
-            offset = 0
-            if isinstance(args[0], Pattern):
-                offset = -1
-
-            if len(args) >= (3 + offset) and is_pyobject_tainted(args[2 + offset]):
-                for i in result:
-                    if len(i):
-                        copy_and_shift_ranges_from_strings(args[2 + offset], i, 0, len(i))
-            return result
-
         return _aspect_split(*args, **kwargs)
     except Exception as e:
         iast_taint_log_error("IAST propagation error. split_aspect. {}".format(e))
@@ -1084,81 +1068,3 @@ def translate_aspect(
 
 def empty_func(*args, **kwargs):
     pass
-
-
-def re_sub_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
-    if orig_function is not None and (not flag_added_args or not args):
-        # This patch is unexpected, so we fallback
-        # to executing the original function
-        return orig_function(*args, **kwargs)
-    elif orig_function is None:
-        orig_function = args[0].sub
-
-    self = args[0]
-    args = args[(flag_added_args or 1) :]
-    result = orig_function(*args, **kwargs)
-
-    if not isinstance(self, (Pattern, ModuleType)):
-        # This is not the sub we're looking for
-        return result
-    elif isinstance(self, ModuleType):
-        if self.__name__ != "re" or self.__package__ not in ("", "re"):
-            return result
-        # In this case, the first argument is the pattern
-        # which we don't need to check for tainted ranges
-        args = args[1:]
-
-    if len(args) >= 2:
-        repl = args[0]
-        string = args[1]
-        if is_pyobject_tainted(string):
-            # Taint result
-            copy_and_shift_ranges_from_strings(string, result, 0, len(result))
-        elif is_pyobject_tainted(repl):
-            # Taint result
-            copy_and_shift_ranges_from_strings(repl, result, 0, len(result))
-
-    return result
-
-
-def re_subn_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
-    if orig_function is not None and (not flag_added_args or not args):
-        # This patch is unexpected, so we fallback
-        # to executing the original function
-        return orig_function(*args, **kwargs)
-    elif orig_function is None:
-        orig_function = args[0].subn
-
-    self = args[0]
-    args = args[(flag_added_args or 1) :]
-    result = orig_function(*args, **kwargs)
-
-    if not isinstance(self, (Pattern, ModuleType)):
-        # This is not the sub we're looking for
-        return result
-    elif isinstance(self, ModuleType):
-        if self.__name__ != "re" or self.__package__ not in ("", "re"):
-            return result
-        # In this case, the first argument is the pattern
-        # which we don't need to check for tainted ranges
-        args = args[1:]
-    elif not isinstance(result, tuple) and not len(result) == 2:
-        return result
-
-    new_string, number = result
-
-    if len(args) >= 2:
-        repl = args[0]
-        string = args[1]
-        if is_pyobject_tainted(string):
-            # Taint result
-            copy_and_shift_ranges_from_strings(string, new_string, 0, len(new_string))
-        elif is_pyobject_tainted(repl):
-            # Taint result
-            copy_and_shift_ranges_from_strings(repl, new_string, 0, len(new_string))
-
-    return (new_string, number)
