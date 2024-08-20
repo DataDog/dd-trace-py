@@ -1,5 +1,6 @@
 tracer:
   extends: .test_base_riot
-  parallel: 12
+  parallel: 9
   variables:
     SUITE_NAME: "tracer"
+    DD_ENV: ""
