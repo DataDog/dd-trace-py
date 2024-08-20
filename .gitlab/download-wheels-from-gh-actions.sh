@@ -46,5 +46,7 @@ echo "Finished downloading wheels. Fixing directory structure"
 
 # Flatten directory structure so all wheels are top level
 find pywheels -type f -exec mv {} pywheels \;
+# Remove the now empty artifact directories
+find pywheels/* -type d -exec rm -rf {} \;
 
 echo "Done"
