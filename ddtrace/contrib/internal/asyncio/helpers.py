@@ -98,7 +98,7 @@ def create_task(*args, **kwargs):
     deprecate(
         "ddtrace.contrib.internal.asyncio.create_task(..) is deprecated. "
         "The ddtrace library fully supports propagating "
-        "trace contextes to async tasks. No additional configurations are required.",
+        "trace contexts to async tasks. No additional configurations are required.",
         version="3.0.0",
     )
     loop = asyncio.get_event_loop()
