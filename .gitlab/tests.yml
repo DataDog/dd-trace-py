@@ -7,5 +7,12 @@
   script:
     - hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh | xargs -n 1 -I {} hatch run {}:test
 
+.test_base_riot:
+  extends: .testrunner
+  stage: tests
+  needs: [build_base_venvs]
+  script:
+    - echo "hello world"
+
 include:
   - local: ".gitlab/tests/appsec.yml"
