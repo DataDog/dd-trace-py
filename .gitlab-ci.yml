@@ -57,15 +57,9 @@ deploy_to_di_backend:manual:
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
 
-
 status:
   stage: status
   rules:
-    - when: on_success
-      variables:
-        STATUS: 0
-    - when: on_failure
-      variables:
-        STATUS: 1
+    - when: always
   script:
-    - exit ${STATUS}
+    - curl -L https://gitlab.ddbuild.io/api/v4/projects/$PROJECT_ID/pipelines/$PIPELINE_ID/jobs?per_page=100
