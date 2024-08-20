@@ -1,0 +1,16 @@
+---
+deprecations:
+  - |
+    tornado: Deprecates all modules in the ``ddtrace.contrib.tornado`` package. Use attributes exposed in ``ddtrace.contrib.tornado.__all__`` instead.
+  - |
+    urllib: Deprecates the ``ddtrace.contrib.urllib`` module. Use attributes exposed in ``ddtrace.contrib.urllib.__all__`` instead.
+  - |
+    urllib3: Deprecates the ``ddtrace.contrib.urllib3`` module. Use attributes exposed in ``ddtrace.contrib.urllib3.__all__`` instead.
+  - |
+    vertica: Deprecates the ``ddtrace.contrib.vertica`` module. Use attributes exposed in ``ddtrace.contrib.vertica.__all__`` instead.
+  - |
+    webbrowser: Deprecates the ``ddtrace.contrib.webbrowser`` module. Use attributes exposed in ``ddtrace.contrib.webbrowser.__all__`` instead.
+  - | 
+    wsgi: Deprecates the ``ddtrace.contrib.wsgi`` module. Use attributes exposed in ``ddtrace.contrib.wsgi.__all__`` instead.
+  - |
+    yaaredis: Deprecates all modules in the ``ddtrace.contrib.yaaredis`` package. Use attributes exposed in ``ddtrace.contrib.yaaredis.__all__`` instead.

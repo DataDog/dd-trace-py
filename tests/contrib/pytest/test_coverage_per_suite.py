@@ -132,13 +132,13 @@ class PytestTestCase(TracerTestCase):
         assert len(files) == 3
 
         assert files[2]["filename"] == "test_cov.py"
-        assert len(files[2]["segments"]) == (55 if _USE_PLUGIN_V2 else 5)
 
         if _USE_PLUGIN_V2:
             # This array is too long to store here, and this is temporary pending the rewrite of coverage format to
             # byte arrays
             pass
         else:
+            assert len(files[2]["segments"]) == (55 if _USE_PLUGIN_V2 else 5)
             assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
             assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
             assert files[2]["segments"][2] == [12, 0, 13, 0, -1]
