@@ -97,7 +97,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - Code Security: add encodings.idna to the IAST patching denylist to avoid problems with gevent.
 - Code Security: add the boto package to the IAST patching denylist.
-- - Code Security: fix two small memory leaks with Python 3.11 and 3.12.
+- Code Security: fix two small memory leaks with Python 3.11 and 3.12.
 - CI Visibility: Fixes an issue where the pytest plugin would crash if the git binary was absent
 - CI Visibility: fixes incorrect URL for telemetry intake in EU that was causing missing telemetry data and SSL error log messages.
 - celery: changes `error.message` span tag to no longer include the traceback that is already included in the `error.stack` span tag.
