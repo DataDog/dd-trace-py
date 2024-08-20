@@ -18,7 +18,7 @@ variables:
   script:
     - pip install riot~=0.19.1
     - |
-      hashes=( $(riot list --hash-only "${SUITE_PATTERN}" | sort | ./.gitlab/ci-split-input.sh) )
+      hashes=( $(riot list --hash-only "${SUITE_NAME}" | sort | ./.gitlab/ci-split-input.sh) )
       for hash in "${hashes[@]}"
       do
         echo "Running riot hash: ${hash}"
