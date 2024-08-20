@@ -64,4 +64,5 @@ status:
   rules:
     - when: always
   script:
-    - curl -L https://gitlab.ddbuild.io/api/v4/projects/$PROJECT_ID/pipelines/$PIPELINE_ID/jobs?per_page=100
+    - |
+      curl -L -H "JOB-TOKEN: ${CI_JOB_TOKEN}" https://gitlab.ddbuild.io/api/v4/projects/$PROJECT_ID/pipelines/$PIPELINE_ID/jobs?per_page=100
