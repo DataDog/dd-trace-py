@@ -3,7 +3,8 @@ set -e
 
 DDTEST_CMD=scripts/ddtest
 
-pkgs=$(python scripts/update-latest.py)
+pkgs=$(python scripts/freshvenvs.py | cut -d':' -f1)
+echo $pkgs
 
 if ! $DDTEST_CMD; then
     echo "Command '$DDTEST_CMD' failed."
