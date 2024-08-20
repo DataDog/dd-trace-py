@@ -164,15 +164,14 @@ class CIVisibilityWriter(HTTPWriter):
         with StopWatch() as sw:
             try:
                 response = super()._put(data, headers, client, no_trace)
+                if response.status >= 400:
+                    request_error = REQUEST_ERROR_TYPE.STATUS_CODE
             except (TimeoutError, socket.timeout):
                 request_error = REQUEST_ERROR_TYPE.TIMEOUT
                 raise
             except RemoteDisconnected:
                 request_error = REQUEST_ERROR_TYPE.NETWORK
                 raise
-            else:
-                if response.status >= 400:
-                    request_error = REQUEST_ERROR_TYPE.STATUS_CODE
             finally:
                 if isinstance(client.encoder, CIVisibilityEncoderV01):
                     endpoint = client.encoder.ENDPOINT_TYPE
