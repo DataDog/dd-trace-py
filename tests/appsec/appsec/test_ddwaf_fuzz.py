@@ -17,12 +17,14 @@ PYTHON_OBJECTS = st.recursive(
 
 WRAPPER_KWARGS = dict(
     max_objects=st.integers(min_value=0, max_value=(1 << 63) - 1),
+    max_depth=st.integers(min_value=0, max_value=(1 << 63) - 1),
+    max_string_length=st.integers(min_value=0, max_value=(1 << 63) - 1),
 )
 
 
 @given(obj=PYTHON_OBJECTS, kwargs=st.fixed_dictionaries(WRAPPER_KWARGS))
 def test_ddwaf_objects_wrapper(obj, kwargs):
-    obj = ddwaf_object(obj, **kwargs)
+    obj = ddwaf_object(obj, _observator(), **kwargs)
     repr(obj)
     del obj
 
@@ -53,7 +55,7 @@ class _AnyObject:
     ],
 )
 def test_small_objects(obj, res):
-    dd_obj = ddwaf_object(obj)
+    dd_obj = ddwaf_object.create_without_limits(obj)
     assert dd_obj.struct == res
 
 
