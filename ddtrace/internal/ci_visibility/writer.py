@@ -159,27 +159,24 @@ class CIVisibilityWriter(HTTPWriter):
 
     def _put(self, data, headers, client, no_trace):
         # type: (bytes, Dict[str, str], WriterClientBase, bool) -> Response
+        assert isinstance(client.encoder, CIVisibilityEncoderV01)
+        endpoint = client.encoder.ENDPOINT_TYPE
+
         with StopWatch() as sw:
             try:
                 response = super()._put(data, headers, client, no_trace)
             except (TimeoutError, socket.timeout):
-                record_endpoint_payload_request_error(
-                    endpoint=client.encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.TIMEOUT
-                )
+                record_endpoint_payload_request_error(endpoint, REQUEST_ERROR_TYPE.TIMEOUT)
                 raise
             except RemoteDisconnected:
-                record_endpoint_payload_request_error(
-                    endpoint=client.encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.NETWORK
-                )
+                record_endpoint_payload_request_error(endpoint, REQUEST_ERROR_TYPE.NETWORK)
                 raise
             else:
                 if response.status >= 400:
-                    record_endpoint_payload_request_error(
-                        endpoint=client.encoder.ENDPOINT_TYPE, error_type=REQUEST_ERROR_TYPE.STATUS_CODE
-                    )
+                    record_endpoint_payload_request_error(endpoint, REQUEST_ERROR_TYPE.STATUS_CODE)
             finally:
-                record_endpoint_payload_bytes(endpoint=client.encoder.ENDPOINT_TYPE, nbytes=len(data))
-                record_endpoint_payload_request(endpoint=client.encoder.ENDPOINT_TYPE)
-                record_endpoint_payload_request_time(endpoint=client.encoder.ENDPOINT_TYPE, seconds=sw.elapsed())
+                record_endpoint_payload_bytes(endpoint, nbytes=len(data))
+                record_endpoint_payload_request(endpoint)
+                record_endpoint_payload_request_time(endpoint, seconds=sw.elapsed())
 
         return response
