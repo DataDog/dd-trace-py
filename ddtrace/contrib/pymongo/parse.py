@@ -9,7 +9,6 @@ def __getattr__(name):
         ("%s.%s is deprecated" % (__name__, name)),
         category=DDTraceDeprecationWarning,
     )
-
     if name in globals():
         return globals()[name]
     raise AttributeError("%s has no attribute %s", __name__, name)
