@@ -34,7 +34,12 @@ def get_version():
 
 def patch():
     """Patch the instrumented methods"""
-    deprecate("The yaaredis module is deprecated and will be deleted.", message="", category=DDTraceDeprecationWarning)
+    deprecate(
+        prefix="The yaaredis module is deprecated.",
+        message="The yaaredis module is deprecated and will be deleted.",
+        category=DDTraceDeprecationWarning,
+        removal_version="3.0.0",
+    )
 
     if getattr(yaaredis, "_datadog_patch", False):
         return
