@@ -3,5 +3,3 @@ tracer:
   parallel: 9
   variables:
     SUITE_NAME: "tracer"
-    DD_ENV: ""
-    DD_SERVICE: ""

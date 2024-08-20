@@ -17,6 +17,8 @@ variables:
   parallel: 4
   script:
     - pip install riot~=0.19.1
+    - unset DD_SERVICE
+    - unset DD_ENV
     - |
       hashes=( $(riot list --hash-only "${SUITE_NAME}" | sort | ./.gitlab/ci-split-input.sh) )
       for hash in "${hashes[@]}"
