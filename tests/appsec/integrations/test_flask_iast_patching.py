@@ -24,7 +24,7 @@ def test_flask_iast_ast_patching_import_error():
 
 @pytest.mark.parametrize("style", ["re_module", "re_object"])
 @pytest.mark.parametrize("endpoint", ["re", "non-re"])
-@pytest.mark.parametrize("function", ["sub", "subn", "split"])
+@pytest.mark.parametrize("function", ["sub", "subn", "split", "groups"])
 def test_flask_iast_ast_patching_re(style, endpoint, function):
     """
     Tests re module patching end to end by checking that re.sub is propagating properly

@@ -6,6 +6,8 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking.aspects import re_groups_aspect
+from ddtrace.appsec._iast._taint_tracking.aspects import re_match_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
@@ -127,6 +129,32 @@ def test_re_split_aspect_tainted_string_re_module():
                     0,
                     len(res_str),
                     Source("test_re_split_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER),
+                ),
+            ]
+        else:
+            assert not is_pyobject_tainted(res_str)
+
+
+def test_re_match_aspect_tainted_string_re_object():
+    tainted_isaac_newton = taint_pyobject(
+        pyobject="Isaac Newton, physicist",
+        source_name="test_re_match_group_aspect_tainted_string",
+        source_value="Isaac Newton, physicist",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    re_obj = re.compile(r"(\w+) (\w+)")
+
+    re_match = re_match_aspect(None, 1, re_obj, tainted_isaac_newton)
+    result = re_groups_aspect(None, 1, re_match)
+    assert result == ("Isaac", "Newton")
+    for res_str in result:
+        if len(res_str):
+            assert get_tainted_ranges(res_str) == [
+                TaintRange(
+                    0,
+                    len(res_str),
+                    Source("test_re_match_group_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
                 ),
             ]
         else:
