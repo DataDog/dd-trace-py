@@ -4,6 +4,22 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.11.1
+
+
+### Bug Fixes
+
+- tracing(django): This fix resolves a bug where ddtrace was exhausting a Django stream response before returning it to user.
+- Fixed an issue with some module imports with native specs that don't support attribute assignments, resulting in a `TypeError` exception at runtime.
+- internal: Fix `Already mutably borrowed` error by reverting back to pure-python rate limiter.
+- This fix resolves an issue where `ddtrace` package files were published with incorrect file attributes.
+- profiling: Fixes an issue where the profiler could erroneously try to load protobuf in autoinjected environments, where it is not available.
+- Fixes an issue where crashtracking environment variables for Python were inconsistent with those used by other runtimes.
+- profiling: Fixes endpoing profiling for stack v2, that is when `DD_PROFILING_STACK_V2_ENABLED` set.
+
+
+---
+
 ## 2.11.0
 
 ### New Features
