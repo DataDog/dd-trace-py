@@ -905,6 +905,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
         interface_type="similarity_search",
         provider=provider,
         api_key=_extract_api_key(instance),
