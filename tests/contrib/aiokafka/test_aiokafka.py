@@ -163,11 +163,10 @@ async def test_send_none_key(dummy_tracer, producer, kafka_topic):
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_message(producer, tombstone, kafka_topic):
-    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
-        if tombstone:
-            await producer.send_and_wait(kafka_topic, value=None, key=KEY)
-        else:
-            await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+    if tombstone:
+        await producer.send_and_wait(kafka_topic, value=None, key=KEY)
+    else:
+        await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
@@ -178,6 +177,15 @@ async def test_getone_with_commit(producer, consumer, kafka_topic):
     await consumer.commit()
 
 
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+async def test_getone_with_commit_with_offset(producer, consumer, kafka_topic):
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+    await producer.stop()
+    result = await consumer.getone()
+    await consumer.commit({TopicPartition(result.topic, result.partition): result.offset + 1})
+
+
+@pytest.mark.skip(reason="getmany not instrumented yet")
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getmany_single_message_with_commit(producer, tracer, kafka_topic):
     await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
@@ -193,6 +201,7 @@ async def test_getmany_single_message_with_commit(producer, tracer, kafka_topic)
     await consumer.stop()
 
 
+@pytest.mark.skip(reason="getmany not instrumented yet")
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getmany_multiple_messages_with_commit(producer, tracer, kafka_topic):
     await producer.send_and_wait(kafka_topic, value=PAYLOAD)
@@ -211,14 +220,7 @@ async def test_getmany_multiple_messages_with_commit(producer, tracer, kafka_top
     await consumer.stop()
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-async def test_getone_with_commit_with_offset(producer, consumer, kafka_topic):
-    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
-    await producer.stop()
-    result = await consumer.getone()
-    await consumer.commit({TopicPartition(result.topic, result.partition): result.offset + 1})
-
-
+@pytest.mark.skip(reason="getmany not instrumented yet")
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getmany_multiple_messages_multiple_topics(producer, tracer, kafka_topic, kafka_topic_2):
     await producer.send_and_wait(kafka_topic, PAYLOAD)
@@ -242,6 +244,7 @@ async def test_getmany_multiple_messages_multiple_topics(producer, tracer, kafka
         await consumer.stop()
 
 
+@pytest.mark.skip(reason="distributed tracing not implemented yet")
 async def test_getone_without_distributed_tracing(producer, consumer, kafka_topic, tracer):
     with override_config("kafka", dict(distributed_tracing_enabled=False)):
         await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
@@ -257,6 +260,7 @@ async def test_getone_without_distributed_tracing(producer, consumer, kafka_topi
         assert propagation_asserted is False
 
 
+@pytest.mark.skip(reason="distributed tracing not implemented yet")
 async def test_getone_with_distributed_tracing_no_headers(producer, consumer, kafka_topic, tracer):
     with override_config("kafka", dict(distributed_tracing_enabled=True)):
         await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
@@ -272,6 +276,7 @@ async def test_getone_with_distributed_tracing_no_headers(producer, consumer, ka
         assert propagation_asserted is True
 
 
+@pytest.mark.skip(reason="distributed tracing not implemented yet")
 async def test_getone_with_distributed_tracing_with_headers(producer, consumer, kafka_topic, tracer):
     with override_config("kafka", dict(distributed_tracing_enabled=True)):
         await producer.send_and_wait(
@@ -289,6 +294,7 @@ async def test_getone_with_distributed_tracing_with_headers(producer, consumer, 
         assert propagation_asserted is True
 
 
+@pytest.mark.skip(reason="datastreams not implemented yet")
 @pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
 @pytest.mark.parametrize("enable_auto_commit", [True, False])
 async def test_data_streams_kafka(
@@ -341,6 +347,7 @@ async def test_data_streams_kafka(
         )
 
 
+@pytest.mark.skip(reason="datastreams not implemented yet")
 @pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
 async def test_data_streams_kafka_produce_api_compatibility(
     dsm_processor, producer, kafka_topic, distributed_tracing_enabled

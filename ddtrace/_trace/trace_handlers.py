@@ -1127,6 +1127,11 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         scope["datadog"]["request_spans"].append(span)
 
 
+def _on_aiokafka_send_and_wait_post(ctx: core.ExecutionContext):
+    span = ctx["call"]
+    span.finish()
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1205,6 +1210,7 @@ def listen():
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
+    core.on("aiokafka.send_and_wait.post", _on_aiokafka_send_and_wait_post)
 
     for context_name in (
         # web frameworks
@@ -1263,6 +1269,8 @@ def listen():
         "azure.servicebus.patched_producer_schedule",
         "azure.servicebus.patched_producer_send",
         "psycopg.patched_connect",
+        "aiokafka.send_and_wait",
+        "aiokafka.getone",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
