@@ -19,9 +19,15 @@ for pkg in ${pkgs[*]}; do
     if [[ ${#RIOT_HASHES[@]} -eq 0 ]]; then
         echo "No riot hashes found for pattern: $VENV_NAME"
     else
+        BRANCH_NAME="upgrade-${pkg}-$(date +%Y%m%d%H%M%S)"
+        git checkout -b "$BRANCH_NAME"
         for h in ${RIOT_HASHES[@]}; do 
             rm ".riot/requirements/${h}.txt"
         done
+        scripts/compile-and-prune-test-requirements
+
+        git add .
+        git commit -m "Upgrade version for $pkg"
+        git push origin "$BRANCH_NAME"
     fi
-    scripts/compile-and-prune-test-requirements
 done

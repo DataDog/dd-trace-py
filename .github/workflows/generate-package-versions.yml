@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: '0 0 * * 0' # weekly on Sunday at midnight
+  workflow_dispatch: # can be triggered manually
+
 
 jobs:
   generate-package-versions:
@@ -24,8 +28,14 @@ jobs:
 
       - name: Create Pull Request
         id: pr
-        uses: peter-evans/create-pull-request@v6
-        base: main
-        team-reviewers: "DataDog/apm-core-python,DataDog/apm-idm-python"
-        body: |
-          Updates the package versions
+        uses: peter-evans/create-pull-request@v3.10.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: "bump-package-versions"
+          commit-message: "Test Package Versions update"
+          delete-branch: true
+          base: main
+          title: "Testing Package Versions Update"
+          team-reviewers: "DataDog/apm-core-python,DataDog/apm-idm-python"
+          body: |
+            Updates the package versions
