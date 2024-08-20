@@ -58,7 +58,9 @@ deploy_to_di_backend:manual:
     UPSTREAM_PACKAGE_JOB: build
 
 status:
+  extends: .testrunner
   stage: status
+  needs: []
   rules:
     - when: always
   script:
