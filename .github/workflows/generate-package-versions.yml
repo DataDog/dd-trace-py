@@ -31,7 +31,7 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          branch: "bump-package-versions"
+          branch: "upgrade-package-versions"
           commit-message: "Test Package Versions update"
           delete-branch: true
           base: main
