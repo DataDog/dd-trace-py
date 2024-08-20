@@ -155,3 +155,25 @@ def _extract_span(item):
         return CITest.get_span(test_id)
 
     return getattr(item, "_datadog_span", None)
+
+
+def _is_enabled_early(early_config):
+    """Checks if the ddtrace plugin is enabled before the config is fully populated.
+
+    This is necessary because the module watchdog for coverage collection needs to be enabled as early as possible.
+
+    Note: since coverage is used for ITR purposes, we only check if the plugin is enabled if the pytest version supports
+    ITR
+    """
+    if not _pytest_version_supports_itr():
+        return False
+
+    if (
+        "--no-ddtrace" in early_config.invocation_params.args
+        or early_config.getini("no-ddtrace")
+        or "ddtrace" in early_config.inicfg
+        and early_config.getini("ddtrace") is False
+    ):
+        return False
+
+    return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")
