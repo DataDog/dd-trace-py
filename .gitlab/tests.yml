@@ -12,7 +12,7 @@
   stage: tests
   needs: [build_base_venvs]
   script:
-    - echo "hello world"
+    - ../scripts/run-test-suite "$SUITE_NAME"
 
 include:
   - local: ".gitlab/tests/appsec.yml"

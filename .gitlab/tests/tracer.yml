@@ -1,0 +1,5 @@
+tracer:
+  extends: .test_base_riot
+  parallel: 12
+  variables:
+    SUITE_NAME: "tracer"
