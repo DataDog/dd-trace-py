@@ -1,6 +1,4 @@
-from base64 import b64encode
 from collections import defaultdict
-import json
 from pathlib import Path
 from typing import Dict
 from typing import List
@@ -17,7 +15,7 @@ except ImportError:
 
 class CoverageFilePayload(TypedDict):
     filename: str
-    bitmap: str
+    bitmap: bytes
 
 
 class CICoverageData:
@@ -48,12 +46,10 @@ class CICoverageData:
             except ValueError:
                 relative_path = file_path
             path_str = f"/{str(relative_path)}"
-            bitmap_bytes = b64encode(covered_lines.to_bytes())
-            bitmap_str = bitmap_bytes.decode("ascii")
-            file_payload: CoverageFilePayload = {"filename": path_str, "bitmap": bitmap_str}
+            file_payload: CoverageFilePayload = {"filename": path_str, "bitmap": covered_lines.to_bytes()}
             coverage_data.append(file_payload)
         return coverage_data
 
-    def build_payload(self, root_dir: Path) -> str:
+    def build_payload(self, root_dir: Path) -> Dict[str, List[CoverageFilePayload]]:
         """Generate a CI Visibility coverage payload in JSON format"""
-        return json.dumps({"files": self._build_payload(root_dir)})
+        return {"files": self._build_payload(root_dir)}
