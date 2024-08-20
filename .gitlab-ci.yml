@@ -26,7 +26,7 @@ include:
   - local: ".gitlab/dogfood.yml"
 
 package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
+  needs: [ download_dependency_wheels, download_ddtrace_wheels ]
 
 onboarding_tests_installer:
   parallel:
