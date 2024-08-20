@@ -31,7 +31,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - LLM Observability: Adds support for tracing Anthropic messages using tool calls.
 
-- - botocore: Adds support for overriding the default service name in botocore by either setting the environment variable `DD_BOTOCORE_SERVICE` or configuring it via <span class="title-ref">ddtrace.config.botocore\["service"\]</span>.
+- botocore: Adds support for overriding the default service name in botocore by either setting the environment variable `DD_BOTOCORE_SERVICE` or configuring it via <span class="title-ref">ddtrace.config.botocore\["service"\]</span>.
 
 - azure: Removes the restrictions on the tracer to only run the mini-agent on the consumption plan. The mini-agent now runs regardless of the hosting plan
 
