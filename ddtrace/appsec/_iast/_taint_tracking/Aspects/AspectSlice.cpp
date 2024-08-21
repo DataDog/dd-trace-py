@@ -154,54 +154,65 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     try {
         cerr << "JJJ 3\n";
         PyObject* candidate_text = args[0];
-        PyObject* start = args[1];
-        PyObject* stop = args[2];
+        PyObject* start = PyLong_Check(args[1]) ? PyNumber_Long(args[1]) : PyLong_FromLong(0);
+        PyObject* stop = PyLong_Check(args[2]) ? PyNumber_Long(args[2]) : Py_None;
 
-        bool has_step = (nargs == 4);
-        PyObject* step = has_step ? args[3] : PyLong_FromLong(1);
-
-        printPyObject(step);
+        PyObject* step = PyLong_FromLong(1);
+        if (nargs == 4 and PyLong_Check(args[3])) {
+            step = PyNumber_Long(args[3]);
+        }
 
         cerr << "JJJ 4\n";
         PyObject* slice = PySlice_New(start, stop, step);
         if (slice == nullptr) {
             cerr << "JJJ 5\n";
             PyErr_Print();
-            if (!has_step)
-                Py_DECREF(step);
+            Py_XDECREF(start);
+            Py_XDECREF(step);
             return nullptr;
         }
         cerr << "JJJ 6\n";
         PyObject* result_o = PyObject_GetItem(candidate_text, slice);
         if (result_o == nullptr or (get_unique_id(result_o) == get_unique_id(candidate_text))) {
-            // Result is nullptr or same as candidate text, so either it's already tainted or not, but no changes needed
+            // Result is nullptr or same as candidate text, so either it's already tainted or not, but no changes
+            // needed
             cerr << "JJJ 7\n";
             cerr << "JJJ 7.1, result_o = " << result_o << endl; // JJJ
-            Py_DecRef(slice);
             cerr << "JJJ 7.2\n";
-            if (!has_step)
-                Py_DECREF(step);
+            Py_XDECREF(start);
+            Py_XDECREF(step);
+            Py_XDECREF(slice);
             cerr << "JJJ 7.3\n";
+            return result_o;
+        }
+
+        if (!is_text(candidate_text) or (start != Py_None and !PyLong_Check(start)) or
+            (stop != Py_None and !PyLong_Check(stop)) or (step != Py_None and !PyLong_Check(step))) {
+            cerr << "JJJ 7.4\n";
+            Py_XDECREF(start);
+            Py_XDECREF(step);
+            Py_XDECREF(slice);
             return result_o;
         }
 
         cerr << "JJJ 8\n";
         auto res = slice_aspect(result_o, candidate_text, start, stop, step);
 
-        if (!has_step) {
-            Py_DecRef(step);
-        }
-        Py_DecRef(slice);
-        Py_DecRef(result_o);
+        Py_XDECREF(start);
+        Py_XDECREF(step);
+        Py_XDECREF(slice);
+        Py_XDECREF(result_o);
 
         cerr << "JJJ 9\n";
         return res;
     } catch (const std::exception& e) {
+        cerr << "JJJ exc1\n";
         const std::string error_message = "IAST propagation error in slice_aspect. " + std::string(e.what());
         iast_taint_log_error(error_message);
         py::set_error(PyExc_TypeError, error_message.c_str());
         return nullptr;
     } catch (...) {
+        cerr << "JJJ exc2\n";
         const std::string error_message = "Unkown IAST propagation error in slice_aspect. ";
         iast_taint_log_error(error_message);
         py::set_error(PyExc_TypeError, error_message.c_str());
