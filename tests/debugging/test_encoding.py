@@ -210,7 +210,8 @@ def test_batch_json_encoder():
     assert len(decoded) == count
     assert n_snapshots <= count
     assert (
-        utils.serialize(cake) == decoded[0]["debugger.snapshot"]["captures"]["lines"]["42"]["locals"]["cake"]["value"]
+        utils.serialize(cake)
+        == decoded[0]["debugger"]["snapshot"]["captures"]["lines"]["42"]["locals"]["cake"]["value"]
     )
     assert queue.flush() is None
     assert queue.flush() is None
