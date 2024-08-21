@@ -126,5 +126,4 @@ class SafeObjectProxy(wrapt.ObjectProxy):
             # Handle slots objects
             return cls(AttrDict({k: object.__getattribute__(obj, k) for k in slots}))
 
-        # raise TypeError("Unhandled object type: %s", type(obj))
         return cls(obj)
