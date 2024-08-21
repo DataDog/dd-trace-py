@@ -1,6 +1,5 @@
 #include "AspectIndex.h"
 #include "Helpers.h"
-#include <iostream> // JJJ
 
 /**
  * @brief Index aspect
@@ -48,24 +47,20 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     }
 
     try {
-        cerr << "JJJ 1\n";
         PyObject* result_o = nullptr;
         PyObject* candidate_text = args[0];
         PyObject* idx = args[1];
         if (!is_text(candidate_text) or !is_some_number(idx)) {
-            cerr << "JJJ 2\n";
             return PyObject_GetItem(candidate_text, idx);
         }
         const auto ctx_map = initializer->get_tainting_map();
         result_o = PyObject_GetItem(candidate_text, idx);
         if (not ctx_map or ctx_map->empty()) {
-            cerr << "JJJ 3\n";
             return result_o;
         }
 
         auto error_str = has_pyerr_as_string();
         if (!error_str.empty()) {
-            cerr << "JJJ 4\n";
             error_str += " (native index_aspect)";
             iast_taint_log_error(error_str);
             py::set_error(PyExc_IndexError, error_str.c_str());
@@ -74,13 +69,11 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
         return index_aspect(result_o, candidate_text, idx, ctx_map);
     } catch (const std::exception& e) {
-        cerr << "JJJ 5\n";
         const std::string error_message = "IAST propagation error in index_aspect. " + std::string(e.what());
         iast_taint_log_error(error_message);
         py::set_error(PyExc_TypeError, error_message.c_str());
         return nullptr;
     } catch (...) {
-        cerr << "JJJ 6\n";
         const std::string error_message = "Unkown IAST propagation error in index_aspect. ";
         iast_taint_log_error(error_message);
         py::set_error(PyExc_TypeError, error_message.c_str());
