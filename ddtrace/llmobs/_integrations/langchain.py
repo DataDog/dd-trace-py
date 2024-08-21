@@ -310,7 +310,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 try:
                     span.set_tag_str(OUTPUT_DOCUMENTS, json.dumps(self.format_io(documents)))
                     # we set the value as well to ensure that the UI would display it in case the span was the root
-                    span.set_tag_str(OUTPUT_VALUE, "[{} documents(s) retrieved]".format(len(documents)))
+                    span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
                 except TypeError:
                     log.warning("Failed to serialize similarity output documents to JSON")
 
