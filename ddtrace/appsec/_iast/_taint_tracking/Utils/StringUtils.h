@@ -3,6 +3,8 @@
 #include <Python.h>
 #include <pybind11/pybind11.h>
 
+#include "GenericUtils.h"
+
 using namespace std;
 using namespace pybind11::literals;
 
@@ -27,6 +29,28 @@ is_text(const PyObject* pyptr)
         return false;
 
     return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr);
+}
+
+// Base function for the variadic template
+inline bool
+args_are_text_and_same_type(PyObject* first)
+{
+    return (first != nullptr) and is_text(first);
+}
+
+// Recursive case for the argument checking variadic template
+template<typename... Args>
+inline bool
+args_are_text_and_same_type(PyObject* first, PyObject* second, Args... args)
+{
+    // Check if both first and second are valid text types and of the same type
+    if (first == nullptr || second == nullptr || !is_text(first) || !is_text(second) ||
+        PyObject_Type(first) != PyObject_Type(second)) {
+        return false;
+    }
+
+    // Recursively check the rest of the arguments
+    return args_are_text_and_same_type(second, args...);
 }
 
 string
