@@ -355,7 +355,7 @@ set_ranges_on_splitted(const StrType& source_str,
     const auto separator_increase = static_cast<int>(not include_separator);
 
     for (const auto& item : split_result) {
-        if (not is_text(item.ptr()) or py::len(item) == 0) {
+        if (not initializer->is_text(item.ptr()) or py::len(item) == 0) {
             continue;
         }
         auto c_item = py::cast<std::string>(item);

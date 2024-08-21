@@ -150,7 +150,7 @@ std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
 {
     TaintRangeRefs result;
-    if (not is_text(string_input))
+    if (not initializer->is_text(string_input))
         return std::make_pair(result, true);
 
     if (tx_map->empty()) {
@@ -197,7 +197,7 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypeP
 std::tuple<TaintRangeRefs, TaintRangeRefs>
 are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_list)
 {
-    if (not is_text(candidate_text))
+    if (not initializer->is_text(candidate_text))
         return {};
 
     TaintRangeRefs all_ranges;
@@ -209,7 +209,7 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
     auto [candidate_text_ranges, ranges_error] = get_ranges(candidate_text, tx_map);
     if (not ranges_error) {
         for (const auto& param_handler : parameter_list) {
-            if (const auto param = param_handler.cast<py::object>().ptr(); is_text(param)) {
+            if (const auto param = param_handler.cast<py::object>().ptr(); initializer->is_text(param)) {
                 if (auto [ranges, ranges_error] = get_ranges(param, tx_map); not ranges_error) {
                     all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());
                 }
@@ -339,7 +339,7 @@ get_internal_hash(PyObject* obj)
 void
 set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_map)
 {
-    if (not str or not is_text(str)) {
+    if (not str or not initializer->is_text(str)) {
         return;
     }
     auto obj_id = get_unique_id(str);

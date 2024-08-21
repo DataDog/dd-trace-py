@@ -31,7 +31,7 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
     auto initial_arg_pos = -1;
     bool root_is_after_first = false;
     for (auto& arg : args) {
-        if (not is_text(arg.ptr())) {
+        if (not initializer->is_text(arg.ptr())) {
             return joined;
         }
 

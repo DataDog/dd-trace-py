@@ -32,7 +32,7 @@ api_format_aspect(StrType& candidate_text,
         py::list new_args;
         py::dict new_kwargs;
         for (const auto arg : args) {
-            if (is_text(arg.ptr())) {
+            if (initializer->is_text(arg.ptr())) {
                 auto str_arg = py::cast<py::str>(arg);
                 auto n_arg = all_as_formatted_evidence<py::str>(str_arg, TagMappingMode::Mapper);
                 new_args.append(n_arg);
@@ -41,7 +41,7 @@ api_format_aspect(StrType& candidate_text,
             }
         }
         for (auto [key, value] : kwargs) {
-            if (is_text(value.ptr())) {
+            if (initializer->is_text(value.ptr())) {
                 auto str_value = py::cast<py::str>(value);
                 auto n_value = all_as_formatted_evidence<py::str>(str_value, TagMappingMode::Mapper);
                 new_kwargs[key] = n_value;

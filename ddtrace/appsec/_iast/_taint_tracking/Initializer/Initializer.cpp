@@ -1,5 +1,6 @@
 #include "Initializer.h"
 
+#include <Python.h>
 #include <thread>
 
 using namespace std;
@@ -8,6 +9,7 @@ using namespace pybind11::literals;
 thread_local struct ThreadContextCache_
 {
     TaintRangeMapTypePtr tx_map = nullptr;
+    PyTypeObject* re_match_type = nullptr;
 } ThreadContextCache;
 
 Initializer::Initializer()
@@ -206,6 +208,25 @@ Initializer::create_context()
     // Create a new taint_map
     auto map_ptr = create_tainting_map();
     ThreadContextCache.tx_map = map_ptr;
+
+    PyObject* re_module = PyImport_ImportModule("re");
+    ThreadContextCache.re_match_type = (PyTypeObject*)PyObject_GetAttrString(re_module, "Match");
+    Py_DECREF(re_module);
+}
+
+bool
+Initializer::is_re_match(const PyObject* obj)
+{
+    return PyType_IsSubtype(Py_TYPE(obj), ThreadContextCache.re_match_type);
+}
+
+bool
+Initializer::is_text(const PyObject* pyptr)
+{
+    if (!pyptr)
+        return false;
+
+    return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr) || is_re_match(pyptr);
 }
 
 void
@@ -213,6 +234,8 @@ Initializer::reset_context()
 {
     clear_tainting_maps();
     ThreadContextCache.tx_map = nullptr;
+    Py_DECREF(ThreadContextCache.re_match_type);
+    ThreadContextCache.re_match_type = nullptr;
 }
 
 // Created in the PYBIND11_MODULE in _native.cpp

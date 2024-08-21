@@ -1,4 +1,5 @@
 #pragma once
+#include <Python.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -85,6 +86,12 @@ class Initializer
      */
     void create_context();
 
+    /**
+     * Checks if the given object is a re.Match instance.
+     */
+    bool is_re_match(const PyObject* obj);
+
+    bool is_text(const PyObject* pyptr);
     /**
      * Resets the current taint tracking context.
      */
