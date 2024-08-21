@@ -275,37 +275,42 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
-        input_tag_key = INPUT_VALUE
-        output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_DOCUMENTS
-
         if input_query is not None:
             try:
                 formatted_inputs = self.format_io(input_query)
                 if isinstance(formatted_inputs, str):
-                    span.set_tag_str(input_tag_key, formatted_inputs)
+                    span.set_tag_str(INPUT_VALUE, formatted_inputs)
                 else:
-                    span.set_tag_str(input_tag_key, json.dumps(formatted_inputs))
+                    span.set_tag_str(INPUT_VALUE, json.dumps(formatted_inputs))
             except TypeError:
                 log.warning("Failed to serialize similarity search input to JSON")
         if error:
-            span.set_tag_str(output_tag_key, "")
+            span.set_tag_str(OUTPUT_VALUE, "")
         elif isinstance(output_documents, list):
             if is_workflow:
-                span.set_tag_str(output_tag_key, json.dumps(output_documents))
+                span.set_tag_str(OUTPUT_VALUE, "[{} documents(s) retrieved]".format(len(output_documents)))
             else:
+                documents = []
+                for d in output_documents:
+                    doc = Document(text=d.page_content)
+                    try:
+                        doc["id"] = d.id
+                    except AttributeError:
+                        log.warning("Failed to extract document id from similarity search output")
+                        doc["id"] = ""
+                    try:
+                        doc["name"] = d.metadata["name"]
+                    except KeyError:
+                        log.warning("Failed to extract document name metadata from similarity search output")
+                        try:
+                            doc["name"] = d.id
+                        except AttributeError:
+                            doc["name"] = ""
+                    documents.append(doc)
                 try:
-                    documents = [
-                        Document(
-                            id=d.id,
-                            text=d.page_content,
-                        )
-                        for d in output_documents
-                    ]
-                except AttributeError:
-                    log.warning("Failed to extract document information from similarity search output")
-                    documents = [Document(id="", text=d.page_content) for d in output_documents]
-                try:
-                    span.set_tag_str(output_tag_key, json.dumps(self.format_io(documents)))
+                    span.set_tag_str(OUTPUT_DOCUMENTS, json.dumps(self.format_io(documents)))
+                    # we set the value as well to ensure that the UI would display it in case the span was the root
+                    span.set_tag_str(OUTPUT_VALUE, "[{} documents(s) retrieved]".format(len(documents)))
                 except TypeError:
                     log.warning("Failed to serialize similarity output documents to JSON")
 
