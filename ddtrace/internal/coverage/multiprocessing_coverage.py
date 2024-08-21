@@ -51,7 +51,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
             if self._parent_conn.poll():
                 rcvd = self._parent_conn.recv()
                 if rcvd:
-                    ModuleCodeCollector.absorb_data_json(rcvd)
+                    ModuleCodeCollector.absorb_data_pickle(rcvd)
                 else:
                     log.debug("Child process sent empty coverage data")
             else:
@@ -79,7 +79,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
 
         if self._dd_coverage_enabled and self._child_conn is not None:
             try:
-                self._child_conn.send(ModuleCodeCollector.get_data_json())
+                self._child_conn.send(ModuleCodeCollector.get_data_pickle())
             except Exception:
                 log.warning("Failed to send coverage data to parent process", exc_info=True)
 

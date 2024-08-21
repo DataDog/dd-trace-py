@@ -38,24 +38,17 @@ class CoverageLines:
 
         # DEV this fun bit allows us to trick ourselves into little-endianness, which is what the backend wants to see
         # in bytes
-        lines_bit = 2 ** (7 - (line_number % 8))
+        lines_bit = 0b1000_0000 >> (line_number % 8)
         self._lines[lines_byte] |= lines_bit
 
-    def add_lines(self, lines: list[int]):
-        for line in lines:
-            self.add(line)
-
-    def to_bytes_string(self) -> str:
-        return " ".join(bin(byte)[2:].zfill(8) for byte in self._lines)
-
-    def to_list(self) -> list[int]:
+    def to_sorted_list(self) -> t.List[int]:
+        """Returns a sorted list of covered line numbers"""
         lines = []
-        for _byte in self._lines:
-            for _bit in range(7, -1, -1):
-                if _byte & (1 << _bit):
-                    lines.append(1)
-                else:
-                    lines.append(0)
+        for idx, _byte in enumerate(self._lines):
+            for _bit in range(8):
+                # Producing a list of lines needs to account for the fact they are kept in a little-endian way
+                if _byte & (0b1000_0000 >> _bit):
+                    lines.append(idx * 8 + _bit)
 
         return lines
 

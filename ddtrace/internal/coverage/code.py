@@ -1,8 +1,8 @@
 from collections import defaultdict
 from copy import deepcopy
 from inspect import getmodule
-import json
 import os
+import pickle
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -13,6 +13,7 @@ from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path
@@ -20,6 +21,8 @@ from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.vendor.contextvars import ContextVar
 
+
+log = get_logger(__name__)
 
 _original_exec = exec
 
@@ -107,37 +110,44 @@ class ModuleCodeCollector(ModuleWatchdog):
             self._import_names_by_path[path].add(import_name)
 
     @classmethod
-    def absorb_data_json(cls, data_json: str):
+    def absorb_data_pickle(cls, pickled_data: bytes):
         """Absorb a JSON report of coverage data. This is used to aggregate coverage data from multiple processes.
 
         Absolute paths are expected.
         """
-        data = json.loads(data_json)
+        try:
+            data = pickle.loads(pickled_data)
+        except pickle.UnpicklingError:
+            log.debug("Could not unpickle coverage data, not injecting coverage")
+            return
+
         cls.inject_coverage(lines=data["lines"], covered=data["covered"])
 
     @classmethod
     def inject_coverage(
-        cls, lines: t.Optional[t.Dict[str, t.List[int]]] = None, covered: t.Optional[t.Dict[str, t.List[int]]] = None
+        cls,
+        lines: t.Optional[t.Dict[str, CoverageLines]] = None,
+        covered: t.Optional[t.Dict[str, CoverageLines]] = None,
     ):
         """Inject coverage data into the collector. This can be used to arbitrarily add covered files."""
         instance = cls._instance
+
+        if instance is None:
+            return
 
         ctx_covered_lines = None
         if ctx_coverage_enabled.get():
             ctx_covered_lines = _get_ctx_covered_lines()
 
-        if instance is None:
-            return
-
         if lines:
             for path, path_lines in lines.items():
-                instance.lines[path].add_lines(path_lines)
+                instance.lines[path].update(path_lines)
         if covered:
             for path, path_covered in covered.items():
                 if instance._coverage_enabled:
-                    instance.covered[path].add_lines(path_covered)
+                    instance.covered[path].update(path_covered)
                 if ctx_coverage_enabled.get() and ctx_covered_lines is not None:
-                    ctx_covered_lines[path].add_lines(path_covered)
+                    ctx_covered_lines[path].update(path_covered)
 
     @classmethod
     def report(cls, workspace_path: Path, ignore_nocover: bool = False):
@@ -151,21 +161,19 @@ class ModuleCodeCollector(ModuleWatchdog):
         print_coverage_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover)
 
     @classmethod
-    def get_data_json(cls) -> str:
-        if cls._instance is None:
-            return "{}"
-        instance: ModuleCodeCollector = cls._instance
+    def get_data_pickle(cls) -> bytes:
+        instance = cls._instance
 
-        executable_lines = {path: lines.to_list() for path, lines in instance.lines.items()}
-        covered_lines = {path: lines.to_list() for path, lines in instance._get_covered_lines().items()}
+        if instance is None:
+            return pickle.dumps(None)
 
-        return json.dumps({"lines": executable_lines, "covered": covered_lines})
+        return pickle.dumps({"lines": instance.lines, "covered": instance.covered})
 
     @classmethod
-    def get_context_data_json(cls) -> str:
+    def get_context_data_pickle(cls) -> bytes:
         covered_lines = _get_ctx_covered_lines()
 
-        return json.dumps({"lines": {}, "covered": {path: lines.to_list() for path, lines in covered_lines.items()}})
+        return pickle.dumps({"lines": {}, "covered": covered_lines})
 
     @classmethod
     def write_json_report_to_file(cls, filename: str, workspace_path: Path, ignore_nocover: bool = False):
@@ -308,7 +316,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                 str(abs_path.relative_to(workspace_path)) if abs_path.is_relative_to(workspace_path) else abs_path_str
             )
 
-            sorted_lines = [i for i, v in enumerate(sorted(lines.to_list())) if v == 1]
+            sorted_lines = [i for i, v in enumerate(sorted(lines.to_sorted_list())) if v == 1]
 
             collapsed_ranges = collapse_ranges(sorted_lines)
             file_segments = []

@@ -54,7 +54,7 @@ class CoverageCollectingThread(threading.Thread):
         finally:
             # Ensure coverage data is collected, and context is exited, even if an exception is raised
             if self._should_cover:
-                covered_lines = ModuleCodeCollector.get_context_data_json()
+                covered_lines = ModuleCodeCollector.get_context_data_pickle()
                 self._coverage_context.__exit__()
                 self._coverage_queue.put(covered_lines)
 
@@ -64,7 +64,7 @@ class CoverageCollectingThread(threading.Thread):
         if self._should_cover:
             if self._coverage_queue.qsize():
                 thread_coverage = self._coverage_queue.get()
-                ModuleCodeCollector.absorb_data_json(thread_coverage)
+                ModuleCodeCollector.absorb_data_pickle(thread_coverage)
 
 
 def _patch_threading():

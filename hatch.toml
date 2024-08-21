@@ -340,7 +340,7 @@ dependencies = [
 [envs.dd_coverage.scripts]
 test = [
     "pip freeze",
-    "pytest tests/coverage -s --no-cov",
+    "pytest tests/coverage -s --no-cov {args:}",
 ]
 
 [[envs.dd_coverage.matrix]]
