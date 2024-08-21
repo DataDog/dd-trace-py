@@ -40,14 +40,14 @@ class MetricSample(LogSignal):
             return
 
         probe = self.probe
-        _args = self._enrich_args(retval, exc_info, duration)
+        _locals = self._enrich_locals(retval, exc_info, duration)
 
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.EXIT:
             return
-        if not self._eval_condition(_args):
+        if not self._eval_condition(_locals):
             return
 
-        self.sample(_args)
+        self.sample(_locals)
         self.state = SignalState.DONE
 
     def line(self) -> None:
