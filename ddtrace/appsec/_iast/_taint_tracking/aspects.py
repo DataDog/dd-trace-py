@@ -55,7 +55,7 @@ add_aspect = aspects.add_aspect
 _extend_aspect = aspects.extend_aspect
 index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
-_slice_aspect = aspects.slice_aspect
+slice_aspect = aspects.slice_aspect
 
 __all__ = [
     "add_aspect",
@@ -217,22 +217,6 @@ def join_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
     except Exception as e:
         iast_taint_log_error("IAST propagation error. join_aspect. {}".format(e))
         return joiner.join(*args, **kwargs)
-
-
-def slice_aspect(candidate_text: Text, start: int, stop: int, step: int) -> Text:
-    if (
-        not isinstance(candidate_text, IAST.TEXT_TYPES)
-        or (start is not None and not isinstance(start, int))
-        or (stop is not None and not isinstance(stop, int))
-        or (step is not None and not isinstance(step, int))
-    ):
-        return candidate_text[start:stop:step]
-
-    try:
-        return _slice_aspect(candidate_text, start, stop, step)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. slice_aspect. {}".format(e))
-    return candidate_text[start:stop:step]
 
 
 def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
