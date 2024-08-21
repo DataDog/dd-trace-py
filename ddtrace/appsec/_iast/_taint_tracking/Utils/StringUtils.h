@@ -14,7 +14,8 @@ get_unique_id(const PyObject* str)
     return reinterpret_cast<uintptr_t>(str);
 }
 
-inline static bool PyReMatch_Check(const PyObject* obj)
+inline static bool
+PyReMatch_Check(const PyObject* obj)
 {
     PyObject* re_module = PyImport_ImportModule("re");
     PyTypeObject* match_type = (PyTypeObject*)PyObject_GetAttrString(re_module, "Match");
