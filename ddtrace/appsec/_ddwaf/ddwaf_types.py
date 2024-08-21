@@ -392,18 +392,19 @@ def py_ddwaf_init(ruleset_map: ddwaf_object, config, info) -> ddwaf_handle_capsu
     return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info))
 
 
-ddwaf_update = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_handle, ddwaf_object_p, ddwaf_object_p)(
+ddwaf_update = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwaf_object_p)(
     ("ddwaf_update", ddwaf),
     (
         (1, "handle"),
         (1, "ruleset_map"),
+        (1, "config", None),
         (1, "diagnostics", None),
     ),
 )
 
 
-def py_ddwaf_update(handle: ddwaf_handle_capsule, ruleset_map: ddwaf_object, info) -> ddwaf_handle_capsule:
-    return ddwaf_handle_capsule(ddwaf_update(handle.handle, ruleset_map, ctypes.byref(info)))
+def py_ddwaf_update(handle: ddwaf_handle_capsule, ruleset_map: ddwaf_object, config, info) -> ddwaf_handle_capsule:
+    return ddwaf_handle_capsule(ddwaf_update(handle.handle, ruleset_map, config, ctypes.byref(info)))
 
 
 ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
