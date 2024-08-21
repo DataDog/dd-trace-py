@@ -29,14 +29,17 @@ def test_flask_iast_ast_patching_re(style, endpoint, function):
     """
     Tests re module patching end to end by checking that re.sub is propagating properly
     """
+    filename = "path_traversal_test_file.txt"
+    if function == "groups":
+        from urllib.parse import quote_plus
+
+        filename = quote_plus("Isaac Newton, physicist")
     with flask_server(
         appsec_enabled="false", iast_enabled="true", token=None, port=8020, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 
-        response = flask_client.get(
-            f"/iast-ast-patching-{endpoint}-{function}?style={style}&filename=path_traversal_test_file.txt"
-        )
+        response = flask_client.get(f"/iast-ast-patching-{endpoint}-{function}?style={style}&filename={filename}")
 
         assert response.status_code == 200
         assert response.content == b"OK"

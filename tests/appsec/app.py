@@ -373,11 +373,18 @@ def iast_ast_patching_re_groups():
     filename = request.args.get("filename")
     style = request.args.get("style")
     if style == "re_module":
-        result = re.match(r"_[a-z]*", filename).groups()
+        re_match = re.match(r"(\w+) (\w+)", filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
     elif style == "re_object":
-        pattern = re.compile(r"_[a-z]*")
-        matches = pattern.match(filename)
-        result = matches.groups()
+        pattern = re.compile(r"(\w+) (\w+)")
+        re_match = pattern.match(filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
     resp = Response("Fail")
     try:
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
@@ -396,17 +403,24 @@ def iast_ast_patching_non_re_groups():
     filename = request.args.get("filename")
     style = request.args.get("style")
     if style == "re_module":
-        result = re.match(r"_[a-z]*", filename).groups()
+        re_match = re.match(r"(\w+) (\w+)", filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
     elif style == "re_object":
-        pattern = re.compile(r"_[a-z]*")
-        matches = pattern.match(filename)
-        result = matches.groups()
-    resp = Response("Fail")
+        pattern = re.compile(r"(\w+) (\w+)")
+        re_match = pattern.match(filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
+    resp = Response("OK")
     try:
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
-        if all(map(is_pyobject_tainted, result)):
-            resp = Response("OK")
+        if any(map(is_pyobject_tainted, result)):
+            resp = Response("Fail")
     except Exception as e:
         print(e)
     return resp
