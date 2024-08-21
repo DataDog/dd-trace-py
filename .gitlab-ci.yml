@@ -6,7 +6,6 @@ stages:
   - benchmarks
   - macrobenchmarks
   - dogfood
-  - status
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -57,12 +56,12 @@ deploy_to_di_backend:manual:
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
 
-status:
-  extends: .testrunner
-  stage: status
-  needs: []
+
+# Final step which always runs when the pipeline finishes.
+# This gives us something block on/wait for in GitHub
+finished:
+  stage: .post
   rules:
     - when: always
   script:
-    - |
-      curl -L -H "JOB-TOKEN: ${CI_JOB_TOKEN}" https://gitlab.ddbuild.io/api/v4/projects/$PROJECT_ID/pipelines/$PIPELINE_ID/jobs?per_page=100
+    - exit 0
