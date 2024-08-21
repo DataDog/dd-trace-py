@@ -19,9 +19,7 @@ PyReMatch_Check(const PyObject* obj)
 {
     PyObject* re_module = PyImport_ImportModule("re");
     PyTypeObject* match_type = (PyTypeObject*)PyObject_GetAttrString(re_module, "Match");
-    bool res = PyObject_IsInstance(obj, match_type);
-    // Alternatively:
-    // bool res = PyType_IsSubtype(Py_TYPE(obj), match_type);
+    bool res = PyType_IsSubtype(Py_TYPE(obj), match_type);
     Py_DECREF(re_module);
     Py_DECREF(match_type);
     return res;
