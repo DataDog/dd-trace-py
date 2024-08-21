@@ -1099,6 +1099,43 @@ def empty_func(*args, **kwargs):
     pass
 
 
+def re_findall_aspect(
+    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].findall
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    if not isinstance(self, (Pattern, ModuleType)):
+        # This is not the sub we're looking for
+        return result
+    elif isinstance(self, ModuleType):
+        if self.__name__ != "re" or self.__package__ not in ("", "re"):
+            return result
+        # In this case, the first argument is the pattern
+        # which we don't need to check for tainted ranges
+        args = args[1:]
+    elif not isinstance(result, list) or not len(result):
+        return result
+
+    if len(args) >= 1:
+        string = args[0]
+        if is_pyobject_tainted(string):
+            for i in result:
+                if len(i):
+                    # Taint results
+                    copy_and_shift_ranges_from_strings(string, i, 0, len(i))
+
+    return result
+
+
 def re_sub_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:

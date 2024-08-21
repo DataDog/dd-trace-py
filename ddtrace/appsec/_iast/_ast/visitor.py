@@ -50,6 +50,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "join": "ddtrace_aspects.join_aspect",
         "encode": "ddtrace_aspects.encode_aspect",
         "extend": "ddtrace_aspects.bytearray_extend_aspect",
+        "findall": "ddtrace_aspects.re_findall_aspect",
         "upper": "ddtrace_aspects.upper_aspect",
         "lower": "ddtrace_aspects.lower_aspect",
         "replace": "ddtrace_aspects.replace_aspect",
