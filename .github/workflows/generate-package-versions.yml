@@ -29,10 +29,15 @@ jobs:
           sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
           sudo chmod +x /usr/local/bin/docker-compose
           docker-compose --version
-          
+
       - name: Start docker service
         run: docker-compose up -d testagent
-  
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install packaging
+
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
 
