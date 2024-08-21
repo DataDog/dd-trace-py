@@ -437,7 +437,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
-        breakpoint()
         mock_llmobs_span_writer.enqueue.assert_any_call(
             expected_span
         )
