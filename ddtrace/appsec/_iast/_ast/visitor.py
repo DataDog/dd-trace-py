@@ -623,7 +623,7 @@ class AstVisitor(ast.NodeTransformer):
         Replace an inplace add or multiply (+= / *=)
         """
         if isinstance(augassign_node.target, ast.Subscript):
-            # Cant augassign to function call, ignore this node
+            # Can't augassign to function call, ignore this node
             augassign_node.target.avoid_convert = True  # type: ignore[attr-defined]
             self.generic_visit(augassign_node)
             return augassign_node

@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
-import logging
 from copy import copy
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TaintRange_
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
-from ddtrace.appsec._iast._taint_tracking.aspects import add_inplace_aspect
-from tests.utils import override_env
 
 
 @pytest.mark.parametrize(
@@ -128,7 +122,6 @@ def test_add_inplace_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
         assert (tainted_ranges != []) == should_be_tainted
         if should_be_tainted:
             assert len(tainted_ranges) == 1
-
 
 
 @pytest.mark.parametrize(

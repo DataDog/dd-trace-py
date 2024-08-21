@@ -104,7 +104,9 @@ class TestOperatorAddReplacement(unittest.TestCase):
         string_input = taint_pyobject(
             pyobject=bytearray(b"foo"), source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
         )
-        bar = taint_pyobject(pyobject=bytearray(b"bar"), source_name="bar", source_value="bar", source_origin=OriginType.PARAMETER)
+        bar = taint_pyobject(
+            pyobject=bytearray(b"bar"), source_name="bar", source_value="bar", source_origin=OriginType.PARAMETER
+        )
 
         result = mod.do_operator_add_params(string_input, bar)
         assert result == bytearray(b"foobar")

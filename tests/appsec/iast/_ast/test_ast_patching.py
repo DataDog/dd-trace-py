@@ -81,6 +81,7 @@ def test_astpatch_module_changed_add_operator(module_name):
     )
     assert "ddtrace_aspects.add_aspect(" in new_code
 
+
 @pytest.mark.parametrize(
     "module_name",
     [
@@ -96,6 +97,7 @@ def test_astpatch_module_changed_add_inplace_operator(module_name):
         "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects"
     )
     assert "ddtrace_aspects.add_inplace_aspect(" in new_code
+
 
 @pytest.mark.parametrize(
     "module_name",
