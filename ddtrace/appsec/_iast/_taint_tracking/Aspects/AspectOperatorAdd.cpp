@@ -49,11 +49,9 @@ add_aspect(PyObject* result_o,
 
     auto tainted = initializer->allocate_tainted_object_copy(to_candidate_text);
     tainted->add_ranges_shifted(to_text_to_add, static_cast<RANGE_START>(len_candidate_text));
-    const auto res_new_id = new_pyobject_id(result_o);
-    Py_DecRef(result_o);
-    set_tainted_object(res_new_id, tainted, tx_taint_map);
+    set_tainted_object(result_o, tainted, tx_taint_map);
 
-    return res_new_id;
+    return result_o;
 }
 
 /**
@@ -102,6 +100,52 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         }
 
         return add_aspect(result_o, candidate_text, text_to_add, tx_map);
+    } catch (const py::error_already_set& e) {
+        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
+        iast_taint_log_error(error_message);
+        return result_o;
+    } catch (const std::exception& e) {
+        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
+        iast_taint_log_error(error_message);
+        return result_o;
+    } catch (...) {
+        const std::string error_message = "Unkown IAST propagation error in add_aspect. ";
+        iast_taint_log_error(error_message);
+        return result_o;
+    }
+}
+
+PyObject*
+api_add_inplace_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+{
+    PyObject* result_o = nullptr;
+
+    try {
+        if (nargs != 2) {
+            py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+            return nullptr;
+        }
+        PyObject* candidate_text = args[0];
+        PyObject* text_to_add = args[1];
+
+        result_o = PyNumber_InPlaceAdd(candidate_text, text_to_add);
+
+        const auto tx_map = initializer->get_tainting_map();
+        if (not tx_map or tx_map->empty()) {
+            return result_o;
+        }
+
+        if (not args_are_text_and_same_type(candidate_text, text_to_add)) {
+            return result_o;
+        }
+
+        // Quickly skip if both are noninterned-unicodes and not tainted
+        if (is_notinterned_notfasttainted_unicode(candidate_text) &&
+            is_notinterned_notfasttainted_unicode(text_to_add)) {
+            return result_o;
+        }
+        candidate_text = add_aspect(result_o, candidate_text, text_to_add, tx_map);
+        return candidate_text;
     } catch (const py::error_already_set& e) {
         const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
         iast_taint_log_error(error_message);
