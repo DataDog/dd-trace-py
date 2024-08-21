@@ -1637,11 +1637,8 @@ class TestIsITRSkippable:
         "no_module_suite_1.py",
     ]
 
-    # Consistent IDs for all tests
-    session_id = api.CISessionId()
-
     # Module 1
-    m1 = api.CIModuleId(session_id, "module_1")
+    m1 = api.CIModuleId("module_1")
     # Module 1 Suite 1
     m1_s1 = api.CISuiteId(m1, "module_1_suite_1.py")
     m1_s1_t1 = api.CITestId(m1_s1, "test_1")
@@ -1663,7 +1660,7 @@ class TestIsITRSkippable:
     m1_s2_t7 = api.CITestId(m1_s2, "test_6[param3]")
 
     # Module 2
-    m2 = api.CIModuleId(session_id, "module_2")
+    m2 = api.CIModuleId("module_2")
 
     # Module 2 Suite 1
     m2_s1 = api.CISuiteId(m2, "module_2_suite_1.py")
@@ -1686,7 +1683,7 @@ class TestIsITRSkippable:
     m2_s2_t7 = api.CITestId(m2_s2, "test_6[param3]")
 
     # Module 3
-    m3 = api.CIModuleId(session_id, "")
+    m3 = api.CIModuleId("")
     m3_s1 = api.CISuiteId(m3, "no_module_suite_1.py")
     m3_s1_t1 = api.CITestId(m3_s1, "test_1")
     m3_s1_t2 = api.CITestId(m3_s1, "test_2")

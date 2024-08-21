@@ -3,13 +3,10 @@ from pathlib import Path
 import pytest
 
 from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
-from ddtrace.internal.ci_visibility.api.ci_session import CIVisibilitySession
 from ddtrace.internal.ci_visibility.api.ci_suite import CIVisibilitySuite
 from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
@@ -32,12 +29,8 @@ def _get_default_civisibility_settings():
     )
 
 
-def _get_default_session_id():
-    return CISessionId("session_name")
-
-
 def _get_default_module_id():
-    return CIModuleId(_get_default_session_id(), "module_name")
+    return CIModuleId("module_name")
 
 
 def _get_default_suite_id():
@@ -71,7 +64,7 @@ def _get_bad_suite_source_file_info():
 class TestCIVisibilityItems:
     def test_civisibilityitem_enforces_sourcefile_info_on_tests(self):
         ci_test = CIVisibilityTest(
-            _get_default_test_id(),
+            _get_default_test_id().name,
             _get_default_civisibility_settings(),
             source_file_info=_get_good_test_source_file_info(),
         )
@@ -81,28 +74,13 @@ class TestCIVisibilityItems:
 
     def test_civiisibilityitem_enforces_sourcefile_info_on_suites(self):
         ci_suite = CIVisibilitySuite(
-            _get_default_suite_id(),
+            _get_default_suite_id().name,
             _get_default_civisibility_settings(),
             source_file_info=_get_good_suite_source_file_info(),
         )
         assert ci_suite._source_file_info.path == Path("/absolute/path/to/my_file_name")
         assert ci_suite._source_file_info.start_line is None
         assert ci_suite._source_file_info.end_line is None
-
-    def test_civisibilityitem_enforces_settings_type(self):
-        bad_settings = object()
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilitySession(_get_default_session_id(), bad_settings)
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilityModule(_get_default_module_id(), bad_settings)
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilitySuite(_get_default_suite_id(), bad_settings)
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilityTest(_get_default_test_id(), bad_settings)
 
 
 class TestCIVisibilitySessionSettings:

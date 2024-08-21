@@ -129,7 +129,7 @@ class SpanDecoration(LogSignal):
             return
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
-            self._decorate_span(self._enrich_args(retval, exc_info, duration))
+            self._decorate_span(self._enrich_locals(retval, exc_info, duration))
             self.state = SignalState.DONE
 
     def line(self):

@@ -64,7 +64,7 @@ def simple_debugger_test(probe, func):
             pass
 
         snapshots = d.uploader.wait_for_payloads()
-        assert all(s["debugger.snapshot"]["probe"]["id"] == probe_id for s in snapshots)
+        assert all(s["debugger"]["snapshot"]["probe"]["id"] == probe_id for s in snapshots)
 
         return snapshots
 
@@ -81,10 +81,10 @@ def test_debugger_line_probe_on_instance_method():
     )
 
     (snapshot,) = snapshots
-    captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
+    captures = snapshot["debugger"]["snapshot"]["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
-    assert snapshot["debugger.snapshot"]["duration"] is None
+    assert snapshot["debugger"]["snapshot"]["duration"] is None
 
 
 def test_debugger_line_probe_on_imported_module_function():
@@ -99,7 +99,7 @@ def test_debugger_line_probe_on_imported_module_function():
     )
 
     (snapshot,) = snapshots
-    captures = snapshot["debugger.snapshot"]["captures"]["lines"][str(lineno)]
+    captures = snapshot["debugger"]["snapshot"]["captures"]["lines"][str(lineno)]
     assert set(captures["arguments"].keys()) == {"snafu"}
     assert captures["locals"] == {}
 
@@ -161,7 +161,7 @@ def test_debugger_probe_new_delete(probe, trigger):
         trigger()
 
         (snapshot,) = d.uploader.wait_for_payloads()
-        assert snapshot["debugger.snapshot"]["probe"]["id"] == probe_id
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe_id
 
 
 def test_debugger_function_probe_on_instance_method():
@@ -176,7 +176,7 @@ def test_debugger_function_probe_on_instance_method():
     )
 
     (snapshot,) = snapshots
-    snapshot_data = snapshot["debugger.snapshot"]
+    snapshot_data = snapshot["debugger"]["snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
     assert snapshot_data["stack"][0]["function"] == "instancestuff"
 
@@ -205,7 +205,7 @@ def test_debugger_function_probe_on_function_with_exception():
     )
 
     (snapshot,) = snapshots
-    snapshot_data = snapshot["debugger.snapshot"]
+    snapshot_data = snapshot["debugger"]["snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
     assert snapshot_data["stack"][0]["function"] == "throwexcstuff"
 
@@ -234,7 +234,7 @@ def test_debugger_invalid_condition():
         )
         Stuff().instancestuff()
 
-        assert all(s["debugger.snapshot"]["probe"]["id"] != "foo" for s in d.uploader.wait_for_payloads())
+        assert all(s["debugger"]["snapshot"]["probe"]["id"] != "foo" for s in d.uploader.wait_for_payloads())
 
 
 def test_debugger_conditional_line_probe_on_instance_method():
@@ -249,7 +249,7 @@ def test_debugger_conditional_line_probe_on_instance_method():
     )
 
     (snapshot,) = snapshots
-    snapshot_data = snapshot["debugger.snapshot"]
+    snapshot_data = snapshot["debugger"]["snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
     assert snapshot_data["stack"][0]["function"] == "instancestuff"
 
@@ -270,7 +270,7 @@ def test_debugger_invalid_line():
         )
         Stuff().instancestuff()
 
-        assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidline" for s in d.uploader.wait_for_payloads())
+        assert all(s["debugger"]["snapshot"]["probe"]["id"] != "invalidline" for s in d.uploader.wait_for_payloads())
 
 
 @mock.patch("ddtrace.debugging._debugger.log")
@@ -290,7 +290,7 @@ def test_debugger_invalid_source_file(log):
             "Cannot inject probe %s: source file %s cannot be resolved", "invalidsource", "tests/submod/bonkers.py"
         )
 
-        assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidsource" for s in d.uploader.wait_for_payloads())
+        assert all(s["debugger"]["snapshot"]["probe"]["id"] != "invalidsource" for s in d.uploader.wait_for_payloads())
 
 
 def test_debugger_decorated_method():
@@ -359,7 +359,7 @@ def test_debugger_captured_exception():
     )
 
     (snapshot,) = snapshots
-    captures = snapshot["debugger.snapshot"]["captures"]["lines"]["96"]
+    captures = snapshot["debugger"]["snapshot"]["captures"]["lines"]["96"]
     assert captures["throwable"]["message"] == "'Hello', 'world!', 42"
     assert captures["throwable"]["type"] == "Exception"
 
@@ -540,7 +540,7 @@ def test_debugger_multiple_function_probes_on_same_lazy_module():
 
 
 # DEV: The following tests are to ensure compatibility with the tracer
-import ddtrace.vendor.wrapt as wrapt  # noqa:E402,F401
+import wrapt  # noqa:E402,F401
 
 
 def wrapper(wrapped, instance, args, kwargs):
@@ -741,7 +741,9 @@ def test_debugger_condition_eval_then_rate_limit():
         assert d.signal_state_counter[SignalState.SKIP_COND] == 99
         assert d.signal_state_counter[SignalState.DONE] == 1
 
-        assert "42" == snapshot["debugger.snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"], snapshot
+        assert (
+            "42" == snapshot["debugger"]["snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"]
+        ), snapshot
 
 
 def test_debugger_condition_eval_error_get_reported_once():
@@ -767,7 +769,7 @@ def test_debugger_condition_eval_error_get_reported_once():
         assert d.signal_state_counter[SignalState.SKIP_COND_ERROR] == 99
         assert d.signal_state_counter[SignalState.COND_ERROR] == 1
 
-        evaluationErrors = snapshot["debugger.snapshot"]["evaluationErrors"]
+        evaluationErrors = snapshot["debugger"]["snapshot"]["evaluationErrors"]
         assert 1 == len(evaluationErrors)
         assert "foo == 42" == evaluationErrors[0]["expr"]
         assert "'foo'" == evaluationErrors[0]["message"]
@@ -896,11 +898,11 @@ def test_debugger_log_live_probe_generate_messages():
         assert "hello world ERROR 123!" == msg1["message"], msg1
         assert "hello world ERROR 456!" == msg2["message"], msg2
 
-        assert "foo" == msg1["debugger.snapshot"]["evaluationErrors"][0]["expr"], msg1
+        assert "foo" == msg1["debugger"]["snapshot"]["evaluationErrors"][0]["expr"], msg1
         # not amazing error message for a missing variable
-        assert "'foo'" == msg1["debugger.snapshot"]["evaluationErrors"][0]["message"], msg1
+        assert "'foo'" == msg1["debugger"]["snapshot"]["evaluationErrors"][0]["message"], msg1
 
-        assert not msg1["debugger.snapshot"]["captures"]
+        assert not msg1["debugger"]["snapshot"]["captures"]
 
 
 class SpanProbeTestCase(TracerTestCase):
@@ -1074,7 +1076,7 @@ def test_debugger_modified_probe():
 
         (msg,) = d.uploader.wait_for_payloads()
         assert "hello world" == msg["message"], msg
-        assert msg["debugger.snapshot"]["probe"]["version"] == 1, msg
+        assert msg["debugger"]["snapshot"]["probe"]["version"] == 1, msg
 
         d.modify_probes(
             create_log_line_probe(
@@ -1090,7 +1092,7 @@ def test_debugger_modified_probe():
 
         _, msg = d.uploader.wait_for_payloads(2)
         assert "hello brave new world" == msg["message"], msg
-        assert msg["debugger.snapshot"]["probe"]["version"] == 2, msg
+        assert msg["debugger"]["snapshot"]["probe"]["version"] == 2, msg
 
 
 def test_debugger_continue_wrapping_after_first_failure():
@@ -1153,7 +1155,7 @@ def test_debugger_redacted_identifiers():
             f"pii_dict['jwt']={REDACTED}"
         )
 
-        assert msg_line["debugger.snapshot"]["captures"]["lines"]["169"] == {
+        assert msg_line["debugger"]["snapshot"]["captures"]["lines"]["169"] == {
             "arguments": {"pwd": redacted_value(str())},
             "locals": {
                 "token": redacted_value(str()),
@@ -1176,7 +1178,7 @@ def test_debugger_redacted_identifiers():
             "throwable": None,
         }
 
-        assert msg_func["debugger.snapshot"]["captures"] == {
+        assert msg_func["debugger"]["snapshot"]["captures"] == {
             "entry": {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None},
             "return": {
                 "arguments": {"pwd": {"type": "str", "notCapturedReason": "redactedIdent"}},
@@ -1241,7 +1243,7 @@ def test_debugger_exception_conditional_function_probe():
     )
 
     (snapshot,) = snapshots
-    snapshot_data = snapshot["debugger.snapshot"]
+    snapshot_data = snapshot["debugger"]["snapshot"]
     return_capture = snapshot_data["captures"]["return"]
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"

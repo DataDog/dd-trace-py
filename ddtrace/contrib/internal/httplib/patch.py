@@ -2,6 +2,8 @@ import functools
 import os
 import sys
 
+import wrapt
+
 from ddtrace import config
 from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -21,7 +23,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
 
 
 span_name = "http.client.request"

@@ -2,17 +2,17 @@ import os
 
 import fastapi
 import fastapi.routing
+from wrapt import ObjectProxy
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
-from ddtrace.contrib.starlette.patch import _trace_background_tasks
-from ddtrace.contrib.starlette.patch import traced_handler
+from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
+from ddtrace.contrib.internal.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor.wrapt import ObjectProxy
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 log = get_logger(__name__)

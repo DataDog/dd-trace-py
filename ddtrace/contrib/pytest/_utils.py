@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
 import re
 import typing as t
 
@@ -8,19 +9,23 @@ import pytest
 
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
 from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
+from ddtrace.ext.ci_visibility.api import CITest
 from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
 
 
 log = get_logger(__name__)
 
-_NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
+_NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
+
+_USE_PLUGIN_V2 = asbool(os.environ.get("_DD_CIVISIBILITY_USE_PYTEST_V2", "false"))
 
 
 @dataclass
@@ -37,23 +42,21 @@ def _encode_test_parameter(parameter: t.Any) -> str:
     return re.sub(r" at 0[xX][0-9a-fA-F]+", "", param_repr)
 
 
-def _get_session_id(session: pytest.Session):
-    """The session name is constant as multiple test sessions are not currently supported"""
-    return CISessionId("pytest_session")
-
-
 def _get_names_from_item(item: pytest.Item) -> TestNames:
     """Gets an item's module, suite, and test names by leveraging the plugin hooks"""
 
     matches = re.match(_NODEID_REGEX, item.nodeid)
     if not matches:
-        return TestNames(module="", suite="", test="")
+        return TestNames(module="unknown_module", suite="unknown_suite", test=item.name)
 
-    return TestNames(
-        module=matches.group("module").replace("/", "."), suite=matches.group("suite"), test=matches.group("name")
-    )
+    module_name = (matches.group("module") or "").replace("/", ".")
+    suite_name = matches.group("suite")
+    test_name = matches.group("name")
+
+    return TestNames(module=module_name, suite=suite_name, test=test_name)
 
 
+@cached()
 def _get_test_id_from_item(item: pytest.Item) -> CITestId:
     """Converts an item to a CITestId, which recursively includes the parent IDs
 
@@ -65,25 +68,29 @@ def _get_test_id_from_item(item: pytest.Item) -> CITestId:
     suite_name = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
     test_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
 
-    session_id = _get_session_id(item.session)
-    module_id = CIModuleId(session_id, module_name)
+    module_id = CIModuleId(module_name)
     suite_id = CISuiteId(module_id, suite_name)
 
     # Test parameters are part of the test ID
     parameters_json: t.Optional[str] = None
     if getattr(item, "callspec", None):
-        parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
+        parameters: t.Dict[str, t.Dict[str, str]] = {"arguments": {}, "metadata": {}}
         for param_name, param_val in item.callspec.params.items():
             try:
                 parameters["arguments"][param_name] = _encode_test_parameter(param_val)
             except Exception:
                 parameters["arguments"][param_name] = "Could not encode"
                 log.warning("Failed to encode %r", param_name, exc_info=True)
+
         parameters_json = json.dumps(parameters)
 
     test_id = CITestId(suite_id, test_name, parameters_json)
 
     return test_id
+
+
+def _get_module_path_from_item(item: pytest.Item) -> Path:
+    return Path(item.nodeid.rpartition("/")[0]).absolute()
 
 
 def _get_session_command(session: pytest.Session):
@@ -130,17 +137,43 @@ def _pytest_marked_to_skip(item: pytest.Item) -> bool:
     if item.get_closest_marker("skip") is not None:
         return True
 
-    return any([True for marker in item.iter_markers(name="skipif") if marker.args[0] is True])
+    return any(marker.args[0] for marker in item.iter_markers(name="skipif"))
 
 
 def _is_test_unskippable(item: pytest.Item) -> bool:
     """Returns True if a test has a skipif marker with value false and reason ITR_UNSKIPPABLE_REASON"""
     return any(
-        [
-            True
-            for marker in item.iter_markers(name="skipif")
-            if marker.args[0] is False
-            and "reason" in marker.kwargs
-            and marker.kwargs["reason"] is ITR_UNSKIPPABLE_REASON
-        ]
+        (marker.args[0] is False and marker.kwargs.get("reason") == ITR_UNSKIPPABLE_REASON)
+        for marker in item.iter_markers(name="skipif")
     )
+
+
+def _extract_span(item):
+    """Extract span from `pytest.Item` instance."""
+    if _USE_PLUGIN_V2:
+        test_id = _get_test_id_from_item(item)
+        return CITest.get_span(test_id)
+
+    return getattr(item, "_datadog_span", None)
+
+
+def _is_enabled_early(early_config):
+    """Checks if the ddtrace plugin is enabled before the config is fully populated.
+
+    This is necessary because the module watchdog for coverage collection needs to be enabled as early as possible.
+
+    Note: since coverage is used for ITR purposes, we only check if the plugin is enabled if the pytest version supports
+    ITR
+    """
+    if not _pytest_version_supports_itr():
+        return False
+
+    if (
+        "--no-ddtrace" in early_config.invocation_params.args
+        or early_config.getini("no-ddtrace")
+        or "ddtrace" in early_config.inicfg
+        and early_config.getini("ddtrace") is False
+    ):
+        return False
+
+    return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")

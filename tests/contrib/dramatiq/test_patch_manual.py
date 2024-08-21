@@ -1,6 +1,6 @@
 import unittest
 
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 class DramatiqPatchTest(unittest.TestCase):
