@@ -238,14 +238,14 @@ def test_string_slice_2_and_two_strings_two_tainted_overlap_tained(
 @pytest.mark.parametrize(
     "input_str, start_pos, end_pos, step, expected_result, tainted",
     [
-        # ("abcde", None, None, None, "abcde", True),
+        ("abcde", None, None, None, "abcde", True),
         ("abcde", None, None, 2, "ace", True),
-        # ("abcde", None, 2, None, "ab", True),
-        # ("abcde", None, 4, 2, "ac", True),
-        # ("abcde", 1, None, None, "bcde", True),
-        # ("abcde", 1, None, 1, "bcde", True),
-        # ("abcde", 1, 2, None, "b", True),
-        # ("abcde", 1, 4, 2, "bd", True),
+        ("abcde", None, 2, None, "ab", True),
+        ("abcde", None, 4, 2, "ac", True),
+        ("abcde", 1, None, None, "bcde", True),
+        ("abcde", 1, None, 1, "bcde", True),
+        ("abcde", 1, 2, None, "b", True),
+        ("abcde", 1, 4, 2, "bd", True),
     ],
 )
 def test_string_slice_with_none_params(input_str, start_pos, end_pos, step, expected_result, tainted):
