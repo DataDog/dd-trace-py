@@ -36,9 +36,6 @@ iast_taint_log_error(const std::string& msg)
         if (!is_iast_debug_enabled()) {
             return;
         }
-
-        py::object inspect = py::module::import("inspect");
-        py::list stack = inspect.attr("stack")();
         std::string frame_info;
         try {
             const py::module inspect = py::module::import("inspect");
@@ -56,13 +53,6 @@ iast_taint_log_error(const std::string& msg)
             PyErr_Clear(); // Clear the error state
             frame_info = "(unkown file)";
         }
-        for (size_t i = 0; i < std::min(stack.size(), static_cast<size_t>(7)); ++i) {
-            py::object frame = stack[i];
-            py::object frame_info_obj = frame.attr("frame");
-            std::string filename = py::str(frame_info_obj.attr("f_code").attr("co_filename"));
-            int lineno = py::int_(frame_info_obj.attr("f_lineno"));
-            frame_info += filename + ", " + std::to_string(lineno) + "\n";
-        }
 
         const auto log = get_python_logger();
         log.attr("debug")(msg + ": " + frame_info);
@@ -75,6 +65,7 @@ iast_taint_log_error(const std::string& msg)
 
             PyObject *type, *value, *tb;
             PyErr_Fetch(&type, &value, &tb);
+            PyErr_NormalizeException(&type, &value, &tb);
             if (value) {
                 std::cerr << "Exception value: " << py::str(value).cast<std::string>() << "\n";
             }
