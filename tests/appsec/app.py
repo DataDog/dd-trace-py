@@ -389,7 +389,7 @@ def iast_ast_patching_re_groups():
     try:
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
-        if all(map(is_pyobject_tainted, result)):
+        if result and all(map(is_pyobject_tainted, result)):
             resp = Response("OK")
     except Exception as e:
         print(e)
@@ -419,7 +419,7 @@ def iast_ast_patching_non_re_groups():
     try:
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
-        if any(map(is_pyobject_tainted, result)):
+        if not result or any(map(is_pyobject_tainted, result)):
             resp = Response("Fail")
     except Exception as e:
         print(e)
