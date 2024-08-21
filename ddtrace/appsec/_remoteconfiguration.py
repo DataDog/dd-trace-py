@@ -65,9 +65,10 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
         or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
     )
 
+    remoteconfig_poller.register(PRODUCTS.DEBUG, asm_callback)  # DEBUG
+
     if _asm_feature_is_required():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
-        remoteconfig_poller.register(PRODUCTS.DEBUG, asm_callback)  # DEBUG
 
     if tracer._asm_enabled and asm_config._asm_static_rule_file is None:
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
@@ -164,6 +165,7 @@ def _preprocess_results_appsec_1click_activation(
                 )
 
             if rc_asm_enabled and asm_config._asm_static_rule_file is None:
+                remoteconfig_poller.register(PRODUCTS.DEBUG, pubsub_instance)  # DEBUG
                 remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
                 remoteconfig_poller.register(PRODUCTS.ASM, pubsub_instance)  # Exclusion Filters & Custom Rules
                 remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance)  # DD Rules
