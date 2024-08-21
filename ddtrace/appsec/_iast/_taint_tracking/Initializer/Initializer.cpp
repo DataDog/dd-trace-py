@@ -229,6 +229,27 @@ Initializer::is_text(const PyObject* pyptr)
     return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr) || is_re_match(pyptr);
 }
 
+bool
+Initializer::args_are_text_and_same_type(PyObject* first)
+{
+    return (first != nullptr) and is_text(first);
+}
+
+// Recursive case for the argument checking variadic template
+template<typename... Args>
+bool
+Initializer::args_are_text_and_same_type(PyObject* first, PyObject* second, Args... args)
+{
+    // Check if both first and second are valid text types and of the same type
+    if (first == nullptr || second == nullptr || !is_text(first) || !is_text(second) ||
+        PyObject_Type(first) != PyObject_Type(second)) {
+        return false;
+    }
+
+    // Recursively check the rest of the arguments
+    return args_are_text_and_same_type(second, args...);
+}
+
 void
 Initializer::reset_context()
 {

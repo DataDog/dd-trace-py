@@ -73,35 +73,46 @@ add_aspect(PyObject* result_o,
 PyObject*
 api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
-    if (nargs != 2) {
-        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
-        return nullptr;
-    }
-    PyObject* candidate_text = args[0];
-    PyObject* text_to_add = args[1];
-
     PyObject* result_o = nullptr;
-    if (PyUnicode_Check(candidate_text)) {
-        result_o = PyUnicode_Concat(candidate_text, text_to_add);
-    } else if (PyBytes_Check(candidate_text)) {
-        PyObject* tmp_bytes = candidate_text;
-        PyBytes_Concat(&candidate_text, text_to_add);
-        result_o = candidate_text;
-        candidate_text = tmp_bytes;
-        Py_INCREF(candidate_text);
-    } else if (PyByteArray_Check(candidate_text)) {
-        result_o = PyByteArray_Concat(candidate_text, text_to_add);
-    }
 
-    // Quickly skip if both are noninterned-unicodes and not tainted
-    if (is_notinterned_notfasttainted_unicode(candidate_text) && is_notinterned_notfasttainted_unicode(text_to_add)) {
+    try {
+        if (nargs != 2) {
+            py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+            return nullptr;
+        }
+        PyObject* candidate_text = args[0];
+        PyObject* text_to_add = args[1];
+
+        // PyNumber_Add actually works for any type!
+        result_o = PyNumber_Add(candidate_text, text_to_add);
+
+        const auto tx_map = initializer->get_tainting_map();
+        if (not tx_map or tx_map->empty()) {
+            return result_o;
+        }
+
+        if (not initializer->args_are_text_and_same_type(candidate_text, text_to_add)) {
+            return result_o;
+        }
+
+        // Quickly skip if both are noninterned-unicodes and not tainted
+        if (is_notinterned_notfasttainted_unicode(candidate_text) &&
+            is_notinterned_notfasttainted_unicode(text_to_add)) {
+            return result_o;
+        }
+
+        return add_aspect(result_o, candidate_text, text_to_add, tx_map);
+    } catch (const py::error_already_set& e) {
+        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
+        iast_taint_log_error(error_message);
+        return result_o;
+    } catch (const std::exception& e) {
+        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
+        iast_taint_log_error(error_message);
+        return result_o;
+    } catch (...) {
+        const std::string error_message = "Unkown IAST propagation error in add_aspect. ";
+        iast_taint_log_error(error_message);
         return result_o;
     }
-
-    const auto tx_map = initializer->get_tainting_map();
-    if (not tx_map or tx_map->empty()) {
-        return result_o;
-    }
-    auto res = add_aspect(result_o, candidate_text, text_to_add, tx_map);
-    return res;
 }

@@ -3,6 +3,8 @@
 #include <Python.h>
 #include <pybind11/pybind11.h>
 
+#include "GenericUtils.h"
+
 using namespace std;
 using namespace pybind11::literals;
 

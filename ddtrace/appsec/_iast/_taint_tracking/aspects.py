@@ -52,7 +52,7 @@ from .._taint_tracking._native import aspects  # noqa: F401
 TEXT_TYPES = Union[str, bytes, bytearray]
 
 
-_add_aspect = aspects.add_aspect
+add_aspect = aspects.add_aspect
 _extend_aspect = aspects.extend_aspect
 _index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
@@ -79,16 +79,6 @@ __all__ = [
 ]
 
 # TODO: Factorize the "flags_added_args" copypasta into a decorator
-
-
-def add_aspect(op1, op2):
-    if not isinstance(op1, IAST.TEXT_TYPES) or not isinstance(op2, IAST.TEXT_TYPES) or type(op1) != type(op2):
-        return op1 + op2
-    try:
-        return _add_aspect(op1, op2)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. add_aspect. {}".format(e))
-    return op1 + op2
 
 
 def split_aspect(

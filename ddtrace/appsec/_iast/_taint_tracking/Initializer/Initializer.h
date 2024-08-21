@@ -92,6 +92,10 @@ class Initializer
     bool is_re_match(const PyObject* obj);
 
     bool is_text(const PyObject* pyptr);
+
+    bool args_are_text_and_same_type(PyObject* first);
+
+    template<typename... Args> bool args_are_text_and_same_type(PyObject* first, PyObject* second, Args... args);
     /**
      * Resets the current taint tracking context.
      */
