@@ -426,6 +426,180 @@ def iast_ast_patching_non_re_groups():
     return resp
 
 
+@app.route("/iast-ast-patching-re-string", methods=["GET"])
+def iast_ast_patching_re_string():
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        re_match = re.match(r"(\w+) (\w+)", filename)
+        if re_match is not None:
+            result = re_match.string
+        else:
+            result = None
+    elif style == "re_object":
+        pattern = re.compile(r"(\w+) (\w+)")
+        re_match = pattern.match(filename)
+        if re_match is not None:
+            result = re_match.string
+        else:
+            result = None
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if result and is_pyobject_tainted(result):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-non-re-string", methods=["GET"])
+def iast_ast_patching_non_re_string():
+    import iast.fixtures.non_re_module as re
+
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        re_match = re.match(r"(\w+) (\w+)", filename)
+        if re_match is not None:
+            result = re_match.string
+        else:
+            result = None
+    elif style == "re_object":
+        pattern = re.compile(r"(\w+) (\w+)")
+        re_match = pattern.match(filename)
+        if re_match is not None:
+            result = re_match.string
+        else:
+            result = None
+    resp = Response("OK")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if not result or is_pyobject_tainted(result):
+            resp = Response("Fail")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-re-fullmatch", methods=["GET"])
+def iast_ast_patching_re_fullmatch():
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        re_match = re.fullmatch(r"(\w+) (\w+)", filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
+    elif style == "re_object":
+        pattern = re.compile(r"(\w+) (\w+)")
+        re_match = pattern.fullmatch(filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if result and all(map(is_pyobject_tainted, result)):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-non-re-fullmatch", methods=["GET"])
+def iast_ast_patching_non_re_fullmatch():
+    import iast.fixtures.non_re_module as re
+
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        re_match = re.fullmatch(r"(\w+) (\w+)", filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
+    elif style == "re_object":
+        pattern = re.compile(r"(\w+) (\w+)")
+        re_match = pattern.fullmatch(filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
+    resp = Response("OK")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if not result or any(map(is_pyobject_tainted, result)):
+            resp = Response("Fail")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-re-search", methods=["GET"])
+def iast_ast_patching_re_search():
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        re_match = re.search(r"(\w+) (\w+)", filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
+    elif style == "re_object":
+        pattern = re.compile(r"(\w+) (\w+)")
+        re_match = pattern.search(filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if result and all(map(is_pyobject_tainted, result)):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-non-re-search", methods=["GET"])
+def iast_ast_patching_non_re_search():
+    import iast.fixtures.non_re_module as re
+
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "re_module":
+        re_match = re.search(r"(\w+) (\w+)", filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
+    elif style == "re_object":
+        pattern = re.compile(r"(\w+) (\w+)")
+        re_match = pattern.search(filename)
+        if re_match is not None:
+            result = re_match.groups()
+        else:
+            result = []
+    resp = Response("OK")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if not result or any(map(is_pyobject_tainted, result)):
+            resp = Response("Fail")
+    except Exception as e:
+        print(e)
+    return resp
+
+
 if __name__ == "__main__":
     env_port = os.getenv("FLASK_RUN_PORT", 8000)
     ddtrace_iast_flask_patch()
