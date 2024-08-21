@@ -48,10 +48,9 @@ class Service(metaclass=abc.ABCMeta):
 
     def start(
         self,
-        *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
-    ):
-        # type: (...) -> None
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> None:
         """Start the service."""
         # Use a lock so we're sure that if 2 threads try to start the service at the same time, one of them will raise
         # an error.
@@ -64,10 +63,9 @@ class Service(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _start_service(
         self,
-        *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
-    ):
-        # type: (...) -> None
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> None:
         """Start the service for real.
 
         This method uses the internal lock to be sure there's no race conditions and that the service is really started
@@ -77,10 +75,9 @@ class Service(metaclass=abc.ABCMeta):
 
     def stop(
         self,
-        *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
-    ):
-        # type: (...) -> None
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> None:
         """Stop the service."""
         with self._service_lock:
             if self.status == ServiceStatus.STOPPED:
@@ -91,10 +88,9 @@ class Service(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _stop_service(
         self,
-        *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
-    ):
-        # type: (...) -> None
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> None:
         """Stop the service for real.
 
         This method uses the internal lock to be sure there's no race conditions and that the service is really stopped
@@ -104,7 +100,6 @@ class Service(metaclass=abc.ABCMeta):
 
     def join(
         self,
-        timeout=None,  # type: typing.Optional[float]
-    ):
-        # type: (...) -> None
+        timeout: typing.Optional[float] = None,
+    ) -> None:
         """Join the service once stopped."""

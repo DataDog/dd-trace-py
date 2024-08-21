@@ -155,33 +155,34 @@ class Span(object):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-        # pre-conditions
         if not (span_id is None or isinstance(span_id, int)):
-            raise TypeError("span_id must be an integer")
+            if config._raise:
+                raise TypeError("span_id must be an integer")
+            return
         if not (trace_id is None or isinstance(trace_id, int)):
-            raise TypeError("trace_id must be an integer")
+            if config._raise:
+                raise TypeError("trace_id must be an integer")
+            return
         if not (parent_id is None or isinstance(parent_id, int)):
-            raise TypeError("parent_id must be an integer")
+            if config._raise:
+                raise TypeError("parent_id must be an integer")
+            return
 
-        # required span info
         self.name = name
         self.service = service
         self._resource = [resource or name]
         self.span_type = span_type
         self._span_api = span_api
 
-        # tags / metadata
         self._meta: _MetaDictType = {}
         self.error = 0
         self._metrics: _MetricDictType = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        # timing
         self.start_ns: int = time_ns() if start is None else int(start * 1e9)
         self.duration_ns: Optional[int] = None
 
-        # tracing
         if trace_id is not None:
             self.trace_id: int = trace_id
         elif config._128_bit_trace_id_enabled:
@@ -592,15 +593,20 @@ class Span(object):
     def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
-            raise ValueError(f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
+            msg = f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}"
+            if config._raise:
+                raise ValueError(msg)
+            else:
+                log.warning(msg)
 
-        self.set_link(
-            trace_id=context.trace_id,
-            span_id=context.span_id,
-            tracestate=context._tracestate,
-            flags=int(context._traceflags),
-            attributes=attributes,
-        )
+        if context.trace_id and context.span_id:
+            self.set_link(
+                trace_id=context.trace_id,
+                span_id=context.span_id,
+                tracestate=context._tracestate,
+                flags=int(context._traceflags),
+                attributes=attributes,
+            )
 
     def set_link(
         self,

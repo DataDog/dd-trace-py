@@ -21,7 +21,6 @@ from ddtrace._trace.trace_handlers import _ctype_from_headers
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
-from ddtrace.contrib import func_name
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
@@ -45,6 +44,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
@@ -802,7 +802,7 @@ def unwrap_views(func, instance, args, kwargs):
     applications.
 
     Ex. ``channels.routing.URLRouter([path('', get_asgi_application())])``
-    On startup ddtrace.contrib.django.path.instrument_view() will wrap get_asgi_application in a
+    On startup ddtrace.contrib.internal.django.path.instrument_view() will wrap get_asgi_application in a
     DjangoViewProxy.
     Since get_asgi_application is not a django view callback this function will unwrap it.
     """

@@ -2,17 +2,17 @@ import abc
 import dataclasses
 import os
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Callable  # noqa:F401
-    from typing import Dict  # noqa:F401
-    from typing import List  # noqa:F401
-    from typing import Optional  # noqa:F401
-    from typing import Tuple  # noqa:F401
+    from typing import Callable
 
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
     from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -30,12 +30,10 @@ class RemoteConfigPublisherBase(metaclass=abc.ABCMeta):
         self._data_connector = data_connector
         self._preprocess_results_func = preprocess_func
 
-    def dispatch(self, pubsub_instance=None):
-        # type: (Optional[Any]) -> None
+    def dispatch(self, pubsub_instance: Optional[Any] = None) -> None:
         raise NotImplementedError
 
-    def append(self, config_content, target, config_metadata):
-        # type: (Optional[Any], str, Optional[Any]) -> None
+    def append(self, config_content: Optional[Any], target: str, config_metadata: Optional[Any]) -> None:
         raise NotImplementedError
 
 
@@ -47,15 +45,12 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
     def __init__(self, data_connector, preprocess_func=None):
         # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
         super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_func)
-        self._config_and_metadata = []  # type: List[Tuple[Optional[Any], Optional[Any]]]
+        self._config_and_metadata: List[Tuple[Optional[Any], Optional[Any]]] = []
 
-    def append(self, config_content, target="", config_metadata=None):
-        # type: (Optional[Any], str, Optional[Any]) -> None
+    def append(self, config_content: Optional[Any], target: str = "", config_metadata: Optional[Any] = None) -> None:
         self._config_and_metadata.append((config_content, config_metadata))
 
-    def dispatch(self, pubsub_instance=None):
-        # type: (Optional[Any]) -> None
-
+    def dispatch(self, pubsub_instance: Optional[Any] = None) -> None:
         # TODO: RemoteConfigPublisher doesn't need _preprocess_results_func callback at this moment. Uncomment those
         #  lines if a new product need it
         #  if self._preprocess_results_func:
@@ -81,8 +76,7 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
         super(RemoteConfigPublisherMergeDicts, self).__init__(data_connector, preprocess_func)
         self._configs = {}  # type: Dict[str, Any]
 
-    def append(self, config_content, target, config_metadata=None):
-        # type: (Optional[Any], str, Optional[Any]) -> None
+    def append(self, config_content: Optional[Any], target: str, config_metadata: Optional[Any] = None) -> None:
         if target not in self._configs:
             self._configs[target] = {}
 
@@ -102,11 +96,10 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
             if isinstance(config_content, dict):
                 self._configs[target].update(config_content)
             else:
-                raise ValueError("target %s config %s has type of %s" % (target, config_content, type(config_content)))
+                log.warning("target %s config %s has type of %s", target, config_content, type(config_content))
 
-    def dispatch(self, pubsub_instance=None):
-        # type: (Optional[Any]) -> None
-        result = {}  # type: Dict[str, Any]
+    def dispatch(self, pubsub_instance: Optional[Any] = None) -> None:
+        result: Dict[str, Any] = {}
         try:
             for _target, config_item in self._configs.items():
                 for key, value in config_item.items():

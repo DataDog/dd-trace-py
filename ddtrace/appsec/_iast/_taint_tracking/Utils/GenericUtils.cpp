@@ -37,7 +37,6 @@ iast_taint_log_error(const std::string& msg)
             return;
         }
 
-        // Try to get the file and line number of the caller
         std::string frame_info;
         try {
             const py::module inspect = py::module::import("inspect");
@@ -54,6 +53,13 @@ iast_taint_log_error(const std::string& msg)
             cerr << "ddtrace: error in iast_taint_log_error trying to retrieve file and line: " << e.what() << "\n";
             PyErr_Clear(); // Clear the error state
             frame_info = "(unkown file)";
+        }
+        for (size_t i = 0; i < std::min(stack.size(), static_cast<size_t>(7)); ++i) {
+            py::object frame = stack[i];
+            py::object frame_info_obj = frame.attr("frame");
+            std::string filename = py::str(frame_info_obj.attr("f_code").attr("co_filename"));
+            int lineno = py::int_(frame_info_obj.attr("f_lineno"));
+            frame_info += filename + ", " + std::to_string(lineno) + "\n";
         }
 
         const auto log = get_python_logger();

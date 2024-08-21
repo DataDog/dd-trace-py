@@ -942,28 +942,26 @@ def _on_finish_session(finish_args: CISession.FinishArgs):
 
 
 @_requires_civisibility_enabled
-def _on_session_is_test_skipping_enabled() -> Path:
+def _on_session_is_test_skipping_enabled() -> bool:
     log.debug("Handling is test skipping enabled")
     return CIVisibility.test_skipping_enabled()
 
 
 @_requires_civisibility_enabled
-def _on_session_get_workspace_path() -> Path:
+def _on_session_get_workspace_path() -> Optional[Path]:
     log.debug("Handling finish for session id %s")
-    session_settings = CIVisibility.get_session().get_session_settings()
-    return session_settings.workspace_path
+    path_str = CIVisibility.get_workspace_path()
+    return Path(path_str) if path_str is not None else None
 
 
 @_requires_civisibility_enabled
 def _on_session_should_collect_coverage() -> bool:
-    """Code coverage collection is not tied to any given session ID"""
     log.debug("Handling should collect coverage")
     return CIVisibility.should_collect_coverage()
 
 
 @_requires_civisibility_enabled
 def _on_session_get_codeowners() -> Optional[Codeowners]:
-    """The codeowners object is not related to any given session ID"""
     log.debug("Getting codeowners")
     return CIVisibility.get_codeowners()
 
