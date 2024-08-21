@@ -12,8 +12,8 @@ jobs:
     steps:
       - uses: wechuli/allcheckspassed@v1
         with:
-          # Wait 5 minutes, then poll every 3 minutes for up to 60 minutes (65 minutes total)
-          delay: 5
+          # Wait 10 minutes, then poll every 3 minutes for up to 60 minutes (70 minutes total)
+          delay: 10
           retries: 20
           polling_interval: 3
           # These jobs are:
@@ -21,4 +21,3 @@ jobs:
           #   - not required
           #   - expected to fail until an action is taken (like a review)
           checks_exclude: 'require-checklist'
-          
