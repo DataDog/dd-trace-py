@@ -1,5 +1,4 @@
 #include "AspectSlice.h"
-#include <iostream> // JJJ
 
 /**
  * This function reduces the taint ranges from the given index range map.
@@ -153,10 +152,8 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
             return result_o;
         }
 
-        cerr << "JJJ 6\n";
         auto res = slice_aspect(result_o, candidate_text, start, stop, step);
         Py_XDECREF(slice);
-        cerr << "JJJ 7\n";
         return res;
     } catch (const std::exception& e) {
         const std::string error_message = "IAST propagation error in slice_aspect. " + std::string(e.what());
