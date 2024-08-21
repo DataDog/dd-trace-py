@@ -1,3 +1,4 @@
+import os
 from threading import Event
 from time import sleep
 
@@ -119,3 +120,29 @@ def test_awakeable_periodic_service():
     awake_me.stop()
 
     assert queue == list(range(n + 1))
+
+
+def test_forksafe_awakeable_periodic_service():
+    queue = []
+
+    class AwakeMe(periodic.ForksafeAwakeablePeriodicService):
+        def periodic(self):
+            queue.append(len(queue))
+
+    awake_me = AwakeMe(0.1)
+    awake_me.start()
+
+    pid = os.fork()
+    if pid == 0:
+        # child: check that the thread has been restarted
+        queue.clear()
+        assert not queue
+        awake_me.awake()
+        assert queue
+        os._exit(42)
+
+    awake_me.stop()
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 42
