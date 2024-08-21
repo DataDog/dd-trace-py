@@ -19,12 +19,7 @@ get_unique_id(const PyObject* str)
 inline static bool
 PyReMatch_Check(const PyObject* obj)
 {
-    PyObject* re_module = PyImport_ImportModule("re");
-    PyTypeObject* match_type = (PyTypeObject*)PyObject_GetAttrString(re_module, "Match");
-    bool res = PyType_IsSubtype(Py_TYPE(obj), match_type);
-    Py_DECREF(re_module);
-    Py_DECREF(match_type);
-    return res;
+    return py::isinstance((PyObject*)obj, py::module_::import("re").attr("Match"));
 }
 
 bool
