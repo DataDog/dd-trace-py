@@ -423,19 +423,27 @@ parse_params(size_t position,
 bool
 has_pyerr()
 {
-    if (const auto exception = PyErr_Occurred()) {
+    return !has_pyerr_as_string().empty();
+}
+
+std::string
+has_pyerr_as_string()
+{
+
+    if (PyErr_Occurred()) {
         PyObject *extype, *value, *traceback;
         PyErr_Fetch(&extype, &value, &traceback);
         PyErr_NormalizeException(&extype, &value, &traceback);
-        const auto exception_msg = py::str(PyObject_Str(value));
-        py::set_error(extype, exception_msg);
+        const auto exception_msg_as_pystr = py::str(PyObject_Str(value));
+        const auto exception_msg_as_string = std::string(PyUnicode_AsUTF8(exception_msg_as_pystr.ptr()));
+        py::set_error(extype, exception_msg_as_pystr);
         Py_DecRef(extype);
         Py_DecRef(value);
         Py_DecRef(traceback);
-        return true;
+        return exception_msg_as_string;
     }
 
-    return false;
+    return {};
 }
 
 void
@@ -526,4 +534,5 @@ pyexport_aspect_helpers(py::module& m)
           py::return_value_policy::move);
     m.def("parse_params", &parse_params);
     m.def("has_pyerr", &has_pyerr);
+    m.def("has_pyerr_as_string", &has_pyerr_as_string);
 }

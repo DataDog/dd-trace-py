@@ -24,7 +24,8 @@ def test_flask_iast_ast_patching_import_error():
 
 @pytest.mark.parametrize("style", ["re_module", "re_object"])
 @pytest.mark.parametrize("endpoint", ["re", "non-re"])
-def test_flask_iast_ast_patching_re(style, endpoint):
+@pytest.mark.parametrize("function", ["sub", "subn", "split", "findall"])
+def test_flask_iast_ast_patching_re(style, endpoint, function):
     """
     Tests re module patching end to end by checking that re.sub is propagating properly
     """
@@ -34,7 +35,7 @@ def test_flask_iast_ast_patching_re(style, endpoint):
         _, flask_client, pid = context
 
         response = flask_client.get(
-            f"/iast-ast-patching-{endpoint}?style={style}&filename=path_traversal_test_file.txt"
+            f"/iast-ast-patching-{endpoint}-{function}?style={style}&filename=path_traversal_test_file.txt"
         )
 
         assert response.status_code == 200

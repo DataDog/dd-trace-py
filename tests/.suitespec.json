@@ -152,6 +152,7 @@
             "ddtrace/contrib/aredis/*",
             "ddtrace/contrib/internal/aredis/*",
             "ddtrace/contrib/yaaredis/*",
+            "ddtrace/contrib/internal/yaaredis/*",
             "ddtrace/_trace/utils_redis.py",
             "ddtrace/contrib/redis_utils.py",
             "ddtrace/contrib/trace_utils_redis.py",
@@ -212,7 +213,8 @@
             "ddtrace/opentracer/*"
         ],
         "tornado": [
-            "ddtrace/contrib/tornado/*"
+            "ddtrace/contrib/tornado/*",
+            "ddtrace/contrib/internal/tornado/*"
         ],
         "pynamodb": [
             "ddtrace/contrib/pynamodb/*",
@@ -241,10 +243,12 @@
             "ddtrace/ext/git.py"
         ],
         "starlette": [
-            "ddtrace/contrib/starlette/*"
+            "ddtrace/contrib/starlette/*",
+            "ddtrace/contrib/internal/starlette/*"
         ],
         "structlog": [
-            "ddtrace/contrib/structlog/*"
+            "ddtrace/contrib/structlog/*",
+            "ddtrace/contrib/internal/structlog/*"
         ],
         "asgi": [
             "ddtrace/contrib/asgi/*",
@@ -256,10 +260,12 @@
             "ddtrace/ext/memcached.py"
         ],
         "snowflake": [
-            "ddtrace/contrib/snowflake/*"
+            "ddtrace/contrib/snowflake/*",
+            "ddtrace/contrib/internal/snowflake/*"
         ],
         "sanic": [
-            "ddtrace/contrib/sanic/*"
+            "ddtrace/contrib/sanic/*",
+            "ddtrace/contrib/internal/sanic/*"
         ],
         "requests": [
             "ddtrace/contrib/requests/*",
@@ -278,10 +284,12 @@
             "ddtrace/contrib/internal/anthropic/*"
         ],
         "subprocess": [
-            "ddtrace/contrib/subprocess/*"
+            "ddtrace/contrib/subprocess/*",
+            "ddtrace/contrib/internal/subprocess/*"
         ],
         "sqlalchemy": [
-            "ddtrace/contrib/sqlalchemy/*"
+            "ddtrace/contrib/sqlalchemy/*",
+            "ddtrace/contrib/internal/sqlalchemy/*"
         ],
         "opentelemetry": [
             "ddtrace/opentelemetry/*",
@@ -297,13 +305,16 @@
             "ddtrace/vendor/*"
         ],
         "urllib3": [
-            "ddtrace/contrib/urllib3/*"
+            "ddtrace/contrib/urllib3/*",
+            "ddtrace/contrib/internal/urllib3/*"
         ],
         "webbrowser": [
-            "ddtrace/contrib/webbrowser/*"
+            "ddtrace/contrib/webbrowser/*",
+            "ddtrace/contrib/internal/webbrowser/*"
         ],
         "urllib": [
-            "ddtrace/contrib/urllib/*"
+            "ddtrace/contrib/urllib/*",
+            "ddtrace/contrib/internal/urllib/*"
         ],
         "rq": [
             "ddtrace/contrib/rq/*"
@@ -322,10 +333,12 @@
             "ddtrace/ext/kombu.py"
         ],
         "wsgi": [
-            "ddtrace/contrib/wsgi/*"
+            "ddtrace/contrib/wsgi/*",
+            "ddtrace/contrib/internal/wsgi/*"
         ],
         "vertica": [
-            "ddtrace/contrib/vertica/*"
+            "ddtrace/contrib/vertica/*",
+            "ddtrace/contrib/internal/vertica/*"
         ],
         "algoliasearch": [
             "ddtrace/contrib/algoliasearch/*",
@@ -400,7 +413,8 @@
             "ddtrace/contrib/internal/loguru/*"
         ],
         "sqlite3": [
-            "ddtrace/contrib/sqlite3/*"
+            "ddtrace/contrib/sqlite3/*",
+            "ddtrace/contrib/internal/sqlite3/*"
         ],
         "asyncio": [
             "ddtrace/contrib/asyncio/*"

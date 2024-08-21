@@ -39,10 +39,9 @@ class StopWatch(object):
     .. _monotonic: https://pypi.python.org/pypi/monotonic/
     """
 
-    def __init__(self):
-        # type: () -> None
-        self._started_at = None  # type: Optional[float]
-        self._stopped_at = None  # type: Optional[float]
+    def __init__(self) -> None:
+        self._started_at: Optional[float] = None
+        self._stopped_at: Optional[float] = None
 
     def start(self):
         # type: () -> StopWatch
@@ -50,8 +49,7 @@ class StopWatch(object):
         self._started_at = compat.monotonic()
         return self
 
-    def elapsed(self):
-        # type: () -> float
+    def elapsed(self) -> float:
         """Get how many seconds have elapsed.
 
         :return: Number of seconds elapsed
@@ -90,8 +88,7 @@ class StopWatch(object):
 class HourGlass(object):
     """An implementation of an hourglass."""
 
-    def __init__(self, duration):
-        # type: (float) -> None
+    def __init__(self, duration: float) -> None:
         t = compat.monotonic()
 
         self._duration = duration
@@ -100,8 +97,7 @@ class HourGlass(object):
 
         self.trickling = self._trickled  # type: ignore[assignment]
 
-    def turn(self):
-        # type: () -> None
+    def turn(self) -> None:
         """Turn the hourglass."""
         t = compat.monotonic()
         top_0 = self._end_at - self._started_at
