@@ -37,6 +37,8 @@ iast_taint_log_error(const std::string& msg)
             return;
         }
 
+        py::object inspect = py::module::import("inspect");
+        py::list stack = inspect.attr("stack")();
         std::string frame_info;
         try {
             const py::module inspect = py::module::import("inspect");
