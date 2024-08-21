@@ -62,6 +62,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     numerical_value: float
     score_value: float
     ml_app: str
+    timestamp_ms: int
     tags: List[str]
 
 
