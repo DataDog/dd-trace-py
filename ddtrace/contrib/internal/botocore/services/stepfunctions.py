@@ -14,6 +14,7 @@ from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace._trace.utils import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 
 
 log = get_logger(__name__)
@@ -36,14 +37,10 @@ def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
         return
 
     input_obj["_datadog"] = {}
-    results = core.dispatch_with_results("botocore.stepfunctions.update_input", [ctx, None, None, input_obj, None])
-
-    # If dispatch_with_results succeeded, we want to write the new input as a string back to params["input"]
-    result = list(results.values())[0]
-    # is it safe to assume there will be only one result in results? What's the right way to get the key here?
-    if result.response_type == ResultType.RESULT_OK:
-        new_input_obj = result.value
-        input_json_str = json.dumps(new_input_obj)
+    core.dispatch("botocore.stepfunctions.update_input", [ctx, None, None, input_obj, None])
+    updated_input_obj = ctx.get_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY)
+    if updated_input_obj:
+        input_json_str = json.dumps(updated_input_obj)
         params["input"] = input_json_str
 
 
