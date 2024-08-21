@@ -5,14 +5,21 @@ class ReObject:
     def __init__(self, pattern):
         self.pattern = pattern
 
+    def findall(self, string):
+        return ["fake_result_0", "fake_result_1", "fake_result_2"]
+
     def sub(self, replacement, string):
         return "fake_replacement_0"
 
     def subn(self, replacement, string):
         return "fake_replacement_3", 0
 
-    def split(pattern, string, *args, **kwargs):
+    def split(self, string, *args, **kwargs):
         return ["fake_result_2", "fake_result_1", "fake_result_0"]
+
+
+def findall(pattern, string):
+    return ["fake_result_2", "fake_result_1", "fake_result_0"]
 
 
 def sub(pattern, replacement, string):

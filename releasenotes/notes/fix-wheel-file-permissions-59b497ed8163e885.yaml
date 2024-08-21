@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    This fix resolves an issue where ``ddtrace`` package files were published with incorrect file attributes.

@@ -101,7 +101,7 @@ def _build_log_track_payload(
 
     payload = {
         "service": service,
-        "debugger.snapshot": signal.snapshot,
+        "debugger": {"snapshot": signal.snapshot},
         "host": host,
         "logger": _logs_track_logger_details(signal.thread, signal.frame),
         "dd.trace_id": str(context.trace_id) if context else None,
