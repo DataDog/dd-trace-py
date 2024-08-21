@@ -432,8 +432,8 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 trace[0],
                 "retrieval",
                 input_value="Who was Alan Turing?",
-                output_documents=[{"text": mock.ANY}],
-                output_value="[1 document(s) returned]",
+                output_documents=[{"text": mock.ANY, 'id': mock.ANY, 'name': mock.ANY}],
+                output_value="[1 document(s) retrieved]",
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
