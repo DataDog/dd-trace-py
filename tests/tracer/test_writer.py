@@ -1,6 +1,8 @@
 import contextlib
+import http.server
 import os
 import socket
+import socketserver
 import sys
 import tempfile
 import threading
@@ -9,8 +11,6 @@ import time
 import mock
 import msgpack
 import pytest
-from six.moves import BaseHTTPServer
-from six.moves import socketserver
 
 import ddtrace
 from ddtrace import config
@@ -479,7 +479,7 @@ def test_humansize():
     assert _human_size(1000000000) == "1GB"
 
 
-class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+class _BaseHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     error_message_format = "%(message)s\n"
     error_content_type = "text/plain"
 
@@ -514,9 +514,9 @@ _TIMEOUT_PORT = _PORT + 1
 _RESET_PORT = _TIMEOUT_PORT + 1
 
 
-class UDSHTTPServer(socketserver.UnixStreamServer, BaseHTTPServer.HTTPServer):
+class UDSHTTPServer(socketserver.UnixStreamServer, http.server.HTTPServer):
     def server_bind(self):
-        BaseHTTPServer.HTTPServer.server_bind(self)
+        http.server.HTTPServer.server_bind(self)
 
 
 def _make_uds_server(path, request_handler):
@@ -556,7 +556,7 @@ def endpoint_uds_server():
 
 
 def _make_server(port, request_handler):
-    server = BaseHTTPServer.HTTPServer((_HOST, port), request_handler)
+    server = http.server.HTTPServer((_HOST, port), request_handler)
     t = threading.Thread(target=server.serve_forever)
     # Set daemon just in case something fails
     t.daemon = True
@@ -672,7 +672,7 @@ def test_flush_queue_raise(writer_class):
 
         error = OSError
         with pytest.raises(error):
-            writer.write([])
+            writer.write([Span("name")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -715,8 +715,8 @@ def test_additional_headers_constructor():
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_bad_encoding(monkeypatch, writer_class):
     with override_global_config({"_trace_api": "foo"}):
-        with pytest.raises(ValueError):
-            writer_class("http://localhost:9126")
+        writer = writer_class("http://localhost:9126")
+        assert writer._api_version == "v0.5"
 
 
 @pytest.mark.parametrize(

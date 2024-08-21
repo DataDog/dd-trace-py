@@ -5,7 +5,6 @@ import os
 from os import environ
 from os import getpid
 from threading import RLock
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -40,6 +39,7 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
@@ -59,20 +59,18 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 from ddtrace.vendor.debtcollector import deprecate
 
-
-if TYPE_CHECKING:
-    from ddtrace.internal.writer import AgentResponse  # noqa: F401
-    from ddtrace.settings import Config  # noqa: F401
 
 log = get_logger(__name__)
 
@@ -409,27 +407,32 @@ class Tracer(object):
             return active.context
         return None
 
-    def get_log_correlation_context(self) -> Dict[str, str]:
+    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.
         Generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
-        active: Optional[Union[Context, Span]] = None
-        if self.enabled or self._apm_opt_out:
+        if active is None and (self.enabled or self._apm_opt_out):
             active = self.context_provider.active()
 
         if isinstance(active, Span) and active.service:
             service = active.service
         else:
             service = config.service
+
+        span_id = "0"
+        trace_id = "0"
         if active:
-            trace_id = active.trace_id
-            if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-                trace_id = active._trace_id_64bits
+            span_id = str(active.span_id if active.span_id else span_id)
+            trace_id = str(active.trace_id if active.trace_id else trace_id)
+            # check if we are using 128 bit ids, and switch trace id to hex since backend needs hex 128 bit ids
+            if active.trace_id and active.trace_id > MAX_UINT_64BITS:
+                trace_id = "{:032x}".format(active.trace_id)
+
         return {
-            "trace_id": str(trace_id) if active else "0",
-            "span_id": str(active.span_id) if active else "0",
+            "trace_id": trace_id,
+            "span_id": span_id,
             "service": service or "",
             "version": config.version or "",
             "env": config.env or "",
@@ -603,8 +606,7 @@ class Tracer(object):
 
         self._generate_diagnostic_logs()
 
-    def _agent_response_callback(self, resp):
-        # type: (AgentResponse) -> None
+    def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
 
         The agent can return updated sample rates for the priority sampler.
@@ -1151,9 +1153,7 @@ class Tracer(object):
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
 
-    def _on_global_config_update(self, cfg, items):
-        # type: (Config, List) -> None
-
+    def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
         if "_trace_sample_rate" in items and "_trace_sampling_rules" in items:
             self._handle_sampler_update(cfg)
@@ -1180,8 +1180,7 @@ class Tracer(object):
 
                 unpatch()
 
-    def _handle_sampler_update(self, cfg):
-        # type: (Config) -> None
+    def _handle_sampler_update(self, cfg: Config) -> None:
         if (
             cfg._get_source("_trace_sample_rate") != "remote_config"
             and cfg._get_source("_trace_sampling_rules") != "remote_config"

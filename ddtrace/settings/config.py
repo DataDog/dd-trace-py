@@ -147,11 +147,8 @@ def _parse_propagation_styles(name, default):
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
-            raise ValueError(
-                "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
-                    style, name, PROPAGATION_STYLE_ALL
-                )
-            )
+            log.warning("Unknown style {!r} provided for %r, allowed values are %r", style, name, PROPAGATION_STYLE_ALL)
+            continue
         styles.append(style)
     return styles
 
@@ -218,25 +215,21 @@ class _ConfigItem:
                 self._env_value = parser(os.environ[env_var])
                 break
 
-    def set_value_source(self, value, source):
-        # type: (Any, _ConfigSource) -> None
+    def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
         else:
-            raise ValueError("Invalid source: {}".format(source))
+            log.warning("Invalid source: %s", source)
 
-    def set_code(self, value):
-        # type: (_JSONType) -> None
+    def set_code(self, value: _JSONType) -> None:
         self._code_value = value
 
-    def unset_rc(self):
-        # type: () -> None
+    def unset_rc(self) -> None:
         self._rc_value = None
 
-    def value(self):
-        # type: () -> _JSONType
+    def value(self) -> _JSONType:
         if self._rc_value is not None:
             return self._rc_value
         if self._code_value is not None:
@@ -245,8 +238,7 @@ class _ConfigItem:
             return self._env_value
         return self._default_value
 
-    def source(self):
-        # type: () -> _ConfigSource
+    def source(self) -> _ConfigSource:
         if self._rc_value is not None:
             return "remote_config"
         if self._code_value is not None:
@@ -271,8 +263,7 @@ def _parse_global_tags(s):
     return gitmetadata.clean_tags(parse_tags_str(s))
 
 
-def _default_config():
-    # type: () -> Dict[str, _ConfigItem]
+def _default_config() -> Dict[str, _ConfigItem]:
     return {
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
@@ -474,6 +465,13 @@ class Config(object):
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+        if self._128_bit_trace_id_logging_enabled:
+            deprecate(
+                "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
+                message="Log injection format is now configured automatically.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
@@ -497,12 +495,14 @@ class Config(object):
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
         if x_datadog_tags_max_length < 0:
-            raise ValueError(
+            log.warning(
                 (
-                    "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
+                    "Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
                     "only non-negative values allowed"
-                ).format(x_datadog_tags_max_length)
+                ),
+                x_datadog_tags_max_length,
             )
+            x_datadog_tags_max_length = 0
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
@@ -560,6 +560,7 @@ class Config(object):
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
         self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP")
+        self._llmobs_agentless_enabled = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
 
         self._inject_force = asbool(os.getenv("DD_INJECT_FORCE", False))
         self._lib_was_injected = False

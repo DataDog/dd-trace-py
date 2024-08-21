@@ -423,27 +423,47 @@ parse_params(size_t position,
 bool
 has_pyerr()
 {
-    if (const auto exception = PyErr_Occurred()) {
+    return !has_pyerr_as_string().empty();
+}
+
+std::string
+has_pyerr_as_string()
+{
+
+    if (PyErr_Occurred()) {
         PyObject *extype, *value, *traceback;
         PyErr_Fetch(&extype, &value, &traceback);
         PyErr_NormalizeException(&extype, &value, &traceback);
-        const auto exception_msg = py::str(PyObject_Str(value));
-        py::set_error(extype, exception_msg);
+        const auto exception_msg_as_pystr = py::str(PyObject_Str(value));
+        const auto exception_msg_as_string = std::string(PyUnicode_AsUTF8(exception_msg_as_pystr.ptr()));
+        py::set_error(extype, exception_msg_as_pystr);
         Py_DecRef(extype);
         Py_DecRef(value);
         Py_DecRef(traceback);
-        return true;
+        return exception_msg_as_string;
     }
 
-    return false;
+    return {};
 }
 
 void
 pyexport_aspect_helpers(py::module& m)
 {
-    m.def("common_replace", &api_common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
-    m.def("common_replace", &api_common_replace<py::str>, "string_method"_a, "candidate_text"_a);
-    m.def("common_replace", &api_common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace",
+          &api_common_replace<py::bytes>,
+          "string_method"_a,
+          "candidate_text"_a,
+          py::return_value_policy::move);
+    m.def("common_replace",
+          &api_common_replace<py::str>,
+          "string_method"_a,
+          "candidate_text"_a,
+          py::return_value_policy::move);
+    m.def("common_replace",
+          &api_common_replace<py::bytearray>,
+          "string_method"_a,
+          "candidate_text"_a,
+          py::return_value_policy::move);
     m.def("set_ranges_on_splitted",
           &api_set_ranges_on_splitted<py::bytes>,
           "source_str"_a,
@@ -500,15 +520,19 @@ pyexport_aspect_helpers(py::module& m)
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text<py::bytes>,
           "taint_escaped_text"_a,
-          "ranges_orig"_a);
+          "ranges_orig"_a,
+          py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text<py::str>,
           "taint_escaped_text"_a,
-          "ranges_orig"_a);
+          "ranges_orig"_a,
+          py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text_ba,
           "taint_escaped_text"_a,
-          "ranges_orig"_a);
+          "ranges_orig"_a,
+          py::return_value_policy::move);
     m.def("parse_params", &parse_params);
     m.def("has_pyerr", &has_pyerr);
+    m.def("has_pyerr_as_string", &has_pyerr_as_string);
 }

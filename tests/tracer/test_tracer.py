@@ -14,7 +14,6 @@ import weakref
 
 import mock
 import pytest
-import six
 
 import ddtrace
 from ddtrace._trace.context import Context
@@ -980,11 +979,11 @@ class EnvTracerTestCase(TracerTestCase):
         assert self.tracer._tags.get("key1") == "value1"
         assert self.tracer._tags.get("key2") == "value2"
 
-    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2,key3"))
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2, key3"))
     def test_dd_tags_invalid(self):
         assert self.tracer._tags.get("key1")
         assert self.tracer._tags.get("key2")
-        assert self.tracer._tags.get("key3") is None
+        assert not self.tracer._tags.get("key3")
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
     def test_tags_from_DD_TAGS(self):
@@ -1157,7 +1156,7 @@ def test_runtime_id_parent_only():
     # Parent spans should have runtime-id
     s = tracer.trace("test")
     rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, six.string_types)
+    assert isinstance(rtid, str)
 
     # Child spans should not
     s2 = tracer.trace("test2")
@@ -1169,7 +1168,7 @@ def test_runtime_id_parent_only():
     s = tracer.trace("test")
     s.finish()
     rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, six.string_types)
+    assert isinstance(rtid, str)
 
 
 def test_runtime_id_fork():
@@ -1179,7 +1178,7 @@ def test_runtime_id_fork():
     s.finish()
 
     rtid = s.get_tag("runtime-id")
-    assert isinstance(rtid, six.string_types)
+    assert isinstance(rtid, str)
 
     pid = os.fork()
 
@@ -1189,7 +1188,7 @@ def test_runtime_id_fork():
         s.finish()
 
         rtid_child = s.get_tag("runtime-id")
-        assert isinstance(rtid_child, six.string_types)
+        assert isinstance(rtid_child, str)
         assert rtid != rtid_child
         os._exit(12)
 

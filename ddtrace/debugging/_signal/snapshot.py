@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from dataclasses import field
 import sys
 from typing import Any
 from typing import Dict
@@ -5,8 +7,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import cast
-
-import attr
 
 from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
@@ -76,21 +76,19 @@ _EMPTY_CAPTURED_CONTEXT = _capture_context(
 )
 
 
-@attr.s
+@dataclass
 class Snapshot(LogSignal):
     """Raw snapshot.
 
     Used to collect the minimum amount of information from a firing probe.
     """
 
-    entry_capture = attr.ib(type=Optional[dict], default=None)
-    return_capture = attr.ib(type=Optional[dict], default=None)
-    line_capture = attr.ib(type=Optional[dict], default=None)
-
-    _stack = attr.ib(type=Optional[list], default=None)
-
-    _message = attr.ib(type=Optional[str], default=None)
-    duration = attr.ib(type=Optional[int], default=None)  # nanoseconds
+    entry_capture: Optional[dict] = field(default=None)
+    return_capture: Optional[dict] = field(default=None)
+    line_capture: Optional[dict] = field(default=None)
+    _stack: Optional[list] = field(default=None)
+    _message: Optional[str] = field(default=None)
+    duration: Optional[int] = field(default=None)  # nanoseconds
 
     def _eval_segment(self, segment: TemplateSegment, _locals: Dict[str, Any]) -> str:
         probe = cast(LogProbeMixin, self.probe)
@@ -149,10 +147,10 @@ class Snapshot(LogSignal):
             return
 
         probe = self.probe
-        _args = self._enrich_args(retval, exc_info, duration)
+        _locals = self._enrich_locals(retval, exc_info, duration)
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
-            if not self._eval_condition(_args):
+            if not self._eval_condition(_locals):
                 return
             if probe.limiter.limit() is RateLimitExceeded:
                 self.state = SignalState.SKIP_RATE
@@ -174,7 +172,7 @@ class Snapshot(LogSignal):
         self.duration = duration
         self.state = SignalState.DONE
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
-            self._eval_message(dict(_args))
+            self._eval_message(dict(_locals))
 
         stack = utils.capture_stack(self.frame)
 

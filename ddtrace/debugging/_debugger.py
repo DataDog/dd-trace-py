@@ -23,7 +23,7 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+from ddtrace.debugging._exception.replay import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
@@ -172,22 +172,7 @@ class DebuggerWrappingContext(WrappingContext):
     def has_probes(self) -> bool:
         return bool(self.probes)
 
-    def _close_contexts(self, retval=None, exc_info=(None, None, None)) -> None:
-        end_time = compat.monotonic_ns()
-        contexts = self.get("contexts")
-        while contexts:
-            # Open probe signal contexts are ordered, with those that have
-            # created new tracing context first. We need to finalise them in
-            # reverse order, so we pop them from the end of the queue (LIFO).
-            context = contexts.pop()
-            context.exit(retval, exc_info, end_time - self.get("start_time"))
-            signal = context.signal
-            if signal.state is SignalState.DONE:
-                self._probe_registry.set_emitting(signal.probe)
-
-    def __enter__(self) -> "DebuggerWrappingContext":
-        super().__enter__()
-
+    def _open_contexts(self) -> None:
         frame = self.__frame__
         assert frame is not None  # nosec
 
@@ -253,16 +238,43 @@ class DebuggerWrappingContext(WrappingContext):
         self.set("start_time", compat.monotonic_ns())
         self.set("contexts", contexts)
 
+    def _close_contexts(self, retval=None, exc_info=(None, None, None)) -> None:
+        end_time = compat.monotonic_ns()
+        contexts = self.get("contexts")
+        while contexts:
+            # Open probe signal contexts are ordered, with those that have
+            # created new tracing context first. We need to finalise them in
+            # reverse order, so we pop them from the end of the queue (LIFO).
+            context = contexts.pop()
+            context.exit(retval, exc_info, end_time - self.get("start_time"))
+            signal = context.signal
+            if signal.state is SignalState.DONE:
+                self._probe_registry.set_emitting(signal.probe)
+
+    def __enter__(self) -> "DebuggerWrappingContext":
+        super().__enter__()
+
+        try:
+            self._open_contexts()
+        except Exception:
+            log.exception("Failed to open debugging contexts")
+
         return self
 
     def __return__(self, value: T) -> T:
-        self._close_contexts(retval=value)
+        try:
+            self._close_contexts(retval=value)
+        except Exception:
+            log.exception("Failed to close debugging contexts from return")
         return super().__return__(value)
 
     def __exit__(
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
-        self._close_contexts(exc_info=(exc_type, exc_val, exc_tb))
+        try:
+            self._close_contexts(exc_info=(exc_type, exc_val, exc_tb))
+        except Exception:
+            log.exception("Failed to close debugging contexts from exception block")
         super().__exit__(exc_type, exc_val, exc_tb)
 
 
@@ -494,7 +506,7 @@ class Debugger(Service):
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
-            resolved_source = probe.source_file
+            resolved_source = probe.resolved_source_file
             if resolved_source is None:
                 log.error(
                     "Cannot inject probe %s: source file %s cannot be resolved", probe.probe_id, probe.source_file
@@ -502,12 +514,12 @@ class Debugger(Service):
                 self._probe_registry.set_error(probe, "NoSourceFile", "Source file location cannot be resolved")
                 continue
 
-        for source in {probe.source_file for probe in probes if probe.source_file is not None}:
+        for source in {probe.resolved_source_file for probe in probes if probe.resolved_source_file is not None}:
             try:
                 self.__watchdog__.register_origin_hook(source, self._probe_injection_hook)
             except Exception as exc:
                 for probe in probes:
-                    if probe.source_file != source:
+                    if probe.resolved_source_file != source:
                         continue
                     exc_type = type(exc)
                     self._probe_registry.set_error(probe, exc_type.__name__, str(exc))
@@ -527,9 +539,9 @@ class Debugger(Service):
 
         probes_for_source: Dict[Path, List[LineProbe]] = defaultdict(list)
         for probe in unregistered_probes:
-            if probe.source_file is None:
+            if probe.resolved_source_file is None:
                 continue
-            probes_for_source[probe.source_file].append(probe)
+            probes_for_source[probe.resolved_source_file].append(probe)
 
         for resolved_source, probes in probes_for_source.items():
             module = self.__watchdog__.get_by_origin(resolved_source)

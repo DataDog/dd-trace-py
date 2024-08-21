@@ -42,21 +42,41 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
-        return nullptr;
-    }
-    auto ctx_map = initializer->get_tainting_map();
-
-    PyObject* candidate_text = args[0];
-    PyObject* idx = args[1];
-
-    PyObject* result_o = PyObject_GetItem(candidate_text, idx);
-    if (has_pyerr()) {
+        iast_taint_log_error(MSG_ERROR_N_PARAMS);
         return nullptr;
     }
 
-    if (not ctx_map or ctx_map->empty()) {
-        return result_o;
+    try {
+        PyObject* result_o = nullptr;
+        PyObject* candidate_text = args[0];
+        PyObject* idx = args[1];
+        if (!is_text(candidate_text) or !is_some_number(idx)) {
+            return PyObject_GetItem(candidate_text, idx);
+        }
+        const auto ctx_map = initializer->get_tainting_map();
+        result_o = PyObject_GetItem(candidate_text, idx);
+        if (not ctx_map or ctx_map->empty()) {
+            return result_o;
+        }
+
+        auto error_str = has_pyerr_as_string();
+        if (!error_str.empty()) {
+            error_str += " (native index_aspect)";
+            iast_taint_log_error(error_str);
+            py::set_error(PyExc_IndexError, error_str.c_str());
+            return nullptr;
+        }
+
+        return index_aspect(result_o, candidate_text, idx, ctx_map);
+    } catch (const std::exception& e) {
+        const std::string error_message = "IAST propagation error in index_aspect. " + std::string(e.what());
+        iast_taint_log_error(error_message);
+        py::set_error(PyExc_TypeError, error_message.c_str());
+        return nullptr;
+    } catch (...) {
+        const std::string error_message = "Unkown IAST propagation error in index_aspect. ";
+        iast_taint_log_error(error_message);
+        py::set_error(PyExc_TypeError, error_message.c_str());
+        return nullptr;
     }
-    auto res = index_aspect(result_o, candidate_text, idx, ctx_map);
-    return res;
 }

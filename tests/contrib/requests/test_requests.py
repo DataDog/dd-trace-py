@@ -6,7 +6,6 @@ import requests
 from requests import Session
 from requests.exceptions import InvalidURL
 from requests.exceptions import MissingSchema
-import six
 
 from ddtrace import Pin
 from ddtrace import config
@@ -14,10 +13,10 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib.internal.requests.connection import _extract_hostname_and_path
+from ddtrace.contrib.internal.requests.connection import _extract_query_string
 from ddtrace.contrib.requests import patch
 from ddtrace.contrib.requests import unpatch
-from ddtrace.contrib.requests.connection import _extract_hostname_and_path
-from ddtrace.contrib.requests.connection import _extract_query_string
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
@@ -696,8 +695,8 @@ session.get("http://httpbin.org/status/200")
         cwd=str(tmpdir),
     )
     p.wait()
-    assert p.stderr.read() == six.b("")
-    assert p.stdout.read() == six.b("")
+    assert p.stderr.read() == b""
+    assert p.stdout.read() == b""
     assert p.returncode == 0
 
 

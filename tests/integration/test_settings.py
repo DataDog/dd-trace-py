@@ -88,7 +88,7 @@ config._tracing_enabled = False
 
 from ddtrace.internal.telemetry import telemetry_writer
 # simulate app start event, this occurs when the first span is sent to the datadog agent
-telemetry_writer._app_started_event()
+telemetry_writer.app_started()
         """,
         env=env,
     )
