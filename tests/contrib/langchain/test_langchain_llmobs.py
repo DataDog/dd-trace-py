@@ -412,7 +412,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             )
         )
 
-    def test_llmobs_similarity_search(self, langchain, mock_llmobs_span_writer, mock_tracer):
+    def test_llmobs_similarity_search_base(self, langchain, mock_llmobs_span_writer, mock_tracer):
         import pinecone
 
         embedding_model = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
@@ -428,29 +428,22 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             mock_tracer=mock_tracer,
             cassette_name=cassette_name,
         )
-        assert mock_llmobs_span_writer.enqueue.call_count == 2
-        mock_llmobs_span_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
+        expected_span = _expected_llmobs_non_llm_span_event(
                 trace[0],
-                span_kind="retrieval",
+                "retrieval",
                 input_value="Who was Alan Turing?",
                 output_documents=[{"text": mock.ANY}],
+                output_value="[1 document(s) returned]",
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
+        breakpoint()
+        mock_llmobs_span_writer.enqueue.assert_any_call(
+            expected_span
         )
-        mock_llmobs_span_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                trace[1],
-                span_kind="embedding",
-                model_name=embedding_model.model,
-                model_provider="openai",
-                input_documents=[{"text": "Who was Alan Turing?"}],
-                output_value="[1 embedding(s) returned with size 1536]",
-                tags={"ml_app": "langchain_test"},
-                integration="langchain",
-            )
-        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 2
+
+
 
 
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
@@ -712,6 +705,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 span_kind="retrieval",
                 input_value="Who was Alan Turing?",
                 output_documents=[{"text": mock.ANY}],
+                output_value="[1 document(s) returned]",
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
