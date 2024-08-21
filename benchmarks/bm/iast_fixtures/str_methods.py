@@ -52,6 +52,20 @@ class StoppableHTTPServer(HTTPServer):
 def do_operator_add_params(a, b):
     return a + b
 
+def do_operator_add_inplace_params(a, b):
+    a += b
+    return a
+
+def do_operator_add_inplace_3_params(a, b, c):
+    a += b
+    a += c
+    return a
+
+def do_operator_add_inplace_3_times(a, b):
+    a += b
+    a += b
+    a += b
+    return a
 
 def do_string_assignment(a):
     b = a
@@ -970,16 +984,6 @@ def do_slice_negative(
 ):
     return s[-16:]
 
-
-def mult_two(a, b):  # type: (Any, Any) -> Any
-    return a * b
-
-
-def inplace_mult(a, b):
-    a *= b
-    return a
-
-
 class MyObject(object):
     def __init__(self, str_param):  # type: (str) -> None
         self.str_param = str_param
@@ -1219,3 +1223,18 @@ def do_customspec_formatspec():
 
 def do_fstring(a, b):
     return f"{a} + {b} = {a + b}"
+
+
+def _preprocess_lexer_input(text):
+    """Apply preprocessing such as decoding the input, removing BOM and normalizing newlines."""
+    # text now *is* a unicode string
+    text = text.replace('\r\n', '\n')
+    text = text.replace('\r', '\n')
+    text = text.strip()
+    text = text.strip('\n')
+
+    text = text.expandtabs(0)
+    text += '\n'
+
+    return text
+
