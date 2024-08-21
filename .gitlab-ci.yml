@@ -60,8 +60,11 @@ deploy_to_di_backend:manual:
 # Final step which always runs when the pipeline finishes.
 # This gives us something block on/wait for in GitHub
 finished:
+  image: registry.ddbuild.io/images/mirror/library/alpine:3.19.3
+  tags: [ "arch:amd64" ]
   stage: .post
   rules:
     - when: always
   script:
+    # TODO: Can we get this to reflect the status from the whole pipeline?
     - exit 0
