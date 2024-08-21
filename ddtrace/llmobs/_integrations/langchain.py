@@ -288,7 +288,7 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(OUTPUT_VALUE, "")
         elif isinstance(output_documents, list):
             if is_workflow:
-                span.set_tag_str(OUTPUT_VALUE, "[{} documents(s) retrieved]".format(len(output_documents)))
+                span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
             else:
                 documents = []
                 for d in output_documents:
