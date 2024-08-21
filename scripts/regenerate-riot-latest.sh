@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-DDTEST_CMD=scripts/ddtest riot run -p 3.10
+DDTEST_CMD=scripts/ddtest
 
 pkgs=$(python scripts/freshvenvs.py | cut -d':' -f1)
 echo $pkgs
