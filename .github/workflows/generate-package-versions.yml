@@ -74,10 +74,10 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          branch: "upgrade-package-versions"
+          branch: "upgrade-${{ env.VENV_NAME }}-version"
           commit-message: "Test Package Versions update"
           delete-branch: true
           base: main
-          title: "Testing Package Versions Update"
+          title: "Testing Package Versions Update: ${{ env.VENV_NAME }}"
           body: |
-            Updates the package versions
+            Updates the ${{ env.VENV_NAME }} version
