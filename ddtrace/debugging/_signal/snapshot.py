@@ -147,10 +147,10 @@ class Snapshot(LogSignal):
             return
 
         probe = self.probe
-        _args = self._enrich_args(retval, exc_info, duration)
+        _locals = self._enrich_locals(retval, exc_info, duration)
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
-            if not self._eval_condition(_args):
+            if not self._eval_condition(_locals):
                 return
             if probe.limiter.limit() is RateLimitExceeded:
                 self.state = SignalState.SKIP_RATE
@@ -172,7 +172,7 @@ class Snapshot(LogSignal):
         self.duration = duration
         self.state = SignalState.DONE
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
-            self._eval_message(dict(_args))
+            self._eval_message(dict(_locals))
 
         stack = utils.capture_stack(self.frame)
 
