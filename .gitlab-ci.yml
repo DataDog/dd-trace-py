@@ -57,7 +57,7 @@ deploy_to_di_backend:manual:
     UPSTREAM_PACKAGE_JOB: build
 
 
-# Final step which always runs when the pipeline finishes.
+# Final step which only runs when a pipeline has finished successfully.
 # This gives us something block on/wait for in GitHub
 finished:
   image: registry.ddbuild.io/images/mirror/library/alpine:3.19.3
