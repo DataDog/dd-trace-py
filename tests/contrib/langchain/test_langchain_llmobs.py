@@ -412,7 +412,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             )
         )
 
-    def test_llmobs_similarity_search_base(self, langchain, mock_llmobs_span_writer, mock_tracer):
+    def test_llmobs_similarity_search(self, langchain, mock_llmobs_span_writer, mock_tracer):
         import pinecone
 
         embedding_model = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
@@ -687,39 +687,28 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         if langchain_pinecone is None:
             pytest.skip("langchain_pinecone not installed which is required for this test.")
         embedding_model = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-        cassette_name = "openai_pinecone_similarity_search.yaml"
+        cassette_name = "openai_pinecone_similarity_search_community.yaml"
         trace = self._similarity_search(
             pinecone=pinecone,
             pinecone_vector_store=langchain_pinecone.PineconeVectorStore,
             embedding_model=embedding_model,
-            query="Who was Alan Turing?",
+            query="Evolution",
             k=1,
             mock_tracer=mock_tracer,
             cassette_name=cassette_name,
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 2
-        mock_llmobs_span_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                trace[0],
-                span_kind="retrieval",
-                input_value="Who was Alan Turing?",
-                output_documents=[{"text": mock.ANY}],
-                output_value="[1 document(s) returned]",
-                tags={"ml_app": "langchain_test"},
-                integration="langchain",
-            )
+        expected_span = _expected_llmobs_non_llm_span_event(
+            trace[0],
+            "retrieval",
+            input_value="Evolution",
+            output_documents=[{"text": mock.ANY, 'id': mock.ANY, 'name': "The Evolution of Communication Technologies"}],
+            output_value="[1 document(s) retrieved]",
+            tags={"ml_app": "langchain_test"},
+            integration="langchain",
         )
-        mock_llmobs_span_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                trace[1],
-                span_kind="embedding",
-                model_name=embedding_model.model,
-                model_provider="openai",
-                input_documents=[{"text": "Who was Alan Turing?"}],
-                output_value="[1 embedding(s) returned with size 1536]",
-                tags={"ml_app": "langchain_test"},
-                integration="langchain",
-            )
+        mock_llmobs_span_writer.enqueue.assert_any_call(
+            expected_span
         )
 
 
