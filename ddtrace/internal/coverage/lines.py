@@ -60,14 +60,6 @@ class CoverageLines:
         for _byte_idx, _byte in enumerate(other._lines):
             self._lines[_byte_idx] |= _byte
 
-    @classmethod
-    def merge(cls, cov_lines_1: "CoverageLines", cov_lines_2: "CoverageLines") -> "CoverageLines":
-        merged_lines = CoverageLines(max(len(cov_lines_1._lines), len(cov_lines_2._lines)))
-        merged_lines.update(cov_lines_1)
-        merged_lines.update(cov_lines_2)
-
-        return merged_lines
-
     def to_bytes(self) -> bytes:
         """This exists as a simple interface in case we ever decide to change the internal lines representation"""
         return self._lines

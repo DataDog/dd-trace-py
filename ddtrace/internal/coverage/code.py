@@ -2,7 +2,6 @@ from collections import defaultdict
 from copy import deepcopy
 from inspect import getmodule
 import os
-import pickle
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -110,20 +109,6 @@ class ModuleCodeCollector(ModuleWatchdog):
             self._import_names_by_path[path].add(import_name)
 
     @classmethod
-    def absorb_data_pickle(cls, pickled_data: bytes):
-        """Absorb a JSON report of coverage data. This is used to aggregate coverage data from multiple processes.
-
-        Absolute paths are expected.
-        """
-        try:
-            data = pickle.loads(pickled_data)
-        except pickle.UnpicklingError:
-            log.debug("Could not unpickle coverage data, not injecting coverage")
-            return
-
-        cls.inject_coverage(lines=data["lines"], covered=data["covered"])
-
-    @classmethod
     def inject_coverage(
         cls,
         lines: t.Optional[t.Dict[str, CoverageLines]] = None,
@@ -159,21 +144,6 @@ class ModuleCodeCollector(ModuleWatchdog):
         covered_lines = instance._get_covered_lines()
 
         print_coverage_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover)
-
-    @classmethod
-    def get_data_pickle(cls) -> bytes:
-        instance = cls._instance
-
-        if instance is None:
-            return pickle.dumps(None)
-
-        return pickle.dumps({"lines": instance.lines, "covered": instance.covered})
-
-    @classmethod
-    def get_context_data_pickle(cls) -> bytes:
-        covered_lines = _get_ctx_covered_lines()
-
-        return pickle.dumps({"lines": {}, "covered": covered_lines})
 
     @classmethod
     def write_json_report_to_file(cls, filename: str, workspace_path: Path, ignore_nocover: bool = False):
@@ -262,7 +232,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
 
-        def get_covered_lines(self):
+        def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
             return ctx_covered.get()[-1]
 
     @classmethod
