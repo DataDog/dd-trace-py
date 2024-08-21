@@ -7,7 +7,8 @@ using namespace std;
 using namespace pybind11::literals;
 
 namespace py = pybind11;
-bool asbool(py::object);
+bool
+asbool(const py::object&);
 bool
 asbool(const char*);
 void
