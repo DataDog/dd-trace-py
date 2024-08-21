@@ -64,7 +64,7 @@ finished:
   tags: [ "arch:amd64" ]
   stage: .post
   rules:
-    - when: always
+    - when: on_success
   script:
     # TODO: Can we get this to reflect the status from the whole pipeline?
     - exit 0
