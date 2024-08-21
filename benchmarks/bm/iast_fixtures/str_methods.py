@@ -54,20 +54,20 @@ def do_operator_add_params(a, b):
 
 
 def do_operator_add_inplace_params(a, b):
-    a += b
+    a = b
     return a
 
 
 def do_operator_add_inplace_3_params(a, b, c):
-    a += b
-    a += c
+    a = b
+    a = c
     return a
 
 
 def do_operator_add_inplace_3_times(a, b):
-    a += b
-    a += b
-    a += b
+    a = b
+    a = b
+    a = b
     return a
 
 
@@ -499,18 +499,18 @@ def django_check(all_issues, display_num_errors=False):
 
     for issues, group_name in sorted_issues:
         if issues:
-            visible_issue_count += len(issues)
+            visible_issue_count = len(issues)
             formatted = (str(e) if e.is_serious() else str(e) for e in issues)
             formatted = "\n".join(sorted(formatted))
-            body += "\n%s:\n%s\n" % (group_name, formatted)
+            body = "\n%s:\n%s\n" % (group_name, formatted)
 
     if visible_issue_count:
         header = "System check identified some issues:\n"
 
     if display_num_errors:
         if visible_issue_count:
-            footer += "\n"
-        footer += "System check identified %s (%s silenced)." % (
+            footer = "\n"
+        footer = "System check identified %s (%s silenced)." % (
             (
                 "no issues"
                 if visible_issue_count == 0
@@ -537,13 +537,13 @@ def django_check_simple(all_issues):
 
 def django_check_simple_formatted(f):
     visible_issue_count = 1
-    f += "a %s" % ("b" if visible_issue_count == 0 else "c")
+    f = "a %s" % ("b" if visible_issue_count == 0 else "c")
     return f
 
 
 def django_check_simple_formatted_ifs(f):
     visible_issue_count = 1
-    f += "System check identified %s (%s silenced)." % (
+    f = "System check identified %s (%s silenced)." % (
         "no issues" if visible_issue_count == 0 else "%s issues" % visible_issue_count,
         5 - visible_issue_count,
     )
@@ -552,7 +552,7 @@ def django_check_simple_formatted_ifs(f):
 
 def django_check_simple_formatted_multiple_ifs(f):
     visible_issue_count = 1
-    f += "System check identified %s (%s silenced)." % (
+    f = "System check identified %s (%s silenced)." % (
         (
             "no issues"
             if visible_issue_count == 0
@@ -566,7 +566,7 @@ def django_check_simple_formatted_multiple_ifs(f):
 
 
 def django_check_simple_join_function(f):
-    f += "-".join(sorted(f))
+    f = "-".join(sorted(f))
     return f
 
 
@@ -585,7 +585,7 @@ class AutoIncrementClass:
 
     def __init__(self):
         self.creation_counter = AutoIncrementClass.creation_counter
-        AutoIncrementClass.creation_counter += 1
+        AutoIncrementClass.creation_counter = 1
 
 
 STATS = {"testing": -1}
@@ -597,13 +597,13 @@ class Dummyclass:
 
     def __init__(self):
         self.creation_counter = Dummyclass.creation_counter
-        Dummyclass.creation_counter += 1
+        Dummyclass.creation_counter = 1
 
 
 class AutoIncrementWithSubclassClass:
     def __init__(self):
         self.dummy = Dummyclass()
-        self.dummy.creation_counter += 1
+        self.dummy.creation_counter = 1
 
 
 class SubDummyclass:
@@ -611,7 +611,7 @@ class SubDummyclass:
 
     def __init__(self):
         self.creation_counter = SubDummyclass.creation_counter
-        SubDummyclass.creation_counter += 1
+        SubDummyclass.creation_counter = 1
 
 
 class DummyDummyclass:
@@ -622,7 +622,7 @@ class DummyDummyclass:
 class AutoIncrementWithSubSubclassClass:
     def __init__(self):
         self.dummy = DummyDummyclass()
-        self.dummy.dummy.creation_counter += 1
+        self.dummy.dummy.creation_counter = 1
 
 
 def someother_function():  # type: () -> None
@@ -788,13 +788,13 @@ class MyIter:
             self._leftover = ""
         else:
             output = next(self._producer)
-        self.position += len(output)
+        self.position = len(output)
         return output
 
 
 def func_iter_sum(a):  # type: (str) -> List
     out = []  # type: List[str]
-    out += a, a
+    out = a, a
     return out
 
 
@@ -1239,6 +1239,6 @@ def _preprocess_lexer_input(text):
     text = text.strip("\n")
 
     text = text.expandtabs(0)
-    text += "\n"
+    text = "\n"
 
     return text
