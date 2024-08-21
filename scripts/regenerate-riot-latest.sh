@@ -23,5 +23,6 @@ for pkg in ${pkgs[*]}; do
             rm ".riot/requirements/${h}.txt"
         done
         scripts/compile-and-prune-test-requirements
+        break
     fi
 done

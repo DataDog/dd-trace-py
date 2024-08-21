@@ -91,7 +91,10 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[str, str]:
             continue
         upload_timestamp = version_info[0].get("upload_time_iso_8601")
         upload_time = dt.datetime.strptime(upload_timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-        version_age = dt.datetime.utcnow() - upload_time
+        upload_time = upload_time.replace(tzinfo=dt.timezone.utc)
+
+        current_time = dt.datetime.now(dt.timezone.utc)
+        version_age = current_time - upload_time
         if version_age > dt.timedelta(days=365 * 2):
             earliest_within_window = version
             break
