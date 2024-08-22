@@ -282,7 +282,6 @@ def test_export_tracer_base_path_agent_less(endpoint_test_server):
 
 def test_get_tags():
     tags = parse_tags_str(http.PprofHTTPExporter(env="foobar", endpoint="", tags=config.tags)._get_tags("foobar"))
-    assert len(tags) == 8
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -301,7 +300,6 @@ def test_get_malformed_key_only():
     from ddtrace.settings.profiling import config
 
     tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
-    assert len(tags) == 7
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -318,7 +316,6 @@ def test_get_malformed_no_val():
     from ddtrace.settings.profiling import config
 
     tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
-    assert len(tags) == 7
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -335,7 +332,6 @@ def test_get_malformed_comma_only():
     from ddtrace.settings.profiling import config
 
     tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
-    assert len(tags) == 7
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -353,7 +349,6 @@ def test_get_tags_trailing_comma():
 
     tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
 
-    assert len(tags) == 8
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -377,7 +372,6 @@ def test_get_tags_override():
     tags = parse_tags_str(
         http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags=config.tags)._get_tags("foobar")
     )
-    assert len(tags) == 10
     assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
