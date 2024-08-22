@@ -77,8 +77,10 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
                 rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
             )
             if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
-                if res.actions[WAF_ACTIONS.BLOCK_ACTION].get("status_code", 403) in [200, 403]:
-                    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, None)
+                if res.actions[WAF_ACTIONS.BLOCK_ACTION].get("status_code", "403") in ["200", "403"]:
+                    block_action = core.get_item(WAF_CONTEXT_NAMES.BLOCKED)
+                    if isinstance(block_action, dict):
+                        block_action.clear()  # don't propagate the block action
                     e = FileNotFoundError(2, "No such file or directory")
                     previous_frame = e.__traceback__.tb_frame.f_back
                     raise e.with_traceback(
