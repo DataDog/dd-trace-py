@@ -1,7 +1,15 @@
-"""
-This module defines Tornado settings that are shared between
-integration modules.
-"""
-CONFIG_KEY = "datadog_trace"
-REQUEST_SPAN_KEY = "__datadog_request_span"
-FUTURE_SPAN_KEY = "__datadog_future_span"
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+from ..internal.tornado.constants import *  # noqa: F401,F403
+
+
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

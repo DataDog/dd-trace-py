@@ -11,8 +11,6 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
-import os
-from pathlib import Path
 from typing import Dict  # noqa:F401
 
 import pytest
@@ -20,35 +18,12 @@ import pytest
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest._utils import _extract_span
 from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
-from ddtrace.internal.utils.formats import asbool
 
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
 DDTRACE_INCLUDE_CLASS_HELP_MSG = "Prepend 'ClassName.' to names of class-based tests."
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
-
-
-def _is_enabled_early(early_config):
-    """Checks if the ddtrace plugin is enabled before the config is fully populated.
-
-    This is necessary because the module watchdog for coverage collection needs to be enabled as early as possible.
-
-    Note: since coverage is used for ITR purposes, we only check if the plugin is enabled if the pytest version supports
-    ITR
-    """
-    if not _pytest_version_supports_itr():
-        return False
-
-    if (
-        "--no-ddtrace" in early_config.invocation_params.args
-        or early_config.getini("no-ddtrace")
-        or "ddtrace" in early_config.inicfg
-        and early_config.getini("ddtrace") is False
-    ):
-        return False
-
-    return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")
 
 
 def is_enabled(config):
@@ -98,55 +73,39 @@ def pytest_addoption(parser):
     parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
 
 
-def pytest_load_initial_conftests(early_config, parser, args):
-    if _is_enabled_early(early_config):
-        # Enables experimental use of ModuleCodeCollector for coverage collection.
-        from ddtrace.internal.ci_visibility.coverage import USE_DD_COVERAGE
-        from ddtrace.internal.logger import get_logger
+# Version-specific pytest hooks
+if _USE_PLUGIN_V2:
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_collection_finish  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_configure as _versioned_pytest_configure
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_ddtrace_get_item_module_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_ddtrace_get_item_suite_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_ddtrace_get_item_test_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_load_initial_conftests  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_runtest_makereport  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_runtest_protocol  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_sessionfinish  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
+else:
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_collection_modifyitems  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_configure as _versioned_pytest_configure
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_ddtrace_get_item_module_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_ddtrace_get_item_suite_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_ddtrace_get_item_test_name  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_load_initial_conftests  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_runtest_makereport  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_runtest_protocol  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_sessionfinish  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v1 import pytest_sessionstart  # noqa: F401
 
-        log = get_logger(__name__)
-
-        COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
-
-        if USE_DD_COVERAGE:
-            from ddtrace.ext.git import extract_workspace_path
-            from ddtrace.internal.coverage.code import ModuleCodeCollector
-            from ddtrace.internal.coverage.installer import install
-
-            try:
-                workspace_path = Path(extract_workspace_path())
-            except (ValueError, FileNotFoundError):
-                workspace_path = Path(os.getcwd())
-
-            log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
-
-            install(include_paths=[workspace_path], collect_import_time_coverage=True)
-            if COVER_SESSION:
-                ModuleCodeCollector.start_coverage()
-        else:
-            if COVER_SESSION:
-                log.warning(
-                    "_DD_COVER_SESSION must be used with _DD_USE_INTERNAL_COVERAGE but not DD_CIVISIBILITY_ITR_ENABLED"
-                )
+    # Internal coverage is only used for ITR at the moment, so the hook is only added if the pytest version supports it
+    if _pytest_version_supports_itr():
+        from ddtrace.contrib.pytest._plugin_v1 import pytest_terminal_summary  # noqa: F401
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
-        if _USE_PLUGIN_V2:
-            from ddtrace.internal.logger import get_logger
-
-            log = get_logger(__name__)
-
-            log.warning("The new ddtrace pytest plugin is in beta and is not currently supported")
-            from ._plugin_v2 import _PytestDDTracePluginV2
-
-            config.pluginmanager.register(_PytestDDTracePluginV2(), "_datadog-pytest-v2")
-            return
-
-        from ._plugin_v1 import _PytestDDTracePluginV1
-
-        config.pluginmanager.register(_PytestDDTracePluginV1(), "_datadog-pytest-v1")
+        _versioned_pytest_configure(config)
 
 
 @pytest.hookimpl
