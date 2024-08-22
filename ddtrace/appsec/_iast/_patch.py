@@ -93,3 +93,8 @@ def _on_iast_fastapi_patch():
             "QueryParams.__getitem__",
             functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
         )
+        _w(
+            "starlette.datastructures",
+            "QueryParams.get",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+        )
