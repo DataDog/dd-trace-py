@@ -80,9 +80,14 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[str, str]:
     output_parts = version_list.split()
     versions = [p.strip(",") for p in output_parts[2:]]
     earliest_within_window = versions[-1]
+
     conn = HTTPSConnection("pypi.org", 443)
     conn.request("GET", f"pypi/{package_name}/json")
     response = conn.getresponse()
+
+    if response.status_code != 200:
+        raise ValueError(f"Failed to connect to PyPI: HTTP {response.status_code}")
+
     version_infos = json.loads(response.readlines()[0])["releases"]
     for version in versions:
         version_info = version_infos.get(version, [])
