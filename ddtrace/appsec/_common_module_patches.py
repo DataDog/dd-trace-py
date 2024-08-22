@@ -78,6 +78,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
             )
             if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
                 if res.actions[WAF_ACTIONS.BLOCK_ACTION].get("status_code", 403) in [200, 403]:
+                    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, None)
                     e = FileNotFoundError(2, "No such file or directory")
                     previous_frame = e.__traceback__.tb_frame.f_back
                     raise e.with_traceback(
