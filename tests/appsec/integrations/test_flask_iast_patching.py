@@ -27,14 +27,16 @@ def test_flask_iast_ast_patching_import_error():
 @pytest.mark.parametrize(
     "function",
     [
-        "sub",
-        "subn",
-        "split",
+        "expand",
         "findall",
+        "finditer",
+        "fullmatch",
         "groups",
         "search",
-        "fullmatch",
+        "split",
         "string",
+        "sub",
+        "subn",
     ],
 )
 def test_flask_iast_ast_patching_re(style, endpoint, function):
@@ -42,7 +44,7 @@ def test_flask_iast_ast_patching_re(style, endpoint, function):
     Tests re module patching end to end by checking that re.sub is propagating properly
     """
     filename = "path_traversal_test_file.txt"
-    if function in ("groups", "search", "fullmatch", "string"):
+    if function in ("groups", "search", "fullmatch", "string", "expand"):
         from urllib.parse import quote_plus
 
         filename = quote_plus("Isaac Newton")

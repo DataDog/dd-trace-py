@@ -12,6 +12,9 @@ class ReMatch:
     def groups(self):
         return ("fake_group_0", "fake_group_1", "fake_group_2")
 
+    def expand(self, string):
+        return "fake_expand"
+
     @property
     def string(self):
         return "fake_string"
@@ -23,6 +26,9 @@ class ReObject:
 
     def findall(self, string):
         return ["fake_result_0", "fake_result_1", "fake_result_2"]
+
+    def finditer(self, string):
+        return iter(self.findall(string))
 
     def sub(self, replacement, string):
         return "fake_replacement_0"
@@ -45,6 +51,10 @@ class ReObject:
 
 def findall(pattern, string):
     return ["fake_result_2", "fake_result_1", "fake_result_0"]
+
+
+def finditer(pattern, string):
+    return iter(["fake_result_2", "fake_result_1", "fake_result_0"])
 
 
 def sub(pattern, replacement, string):
