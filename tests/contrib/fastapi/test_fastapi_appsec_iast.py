@@ -8,7 +8,11 @@ from ddtrace.appsec._handlers import _on_asgi_request_parse_body
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
 from ddtrace.internal import core
+from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
 
 
 def _aux_appsec_prepare_tracer(tracer):
@@ -35,7 +39,7 @@ def setup_core_ok_after_test():
 
 
 @pytest.mark.usefixtures("setup_core_ok_after_test")
-def test_core_callback_request_body(fastapi_application, client, tracer, test_spans):
+def test_query_param_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
         from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
@@ -54,7 +58,7 @@ def test_core_callback_request_body(fastapi_application, client, tracer, test_sp
     # test if asgi middleware is ok without any callback registered
     core.reset_listeners(event_id="asgi.request.parse.body")
 
-    with override_global_config(dict(_iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
