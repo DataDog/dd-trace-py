@@ -1,6 +1,7 @@
 import os
 
 import aiobotocore.client
+import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -20,7 +21,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")

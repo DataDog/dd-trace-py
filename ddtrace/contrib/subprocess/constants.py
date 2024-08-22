@@ -1,18 +1,15 @@
-from ddtrace.appsec._constants import Constant_Class
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+from ..internal.subprocess.constants import *  # noqa: F401,F403
 
 
-class COMMANDS(metaclass=Constant_Class):
-    """
-    string names used by the library for tagging data for subprocess executions in context or span
-    """
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-    SPAN_NAME = "command_execution"
-    COMPONENT = "component"
-    SHELL = "cmd.shell"
-    EXEC = "cmd.exec"
-    TRUNCATED = "cmd.truncated"
-    EXIT_CODE = "cmd.exit_code"
-    CTX_SUBP_IS_SHELL = "subprocess_popen_is_shell"
-    CTX_SUBP_TRUNCATED = "subprocess_popen_truncated"
-    CTX_SUBP_LINE = "subprocess_popen_line"
-    CTX_SUBP_BINARY = "subprocess_popen_binary"
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
