@@ -7,7 +7,7 @@ import pytest
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 
 
-INTAKE_ENDPOINT = "https://api.datad0g.com/api/unstable/llm-obs/v1/eval-metric"
+INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric"
 DD_SITE = "datad0g.com"
 dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
@@ -17,8 +17,10 @@ def _categorical_metric_event():
         "span_id": "12345678901",
         "trace_id": "98765432101",
         "metric_type": "categorical",
+        "categorical_value": "very",
         "label": "toxicity",
-        "categorical_value": "high",
+        "ml_app": "dummy-ml-app",
+        "timestamp_ms": round(time.time() * 1000),
     }
 
 
@@ -29,16 +31,8 @@ def _score_metric_event():
         "metric_type": "score",
         "label": "sentiment",
         "score_value": 0.9,
-    }
-
-
-def _numerical_metric_event():
-    return {
-        "span_id": "12345678903",
-        "trace_id": "98765432103",
-        "metric_type": "numerical",
-        "label": "token_count",
-        "numerical_value": 35,
+        "ml_app": "dummy-ml-app",
+        "timestamp_ms": round(time.time() * 1000),
     }
 
 
@@ -87,17 +81,6 @@ def test_send_categorical_metric(mock_writer_logs):
 
 
 @pytest.mark.vcr_logs
-def test_send_numerical_metric(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(site="datad0g.com", api_key=dd_api_key, interval=1000, timeout=1)
-    llmobs_eval_metric_writer.start()
-    llmobs_eval_metric_writer.enqueue(_numerical_metric_event())
-    llmobs_eval_metric_writer.periodic()
-    mock_writer_logs.debug.assert_has_calls(
-        [mock.call("sent %d LLMObs %s events to %s", 1, "evaluation_metric", INTAKE_ENDPOINT)]
-    )
-
-
-@pytest.mark.vcr_logs
 def test_send_score_metric(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(site="datad0g.com", api_key=dd_api_key, interval=1000, timeout=1)
     llmobs_eval_metric_writer.start()
@@ -120,7 +103,7 @@ def test_send_timed_events(mock_writer_logs):
         [mock.call("sent %d LLMObs %s events to %s", 1, "evaluation_metric", INTAKE_ENDPOINT)]
     )
     mock_writer_logs.reset_mock()
-    llmobs_eval_metric_writer.enqueue(_numerical_metric_event())
+    llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     time.sleep(0.1)
     mock_writer_logs.debug.assert_has_calls(
         [mock.call("sent %d LLMObs %s events to %s", 1, "evaluation_metric", INTAKE_ENDPOINT)]
@@ -134,7 +117,7 @@ def test_send_multiple_events(mock_writer_logs):
     mock_writer_logs.reset_mock()
 
     llmobs_eval_metric_writer.enqueue(_score_metric_event())
-    llmobs_eval_metric_writer.enqueue(_numerical_metric_event())
+    llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     time.sleep(0.1)
     mock_writer_logs.debug.assert_has_calls(
         [mock.call("sent %d LLMObs %s events to %s", 2, "evaluation_metric", INTAKE_ENDPOINT)]
