@@ -37,9 +37,8 @@ def _get_integrated_modules() -> typing.Set[str]:
     """Get all modules that have contribs implemented for them"""
     all_required_modules = set()
     for item in CONTRIB_ROOT.iterdir():
-        contrib_dir = f"{CONTRIB_ROOT}/{item}"
-        init_filepath = f"{contrib_dir}/__init__.py"
-        if os.path.isdir(contrib_dir) and os.path.isfile(init_filepath):
+        init_filepath = item / "__init__.py"
+        if os.path.isdir(item) and os.path.isfile(init_filepath):
             with open(init_filepath, "r") as initfile:
                 initfile_content = initfile.read()
             syntax_tree = ast.parse(initfile_content)
