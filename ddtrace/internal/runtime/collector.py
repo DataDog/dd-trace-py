@@ -63,7 +63,7 @@ class ValueCollector(object):
         if (enabled is not None and not enabled) or (enabled is None and not self.enabled):
             return self.value
 
-        keys = set()
+        keys: Set = set()
 
         if not self.periodic and self.value_loaded:
             return self.value
