@@ -1,4 +1,5 @@
 import json
+import os
 
 import mock
 import pytest
@@ -7,6 +8,7 @@ import ddtrace
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -1342,3 +1344,70 @@ def test_activate_distributed_headers_activates_context(LLMObs, mock_logs):
             LLMObs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
             mock_activate.assert_called_once_with(dummy_context)
+
+
+def _task(llmobs_service, errors, original_pid, original_span_writer_id):
+    """Task in test_llmobs_fork which asserts that LLMObs in a forked process correctly recreates the writer."""
+    try:
+        with llmobs_service.workflow():
+            with llmobs_service.task():
+                assert llmobs_service._instance.tracer._pid != original_pid
+                assert id(llmobs_service._instance._llmobs_span_writer) != original_span_writer_id
+        assert llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 2
+        assert llmobs_service._instance._llmobs_span_writer._encoder.encode.call_count == 2
+    except AssertionError as e:
+        errors.put(e)
+
+
+def test_llmobs_fork_recreates_and_restarts_writer():
+    """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
+    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
+        original_pid = llmobs_service._instance.tracer._pid
+        original_span_writer = llmobs_service._instance._llmobs_span_writer
+        pid = os.fork()
+        if pid:  # parent
+            assert llmobs_service._instance.tracer._pid == original_pid
+            assert llmobs_service._instance._llmobs_span_writer == original_span_writer
+            assert (
+                llmobs_service._instance._trace_processor._span_writer == llmobs_service._instance._llmobs_span_writer
+            )
+            assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
+        else:  # child
+            assert llmobs_service._instance.tracer._pid != original_pid
+            assert llmobs_service._instance._llmobs_span_writer != original_span_writer
+            assert (
+                llmobs_service._instance._trace_processor._span_writer == llmobs_service._instance._llmobs_span_writer
+            )
+            assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
+
+
+def test_llmobs_fork_create_span(monkeypatch):
+    """Test that forking a process correctly encodes new spans created in each process."""
+    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
+    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
+        pid = os.fork()
+        if pid:  # parent
+            with llmobs_service.task():
+                pass
+            assert len(llmobs_service._instance._llmobs_span_writer._encoder) == 1
+        else:  # child
+            with llmobs_service.workflow():
+                with llmobs_service.task():
+                    pass
+            assert len(llmobs_service._instance._llmobs_span_writer._encoder) == 2
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
