@@ -1,3 +1,4 @@
+import itertools
 import math
 import os
 import typing as t
@@ -5,6 +6,11 @@ import typing as t
 from envier import En
 
 from ddtrace import config as core_config
+from ddtrace.ext.git import COMMIT_SHA
+from ddtrace.ext.git import MAIN_PACKAGE
+from ddtrace.ext.git import REPOSITORY_URL
+from ddtrace.internal import compat
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
 
@@ -126,6 +132,34 @@ def _parse_profiling_enabled(raw: str) -> bool:
 def _check_for_injected():
     global _profiling_injected
     return _profiling_injected
+
+
+def _update_git_metadata_tags(tags):
+    """
+    Update profiler tags with git metadata
+    """
+    # clean tags, because values will be combined and inserted back in the same way as for tracer
+    gitmetadata.clean_tags(tags)
+    repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
+    if repository_url:
+        tags[REPOSITORY_URL] = repository_url
+    if commit_sha:
+        tags[COMMIT_SHA] = commit_sha
+    if main_package:
+        tags[MAIN_PACKAGE] = main_package
+    return tags
+
+
+def _enrich_tags(tags) -> t.Dict[str, str]:
+    tags = {
+        k: compat.ensure_text(v, "utf-8")
+        for k, v in itertools.chain(
+            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            tags.items(),
+        )
+    }
+
+    return tags
 
 
 class ProfilingConfig(En):
@@ -412,3 +446,6 @@ if config.stack.v2_enabled and not _check_for_stack_v2_available():
     msg = stack_v2_failure_msg or "stack_v2 not available"
     logger.warning("The v2 stack profiler cannot be used (%s)", msg)
     config.stack.v2_enabled = False
+
+# Enrich tags with git metadata and DD_TAGS
+config.tags = _enrich_tags(config.tags)
