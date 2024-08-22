@@ -34,7 +34,13 @@ is_text(const PyObject* pyptr)
     if (!pyptr)
         return false;
 
-    return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr) || PyReMatch_Check(pyptr);
+    return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr);
+}
+
+inline bool
+is_tainteable(const PyObject* pyptr)
+{
+    return is_text(pyptr) || PyReMatch_Check(pyptr);
 }
 
 // Base function for the variadic template
