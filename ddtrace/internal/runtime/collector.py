@@ -55,15 +55,16 @@ class ValueCollector(object):
             return None
         return modules
 
-    def collect(self, enabled: Optional[bool] = None) -> Optional[List[Tuple[str, str]]]:
+    def collect(self, keys=None):
+        # type: (Optional[Set[str]]) -> Optional[List[Tuple[str, str]]]
         """Returns metrics as collected by `collect_fn`.
 
         :param keys: The keys of the metrics to collect.
         """
-        if (enabled is not None and not enabled) or (enabled is None and not self.enabled):
+        if not self.enabled:
             return self.value
 
-        keys: Set = set()
+        keys = keys or set()
 
         if not self.periodic and self.value_loaded:
             return self.value
