@@ -6,6 +6,7 @@ stages:
   - benchmarks-pr-comment
   - macrobenchmarks
   - dogfood
+  - release
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
