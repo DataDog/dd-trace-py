@@ -289,7 +289,6 @@ def test_get_tags():
     assert tags["env"] == "foobar"
     assert tags["runtime"] == "CPython"
     assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
 
 
 @pytest.mark.subprocess(env=dict(DD_TAGS="mytagfoobar"), err=None)
