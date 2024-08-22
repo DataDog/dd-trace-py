@@ -16,6 +16,12 @@ get_unique_id(const PyObject* str)
     return reinterpret_cast<uintptr_t>(str);
 }
 
+inline static bool
+PyReMatch_Check(const PyObject* obj)
+{
+    return py::isinstance((PyObject*)obj, py::module_::import("re").attr("Match"));
+}
+
 bool
 is_notinterned_notfasttainted_unicode(const PyObject* objptr);
 
@@ -29,6 +35,12 @@ is_text(const PyObject* pyptr)
         return false;
 
     return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr);
+}
+
+inline bool
+is_tainteable(const PyObject* pyptr)
+{
+    return is_text(pyptr) || PyReMatch_Check(pyptr);
 }
 
 // Base function for the variadic template

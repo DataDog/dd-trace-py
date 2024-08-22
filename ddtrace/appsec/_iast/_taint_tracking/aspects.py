@@ -2,6 +2,7 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
+from re import Match
 from re import Pattern
 from types import BuiltinFunctionType
 from types import ModuleType
@@ -1193,3 +1194,50 @@ def re_subn_aspect(
             copy_and_shift_ranges_from_strings(repl, new_string, 0, len(new_string))
 
     return (new_string, number)
+
+
+def re_match_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].match
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    offset = 0
+    if isinstance(self, ModuleType):
+        if self.__name__ != "re" or self.__package__ not in ("", "re") or not isinstance(result, Match):
+            return result
+    elif isinstance(self, Pattern):
+        offset = -1
+
+    if len(args) >= 2 + offset and is_pyobject_tainted(args[1 + offset]):
+        taint_pyobject_with_ranges(result, get_ranges(args[1 + offset]))
+
+    return result
+
+
+def re_groups_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].groups
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    if not result or not isinstance(self, Match) or not is_pyobject_tainted(self):
+        return result
+
+    for group in result:
+        if group is not None:
+            copy_and_shift_ranges_from_strings(self, group, 0, len(group))
+
+    return result
