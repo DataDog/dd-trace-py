@@ -52,13 +52,15 @@ TEXT_TYPES = Union[str, bytes, bytearray]
 
 
 add_aspect = aspects.add_aspect
+add_inplace_aspect = aspects.add_inplace_aspect
 _extend_aspect = aspects.extend_aspect
-_index_aspect = aspects.index_aspect
+index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
 _slice_aspect = aspects.slice_aspect
 
 __all__ = [
     "add_aspect",
+    "add_inplace_aspect",
     "str_aspect",
     "bytearray_extend_aspect",
     "decode_aspect",
@@ -217,16 +219,6 @@ def join_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
     except Exception as e:
         iast_taint_log_error("IAST propagation error. join_aspect. {}".format(e))
         return joiner.join(*args, **kwargs)
-
-
-def index_aspect(candidate_text: Text, index: int) -> Text:
-    if isinstance(candidate_text, IAST.TEXT_TYPES) and isinstance(index, int):
-        try:
-            return _index_aspect(candidate_text, index)
-        except Exception as e:
-            iast_taint_log_error("IAST propagation error. index_aspect. {}".format(e))
-
-    return candidate_text[index]
 
 
 def slice_aspect(candidate_text: Text, start: int, stop: int, step: int) -> Text:
