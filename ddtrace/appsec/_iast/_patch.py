@@ -1,8 +1,10 @@
+import functools
 import sys
 from typing import Callable
 from typing import Text
 
 from wrapt import FunctionWrapper
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
@@ -80,3 +82,14 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
     else:
         for key, value in wrapped(*args, **kwargs):
             yield key, value
+
+
+def _on_iast_fastapi_patch():
+    if _is_iast_enabled():
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+
+        _w(
+            "starlette.datastructures",
+            "QueryParams.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+        )
