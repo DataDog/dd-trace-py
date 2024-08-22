@@ -84,7 +84,7 @@ def _require_not_finished(func):
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.is_finished():
-            log.warning("Method %s called on item %s, but it is already finished", func, self, args)
+            log.warning("Method %s called on item %s, but it is already finished", func, self)
             return
         return func(self, *args, **kwargs)
 
