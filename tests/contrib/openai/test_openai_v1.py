@@ -1682,3 +1682,43 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         assert status == 0, err
         assert out == b""
         assert err == b""
+
+
+async def test_openai_asyncio_cancellation(openai):
+    import asyncio
+
+    import httpx
+
+    class DelayedTransport(httpx.AsyncBaseTransport):
+        def __init__(self, delay: float):
+            self.delay = delay
+            self._transport = httpx.AsyncHTTPTransport()
+
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            # Introduce a delay before making the actual request
+            await asyncio.sleep(self.delay)
+            return await self._transport.handle_async_request(request)
+
+    client = openai.AsyncOpenAI(http_client=httpx.AsyncClient(transport=DelayedTransport(delay=10)))
+    asyncio_timeout = False
+
+    try:
+        await asyncio.wait_for(
+            client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "Write a Python program that writes a Python program for a given task.",
+                    },
+                ],
+                user="ddtrace-test",
+            ),
+            timeout=1,
+        )
+    except asyncio.TimeoutError:
+        asyncio_timeout = True
+    except Exception as e:
+        assert False, f"Unexpected exception: {e}"
+
+    assert asyncio_timeout, "Expected asyncio.TimeoutError"
