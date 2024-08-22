@@ -1105,6 +1105,7 @@ def patch():
             wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         if langchain_pinecone:
             wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
+            wrap("langchain_community", "vectorstores.Pinecone.similarity_search", traced_similarity_search(langchain))
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _patch_embeddings_and_vectorstores()
