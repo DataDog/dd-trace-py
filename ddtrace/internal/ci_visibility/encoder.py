@@ -15,8 +15,12 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
+from ddtrace.internal.ci_visibility.telemetry.payload import ENDPOINT
+from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_count
+from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
 
@@ -37,6 +41,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     PAYLOAD_FORMAT_VERSION = 1
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
+    ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
@@ -65,7 +70,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     def encode(self):
         with self._lock:
-            payload = self._build_payload(self.buffer)
+            with StopWatch() as sw:
+                payload = self._build_payload(self.buffer)
+            record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
             self._init_buffer()
             return payload
 
@@ -73,6 +80,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         normalized_spans = [self._convert_span(span, trace[0].context.dd_origin) for trace in traces for span in trace]
         if not normalized_spans:
             return None
+        record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return CIVisibilityEncoderV01._pack_payload(
@@ -144,6 +152,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
 class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
+    ENDPOINT_TYPE = ENDPOINT.CODE_COVERAGE
     boundary = uuid4().hex
     content_type = "multipart/form-data; boundary=%s" % boundary
     itr_suite_skipping_mode = False
@@ -199,6 +208,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         ]
         if not normalized_covs:
             return None
+        record_endpoint_payload_events_count(endpoint=ENDPOINT.CODE_COVERAGE, count=len(normalized_covs))
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
