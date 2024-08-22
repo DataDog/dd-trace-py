@@ -85,6 +85,23 @@ def test_astpatch_module_changed_add_operator(module_name):
 @pytest.mark.parametrize(
     "module_name",
     [
+        ("tests.appsec.iast.fixtures.ast.add_operator.inplace"),
+    ],
+)
+def test_astpatch_module_changed_add_inplace_operator(module_name):
+    module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
+    assert ("", "") != (module_path, new_source)
+    new_code = astunparse.unparse(new_source)
+    assert new_code.startswith(
+        "\nimport ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
+        "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects"
+    )
+    assert "ddtrace_aspects.add_inplace_aspect(" in new_code
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    [
         ("tests.appsec.iast.fixtures.ast.str.future_import_class_str"),
         ("tests.appsec.iast.fixtures.ast.str.future_import_function_str"),
     ],
