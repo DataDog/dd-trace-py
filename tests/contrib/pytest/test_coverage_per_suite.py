@@ -10,11 +10,16 @@ from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.coverage.util import collapse_ranges
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
+
+
+# TODO: investigate why pytest 3.7 does not mark the decorated function line when skipped as covered
+_DONT_COVER_SKIPPED_FUNC_LINE = PYTHON_VERSION_INFO <= (3, 8, 0)
 
 
 def _get_tuples_from_bytearray(bitmap):
@@ -157,19 +162,35 @@ class PytestTestCase(TracerTestCase):
         first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
         assert len(first_suite_coverage) == 3
         if _USE_PLUGIN_V2:
-            assert first_suite_coverage["/test_cov.py"] == [
-                (1, 2),
-                (4, 5),
-                (7, 9),
-                (11, 13),
-                (16, 17),
-                (20, 22),
-                (24, 25),
-                (28, 31),
-                (33, 36),
-                (39, 42),
-                (44, 45),
-            ]
+            if _DONT_COVER_SKIPPED_FUNC_LINE:
+                assert first_suite_coverage["/test_cov.py"] == [
+                    (1, 2),
+                    (4, 5),
+                    (7, 9),
+                    (11, 13),
+                    (16, 16),
+                    (20, 22),
+                    (24, 24),
+                    (28, 31),
+                    (33, 33),
+                    (35, 36),
+                    (39, 42),
+                    (44, 44),
+                ]
+            else:
+                assert first_suite_coverage["/test_cov.py"] == [
+                    (1, 2),
+                    (4, 5),
+                    (7, 9),
+                    (11, 13),
+                    (16, 17),
+                    (20, 22),
+                    (24, 25),
+                    (28, 31),
+                    (33, 36),
+                    (39, 42),
+                    (44, 45),
+                ]
             assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
             assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
 

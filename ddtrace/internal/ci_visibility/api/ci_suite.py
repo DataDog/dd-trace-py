@@ -44,6 +44,10 @@ class CIVisibilitySuite(CIVisibilityParentItem[CITestId, CIVisibilityTest], CIVi
 
         self._coverage_data: CICoverageData = CICoverageData()
 
+    def __repr__(self) -> str:
+        module_name = self.parent.name if self.parent is not None else "none"
+        return f"{self.__class__.__name__}(name={self.name}, module={module_name})"
+
     def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None) -> None:
         super().finish(force=force, override_status=override_status)
 

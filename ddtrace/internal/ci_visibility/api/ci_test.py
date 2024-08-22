@@ -60,7 +60,11 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         self._is_benchmark = None
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.name}, parameters={self._parameters})"
+        suite_name = self.parent.name if self.parent is not None else "none"
+        module_name = self.parent.parent.name if self.parent is not None and self.parent.parent is not None else "none"
+        return "{}(name={}, suite={}, module={}, parameters={})".format(
+            self.__class__.__name__, self.name, suite_name, module_name, self._parameters
+        )
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
         return {
