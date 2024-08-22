@@ -630,8 +630,8 @@ def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
 import pytest
 import sys
 
-from tests.contrib.fastapi.test_fastapi import snapshot_app
-from tests.contrib.fastapi.test_fastapi import snapshot_client
+from tests.contrib.fastapi.conftest import snapshot_app
+from tests.contrib.fastapi.conftest import snapshot_client
 
 def test_read_homepage(snapshot_client):
     snapshot_client.get("/sub-app/hello/name")
