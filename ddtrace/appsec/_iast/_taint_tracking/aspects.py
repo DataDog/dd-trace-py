@@ -48,6 +48,7 @@ from .._taint_tracking import shift_taint_range
 from .._taint_tracking import taint_pyobject_with_ranges
 from .._taint_tracking._native import aspects  # noqa: F401
 
+
 TEXT_TYPES = Union[str, bytes, bytearray]
 
 add_aspect = aspects.add_aspect
