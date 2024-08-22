@@ -60,7 +60,7 @@ def _get_ml_app(span: Span) -> str:
     return ml_app or config._llmobs_ml_app or "unknown-ml-app"
 
 
-def _get_session_id(span: Span) -> str:
+def _get_session_id(span: Span) -> Optional[str]:
     """
     Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the span's trace ID.
@@ -71,7 +71,7 @@ def _get_session_id(span: Span) -> str:
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         session_id = nearest_llmobs_ancestor.get_tag(SESSION_ID)
-    return session_id or "{:x}".format(span.trace_id)
+    return session_id
 
 
 def _inject_llmobs_parent_id(span_context):
