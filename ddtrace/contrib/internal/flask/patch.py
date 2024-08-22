@@ -30,8 +30,8 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.trace_utils import unwrap as _u
-from ddtrace.contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name

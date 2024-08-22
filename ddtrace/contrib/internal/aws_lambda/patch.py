@@ -118,8 +118,6 @@ class DatadogInstrumentation(object):
         try:
             self.response = self.func(*args, **kwargs)
             return self.response
-        except Exception:
-            raise
         finally:
             self._after()
 
