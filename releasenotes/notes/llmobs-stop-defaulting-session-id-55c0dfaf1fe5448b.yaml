@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    llmobs: This fix resolves an issue where session_id was being defaulted to trace_id which was causing unexpected UI behavior.
