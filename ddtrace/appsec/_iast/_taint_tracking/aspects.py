@@ -53,6 +53,7 @@ TEXT_TYPES = Union[str, bytes, bytearray]
 
 
 add_aspect = aspects.add_aspect
+add_inplace_aspect = aspects.add_inplace_aspect
 _extend_aspect = aspects.extend_aspect
 index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
@@ -60,6 +61,7 @@ _slice_aspect = aspects.slice_aspect
 
 __all__ = [
     "add_aspect",
+    "add_inplace_aspect",
     "str_aspect",
     "bytearray_extend_aspect",
     "decode_aspect",
