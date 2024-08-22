@@ -429,20 +429,16 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             cassette_name=cassette_name,
         )
         expected_span = _expected_llmobs_non_llm_span_event(
-                trace[0],
-                "retrieval",
-                input_value="Who was Alan Turing?",
-                output_documents=[{"text": mock.ANY, 'id': mock.ANY, 'name': mock.ANY}],
-                output_value="[1 document(s) retrieved]",
-                tags={"ml_app": "langchain_test"},
-                integration="langchain",
-            )
-        mock_llmobs_span_writer.enqueue.assert_any_call(
-            expected_span
+            trace[0],
+            "retrieval",
+            input_value="Who was Alan Turing?",
+            output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
+            output_value="[1 document(s) retrieved]",
+            tags={"ml_app": "langchain_test"},
+            integration="langchain",
         )
+        mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
         assert mock_llmobs_span_writer.enqueue.call_count == 2
-
-
 
 
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
@@ -702,16 +698,14 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             trace[0],
             "retrieval",
             input_value="Evolution",
-            output_documents=[{"text": mock.ANY,
-                               'id': mock.ANY,
-                               'name': "The Evolution of Communication Technologies"}],
+            output_documents=[
+                {"text": mock.ANY, "id": mock.ANY, "name": "The Evolution of Communication Technologies"}
+            ],
             output_value="[1 document(s) retrieved]",
             tags={"ml_app": "langchain_test"},
             integration="langchain",
         )
-        mock_llmobs_span_writer.enqueue.assert_any_call(
-            expected_span
-        )
+        mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
 
 
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
