@@ -16,7 +16,7 @@ include:
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
 
-download_ddtrace_wheels:
+download_ddtrace_artifacts:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
   tags: [ "arch:amd64" ]
   stage: package
@@ -28,12 +28,13 @@ download_ddtrace_wheels:
   artifacts:
     paths:
       - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
 
 download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
   tags: [ "arch:amd64" ]
   stage: package
-  needs: [ download_ddtrace_wheels ]
+  needs: [ download_ddtrace_artifacts ]
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.7"
@@ -55,7 +56,7 @@ download_dependency_wheels:
       - "pywheels-dep/"
 
 package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_wheels ]
+  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
 onboarding_tests_installer:
   parallel:
