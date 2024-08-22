@@ -78,6 +78,6 @@ jobs:
           commit-message: "Test Package Versions update"
           delete-branch: true
           base: main
-          title: "Testing Package Versions Update: ${{ env.VENV_NAME }}"
+          title: "chore: update ${{ env.VENV_NAME }} latest version"
           body: |
-            Updates the ${{ env.VENV_NAME }} version
+            Updates the ${{ env.VENV_NAME }} integration latest version and regenerates lockfiles.

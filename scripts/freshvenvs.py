@@ -88,10 +88,10 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[str, str]:
         version_info = version_infos.get(version, [])
         if not version_info:
             continue
+
         upload_timestamp = version_info[0].get("upload_time_iso_8601")
         upload_time = dt.datetime.strptime(upload_timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
         upload_time = upload_time.replace(tzinfo=dt.timezone.utc)
-
         current_time = dt.datetime.now(dt.timezone.utc)
         version_age = current_time - upload_time
         if version_age > dt.timedelta(days=365 * 2):
