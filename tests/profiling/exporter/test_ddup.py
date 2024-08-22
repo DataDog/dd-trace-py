@@ -21,10 +21,13 @@ def test_tags_propagated_when_libdd_enabled():
     from ddtrace.settings.profiling import config
 
     # DD_PROFILING_TAGS should override DD_TAGS
-    assert "python" == config.tags["hello"]
-    assert "bar" == config.tags["foo"]
+    assert config.tags["hello"] == "python"
+    assert config.tags["foo"] == "bar"
 
+    # When Profiler is instantiated and libdd is enabled, it should call ddup.config
     Profiler()
+
+    ddup.config.assert_called()
 
     if sys.version_info >= (3, 8):
         tags = ddup.config.call_args.kwargs["tags"]
