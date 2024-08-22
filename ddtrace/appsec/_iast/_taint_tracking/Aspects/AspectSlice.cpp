@@ -65,15 +65,19 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
         index++;
     }
     TaintRangeRefs index_range_map_result;
-    long start_int = PyLong_AsLong(start);
-    if (start_int < 0) {
-        start_int = length_text + start_int;
+    long start_int = 0;
+    if (start != nullptr and start != Py_None) {
+        start_int = PyLong_AsLong(start);
         if (start_int < 0) {
-            start_int = 0;
+            start_int = length_text + start_int;
+            if (start_int < 0) {
+                start_int = 0;
+            }
         }
     }
+
     long stop_int = length_text;
-    if (stop != nullptr) {
+    if (stop != nullptr and stop != Py_None) {
         stop_int = PyLong_AsLong(stop);
         if (stop_int > length_text) {
             stop_int = length_text;
@@ -84,10 +88,12 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
             }
         }
     }
+
     long step_int = 1;
-    if (step != nullptr) {
+    if (step != nullptr and step != Py_None) {
         step_int = PyLong_AsLong(step);
     }
+
     for (auto i = start_int; i < stop_int; i += step_int) {
         index_range_map_result.emplace_back(index_range_map[i]);
     }
@@ -117,52 +123,47 @@ PyObject*
 api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     if (nargs < 3) {
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+        iast_taint_log_error(MSG_ERROR_N_PARAMS);
         return nullptr;
     }
-    PyObject* candidate_text = args[0];
-    PyObject* start = PyLong_FromLong(0);
 
-    if (PyNumber_Check(args[1])) {
-        start = PyNumber_Long(args[1]);
-    }
-    PyObject* stop = nullptr;
-    if (PyNumber_Check(args[2])) {
-        stop = PyNumber_Long(args[2]);
-    }
-    PyObject* step = PyLong_FromLong(1);
-    if (nargs == 4) {
-        if (PyNumber_Check(args[3])) {
-            step = PyNumber_Long(args[3]);
-        }
-    }
+    try {
+        PyObject* candidate_text = args[0];
+        PyObject* start = args[1];
+        PyObject* stop = args[2];
+        PyObject* step = nullptr;
+        if (nargs == 4)
+            step = args[3];
 
-    PyObject* slice = PySlice_New(start, stop, step);
-    if (slice == nullptr) {
-        PyErr_Print();
-        if (start != nullptr) {
-            Py_DecRef(start);
+        PyObject* slice = PySlice_New(start, stop, step);
+        if (slice == nullptr) {
+            PyErr_Print();
+            return nullptr;
         }
-        if (stop != nullptr) {
-            Py_DecRef(stop);
+
+        PyObject* result_o = PyObject_GetItem(candidate_text, slice);
+
+        // If no result or the params are not None|Number or the result is the same as the candidate text, nothing
+        // to taint
+        if (result_o == nullptr or (!is_text(candidate_text)) or (start != Py_None and !PyLong_Check(start)) or
+            (stop != Py_None and !PyLong_Check(stop)) or (step != Py_None and !PyLong_Check(step)) or
+            (get_unique_id(result_o) == get_unique_id(candidate_text))) {
+            return result_o;
         }
-        if (step != nullptr) {
-            Py_DecRef(step);
-        }
+
+        auto res = slice_aspect(result_o, candidate_text, start, stop, step);
+        Py_XDECREF(slice);
+        return res;
+    } catch (const std::exception& e) {
+        const std::string error_message = "IAST propagation error in slice_aspect. " + std::string(e.what());
+        iast_taint_log_error(error_message);
+        py::set_error(PyExc_TypeError, error_message.c_str());
+        return nullptr;
+    } catch (...) {
+        const std::string error_message = "Unkown IAST propagation error in slice_aspect. ";
+        iast_taint_log_error(error_message);
+        py::set_error(PyExc_TypeError, error_message.c_str());
         return nullptr;
     }
-    PyObject* result = PyObject_GetItem(candidate_text, slice);
-
-    auto res = slice_aspect(result, candidate_text, start, stop, step);
-
-    if (start != nullptr) {
-        Py_DecRef(start);
-    }
-    if (stop != nullptr) {
-        Py_DecRef(stop);
-    }
-    if (step != nullptr) {
-        Py_DecRef(step);
-    }
-    Py_DecRef(slice);
-    return res;
 }
