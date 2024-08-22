@@ -6,6 +6,7 @@ stages:
   - benchmarks
   - macrobenchmarks
   - dogfood
+  - release
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
