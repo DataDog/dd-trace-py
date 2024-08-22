@@ -15,7 +15,7 @@ from pip import _internal
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
-CONTRIB_ROOT = "ddtrace/contrib"
+CONTRIB_ROOT = pathlib.Path("ddtrace/contrib")
 
 
 class Capturing(list):
@@ -36,7 +36,7 @@ class Capturing(list):
 def _get_integrated_modules() -> typing.Set[str]:
     """Get all modules that have contribs implemented for them"""
     all_required_modules = set()
-    for item in os.listdir(CONTRIB_ROOT):
+    for item in CONTRIB_ROOT.iterdir():
         contrib_dir = f"{CONTRIB_ROOT}/{item}"
         init_filepath = f"{contrib_dir}/__init__.py"
         if os.path.isdir(contrib_dir) and os.path.isfile(init_filepath):
@@ -103,13 +103,12 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[str, str]:
 
 def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.List[typing.Tuple[str, str]]:
     """Return the list of package versions that are tested"""
-    with open(f".riot/requirements/{env}.txt", "r") as lockfile:
-        lockfile_content = lockfile.readlines()
+    lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
     lock_packages = []
     for line in lockfile_content:
-        parts = line.split("==")
-        if parts[0] in packages:
-            lock_packages.append((parts[0], parts[1].strip("\n")))
+        package, _, versions = line.partition("==")
+        if package in packages:
+            lock_packages.append((package, versions))
     return lock_packages
 
 
