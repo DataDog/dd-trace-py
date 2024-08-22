@@ -63,3 +63,10 @@ class CoverageLines:
     def to_bytes(self) -> bytes:
         """This exists as a simple interface in case we ever decide to change the internal lines representation"""
         return self._lines
+
+    @classmethod
+    def from_list(cls, lines: t.List[int]) -> "CoverageLines":
+        coverage = cls()
+        for line in lines:
+            coverage.add(line)
+        return coverage

@@ -252,37 +252,44 @@ class PytestTestCase(TracerTestCase):
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         first_suite_span = test_suite_spans[0]
         assert first_suite_span.get_tag("type") == "test_suite_end"
-        assert COVERAGE_TAG_NAME in first_suite_span.get_tags()
-        tag_data = json.loads(first_suite_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(tag_data["files"], key=lambda x: x["filename"])
 
-        assert len(files) == 3
-
-        assert files[2]["filename"] == "test_cov.py"
-        assert len(files[2]["segments"]) == (6 if _USE_PLUGIN_V2 else 2)
         if _USE_PLUGIN_V2:
-            assert files[2]["segments"] == [
-                [1, 0, 2, 0, -1],
-                [4, 0, 5, 0, -1],
-                [7, 0, 7, 0, -1],
-                [1, 0, 2, 0, -1],
-                [4, 0, 4, 0, -1],
-                [7, 0, 9, 0, -1],
-            ]
-        else:
-            assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
-            assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
+            assert first_suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None
+            tag_data = first_suite_span.get_struct_tag(COVERAGE_TAG_NAME)
+            breakpoint()
 
-        assert files[0]["filename"] == "lib_fn.py"
-        assert len(files[0]["segments"]) == (2 if _USE_PLUGIN_V2 else 1)
-        if _USE_PLUGIN_V2:
-            assert files[0]["segments"] == [[1, 0, 2, 0, -1], [1, 0, 1, 0, -1]]
         else:
-            assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
+            assert COVERAGE_TAG_NAME in first_suite_span.get_tags()
+            tag_data = json.loads(first_suite_span.get_tag(COVERAGE_TAG_NAME))
+            files = sorted(tag_data["files"], key=lambda x: x["filename"])
 
-        assert files[1]["filename"] == "ret_false.py"
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+            assert len(files) == 3
+
+            assert files[2]["filename"] == "test_cov.py"
+            assert len(files[2]["segments"]) == (6 if _USE_PLUGIN_V2 else 2)
+            if _USE_PLUGIN_V2:
+                assert files[2]["segments"] == [
+                    [1, 0, 2, 0, -1],
+                    [4, 0, 5, 0, -1],
+                    [7, 0, 7, 0, -1],
+                    [1, 0, 2, 0, -1],
+                    [4, 0, 4, 0, -1],
+                    [7, 0, 9, 0, -1],
+                ]
+            else:
+                assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
+                assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
+
+            assert files[0]["filename"] == "lib_fn.py"
+            assert len(files[0]["segments"]) == (2 if _USE_PLUGIN_V2 else 1)
+            if _USE_PLUGIN_V2:
+                assert files[0]["segments"] == [[1, 0, 2, 0, -1], [1, 0, 1, 0, -1]]
+            else:
+                assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
+
+            assert files[1]["filename"] == "ret_false.py"
+            assert len(files[1]["segments"]) == 1
+            assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
         second_suite_span = test_suite_spans[1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
