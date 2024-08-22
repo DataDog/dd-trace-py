@@ -94,6 +94,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
             attempts=self.RETRY_ATTEMPTS,
         )(self._upload)
 
+        # DEV: Lines updating the tags could be moved into settings/profiling.py
+        # and ddup.config() and ddup_interface can be simplified.
         self.tags.update(
             {
                 "host": HOSTNAME,

@@ -28,6 +28,6 @@ def test_tags_propagated_when_libdd_enabled():
 
     tags = ddup.config.call_args.kwargs["tags"]
 
+    # Profiler could add tags, so check that tags is a superset of config.tags
     for k, v in config.tags.items():
-        assert k in tags
         assert tags[k] == v
