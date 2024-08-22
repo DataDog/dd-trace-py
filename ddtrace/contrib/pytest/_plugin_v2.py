@@ -103,7 +103,6 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
     coverage_data: t.Dict[Path, CoverageLines] = {}
 
     for path_str, covered_lines in test_covered_lines.items():
-        # Collapse ranges to avoid sending a large amount of data
         coverage_data[Path(path_str).absolute()] = covered_lines
 
     CISuite.add_coverage_data(test_id.parent_id, coverage_data)
