@@ -1,5 +1,12 @@
 variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
+  LOG_LEVEL: DEBUG
+  SNAPSHOT_DIR: /snapshots
+  PORT: 9126
+  SNAPSHOT_CI: 1
+  DD_POOL_TRACE_CHECK_FAILURES: true
+  DD_DISABLE_ERROR_RESPONSES: true
+  ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
 
 .test_base_hatch:
   extends: .testrunner
