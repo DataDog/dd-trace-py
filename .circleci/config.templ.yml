@@ -589,7 +589,6 @@ jobs:
           env: 'dd_coverage'
           snapshot: true
 
-
   llmobs:
     <<: *contrib_job
     steps:

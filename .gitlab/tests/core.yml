@@ -1,0 +1,7 @@
+internal:
+  extends: .test_base_riot
+  parallel: 4
+  variables:
+    SUITE_NAME: "internal"
+  service:
+    - *testagent
