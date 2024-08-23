@@ -3,5 +3,4 @@ internal:
   parallel: 4
   variables:
     SUITE_NAME: "internal"
-  service:
-    - *testagent
+    SERVICES: "testagent"
