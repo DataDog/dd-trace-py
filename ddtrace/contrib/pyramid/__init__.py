@@ -47,10 +47,15 @@ required_modules = ["pyramid"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
-        from .trace import includeme
-        from .trace import trace_pyramid
-        from .trace import trace_tween_factory
+        # Required to allow users to import from `ddtrace.contrib.pyramid.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ..internal.pyramid.patch import get_version
+        from ..internal.pyramid.patch import patch
+
+        from ..internal.pyramid.trace import includeme
+        from ..internal.pyramid.trace import trace_pyramid
+        from ..internal.pyramid.trace import trace_tween_factory
 
         __all__ = ["patch", "trace_pyramid", "trace_tween_factory", "includeme", "get_version"]

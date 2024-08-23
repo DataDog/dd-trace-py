@@ -1,5 +1,3 @@
-from .session import patch
-from .session import unpatch
+from ddtrace.contrib.internal.cassandra.patch import *  # noqa: F401,F403
 
-
-__all__ = ["patch", "unpatch"]
+# TO DO: deprecate this module

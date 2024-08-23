@@ -1,0 +1,59 @@
+tracer--runtime:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--runtime"
+
+tracer--1:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--1"
+
+tracer--2:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--2"
+
+tracer--3:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--3"
+
+tracer--4:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--4"
+
+tracer--5:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--5"
+
+tracer--6:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--6"
+
+tracer--7:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--7"
+
+tracer--8:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--8"
+
+tracer--9:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    SUITE_NAME: "tracer--9"

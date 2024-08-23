@@ -22,7 +22,7 @@ class AsyncioContextProvider(BaseContextProvider, DatadogContextMixin):
 
     def __init__(self) -> None:
         deprecate(
-            "The `ddtrace.contrib.asyncio.AsyncioContextProvider` class is deprecated."
+            "The `ddtrace.contrib.internal.asyncio.AsyncioContextProvider` class is deprecated."
             " Use `ddtrace.DefaultContextProvider` instead.",
             version="3.0.0",
         )

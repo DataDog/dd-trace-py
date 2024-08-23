@@ -11,7 +11,7 @@ from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.periodic import AwakeablePeriodicService
+from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -28,7 +28,7 @@ class UploaderProduct(str, Enum):
     EXCEPTION_REPLAY = "exception_replay"
 
 
-class LogsIntakeUploaderV1(AwakeablePeriodicService):
+class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
     """Logs intake uploader.
 
     This class implements an interface with the debugger logs intake for both
@@ -100,6 +100,11 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
     def upload(self) -> None:
         """Upload request."""
         self.awake()
+
+    def reset(self) -> None:
+        """Reset the buffer on fork."""
+        self._queue = self.__queue__(encoder=self._queue._encoder, on_full=self._on_buffer_full)
+        self._collector._encoder = self._queue
 
     def periodic(self) -> None:
         """Upload the buffer content to the logs intake."""

@@ -1,0 +1,15 @@
+
+---
+deprecations:
+  - |
+    mako: Deprecates all modules in the ``ddtrace.contrib.mako`` package. Use attributes exposed in ``ddtrace.contrib.mako.__all__`` instead.
+  - |
+    mariadb: Deprecates all modules in the ``ddtrace.contrib.mariadb`` package. Use attributes exposed in ``ddtrace.contrib.mariadb.__all__`` instead.
+  - |
+    molten: Deprecates all modules in the ``ddtrace.contrib.molten`` package. Use attributes exposed in ``ddtrace.contrib.molten.__all__`` instead.
+  - |
+    mongoengine: Deprecates all modules in the ``ddtrace.contrib.mongoengine`` package. Use attributes exposed in ``ddtrace.contrib.mongoengine.__all__`` instead.
+  - |
+    mysql: Deprecates all modules in the ``ddtrace.contrib.mysql`` package. Use attributes exposed in ``ddtrace.contrib.mysql.__all__`` instead.
+  - |
+    mysqldb: Deprecates all modules in the ``ddtrace.contrib.mysqldb`` package. Use attributes exposed in ``ddtrace.contrib.mysqldb.__all__`` instead.

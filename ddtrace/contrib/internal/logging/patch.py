@@ -1,10 +1,11 @@
 import logging
 
+from wrapt import wrap_function_wrapper as _w
+
 import ddtrace
 from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap as _u
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .constants import RECORD_ATTR_ENV
 from .constants import RECORD_ATTR_SERVICE
