@@ -1,10 +1,6 @@
 name: Generate Package Versions
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
   workflow_dispatch: # can be triggered manually
   schedule:
     - cron: '0 0 * * 0' # weekly on Sunday at midnight
@@ -63,7 +59,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libmariadb-dev
-          
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
