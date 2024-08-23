@@ -1,5 +1,3 @@
-testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
-
 variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
 
