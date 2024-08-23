@@ -6,8 +6,6 @@ StrType
 api_modulo_aspect(StrType candidate_text, py::object candidate_tuple)
 {
     StrType result_o = candidate_text.attr("__mod__")(candidate_tuple);
-    // JJJ Check error?
-
     py::tuple parameters =
       py::isinstance<py::tuple>(candidate_tuple) ? candidate_tuple : py::make_tuple(candidate_tuple);
 

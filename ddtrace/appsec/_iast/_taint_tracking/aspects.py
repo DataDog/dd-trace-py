@@ -50,7 +50,6 @@ from .._taint_tracking import shift_taint_range
 from .._taint_tracking import taint_pyobject_with_ranges
 from .._taint_tracking._native import aspects  # noqa: F401
 
-
 TEXT_TYPES = Union[str, bytes, bytearray]
 
 add_aspect = aspects.add_aspect
@@ -95,7 +94,7 @@ __all__ = [
 
 
 def split_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[List[TEXT_TYPES], TEXT_TYPES]:
     if orig_function is not None:
         if orig_function != builtin_str:
@@ -105,7 +104,7 @@ def split_aspect(
     try:
         # re.split aspect, either with pattern as first arg or with re module
         if isinstance(args[0], Pattern) or (
-            isinstance(args[0], ModuleType) and args[0].__name__ == "re" and args[0].__package__ in ("", "re")
+                isinstance(args[0], ModuleType) and args[0].__name__ == "re" and args[0].__package__ in ("", "re")
         ):
             result = args[0].split(*args[1:], **kwargs)
             offset = 0
@@ -256,51 +255,12 @@ def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: 
         return op1.extend(op2)
 
 
-# JJJ remove
-# def modulo_aspect(candidate_text: Text, candidate_tuple: Any) -> Any:
-#     if not isinstance(candidate_text, IAST.TEXT_TYPES):
-#         return candidate_text % candidate_tuple
-#
-#     try:
-#         if isinstance(candidate_tuple, tuple):
-#             parameter_list = candidate_tuple
-#         else:
-#             parameter_list = (candidate_tuple,)
-#
-#         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, parameter_list)
-#         if not ranges_orig:
-#             return candidate_text % candidate_tuple
-#
-#         return _convert_escaped_text_to_tainted_text(
-#             as_formatted_evidence(
-#                 candidate_text,
-#                 candidate_text_ranges,
-#                 tag_mapping_function=TagMappingMode.Mapper,
-#             )
-#             % tuple(
-#                 (
-#                     as_formatted_evidence(
-#                         parameter,
-#                         tag_mapping_function=TagMappingMode.Mapper,
-#                     )
-#                     if isinstance(parameter, IAST.TEXT_TYPES)
-#                     else parameter
-#                 )
-#                 for parameter in parameter_list
-#             ),
-#             ranges_orig=ranges_orig,
-#         )
-#     except Exception as e:
-#         iast_taint_log_error("IAST propagation error. modulo_aspect. {}".format(e))
-#         return candidate_text % candidate_tuple
-
-
 def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:
     return join_aspect("".join, 1, "", args)
 
 
 def ljust_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if not orig_function:
         orig_function = args[0].ljust
@@ -334,7 +294,7 @@ def ljust_aspect(
 
 
 def zfill_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
@@ -378,7 +338,7 @@ def zfill_aspect(
 
 
 def format_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if not orig_function:
         orig_function = args[0].format
@@ -410,7 +370,7 @@ def format_aspect(
 
 
 def format_map_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
@@ -458,7 +418,7 @@ def format_map_aspect(
 def repr_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
     # DEV: We call this function directly passing None as orig_function
     if orig_function is not None and not (
-        orig_function is repr or getattr(orig_function, "__name__", None) == "__repr__"
+            orig_function is repr or getattr(orig_function, "__name__", None) == "__repr__"
     ):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -486,9 +446,9 @@ def repr_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
 
 
 def format_value_aspect(
-    element: Any,
-    options: int = 0,
-    format_spec: Optional[str] = None,
+        element: Any,
+        options: int = 0,
+        format_spec: Optional[str] = None,
 ) -> str:
     if options == 115:
         new_text = str_aspect(str, 0, element)
@@ -549,7 +509,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
                 tainted_new_length = 0
                 in_tainted = True
 
-            new_prod = funcode(self[i : i + 1])
+            new_prod = funcode(self[i: i + 1])
             result_list.append(new_prod)
             result_length += len(new_prod)
 
@@ -581,7 +541,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
 
 
 def decode_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
@@ -589,7 +549,7 @@ def decode_aspect(
         return orig_function(*args, **kwargs)
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     # Assume we call decode method of the first argument
 
     if is_pyobject_tainted(self) and isinstance(self, bytes):
@@ -603,7 +563,7 @@ def decode_aspect(
 
 
 def encode_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
@@ -611,7 +571,7 @@ def encode_aspect(
         return orig_function(*args, **kwargs)
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
 
     if is_pyobject_tainted(self) and isinstance(self, str):
         try:
@@ -625,7 +585,7 @@ def encode_aspect(
 
 
 def upper_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
@@ -645,7 +605,7 @@ def upper_aspect(
 
 
 def lower_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
@@ -665,9 +625,9 @@ def lower_aspect(
 
 
 def _distribute_ranges_and_escape(
-    split_elements: List[Optional[TEXT_TYPES]],
-    len_separator: int,
-    ranges: Tuple[TaintRange, ...],
+        split_elements: List[Optional[TEXT_TYPES]],
+        len_separator: int,
+        ranges: Tuple[TaintRange, ...],
 ) -> List[Optional[TEXT_TYPES]]:
     # FIXME: converts to set, and then to list again, probably to remove
     # duplicates. This should be removed once the ranges values on the
@@ -742,7 +702,7 @@ def _distribute_ranges_and_escape(
 
 
 def aspect_replace_api(
-    candidate_text: TEXT_TYPES, old_value: Any, new_value: Any, count: int, orig_result: Any
+        candidate_text: TEXT_TYPES, old_value: Any, new_value: Any, count: int, orig_result: Any
 ) -> TEXT_TYPES:
     ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, (old_value, new_value))
     if not ranges_orig:  # Ranges in args/kwargs are checked
@@ -755,36 +715,36 @@ def aspect_replace_api(
     else:
         if count == -1:
             elements = (
-                [
-                    empty,
-                ]
-                + (
-                    list(candidate_text)
-                    if isinstance(candidate_text, str)
-                    else [bytes([x]) for x in candidate_text]  # type: ignore
-                )
-                + [
-                    empty,
-                ]
+                    [
+                        empty,
+                    ]
+                    + (
+                        list(candidate_text)
+                        if isinstance(candidate_text, str)
+                        else [bytes([x]) for x in candidate_text]  # type: ignore
+                    )
+                    + [
+                        empty,
+                    ]
             )
         else:
             if isinstance(candidate_text, str):
                 elements = (
-                    [
-                        empty,
-                    ]
-                    + list(candidate_text[: count - 1])
-                    + [candidate_text[count - 1 :]]
+                        [
+                            empty,
+                        ]
+                        + list(candidate_text[: count - 1])
+                        + [candidate_text[count - 1:]]
                 )
                 if len(elements) == count and elements[-1] != "":
                     elements.append(empty)
             else:
                 elements = (
-                    [
-                        empty,
-                    ]
-                    + [bytes([x]) for x in candidate_text[: count - 1]]
-                    + [bytes([x for x in candidate_text[count - 1 :]])]
+                        [
+                            empty,
+                        ]
+                        + [bytes([x]) for x in candidate_text[: count - 1]]
+                        + [bytes([x for x in candidate_text[count - 1:]])]
                 )
                 if len(elements) == count and elements[-1] != b"":
                     elements.append(empty)
@@ -839,7 +799,7 @@ def aspect_replace_api(
 
 
 def replace_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
@@ -886,7 +846,7 @@ def replace_aspect(
 
 
 def swapcase_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
@@ -905,7 +865,7 @@ def swapcase_aspect(
 
 
 def title_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
@@ -924,7 +884,7 @@ def title_aspect(
 
 
 def capitalize_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
@@ -944,7 +904,7 @@ def capitalize_aspect(
 
 
 def casefold_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None:
         if not isinstance(orig_function, BuiltinFunctionType) or not args:
@@ -955,9 +915,9 @@ def casefold_aspect(
         orig_function = getattr(args[0], "casefold", None)
 
     if orig_function is not None and getattr(orig_function, "__qualname__") not in (
-        "str.casefold",
-        "bytes.casefold",
-        "bytearray.casefold",
+            "str.casefold",
+            "bytes.casefold",
+            "bytearray.casefold",
     ):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -977,7 +937,7 @@ def casefold_aspect(
 
 
 def translate_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
@@ -1000,7 +960,7 @@ def empty_func(*args, **kwargs):
 
 
 def re_findall_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
@@ -1010,7 +970,7 @@ def re_findall_aspect(
         orig_function = args[0].findall
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     if not isinstance(self, (Pattern, ModuleType)):
@@ -1037,7 +997,7 @@ def re_findall_aspect(
 
 
 def re_finditer_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
@@ -1047,7 +1007,7 @@ def re_finditer_aspect(
         orig_function = args[0].finditer
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     if not isinstance(self, (Pattern, ModuleType)):
@@ -1074,7 +1034,7 @@ def re_finditer_aspect(
 
 
 def re_sub_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
@@ -1084,7 +1044,7 @@ def re_sub_aspect(
         orig_function = args[0].sub
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     if not isinstance(self, (Pattern, ModuleType)):
@@ -1111,7 +1071,7 @@ def re_sub_aspect(
 
 
 def re_subn_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+        orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
@@ -1121,7 +1081,7 @@ def re_subn_aspect(
         orig_function = args[0].subn
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     if not isinstance(self, (Pattern, ModuleType)):
@@ -1160,7 +1120,7 @@ def re_match_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
         orig_function = args[0].match
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     offset = 0
@@ -1185,7 +1145,7 @@ def re_fullmatch_aspect(orig_function: Optional[Callable], flag_added_args: int,
         orig_function = args[0].fullmatch
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     offset = 0
@@ -1210,7 +1170,7 @@ def re_search_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
         orig_function = args[0].search
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     offset = 0
@@ -1235,7 +1195,7 @@ def re_groups_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
         orig_function = args[0].groups
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     if not result or not isinstance(self, Match) or not is_pyobject_tainted(self):
@@ -1257,7 +1217,7 @@ def re_group_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
         orig_function = args[0].group
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     if not result or not isinstance(self, Match) or not is_pyobject_tainted(self):
@@ -1282,7 +1242,7 @@ def re_expand_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
         orig_function = args[0].expand
 
     self = args[0]
-    args = args[(flag_added_args or 1) :]
+    args = args[(flag_added_args or 1):]
     result = orig_function(*args, **kwargs)
 
     if not result or not isinstance(self, Match):
