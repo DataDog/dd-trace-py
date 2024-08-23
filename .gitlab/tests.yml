@@ -17,7 +17,7 @@ variables:
   parallel: 4
   run:
     - name: start_services
-      step: start_services
+      step: "./steps/services"
       inputs:
         services: "${SERVICES}"
     - name: tests
@@ -35,24 +35,6 @@ variables:
             riot list "${hash}"
             ${RIOT_RUN_CMD} "${hash}"
           done
-
-start_services:
-  inputs:
-    env:
-      type: string
-      default: ""
-    services:
-      type: string
-      default: ""
-  run:
-    - name: pull_and_run
-      script:
-      # Retry pulls in case they fail
-      - for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done
-      - << parameters.env >> docker-compose up -d << parameters.services >>
-    - name: logs
-      command: docker-compose logs -f
-      background: true
 
 include:
   - local: ".gitlab/tests/appsec.yml"
