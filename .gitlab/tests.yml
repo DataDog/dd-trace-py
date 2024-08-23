@@ -17,11 +17,12 @@ variables:
   stage: tests
   needs: [ build_base_venvs ]
   parallel: 4
-  steps:
-    - name: "start services"
+  run:
+    - name: start_services
       step: start_services
+      inputs:
         services: "${SERVICES}"
-    - name: "tests"
+    - name: tests
       script:
         - pip install riot~=0.19.1
         - unset DD_SERVICE
@@ -38,15 +39,14 @@ variables:
           done
 
 start_services:
-  description: "Start services"
-  parameters:
+  inputs:
     env:
       type: string
       default: ""
     services:
       type: string
       default: ""
-  steps:
+  run:
     # Retry pulls in case they fail
     - run: for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done
     - run: << parameters.env >> docker-compose up -d << parameters.services >>
