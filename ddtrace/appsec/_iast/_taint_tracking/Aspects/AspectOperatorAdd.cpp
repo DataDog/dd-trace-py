@@ -84,7 +84,7 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         // PyNumber_Add actually works for any type!
         result_o = PyNumber_Add(candidate_text, text_to_add);
 
-        const auto tx_map = initializer->get_tainting_map();
+        const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return result_o;
         }
@@ -130,7 +130,7 @@ api_add_inplace_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 
         result_o = PyNumber_InPlaceAdd(candidate_text, text_to_add);
 
-        const auto tx_map = initializer->get_tainting_map();
+        const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return result_o;
         }

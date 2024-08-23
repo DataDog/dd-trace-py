@@ -23,7 +23,7 @@ api_common_replace(const py::str& string_method,
 {
     const StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
 
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return res;
     }
@@ -86,7 +86,7 @@ py::bytearray
 api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
 
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     const py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
@@ -100,7 +100,7 @@ template<class StrType>
 StrType
 api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     auto [result_text, result_ranges] = convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     PyObject* new_result = new_pyobject_id(result_text.ptr());
@@ -291,7 +291,7 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            const py::list& split_result,
                            bool include_separator)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return false;
     }
