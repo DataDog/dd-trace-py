@@ -2,12 +2,20 @@ variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
   LOG_LEVEL: DEBUG
   SNAPSHOT_DIR: /snapshots
-  DD_AGENT_PORT: 9126
   PORT: 9126
   SNAPSHOT_CI: 1
   DD_POOL_TRACE_CHECK_FAILURES: true
   DD_DISABLE_ERROR_RESPONSES: true
   ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
+  DD_HOSTNAME: github-actions-worker
+  DD_BIND_HOST: 0.0.0.0
+  DD_REMOTE_CONFIGURATION_ENABLED: true
+  DD_SITE: ${DD_SITE-datadoghq.com}
+  DD_API_KEY: ${DD_API_KEY-invalid_but_this_is_fine}
+  DD_REMOTE_CONFIGURATION_KEY: ${DD_REMOTE_CONFIGURATION_KEY-invalid_but_this_is_fine}
+  DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
+  DD_APM_RECEIVER_SOCKET: /tmp/ddagent/trace.sock
+  DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
 
 .test_base_hatch:
   extends: .testrunner
@@ -24,6 +32,7 @@ variables:
   needs: [ build_base_venvs ]
   parallel: 4
   services:
+    - datadog/agent:latest
     - ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
   script:
     - pip install riot~=0.19.1
