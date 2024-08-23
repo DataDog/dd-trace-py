@@ -558,15 +558,6 @@ jobs:
           pattern: 'aws_lambda'
           snapshot: true
 
-  internal:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "internal"
-
   datastreams:
     <<: *contrib_job_small
     steps:
