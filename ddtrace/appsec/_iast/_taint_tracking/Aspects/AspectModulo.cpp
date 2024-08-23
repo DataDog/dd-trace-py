@@ -1,11 +1,21 @@
 #include "AspectModulo.h"
 #include "Helpers.h"
 
+py::object
+api_modulo_aspect_pyobject(py::object candidate_text, py::object candidate_tuple)
+{
+    return candidate_text.attr("__mod__")(candidate_tuple);
+}
+
 template<class StrType>
 StrType
 api_modulo_aspect(StrType candidate_text, py::object candidate_tuple)
 {
     StrType result_o = candidate_text.attr("__mod__")(candidate_tuple);
+    if (not is_text(candidate_text.ptr())) {
+        return result_o;
+    }
+
     py::tuple parameters =
       py::isinstance<py::tuple>(candidate_tuple) ? candidate_tuple : py::make_tuple(candidate_tuple);
 
@@ -16,6 +26,9 @@ api_modulo_aspect(StrType candidate_text, py::object candidate_tuple)
             return result_o;
         }
 
+        // Note: PyCharm could mark an error on this call, but it's only because it doesn't correctly see
+        // that at this point even if we entered from the py::object template instantiation, we are guaranteed
+        // that the candidate_text is a StrType.
         StrType fmttext = as_formatted_evidence(candidate_text, candidate_text_ranges, TagMappingMode::Mapper);
         py::list list_formatted_parameters;
 
@@ -51,6 +64,11 @@ pyexport_aspect_modulo(py::module& m)
           py::return_value_policy::move);
     m.def("_aspect_modulo",
           &api_modulo_aspect<py::bytearray>,
+          "candidate_text"_a,
+          "candidate_tuple"_a,
+          py::return_value_policy::move);
+    m.def("_aspect_modulo",
+          &api_modulo_aspect_pyobject,
           "candidate_text"_a,
           "candidate_tuple"_a,
           py::return_value_policy::move);
