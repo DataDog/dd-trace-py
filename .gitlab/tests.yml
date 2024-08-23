@@ -5,7 +5,8 @@
   needs: []
   parallel: 4
   script:
-    - apt-get update && apt-get install -y clang
+    - apt-get update || true
+    - apt-get install -y clang
     - hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh | xargs -n 1 -I {} hatch run {}:test
 
 include:
