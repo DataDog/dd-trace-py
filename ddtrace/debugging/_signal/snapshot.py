@@ -227,10 +227,10 @@ class Snapshot(LogSignal):
     def data(self):
         probe = self.probe
 
-        captures = None
+        captures = {}
         if isinstance(probe, LogProbeMixin) and probe.take_snapshot:
             if isinstance(probe, LineLocationMixin):
-                captures = {"lines": {probe.line: self.line_capture or _EMPTY_CAPTURED_CONTEXT}}
+                captures = {"lines": {str(probe.line): self.line_capture or _EMPTY_CAPTURED_CONTEXT}}
             elif isinstance(probe, FunctionLocationMixin):
                 captures = {
                     "entry": self.entry_capture or _EMPTY_CAPTURED_CONTEXT,

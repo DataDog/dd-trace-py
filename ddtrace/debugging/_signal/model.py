@@ -135,7 +135,7 @@ class LogSignal(Signal):
         if isinstance(probe, LineLocationMixin):
             location = {
                 "file": str(probe.resolved_source_file),
-                "lines": [probe.line],
+                "lines": [str(probe.line)],
             }
         elif isinstance(probe, FunctionLocationMixin):
             location = {
