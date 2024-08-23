@@ -79,6 +79,7 @@ __all__ = [
     "ospathjoin_aspect",
     "_aspect_split",
     "_aspect_rsplit",
+    "modulo_aspect",
     "_aspect_splitlines",
     "ospathbasename_aspect",
     "ospathdirname_aspect",
