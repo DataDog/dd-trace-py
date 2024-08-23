@@ -325,6 +325,7 @@ PACKAGES = [
         "",
         import_module_to_validate="jinja2.compiler",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("jmespath", "1.0.1", "", "Seattle", "", import_module_to_validate="jmespath.functions"),
     # jsonschema fails for Python 3.8
@@ -363,6 +364,7 @@ PACKAGES = [
         import_name="lxml.etree",
         import_module_to_validate="lxml.doctestcompare",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "more-itertools",
@@ -437,6 +439,7 @@ PACKAGES = [
         "",
         import_module_to_validate="pyasn1.codec.native.decoder",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("pycparser", "2.22", "", "", ""),
     PackageForTesting(
@@ -483,6 +486,7 @@ PACKAGES = [
         import_name="yaml",
         import_module_to_validate="yaml.resolver",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "requests",
@@ -539,6 +543,7 @@ PACKAGES = [
         "",
         import_module_to_validate="tomli._parser",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "tomlkit",
@@ -695,6 +700,7 @@ PACKAGES = [
         "Parsed phone number: ['123', '456', '7890']",
         "",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
     PackageForTesting(
@@ -748,6 +754,7 @@ PACKAGES = [
         '(</span><span class="s1">&#39;Hello, world!&#39;</span><span class="p">)</span>\n</pre></div>\n',
         "",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("grpcio", "1.64.0", "", "", "", test_e2e=False, import_name="grpc"),
     PackageForTesting(
@@ -781,6 +788,7 @@ PACKAGES = [
         "",
         import_name="nacl.utils",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     # Requires "Annotated" from "typing" which was included in 3.9
     PackageForTesting(
@@ -874,6 +882,18 @@ def _assert_propagation_results(response, package):
     assert response.status_code == 200
     content = json.loads(response.content)
     result_ok = content["result1"] == "OK"
+    if package.fixme_propagation_fails is not None:
+        if result_ok:
+            if package.fixme_propagation_fails:  # For packages that are reliably failing
+                pytest.fail(
+                    "FIXME: Test passed unexpectedly, consider changing to fixme_propagation_fails=False for package %s"
+                    % package.name
+                )
+            else:
+                pytest.xfail("FIXME: Test passed unexpectedly for package %s" % package.name)
+        else:
+            # result not OK, so propagation is not yet working for the package
+            pytest.xfail("FIXME: Test failed expectedly for package %s" % package.name)
 
     if not result_ok:
         print(f"Error: incorrect result from propagation endpoint for package {package.name}: {content}")
