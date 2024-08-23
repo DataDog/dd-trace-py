@@ -9,13 +9,13 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  PYPA_IMAGE_BASE: registry.ddbuild.io/images/mirror/pypa
-  PYPA_IMAGE_TAG: 2024-08-12-7fde9b1
-  PYPA_DEFAULT_IMAGE: "${PYPA_IMAGE_BASE}/manylinux2014_x86_64:${PYPA_IMAGE_TAG}"
+  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
 
 .testrunner:
-  image: ${PYPA_DEFAULT_IMAGE}
-  tags: [ "arch:amd64" ]
+  image: $TESTRUNNER_IMAGE
+  tags: [ "arch:arm64" ]
+  before_script:
+    - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
