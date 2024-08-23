@@ -85,3 +85,32 @@ async def test_async_yield_function():
 
     with pytest.raises(StopAsyncIteration):
         _ = await anext(async_iterator)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="anext was introduced in version 3.10")
+@pytest.mark.asyncio
+async def test_async_yield_function_2():
+    obj1 = taint_pyobject(
+        pyobject="my_string_3",
+        source_name="test_add_inplace_aspect_tainting_right_hand",
+        source_value="my_string_3",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    list_1 = ["my_string_1", "my_string_2"]
+
+    async_iterator = mod.async_yield_function_list(list_1)
+
+    result = await anext(async_iterator)
+    assert result == ["my_string_1", "my_string_2", "a"]
+
+    list_1.append(obj1)
+
+    result = await anext(async_iterator)
+    assert result == ["my_string_1", "my_string_2", "a", obj1, "b"]
+
+    assert is_pyobject_tainted(result[3]) is True
+    ranges_result = get_tainted_ranges(result[3])
+    assert len(ranges_result) == 1
+    assert ranges_result[0].start == 0
+    assert ranges_result[0].length == 11
