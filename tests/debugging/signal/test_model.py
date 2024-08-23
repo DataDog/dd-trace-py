@@ -7,7 +7,7 @@ from tests.debugging.utils import create_log_function_probe
 
 def test_enriched_args_locals_globals():
     duration = 123456
-    _locals = dict(
+    full_scope = dict(
         Snapshot(
             probe=create_log_function_probe(
                 probe_id="test_duration_millis",
@@ -18,19 +18,19 @@ def test_enriched_args_locals_globals():
             ),
             frame=sys._getframe(),
             thread=current_thread(),
-        )._enrich_locals(None, (None, None, None), duration)
+        ).get_full_scope(None, (None, None, None), duration)
     )
 
     # Check for globals
-    assert "__file__" in _locals
+    assert "__file__" in full_scope
 
     # Check for locals
-    assert "duration" in _locals
+    assert "duration" in full_scope
 
 
 def test_duration_millis():
     duration = 123456
-    _locals = Snapshot(
+    full_scope = Snapshot(
         probe=create_log_function_probe(
             probe_id="test_duration_millis",
             module="foo",
@@ -40,6 +40,6 @@ def test_duration_millis():
         ),
         frame=sys._getframe(),
         thread=current_thread(),
-    )._enrich_locals(None, (None, None, None), duration)
+    ).get_full_scope(None, (None, None, None), duration)
 
-    assert _locals["@duration"] == duration / 1e6
+    assert full_scope["@duration"] == duration / 1e6
