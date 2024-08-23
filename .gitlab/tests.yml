@@ -6,7 +6,7 @@
   parallel: 4
   script:
     - |
-      python3.11 -m pip install -U "setuptools<73"
+      python3.11 -m pip install -U "setuptools<71"
     - hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh | xargs -n 1 -I {} hatch run {}:test
 
 include:
