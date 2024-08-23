@@ -22,10 +22,10 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import common_replace
     from ._native.aspect_helpers import parse_params
     from ._native.aspect_helpers import set_ranges_on_splitted
+    from ._native.aspect_modulo import _aspect_modulo
     from ._native.aspect_split import _aspect_rsplit
     from ._native.aspect_split import _aspect_split
     from ._native.aspect_split import _aspect_splitlines
-    from ._native.aspect_modulo import _aspect_modulo
     from ._native.aspects_ospath import _aspect_ospathbasename
     from ._native.aspects_ospath import _aspect_ospathdirname
     from ._native.aspects_ospath import _aspect_ospathjoin
@@ -106,6 +106,7 @@ __all__ = [
     "num_objects_tainted",
     "debug_taint_map",
     "iast_taint_log_error",
+    "_aspect_modulo",
 ]
 
 
