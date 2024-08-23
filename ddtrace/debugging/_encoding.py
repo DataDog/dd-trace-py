@@ -104,13 +104,18 @@ def _build_log_track_payload(
         "debugger": {"snapshot": signal.snapshot},
         "host": host,
         "logger": _logs_track_logger_details(signal.thread, signal.frame),
-        "dd.trace_id": str(context.trace_id) if context else None,
-        "dd.span_id": str(context.span_id) if context else None,
         "ddsource": "dd_debugger",
         "message": signal.message,
         "timestamp": int(signal.timestamp * 1e3),  # milliseconds,
     }
+
+    # Add the correlation IDs if available
+    if context is not None:
+        payload["dd.trace_id"] = str(context.trace_id)
+        payload["dd.span_id"] = str(context.span_id)
+
     add_tags(payload)
+
     return payload
 
 
