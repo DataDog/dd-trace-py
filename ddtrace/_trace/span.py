@@ -10,11 +10,14 @@ from typing import List
 from typing import Optional
 from typing import Text
 from typing import Type
+from typing import Tuple
 from typing import Union
 from typing import cast
+from typing import NamedTuple
 
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_pointer import SpanPointerHash, SpanPointerDirection, SpanPointer
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
@@ -90,6 +93,11 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     return "{:032x}".format(large_int)[:16]
 
 
+class PointersKey(NamedTuple):
+    hash: SpanPointerHash
+    direction: SpanPointerDirection
+
+
 class Span(object):
     __slots__ = [
         # Public span attributes
@@ -115,6 +123,7 @@ class Span(object):
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "_links",
+        "_pointers",
         "_events",
         "__weakref__",
     ]
@@ -133,6 +142,7 @@ class Span(object):
         on_finish: Optional[List[Callable[["Span"], None]]] = None,
         span_api: str = SPAN_API_DATADOG,
         links: Optional[List[SpanLink]] = None,
+        pointers: Optional[List[SpanPointer]] = None,
     ) -> None:
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -198,6 +208,11 @@ class Span(object):
         self._links: Dict[int, SpanLink] = {}
         if links:
             self._links = {link.span_id: link for link in links}
+
+        self._pointers: Dict[PointersKey, SpanPointer] = {}
+        if pointers:
+            self._pointers = {PointersKey(pointer.hash, pointer.direction): pointer for pointer in pointers}
+
         self._events: List[SpanEvent] = []
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
@@ -575,6 +590,7 @@ class Span(object):
             ("tags", dict(sorted(self._meta.items()))),
             ("metrics", dict(sorted(self._metrics.items()))),
             ("links", ", ".join([str(link) for _, link in self._links.items()])),
+            ("pointers", ", ".join([str(pointer) for pointer in self._pointers.values()])),
             ("events", ", ".join([str(e) for e in self._events])),
         ]
         return " ".join(
@@ -633,6 +649,24 @@ class Span(object):
             flags=flags,
             attributes=attributes,
         )
+
+    def set_pointer(
+        self,
+        kind: str,
+        direction: SpanPointerDirection,
+        hash: SpanPointerHash,
+        **extra_attributes: Any,
+    ) -> None:
+        pointers_key = PointersKey(hash, direction)
+
+        if pointers_key in self._pointers:
+            log.debug(
+                "Span %d already has a pointer %s. Overwriting existing pointer: %s",
+                self.span_id,
+                str(pointers_key),
+                str(self._pointers[pointers_key]),
+            )
+        self._pointers[pointers_key] = SpanPointer(kind=kind, direction=direction, hash=hash, extra_attributes=extra_attributes)
 
     def finish_with_ancestors(self) -> None:
         """Finish this span along with all (accessible) ancestors of this span.

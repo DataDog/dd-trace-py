@@ -35,6 +35,43 @@ def _id_not_zero(self, attribute_name, value):
         raise ValueError(f"{attribute_name} must be > 0. Value is {value}")
 
 
+def _span_link_shaped_dict(
+    *
+    trace_id: int,
+    span_id: int,
+    attributes: dict,
+    dropped_attributes_count: int,
+    tracestate: Optional[str],
+    flags: Optional[int]
+) -> dict:
+    d = {
+        "trace_id": "{:032x}".format(trace_id),
+        "span_id": "{:016x}".format(span_id),
+    }
+    if attributes:
+        d["attributes"] = {}
+        for k, v in attributes.items():
+            # flatten all values with the type list, tuple and set
+            for k1, v1 in flatten_key_value(k, v).items():
+                # convert all values to string
+                if isinstance(v1, str):
+                    d["attributes"][k1] = v1
+                elif isinstance(v1, bool):
+                    # convert bool to lowercase string to be consistent with json encoding
+                    d["attributes"][k1] = str(v1).lower()
+                else:
+                    d["attributes"][k1] = str(v1)
+
+    if dropped_attributes_count > 0:
+        d["dropped_attributes_count"] = dropped_attributes_count
+    if tracestate:
+        d["tracestate"] = tracestate
+    if flags is not None:
+        d["flags"] = flags
+
+    return d
+
+
 @dataclasses.dataclass
 class SpanLink:
     """
@@ -84,32 +121,14 @@ class SpanLink:
         self._dropped_attributes += 1
 
     def to_dict(self):
-        d = {
-            "trace_id": "{:032x}".format(self.trace_id),
-            "span_id": "{:016x}".format(self.span_id),
-        }
-        if self.attributes:
-            d["attributes"] = {}
-            for k, v in self.attributes.items():
-                # flatten all values with the type list, tuple and set
-                for k1, v1 in flatten_key_value(k, v).items():
-                    # convert all values to string
-                    if isinstance(v1, str):
-                        d["attributes"][k1] = v1
-                    elif isinstance(v1, bool):
-                        # convert bool to lowercase string to be consistent with json encoding
-                        d["attributes"][k1] = str(v1).lower()
-                    else:
-                        d["attributes"][k1] = str(v1)
-
-        if self._dropped_attributes > 0:
-            d["dropped_attributes_count"] = self._dropped_attributes
-        if self.tracestate:
-            d["tracestate"] = self.tracestate
-        if self.flags is not None:
-            d["flags"] = self.flags
-
-        return d
+        return _span_link_shaped_dict(
+            trace_id=self.trace_id,
+            span_id=self.span_id,
+            attributes=self.attributes,
+            dropped_attributes_count=self._dropped_attributes,
+            tracestate=self.tracestate,
+            flags=self.flags,
+        )
 
     def __str__(self) -> str:
         attrs_str = ",".join([f"{k}:{v}" for k, v in self.attributes.items()])

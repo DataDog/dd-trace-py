@@ -904,8 +904,13 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             return ret
 
         span_links = ""
+        all_links = []
         if span._links:
-            span_links = json_dumps([link.to_dict() for _, link in span._links.items()])
+            all_links = [link.to_dict() for _, link in span._links.items()]
+        if span._pointers:
+            all_links.extend([pointer.to_dict() for _, pointer in span._pointers.items()])
+        if all_links:
+            span_links = json_dumps(all_links)
 
         span_events = ""
         if span._events:
