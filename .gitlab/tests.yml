@@ -15,9 +15,9 @@ variables:
   stage: tests
   needs: [ build_base_venvs ]
   parallel: 4
+  services:
+    - ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
   script:
-    - for i in {1..3}; do docker compose pull -q "${SERVICES}" && break || sleep 3; done
-    - docker compose up -d "${SERVICES}"
     - pip install riot~=0.19.1
     - unset DD_SERVICE
     - unset DD_ENV
