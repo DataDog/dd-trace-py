@@ -15,26 +15,20 @@ variables:
   stage: tests
   needs: [ build_base_venvs ]
   parallel: 4
-  run:
-    - name: start_services
-      step: "./steps/services"
-      inputs:
-        services: "${SERVICES}"
-    - name: tests
-      script:
-        - pip install riot~=0.19.1
-        - unset DD_SERVICE
-        - unset DD_ENV
-        - unset DD_TAGS
-        - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
-        - |
-          hashes=( $(riot list --hash-only "${SUITE_NAME}" | sort | ./.gitlab/ci-split-input.sh) )
-          for hash in "${hashes[@]}"
-          do
-            echo "Running riot hash: ${hash}"
-            riot list "${hash}"
-            ${RIOT_RUN_CMD} "${hash}"
-          done
+  script:
+    - pip install riot~=0.19.1
+    - unset DD_SERVICE
+    - unset DD_ENV
+    - unset DD_TAGS
+    - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+    - |
+      hashes=( $(riot list --hash-only "${SUITE_NAME}" | sort | ./.gitlab/ci-split-input.sh) )
+      for hash in "${hashes[@]}"
+      do
+        echo "Running riot hash: ${hash}"
+        riot list "${hash}"
+        ${RIOT_RUN_CMD} "${hash}"
+      done
 
 include:
   - local: ".gitlab/tests/appsec.yml"
