@@ -58,7 +58,6 @@ from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import ModuleHookType
@@ -312,7 +311,6 @@ class Debugger(Service):
 
         debugger.start()
 
-        forksafe.register(cls._restart)
         atexit.register(cls.disable)
         register_post_run_module_hook(cls._on_run_module)
 
@@ -333,7 +331,6 @@ class Debugger(Service):
 
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
 
-        forksafe.unregister(cls._restart)
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
 
@@ -379,9 +376,8 @@ class Debugger(Service):
                 log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
             # Register the debugger with the RCM client.
-            if not remoteconfig_poller.update_product_callback("LIVE_DEBUGGING", self._on_configuration):
-                di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
-                remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
+            di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
+            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback, restart_on_fork=True)
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
@@ -719,12 +715,6 @@ class Debugger(Service):
 
     def _start_service(self) -> None:
         self.__uploader__.register(UploaderProduct.DEBUGGER)
-
-    @classmethod
-    def _restart(cls):
-        log.info("[%s][P: %s] Restarting the debugger in child process", os.getpid(), os.getppid())
-        cls.disable(join=False)
-        cls.enable()
 
     @classmethod
     def _on_run_module(cls, module: ModuleType) -> None:
