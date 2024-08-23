@@ -9,6 +9,7 @@ from types import ModuleType
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Text
@@ -1032,6 +1033,43 @@ def re_findall_aspect(
     return result
 
 
+def re_finditer_aspect(
+    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].finditer
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    if not isinstance(self, (Pattern, ModuleType)):
+        # This is not the sub we're looking for
+        return result
+    elif isinstance(self, ModuleType):
+        if self.__name__ != "re" or self.__package__ not in ("", "re"):
+            return result
+        # In this case, the first argument is the pattern
+        # which we don't need to check for tainted ranges
+        args = args[1:]
+
+    elif not isinstance(result, Iterator):
+        return result
+
+    if len(args) >= 1:
+        string = args[0]
+        if is_pyobject_tainted(string):
+            ranges = get_ranges(string)
+            for elem in result:
+                taint_pyobject_with_ranges(elem, ranges)
+
+    return result
+
+
 def re_sub_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
@@ -1135,6 +1173,56 @@ def re_match_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
     return result
 
 
+def re_fullmatch_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].fullmatch
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    offset = 0
+    if isinstance(self, ModuleType):
+        if self.__name__ != "re" or self.__package__ not in ("", "re") or not isinstance(result, Match):
+            return result
+    elif isinstance(self, Pattern):
+        offset = -1
+
+    if len(args) >= 2 + offset and is_pyobject_tainted(args[1 + offset]):
+        taint_pyobject_with_ranges(result, get_ranges(args[1 + offset]))
+
+    return result
+
+
+def re_search_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].search
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    offset = 0
+    if isinstance(self, ModuleType):
+        if self.__name__ != "re" or self.__package__ not in ("", "re") or not isinstance(result, Match):
+            return result
+    elif isinstance(self, Pattern):
+        offset = -1
+
+    if len(args) >= 2 + offset and is_pyobject_tainted(args[1 + offset]):
+        taint_pyobject_with_ranges(result, get_ranges(args[1 + offset]))
+
+    return result
+
+
 def re_groups_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
@@ -1153,5 +1241,58 @@ def re_groups_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
     for group in result:
         if group is not None:
             copy_and_shift_ranges_from_strings(self, group, 0, len(group))
+
+    return result
+
+
+def re_group_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].group
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    if not result or not isinstance(self, Match) or not is_pyobject_tainted(self):
+        return result
+
+    if isinstance(result, tuple):
+        for group in result:
+            if group is not None:
+                copy_and_shift_ranges_from_strings(self, group, 0, len(group))
+    else:
+        copy_and_shift_ranges_from_strings(self, result, 0, len(result))
+
+    return result
+
+
+def re_expand_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
+    if orig_function is not None and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+    elif orig_function is None:
+        orig_function = args[0].expand
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    result = orig_function(*args, **kwargs)
+
+    if not result or not isinstance(self, Match):
+        # No need to taint the result
+        return result
+
+    if not is_pyobject_tainted(self) and len(args) and not is_pyobject_tainted(args[0]):
+        # Nothing tainted, no need to taint the result either
+        return result
+
+    if is_pyobject_tainted(self):
+        copy_and_shift_ranges_from_strings(self, result, 0, len(result))
+    elif is_pyobject_tainted(args[0]):
+        copy_and_shift_ranges_from_strings(args[0], result, 0, len(result))
 
     return result
