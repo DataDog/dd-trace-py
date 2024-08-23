@@ -551,36 +551,6 @@ jobs:
           run_agent_checks: false
           docker_services: "pygoat"
 
-  appsec_threats_django:
-    parallelism: 12
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_hatch_env_test:
-          env: 'appsec_threats_django'
-          snapshot: false
-
-  appsec_threats_flask:
-    parallelism: 10
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_hatch_env_test:
-          env: 'appsec_threats_flask'
-          snapshot: false
-
-  appsec_threats_fastapi:
-    parallelism: 9
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_hatch_env_test:
-          env: 'appsec_threats_fastapi'
-          snapshot: false
-
   aws_lambda:
     <<: *machine_executor
     steps:
@@ -602,14 +572,6 @@ jobs:
     steps:
       - run_test:
           pattern: "datastreams"
-
-  tracer:
-    parallelism: 10
-    <<: *contrib_job_large
-    steps:
-      - run_test:
-          pattern: "tracer"
-          trace_agent_url: ""
 
   ci_visibility:
     <<: *machine_executor

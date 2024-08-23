@@ -30,11 +30,13 @@ from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._utils import _extract_span
+from ddtrace.contrib.pytest._utils import _is_enabled_early
 from ddtrace.contrib.pytest._utils import _is_pytest_8_or_later
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
+from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
@@ -84,11 +86,6 @@ def encode_test_parameter(parameter):
     # if the representation includes an id() we'll remove it
     # because it isn't constant across executions
     return re.sub(r" at 0[xX][0-9a-fA-F]+", "", param_repr)
-
-
-def is_enabled(config):
-    """Check if the ddtrace plugin is enabled."""
-    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
 
 def _is_pytest_cov_enabled(config) -> bool:
@@ -414,6 +411,38 @@ def _get_test_class_hierarchy(item):
             test_class_hierarchy.insert(0, parent.name)
         parent = parent.parent
     return ".".join(test_class_hierarchy)
+
+
+def pytest_load_initial_conftests(early_config, parser, args):
+    if _is_enabled_early(early_config):
+        # Enables experimental use of ModuleCodeCollector for coverage collection.
+        from ddtrace.internal.ci_visibility.coverage import USE_DD_COVERAGE
+        from ddtrace.internal.logger import get_logger
+
+        log = get_logger(__name__)
+
+        COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
+
+        if USE_DD_COVERAGE:
+            from ddtrace.ext.git import extract_workspace_path
+            from ddtrace.internal.coverage.code import ModuleCodeCollector
+            from ddtrace.internal.coverage.installer import install
+
+            try:
+                workspace_path = Path(extract_workspace_path())
+            except (ValueError, FileNotFoundError):
+                workspace_path = Path(os.getcwd())
+
+            log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
+
+            install(include_paths=[workspace_path], collect_import_time_coverage=True)
+            if COVER_SESSION:
+                ModuleCodeCollector.start_coverage()
+        else:
+            if COVER_SESSION:
+                log.warning(
+                    "_DD_COVER_SESSION must be used with _DD_USE_INTERNAL_COVERAGE but not DD_CIVISIBILITY_ITR_ENABLED"
+                )
 
 
 def pytest_configure(config):

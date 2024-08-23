@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix for a side-effect issue with module import callbacks that could cause
+    a runtime exception.
