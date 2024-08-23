@@ -7,6 +7,8 @@
   script:
     - apt-get update || true
     - apt-get install -y clang
+    - echo "$PATH"
+    - clang --version
     - hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh | xargs -n 1 -I {} hatch run {}:test
 
 include:
