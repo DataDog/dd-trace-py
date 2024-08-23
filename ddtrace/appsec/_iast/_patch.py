@@ -4,11 +4,11 @@ from typing import Callable
 from typing import Text
 
 from wrapt import FunctionWrapper
-from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
 
+from ._metrics import _set_metric_iast_instrumented_source
 from ._utils import _is_iast_enabled
 
 
@@ -88,13 +88,15 @@ def _on_iast_fastapi_patch():
     if _is_iast_enabled():
         from ddtrace.appsec._iast._taint_tracking import OriginType
 
-        _w(
+        try_wrap_function_wrapper(
             "starlette.datastructures",
             "QueryParams.__getitem__",
             functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
         )
-        _w(
+        try_wrap_function_wrapper(
             "starlette.datastructures",
             "QueryParams.get",
             functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
         )
+
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
