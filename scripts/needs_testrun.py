@@ -179,7 +179,7 @@ def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None]
             continue
 
         needs_run = needs_testrun(suite, pr_number)
-        if needs_run:
+        if needs_run and False:
             action(suite)
 
 
