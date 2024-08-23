@@ -59,10 +59,13 @@ jobs:
       - name: Start docker service
         run: docker-compose up -d testagent
       
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libmariadb-dev
+          
+      - name: Install Python dependencies
+        run: |
           python -m pip install --upgrade pip
           pip install packaging
           pip install riot==0.19.1
