@@ -8,16 +8,14 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace._trace.utils import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
-
 
 log = get_logger(__name__)
+
+BOTOCORE_STEPFUNCTIONS_INPUT_KEY = "botocore_stepfunctions_input"
 
 
 def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
