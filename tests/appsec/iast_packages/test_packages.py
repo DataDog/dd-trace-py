@@ -290,7 +290,7 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
         test_propagation=True,
-        fixme_propagation_fails=True,
+        fixme_propagation_fails=False,
     ),
     PackageForTesting(
         "importlib-resources",
