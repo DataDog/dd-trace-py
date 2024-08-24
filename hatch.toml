@@ -1,6 +1,4 @@
 [env]
-type = "virtual"
-python-sources = [ "external" ]
 requires = [
     "hatch-containers==0.7.0",
 ]
@@ -186,6 +184,8 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 ## ASM Django
 
 [envs.appsec_threats_django]
+type = "virtual"
+python-sources = [ "external" ]
 template = "appsec_threats_django"
 dependencies = [
     "pytest",
@@ -229,6 +229,8 @@ django = ["~=5.0"]
 ## ASM Flask
 
 [envs.appsec_threats_flask]
+type = "virtual"
+python-sources = [ "external" ]
 template = "appsec_threats_flask"
 dependencies = [
     "pytest",
@@ -271,6 +273,8 @@ flask = ["~=3.0"]
 ## ASM FastAPI
 
 [envs.appsec_threats_fastapi]
+type = "virtual"
+python-sources = [ "external" ]
 template = "appsec_threats_fastapi"
 dependencies = [
     "pytest",
