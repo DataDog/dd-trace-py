@@ -749,11 +749,6 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
-def _on_aiokafka_send_and_wait_post(ctx: core.ExecutionContext):
-    span = ctx["call"]
-    span.finish()
-
-
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
