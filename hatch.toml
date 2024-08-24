@@ -1,8 +1,3 @@
-[env]
-requires = [
-    "hatch-containers==0.7.0",
-]
-
 [envs.lint]
 detached = true
 python = "3.10"
@@ -113,10 +108,6 @@ DD_TRACE_ENABLED = "false"
 build = [
     "scripts/docs/build.sh",
 ]
-
-[envs.docs.overrides]
-# Local MacOS development requires Docker containers
-platform.macos.type = { value = "container" }
 
 [envs.slotscheck]
 template = "slotscheck"

@@ -126,7 +126,6 @@ commands:
             mv hatch-1.8.1-* hatch
             sudo install -t /usr/local/bin hatch
             hatch -q
-            pip3 install hatch-containers==0.7.0
 
   start_docker_services:
     description: "Start Docker services"

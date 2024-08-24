@@ -3,8 +3,7 @@ name: Generate Package Versions
 on:
   workflow_dispatch: # can be triggered manually
   schedule:
-    - cron: '0 0 * * 0' # weekly on Sunday at midnight
-
+    - cron: "0 0 * * 0" # weekly on Sunday at midnight
 
 jobs:
   generate-package-versions:
@@ -32,7 +31,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-      
+
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -54,18 +53,24 @@ jobs:
 
       - name: Start docker service
         run: docker-compose up -d testagent
-      
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libmariadb-dev
-          
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install packaging
           pip install riot==0.19.1
-          pip install hatch~=1.8.0 hatch-containers==0.7.0
+
+      - name: Install Hatch
+        run: |
+          curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.8.1/hatch-1.8.1-x86_64-unknown-linux-gnu.tar.gz | tar zx
+          mv hatch-1.8.1-* hatch
+          sudo install -t /usr/local/bin hatch
+          hatch -q
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
