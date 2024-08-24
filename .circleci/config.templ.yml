@@ -1351,7 +1351,6 @@ jobs:
     # build documentation and store as an artifact
     executor: ddtrace_dev
     steps:
-      - setup_hatch
       - checkout
       - run:
           command: |
