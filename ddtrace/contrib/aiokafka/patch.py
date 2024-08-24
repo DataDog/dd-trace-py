@@ -139,7 +139,7 @@ async def traced_getone(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.aiokafka),
         tags=create_get_span_tags(instance, args, kwargs),
         pin=pin,
-    ) as ctx:
+    ) as ctx, ctx[ctx["call_key"]] as call:
         err = None
         result = None
         try:
