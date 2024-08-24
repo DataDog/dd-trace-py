@@ -33,9 +33,17 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import db
 from ddtrace.ext import http
+<<<<<<< HEAD
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
+=======
+from ddtrace.ext.kafka import MESSAGE_KEY
+from ddtrace.ext.kafka import MESSAGE_OFFSET
+from ddtrace.ext.kafka import PARTITION
+from ddtrace.ext.kafka import TOMBSTONE
+from ddtrace.ext.kafka import TOPIC
+>>>>>>> c21ed68d57 (fix: move logic to trace_handlers)
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
@@ -1127,6 +1135,25 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         scope["datadog"]["request_spans"].append(span)
 
 
+def _aiokafka_getone_message(ctx, message, err):
+    span = ctx[ctx["call_key"]]
+    span.set_tag(TOMBSTONE, str(message is None).lower())
+    if message is not None:
+        message_key = message.key or ""
+        message_offset = message.offset or -1
+        span.set_tag_str(TOPIC, message.topic)
+
+    if isinstance(message_key, str) or isinstance(message_key, bytes):
+        span.set_tag_str(MESSAGE_KEY, message_key)
+
+    span.set_tag(PARTITION, message.partition)
+    span.set_tag(MESSAGE_OFFSET, message_offset)
+    span.set_tag(SPAN_MEASURED_KEY)
+
+    if err is not None:
+        span.set_exc_info(*sys.exc_info())
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1206,6 +1233,7 @@ def listen():
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
     core.on("aiokafka.send_and_wait.post", _on_aiokafka_send_and_wait_post)
+    core.on("aiokafka.getone.message", _aiokafka_getone_message)
 
     for context_name in (
         # web frameworks
