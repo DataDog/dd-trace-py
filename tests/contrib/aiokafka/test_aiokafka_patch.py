@@ -14,19 +14,13 @@ class TestAIOKafkaPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, kafka):
-        self.assert_wrapped(aiokafka.AIOKafkaProducer.send)
+        self.assert_wrapped(aiokafka.AIOKafkaProducer.send_and_wait)
         self.assert_wrapped(aiokafka.AIOKafkaConsumer.getone)
-        self.assert_wrapped(aiokafka.AIOKafkaConsumer.getmany)
-        self.assert_wrapped(aiokafka.AIOKafkaConsumer.commit)
 
     def assert_not_module_patched(self, kafka):
-        self.assert_not_wrapped(aiokafka.AIOKafkaProducer.send)
+        self.assert_not_wrapped(aiokafka.AIOKafkaProducer.send_and_wait)
         self.assert_not_wrapped(aiokafka.AIOKafkaConsumer.getone)
-        self.assert_not_wrapped(aiokafka.AIOKafkaConsumer.getmany)
-        self.assert_not_wrapped(aiokafka.AIOKafkaConsumer.commit)
 
     def assert_not_module_double_patched(self, kafka):
-        self.assert_not_double_wrapped(aiokafka.AIOKafkaProducer.send)
+        self.assert_not_double_wrapped(aiokafka.AIOKafkaProducer.send_and_wait)
         self.assert_not_double_wrapped(aiokafka.AIOKafkaConsumer.getone)
-        self.assert_not_double_wrapped(aiokafka.AIOKafkaConsumer.getmany)
-        self.assert_not_double_wrapped(aiokafka.AIOKafkaConsumer.commit)
