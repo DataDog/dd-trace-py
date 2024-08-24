@@ -1,4 +1,6 @@
 [env]
+type = "virtual"
+python-sources = [ "external" ]
 requires = [
     "hatch-containers==0.7.0",
 ]
