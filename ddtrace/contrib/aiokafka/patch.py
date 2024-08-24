@@ -59,7 +59,7 @@ def patch():
 
 
 def unpatch():
-    if getattr(aiokafka, "_datadog_patch", False):
+    if not getattr(aiokafka, "_datadog_patch", False):
         return
 
     aiokafka._datadog_patch = False
