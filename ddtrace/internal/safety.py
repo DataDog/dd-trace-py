@@ -7,11 +7,12 @@ from typing import Tuple  # noqa:F401
 from typing import Type  # noqa:F401
 from typing import Union  # noqa:F401
 
+import wrapt
+
 from ddtrace.internal.compat import BUILTIN
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
-from ddtrace.vendor import wrapt
 
 
 NoneType = type(None)
@@ -125,5 +126,4 @@ class SafeObjectProxy(wrapt.ObjectProxy):
             # Handle slots objects
             return cls(AttrDict({k: object.__getattribute__(obj, k) for k in slots}))
 
-        # raise TypeError("Unhandled object type: %s", type(obj))
         return cls(obj)

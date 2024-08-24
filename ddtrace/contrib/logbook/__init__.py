@@ -55,8 +55,12 @@ required_modules = ["logbook"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch
+        # Required to allow users to import from `ddtrace.contrib.logbook.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ..internal.logbook.patch import get_version
+        from ..internal.logbook.patch import patch
+        from ..internal.logbook.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

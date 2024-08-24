@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Adds ``ddtrace.trace.Context`` to the public api. This class can now be used to propagate context across execution boundaries (ex: threads).

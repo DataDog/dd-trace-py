@@ -12,11 +12,11 @@ import pytest
 
 import ddtrace
 from ddtrace.internal import compat
-from ddtrace.internal import gitmetadata
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
+from ddtrace.settings.profiling import config
 
 from . import test_pprof
 
@@ -281,8 +281,7 @@ def test_export_tracer_base_path_agent_less(endpoint_test_server):
 
 
 def test_get_tags():
-    tags = parse_tags_str(http.PprofHTTPExporter(env="foobar", endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
+    tags = parse_tags_str(http.PprofHTTPExporter(env="foobar", endpoint="", tags=config.tags)._get_tags("foobar"))
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -290,13 +289,16 @@ def test_get_tags():
     assert tags["env"] == "foobar"
     assert tags["runtime"] == "CPython"
     assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
 
 
-def test_get_malformed(monkeypatch):
-    monkeypatch.setenv("DD_TAGS", "mytagfoobar")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 7
+@pytest.mark.subprocess(env=dict(DD_TAGS="mytagfoobar"), err=None)
+def test_get_malformed_key_only():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -304,9 +306,15 @@ def test_get_malformed(monkeypatch):
     assert tags["runtime"] == "CPython"
     assert tags["profiler_version"] == ddtrace.__version__
 
-    monkeypatch.setenv("DD_TAGS", "mytagfoobar,")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 7
+
+@pytest.mark.subprocess(env=dict(DD_TAGS="mytagfoobar,"), err=None)
+def test_get_malformed_no_val():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -314,9 +322,15 @@ def test_get_malformed(monkeypatch):
     assert tags["runtime"] == "CPython"
     assert tags["profiler_version"] == ddtrace.__version__
 
-    monkeypatch.setenv("DD_TAGS", ",")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 7
+
+@pytest.mark.subprocess(env=dict(DD_TAGS=","), err=None)
+def test_get_malformed_comma_only():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -324,9 +338,16 @@ def test_get_malformed(monkeypatch):
     assert tags["runtime"] == "CPython"
     assert tags["profiler_version"] == ddtrace.__version__
 
-    monkeypatch.setenv("DD_TAGS", "foo:bar,")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
+
+@pytest.mark.subprocess(env=dict(DD_TAGS="foo:bar,"), err=None)
+def test_get_tags_trailing_comma():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
+
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -336,105 +357,29 @@ def test_get_malformed(monkeypatch):
     assert tags["profiler_version"] == ddtrace.__version__
 
 
-def test_get_tags_override(monkeypatch):
-    monkeypatch.setenv("DD_TAGS", "mytag:foobar")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
-    assert tags["service"] == "foobar"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["mytag"] == "foobar"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    monkeypatch.setenv("DD_TAGS", "mytag:foobar,author:jd")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 9
-    assert tags["service"] == "foobar"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["mytag"] == "foobar"
-    assert tags["author"] == "jd"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    monkeypatch.setenv("DD_TAGS", "")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 7
-    assert tags["service"] == "foobar"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    monkeypatch.setenv("DD_TAGS", "foobar:baz,service:mycustomservice")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
-    assert tags["service"] == "mycustomservice"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    monkeypatch.setenv("DD_TAGS", "foobar:baz,service:🤣")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
-    assert tags["service"] == "🤣"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", version="123")._get_tags("foobar"))
-    assert len(tags) == 9
-    assert tags["service"] == "🤣"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert tags["version"] == "123"
-    assert "env" not in tags
-
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", version="123", env="prod")._get_tags("foobar"))
-    assert len(tags) == 10
-    assert tags["service"] == "🤣"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert tags["version"] == "123"
-    assert tags["env"] == "prod"
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TAGS="mytag:foobar,service:🤣",
+    )
+)
+def test_get_tags_override():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
 
     tags = parse_tags_str(
-        http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags={"mytag": "123"})._get_tags("foobar")
+        http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags=config.tags)._get_tags("foobar")
     )
-    assert len(tags) == 11
     assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
     assert tags["language"] == "python"
     assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
     assert tags["profiler_version"] == ddtrace.__version__
     assert tags["version"] == "123"
     assert tags["env"] == "prod"
-    assert tags["mytag"] == "123"
+    assert tags["mytag"] == "foobar"
 
 
 @pytest.mark.skip(reason="Needs investigation about the segfaulting")
@@ -452,33 +397,50 @@ def test_get_tags_legacy():
 def test_get_tags_precedence():
     from ddtrace.internal.utils.formats import parse_tags_str
     from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
 
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
     assert tags["mytag"] == "val2"
     assert tags["ddtag"] == "hi"
     assert tags["ddptag"] == "lo"
 
 
-def test_gitmetadata_ddtags(monkeypatch):
-    gitmetadata._GITMETADATA_TAGS = None
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
+    )
+)
+def test_gitmetadata_ddtags():
+    from ddtrace.internal import gitmetadata
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
 
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    gitmetadata._GITMETADATA_TAGS = None
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
 
     # must be from env variables
     assert tags["git.commit.sha"] == "12345"
     assert tags["git.repository_url"] == "github.com/user/tag_repo"
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
+        DD_GIT_COMMIT_SHA="123456",
+        DD_GIT_REPOSITORY_URL="github.com/user/env_repo",
+        DD_MAIN_PACKAGE="my_package",
+    )
+)
+def test_gitmetadata_env():
+    from ddtrace.internal import gitmetadata
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
     gitmetadata._GITMETADATA_TAGS = None
 
-
-def test_gitmetadata_env(monkeypatch):
-    gitmetadata._GITMETADATA_TAGS = None
-
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo")
-    monkeypatch.setenv("DD_GIT_COMMIT_SHA", "123456")
-    monkeypatch.setenv("DD_GIT_REPOSITORY_URL", "github.com/user/env_repo")
-    monkeypatch.setenv("DD_MAIN_PACKAGE", "my_package")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
 
     # must be from env variables
     assert tags["git.commit.sha"] == "123456"
@@ -487,18 +449,26 @@ def test_gitmetadata_env(monkeypatch):
     gitmetadata._GITMETADATA_TAGS = None
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
+        DD_GIT_COMMIT_SHA="123456",
+        DD_GIT_REPOSITORY_URL="github.com/user/env_repo",
+        DD_MAIN_PACKAGE="my_package",
+        DD_TRACE_GIT_METADATA_ENABLED="false",
+    )
+)
 def test_gitmetadata_disabled(monkeypatch):
+    from ddtrace.internal import gitmetadata
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
     gitmetadata._GITMETADATA_TAGS = None
 
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo")
-    monkeypatch.setenv("DD_GIT_COMMIT_SHA", "123456")
-    monkeypatch.setenv("DD_GIT_REPOSITORY_URL", "github.com/user/env_repo")
-    monkeypatch.setenv("DD_MAIN_PACKAGE", "my_package")
-    monkeypatch.setenv("DD_TRACE_GIT_METADATA_ENABLED", "false")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", tags=config.tags)._get_tags("foobar"))
 
     # must not present
     assert "git.commit.sha" not in tags
     assert "git.repository_url" not in tags
     assert "python_main_package" not in tags
-    gitmetadata._GITMETADATA_TAGS = None

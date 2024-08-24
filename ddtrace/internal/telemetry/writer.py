@@ -43,7 +43,6 @@ from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
-from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
 from .constants import TELEMETRY_AGENT_HOST
 from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
@@ -338,7 +337,7 @@ class TelemetryWriter(PeriodicService):
         Adds a Telemetry event to the TelemetryWriter event buffer
 
         :param Dict payload: stores a formatted telemetry event
-        :param str payload_type: The payload_type denotes the type of telmetery request.
+        :param str payload_type: The payload_type denotes the type of telemetry request.
             Payload types accepted by telemetry/proxy v2: app-started, app-closing, app-integrations-change
         """
         if self.enable():
@@ -474,7 +473,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
                 (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
-                (TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, config._128_bit_trace_id_logging_enabled, "unknown"),
                 (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
                 (
                     TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN,
@@ -867,6 +865,11 @@ class TelemetryWriter(PeriodicService):
                 # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
                 if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
                     integration_name = dir_parts[contrib_index + 1]
+                    if "internal" in dir_parts:
+                        # Check if the filename has the format:
+                        # `../ddtrace/contrib/internal/integration_name/..(subpath and/or file)...`
+                        internal_index = dir_parts.index("internal")
+                        integration_name = dir_parts[internal_index + 1]
                     self.add_count_metric(
                         "tracers",
                         "integration_errors",

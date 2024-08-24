@@ -26,8 +26,8 @@ from typing import Type  # noqa:F401
 from typing import Union  # noqa:F401
 import warnings
 
-from ddtrace.vendor.wrapt.wrappers import BoundFunctionWrapper
-from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
+from wrapt.wrappers import BoundFunctionWrapper
+from wrapt.wrappers import FunctionWrapper
 
 
 __all__ = [

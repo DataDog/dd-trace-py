@@ -6,7 +6,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
+import wrapt
 
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -62,6 +62,7 @@ def _get_connection_tags(conn):
     return {
         net.TARGET_HOST: host,
         net.TARGET_PORT: port,
+        net.SERVER_ADDRESS: host,
         db.USER: params.user,
         db.NAME: params.database,
     }

@@ -1,21 +1,15 @@
-import requests
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
-from ddtrace import Pin
-from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-
-from .connection import _wrap_send
+from ..internal.requests.session import *  # noqa: F401,F403
 
 
-class TracedSession(requests.Session):
-    """TracedSession is a requests' Session that is already traced.
-    You can use it if you want a finer grained control for your
-    HTTP clients.
-    """
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-    pass
-
-
-# always patch our `TracedSession` when imported
-_w(TracedSession, "send", _wrap_send)
-Pin(_config=config.requests).onto(TracedSession)
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
