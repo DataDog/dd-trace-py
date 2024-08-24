@@ -110,9 +110,8 @@ async def traced_send_and_wait(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.aiokafka),
         tags=create_send_span_tags(instance, args, kwargs),
         pin=pin,
-    ) as ctx:
+    ) as ctx, ctx[ctx["call_key"]]:
         result = await func(*args, **kwargs)
-        core.dispatch("aiokafka.send_and_wait.post", (ctx,))
         return result
 
 
