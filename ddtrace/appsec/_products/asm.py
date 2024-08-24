@@ -2,6 +2,9 @@ from ddtrace import config
 from ddtrace.settings.asm import config as asm_config
 
 
+requires = ["remote-configuration"]
+
+
 def post_preload():
     pass
 

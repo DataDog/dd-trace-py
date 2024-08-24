@@ -1,6 +1,9 @@
 from ddtrace.settings.dynamic_instrumentation import config
 
 
+requires = ["remote-configuration"]
+
+
 def post_preload():
     pass
 

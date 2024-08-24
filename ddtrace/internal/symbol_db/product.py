@@ -1,6 +1,9 @@
 from ddtrace.settings.symbol_db import config
 
 
+requires = ["remote-configuration"]
+
+
 def post_preload():
     pass
 
