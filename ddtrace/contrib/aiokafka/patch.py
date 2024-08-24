@@ -1,13 +1,10 @@
 import os
-import sys
 
 import aiokafka
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -15,7 +12,6 @@ from ddtrace.ext.kafka import CONSUME
 from ddtrace.ext.kafka import GROUP_ID
 from ddtrace.ext.kafka import HOST_LIST
 from ddtrace.ext.kafka import MESSAGE_KEY
-from ddtrace.ext.kafka import MESSAGE_OFFSET
 from ddtrace.ext.kafka import PARTITION
 from ddtrace.ext.kafka import PRODUCE
 from ddtrace.ext.kafka import SERVICE
@@ -141,7 +137,7 @@ async def traced_getone(func, instance, args, kwargs):
         call_key="instrumented_getone",
         tags=create_get_span_tags(instance, args, kwargs),
         pin=pin,
-    ) as ctx, ctx[ctx["call_key"]] as call:
+    ) as ctx, ctx[ctx["call_key"]]:
         err = None
         result = None
         try:
@@ -150,26 +146,5 @@ async def traced_getone(func, instance, args, kwargs):
             err = e
             raise err
         finally:
-            _instrument_message(call, result, err)
+            core.dispatch("aiokafka.getone.message", (ctx, result, err))
         return result
-
-
-def _instrument_message(span, message, err):
-    span.set_tag(TOMBSTONE, str(message is None).lower())
-    if message is not None:
-        message_key = message.key or ""
-        message_offset = message.offset or -1
-        span.set_tag_str(TOPIC, message.topic)
-
-    if isinstance(message_key, str) or isinstance(message_key, bytes):
-        span.set_tag_str(MESSAGE_KEY, message_key)
-
-    span.set_tag(PARTITION, message.partition)
-    span.set_tag(MESSAGE_OFFSET, message_offset)
-    span.set_tag(SPAN_MEASURED_KEY)
-    rate = config.kafka.get_analytics_sample_rate()
-    if rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
-
-    if err is not None:
-        span.set_exc_info(*sys.exc_info())
