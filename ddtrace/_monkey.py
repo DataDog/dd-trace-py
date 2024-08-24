@@ -139,7 +139,6 @@ _MODULES_FOR_CONTRIB = {
     "aws_lambda": ("datadog_lambda",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
-    "aiokafka": ("aiokafka",),
 }
 
 
