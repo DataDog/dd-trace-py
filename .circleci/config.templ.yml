@@ -124,7 +124,7 @@ commands:
           command: |
             curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.8.1/hatch-1.8.1-x86_64-unknown-linux-gnu.tar.gz | tar zx
             mv hatch-1.8.1-* hatch
-            install -t /usr/local/bin hatch
+            sudo install -t /usr/local/bin hatch
             hatch -q
             pip3 install hatch-containers==0.7.0
 
