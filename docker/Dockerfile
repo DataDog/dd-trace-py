@@ -1,86 +1,51 @@
-# DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
-#      this drastically improves test execution time since python dependencies don't all
-#      have to be built from source all the time (grpcio takes forever to install)
-FROM debian:buster-20221219-slim
+ARG MANYLINUX_IMAGE_BASE_URL=quay.io/pypa/
+ARG MANYLINUX_IMAGE_TAG=2024.08.19-1
+ARG MANYLINUX_TAG=manylinux2014
+FROM --platform=linux/amd64 ${MANYLINUX_IMAGE_BASE_URL}${MANYLINUX_TAG}_x86_64:${MANYLINUX_IMAGE_TAG} as base-amd64
+FROM --platform=linux/amd64 ${MANYLINUX_IMAGE_BASE_URL}${MANYLINUX_TAG}_x86_64:${MANYLINUX_IMAGE_TAG} as base-386
+FROM --platform=linux/amd64 ${MANYLINUX_IMAGE_BASE_URL}${MANYLINUX_TAG}_aarch64:${MANYLINUX_IMAGE_TAG} as base-arm64
 
-ARG TARGETARCH
-ARG HATCH_VERSION=1.8.1
+FROM base-${BUILDARCH}
 
-# http://bugs.python.org/issue19846
-# > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
-ENV LANG C.UTF-8
-
-# https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
+ENV PIPX_DEFAULT_PYTHON=python3.12
 ENV PYTHONUNBUFFERED=1
-# Configure PATH environment for pyenv
-ENV PYENV_ROOT=/root/.pyenv
 ENV CARGO_ROOT=/root/.cargo
-ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${CARGO_ROOT}/bin:$PATH
-ENV PYTHON_CONFIGURE_OPTS=--enable-shared
+ENV PATH=${CARGO_ROOT}/bin:$PATH
 
-# Use .python-version to specify all Python versions for testing
-COPY .python-version /root/
+# Ensure Python versions we need are installed
+RUN manylinux-interpreters ensure cp37-cp37m cp38-cp38 cp39-cp39 cp310-cp310 cp311-cp311 cp312-cp312 cp313-cp313
 
-RUN \
-  # Install system dependencies
-  apt-get update \
-  && apt-get install -y --no-install-recommends \
-      apt-transport-https \
-      build-essential \
+# Install jq
+RUN curl -L https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-$BUILDARCH -o /usr/local/bin/jq && \
+    chmod +x /usr/local/bin/jq
+
+# Install system dependencies
+RUN yum install -y epel-release && \
+    yum install -y \
       ca-certificates \
-      clang-format \
-      curl \
+      enchant-devel \
       gdb \
-      git \
-      gnupg \
-      jq \
-      libbz2-dev \
-      libenchant-dev \
-      libffi-dev \
-      liblzma-dev \
-      libmemcached-dev \
-      libmemcached-dev \
-      libncurses5-dev \
-      libncursesw5-dev \
-      libpq-dev \
-      libreadline-dev \
-      libsasl2-dev \
-      libsqlite3-dev \
-      libsqliteodbc \
-      libssh-dev \
-      libssl-dev \
-      patch \
-      python-openssl\
-      unixodbc-dev \
+      libffi-devel \
+      libssh2-devel \
+      mariadb-devel \
+      memcached-devel \
+      ncurses-devel \
+      nodejs \
+      openssl-devel \
+      postgresql-devel \
+      readline-devel \
+      sqlite-devel \
       wget \
-      zlib1g-dev \
-  # Install Mariadb
-  && wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup \
-  && chmod +x mariadb_repo_setup \
-  && ./mariadb_repo_setup \
-  && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
-  && rm mariadb_repo_setup \
-  # For running datadog-ci CLI with npx
-  && apt-get install -y --no-install-recommends nodejs npm \
-  # Cleaning up apt cache space
-  && rm -rf /var/lib/apt/lists/*
+      xz-devel \
+      zlib-devel && \
+    yum -y clean all && rm -fr /var/cache
 
 # Install Rust toolchain
 RUN curl https://sh.rustup.rs -sSf | \
     sh -s -- --default-toolchain stable -y
 
-# Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch v2.4.2 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
-  && cd /root \
-  && pyenv local | xargs -L 1 pyenv install \
-  && cd -
-
-RUN if [ "$TARGETARCH" = "amd64" ]; \
-    then curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-${HATCH_VERSION}-x86_64-unknown-linux-gnu.tar.gz | tar zx; \
-    else curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-${HATCH_VERSION}-aarch64-unknown-linux-gnu.tar.gz | tar zx; \
-    fi \
-  && mv hatch-${HATCH_VERSION}-* hatch \
-  && install -t /usr/local/bin hatch \
-  && hatch -q
+ARG HATCH_VERSION=1.12.0
+# Install Hatch
+RUN pipx install hatch==${HATCH_VERSION}
 
 CMD ["/bin/bash"]
