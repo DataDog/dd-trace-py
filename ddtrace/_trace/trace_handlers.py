@@ -1127,11 +1127,6 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         scope["datadog"]["request_spans"].append(span)
 
 
-def _on_aiokafka_send_and_wait_post(ctx: core.ExecutionContext):
-    span = ctx["call"]
-    span.finish()
-
-
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
