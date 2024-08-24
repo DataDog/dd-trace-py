@@ -37,8 +37,8 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal._rand import rand64bits as _rand64bits
-from ddtrace.internal._rand import rand128bits as _rand128bits
+from ddtrace.internal._rand import CorrelationId64
+from ddtrace.internal._rand import CorrelationId128
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import ensure_text
@@ -185,11 +185,9 @@ class Span(object):
 
         if trace_id is not None:
             self.trace_id: int = trace_id
-        elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = _rand128bits()  # type: ignore[no-redef]
         else:
-            self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
-        self.span_id: int = span_id or _rand64bits()
+            self.trace_id: int = CorrelationId128() if config._128_bit_trace_id_enabled else CorrelationId64()  # type: ignore[no-redef]
+        self.span_id: int = span_id or CorrelationId64()
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 

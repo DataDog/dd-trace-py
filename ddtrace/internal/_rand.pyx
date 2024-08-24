@@ -92,4 +92,17 @@ cpdef rand128bits():
     return int(time(NULL)) << 96 | rand64bits()
 
 
+class CorrelationId64(int):
+    def __new__(cls):
+        return super().__new__(cls, rand64bits())
+
+
+class CorrelationId128(int):
+    def __new__(cls):
+        return super().__new__(cls, rand128bits())
+
+    def __str__(self) -> str:
+        return "{:032x}".format(self)
+
+
 seed()
