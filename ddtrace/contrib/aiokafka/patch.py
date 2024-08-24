@@ -2,6 +2,7 @@ import os
 import sys
 
 import aiokafka
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -30,7 +31,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 config._add(
@@ -107,6 +107,7 @@ async def traced_send_and_wait(func, instance, args, kwargs):
         parent=None,
         span_name=schematize_messaging_operation(PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.WORKER,
+        call_key="instrumented_send_and_wait",
         service=trace_utils.ext_service(pin, config.aiokafka),
         tags=create_send_span_tags(instance, args, kwargs),
         pin=pin,
@@ -137,6 +138,7 @@ async def traced_getone(func, instance, args, kwargs):
         span_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
         span_type=SpanTypes.WORKER,
         service=trace_utils.ext_service(pin, config.aiokafka),
+        call_key="instrumented_getone",
         tags=create_get_span_tags(instance, args, kwargs),
         pin=pin,
     ) as ctx, ctx[ctx["call_key"]] as call:
