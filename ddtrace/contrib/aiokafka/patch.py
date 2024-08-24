@@ -148,8 +148,7 @@ async def traced_getone(func, instance, args, kwargs):
             err = e
             raise err
         finally:
-            _instrument_message(ctx["call"], result, err)
-            ctx["call"].finish()
+            _instrument_message(call, result, err)
         return result
 
 
