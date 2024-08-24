@@ -24,9 +24,11 @@ from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
+from ddtrace.propagation.http import HTTPPropagator
 
 
 config._add(
@@ -107,9 +109,22 @@ async def traced_send_and_wait(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.aiokafka),
         tags=create_send_span_tags(instance, args, kwargs),
         pin=pin,
-    ) as ctx, ctx[ctx["call_key"]]:
+    ) as ctx, ctx[ctx["call_key"]] as span:
+        if config.aiokafka.distributed_tracing_enabled:
+            # inject headers with Datadog tags:
+            headers = get_argument_value(args, kwargs, 6, "headers", True) or []
+            tracing_headers = {}
+            HTTPPropagator.inject(span.context, tracing_headers)
+            headers = merge_headers_to_aiokafka(tracing_headers, headers)
+            args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
         result = await func(*args, **kwargs)
         return result
+
+
+def merge_headers_to_aiokafka(http_headers, aiokafka_headers):
+    for key, value in http_headers.items():
+        aiokafka_headers.append((key, value.encode("utf-8")))
+    return aiokafka_headers
 
 
 def create_get_span_tags(instance, args, kwargs):

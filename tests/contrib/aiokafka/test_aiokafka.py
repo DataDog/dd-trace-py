@@ -244,9 +244,9 @@ async def test_getmany_multiple_messages_multiple_topics(producer, tracer, kafka
         await consumer.stop()
 
 
-@pytest.mark.skip(reason="distributed tracing not implemented yet")
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getone_without_distributed_tracing(producer, consumer, kafka_topic, tracer):
-    with override_config("kafka", dict(distributed_tracing_enabled=False)):
+    with override_config("aiokafka", dict(distributed_tracing_enabled=False)):
         await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
         await producer.stop()
         result = await consumer.getone()
@@ -260,9 +260,9 @@ async def test_getone_without_distributed_tracing(producer, consumer, kafka_topi
         assert propagation_asserted is False
 
 
-@pytest.mark.skip(reason="distributed tracing not implemented yet")
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getone_with_distributed_tracing_no_headers(producer, consumer, kafka_topic, tracer):
-    with override_config("kafka", dict(distributed_tracing_enabled=True)):
+    with override_config("aiokafka", dict(distributed_tracing_enabled=True)):
         await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
         await producer.stop()
         result = await consumer.getone()
@@ -276,9 +276,9 @@ async def test_getone_with_distributed_tracing_no_headers(producer, consumer, ka
         assert propagation_asserted is True
 
 
-@pytest.mark.skip(reason="distributed tracing not implemented yet")
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getone_with_distributed_tracing_with_headers(producer, consumer, kafka_topic, tracer):
-    with override_config("kafka", dict(distributed_tracing_enabled=True)):
+    with override_config("aiokafka", dict(distributed_tracing_enabled=True)):
         await producer.send_and_wait(
             kafka_topic, value=PAYLOAD, key=KEY, headers=[("some_header", "some_value".encode("utf-8"))]
         )
@@ -300,7 +300,7 @@ async def test_getone_with_distributed_tracing_with_headers(producer, consumer, 
 async def test_data_streams_kafka(
     dsm_processor, consumer, producer, kafka_topic, distributed_tracing_enabled, enable_auto_commit
 ):
-    with override_config("kafka", dict(distributed_tracing_enabled=distributed_tracing_enabled)):
+    with override_config("aiokafka", dict(distributed_tracing_enabled=distributed_tracing_enabled)):
         try:
             del dsm_processor._current_context.value
         except AttributeError:
@@ -352,7 +352,7 @@ async def test_data_streams_kafka(
 async def test_data_streams_kafka_produce_api_compatibility(
     dsm_processor, producer, kafka_topic, distributed_tracing_enabled
 ):
-    with override_config("kafka", dict(distributed_tracing_enabled=distributed_tracing_enabled)):
+    with override_config("aiokafka", dict(distributed_tracing_enabled=distributed_tracing_enabled)):
         PAYLOAD = bytes("data streams", encoding="utf-8")
         KEY = bytes("test_key", encoding="utf-8")
         try:
