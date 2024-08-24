@@ -22,6 +22,11 @@ from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import db
 from ddtrace.ext import http
+from ddtrace.ext.kafka import MESSAGE_KEY
+from ddtrace.ext.kafka import MESSAGE_OFFSET
+from ddtrace.ext.kafka import PARTITION
+from ddtrace.ext.kafka import TOMBSTONE
+from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.compat import nullcontext
@@ -749,6 +754,25 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
+def _aiokafka_getone_message(ctx, message, err):
+    span = ctx[ctx["call_key"]]
+    span.set_tag(TOMBSTONE, str(message is None).lower())
+    if message is not None:
+        message_key = message.key or ""
+        message_offset = message.offset or -1
+        span.set_tag_str(TOPIC, message.topic)
+
+    if isinstance(message_key, str) or isinstance(message_key, bytes):
+        span.set_tag_str(MESSAGE_KEY, message_key)
+
+    span.set_tag(PARTITION, message.partition)
+    span.set_tag(MESSAGE_OFFSET, message_offset)
+    span.set_tag(SPAN_MEASURED_KEY)
+
+    if err is not None:
+        span.set_exc_info(*sys.exc_info())
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -801,6 +825,7 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("aiokafka.getone.message", _aiokafka_getone_message)
 
     for context_name in (
         "flask.call",
