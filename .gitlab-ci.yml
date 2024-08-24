@@ -10,7 +10,7 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner@sha256:9b2364afa4d1cd8382f251aca5963113cfc47e6c6b9aaed2c28e8a2a48ac1f75
+  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner@sha256:f9dd80ac3fae8db2b0eedf955ef4c7498c7e7f9ce325454322353ca18a5600a8
 
 .testrunner:
   image: $TESTRUNNER_IMAGE
