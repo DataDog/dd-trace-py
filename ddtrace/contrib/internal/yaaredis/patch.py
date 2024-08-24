@@ -8,11 +8,13 @@ from ddtrace._trace.utils_redis import _instrument_redis_cmd
 from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
 from ddtrace.contrib.redis_utils import _run_redis_command_async
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
+from ddtrace.vendor.debtcollector import deprecate
 
 
 config._add(
@@ -32,6 +34,13 @@ def get_version():
 
 def patch():
     """Patch the instrumented methods"""
+    deprecate(
+        prefix="The yaaredis module is deprecated.",
+        message="The yaaredis module is deprecated and will be deleted.",
+        category=DDTraceDeprecationWarning,
+        removal_version="3.0.0",
+    )
+
     if getattr(yaaredis, "_datadog_patch", False):
         return
     yaaredis._datadog_patch = True
