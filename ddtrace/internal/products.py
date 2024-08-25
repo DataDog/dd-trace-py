@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections import deque
 import sys
 import typing as t
 
@@ -41,10 +42,12 @@ class ProductManager:
     __products__: t.Dict[str, Product] = {}  # All discovered products
 
     def __init__(self) -> None:
-        q = []
-        g = defaultdict(list)
-        f = {}
-        for product_plugin in tuple(entry_points(group="ddtrace.products"))[::-1]:
+        # Data structures for topological sorting
+        q: t.Deque[str] = deque()  # Queue of products with no dependencies
+        g = defaultdict(list)  # Graph of dependencies
+        f = {}  # Remaining dependencies for each product
+
+        for product_plugin in entry_points(group="ddtrace.products"):
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
 
@@ -67,10 +70,10 @@ class ProductManager:
 
             self.__products__[name] = product
 
-        # Determine the product ordering
+        # Determine the product (topological) ordering
         ordering = []
         while q:
-            n = q.pop()
+            n = q.popleft()
             ordering.append(n)
             for p in g[n]:
                 f[p].remove(n)
@@ -79,9 +82,11 @@ class ProductManager:
                     del f[p]
 
         if f:
-            log.error("Circular dependencies detected for these products: %s", list(f.keys()))
+            log.error(
+                "Circular dependencies among products detected. These products won't be enabled: %s.", list(f.keys())
+            )
 
-        self.products = [(name, self.__products__[name]) for name in ordering]
+        self.products = [(name, self.__products__[name]) for name in ordering if name not in f]
 
     def start_products(self) -> None:
         for name, product in self.products:
