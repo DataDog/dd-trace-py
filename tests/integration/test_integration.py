@@ -582,17 +582,14 @@ def test_trace_with_failing_encoder_generates_error_log():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings(err=None)
+@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.5"})
 def test_api_version_downgrade_generates_no_warning_logs():
-    import os
-
     import mock
 
     from ddtrace import tracer as t
 
-    encoding = os.environ["DD_TRACE_API_VERSION"] or "v0.5"
     t._writer._downgrade(None, None, t._writer._clients[0])
-    assert t._writer._endpoint == {"v0.5": "v0.4/traces"}[encoding]
+    assert t._writer._endpoint == "v0.4/traces"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("operation", service="my-svc").finish()
         t.shutdown()
