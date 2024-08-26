@@ -10,13 +10,11 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
+  TESTRUNNER_IMAGE: brettlangdondatadog/testrunner:latest
 
 .testrunner:
   image: $TESTRUNNER_IMAGE
-  tags: [ "arch:arm64" ]
-  before_script:
-    - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
+  tags: [ "arch:amd64" ]
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
