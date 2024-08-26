@@ -85,18 +85,17 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
 
 
 def _on_iast_fastapi_patch():
-    if _is_iast_enabled():
-        from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import OriginType
 
-        try_wrap_function_wrapper(
-            "starlette.datastructures",
-            "QueryParams.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-        )
-        try_wrap_function_wrapper(
-            "starlette.datastructures",
-            "QueryParams.get",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-        )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "QueryParams.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+    )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "QueryParams.get",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+    )
 
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+    _set_metric_iast_instrumented_source(OriginType.PARAMETER)
