@@ -15,9 +15,11 @@ import multiprocessing
 from multiprocessing.connection import Connection
 import multiprocessing.process
 from pathlib import Path
+import pickle  # nosec: B403  -- pickle is only used to serialize coverage data from the child process to its parent
 import typing as t
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -51,7 +53,16 @@ class CoverageCollectingMultiprocess(BaseProcess):
             if self._parent_conn.poll():
                 rcvd = self._parent_conn.recv()
                 if rcvd:
-                    ModuleCodeCollector.absorb_data_json(rcvd)
+                    try:
+                        data = pickle.loads(rcvd)  # nosec: B301 -- we trust this is coverage data
+                    except pickle.UnpicklingError:
+                        log.debug("Could not unpickle coverage data, not injecting coverage")
+                        raise
+
+                    lines: t.Dict[str, CoverageLines] = data.get("lines", {})
+                    covered: t.Dict[str, CoverageLines] = data.get("covered", {})
+
+                    ModuleCodeCollector.inject_coverage(lines, covered)
                 else:
                     log.debug("Child process sent empty coverage data")
             else:
@@ -78,8 +89,15 @@ class CoverageCollectingMultiprocess(BaseProcess):
         rval = base_process_bootstrap(self, *args, **kwargs)
 
         if self._dd_coverage_enabled and self._child_conn is not None:
+            instance = ModuleCodeCollector._instance
+
+            if instance is None:
+                return
+
             try:
-                self._child_conn.send(ModuleCodeCollector.get_data_json())
+                self._child_conn.send(pickle.dumps({"lines": instance.lines, "covered": instance.covered}))
+            except pickle.PicklingError:
+                log.warning("Failed to pickle coverage data for child process", exc_info=True)
             except Exception:
                 log.warning("Failed to send coverage data to parent process", exc_info=True)
 
