@@ -10,7 +10,7 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  TESTRUNNER_IMAGE: brettlangdondatadog/testrunner:latest
+  TESTRUNNER_IMAGE: docker.io/brettlangdondatadog/testrunner:2024082615
 
 .testrunner:
   image: $TESTRUNNER_IMAGE
