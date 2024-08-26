@@ -2,7 +2,7 @@
 set -eux
 
 # DEV: unless it's built with editable, following sphinx-build fails
-if (!$CIRCLECI && !(pip list --editable | grep -q ddtrace)); then
+if [ -z ${CIRCLECI+x} ]; then
   CMAKE_BUILD_PARALLEL_LEVEL=$(nproc) pip install -v -e .
 fi
 
