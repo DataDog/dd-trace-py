@@ -37,6 +37,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.propagation.http import HTTPPropagator
 
+
 log = get_logger(__name__)
 
 
