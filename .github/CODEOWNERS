@@ -113,18 +113,22 @@ ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
 
 # MLObs
-ddtrace/llmobs/                                     @DataDog/ml-observability
-ddtrace/contrib/openai                              @DataDog/ml-observability
-ddtrace/contrib/langchain                           @DataDog/ml-observability
-ddtrace/contrib/botocore/services/bedrock.py        @DataDog/ml-observability
-ddtrace/contrib/anthropic                           @DataDog/ml-observability
-tests/llmobs                                        @DataDog/ml-observability
-tests/contrib/openai                                @DataDog/ml-observability
-tests/contrib/langchain                             @DataDog/ml-observability
-tests/contrib/botocore/test_bedrock.py              @DataDog/ml-observability
-tests/contrib/botocore/test_bedrock_llmobs.py       @DataDog/ml-observability
-tests/contrib/botocore/bedrock_cassettes            @DataDog/ml-observability
-tests/contrib/anthropic                             @DataDog/ml-observability
+ddtrace/llmobs/                                         @DataDog/ml-observability
+ddtrace/contrib/internal/openai                         @DataDog/ml-observability
+ddtrace/contrib/openai                                  @DataDog/ml-observability
+ddtrace/contrib/internal/langchain                      @DataDog/ml-observability
+ddtrace/contrib/langchain                               @DataDog/ml-observability
+ddtrace/contrib/internal/botocore/services/bedrock.py   @DataDog/ml-observability
+ddtrace/contrib/botocore/services/bedrock.py            @DataDog/ml-observability
+ddtrace/contrib/internal/anthropic                      @DataDog/ml-observability
+ddtrace/contrib/anthropic                               @DataDog/ml-observability
+tests/llmobs                                            @DataDog/ml-observability
+tests/contrib/openai                                    @DataDog/ml-observability
+tests/contrib/langchain                                 @DataDog/ml-observability
+tests/contrib/botocore/test_bedrock.py                  @DataDog/ml-observability
+tests/contrib/botocore/test_bedrock_llmobs.py           @DataDog/ml-observability
+tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observability
+tests/contrib/anthropic                                 @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
