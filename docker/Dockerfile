@@ -5,6 +5,7 @@ FROM debian:buster-20221219-slim
 
 ARG TARGETARCH
 ARG HATCH_VERSION=1.8.1
+ENV SCCACHE_VERSION=0.8.1
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -82,5 +83,13 @@ RUN if [ "$TARGETARCH" = "amd64" ]; \
   && mv hatch-${HATCH_VERSION}-* hatch \
   && install -t /usr/local/bin hatch \
   && hatch -q
+
+RUN if [ "$TARGETARCH" = "amd64" ]; \
+    then curl -L https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz | tar zx; \
+    else curl -L https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-aarch64-unknown-linux-musl.tar.gz | tar zx; \
+    fi \
+    && mv sccache-v${SCCACHE_VERSION}-* sccache \
+    && install -t /usr/local/bin sccache/sccache \
+    && sccache --version
 
 CMD ["/bin/bash"]
