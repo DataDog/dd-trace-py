@@ -138,6 +138,7 @@ jobs:
           repository: 'DataDog/system-tests'
 
       - name: Build runner
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: ./.github/actions/install_runner
 
       - uses: actions/download-artifact@v4
@@ -277,6 +278,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Build runner
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: ./.github/actions/install_runner
 
       - name: Run
