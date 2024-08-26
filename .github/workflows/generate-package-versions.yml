@@ -84,6 +84,4 @@ jobs:
           base: main
           title: "chore: update ${{ env.VENV_NAME }} latest version"
           labels: changelog/no-changelog
-          body: |
-            Updates the ${{ env.VENV_NAME }} integration latest version and regenerates lockfiles.
           body-path: .github/PULL_REQUEST_TEMPLATE.md
