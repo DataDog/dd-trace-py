@@ -61,6 +61,8 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     categorical_value: str
     numerical_value: float
     score_value: float
+    ml_app: str
+    timestamp_ms: int
     tags: List[str]
 
 
@@ -147,7 +149,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
         self._event_type = "evaluation_metric"
         self._buffer = []
-        self._endpoint = "/api/unstable/llm-obs/v1/eval-metric"
+        self._endpoint = "/api/intake/llm-obs/v1/eval-metric"
         self._intake = "api.%s" % self._site  # type: str
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
@@ -292,6 +294,7 @@ class LLMObsSpanWriter(HTTPWriter):
         return self.__class__(
             interval=self._interval,
             timeout=self._timeout,
+            is_agentless=config._llmobs_agentless_enabled,
         )
 
 

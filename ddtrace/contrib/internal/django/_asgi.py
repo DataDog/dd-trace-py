@@ -2,7 +2,7 @@
 Module providing async hooks. Do not import this module unless using Python >= 3.6.
 """
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.asgi import span_from_scope
+from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags

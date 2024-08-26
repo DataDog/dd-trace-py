@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Propagates tags in ``DD_PROFILING_TAGS`` and ``DD_TAGS`` to
+    the libdatadog exporter, new exporter codepath which is enabled when
+    either one of the following is set, ``DD_PROFILING_STACK_V2_ENABLED``,
+    ``DD_PROFILING_EXPORT_LIBDD_ENABLED``, or ``DD_PROFILING_TIMELINE_ENABLED``
+    or dd-trace-py is running in an injected environment.

@@ -7,7 +7,7 @@ from typing import Tuple
 import anthropic
 import wrapt
 
-from ddtrace.contrib.anthropic.utils import tag_tool_use_output_on_span
+from ddtrace.contrib.internal.anthropic.utils import tag_tool_use_output_on_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.anthropic import _get_attr
 
