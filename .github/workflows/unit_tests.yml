@@ -39,7 +39,7 @@ jobs:
 
       - name: Install hatch
         # DEV: Also fix this
-        run: pip install hatch
+        run: pip install hatch==1.12.0
 
       - name: Run tests
         run: hatch run ddtrace_unit_tests:test
