@@ -18,8 +18,7 @@ variables:
   services:
     - name: datadog/agent:latest
       variables:
-        DD_HOSTNAME: github-actions-worker
-        DD_BIND_HOST: 0.0.0.0
+        DD_HOSTNAME: gitlab-runner
         DD_REMOTE_CONFIGURATION_ENABLED: true
         DD_SITE: ${DD_SITE-datadoghq.com}
         DD_API_KEY: ${DD_API_KEY-invalid_but_this_is_fine}
