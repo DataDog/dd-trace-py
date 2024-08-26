@@ -340,7 +340,7 @@ dependencies = [
 [envs.dd_coverage.scripts]
 test = [
     "pip freeze",
-    "pytest tests/coverage -s --no-cov",
+    "pytest tests/coverage -s --no-cov {args:}",
 ]
 
 [[envs.dd_coverage.matrix]]
@@ -370,9 +370,9 @@ test = [
 
 [[envs.pytest_plugin_v2.matrix]]
 python = ["3.7", "3.9"]
-pytest = ["~=6.0", ">7"]
+pytest = ["~=6.0", "latest"]
 
 
 [[envs.pytest_plugin_v2.matrix]]
 python = ["3.10", "3.12"]
-pytest = ["~=6.0", "~=7.0", ">7"]
+pytest = ["~=6.0", "~=7.0", "latest"]
