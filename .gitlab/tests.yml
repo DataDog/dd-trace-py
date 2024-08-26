@@ -16,7 +16,9 @@ variables:
   needs: [ build_base_venvs ]
   parallel: 4
   services:
-    - name: ghcr.io/datadog/agent:latest
+    - name: datadog/agent
+      variables:
+        PORT: 8126
     - name: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
       variables:
         LOG_LEVEL: DEBUG
