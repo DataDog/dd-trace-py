@@ -10,7 +10,7 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  TESTRUNNER_IMAGE: registry.ddbuild.io/images/mirror/brettlangdondatadog/testrunner:2024082615
+  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
 
 .testrunner:
   image: $TESTRUNNER_IMAGE
