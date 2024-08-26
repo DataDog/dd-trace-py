@@ -58,7 +58,6 @@ Example::
 from ...internal.utils.importlib import require_modules
 
 
-g
 required_modules = ["sanic"]
 
 with require_modules(required_modules) as missing_modules:
