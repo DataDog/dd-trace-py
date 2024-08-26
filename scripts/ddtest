@@ -41,7 +41,7 @@ if [[ "${CIRCLECI}" = "true" ]]; then
                    --quiet-pull \
                    --rm \
                    testrunner \
-                   bash -c "ulimit -c unlimited || true && echo $PATH && which -a python && $FULL_CMD || (./scripts/bt && false)"
+                   bash -c "ulimit -c unlimited || true && echo $PATH && which -a python && (for p in $(find / -name python -type l); do echo $p; $p --version; $p -c 'import platform; print(platform.python_compiler())'; done) && $FULL_CMD || (./scripts/bt && false)"
 else
   echo "not in circle ci"
 
