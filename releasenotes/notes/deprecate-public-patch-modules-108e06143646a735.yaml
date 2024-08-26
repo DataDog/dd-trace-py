@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    All public patch modules are deprecated. The non-deprecated methods are included in the ``__all__`` attribute. 
