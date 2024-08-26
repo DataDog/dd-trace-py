@@ -307,7 +307,7 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* args)
         return NULL;
     }
 
-    {
+    if (!self->_after_fork) {
         AllowThreads _;
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 

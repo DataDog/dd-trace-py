@@ -18,6 +18,7 @@ from ddtrace.contrib.pytest._utils import _get_names_from_item
 from ddtrace.contrib.pytest._utils import _get_session_command
 from ddtrace.contrib.pytest._utils import _get_source_file_info
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
+from ddtrace.contrib.pytest._utils import _is_enabled_early
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.pytest.constants import FRAMEWORK
@@ -39,6 +40,7 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.logger import get_logger
 
@@ -124,14 +126,41 @@ def _disable_ci_visibility():
         log.debug("encountered error during disable_ci_visibility", exc_info=True)
 
 
+def pytest_load_initial_conftests(early_config, parser, args):
+    """Performs the bare-minimum to determine whether or ModuleCodeCollector should be enabled
+
+    ModuleCodeCollector has a tangible impact on the time it takes to load modules, so it should only be installed if
+    coverage collection is requested by the backend.
+    """
+    if not _is_enabled_early(early_config):
+        return
+
+    try:
+        take_over_logger_stream_handler()
+        enable_ci_visibility(config=dd_config.pytest)
+        if CISession.should_collect_coverage():
+            workspace_path = CISession.get_workspace_path()
+            if workspace_path is None:
+                workspace_path = Path.cwd().absolute()
+            log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
+            install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
+    except:  # noqa: E722
+        log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
+        _disable_ci_visibility()
+
+
 def pytest_configure(config: pytest.Config) -> None:
     try:
         if is_enabled(config):
-            unpatch_unittest()
             take_over_logger_stream_handler()
+            unpatch_unittest()
             enable_ci_visibility(config=dd_config.pytest)
-        if _is_pytest_cov_enabled(config):
-            patch_coverage()
+            if _is_pytest_cov_enabled(config):
+                patch_coverage()
+        else:
+            # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
+            # pytest_load_initial_conftests
+            _disable_ci_visibility()
     except:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
@@ -391,6 +420,9 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             log.warning("Tried to add total covered percentage to session span but the format was unexpected")
             return
         CISession.set_tag(test.TEST_LINES_PCT, lines_pct_value)
+
+    if ModuleCodeCollector.is_installed():
+        ModuleCodeCollector.uninstall()
 
     CISession.finish(force_finish_children=True)
     disable_ci_visibility()
