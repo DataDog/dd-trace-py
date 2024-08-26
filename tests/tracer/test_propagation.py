@@ -21,6 +21,7 @@ from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -42,7 +43,6 @@ from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans 
 from tests.contrib.fastapi.test_fastapi import tracer  # noqa:F401
 
 from ..utils import override_global_config
-
 
 NOT_SET = object()
 
@@ -2915,6 +2915,60 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_TRACESTATE: "",
         },
     ),
+    (   
+        "only_baggage",
+        [
+            _PROPAGATION_STYLE_BAGGAGE,
+        ],
+        {
+            "baggage": {"foo": "bar"},
+        },
+        {
+            "baggage": "foo=bar",
+        }
+    ),
+    (   
+        "baggage_and_datadog",
+        [
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_BAGGAGE,
+        ],
+        {
+            "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
+            "span_id": VALID_DATADOG_CONTEXT["span_id"],
+            "baggage": {"foo": "bar"},
+        },
+        {
+            HTTP_HEADER_TRACE_ID: "13088165645273925489",
+            HTTP_HEADER_PARENT_ID: "8185124618007618416",
+            "baggage": "foo=bar",
+        }
+    ),
+    (
+        "baggage_order",
+        [
+            _PROPAGATION_STYLE_BAGGAGE,
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_B3_SINGLE,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
+        {
+            "baggage": {"foo": "bar"},
+            "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
+            "span_id": VALID_DATADOG_CONTEXT["span_id"],
+        },
+        {
+            "baggage": "foo=bar",
+            HTTP_HEADER_TRACE_ID: "13088165645273925489",
+            HTTP_HEADER_PARENT_ID: "8185124618007618416",
+            _HTTP_HEADER_B3_TRACE_ID: "b5a2814f70060771",
+            _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
+            _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370",
+            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
+            _HTTP_HEADER_TRACESTATE: "",
+        },
+    ),
 ]
 
 
@@ -3037,3 +3091,80 @@ def test_llmobs_parent_id_not_injected_by_default():
         context = Context(trace_id=1, span_id=2)
         HTTPPropagator.inject(context, {})
         mock_llmobs_inject.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "span_context,expected_headers",
+    [
+        (
+            Context(baggage={"key1": "val1"}),
+            {"baggage": "key1=val1"}
+        ),
+        (
+            Context(baggage={"key1": "val1", "key2": "val2"}),
+            {"baggage": "key1=val1,key2=val2"}
+        ),
+        (
+            Context(baggage={"serverNode": "DF 28"}),
+            {"baggage": "serverNode=DF%2028"}
+        ),
+        (
+            Context(baggage={"userId": "Amélie"}),
+            {"baggage": "userId=Am%C3%A9lie"}
+        ),
+        (
+            Context(baggage={"user!d(me)": "false"}),
+            {"baggage": "user!d%28me%29=false"}
+        ),
+    ],
+    ids=[
+        "single_key_value",
+        "multiple_key_value_pairs",
+        "space_in_value",
+        "special_characters_in_value",
+        "special_characters_in_key",
+    ]
+)
+def test_baggageheader_inject(span_context, expected_headers):
+    from ddtrace.propagation.http import _BaggageHeader
+    headers = {}
+    _BaggageHeader._inject(span_context, headers)
+    assert headers == expected_headers
+
+
+@pytest.mark.parametrize(
+    "headers,expected_baggage",
+    [
+        (
+            {"baggage": "key1=val1"},
+            {"key1": "val1"}
+        ),
+        (
+            {"baggage": "key1=val1,key2=val2,foo=bar,x=y"},
+            {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}
+        ),
+        (
+            {"baggage": "user!d%28me%29=false"},
+            {"user!d(me)": "false"}
+        ),
+        (
+            {"baggage": "userId=Am%C3%A9lie"},
+            {"userId": "Amélie"}
+        ),
+        (
+            {"baggage": "serverNode=DF%2028"},
+            {"serverNode": "DF 28"}
+        ),
+    ],
+    ids=[
+        "single_key_value",
+        "multiple_key_value_pairs",
+        "special_characters_in_key",
+        "special_characters_in_value",
+        "space_in_value",
+    ]
+)
+def test_baggageheader_extract(headers, expected_baggage):
+    from ddtrace.propagation.http import _BaggageHeader
+    context = _BaggageHeader._extract(headers)
+    assert context._baggage == expected_baggage

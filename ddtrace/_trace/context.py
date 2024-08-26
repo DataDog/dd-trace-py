@@ -241,6 +241,19 @@ class Context(object):
         """Gets a baggage item in this span context."""
         return self._baggage.get(key, None)
 
+    def _get_all_baggage_items(self) -> Dict[str, Any]:
+        """Returns all baggage items in this span context."""
+        return self._baggage
+
+    def _remove_baggage_item(self, key: str) -> None:
+        """Remove a baggage item from this span context."""
+        if key in self._baggage:
+            del self._baggage[key]
+
+    def _remove_all_baggage_items(self) -> None:
+        """Removes all baggage items from this span context."""
+        self._baggage.clear()
+
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Context):
             with self._lock:
