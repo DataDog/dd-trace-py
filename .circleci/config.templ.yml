@@ -306,6 +306,7 @@ commands:
       - restore_cache:
           keys:
             - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.env>>-{{ .Environment.CIRCLE_NODE_INDEX }}
+      - setup_hatch
       - when:
           condition:
               << parameters.snapshot >>
