@@ -573,14 +573,6 @@ jobs:
       - run_test:
           pattern: "datastreams"
 
-  tracer:
-    parallelism: 10
-    <<: *contrib_job_large
-    steps:
-      - run_test:
-          pattern: "tracer"
-          trace_agent_url: ""
-
   ci_visibility:
     <<: *machine_executor
     parallelism: 4
