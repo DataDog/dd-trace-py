@@ -38,8 +38,9 @@ jobs:
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
 
       - name: Install hatch
-        # DEV: Also fix this
-        run: pip install hatch==1.12.0
+        uses: pypa/hatch@install
+        with:
+          version: "1.12.0"
 
       - name: Run tests
         run: hatch run ddtrace_unit_tests:test

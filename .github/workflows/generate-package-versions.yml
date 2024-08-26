@@ -59,17 +59,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libmariadb-dev
 
+      - name: Install hatch
+        uses: pypa/hatch@install
+        with:
+          version: "1.12.0"
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install packaging
           pip install riot==0.19.1
-
-      - name: Install Hatch
-        run: |
-          curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
-          sudo install -t /usr/local/bin hatch
-          hatch -q
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
