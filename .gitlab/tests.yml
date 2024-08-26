@@ -17,15 +17,6 @@ variables:
   parallel: 4
   services:
     - name: datadog/agent:latest
-      variables:
-        DD_HOSTNAME: gitlab-runner
-        DD_REMOTE_CONFIGURATION_ENABLED: true
-        DD_SITE: ${DD_SITE-datadoghq.com}
-        DD_API_KEY: ${DD_API_KEY-invalid_but_this_is_fine}
-        DD_REMOTE_CONFIGURATION_KEY: ${DD_REMOTE_CONFIGURATION_KEY-invalid_but_this_is_fine}
-        DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
-        DD_APM_RECEIVER_SOCKET: /tmp/ddagent/trace.sock
-        DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
     - name: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
       variables:
         LOG_LEVEL: DEBUG
