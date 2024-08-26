@@ -142,15 +142,6 @@ class DdtraceRunTest(BaseTestCase):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_dogstatsd.py"])
             assert out.startswith(b"Test success")
 
-    def test_priority_sampling_from_env(self):
-        """
-        DD_PRIORITY_SAMPLING enables Distributed Sampling
-        """
-
-        with self.override_env(dict(DD_PRIORITY_SAMPLING="True")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_priority_sampling.py"])
-            assert out.startswith(b"Test success")
-
     def test_patch_modules_from_env(self):
         """
         DD_PATCH_MODULES overrides the defaults for patch_all()
@@ -341,7 +332,6 @@ def test_info_no_configs():
         b"App Analytics enabled(deprecated): False",
         b"Log injection enabled: False",
         b"Health metrics enabled: False",
-        b"Priority sampling enabled: True",
         b"Partial flushing enabled: True",
         b"Partial flush minimum number of spans: 300",
         b"WAF timeout: 5.0 msecs",
@@ -399,7 +389,6 @@ def test_info_w_configs():
         b"App Analytics enabled(deprecated): False",
         b"Log injection enabled: True",
         b"Health metrics enabled: False",
-        b"Priority sampling enabled: True",
         b"Partial flushing enabled: True",
         b"Partial flush minimum number of spans: 1000",
         b"WAF timeout: 5.0 msecs",
