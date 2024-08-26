@@ -1,10 +1,11 @@
 # 3p
 # project
+import wrapt
+
 import ddtrace
-from ddtrace.contrib.pymongo.client import TracedMongoClient
+from ddtrace.contrib.internal.pymongo.client import TracedMongoClient
 from ddtrace.ext import mongo as mongox
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.vendor import wrapt
 
 
 # TODO(Benjamin): we should instrument register_connection instead, because more generic

@@ -2,6 +2,7 @@ import os
 
 # 3p
 import rediscluster
+import wrapt
 
 # project
 from ddtrace import config
@@ -23,7 +24,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,

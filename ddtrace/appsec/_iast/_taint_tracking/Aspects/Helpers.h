@@ -69,5 +69,42 @@ api_set_ranges_on_splitted(const StrType& source_str,
 bool
 has_pyerr();
 
+std::string
+has_pyerr_as_string();
+
 void
 pyexport_aspect_helpers(py::module& m);
+
+// Yup. This is a macro. It's used to wrap the try-catch block around the aspect code to make sure no exceptions
+// escape to the user code causing a SIGABRT. This is a common pattern in the IAST codebase.
+// Why not a template function? Because performance. Even a simple one like this cause a huge increase in overhead
+// on the fastest aspects:
+
+/*
+template<typename Func, typename... Args>
+auto
+exception_wrapper(Func func, const char* aspect_name, Args... args) -> std::optional<decltype(func(args...))>
+{
+    try {
+        return func(args...);
+    } catch (const std::exception& e) {
+        iast_taint_log_error(std::string(aspect_name) + ": " + e.what());
+    } catch (...) {
+        iast_taint_log_error(std::string(aspect_name) + ": Unknown error");
+    }
+    return std::nullopt;
+}
+*/
+
+#define TRY_CATCH_ASPECT(NAME, ...)                                                                                    \
+    try {                                                                                                              \
+        __VA_ARGS__;                                                                                                   \
+    } catch (const std::exception& e) {                                                                                \
+        const std::string error_message = "IAST propagation error in " NAME ". " + std::string(e.what());              \
+        iast_taint_log_error(error_message);                                                                           \
+        return result_o;                                                                                               \
+    } catch (...) {                                                                                                    \
+        const std::string error_message = "Unknown IAST propagation error in " NAME ". ";                              \
+        iast_taint_log_error(error_message);                                                                           \
+        return result_o;                                                                                               \
+    }
