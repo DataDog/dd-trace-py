@@ -19,9 +19,12 @@ from ddtrace.internal.ci_visibility.telemetry.payload import ENDPOINT
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_count
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
+
+log = get_logger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
@@ -158,7 +161,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         self.itr_suite_skipping_mode = new_value
 
     def put(self, spans):
-        spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
+        spans_with_coverage = [
+            span
+            for span in spans
+            if COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None
+        ]
         if not spans_with_coverage:
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
@@ -194,7 +201,10 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     def _build_data(self, traces):
         # type: (List[List[Span]]) -> Optional[bytes]
         normalized_covs = [
-            self._convert_span(span, "") for trace in traces for span in trace if COVERAGE_TAG_NAME in span.get_tags()
+            self._convert_span(span, "")
+            for trace in traces
+            for span in trace
+            if (COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None)
         ]
         if not normalized_covs:
             return None
@@ -211,13 +221,23 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
 
     def _convert_span(self, span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]
+        files: Dict[str, Any] = {}
+
+        files_struct_tag_value = span.get_struct_tag(COVERAGE_TAG_NAME)
+        if files_struct_tag_value is not None and "files" in files_struct_tag_value:
+            files = files_struct_tag_value["files"]
+        elif COVERAGE_TAG_NAME in span.get_tags():
+            files = json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"]
+
         converted_span = {
             "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
-            "files": json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"],
+            "files": files,
         }
 
         if not self.itr_suite_skipping_mode:
             converted_span["span_id"] = span.span_id
+
+        log.debug("Span converted to coverage event: %s", converted_span)
 
         return converted_span
