@@ -13,12 +13,11 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
 from ddtrace._trace.utils import set_botocore_response_metadata_tags
-
-# from ddtrace.contrib.internal.botocore.services.stepfunctions import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
@@ -39,9 +38,6 @@ from ddtrace.internal.utils import http as http_utils
 from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
-
-
-BOTOCORE_STEPFUNCTIONS_INPUT_KEY = "botocore_stepfunctions_input"
 
 
 class _TracedIterable(wrapt.ObjectProxy):

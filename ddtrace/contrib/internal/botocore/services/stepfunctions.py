@@ -12,10 +12,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 
 log = get_logger(__name__)
-
-BOTOCORE_STEPFUNCTIONS_INPUT_KEY = "botocore_stepfunctions_input"
 
 
 def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
