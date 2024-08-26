@@ -83,6 +83,12 @@ crashtracker_set_alt_stack(bool alt_stack) // cppcheck-suppress unusedFunction
 }
 
 void
+crashtracker_set_wait_for_receiver(bool wait) // cppcheck-suppress unusedFunction
+{
+    crashtracker.set_wait_for_receiver(wait);
+}
+
+void
 crashtracker_set_resolve_frames_disable() // cppcheck-suppress unusedFunction
 {
     crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_DISABLED);

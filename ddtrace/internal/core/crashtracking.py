@@ -35,6 +35,7 @@ def start() -> bool:
     crashtracker.set_runtime_id(get_runtime_id())
     crashtracker.set_library_version(version.get_version())
     crashtracker.set_alt_stack(bool(crashtracker_config.alt_stack))
+    crashtracker.set_wait_for_receiver(bool(crashtracker_config.wait_for_receiver))
     if crashtracker_config.stacktrace_resolver == "fast":
         crashtracker.set_resolve_frames_fast()
     elif crashtracker_config.stacktrace_resolver == "full":
