@@ -336,7 +336,7 @@ class TelemetryWriter(PeriodicService):
         Adds a Telemetry event to the TelemetryWriter event buffer
 
         :param Dict payload: stores a formatted telemetry event
-        :param str payload_type: The payload_type denotes the type of telmetery request.
+        :param str payload_type: The payload_type denotes the type of telemetry request.
             Payload types accepted by telemetry/proxy v2: app-started, app-closing, app-integrations-change
         """
         if self.enable():

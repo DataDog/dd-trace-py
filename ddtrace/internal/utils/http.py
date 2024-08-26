@@ -283,8 +283,7 @@ class Response(object):
         )
 
 
-def get_connection(url, timeout=DEFAULT_TIMEOUT):
-    # type: (str, float) -> ConnectionType
+def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType:
     """Return an HTTP connection to the given URL."""
     parsed = verify_url(url)
     hostname = parsed.hostname or ""
@@ -300,8 +299,7 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
     raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
 
 
-def verify_url(url):
-    # type: (str) -> parse.ParseResult
+def verify_url(url: str) -> parse.ParseResult:
     """Validates that the given URL can be used as an intake
     Returns a parse.ParseResult.
     Raises a ``ValueError`` if the URL cannot be used as an intake

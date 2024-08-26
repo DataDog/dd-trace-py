@@ -1,12 +1,9 @@
 from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISuiteId
-from ddtrace.ext.ci_visibility.api import CITestStatus
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
@@ -27,32 +24,21 @@ class CIVisibilitySuiteType:
     pass
 
 
-class CIVisibilityModule(
-    CIVisibilityParentItem[CIModuleId, CISuiteId, CIVisibilitySuite], CIVisibilityChildItem[CIModuleId]
-):
-    event_type = MODULE_TYPE
-    event_type_metric_name = EVENT_TYPES.MODULE
+class CIVisibilityModule(CIVisibilityParentItem[CISuiteId, CIVisibilitySuite], CIVisibilityChildItem[CIModuleId]):
+    _event_type = MODULE_TYPE
+    _event_type_metric_name = EVENT_TYPES.MODULE
 
     def __init__(
         self,
-        item_id: CIModuleId,
+        name: str,
         module_path: Optional[Path],
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
     ):
-        super().__init__(item_id, session_settings, session_settings.module_operation_name, initial_tags)
-        if module_path:
-            self._module_path = module_path.absolute()
+        super().__init__(name, session_settings, session_settings.module_operation_name, initial_tags)
 
+        self._module_path = module_path.absolute() if module_path else None
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
-
-    def start(self):
-        log.debug("Starting CI Visibility module %s", self.item_id)
-        super().start()
-
-    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None):
-        log.debug("Finishing CI Visibility module %s", self.item_id)
-        super().finish(force=force, override_status=override_status)
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
         # Module path is set for module and below
@@ -85,15 +71,15 @@ class CIVisibilityModule(
 
     def _telemetry_record_event_created(self):
         record_event_created(
-            event_type=self.event_type_metric_name,
+            event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
     def _telemetry_record_event_finished(self):
         record_event_finished(
-            event_type=self.event_type_metric_name,
+            event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+    def add_coverage_data(self, *args, **kwargs):
         raise NotImplementedError("Coverage data cannot be added to modules.")

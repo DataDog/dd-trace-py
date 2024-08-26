@@ -16,9 +16,9 @@ from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
 from ddtrace.contrib.pytest._utils import _get_session_command
-from ddtrace.contrib.pytest._utils import _get_session_id
 from ddtrace.contrib.pytest._utils import _get_source_file_info
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
+from ddtrace.contrib.pytest._utils import _is_enabled_early
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.pytest.constants import FRAMEWORK
@@ -36,11 +36,13 @@ from ddtrace.ext.ci_visibility.api import enable_ci_visibility
 from ddtrace.ext.ci_visibility.api import is_ci_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.coverage.util import collapse_ranges
+from ddtrace.internal.coverage.installer import install as install_coverage
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -95,25 +97,13 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
 
     if not test_covered_lines:
         log.debug("No covered lines found for test %s", test_id)
+        record_code_coverage_empty()
         return
 
-    # TODO: switch representation to bytearrays as part of new ITR coverage strategy
-    # This code is temporary / PoC
-
-    coverage_data: t.Dict[Path, t.List[t.Tuple[int, int]]] = {}
+    coverage_data: t.Dict[Path, CoverageLines] = {}
 
     for path_str, covered_lines in test_covered_lines.items():
-        file_path = Path(path_str)
-        if not file_path.is_absolute():
-            file_path = file_path.resolve()
-
-        sorted_lines = sorted(covered_lines)
-
-        collapsed_ranges = collapse_ranges(sorted_lines)
-        file_segments = []
-        for file_segment in collapsed_ranges:
-            file_segments.append((file_segment[0], file_segment[1]))
-        coverage_data[file_path] = file_segments
+        coverage_data[Path(path_str).absolute()] = covered_lines
 
     CISuite.add_coverage_data(test_id.parent_id, coverage_data)
 
@@ -125,14 +115,41 @@ def _disable_ci_visibility():
         log.debug("encountered error during disable_ci_visibility", exc_info=True)
 
 
+def pytest_load_initial_conftests(early_config, parser, args):
+    """Performs the bare-minimum to determine whether or ModuleCodeCollector should be enabled
+
+    ModuleCodeCollector has a tangible impact on the time it takes to load modules, so it should only be installed if
+    coverage collection is requested by the backend.
+    """
+    if not _is_enabled_early(early_config):
+        return
+
+    try:
+        take_over_logger_stream_handler()
+        enable_ci_visibility(config=dd_config.pytest)
+        if CISession.should_collect_coverage():
+            workspace_path = CISession.get_workspace_path()
+            if workspace_path is None:
+                workspace_path = Path.cwd().absolute()
+            log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
+            install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
+    except:  # noqa: E722
+        log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
+        _disable_ci_visibility()
+
+
 def pytest_configure(config: pytest.Config) -> None:
     try:
         if is_enabled(config):
-            unpatch_unittest()
             take_over_logger_stream_handler()
+            unpatch_unittest()
             enable_ci_visibility(config=dd_config.pytest)
-        if _is_pytest_cov_enabled(config):
-            patch_coverage()
+            if _is_pytest_cov_enabled(config):
+                patch_coverage()
+        else:
+            # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
+            # pytest_load_initial_conftests
+            _disable_ci_visibility()
     except:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
@@ -145,11 +162,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     log.debug("CI Visibility enabled - starting test session")
 
     try:
-        session_id = _get_session_id(session)
         command = _get_session_command(session)
 
         CISession.discover(
-            session_id,
             test_command=command,
             test_framework=FRAMEWORK,
             test_framework_version=pytest.__version__,
@@ -158,10 +173,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             suite_operation_name="pytest.test_suite",
             test_operation_name=dd_config.pytest.operation_name,
             reject_duplicates=False,
-            reject_unknown_items=True,
         )
 
-        CISession.start(session_id)
+        CISession.start()
     except:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
@@ -383,8 +397,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_ci_visibility_enabled():
         return
 
-    session_id = _get_session_id(session)
-
     # TODO: make coverage officially part of test session object so we don't use set_tag() directly.
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
@@ -396,9 +408,12 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if not isinstance(lines_pct_value, float):
             log.warning("Tried to add total covered percentage to session span but the format was unexpected")
             return
-        CISession.set_tag(session_id, test.TEST_LINES_PCT, lines_pct_value)
+        CISession.set_tag(test.TEST_LINES_PCT, lines_pct_value)
 
-    CISession.finish(session_id, force_finish_children=True)
+    if ModuleCodeCollector.is_installed():
+        ModuleCodeCollector.uninstall()
+
+    CISession.finish(force_finish_children=True)
     disable_ci_visibility()
 
 
