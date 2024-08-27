@@ -136,6 +136,7 @@ test = [
 ]
 
 [envs.meta-testing]
+python = "3.10"
 extra-dependencies = [
     "pytest",
     "pytest-cov",
