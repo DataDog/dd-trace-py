@@ -91,9 +91,9 @@ class DatadogContextMixin(object):
         The active span is updated to be the span's parent if the span has
         finished until an unfinished span is found.
         """
-        if span.finished:
+        if span._finished:
             new_active: Optional[Span] = span
-            while new_active and new_active.finished:
+            while new_active and new_active._finished:
                 new_active = new_active._parent
             self.activate(new_active)
             return new_active
