@@ -182,6 +182,11 @@ def _get_pr_number():
         return 0
 
 
+def should_run_circle_ci() -> bool:
+    pr_number = _get_pr_number()
+    return pr_number != 0 or is_main_or_release_branch()
+
+
 def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None], git_selections: t.List[str]):
     # Used in CircleCI config
     pr_number = _get_pr_number()

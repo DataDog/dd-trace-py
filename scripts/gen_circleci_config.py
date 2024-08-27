@@ -7,6 +7,8 @@
 
 import typing as t
 
+from needs_testrun import should_run_circle_ci
+
 
 def gen_required_suites(template: dict, git_selections: list) -> None:
     """Generate the list of test suites that need to be run."""
@@ -159,6 +161,10 @@ with YAML(output=CONFIG_GEN_FILE) as yaml:
     LOGGER.info("Loading configuration template from %s", CONFIG_TEMPLATE_FILE)
     config = yaml.load(CONFIG_TEMPLATE_FILE)
     git_commit_selections = extract_git_commit_selections(os.getenv("GIT_COMMIT_DESC"))
+
+    if not should_run_circle_ci():
+        LOGGER.warning("CircleCI is not needed for this PR. Exiting.")
+        sys.exit(127)
 
     has_error = False
     LOGGER.info("Configuration generation steps:")
