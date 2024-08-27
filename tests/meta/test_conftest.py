@@ -86,5 +86,3 @@ class ConftestTestCase(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run(file_name)
         rec.assertoutcome(passed=0, failed=0, skipped=1)
-
-        assert True
