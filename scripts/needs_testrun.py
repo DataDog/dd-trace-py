@@ -27,7 +27,7 @@ LOGGER = logging.getLogger(__name__)
 
 BASE_BRANCH_PATTERN = re.compile(r':<span class="css-truncate-target">([^<]+)')
 
-MAIN_OR_RELEASE_BRANCH_RE = re.compile(r"^(main|\d\.\d{1,2}|romain.komorn/ci/dont_run_things_on_non_prs)$")
+MAIN_OR_RELEASE_BRANCH_RE = re.compile(r"^(main|\d\.\d{1,2})$")
 
 
 @cache
