@@ -49,37 +49,37 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Style",
         command="hatch run lint:style",
-        paths={"docker", "*.py", "*.pyi", "hatch.toml", "pyproject.toml"},
+        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml"},
     )
     check(
         name="Typing",
         command="hatch run lint:typing",
-        paths={"docker", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
     )
     check(
         name="Security",
         command="hatch run lint:security",
-        paths={"docker", "ddtrace/*", "hatch.toml"},
+        paths={"docker*", "ddtrace/*", "hatch.toml"},
     )
     check(
         name="Run riotfile.py tests",
         command="hatch run lint:riot",
-        paths={"docker", "riotfile.py", "hatch.toml"},
+        paths={"docker*", "riotfile.py", "hatch.toml"},
     )
     check(
         name="Style: Test snapshots",
         command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
-        paths={"docker", "tests/snapshots/*", "hatch.toml"},
+        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
     )
     check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
-        paths={"docker", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "tests/.suitespec.json"},
+        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "tests/.suitespec.json"},
     )
     check(
         name="Validate suitespec JSON file",
         command="python -m tests.suitespec",
-        paths={"docker", "tests/.suitespec.json", "tests/suitespec.py"},
+        paths={"docker*", "tests/.suitespec.json", "tests/suitespec.py"},
     )
     check(
         name="Check suitespec coverage",
@@ -93,7 +93,7 @@ def gen_build_docs(template: dict) -> None:
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
-        {"docker", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
+        {"docker*", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
     ):
         template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
 
@@ -102,7 +102,7 @@ def gen_slotscheck(template: dict) -> None:
     """Include the slotscheck if the Python source has changed."""
     from needs_testrun import pr_matches_patterns
 
-    if pr_matches_patterns({"docker", "ddtrace/*.py", "hatch.toml"}):
+    if pr_matches_patterns({"docker*", "ddtrace/*.py", "hatch.toml"}):
         template["workflows"]["test"]["jobs"].append({"slotscheck": template["requires_pre_check"]})
 
 
@@ -110,7 +110,7 @@ def gen_conftests(template: dict) -> None:
     """Include the conftests if the Python conftest or tests/meta has changed."""
     from needs_testrun import pr_matches_patterns
 
-    if pr_matches_patterns({"docker", "tests/*conftest.py", "tests/meta/*"}):
+    if pr_matches_patterns({"docker*", "tests/*conftest.py", "tests/meta/*", "hatch.toml"}):
         template["workflows"]["test"]["jobs"].append({"conftests": template["requires_pre_check"]})
 
 

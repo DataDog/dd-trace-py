@@ -3,13 +3,10 @@ from pathlib import Path
 import pytest
 
 from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
-from ddtrace.internal.ci_visibility.api.ci_session import CIVisibilitySession
 from ddtrace.internal.ci_visibility.api.ci_suite import CIVisibilitySuite
 from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
@@ -28,16 +25,12 @@ def _get_default_civisibility_settings():
         module_operation_name="module_operation_name",
         suite_operation_name="suite_operation_name",
         test_operation_name="test_operation_name",
-        root_dir=Path("/absolute/path/to/root_dir"),
+        workspace_path=Path("/absolute/path/to/root_dir"),
     )
 
 
-def _get_default_session_id():
-    return CISessionId("session_name")
-
-
 def _get_default_module_id():
-    return CIModuleId(_get_default_session_id(), "module_name")
+    return CIModuleId("module_name")
 
 
 def _get_default_suite_id():
@@ -71,7 +64,7 @@ def _get_bad_suite_source_file_info():
 class TestCIVisibilityItems:
     def test_civisibilityitem_enforces_sourcefile_info_on_tests(self):
         ci_test = CIVisibilityTest(
-            _get_default_test_id(),
+            _get_default_test_id().name,
             _get_default_civisibility_settings(),
             source_file_info=_get_good_test_source_file_info(),
         )
@@ -81,7 +74,7 @@ class TestCIVisibilityItems:
 
     def test_civiisibilityitem_enforces_sourcefile_info_on_suites(self):
         ci_suite = CIVisibilitySuite(
-            _get_default_suite_id(),
+            _get_default_suite_id().name,
             _get_default_civisibility_settings(),
             source_file_info=_get_good_suite_source_file_info(),
         )
@@ -89,26 +82,11 @@ class TestCIVisibilityItems:
         assert ci_suite._source_file_info.start_line is None
         assert ci_suite._source_file_info.end_line is None
 
-    def test_civisibilityitem_enforces_settings_type(self):
-        bad_settings = object()
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilitySession(_get_default_session_id(), bad_settings)
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilityModule(_get_default_module_id(), bad_settings)
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilitySuite(_get_default_suite_id(), bad_settings)
-
-        with pytest.raises(TypeError):
-            _ = CIVisibilityTest(_get_default_test_id(), bad_settings)
-
 
 class TestCIVisibilitySessionSettings:
     def test_civisibility_sessionsettings_root_dir_accepts_absolute_path(self):
         settings = _get_default_civisibility_settings()
-        assert settings.root_dir.is_absolute()
+        assert settings.workspace_path.is_absolute()
 
     def test_civisibility_sessionsettings_root_dir_rejects_relative_path(self):
         with pytest.raises(ValueError):
@@ -123,7 +101,7 @@ class TestCIVisibilitySessionSettings:
                 module_operation_name="module_operation_name",
                 suite_operation_name="suite_operation_name",
                 test_operation_name="test_operation_name",
-                root_dir=Path("relative/path/to/root_dir"),
+                workspace_path=Path("relative/path/to/root_dir"),
             )
 
     def test_civisibility_sessionsettings_root_dir_rejects_non_path(self):
@@ -139,7 +117,7 @@ class TestCIVisibilitySessionSettings:
                 module_operation_name="module_operation_name",
                 suite_operation_name="suite_operation_name",
                 test_operation_name="test_operation_name",
-                root_dir="not_even_a_path",
+                workspace_path="not_even_a_path",
             )
 
     def test_civisibility_sessionsettings_rejects_non_tracer(self):
@@ -155,5 +133,5 @@ class TestCIVisibilitySessionSettings:
                 module_operation_name="module_operation_name",
                 suite_operation_name="suite_operation_name",
                 test_operation_name="test_operation_name",
-                root_dir=Path("/absolute/path/to/root_dir"),
+                workspace_path=Path("/absolute/path/to/root_dir"),
             )

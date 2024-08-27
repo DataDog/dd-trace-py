@@ -10,7 +10,7 @@ from envier import En
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._debugger import Debugger
-from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+from ddtrace.debugging._exception.replay import SpanExceptionProcessor
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
@@ -201,7 +201,7 @@ class MockSpanExceptionProcessor(SpanExceptionProcessor):
 
 
 @contextmanager
-def exception_debugging(**config_overrides: Any) -> Generator[MockLogsIntakeUploaderV1, None, None]:
+def exception_replay(**config_overrides: Any) -> Generator[MockLogsIntakeUploaderV1, None, None]:
     processor = MockSpanExceptionProcessor()
     processor.register()
     try:

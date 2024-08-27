@@ -22,7 +22,7 @@ Tracing
 .. autoclass:: ddtrace.Pin
     :members:
 
-.. autoclass:: ddtrace.context.Context
+.. autoclass:: ddtrace.trace.Context
     :members:
     :undoc-members:
 

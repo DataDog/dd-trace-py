@@ -13,7 +13,7 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import override_env
 
 
-mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
+mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
 def test_string_index_error_index_error():
@@ -76,7 +76,7 @@ def test_index_error_with_tainted_gives_one_log_metric(telemetry_writer):
 
     list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 1
-    assert "IAST propagation error. index_aspect" in list_metrics_logs[0]["message"]
+    assert "IAST propagation error. string index out of range (native index_aspect)" == list_metrics_logs[0]["message"]
 
 
 @pytest.mark.skip_iast_check_logs

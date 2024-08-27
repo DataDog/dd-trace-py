@@ -21,6 +21,7 @@ dogfood-dogweb-trigger:
     strategy: depend
     branch: emmett.butler/ddtrace-unstable-dogfooding
   allow_failure: true
+  needs: []
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL

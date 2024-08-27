@@ -17,6 +17,8 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
+import wrapt
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
@@ -34,7 +36,6 @@ from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -144,7 +145,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         return
 
     for header_name, header_value in headers.items():
-        """config._header_tag_name gets an element of the dictionary in config.http._header_tags
+        """config._header_tag_name gets an element of the dictionary in config.trace_http_header_tags
         which gets the value from DD_TRACE_HEADER_TAGS environment variable."""
         tag_name = integration_config._header_tag_name(header_name)
         if tag_name is None:

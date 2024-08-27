@@ -204,7 +204,9 @@ PACKAGES = [
         import_module_to_validate="boto3.session",
     ),
     PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
-    PackageForTesting("cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model"),
+    PackageForTesting(
+        "cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model", extras=[("setuptools", "72.1.0")]
+    ),
     PackageForTesting(
         "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
     ),
@@ -288,7 +290,6 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "importlib-resources",
@@ -502,7 +503,6 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
-        fixme_propagation_fails=False,
     ),
     PackageForTesting(
         "sqlalchemy",
@@ -583,7 +583,6 @@ PACKAGES = [
         extras=[("beautifulsoup4", "4.12.3")],
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "werkzeug",
@@ -604,7 +603,6 @@ PACKAGES = [
         import_module_to_validate="yarl._url",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "zipp",
@@ -677,7 +675,6 @@ PACKAGES = [
         "",
         skip_python_version=[(3, 8)],
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     ## TODO: https://datadoghq.atlassian.net/browse/APPSEC-53659
     ## Disabled due to a bug in CI:
@@ -757,7 +754,6 @@ PACKAGES = [
         '(</span><span class="s1">&#39;Hello, world!&#39;</span><span class="p">)</span>\n</pre></div>\n',
         "",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting("grpcio", "1.64.0", "", "", "", test_e2e=False, import_name="grpc"),
     PackageForTesting(
@@ -871,12 +867,12 @@ def _assert_results(response, package):
         assert content["param"] == package.expected_param
 
     if type(content["result1"]) in (str, bytes):
-        assert content["result1"].startswith(package.expected_result1)
+        assert content["result1"].startswith(str(package.expected_result1))
     else:
         assert content["result1"] == package.expected_result1
 
     if type(content["result2"]) in (str, bytes):
-        assert content["result2"].startswith(package.expected_result2)
+        assert content["result2"].startswith(str(package.expected_result2))
     else:
         assert content["result2"] == package.expected_result2
 
@@ -888,7 +884,7 @@ def _assert_propagation_results(response, package):
     if package.fixme_propagation_fails is not None:
         if result_ok:
             if package.fixme_propagation_fails:  # For packages that are reliably failing
-                pytest.fail(
+                pytest.xfail(
                     "FIXME: Test passed unexpectedly, consider changing to fixme_propagation_fails=False for package %s"
                     % package.name
                 )

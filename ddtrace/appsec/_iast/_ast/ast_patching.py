@@ -38,6 +38,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "ddsketch",
     "ddtrace",
     "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "encodings.idna",
     "envier",
     "exceptiongroup",
     "freezegun",  # Testing utilities for time manipulation
@@ -59,6 +60,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pytest",  # Testing framework
     "setuptools",
     "sklearn",  # Machine learning library
+    "sqlalchemy.orm.interfaces",  # Performance optimization
     "tomli",
     "typing_extensions",
     "unittest.mock",

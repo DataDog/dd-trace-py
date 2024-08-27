@@ -3,6 +3,7 @@
 #include "sample.hpp"
 #include "types.hpp"
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 
@@ -24,9 +25,11 @@ class Uploader
     static inline std::mutex upload_lock{};
     std::string errmsg;
     static inline std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel;
-    std::string runtime_id;
-    std::string url;
+    static inline std::atomic<uint64_t> upload_seq{ 0 };
+    std::string output_filename;
     std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
+
+    bool export_to_file(ddog_prof_EncodedProfile* encoded);
 
   public:
     bool upload(ddog_prof_Profile& profile);

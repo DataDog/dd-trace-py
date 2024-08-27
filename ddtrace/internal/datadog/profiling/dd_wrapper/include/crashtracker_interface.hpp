@@ -19,11 +19,13 @@ extern "C"
     void crashtracker_set_stdout_filename(std::string_view filename);
     void crashtracker_set_stderr_filename(std::string_view filename);
     void crashtracker_set_alt_stack(bool alt_stack);
+    void crashtracker_set_wait_for_receiver(bool wait);
     void crashtracker_set_resolve_frames_disable();
     void crashtracker_set_resolve_frames_fast();
     void crashtracker_set_resolve_frames_full();
     void crashtracker_set_resolve_frames_safe();
     bool crashtracker_set_receiver_binary_path(std::string_view path);
+    void crashtracker_set_tag(std::string_view key, std::string_view value);
     void crashtracker_profiling_state_sampling_start();
     void crashtracker_profiling_state_sampling_stop();
     void crashtracker_profiling_state_unwinding_start();

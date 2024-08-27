@@ -61,13 +61,13 @@ import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 
-telemetry_writer._app_started_event()
+telemetry_writer.app_started()
 
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
-    telemetry_writer._app_started_event()
-    telemetry_writer._app_started_event()
-    telemetry_writer._app_started_event()
+    telemetry_writer.app_started()
+    telemetry_writer.app_started()
+    telemetry_writer.app_started()
 else:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
@@ -221,41 +221,37 @@ tracer.trace("hello").finish()
     ]["message"]
 
 
-@pytest.mark.skip(reason="We don't have a way to capture unhandled errors in bootstrap before telemetry is loaded")
-def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
+def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
+    out, stderr, status, _ = run_python_code_in_subprocess(
+        """
+import sys
 
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
-    assert status == 1, stderr
-    assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
+old_exc_hook = sys.excepthook
+def pre_ddtrace_exc_hook(exctype, value, traceback):
+    print("pre_ddtrace_exc_hook called")
+    return old_exc_hook(exctype, value, traceback)
 
-    app_closings = test_agent_session.get_events("app-closing")
-    assert len(app_closings) == 1
-    app_starteds = test_agent_session.get_events("app-started")
-    assert len(app_starteds) == 1
+sys.excepthook = pre_ddtrace_exc_hook
 
-    # Same runtime id is used
-    assert app_closings[0]["runtime_id"] == app_starteds[0]["runtime_id"]
-
-    assert app_starteds[0]["payload"]["error"]["code"] == 1
-    assert "ddtrace/internal/sampling.py" in app_starteds[0]["payload"]["error"]["message"]
-    assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in app_starteds[0]["payload"]["error"]["message"]
-
-
-def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_subprocess):
-    _, stderr, status, _ = run_python_code_in_subprocess(
-        "import ddtrace; ddtrace.tracer.trace('moon').finish(); raise Exception('bad_code')"
+import ddtrace
+raise Exception('bad_code')
+"""
     )
+    assert b"pre_ddtrace_exc_hook called" in out
     assert status == 1, stderr
     assert b"bad_code" in stderr
     # Regression test for python3.12 support
     assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
+    # Regression test for invalid number of arguments in wrapped exception hook
+    assert b"3 positional arguments but 4 were given" not in stderr
 
     app_starteds = test_agent_session.get_events("app-started")
     assert len(app_starteds) == 1
-    # app-started does not capture exceptions raised in application code
-    assert app_starteds[0]["payload"]["error"]["code"] == 0
+    # app-started captures unhandled exceptions raised in application code
+    assert app_starteds[0]["payload"]["error"]["code"] == 1
+    assert re.search(r"test\.py:\d+:\sbad_code$", app_starteds[0]["payload"]["error"]["message"]), app_starteds[0][
+        "payload"
+    ]["error"]["message"]
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
@@ -305,8 +301,6 @@ tracer.trace("hi").finish()
 
 
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_PATCH_MODULES"] = "jinja2:False,subprocess:False"
     code = """
 import logging
 logging.basicConfig()
@@ -318,7 +312,7 @@ f = flask.Flask("hi")
 f.wsgi_app()
 """
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
 
     assert status == 1, stderr
 
@@ -334,16 +328,18 @@ f.wsgi_app()
     app_started_event = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_event) == 1
     assert app_started_event[0]["payload"]["error"]["code"] == 1
-    assert "ddtrace/contrib/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
+    assert "ddtrace/contrib/internal/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
     assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
 
     integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
     integrations = integration_events[0]["payload"]["integrations"]
-    assert len(integrations) == 1
-    assert integrations[0]["enabled"] is True
-    assert integrations[0]["compatible"] is False
-    assert "ddtrace/contrib/flask/patch.py:" in integrations[0]["error"]
-    assert "not enough values to unpack (expected 2, got 0)" in integrations[0]["error"]
+
+    (flask_integration,) = [integration for integration in integrations if integration["name"] == "flask"]
+
+    assert flask_integration["enabled"] is True
+    assert flask_integration["compatible"] is False
+    assert "ddtrace/contrib/internal/flask/patch.py:" in flask_integration["error"]
+    assert "not enough values to unpack (expected 2, got 0)" in flask_integration["error"]
 
     metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
 

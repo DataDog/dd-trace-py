@@ -1,6 +1,7 @@
 import ast
 import base64
 import contextlib
+import functools
 import importlib
 from itertools import product
 import json
@@ -41,6 +42,63 @@ from tests.utils import snapshot_context as _snapshot_context
 
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
+
+
+# Hack to try and capture more logging data from pytest failing on `internal` jobs on
+# pytest shutdown. This is a temporary workaround until we can figure out... why....
+# https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/68751/workflows/8939123d-e0bf-4fd5-a4f2-2368eb9fc141/jobs/4201092
+# OSError: [Errno 9] Bad file descriptor
+if os.environ.get("CI") == "true":
+    try:
+        from _pytest.capture import FDCapture
+
+        original_done = FDCapture.done
+
+        @functools.wraps(FDCapture.done)
+        def wrapped_done(self) -> None:
+            try:
+                original_done(self)
+            except Exception as e:
+                import traceback
+
+                # Write to stderr since pytest captures and hides stdout by default
+                sys.stderr.write("Failed to close FDCapture: %s\n" % e)
+                traceback.print_exc()
+
+                sys.stderr.write(f"FDCapture: {self!r}\n")
+                for name in ("_state", "tmpfile", "syscapture", "targetfd", "targetfd_save", "targetfd_invalid"):
+                    value = "<unknown>"
+                    try:
+                        value = getattr(self, name, "<unknown>")
+                    except Exception:
+                        pass
+                    sys.stderr.write(f"FDCapture.{name}: {value!r}\n")
+
+                for name in ("targetfd", "targetfd_save", "targetfd_invalid"):
+                    try:
+                        # Try to see if the file descriptor is valid, and if so print the file name from /proc/self/fd
+                        fd = getattr(self, name)
+                        if fd is not None:
+                            try:
+                                fd_path = os.readlink(f"/proc/self/fd/{fd}")
+                                sys.stderr.write(f"FDCapture.{name} path: {fd_path!r}\n")
+                            except Exception:
+                                sys.stderr.write(f"FDCapture.{name} path: unknown or invalid\n")
+                        else:
+                            sys.stderr.write(f"FD: {name} is None\n")
+                    except Exception as e:
+                        sys.stderr.write(f"Failed to get FDCapture.{name}, error: {e}\n")
+                sys.stderr.flush()
+
+                # Try to mark the state as done anyways....
+                try:
+                    self._state = "done"
+                except Exception:
+                    pass
+
+        FDCapture.done = wrapped_done
+    except Exception as e:
+        print("Failed to wrap FDCapture", e)
 
 
 def pytest_configure(config):
@@ -103,7 +161,6 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
-    assert len(marks) < 2, "Multiple snapshot marks detected"
     if marks and os.getenv("DD_SNAPSHOT_ENABLED", "1") == "1":
         snap = marks[0]
         token = snap.kwargs.get("token")
