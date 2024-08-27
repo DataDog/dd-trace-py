@@ -25,6 +25,7 @@ include:
   - local: ".gitlab/tests.yml"
   - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/dogfood.yml"
+  - local: ".gitlab/release.yml"
 
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
