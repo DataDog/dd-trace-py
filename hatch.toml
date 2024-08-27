@@ -186,7 +186,7 @@ dependencies = [
 ]
 
 [envs.appsec_threats_django.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL= 12
+CMAKE_BUILD_PARALLEL_LEVEL= "12"
 
 [envs.appsec_threats_django.scripts]
 test = [
@@ -234,7 +234,7 @@ dependencies = [
 ]
 
 [envs.appsec_threats_flask.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL= 12
+CMAKE_BUILD_PARALLEL_LEVEL= "12"
 
 [envs.appsec_threats_flask.scripts]
 test = [
@@ -279,7 +279,7 @@ dependencies = [
 ]
 
 [envs.appsec_threats_fastapi.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL= 12
+CMAKE_BUILD_PARALLEL_LEVEL= "12"
 
 [envs.appsec_threats_fastapi.scripts]
 test = [
