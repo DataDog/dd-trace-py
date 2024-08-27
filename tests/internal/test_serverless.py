@@ -79,8 +79,6 @@ def test_not_azure_function_consumption_plan():
     assert in_azure_function() is False
 
 
-# DEV: Run this test in a subprocess to avoid messing with global sys.modules state
-@pytest.mark.subprocess()
 def test_slow_imports():
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
@@ -120,3 +118,5 @@ def test_slow_imports():
     import ddtrace
     import ddtrace.contrib.aws_lambda  # noqa:F401
     import ddtrace.contrib.psycopg  # noqa:F401
+
+    sys.meta_path = sys.meta_path[1:]
