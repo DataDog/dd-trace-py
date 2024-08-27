@@ -42,9 +42,8 @@ def int_config():
 
 @pytest.fixture
 def span(tracer):
-    span = tracer.trace(name="myint")
-    yield span
-    span.finish()
+    with tracer.trace(name="myint") as span:
+        yield span
 
 
 class TestHeaders(object):
