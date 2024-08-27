@@ -888,17 +888,18 @@ class _NOP_Propagator:
 
 
 class _BaggageHeader:
+    safe_characters_key = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'*+-.^_`|~"
+    safe_characters_value = (
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'()*+-./:<>?@[]^_`{|}~"
+    )
+
     @staticmethod
     def _encode_key(key):
-        safe_characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'*+-.^_`|~"
-        encoded = urllib.parse.quote(key, safe=safe_characters)
+        encoded = urllib.parse.quote(key, safe=_BaggageHeader.safe_characters_key)
         return encoded
 
     def _encode_value(value):
-        safe_characters = (
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'()*+-./:<>?@[]^_`{|}~"
-        )
-        encoded = urllib.parse.quote(value, safe=safe_characters)
+        encoded = urllib.parse.quote(value, safe=_BaggageHeader.safe_characters_value)
         return encoded
 
     @staticmethod
