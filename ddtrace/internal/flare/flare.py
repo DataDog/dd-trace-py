@@ -56,6 +56,9 @@ class Flare:
         self._api_key: Optional[str] = api_key
         self.ddconfig = ddconfig
 
+    def my_test_func(self) -> None:
+        pass
+
     def prepare(self, log_level: str):
         """
         Update configurations to start sending tracer logs to a file
