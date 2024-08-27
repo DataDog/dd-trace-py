@@ -1,6 +1,10 @@
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
+
+from pydantic import BaseModel
+from pydantic import ConfigDict
 
 
 # TypedDict was added to typing in python 3.8
@@ -15,6 +19,65 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 DocumentType = Dict[str, Union[str, int, float]]
+
+
+class MetaIO(BaseModel):
+    prompt: Optional[Dict] = None
+    value: Optional[str] = None
+    # (TODO): lievan, let Messages and Documents inherit from BaseModel
+    documents: Optional[List[DocumentType]] = None
+    messages: Optional[List[Dict[str, str]]] = None
+
+
+class Prompt(BaseModel):
+    template: str = ""
+    variables: Dict = {}
+    prompt_version: str = ""
+
+
+class SpanField(BaseModel):
+    kind: str = ""
+
+
+class Error(BaseModel):
+    message: str = ""
+    stack: str = ""
+
+
+class Meta(BaseModel):
+    # model_* is a protected namespace in pydantic, so we need to add this line to allow
+    # for model_* fields
+    model_config = ConfigDict(protected_namespaces=())
+    span: SpanField = SpanField()
+    error: Error = Error()
+    input: MetaIO = MetaIO()
+    output: MetaIO = MetaIO()
+    metadata: Dict = {}
+    # (TODO) lievan: validate model_* fields are only present on certain span types
+    model_name: str = ""
+    model_provider: str = ""
+
+
+class LLMObsSpanContext(BaseModel):
+    span_id: str
+    trace_id: str
+    name: str
+    ml_app: str
+    meta: Meta = Meta()
+    session_id: str = ""
+    metrics: Dict[str, Union[int, float]] = {}
+    tags: List[str] = []
+
+
+class EvaluationMetric(BaseModel):
+    label: str
+    categorical_value: str
+    score_value: Union[int, float]
+    metric_type: str
+    tags: Dict[str, str] = {}
+    ml_app: str
+    timestamp_ms: int
+
 
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)

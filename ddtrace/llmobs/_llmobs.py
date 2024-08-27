@@ -3,6 +3,7 @@ import os
 import time
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -51,6 +52,8 @@ from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
 
+from .evaluations._ragas import RagasRunner
+
 
 log = get_logger(__name__)
 
@@ -62,12 +65,14 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "langchain": "langchain",
 }
 
+SUPPORTED_LLMOBS_EVALUATIONS = {"ragas": RagasRunner}
+
 
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
 
-    def __init__(self, tracer=None):
+    def __init__(self, tracer=None, evaluation_callbacks=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_span_writer = None
@@ -84,7 +89,20 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
-        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
+        self._evaluation_callbacks = []
+        if evaluation_callbacks:
+            for evaluation in evaluation_callbacks:
+                if evaluation not in SUPPORTED_LLMOBS_EVALUATIONS:
+                    log.warning("unsupported evaluation runner")
+                    continue
+                else:
+                    self._evaluation_callbacks.append(
+                        SUPPORTED_LLMOBS_EVALUATIONS[eval](writer=self._llmobs_eval_metric_writer)
+                    )
+
+        self._trace_processor = LLMObsTraceProcessor(
+            self._llmobs_span_writer, evaluation_callbacks=self._evaluation_callbacks
+        )
         forksafe.register(self._child_after_fork)
 
     def _child_after_fork(self):
@@ -104,6 +122,8 @@ class LLMObs(Service):
         try:
             self._llmobs_span_writer.start()
             self._llmobs_eval_metric_writer.start()
+            for callback in self._evaluation_callbacks:
+                callback.start()
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
@@ -111,6 +131,8 @@ class LLMObs(Service):
         try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
+            for runner in self._evaluation_callbacks:
+                runner.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
@@ -130,6 +152,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
+        evaluations: Optional[List[str]] = None,
         _tracer: Optional[ddtrace.Tracer] = None,
     ) -> None:
         """
@@ -192,13 +215,17 @@ class LLMObs(Service):
 
         if integrations_enabled:
             cls._patch_integrations()
+
         # override the default _instance with a new tracer
-        cls._instance = cls(tracer=_tracer)
+        cls._instance = cls(tracer=_tracer, evaluation_callbacks=evaluations)
         cls.enabled = True
         cls._instance.start()
 
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
+
+    def _register_evaluation(cls, integration):
+        pass
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
