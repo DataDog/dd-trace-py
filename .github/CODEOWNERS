@@ -69,6 +69,7 @@ tests/ci_visibility                 @DataDog/ci-app-libraries
 tests/coverage                      @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/tracer/test_ci.py             @DataDog/ci-app-libraries
 ddtrace/ext/git.py                  @DataDog/ci-app-libraries @DataDog/apm-core-python
+scripts/ci_visibility/*             @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
