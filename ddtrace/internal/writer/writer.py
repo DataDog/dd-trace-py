@@ -436,7 +436,6 @@ class AgentWriter(HTTPWriter):
     def __init__(
         self,
         agent_url: str,
-        priority_sampling: bool = False,
         processing_interval: Optional[float] = None,
         # Match the payload size since there is no functionality
         # to flush dynamically.
