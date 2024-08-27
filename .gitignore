@@ -113,6 +113,9 @@ celerybeat-schedule*
 venv/
 ENV/
 
+# Worktrees
+.worktrees/
+
 # Spyder project settings
 .spyderproject
 

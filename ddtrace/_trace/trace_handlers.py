@@ -7,6 +7,8 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+import wrapt
+
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
@@ -33,7 +35,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -517,10 +518,12 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
 
 
 def _on_django_start_response(
-    ctx, request, extract_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
+    ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
 ):
     parsed_query = request.GET
     body = extract_body(request)
+    remake_body(request)
+
     trace_utils.set_http_meta(
         ctx["call"],
         ctx["distributed_headers_config"],

@@ -15,9 +15,16 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
+from ddtrace.internal.ci_visibility.telemetry.payload import ENDPOINT
+from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_count
+from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
+
+log = get_logger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
@@ -34,6 +41,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     PAYLOAD_FORMAT_VERSION = 1
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
+    ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
@@ -62,7 +70,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     def encode(self):
         with self._lock:
-            payload = self._build_payload(self.buffer)
+            with StopWatch() as sw:
+                payload = self._build_payload(self.buffer)
+            record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
             self._init_buffer()
             return payload
 
@@ -70,6 +80,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         normalized_spans = [self._convert_span(span, trace[0].context.dd_origin) for trace in traces for span in trace]
         if not normalized_spans:
             return None
+        record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return CIVisibilityEncoderV01._pack_payload(
@@ -141,6 +152,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
 class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
+    ENDPOINT_TYPE = ENDPOINT.CODE_COVERAGE
     boundary = uuid4().hex
     content_type = "multipart/form-data; boundary=%s" % boundary
     itr_suite_skipping_mode = False
@@ -149,7 +161,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         self.itr_suite_skipping_mode = new_value
 
     def put(self, spans):
-        spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
+        spans_with_coverage = [
+            span
+            for span in spans
+            if COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None
+        ]
         if not spans_with_coverage:
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
@@ -185,10 +201,14 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     def _build_data(self, traces):
         # type: (List[List[Span]]) -> Optional[bytes]
         normalized_covs = [
-            self._convert_span(span, "") for trace in traces for span in trace if COVERAGE_TAG_NAME in span.get_tags()
+            self._convert_span(span, "")
+            for trace in traces
+            for span in trace
+            if (COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None)
         ]
         if not normalized_covs:
             return None
+        record_endpoint_payload_events_count(endpoint=ENDPOINT.CODE_COVERAGE, count=len(normalized_covs))
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
@@ -201,13 +221,23 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
 
     def _convert_span(self, span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]
+        files: Dict[str, Any] = {}
+
+        files_struct_tag_value = span.get_struct_tag(COVERAGE_TAG_NAME)
+        if files_struct_tag_value is not None and "files" in files_struct_tag_value:
+            files = files_struct_tag_value["files"]
+        elif COVERAGE_TAG_NAME in span.get_tags():
+            files = json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"]
+
         converted_span = {
             "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
-            "files": json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"],
+            "files": files,
         }
 
         if not self.itr_suite_skipping_mode:
             converted_span["span_id"] = span.span_id
+
+        log.debug("Span converted to coverage event: %s", converted_span)
 
         return converted_span

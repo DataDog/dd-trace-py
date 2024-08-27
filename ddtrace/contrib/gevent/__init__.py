@@ -43,10 +43,14 @@ required_modules = ["gevent"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        # Required to allow users to import from `ddtrace.contrib.gevent.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
         from ...provider import DefaultContextProvider as _DefaultContextProvider
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch
+        from ..internal.gevent.patch import get_version
+        from ..internal.gevent.patch import patch
+        from ..internal.gevent.patch import unpatch
 
         context_provider = _DefaultContextProvider()
 

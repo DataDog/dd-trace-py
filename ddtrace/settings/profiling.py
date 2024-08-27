@@ -1,9 +1,16 @@
+import itertools
 import math
 import os
 import typing as t
 
 from envier import En
 
+from ddtrace import config as core_config
+from ddtrace.ext.git import COMMIT_SHA
+from ddtrace.ext.git import MAIN_PACKAGE
+from ddtrace.ext.git import REPOSITORY_URL
+from ddtrace.internal import compat
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
 
@@ -83,7 +90,8 @@ def _is_libdd_required(config):
     # v2 requires libdd because it communicates over a pure-native channel
     # libdd... requires libdd
     # injected environments _cannot_ deploy protobuf, so they must use libdd
-    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected
+    # timeline requires libdd
+    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected or config.timeline_enabled
 
 
 # This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
@@ -94,8 +102,11 @@ _profiling_injected = False
 def _parse_profiling_enabled(raw: str) -> bool:
     global _profiling_injected
 
+    # Before we do anything else, check the tracer configuration
+    _profiling_injected = core_config._lib_was_injected
+
     # Try to derive two bits of information
-    # - Are we injected (DD_INJECTION_ENABLED set)
+    # - Are we injected (DD_INJECTION_ENABLED set) (almost certainly already populated correctly by core_config)
     # - Is profiling enabled ("profiler" in the list)
     if os.environ.get("DD_INJECTION_ENABLED") is not None:
         _profiling_injected = True
@@ -121,6 +132,34 @@ def _parse_profiling_enabled(raw: str) -> bool:
 def _check_for_injected():
     global _profiling_injected
     return _profiling_injected
+
+
+def _update_git_metadata_tags(tags):
+    """
+    Update profiler tags with git metadata
+    """
+    # clean tags, because values will be combined and inserted back in the same way as for tracer
+    gitmetadata.clean_tags(tags)
+    repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
+    if repository_url:
+        tags[REPOSITORY_URL] = repository_url
+    if commit_sha:
+        tags[COMMIT_SHA] = commit_sha
+    if main_package:
+        tags[MAIN_PACKAGE] = main_package
+    return tags
+
+
+def _enrich_tags(tags) -> t.Dict[str, str]:
+    tags = {
+        k: compat.ensure_text(v, "utf-8")
+        for k, v in itertools.chain(
+            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            tags.items(),
+        )
+    }
+
+    return tags
 
 
 class ProfilingConfig(En):
@@ -254,6 +293,25 @@ class ProfilingConfig(En):
         help="Whether to enable debug assertions in the profiler code",
     )
 
+    _force_legacy_exporter = En.v(
+        bool,
+        "_force_legacy_exporter",
+        default=False,
+        help_type="Boolean",
+        help="Exclusively used in testing environments to force the use of the legacy exporter. This parameter is "
+        "not for general use and will be removed in the near future.",
+    )
+
+    sample_pool_capacity = En.v(
+        int,
+        "sample_pool_capacity",
+        default=4,
+        help_type="Integer",
+        help="The number of Sample objects to keep in the pool for reuse. "
+        "Increasing this can reduce the overhead from frequently allocating "
+        "and deallocating Sample objects.",
+    )
+
 
 class ProfilingConfigStack(En):
     __item__ = __prefix__ = "stack"
@@ -371,6 +429,12 @@ config._injected = _check_for_injected()
 # configuration too intentionally and we'll need to change the API too much over time.
 config.export.libdd_enabled = _is_libdd_required(config)
 
+# AFTER checking for libdd enablement, we process the override (_force_legacy_exporter), which will disable libdd.
+# This is done because we currently test in an injected posture, but the new exporter doesn't have the same
+# introspection capabilities as the legacy one.
+if config._force_legacy_exporter:
+    config.export.libdd_enabled = False
+
 # Certain features depend on libdd being available.  If it isn't for some reason, those features cannot be enabled.
 if config.stack.v2_enabled and not config.export.libdd_enabled:
     msg = ddup_failure_msg or "libdd not available"
@@ -382,3 +446,6 @@ if config.stack.v2_enabled and not _check_for_stack_v2_available():
     msg = stack_v2_failure_msg or "stack_v2 not available"
     logger.warning("The v2 stack profiler cannot be used (%s)", msg)
     config.stack.v2_enabled = False
+
+# Enrich tags with git metadata and DD_TAGS
+config.tags = _enrich_tags(config.tags)

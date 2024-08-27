@@ -21,18 +21,28 @@ from typing import Dict
 from typing import List
 from typing import NamedTuple
 from typing import Optional
-from typing import Tuple
 from typing import Type
 from typing import Union
 
+from ddtrace import Span
 from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
 from ddtrace.ext.ci_visibility._ci_visibility_base import CISourceFileInfoBase
+from ddtrace.ext.ci_visibility._ci_visibility_base import _CISessionId
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityChildItemIdBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityRootItemIdBase
-from ddtrace.ext.ci_visibility.util import _catch_and_log_exceptions
+from ddtrace.ext.ci_visibility._utils import _catch_and_log_exceptions
+from ddtrace.ext.ci_visibility._utils import _delete_item_tag
+from ddtrace.ext.ci_visibility._utils import _delete_item_tags
+from ddtrace.ext.ci_visibility._utils import _get_item_span
+from ddtrace.ext.ci_visibility._utils import _get_item_tag
+from ddtrace.ext.ci_visibility._utils import _is_item_finished
+from ddtrace.ext.ci_visibility._utils import _set_item_tag
+from ddtrace.ext.ci_visibility._utils import _set_item_tags
 from ddtrace.ext.test import Status as TestStatus
 from ddtrace.internal import core
+from ddtrace.internal.codeowners import Codeowners
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -55,29 +65,22 @@ class DEFAULT_OPERATION_NAMES(Enum):
     MODULE = "ci_visibility.module"
     SUITE = "ci_visibility.suite"
     TEST = "ci_visibility.test"
-    UNSET = "ci_visibility.unset"
 
 
 @dataclasses.dataclass(frozen=True)
-class CISessionId(_CIVisibilityRootItemIdBase):
-    name: str = DEFAULT_SESSION_NAME
+class CIModuleId(_CIVisibilityRootItemIdBase):
+    name: str
 
     def __repr__(self):
-        return "CISessionId(name={})".format(self.name)
-
-
-@dataclasses.dataclass(frozen=True)
-class CIModuleId(_CIVisibilityChildItemIdBase[CISessionId]):
-    def __repr__(self):
-        return "CIModuleId(session={}, module={})".format(self.get_session_id().name, self.name)
+        return "CIModuleId(module={})".format(
+            self.name,
+        )
 
 
 @dataclasses.dataclass(frozen=True)
 class CISuiteId(_CIVisibilityChildItemIdBase[CIModuleId]):
     def __repr__(self):
-        return "CISuiteId(session={}, module={}, suite={})".format(
-            self.get_session_id().name, self.parent_id.name, self.name
-        )
+        return "CISuiteId(module={}, suite={})".format(self.parent_id.name, self.name)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -86,8 +89,7 @@ class CITestId(_CIVisibilityChildItemIdBase[CISuiteId]):
     retry_number: int = 0
 
     def __repr__(self):
-        return "CITestId(session={}, module={}, suite={}, test={}, parameters={}, retry_number={})".format(
-            self.get_session_id().name,
+        return "CITestId(module={}, suite={}, test={}, parameters={}, retry_number={})".format(
             self.parent_id.parent_id.name,
             self.parent_id.name,
             self.name,
@@ -111,12 +113,19 @@ class CIExcInfo:
 
 
 @_catch_and_log_exceptions
-def enable_ci_visibility():
+def enable_ci_visibility(config: Optional[Any] = None):
     from ddtrace.internal.ci_visibility import CIVisibility
 
-    CIVisibility.enable()
+    CIVisibility.enable(config=config)
     if not CIVisibility.enabled:
         log.warning("CI Visibility enabling failed.")
+
+
+@_catch_and_log_exceptions
+def is_ci_visibility_enabled():
+    from ddtrace.internal.ci_visibility import CIVisibility
+
+    return CIVisibility.enabled
 
 
 @_catch_and_log_exceptions
@@ -130,31 +139,37 @@ def disable_ci_visibility():
 
 class CIBase(_CIVisibilityAPIBase):
     @staticmethod
+    def get_tag(item_id: CIItemId, tag_name: str) -> Any:
+        return _get_item_tag(item_id, tag_name)
+
+    @staticmethod
     def set_tag(item_id: CIItemId, tag_name: str, tag_value: Any, recurse: bool = False):
-        log.debug("Setting tag for item %s: %s=%s", item_id, tag_name, tag_value)
-        core.dispatch("ci_visibility.item.set_tag", (CIBase.SetTagArgs(item_id, tag_name, tag_value),))
+        _set_item_tag(item_id, tag_name, tag_value, recurse)
 
     @staticmethod
     def set_tags(item_id: CIItemId, tags: Dict[str, Any], recurse: bool = False):
-        log.debug("Setting tags for item %s: %s", item_id, tags)
-        core.dispatch("ci_visibility.item.set_tags", (CIBase.SetTagsArgs(item_id, tags),))
+        _set_item_tags(item_id, tags, recurse)
 
     @staticmethod
     def delete_tag(item_id: CIItemId, tag_name: str, recurse: bool = False):
-        log.debug("Deleting tag for item %s: %s", item_id, tag_name)
-        core.dispatch("ci_visibility.item.delete_tag", (CIBase.DeleteTagArgs(item_id, tag_name),))
+        _delete_item_tag(item_id, tag_name, recurse)
 
     @staticmethod
     def delete_tags(item_id: CIItemId, tag_names: List[str], recurse: bool = False):
-        log.debug("Deleting tags for item %s: %s", item_id, tag_names)
-        core.dispatch("ci_visibility.item.delete_tags", (CIBase.DeleteTagsArgs(item_id, tag_names),))
+        _delete_item_tags(item_id, tag_names, recurse)
+
+    @staticmethod
+    def get_span(item_id: CIItemId) -> Span:
+        return _get_item_span(item_id)
+
+    @staticmethod
+    def is_finished(item_id: CIItemId) -> bool:
+        return _is_item_finished(item_id)
 
 
-class CISession(CIBase):
+class CISession(_CIVisibilityAPIBase):
     class DiscoverArgs(NamedTuple):
-        session_id: CISessionId
         test_command: str
-        reject_unknown_items: bool
         reject_duplicates: bool
         test_framework: str
         test_framework_version: str
@@ -167,11 +182,9 @@ class CISession(CIBase):
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
-        item_id: Optional[CISessionId],
         test_command: str,
         test_framework: str,
         test_framework_version: str,
-        reject_unknown_items: bool = True,
         reject_duplicates: bool = True,
         session_operation_name: str = DEFAULT_OPERATION_NAMES.SESSION.value,
         module_operation_name: str = DEFAULT_OPERATION_NAMES.MODULE.value,
@@ -179,23 +192,16 @@ class CISession(CIBase):
         test_operation_name: str = DEFAULT_OPERATION_NAMES.TEST.value,
         root_dir: Optional[Path] = None,
     ):
-        item_id = item_id or CISessionId()
-
-        log.debug("Registering session %s with test command: %s", item_id, test_command)
-        from ddtrace.internal.ci_visibility import CIVisibility
-
-        CIVisibility.enable()
-        if not CIVisibility.enabled:
-            log.debug("CI Visibility enabling failed, session not registered.")
+        log.debug("Registering session with test command: %s", test_command)
+        if not is_ci_visibility_enabled():
+            log.debug("CI Visibility is not enabled, session not registered.")
             return
 
         core.dispatch(
             "ci_visibility.session.discover",
             (
                 CISession.DiscoverArgs(
-                    item_id,
                     test_command,
-                    reject_unknown_items,
                     reject_duplicates,
                     test_framework,
                     test_framework_version,
@@ -210,40 +216,106 @@ class CISession(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start(item_id: Optional[CISessionId] = None):
+    def start():
         log.debug("Starting session")
-
-        item_id = item_id or CISessionId()
-        core.dispatch("ci_visibility.session.start", (item_id,))
+        core.dispatch("ci_visibility.session.start")
 
     class FinishArgs(NamedTuple):
-        session_id: CISessionId
         force_finish_children: bool
         override_status: Optional[CITestStatus]
 
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
-        item_id: Optional[CISessionId] = None,
         force_finish_children: bool = False,
         override_status: Optional[CITestStatus] = None,
     ):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
-        item_id = item_id or CISessionId()
-        core.dispatch(
-            "ci_visibility.session.finish", (CISession.FinishArgs(item_id, force_finish_children, override_status),)
-        )
+        core.dispatch("ci_visibility.session.finish", (CISession.FinishArgs(force_finish_children, override_status),))
+
+    @staticmethod
+    def get_tag(tag_name: str) -> Any:
+        return _get_item_tag(_CISessionId(), tag_name)
+
+    @staticmethod
+    def set_tag(tag_name: str, tag_value: Any, recurse: bool = False):
+        _set_item_tag(_CISessionId(), tag_name, tag_value, recurse)
+
+    @staticmethod
+    def set_tags(tags: Dict[str, Any], recurse: bool = False):
+        _set_item_tags(_CISessionId(), tags, recurse)
+
+    @staticmethod
+    def delete_tag(tag_name: str, recurse: bool = False):
+        _delete_item_tag(_CISessionId(), tag_name, recurse)
+
+    @staticmethod
+    def delete_tags(tag_names: List[str], recurse: bool = False):
+        _delete_item_tags(_CISessionId(), tag_names, recurse)
+
+    @staticmethod
+    def get_span() -> Span:
+        return _get_item_span(_CISessionId())
+
+    @staticmethod
+    def is_finished() -> bool:
+        return _is_item_finished(_CISessionId())
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_known_tests(item_id: Optional[CISessionId] = None):
+    def get_codeowners() -> Optional[Codeowners]:
+        log.debug("Getting codeowners object")
+
+        codeowners: Optional[Codeowners] = core.dispatch_with_results(
+            "ci_visibility.session.get_codeowners",
+        ).codeowners.value
+        return codeowners
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_workspace_path() -> Path:
+        log.debug("Getting session workspace path")
+
+        workspace_path: Path = core.dispatch_with_results(
+            "ci_visibility.session.get_workspace_path"
+        ).workspace_path.value
+        return workspace_path
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def should_collect_coverage() -> bool:
+        log.debug("Checking if coverage should be collected for session")
+
+        _should_collect_coverage = bool(
+            core.dispatch_with_results("ci_visibility.session.should_collect_coverage").should_collect_coverage.value
+        )
+        log.debug("Coverage should be collected: %s", _should_collect_coverage)
+
+        return _should_collect_coverage
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def is_test_skipping_enabled() -> bool:
+        log.debug("Checking if test skipping is enabled")
+
+        _is_test_skipping_enabled = bool(
+            core.dispatch_with_results("ci_visibility.session.is_test_skipping_enabled").is_test_skipping_enabled.value
+        )
+        log.debug("Test skipping is enabled: %s", _is_test_skipping_enabled)
+
+        return _is_test_skipping_enabled
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_known_tests():
         pass
 
 
 class CIModule(CIBase):
     class DiscoverArgs(NamedTuple):
         module_id: CIModuleId
+        module_path: Optional[Path] = None
 
     class FinishArgs(NamedTuple):
         module_id: CIModuleId
@@ -252,9 +324,9 @@ class CIModule(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def discover(item_id: CIModuleId):
+    def discover(item_id: CIModuleId, module_path: Optional[Path] = None):
         log.debug("Registered module %s", item_id)
-        core.dispatch("ci_visibility.module.discover", (CIModule.DiscoverArgs(item_id),))
+        core.dispatch("ci_visibility.module.discover", (CIModule.DiscoverArgs(item_id, module_path),))
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -286,40 +358,86 @@ class CIITRMixin(CIBase):
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_skipped(item_id: Union[CISuiteId, CITestId]):
-        log.debug("Marking test %s as skipped by ITR", item_id)
+        log.debug("Marking item %s as skipped by ITR", item_id)
         core.dispatch("ci_visibility.itr.finish_skipped_by_itr", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_unskippable(item_id: Union[CISuiteId, CITestId]):
-        log.debug("Marking test %s as unskippable by ITR", item_id)
+        log.debug("Marking item %s as unskippable by ITR", item_id)
         core.dispatch("ci_visibility.itr.mark_unskippable", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_forced_run(item_id: Union[CISuiteId, CITestId]):
-        log.debug("Marking test %s as unskippable by ITR", item_id)
+        log.debug("Marking item %s as unskippable by ITR", item_id)
         core.dispatch("ci_visibility.itr.mark_forced_run", (item_id,))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def was_forced_run(item_id: Union[CISuiteId, CITestId]) -> bool:
+        """Skippable items are not currently tied to a test session, so no session ID is passed"""
+        log.debug("Checking if item %s was forced to run", item_id)
+        _was_forced_run = bool(
+            core.dispatch_with_results("ci_visibility.itr.was_forced_run", (item_id,)).was_forced_run.value
+        )
+        log.debug("Item %s was forced run: %s", item_id, _was_forced_run)
+        return _was_forced_run
 
     @staticmethod
     @_catch_and_log_exceptions
     def is_item_itr_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
-        log.debug("Getting skippable items")
-        is_item_skippable: Optional[bool] = core.dispatch_with_results(
-            "ci_visibility.itr.is_item_skippable", (item_id,)
-        ).is_item_skippable.value
-        return bool(is_item_skippable)
+        log.debug("Checking if item %s is skippable", item_id)
+        is_item_skippable = bool(
+            core.dispatch_with_results("ci_visibility.itr.is_item_skippable", (item_id,)).is_item_skippable.value
+        )
+        log.debug("Item %s is skippable: %s", item_id, is_item_skippable)
 
-    class AddCoverageArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
-        coverage_data: Dict[Path, List[Tuple[int, int]]]
+        return is_item_skippable
 
     @staticmethod
     @_catch_and_log_exceptions
-    def add_coverage_data(item_id: Union[CISuiteId, CITestId], coverage_data: Dict[Path, List[Tuple[int, int]]]):
-        log.debug("Adding coverage data for test %s: %s", item_id, coverage_data)
+    def is_item_itr_unskippable(item_id: Union[CISuiteId, CITestId]) -> bool:
+        """Skippable items are not currently tied to a test session, so no session ID is passed"""
+        log.debug("Checking if item %s is unskippable", item_id)
+        is_item_unskippable = bool(
+            core.dispatch_with_results("ci_visibility.itr.is_item_unskippable", (item_id,)).is_item_unskippable.value
+        )
+        log.debug("Item %s is unskippable: %s", item_id, is_item_unskippable)
+
+        return is_item_unskippable
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def was_item_skipped_by_itr(item_id: Union[CISuiteId, CITestId]) -> bool:
+        """Skippable items are not currently tied to a test session, so no session ID is passed"""
+        log.debug("Checking if item %s was skipped by ITR", item_id)
+        was_item_skipped = bool(
+            core.dispatch_with_results("ci_visibility.itr.was_item_skipped", (item_id,)).was_item_skipped.value
+        )
+        log.debug("Item %s was skipped by ITR: %s", item_id, was_item_skipped)
+        return was_item_skipped
+
+    class AddCoverageArgs(NamedTuple):
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        coverage_data: Dict[Path, CoverageLines]
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def add_coverage_data(item_id: Union[CISuiteId, CITestId], coverage_data: Dict[Path, CoverageLines]):
+        log.debug("Adding coverage data for item %s: %s", item_id, coverage_data)
         core.dispatch("ci_visibility.item.add_coverage_data", (CIITRMixin.AddCoverageArgs(item_id, coverage_data),))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_coverage_data(item_id: Union[CISuiteId, CITestId]) -> Optional[Dict[Path, CoverageLines]]:
+        log.debug("Getting coverage data for item %s", item_id)
+        coverage_data = core.dispatch_with_results(
+            "ci_visibility.item.get_coverage_data", (item_id,)
+        ).coverage_data.value
+        log.debug("Coverage data for item %s: %s", item_id, coverage_data)
+        return coverage_data
 
 
 class CISuite(CIITRMixin, CIBase):
@@ -374,6 +492,7 @@ class CITest(CIITRMixin, CIBase):
         test_id: CITestId
         codeowners: Optional[List[str]] = None
         source_file_info: Optional[CISourceFileInfo] = None
+        resource: Optional[str] = None
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -382,15 +501,19 @@ class CITest(CIITRMixin, CIBase):
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[CISourceFileInfo] = None,
         is_early_flake_detection: bool = False,
+        resource: Optional[str] = None,
     ):
         """Registers a test with the CI Visibility service."""
         log.debug(
-            "Discovering test %s, codeowners: %s, source file: %s",
+            "Discovering test %s, codeowners: %s, source file: %s, resource: %s",
             item_id,
             codeowners,
             source_file_info,
+            resource,
         )
-        core.dispatch("ci_visibility.test.discover", (CITest.DiscoverArgs(item_id, codeowners, source_file_info),))
+        core.dispatch(
+            "ci_visibility.test.discover", (CITest.DiscoverArgs(item_id, codeowners, source_file_info, resource),)
+        )
 
     class DiscoverEarlyFlakeRetryArgs(NamedTuple):
         test_id: CITestId

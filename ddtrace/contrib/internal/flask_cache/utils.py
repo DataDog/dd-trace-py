@@ -1,6 +1,6 @@
 # project
 from ddtrace._trace.utils_redis import _extract_conn_tags as extract_redis_tags
-from ddtrace.contrib.pylibmc.addrs import parse_addresses
+from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
 from ddtrace.ext import net
 
 
@@ -47,6 +47,7 @@ def _extract_conn_tags(client):
             contact_point = client.servers[0].address
             tags[net.TARGET_HOST] = contact_point[0]
             tags[net.TARGET_PORT] = contact_point[1]
+            tags[net.SERVER_ADDRESS] = contact_point[0]
     elif hasattr(client, "connection_pool"):
         # Redis main connection
         redis_tags = extract_redis_tags(client.connection_pool.connection_kwargs)
@@ -59,4 +60,5 @@ def _extract_conn_tags(client):
             _, host, port, _ = addrs[0]
             tags[net.TARGET_PORT] = port
             tags[net.TARGET_HOST] = host
+            tags[net.SERVER_ADDRESS] = host
     return tags

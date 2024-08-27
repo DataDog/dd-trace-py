@@ -194,14 +194,15 @@ class _ImportHookChainedLoader:
         self.transformers[key] = transformer
 
     def call_back(self, module: ModuleType) -> None:
-        # Restore the original loader
+        # Restore the original loader, if possible. Some specs might be native
+        # and won't support attribute assignment.
         try:
             module.__loader__ = self.loader
-        except AttributeError:
+        except (AttributeError, TypeError):
             pass
         try:
-            module.spec.loader = self.loader
-        except AttributeError:
+            object.__getattribute__(module, "spec").loader = self.loader
+        except (AttributeError, TypeError):
             pass
 
         if module.__name__ == "pkg_resources":
@@ -213,20 +214,6 @@ class _ImportHookChainedLoader:
         for callback in self.callbacks.values():
             callback(module)
 
-    def import_exception_call_back(self, module: ModuleType) -> None:
-        # Restore the original loader
-        try:
-            module.__loader__ = self.loader
-        except AttributeError:
-            pass
-        try:
-            module.spec.loader = self.loader
-        except AttributeError:
-            pass
-
-        for import_exception_callback in self.import_exception_callbacks.values():
-            import_exception_callback(module)
-
     def load_module(self, fullname: str) -> t.Optional[ModuleType]:
         if self.loader is None:
             if self.spec is None:
@@ -235,7 +222,10 @@ class _ImportHookChainedLoader:
         else:
             module = self.loader.load_module(fullname)
 
-        self.call_back(module)
+        try:
+            self.call_back(module)
+        except Exception:
+            log.exception("Failed to call back on module %s", module)
 
         return module
 
@@ -309,7 +299,10 @@ class _ImportHookChainedLoader:
                     exception_hook(self, module)
                 raise
 
-        self.call_back(module)
+        try:
+            self.call_back(module)
+        except Exception:
+            log.exception("Failed to call back on module %s", module)
 
 
 class BaseModuleWatchdog(abc.ABC):
@@ -344,7 +337,8 @@ class BaseModuleWatchdog(abc.ABC):
         i = cls._find_in_meta_path()
 
         if i is None:
-            raise RuntimeError("%s is not installed" % cls.__name__)
+            log.warning("%s is not installed", cls.__name__)
+            return
 
         sys.meta_path.pop(i)
 
@@ -412,15 +406,14 @@ class BaseModuleWatchdog(abc.ABC):
 
     @classmethod
     def _check_installed(cls) -> None:
-        if not cls.is_installed():
-            raise RuntimeError("%s is not installed" % cls.__name__)
+        if cls.is_installed():
+            return
 
     @classmethod
     def install(cls) -> None:
         """Install the module watchdog."""
         if cls.is_installed():
-            raise RuntimeError("%s is already installed" % cls.__name__)
-
+            return
         cls._instance = cls()
         cls._instance._add_to_meta_path()
         log.debug("%s installed", cls)
@@ -555,7 +548,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
         # change, then thread-safety might become a concern.
         resolved_path = _resolve(origin)
         if resolved_path is None:
-            raise ValueError("Cannot resolve module origin %s" % origin)
+            log.warning("Cannot resolve module origin %s", origin)
+            return
 
         path = str(resolved_path)
 
@@ -588,13 +582,15 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         resolved_path = _resolve(origin)
         if resolved_path is None:
-            raise ValueError("Module origin %s cannot be resolved", origin)
+            log.warning("Module origin %s cannot be resolved", origin)
+            return
 
         path = str(resolved_path)
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         if path not in instance._hook_map:
-            raise ValueError("No hooks registered for origin %s" % origin)
+            log.warning("No hooks registered for origin %s", origin)
+            return
 
         try:
             if path in instance._hook_map:
@@ -603,7 +599,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 if not hooks:
                     del instance._hook_map[path]
         except ValueError:
-            raise ValueError("Hook %r not registered for origin %s" % (hook, origin))
+            log.warning("Hook %r not registered for origin %s", hook, origin)
+            return
 
     @classmethod
     def register_module_hook(cls, module: str, hook: ModuleHookType) -> None:
@@ -636,7 +633,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         if module not in instance._hook_map:
-            raise ValueError("No hooks registered for module %s" % module)
+            log.warning("No hooks registered for module %s", module)
+            return
 
         try:
             if module in instance._hook_map:
@@ -645,7 +643,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 if not hooks:
                     del instance._hook_map[module]
         except ValueError:
-            raise ValueError("Hook %r not registered for module %r" % (hook, module))
+            log.warning("Hook %r not registered for module %r", hook, module)
+            return
 
     @classmethod
     def after_module_imported(cls, module: str) -> t.Callable[[ModuleHookType], None]:

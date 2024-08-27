@@ -1,6 +1,8 @@
 from importlib import import_module
 from typing import List  # noqa:F401
 
+from wrapt import wrap_function_wrapper as _w
+
 from ddtrace import config
 from ddtrace._trace import _limits
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -20,7 +22,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 log = get_logger(__name__)
@@ -171,6 +172,7 @@ def _get_perform_request_coro(transport):
                 hostname, _ = extract_netloc_and_query_info_from_url(connection.host)
                 if hostname:
                     span.set_tag_str(net.TARGET_HOST, hostname)
+                    span.set_tag_str(net.SERVER_ADDRESS, hostname)
                     break
 
             if config.elasticsearch.trace_query_string:

@@ -75,7 +75,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": True},
@@ -91,7 +90,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
                     {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
                     {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
                     {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
@@ -155,7 +153,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "trace_tags", "origin": "default", "value": ""},
                     {"name": "trace_enabled", "origin": "default", "value": "true"},
                     {"name": "instrumentation_config_id", "origin": "default", "value": ""},
-                    {"name": "DD_INJECT_FORCE", "origin": "unknown", "value": False},
+                    {"name": "DD_INJECT_FORCE", "origin": "unknown", "value": True},
                     {"name": "DD_LIB_INJECTED", "origin": "unknown", "value": False},
                     {"name": "DD_LIB_INJECTION_ATTEMPTED", "origin": "unknown", "value": False},
                 ],
@@ -207,7 +205,6 @@ import ddtrace.auto
     env["DD_RUNTIME_METRICS_ENABLED"] = "True"
     env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
     env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
-    env["DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED"] = "True"
     env["DD_TRACE_ANALYTICS_ENABLED"] = "True"
     env["DD_TRACE_CLIENT_IP_ENABLED"] = "True"
     env["DD_TRACE_COMPUTE_STATS"] = "True"
@@ -223,7 +220,6 @@ import ddtrace.auto
     env["DD_TRACE_SAMPLE_RATE"] = "0.5"
     env["DD_TRACE_RATE_LIMIT"] = "50"
     env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
-    env["DD_PRIORITY_SAMPLING"] = "false"
     env["DD_PROFILING_ENABLED"] = "True"
     env["DD_PROFILING_STACK_ENABLED"] = "False"
     env["DD_PROFILING_MEMORY_ENABLED"] = "False"
@@ -272,7 +268,6 @@ import ddtrace.auto
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": False},
@@ -288,7 +283,6 @@ import ddtrace.auto
             {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
             {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
             {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
             {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
             {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},
@@ -340,7 +334,7 @@ import ddtrace.auto
             {"name": "trace_header_tags", "origin": "default", "value": ""},
             {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
             {"name": "instrumentation_config_id", "origin": "env_var", "value": "abcedf123"},
-            {"name": "DD_INJECT_FORCE", "origin": "unknown", "value": False},
+            {"name": "DD_INJECT_FORCE", "origin": "unknown", "value": True},
             {"name": "DD_LIB_INJECTED", "origin": "unknown", "value": False},
             {"name": "DD_LIB_INJECTION_ATTEMPTED", "origin": "unknown", "value": False},
         ],
