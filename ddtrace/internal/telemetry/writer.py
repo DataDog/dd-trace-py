@@ -16,8 +16,6 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
 from ...internal.core import crashtracking
-from ...internal.module import BaseModuleWatchdog
-from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
