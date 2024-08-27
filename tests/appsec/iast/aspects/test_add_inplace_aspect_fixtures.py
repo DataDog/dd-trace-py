@@ -1,6 +1,8 @@
 # -*- encoding: utf-8 -*-
 import unittest
 
+import pytest
+
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
@@ -8,6 +10,13 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
+
+
+def do_operator_add_inplace_3_times_no_propagation(a, b):
+    a += b
+    a += b
+    a += b
+    return a
 
 
 class TestOperatorAddInplaceReplacement(unittest.TestCase):
@@ -176,12 +185,6 @@ class TestOperatorAddInplaceMultipleTimesReplacement(unittest.TestCase):
         assert len(get_tainted_ranges(result)) == 0
 
     def test_string_operator_add_inplace_bytearray(self) -> None:
-        def do_operator_add_inplace_3_times_no_propagation(a, b):
-            a += b
-            a += b
-            a += b
-            return a
-
         string_input = bytearray(b"foo")
         result_no_tainted = do_operator_add_inplace_3_times_no_propagation(string_input, bytearray(b"bar"))
         assert result_no_tainted == bytearray(b"foobarbarbar")
@@ -205,17 +208,12 @@ class TestOperatorAddInplaceMultipleTimesReplacement(unittest.TestCase):
         assert get_tainted_ranges(result)
 
     def test_string_operator_add_inplace_two_mixed_bytearray_bytes(self) -> None:
-        def do_operator_add_inplace_3_times_no_propagation(a, b):
-            a += b
-            a += b
-            a += b
-            return a
-
         string_input = bytearray(b"foo")
         result_no_tainted = do_operator_add_inplace_3_times_no_propagation(string_input, b"bar")
         assert result_no_tainted == bytearray(b"foobarbarbar")
         assert string_input == bytearray(b"foobarbarbar")
 
+        string_input = bytearray(b"foo")
         result_no_tainted = mod.do_operator_add_inplace_3_times(bytearray(b"foo"), b"bar")
         assert result_no_tainted == bytearray(b"foobarbarbar")
         assert string_input == bytearray(b"foobarbarbar")
@@ -230,3 +228,150 @@ class TestOperatorAddInplaceMultipleTimesReplacement(unittest.TestCase):
         assert result == bytearray(b"foobarbarbar")
         assert string_input == bytearray(b"foobarbarbar")
         assert len(get_tainted_ranges(result)) == 0
+
+    def test_string_operator_add_inplace_list(self) -> None:
+        list_input = ["foo1", "bar1"]
+        result_no_tainted = do_operator_add_inplace_3_times_no_propagation(list_input, ["foo2", "bar2"])
+        assert result_no_tainted == ["foo1", "bar1", "foo2", "bar2", "foo2", "bar2", "foo2", "bar2"]
+        assert list_input == ["foo1", "bar1", "foo2", "bar2", "foo2", "bar2", "foo2", "bar2"]
+
+        list_input = ["foo1", "bar1"]
+        result_no_tainted = mod.do_operator_add_inplace_3_times(list_input, ["foo3", "bar3"])
+        assert result_no_tainted == ["foo1", "bar1", "foo3", "bar3", "foo3", "bar3", "foo3", "bar3"]
+        assert list_input == ["foo1", "bar1", "foo3", "bar3", "foo3", "bar3", "foo3", "bar3"]
+
+        string_input = taint_pyobject(
+            pyobject="foo1", source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        bar = taint_pyobject(
+            pyobject="bar4", source_name="bar", source_value="bar4", source_origin=OriginType.PARAMETER
+        )
+
+        list_input = [string_input, "bar1"]
+
+        result = mod.do_operator_add_inplace_3_times(list_input, ["foo4", bar])
+
+        assert result == ["foo1", "bar1", "foo4", "bar4", "foo4", "bar4", "foo4", "bar4"]
+        assert list_input == ["foo1", "bar1", "foo4", "bar4", "foo4", "bar4", "foo4", "bar4"]
+        assert len(get_tainted_ranges(result)) == 0
+
+    def test_string_operator_add_inplace_dict(self) -> None:
+        list_input = {"foo1": "bar1"}
+        with pytest.raises(TypeError):
+            _ = do_operator_add_inplace_3_times_no_propagation(list_input, {"foo2": "bar2"})
+
+        with pytest.raises(TypeError):
+            _ = mod.do_operator_add_inplace_3_times(list_input, {"foo2": "bar2"})
+
+    def test_string_operator_add_inplace_set(self) -> None:
+        set_input = {"foo1", "bar1"}
+        with pytest.raises(TypeError):
+            _ = do_operator_add_inplace_3_times_no_propagation(set_input, {"foo2", "bar2"})
+
+        with pytest.raises(TypeError):
+            _ = mod.do_operator_add_inplace_3_times(set_input, {"foo2", "bar2"})
+
+    def test_string_operator_add_inplace_tuple(self) -> None:
+        list_input = tuple(["foo1", "bar1"])
+        result_no_tainted = do_operator_add_inplace_3_times_no_propagation(list_input, tuple(["foo2", "bar2"]))
+        assert result_no_tainted == ("foo1", "bar1", "foo2", "bar2", "foo2", "bar2", "foo2", "bar2")
+        assert list_input == ("foo1", "bar1")
+
+        list_input = tuple(["foo1", "bar1"])
+        result_no_tainted = mod.do_operator_add_inplace_3_times(list_input, tuple(["foo3", "bar3"]))
+        assert result_no_tainted == ("foo1", "bar1", "foo3", "bar3", "foo3", "bar3", "foo3", "bar3")
+        assert list_input == ("foo1", "bar1")
+
+        string_input = taint_pyobject(
+            pyobject="foo1", source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        bar = taint_pyobject(
+            pyobject="bar4", source_name="bar", source_value="bar4", source_origin=OriginType.PARAMETER
+        )
+
+        list_input = tuple([string_input, "bar1"])
+        result = mod.do_operator_add_inplace_3_times(list_input, tuple(["foo4", bar]))
+
+        assert result == ("foo1", "bar1", "foo4", "bar4", "foo4", "bar4", "foo4", "bar4")
+        assert list_input == ("foo1", "bar1")
+        assert len(get_tainted_ranges(result)) == 0
+
+    def test_string_operator_add_inplace_tuple_plus_list(self) -> None:
+        list_input = tuple(["foo1", "bar1"])
+        with pytest.raises(TypeError):
+            do_operator_add_inplace_3_times_no_propagation(list_input, ["foo2", "bar2"])
+
+        list_input = tuple(["foo1", "bar1"])
+        with pytest.raises(TypeError):
+            mod.do_operator_add_inplace_3_times(list_input, ["foo3", "bar3"])
+
+        string_input = taint_pyobject(
+            pyobject="foo1", source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        bar = taint_pyobject(
+            pyobject="bar4", source_name="bar", source_value="bar4", source_origin=OriginType.PARAMETER
+        )
+
+        list_input = tuple([string_input, "bar1"])
+        with pytest.raises(TypeError):
+            mod.do_operator_add_inplace_3_times(list_input, ["foo4", bar])
+
+    def test_string_operator_add_inplace_list_plus_tuple(self) -> None:
+        list_input = ["foo1", "bar1"]
+        result_no_tainted = do_operator_add_inplace_3_times_no_propagation(list_input, tuple(["foo2", "bar2"]))
+        assert result_no_tainted == ["foo1", "bar1", "foo2", "bar2", "foo2", "bar2", "foo2", "bar2"]
+        assert list_input == ["foo1", "bar1", "foo2", "bar2", "foo2", "bar2", "foo2", "bar2"]
+
+        list_input = ["foo1", "bar1"]
+        result_no_tainted = mod.do_operator_add_inplace_3_times(list_input, tuple(["foo3", "bar3"]))
+        assert result_no_tainted == ["foo1", "bar1", "foo3", "bar3", "foo3", "bar3", "foo3", "bar3"]
+        assert list_input == ["foo1", "bar1", "foo3", "bar3", "foo3", "bar3", "foo3", "bar3"]
+
+        string_input = taint_pyobject(
+            pyobject="foo1", source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        bar = taint_pyobject(
+            pyobject="bar4", source_name="bar", source_value="bar4", source_origin=OriginType.PARAMETER
+        )
+
+        list_input = [string_input, "bar1"]
+        result = mod.do_operator_add_inplace_3_times(list_input, tuple(["foo4", bar]))
+
+        assert result == ["foo1", "bar1", "foo4", "bar4", "foo4", "bar4", "foo4", "bar4"]
+        assert list_input == ["foo1", "bar1", "foo4", "bar4", "foo4", "bar4", "foo4", "bar4"]
+        assert len(get_tainted_ranges(result)) == 0
+
+    def test_string_operator_add_inplace_object(self) -> None:
+        class MyObject(object):
+            attr_inplace = "attr_inplace"
+
+            def __init__(self, attr_inplace):
+                self.attr_inplace = attr_inplace
+
+            def __iadd__(self, other):
+                return self.attr_inplace + other * 3
+
+        object_input = MyObject("foo1")
+        result_no_tainted = do_operator_add_inplace_3_times_no_propagation(object_input, "foo2")
+        assert result_no_tainted == "foo1foo2foo2foo2foo2foo2"
+        assert object_input.attr_inplace == "foo1"
+
+        object_input = MyObject("foo2")
+        result_no_tainted = mod.do_operator_add_inplace_3_times(object_input, "foo3")
+        assert result_no_tainted == "foo2foo3foo3foo3foo3foo3"
+        assert object_input.attr_inplace == "foo2"
+
+        string_input = taint_pyobject(
+            pyobject="foo4", source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        bar = taint_pyobject(
+            pyobject="bar5", source_name="bar", source_value="bar4", source_origin=OriginType.PARAMETER
+        )
+
+        object_input = MyObject(string_input)
+        result_no_tainted = mod.do_operator_add_inplace_3_times(object_input, bar)
+        assert result_no_tainted == "foo4bar5bar5bar5bar5bar5"
+        assert object_input.attr_inplace == "foo4"
+        assert len(get_tainted_ranges(object_input)) == 0
+        assert len(get_tainted_ranges(object_input.attr_inplace)) == 1
+        assert len(get_tainted_ranges(result_no_tainted)) == 2
