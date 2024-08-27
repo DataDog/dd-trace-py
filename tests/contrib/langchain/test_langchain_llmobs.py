@@ -147,6 +147,15 @@ class BaseTestLLMObsLangchain:
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
 
+    @classmethod
+    def _invoke_tool(cls, tool, tool_input, mock_tracer, cassette_name):
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
+        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+            if LANGCHAIN_VERSION > (0, 1):
+                tool.invoke(tool_input)
+        LLMObs.disable()
+        return mock_tracer.pop_traces()[0][0]
+
 
 @pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1), reason="These tests are for langchain < 0.1.0")
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
@@ -617,6 +626,41 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 model_provider="fake",
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
+                tags={"ml_app": "langchain_test"},
+                integration="langchain",
+            )
+        )
+
+    def test_llmobs_base_tool_invoke(self, langchain_core, mock_llmobs_span_writer, mock_tracer):
+        if langchain_core is None:
+            pytest.skip("langchain-core not installed which is required for this test.")
+
+        from math import pi
+
+        class CircumferenceTool(langchain_core.tools.BaseTool):
+            name = "Circumference calculator"
+            description = "use this tool when you need to calculate a circumference using the radius of a circle"
+
+            def _run(self, radius):
+                return float(radius) * 2.0 * pi
+
+            def _arun(self, radius: int):
+                raise NotImplementedError("This tool does not support async")
+
+        cassette_name = "langchain_tool_invoke_39.yaml" if PY39 else "langchain_tool_invoke.yaml"
+        span = self._invoke_tool(
+            tool=CircumferenceTool(),
+            tool_input="2",
+            mock_tracer=mock_tracer,
+            cassette_name=cassette_name,
+        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                span_kind="tool",
+                input_value="2",
+                output_value="12.566370614359172",
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
