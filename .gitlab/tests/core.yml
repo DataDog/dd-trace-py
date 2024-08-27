@@ -1,9 +1,7 @@
 internal:
   extends: .test_base_riot
-  parallel: 4
   variables:
     SUITE_NAME: "internal"
-    SERVICES: "testagent"
 
 telemetry:
   extends: .test_base_riot
