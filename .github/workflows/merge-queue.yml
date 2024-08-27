@@ -1,0 +1,18 @@
+name: Merge queue
+
+on:
+    pull_request:
+      branches: [ "test-mq-main" ]
+    merge_group:
+      types: [checks_requested]
+
+jobs:
+    can_merge:
+        name: PR can merge
+        runs-on: ubuntu-latest
+    can_see_status:
+        name: See merge queue status
+        runs-on: ubuntu-latest
+        steps:
+            - name: Immediate success for improved visibility on GitHub merge queue
+              run: true
