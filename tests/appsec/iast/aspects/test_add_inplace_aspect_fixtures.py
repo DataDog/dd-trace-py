@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-import unittest
+from copy import copy
 
 import pytest
 
@@ -19,7 +19,7 @@ def do_operator_add_inplace_3_times_no_propagation(a, b):
     return a
 
 
-class TestOperatorAddInplaceReplacement(unittest.TestCase):
+class TestOperatorAddInplaceReplacement(object):
     def test_nostring_operator_add(self):
         # type: () -> None
         assert mod.do_operator_add_inplace_params(2, 3) == 5
@@ -105,10 +105,11 @@ class TestOperatorAddInplaceReplacement(unittest.TestCase):
 
         result = mod.do_operator_add_inplace_params(string_input, bar)
         assert result == bytearray(b"foobar")
+        assert string_input == bytearray(b"foobar")
         assert len(get_tainted_ranges(result)) == 0
 
 
-class TestOperatorAddInplaceMultipleTimesReplacement(unittest.TestCase):
+class TestOperatorAddInplaceMultipleTimesReplacement(object):
     def test_nostring_operator_add(self):
         # type: () -> None
         assert mod.do_operator_add_inplace_3_times(2, 3) == 11
@@ -184,50 +185,51 @@ class TestOperatorAddInplaceMultipleTimesReplacement(unittest.TestCase):
         assert string_input == b"foo"
         assert len(get_tainted_ranges(result)) == 0
 
-    def test_string_operator_add_inplace_bytearray(self) -> None:
-        string_input = bytearray(b"foo")
-        result_no_tainted = do_operator_add_inplace_3_times_no_propagation(string_input, bytearray(b"bar"))
-        assert result_no_tainted == bytearray(b"foobarbarbar")
-        assert string_input == bytearray(b"foobarbarbar")
+    @pytest.mark.parametrize(
+        "string_input,add_param,expected_result,is_tainted",
+        [
+            (bytearray(b"foo"), bytearray(b"bar"), bytearray(b"foobarbarbar"), True),
+            (bytearray(b"fo"), bytearray(b"ba"), bytearray(b"fobababa"), True),
+            (bytearray(b"f"), bytearray(b"b"), bytearray(b"fbbb"), True),
+            (bytearray(b"f" * 1000), bytearray(b"b" * 500), bytearray(b"f" * 1000 + b"b" * 500 * 3), True),
+            (bytearray(b"foo"), b"bar", bytearray(b"foobarbarbar"), False),
+            (bytearray(b"fo"), b"ba", bytearray(b"fobababa"), False),
+            (bytearray(b"f"), b"b", bytearray(b"fbbb"), False),
+            (bytearray(b"f" * 1000), b"b" * 500, bytearray(b"f" * 1000 + b"b" * 500 * 3), False),
+        ]
+        + [
+            (bytearray(b"f" * i), bytearray(b"b" * j), bytearray(b"f" * i + b"b" * j * 3), True)
+            for i in range(1, 20)
+            for j in range(1, 20)
+        ],
+    )
+    def test_string_operator_add_inplace_bytearray(self, string_input, add_param, expected_result, is_tainted) -> None:
+        string_input_copy = copy(string_input)
+        result_no_tainted = do_operator_add_inplace_3_times_no_propagation(string_input_copy, add_param)
+        assert result_no_tainted == expected_result
+        assert string_input_copy == expected_result
 
-        result_no_tainted = mod.do_operator_add_inplace_3_times(bytearray(b"foo"), bytearray(b"bar"))
-        assert result_no_tainted == bytearray(b"foobarbarbar")
-        assert string_input == bytearray(b"foobarbarbar")
+        string_input_copy = copy(string_input)
+        result_no_tainted = mod.do_operator_add_inplace_3_times(string_input_copy, add_param)
+        assert result_no_tainted == expected_result
+        assert string_input_copy == expected_result
 
-        string_input = taint_pyobject(
-            pyobject=bytearray(b"foo"), source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
+        string_input_copy = copy(string_input)
+        string_input_copy = taint_pyobject(
+            pyobject=string_input_copy, source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
         )
         bar = taint_pyobject(
-            pyobject=bytearray(b"bar"), source_name="bar", source_value="bar", source_origin=OriginType.PARAMETER
+            pyobject=add_param, source_name="bar", source_value="bar", source_origin=OriginType.PARAMETER
         )
 
-        result = mod.do_operator_add_inplace_3_times(string_input, bar)
+        result = mod.do_operator_add_inplace_3_times(string_input_copy, bar)
 
-        assert result == bytearray(b"foobarbarbar")
-        assert string_input == bytearray(b"foobarbarbar")
-        assert get_tainted_ranges(result)
-
-    def test_string_operator_add_inplace_two_mixed_bytearray_bytes(self) -> None:
-        string_input = bytearray(b"foo")
-        result_no_tainted = do_operator_add_inplace_3_times_no_propagation(string_input, b"bar")
-        assert result_no_tainted == bytearray(b"foobarbarbar")
-        assert string_input == bytearray(b"foobarbarbar")
-
-        string_input = bytearray(b"foo")
-        result_no_tainted = mod.do_operator_add_inplace_3_times(bytearray(b"foo"), b"bar")
-        assert result_no_tainted == bytearray(b"foobarbarbar")
-        assert string_input == bytearray(b"foobarbarbar")
-
-        string_input = taint_pyobject(
-            pyobject=bytearray(b"foo"), source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
-        )
-        bar = taint_pyobject(pyobject=b"bar", source_name="bar", source_value="bar", source_origin=OriginType.PARAMETER)
-
-        result = mod.do_operator_add_inplace_3_times(string_input, bar)
-
-        assert result == bytearray(b"foobarbarbar")
-        assert string_input == bytearray(b"foobarbarbar")
-        assert len(get_tainted_ranges(result)) == 0
+        assert result == expected_result
+        assert string_input_copy == expected_result
+        if is_tainted:
+            assert get_tainted_ranges(result)
+        else:
+            assert not get_tainted_ranges(result)
 
     def test_string_operator_add_inplace_list(self) -> None:
         list_input = ["foo1", "bar1"]
