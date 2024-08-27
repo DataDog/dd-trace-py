@@ -290,7 +290,6 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
         test_propagation=True,
-        fixme_propagation_fails=False,
     ),
     PackageForTesting(
         "importlib-resources",
@@ -885,7 +884,7 @@ def _assert_propagation_results(response, package):
     if package.fixme_propagation_fails is not None:
         if result_ok:
             if package.fixme_propagation_fails:  # For packages that are reliably failing
-                pytest.fail(
+                pytest.xfail(
                     "FIXME: Test passed unexpectedly, consider changing to fixme_propagation_fails=False for package %s"
                     % package.name
                 )

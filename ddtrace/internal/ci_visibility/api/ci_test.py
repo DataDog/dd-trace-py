@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIExcInfo
@@ -17,6 +16,7 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -60,7 +60,11 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         self._is_benchmark = None
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.name}, parameters={self._parameters})"
+        suite_name = self.parent.name if self.parent is not None else "none"
+        module_name = self.parent.parent.name if self.parent is not None and self.parent.parent is not None else "none"
+        return "{}(name={}, suite={}, module={}, parameters={})".format(
+            self.__class__.__name__, self.name, suite_name, module_name, self._parameters
+        )
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
         return {
@@ -139,5 +143,5 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
             ),
         )
 
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
-        self._coverage_data.add_coverage_segments(coverage_data)
+    def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
+        self._coverage_data.add_covered_files(coverage_data)
