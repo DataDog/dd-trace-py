@@ -14,7 +14,6 @@ build_base_venvs:
     name: venv_$PYTHON_VERSION
     paths:
       - .riot/venv_*
-      - ddtrace/_version.py
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe
 
