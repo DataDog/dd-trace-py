@@ -965,6 +965,170 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     return documents
 
 
+@with_traced_module
+def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
+    integration = langchain._datadog_integration
+    tool_input = get_argument_value(args, kwargs, 0, "input")
+    config = get_argument_value(args, kwargs, 1, "config") if len(args) >= 2 else None
+
+    span = integration.trace(
+        pin,
+        "%s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
+        interface_type="tool",
+        submit_to_llmobs=True,
+    )
+
+    tool_output = None
+    try:
+        if instance.name:
+            span.set_tag_str("langchain.request.tool.name", integration.trunc(str(instance.name)))
+        if integration.is_pc_sampled_span(span):
+            if instance.description:
+                span.set_tag_str("langchain.request.tool.description", integration.trunc(str(instance.description)))
+            if instance.return_direct:
+                span.set_tag_str("langchain.request.tool.return_direct", integration.trunc(str(instance.return_direct)))
+            if instance.verbose:
+                span.set_tag_str("langchain.request.tool.verbose", integration.trunc(str(instance.verbose)))
+            if instance.metadata:
+                for key, value in instance.metadata.items():
+                    span.set_tag_str("langchain.request.tool.metadata.%s" % key, integration.trunc(str(value)))
+            if instance.tags:
+                for idx, tag in enumerate(instance.tags):
+                    span.set_tag_str("langchain.request.tool.tags.%d" % idx, integration.trunc(str(tag)))
+            if instance.handle_tool_error:
+                span.set_tag_str(
+                    "langchain.request.tool.handle_tool_error",
+                    integration.trunc(str(instance.handle_tool_error)),
+                )
+            if instance.handle_validation_error:
+                span.set_tag_str(
+                    "langchain.request.tool.handle_validation_error",
+                    integration.trunc(str(instance.handle_validation_error)),
+                )
+            if instance.response_format:
+                span.set_tag_str(
+                    "langchain.request.tool.response_format", integration.trunc(str(instance.response_format))
+                )
+            if tool_input:
+                span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
+            if config:
+                # Comment : Is this enough or should I parse the configs one by one and add them
+                span.set_tag_str("langchain.request.config", integration.trunc(str(config)))
+        tool_output = func(*args, **kwargs)
+        if tool_output is not None:
+            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.metric(span, "incr", "request.error", 1)
+        raise
+    finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "tool",
+                span,
+                tool_input,
+                tool_output,
+                error=bool(span.error),
+            )
+        span.finish()
+        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
+                attrs={
+                    # Comment : Should we have more info in the log ?
+                    "tool_name": instance.__self__.name or "",
+                    "input": tool_input,
+                    "config": config or "",
+                },
+            )
+    return tool_output
+
+
+@with_traced_module
+async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs):
+    # Comment : Is there a better way to trace the async variant besides duplicating the code ?
+    integration = langchain._datadog_integration
+    tool_input = get_argument_value(args, kwargs, 0, "input")
+    config = get_argument_value(args, kwargs, 1, "config") if len(args) >= 2 else None
+
+    span = integration.trace(
+        pin,
+        "%s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
+        interface_type="tool",
+        submit_to_llmobs=True,
+    )
+
+    tool_output = None
+    try:
+        if instance.name:
+            span.set_tag_str("langchain.request.tool.name", integration.trunc(str(instance.name)))
+        if integration.is_pc_sampled_span(span):
+            if instance.description:
+                span.set_tag_str("langchain.request.tool.description", integration.trunc(str(instance.description)))
+            if instance.return_direct:
+                span.set_tag_str("langchain.request.tool.return_direct", integration.trunc(str(instance.return_direct)))
+            if instance.verbose:
+                span.set_tag_str("langchain.request.tool.verbose", integration.trunc(str(instance.verbose)))
+            if instance.metadata:
+                for key, value in instance.metadata.items():
+                    span.set_tag_str("langchain.request.tool.metadata.%s" % key, integration.trunc(str(value)))
+            if instance.tags:
+                for idx, tag in enumerate(instance.tags):
+                    span.set_tag_str("langchain.request.tool.tags.%d" % idx, integration.trunc(str(tag)))
+            if instance.handle_tool_error:
+                span.set_tag_str(
+                    "langchain.request.tool.handle_tool_error",
+                    integration.trunc(str(instance.handle_tool_error)),
+                )
+            if instance.handle_validation_error:
+                span.set_tag_str(
+                    "langchain.request.tool.handle_validation_error",
+                    integration.trunc(str(instance.handle_validation_error)),
+                )
+            if instance.response_format:
+                span.set_tag_str(
+                    "langchain.request.tool.response_format", integration.trunc(str(instance.response_format))
+                )
+            if tool_input:
+                span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
+            if config:
+                span.set_tag_str("langchain.request.config", integration.trunc(str(config)))
+        tool_output = await func(*args, **kwargs)
+        if tool_output is not None:
+            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.metric(span, "incr", "request.error", 1)
+        raise
+    finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "tool",
+                span,
+                tool_input,
+                tool_output,
+                error=bool(span.error),
+            )
+        span.finish()
+        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
+                attrs={
+                    # Comment : Should we have more info in the log ?
+                    "tool_name": instance.__self__.name or "",
+                    "input": tool_input,
+                    "config": config or "",
+                },
+            )
+    return tool_output
+
+
 def _patch_embeddings_and_vectorstores():
     """
     Text embedding models override two abstract base methods instead of super calls,
@@ -1092,6 +1256,8 @@ def patch():
         )
         wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
         wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
+        wrap("langchain_core", "tools.base.BaseTool.invoke", traced_base_tool_invoke(langchain))
+        wrap("langchain_core", "tools.base.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
         if langchain_openai:
             wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         if langchain_pinecone:
