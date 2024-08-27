@@ -1,18 +1,55 @@
-name: Merge queue
+name: Merge Queue
 
 on:
-    pull_request:
-      branches: [ "test-mq-main" ]
-    merge_group:
-      types: [checks_requested]
+    # pull_request:
+    #     types: [labeled]
+    #     branches: [ "test-mq-main" ]
+    - merge_group:
+        # types: [checks_requested]
+    # schedule:
+    #     - cron: '*/5 * * * *'
 
 jobs:
-    can_merge:
-        name: PR can merge
+    can_enqueue:
+        needs: [require-checklist]
+        if: always()
+        permissions:
+            actions: read
         runs-on: ubuntu-latest
+        steps:
+        - name: Transform outcomes
+          env:
+            NEEDS_JSON: "${{toJSON(needs)}}"
+          run: |
+            echo "ALL_SUCCESS=$(echo "$NEEDS_JSON" | jq '. | to_entries | map([.value.result == "success", .value.result == "skipped"] | any) | all')" >>$GITHUB_ENV        
+        - name: check outcomes
+          run: |
+            "[ $ALL_SUCCESS == true ]" 
+    can_merge:
+        needs: [require-checklist, run_all_checks]
+        if: always() && github.event_name == 'merge_group'
+        # Same thing as above, from here on:
+        permissions:
+            actions: read
+        runs-on: ubuntu-latest
+        steps:
+        - env:
+            NEEDS_JSON: "${{toJSON(needs)}}"
+          name: Transform outcomes
+          run: |
+            echo "ALL_SUCCESS=$(echo "$NEEDS_JSON" | jq '. | to_entries | map([.value.result == "success", .value.result == "skipped"] | any) | all')" >>$GITHUB_ENV        
+        - name: check outcomes
+          run: "[ $ALL_SUCCESS == true ]"
     can_see_status:
         name: See merge queue status
+        if: always()
         runs-on: ubuntu-latest
         steps:
             - name: Immediate success for improved visibility on GitHub merge queue
               run: true
+    run_all_checks:
+        if: github.event_name == 'merge_group'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Run All Tests
+            run: echo "Would run all tests once it's in the merge queue"
