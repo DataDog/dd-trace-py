@@ -2,6 +2,8 @@ import os
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 from .._hooks import Hooks
 from ..internal.utils.attrdict import AttrDict
 from ..internal.utils.formats import asbool
@@ -67,11 +69,18 @@ class IntegrationConfig(AttrDict):
         # Set default analytics configuration, default is disabled
         # DEV: Default to `None` which means do not set this key
         # Inject environment variables for integration
-        _ = os.getenv(
-            "DD_TRACE_%s_ANALYTICS_ENABLED" % self.integration_name.upper(),
-            os.getenv("DD_%s_ANALYTICS_ENABLED" % self.integration_name.upper()),
-        )
-        analytics_enabled = asbool(_) if _ is not None else None
+        env = "DD_TRACE_%s_ANALYTICS_ENABLED" % self.integration_name.upper()
+        legacy_env = "DD_%s_ANALYTICS_ENABLED" % self.integration_name.upper()
+        analytics_enabled = asbool(os.getenv(env, os.getenv(legacy_env, default=None)))
+
+        if analytics_enabled:
+            deprecate(
+                "Datadog App Analytics is deprecated"
+                f"App Analytics can be enabled via {env} and {legacy_env} "
+                f"enviornment variables and the ddtrace.config.{self.integration_name}.analytics_enabled configuration. "
+                "This feature and its associated configuration will be removed in a future release.",
+                category=DDTraceDeprecationWarning,
+            )
 
         analytics_sample_rate = float(
             os.getenv(

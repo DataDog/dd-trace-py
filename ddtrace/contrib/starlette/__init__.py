@@ -28,14 +28,6 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.starlette['analytics_enabled']
-
-   Whether to analyze spans for starlette in App Analytics.
-
-   Can also be enabled with the ``DD_STARLETTE_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
-
 .. py:data:: ddtrace.config.starlette['service_name']
 
    The service name reported for your starlette app.
