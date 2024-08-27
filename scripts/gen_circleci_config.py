@@ -110,7 +110,7 @@ def gen_conftests(template: dict) -> None:
     """Include the conftests if the Python conftest or tests/meta has changed."""
     from needs_testrun import pr_matches_patterns
 
-    if pr_matches_patterns({"docker*", "tests/*conftest.py", "tests/meta/*"}):
+    if pr_matches_patterns({"docker*", "tests/*conftest.py", "tests/meta/*", "hatch.toml"}):
         template["workflows"]["test"]["jobs"].append({"conftests": template["requires_pre_check"]})
 
 
