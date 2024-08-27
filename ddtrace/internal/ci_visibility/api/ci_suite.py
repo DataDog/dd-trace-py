@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
@@ -20,6 +19,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -43,6 +43,10 @@ class CIVisibilitySuite(CIVisibilityParentItem[CITestId, CIVisibilityTest], CIVi
         self._source_file_info = source_file_info
 
         self._coverage_data: CICoverageData = CICoverageData()
+
+    def __repr__(self) -> str:
+        module_name = self.parent.name if self.parent is not None else "none"
+        return f"{self.__class__.__name__}(name={self.name}, module={module_name})"
 
     def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None) -> None:
         super().finish(force=force, override_status=override_status)
@@ -88,5 +92,5 @@ class CIVisibilitySuite(CIVisibilityParentItem[CITestId, CIVisibilityTest], CIVi
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
-        self._coverage_data.add_coverage_segments(coverage_data)
+    def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
+        self._coverage_data.add_covered_files(coverage_data)

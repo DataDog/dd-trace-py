@@ -102,6 +102,7 @@ def test_coverage_multiprocessing_session():
 
         from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.coverage.installer import install
+        from tests.coverage.utils import _get_relpath_dict
 
         cwd = os.getcwd()
 
@@ -117,11 +118,11 @@ def test_coverage_multiprocessing_session():
 
         ModuleCodeCollector.stop_coverage()
 
-        covered_lines = dict(ModuleCodeCollector._instance._get_covered_lines())
+        covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
 
         expected_lines = {
-            f"{cwd}/tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
-            f"{cwd}/tests/coverage/included_path/lib.py": {1, 2, 5},
+            "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
+            "tests/coverage/included_path/lib.py": {1, 2, 5},
         }
 
         if expected_lines != covered_lines:
@@ -141,6 +142,7 @@ def test_coverage_multiprocessing_context():
 
         from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.coverage.installer import install
+        from tests.coverage.utils import _get_relpath_dict
 
         cwd = os.getcwd()
 
@@ -158,11 +160,11 @@ def test_coverage_multiprocessing_context():
             process.start()
             process.join()
 
-            context_covered = dict(context_collector.get_covered_lines())
+            context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
 
         expected_lines = {
-            f"{cwd}/tests/coverage/included_path/callee.py": {10, 11, 13, 14},
-            f"{cwd}/tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+            "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+            "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
         }
 
         assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
@@ -185,6 +187,7 @@ def test_coverage_concurrent_futures_processpool_session():
 
         from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.coverage.installer import install
+        from tests.coverage.utils import _get_relpath_dict
 
         cwd = os.getcwd()
 
@@ -200,11 +203,11 @@ def test_coverage_concurrent_futures_processpool_session():
 
         ModuleCodeCollector.stop_coverage()
 
-        covered_lines = dict(ModuleCodeCollector._instance._get_covered_lines())
+        covered_lines = _get_relpath_dict(cwd, ModuleCodeCollector._instance._get_covered_lines())
 
         expected_lines = {
-            f"{cwd}/tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
-            f"{cwd}/tests/coverage/included_path/lib.py": {1, 2, 5},
+            "tests/coverage/included_path/callee.py": {1, 2, 3, 5, 6, 9, 17},
+            "tests/coverage/included_path/lib.py": {1, 2, 5},
         }
 
         if expected_lines != covered_lines:
@@ -226,6 +229,7 @@ def test_coverage_concurrent_futures_processpool_context():
 
         from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.coverage.installer import install
+        from tests.coverage.utils import _get_relpath_dict
 
         cwd = os.getcwd()
 
@@ -243,16 +247,16 @@ def test_coverage_concurrent_futures_processpool_context():
                 future = executor.submit(called_in_context_main, 1, 2)
                 future.result()
 
-            context_covered = dict(context_collector.get_covered_lines())
+            context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
 
         expected_lines = {
-            f"{cwd}/tests/coverage/included_path/callee.py": {10, 11, 13, 14},
-            f"{cwd}/tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+            "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+            "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
         }
 
         if os.environ["start_method"] != "fork":
             # In spawn or forkserver modes, the module is reimported entirely
-            expected_lines[f"{cwd}/tests/coverage/included_path/callee.py"] = {1, 9, 10, 11, 13, 14, 17}
+            expected_lines["tests/coverage/included_path/callee.py"] = {1, 9, 10, 11, 13, 14, 17}
 
         assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
 
