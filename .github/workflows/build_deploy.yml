@@ -9,7 +9,8 @@ on:
       # special branches used to test this workflow
       # before merging/releasing
       - build_deploy*
-  pull_request:
+      - test-mq-main
+  # pull_request:
   release:
     types:
       - published

@@ -3,11 +3,12 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    paths:
-      - 'ddtrace/**'
-      - 'scripts/profiles/flask-simple/**'
-      - '.github/workflows/flask-overhead-profile.yml'
+      - test-mq-main
+  # pull_request:
+  #   paths:
+  #     - 'ddtrace/**'
+  #     - 'scripts/profiles/flask-simple/**'
+  #     - '.github/workflows/flask-overhead-profile.yml'
 jobs:
   flask-overhead-profile:
     runs-on: ubuntu-latest

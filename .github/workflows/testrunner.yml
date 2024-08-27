@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - 'main'
+      - test-mq-main
     paths:
       - 'docker/**'
 
