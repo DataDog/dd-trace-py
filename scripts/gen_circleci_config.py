@@ -164,7 +164,8 @@ with YAML(output=CONFIG_GEN_FILE) as yaml:
 
     if not should_run_circle_ci():
         LOGGER.warning("CircleCI is not needed for this PR. Exiting.")
-        sys.exit(127)
+        yaml.dump(None)
+        sys.exit(0)
 
     has_error = False
     LOGGER.info("Configuration generation steps:")
