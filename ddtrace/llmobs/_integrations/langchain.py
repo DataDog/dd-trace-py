@@ -44,7 +44,7 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "tool"]
 
 
 class LangChainIntegration(BaseLLMIntegration):
@@ -89,6 +89,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, inputs, response, error, is_workflow=is_workflow)
+        elif operation == "tool":
+            self._llmobs_set_meta_tags_from_tool(span, inputs, response, error)
         span.set_tag_str(METRICS, json.dumps({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
@@ -259,6 +261,35 @@ class LangChainIntegration(BaseLLMIntegration):
                 )
             except (TypeError, IndexError):
                 log.warning("Failed to write output vectors", output_embedding)
+
+    def _llmobs_set_meta_tags_from_tool(
+        self,
+        span: Span,
+        tool_input: Union[str, Dict[str, Any], Any],
+        tool_output: Any,
+        error: bool,
+    ) -> None:
+        span.set_tag_str(SPAN_KIND, "tool")
+        if tool_input is not None:
+            try:
+                formatted_inputs = self.format_io(tool_input)
+                if isinstance(formatted_inputs, str):
+                    span.set_tag_str(INPUT_VALUE, formatted_inputs)
+                else:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(self.format_io(tool_input)))
+            except TypeError:
+                log.warning("Failed to serialize tool input data to JSON")
+        if error:
+            span.set_tag_str(OUTPUT_VALUE, "")
+        elif tool_output is not None:
+            try:
+                formatted_outputs = self.format_io(tool_output)
+                if isinstance(formatted_outputs, str):
+                    span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
+                else:
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(self.format_io(tool_output)))
+            except TypeError:
+                log.warning("Failed to serialize tool output data to JSON")
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
