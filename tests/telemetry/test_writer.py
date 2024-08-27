@@ -9,11 +9,10 @@ import httpretty
 import mock
 import pytest
 
-from ddtrace.internal.module import origin
 import ddtrace.internal.telemetry
+from ddtrace.internal.telemetry import modules
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriterModuleWatchdog
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
@@ -345,7 +344,7 @@ import ddtrace.auto
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
     import xmltodict
 
-    new_deps = [str(origin(xmltodict))]
+    new_deps = [xmltodict.__name__]
     telemetry_writer._app_dependencies_loaded_event(new_deps)
     # force a flush
     telemetry_writer.periodic(force_flush=True)
@@ -354,18 +353,17 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     xmltodict_events = [e for e in events if e["payload"]["dependencies"][0]["name"] == "xmltodict"]
     assert len(xmltodict_events) == 1
     assert "xmltodict" in telemetry_writer._imported_dependencies
-    assert telemetry_writer._imported_dependencies["xmltodict"].name == "xmltodict"
-    assert telemetry_writer._imported_dependencies["xmltodict"].version
+    assert telemetry_writer._imported_dependencies["xmltodict"]
 
 
 def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        TelemetryWriterModuleWatchdog._initial = False
-        TelemetryWriterModuleWatchdog._new_imported.clear()
+        # Fetch modules to reset the state of seen modules
+        modules.get_newly_imported_modules()
 
         import xmltodict
 
-        new_deps = [str(origin(xmltodict))]
+        new_deps = [xmltodict.__name__]
         telemetry_writer._app_dependencies_loaded_event(new_deps)
         # force a flush
         telemetry_writer.periodic(force_flush=True)
@@ -376,12 +374,12 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
 
 @pytest.mark.skip(reason="FIXME: This test does not generate a dependencies event")
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
-    TelemetryWriterModuleWatchdog._initial = False
-    TelemetryWriterModuleWatchdog._new_imported.clear()
+    # Fetch modules to reset the state of seen modules
+    modules.get_newly_imported_modules()
 
     import string
 
-    new_deps = [str(origin(string))]
+    new_deps = [string.__name__]
     telemetry_writer._app_dependencies_loaded_event(new_deps)
     # force a flush
     telemetry_writer.periodic(force_flush=True)
@@ -390,12 +388,12 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
 
 
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
-    TelemetryWriterModuleWatchdog._initial = False
-    TelemetryWriterModuleWatchdog._new_imported.clear()
+    # Fetch modules to reset the state of seen modules
+    modules.get_newly_imported_modules()
 
     import xmltodict
 
-    new_deps = [str(origin(xmltodict))]
+    new_deps = [xmltodict.__name__]
     telemetry_writer._app_dependencies_loaded_event(new_deps)
     # force a flush
     telemetry_writer.periodic(force_flush=True)
