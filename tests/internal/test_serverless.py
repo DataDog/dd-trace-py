@@ -1,5 +1,4 @@
 import mock
-import pytest
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
