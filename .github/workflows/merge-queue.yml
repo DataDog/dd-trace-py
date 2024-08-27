@@ -4,7 +4,7 @@ on:
     # pull_request:
     #     types: [labeled]
     #     branches: [ "test-mq-main" ]
-    - merge_group:
+    merge_group:
         # types: [checks_requested]
     # schedule:
     #     - cron: '*/5 * * * *'
