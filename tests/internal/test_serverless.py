@@ -112,10 +112,13 @@ def test_slow_imports():
                     raise ImportError(f"module {fullname} was imported!")
             return None
 
-    sys.meta_path.insert(0, BlockListFinder())
+    try:
+        sys.meta_path.insert(0, BlockListFinder())
 
-    import ddtrace
-    import ddtrace.contrib.aws_lambda  # noqa:F401
-    import ddtrace.contrib.psycopg  # noqa:F401
+        import ddtrace
+        import ddtrace.contrib.aws_lambda  # noqa:F401
+        import ddtrace.contrib.psycopg  # noqa:F401
 
-    sys.meta_path = sys.meta_path[1:]
+    finally:
+        if isinstance(sys.meta_path[0], BlockListFinder):
+            sys.meta_path = sys.meta_path[1:]
