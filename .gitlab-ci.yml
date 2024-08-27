@@ -13,6 +13,7 @@ include:
   - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/dogfood.yml"
+  - local: ".gitlab/release.yml"
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
