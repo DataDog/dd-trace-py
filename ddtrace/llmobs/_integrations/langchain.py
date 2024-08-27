@@ -292,12 +292,10 @@ class LangChainIntegration(BaseLLMIntegration):
             else:
                 documents = []
                 for d in output_documents:
-                    doc = Document(text=d.page_content, id=d.id or "")
-                    try:
-                        doc["name"] = d.metadata["name"]
-                    except KeyError:
-                        log.warning("Failed to extract document name metadata from similarity search output")
-                        doc["name"] = doc["id"]
+                    doc = Document(text=d.page_content)
+                    doc["id"] = getattr(d, "id", "")
+                    metadata = getattr(d, "metadata", {})
+                    doc["name"] = metadata.get("name", doc["id"])
                     documents.append(doc)
                 try:
                     span.set_tag_str(OUTPUT_DOCUMENTS, json.dumps(self.format_io(documents)))
