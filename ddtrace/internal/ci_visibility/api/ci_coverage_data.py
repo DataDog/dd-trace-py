@@ -27,7 +27,7 @@ class CICoverageData:
     def __bool__(self):
         return bool(self._coverage_data)
 
-    def get_data(self):
+    def get_data(self) -> Dict[Path, CoverageLines]:
         return self._coverage_data
 
     def add_covered_files(self, covered_files: Dict[Path, CoverageLines]):
