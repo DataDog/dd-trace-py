@@ -50,7 +50,7 @@ class DDRuntimeContext:
             if ddcontext and otel_baggage:
                 for key, value in otel_baggage.items():
                     # value is from opentelemetry and can be any object.
-                    # make sure this object is compatiable w/ datadog internals
+                    # make sure this object is compatible w/ datadog internals
                     ddcontext._baggage[key] = value  # potentially convert to json
 
         # A return value with the type `object` is required by the otel api to remove/deactivate spans.
