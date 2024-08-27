@@ -27,6 +27,8 @@ LOGGER = logging.getLogger(__name__)
 
 BASE_BRANCH_PATTERN = re.compile(r':<span class="css-truncate-target">([^<]+)')
 
+MAIN_OR_RELEASE_BRANCH_RE = re.compile(r"^(main|\d\.\d{1,2}|romain.komorn/ci/dont_run_things_on_non_prs)$")
+
 
 @cache
 def get_base_branch(pr_number: int) -> str:
@@ -66,6 +68,24 @@ def get_latest_commit_message() -> str:
     except Exception:
         pass
     return ""
+
+
+@cache
+def get_current_branch() -> str:
+    """Get the current branch from CircleCI, otherwise git"""
+    branch = os.environ.get("CIRCLE_BRANCH")
+    if branch is not None:
+        return branch
+    try:
+        return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode("utf-8").strip()
+    except Exception:
+        pass
+    return ""
+
+
+def is_main_or_release_branch() -> bool:
+    """Check if the current branch is a main or release branch"""
+    return MAIN_OR_RELEASE_BRANCH_RE.match(get_current_branch()) is not None
 
 
 @cache
@@ -185,7 +205,11 @@ def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None]
 
 def pr_matches_patterns(patterns: t.Set[str]) -> bool:
     try:
-        changed_files = get_changed_files(_get_pr_number())
+        pr_number = _get_pr_number()
+        if pr_number == 0:
+            # This enables running all tests for pushes to main or release branches
+            return is_main_or_release_branch()
+        changed_files = get_changed_files(pr_number)
     except Exception:
         LOGGER.error("Failed to get changed files. Assuming the PR matches for precaution.")
         return True
