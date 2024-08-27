@@ -122,9 +122,9 @@ def _traced_clientsession_init(aiohttp, pin, func, instance, args, kwargs):
 
 
 def _patch_client(aiohttp):
-    Pin().onto(aiohttp)
+    Pin()._onto(aiohttp)
     pin = Pin(_config=config.aiohttp_client.copy())
-    pin.onto(aiohttp.ClientSession)
+    pin._onto(aiohttp.ClientSession)
 
     wrap("aiohttp", "ClientSession.__init__", _traced_clientsession_init(aiohttp))
     wrap("aiohttp", "ClientSession._request", _traced_clientsession_request(aiohttp))

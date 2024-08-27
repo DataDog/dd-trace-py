@@ -77,7 +77,7 @@ class TracedMongoClient(ObjectProxy):
             client._topology = TracedTopology(client._topology)
 
         # Default Pin
-        ddtrace.Pin(service=_DEFAULT_SERVICE).onto(self)
+        ddtrace.Pin(service=_DEFAULT_SERVICE)._onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)
@@ -114,7 +114,7 @@ class TracedTopology(ObjectProxy):
         if not isinstance(s, TracedServer):
             s = TracedServer(s)
         # Reattach the pin every time in case it changed since the initial patching
-        ddtrace.Pin.get_from(self).onto(s)
+        ddtrace.Pin.get_from(self)._onto(s)
         return s
 
 
@@ -169,7 +169,7 @@ class TracedServer(ObjectProxy):
             with self.__wrapped__.checkout(*args, **kwargs) as s:
                 if not isinstance(s, TracedSocket):
                     s = TracedSocket(s)
-                ddtrace.Pin.get_from(self).onto(s)
+                ddtrace.Pin.get_from(self)._onto(s)
                 yield s
 
     else:
@@ -179,7 +179,7 @@ class TracedServer(ObjectProxy):
             with self.__wrapped__.get_socket(*args, **kwargs) as s:
                 if not isinstance(s, TracedSocket):
                     s = TracedSocket(s)
-                ddtrace.Pin.get_from(self).onto(s)
+                ddtrace.Pin.get_from(self)._onto(s)
                 yield s
 
     if VERSION >= (3, 12, 0):

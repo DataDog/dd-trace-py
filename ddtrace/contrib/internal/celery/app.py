@@ -31,7 +31,7 @@ def patch_app(app, pin=None):
         service=config.celery["worker_service_name"],
         _config=config.celery,
     )
-    pin.onto(app)
+    pin._onto(app)
 
     trace_utils.wrap(
         "celery.beat",
@@ -39,7 +39,7 @@ def patch_app(app, pin=None):
         _traced_beat_function(config.celery, "apply_entry", lambda args: args[0].name),
     )
     trace_utils.wrap("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
-    pin.onto(celery.beat.Scheduler)
+    pin._onto(celery.beat.Scheduler)
 
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)

@@ -258,7 +258,7 @@ class TracedConnection(wrapt.ObjectProxy):
         name = _get_vendor(conn)
         self._self_datadog_name = "{}.connection".format(name)
         db_pin = pin or Pin(service=name)
-        db_pin.onto(self)
+        db_pin._onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls

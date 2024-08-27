@@ -96,5 +96,5 @@ def patched_connect(connect_func, _, args, kwargs):
 
     pin = Pin(tags=tags)
     traced_conn = TracedConnection(conn, pin=pin, cfg=config.snowflake, cursor_cls=_SFTracedCursor)
-    pin.onto(traced_conn)
+    pin._onto(traced_conn)
     return traced_conn

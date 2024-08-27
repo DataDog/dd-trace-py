@@ -51,7 +51,7 @@ def patch():
     _w("yaaredis.client", "StrictRedis.pipeline", traced_pipeline)
     _w("yaaredis.pipeline", "StrictPipeline.execute", traced_execute_pipeline)
     _w("yaaredis.pipeline", "StrictPipeline.immediate_execute_command", traced_execute_command)
-    Pin().onto(yaaredis.StrictRedis)
+    Pin()._onto(yaaredis.StrictRedis)
 
 
 def unpatch():
@@ -77,7 +77,7 @@ async def traced_pipeline(func, instance, args, kwargs):
     pipeline = await func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
-        pin.onto(pipeline)
+        pin._onto(pipeline)
     return pipeline
 
 

@@ -64,12 +64,12 @@ def patch():
         _w("aioredis.client", "Redis.execute_command", traced_execute_command)
         _w("aioredis.client", "Redis.pipeline", traced_pipeline)
         _w("aioredis.client", "Pipeline.execute", traced_execute_pipeline)
-        pin.onto(aioredis.client.Redis)
+        pin._onto(aioredis.client.Redis)
     else:
         _w("aioredis", "Redis.execute", traced_13_execute_command)
         _w("aioredis", "Redis.pipeline", traced_13_pipeline)
         _w("aioredis.commands.transaction", "Pipeline.execute", traced_13_execute_pipeline)
-        pin.onto(aioredis.Redis)
+        pin._onto(aioredis.Redis)
 
 
 def unpatch():
@@ -100,7 +100,7 @@ def traced_pipeline(func, instance, args, kwargs):
     pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
-        pin.onto(pipeline)
+        pin._onto(pipeline)
     return pipeline
 
 
@@ -118,7 +118,7 @@ def traced_13_pipeline(func, instance, args, kwargs):
     pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
-        pin.onto(pipeline)
+        pin._onto(pipeline)
     return pipeline
 
 

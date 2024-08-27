@@ -117,7 +117,7 @@ def _patch_client():
         return
     constants.GRPC_PIN_MODULE_CLIENT.__datadog_patch = True
 
-    Pin().onto(constants.GRPC_PIN_MODULE_CLIENT)
+    Pin()._onto(constants.GRPC_PIN_MODULE_CLIENT)
 
     _w("grpc", "insecure_channel", _client_channel_interceptor)
     _w("grpc", "secure_channel", _client_channel_interceptor)
@@ -129,7 +129,7 @@ def _patch_aio_client():
         return
     GRPC_AIO_PIN_MODULE_CLIENT.__datadog_patch = True
 
-    Pin().onto(GRPC_AIO_PIN_MODULE_CLIENT)
+    Pin()._onto(GRPC_AIO_PIN_MODULE_CLIENT)
 
     _w("grpc.aio", "insecure_channel", _aio_client_channel_interceptor)
     _w("grpc.aio", "secure_channel", _aio_client_channel_interceptor)
@@ -142,7 +142,7 @@ def _unpatch_client():
 
     pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
     if pin:
-        pin.remove_from(constants.GRPC_PIN_MODULE_CLIENT)
+        pin._remove_from(constants.GRPC_PIN_MODULE_CLIENT)
 
     _u(grpc, "secure_channel")
     _u(grpc, "insecure_channel")
@@ -156,7 +156,7 @@ def _unpatch_aio_client():
 
     pin = Pin.get_from(GRPC_AIO_PIN_MODULE_CLIENT)
     if pin:
-        pin.remove_from(GRPC_AIO_PIN_MODULE_CLIENT)
+        pin._remove_from(GRPC_AIO_PIN_MODULE_CLIENT)
 
     _u(grpc.aio, "insecure_channel")
     _u(grpc.aio, "secure_channel")
@@ -167,7 +167,7 @@ def _patch_server():
         return
     constants.GRPC_PIN_MODULE_SERVER.__datadog_patch = True
 
-    Pin().onto(constants.GRPC_PIN_MODULE_SERVER)
+    Pin()._onto(constants.GRPC_PIN_MODULE_SERVER)
 
     _w("grpc", "server", _server_constructor_interceptor)
 
@@ -177,7 +177,7 @@ def _patch_aio_server():
         return
     GRPC_AIO_PIN_MODULE_SERVER.__datadog_patch = True
 
-    Pin().onto(GRPC_AIO_PIN_MODULE_SERVER)
+    Pin()._onto(GRPC_AIO_PIN_MODULE_SERVER)
 
     _w("grpc.aio", "server", _aio_server_constructor_interceptor)
 
@@ -189,7 +189,7 @@ def _unpatch_server():
 
     pin = Pin.get_from(constants.GRPC_PIN_MODULE_SERVER)
     if pin:
-        pin.remove_from(constants.GRPC_PIN_MODULE_SERVER)
+        pin._remove_from(constants.GRPC_PIN_MODULE_SERVER)
 
     _u(grpc, "server")
 
@@ -201,7 +201,7 @@ def _unpatch_aio_server():
 
     pin = Pin.get_from(GRPC_AIO_PIN_MODULE_SERVER)
     if pin:
-        pin.remove_from(GRPC_AIO_PIN_MODULE_SERVER)
+        pin._remove_from(GRPC_AIO_PIN_MODULE_SERVER)
 
     _u(grpc.aio, "server")
 

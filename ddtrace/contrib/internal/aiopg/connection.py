@@ -88,7 +88,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         vendor = dbapi._get_vendor(conn)
         name = schematize_service_name(vendor)
         db_pin = pin or Pin(service=name)
-        db_pin.onto(self)
+        db_pin._onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls

@@ -31,7 +31,7 @@ def tracer(request):
             kwargs["partial_flush_enabled"] = partial_flush_enabled
         if partial_flush_min_spans:
             kwargs["partial_flush_min_spans"] = partial_flush_min_spans
-        tracer.configure(**kwargs)
+        tracer._configure(**kwargs)
         yield tracer
         tracer.shutdown()
 

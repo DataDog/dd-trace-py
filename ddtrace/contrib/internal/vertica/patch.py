@@ -58,7 +58,7 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
         tags=tags,
         _config=config.vertica["patch"]["vertica_python.vertica.cursor.Cursor"],
     )
-    pin.onto(cursor)
+    pin._onto(cursor)
 
 
 # tracing configuration
@@ -192,7 +192,7 @@ def _install_init(patch_item, patch_class, patch_mod, config):
             tags=config.get("tags", {}),
             tracer=config.get("tracer", ddtrace.tracer),
             _config=config["patch"][patch_item],
-        ).onto(instance)
+        )._onto(instance)
         return r
 
 

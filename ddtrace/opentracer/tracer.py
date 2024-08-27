@@ -101,7 +101,7 @@ class Tracer(opentracing.Tracer):
 
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))  # type: ignore[arg-type]
-        self._dd_tracer.configure(
+        self._dd_tracer._configure(
             enabled=self._config.get(keys.ENABLED),
             hostname=self._config.get(keys.AGENT_HOSTNAME),
             https=self._config.get(keys.AGENT_HTTPS),

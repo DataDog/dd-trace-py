@@ -79,7 +79,7 @@ def patch_conn(conn, traced_conn_cls, pin=None):
         "db.application": dsn.get("application_name"),
         db.SYSTEM: "postgresql",
     }
-    Pin(tags=tags, _config=_config).onto(c)
+    Pin(tags=tags, _config=_config)._onto(c)
     return c
 
 

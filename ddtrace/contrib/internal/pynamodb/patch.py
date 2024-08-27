@@ -45,7 +45,7 @@ def patch():
     pynamodb.connection.base._datadog_patch = True
 
     wrapt.wrap_function_wrapper("pynamodb.connection.base", "Connection._make_api_call", patched_api_call)
-    Pin(service=None).onto(pynamodb.connection.base.Connection)
+    Pin(service=None)._onto(pynamodb.connection.base.Connection)
 
 
 def unpatch():

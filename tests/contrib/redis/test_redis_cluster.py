@@ -103,7 +103,7 @@ class TestRedisClusterPatch(TracerTestCase):
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -123,7 +123,7 @@ class TestRedisClusterPatch(TracerTestCase):
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -142,7 +142,7 @@ class TestRedisClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer)._onto(r)
         r.get("key")
 
         spans = self.get_spans()
@@ -162,7 +162,7 @@ class TestRedisClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer)._onto(r)
         r.get("key")
 
         spans = self.get_spans()

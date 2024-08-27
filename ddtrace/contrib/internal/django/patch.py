@@ -820,7 +820,7 @@ def unwrap_views(func, instance, args, kwargs):
 
 
 def _patch(django):
-    Pin().onto(django)
+    Pin()._onto(django)
 
     when_imported("django.apps.registry")(lambda m: trace_utils.wrap(m, "Apps.populate", traced_populate(django)))
 

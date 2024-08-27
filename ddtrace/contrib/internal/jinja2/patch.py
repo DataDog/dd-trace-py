@@ -37,7 +37,7 @@ def patch():
     Pin(
         service=config.jinja2["service_name"],
         _config=config.jinja2,
-    ).onto(jinja2.environment.Environment)
+    )._onto(jinja2.environment.Environment)
     _w(jinja2, "environment.Template.render", _wrap_render)
     _w(jinja2, "environment.Template.generate", _wrap_render)
     _w(jinja2, "environment.Environment.compile", _wrap_compile)

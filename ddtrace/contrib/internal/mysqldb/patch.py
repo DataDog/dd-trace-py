@@ -56,7 +56,7 @@ def patch():
         return
     MySQLdb._datadog_patch = True
 
-    Pin().onto(MySQLdb)
+    Pin()._onto(MySQLdb)
 
     # `Connection` and `connect` are aliases for
     # `Connect`; patch them too
@@ -77,7 +77,7 @@ def unpatch():
 
     pin = Pin.get_from(MySQLdb)
     if pin:
-        pin.remove_from(MySQLdb)
+        pin._remove_from(MySQLdb)
 
     # unpatch MySQLdb
     _u(MySQLdb, "Connect")
@@ -118,5 +118,5 @@ def patch_conn(conn, *args, **kwargs):
 
     # grab the metadata from the conn
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysqldb)
-    pin.onto(wrapped)
+    pin._onto(wrapped)
     return wrapped

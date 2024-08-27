@@ -20,7 +20,7 @@ class WrappedConnect(wrapt.ObjectProxy):
 
     def __init__(self, connect):
         super(WrappedConnect, self).__init__(connect)
-        ddtrace.Pin(_SERVICE, tracer=ddtrace.tracer).onto(self)
+        ddtrace.Pin(_SERVICE, tracer=ddtrace.tracer)._onto(self)
 
     def __call__(self, *args, **kwargs):
         client = self.__wrapped__(*args, **kwargs)
@@ -30,6 +30,6 @@ class WrappedConnect(wrapt.ObjectProxy):
             # existing pymongo integration and make sure that the connections it
             # uses internally are traced.
             client = TracedMongoClient(client)
-            ddtrace.Pin(service=pin.service, tracer=pin.tracer).onto(client)
+            ddtrace.Pin(service=pin.service, tracer=pin.tracer)._onto(client)
 
         return client

@@ -170,7 +170,7 @@ def patch():
         return
     flask._datadog_patch = True
 
-    Pin().onto(flask.Flask)
+    Pin()._onto(flask.Flask)
     core.dispatch("flask.patch", (flask_version,))
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", patched_wsgi_app)
@@ -404,7 +404,7 @@ def patched_blueprint_register(wrapped, instance, args, kwargs):
     if not pin:
         pin = Pin.get_from(app)
         if pin:
-            pin.clone().onto(instance)
+            pin._clone()._onto(instance)
     return wrapped(*args, **kwargs)
 
 
@@ -415,7 +415,7 @@ def patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
 
     def _wrap(rule, endpoint=None, view_func=None, **kwargs):
         if view_func:
-            pin.clone().onto(view_func)
+            pin._clone()._onto(view_func)
         return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
 
     return _wrap(*args, **kwargs)

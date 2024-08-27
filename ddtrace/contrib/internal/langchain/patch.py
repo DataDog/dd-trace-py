@@ -1048,7 +1048,7 @@ def patch():
 
     langchain._datadog_patch = True
 
-    Pin().onto(langchain)
+    Pin()._onto(langchain)
     integration = LangChainIntegration(integration_config=config.langchain)
     langchain._datadog_integration = integration
 

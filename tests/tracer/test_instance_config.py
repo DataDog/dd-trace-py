@@ -18,7 +18,7 @@ class InstanceConfigTestCase(TestCase):
 
         # define the Class and attach a Pin to it
         self.Klass = Klass
-        Pin(service="metrics").onto(Klass)
+        Pin(service="metrics")._onto(Klass)
 
     def test_configuration_get_from(self):
         # ensure a dictionary is returned
@@ -60,7 +60,7 @@ class InstanceConfigTestCase(TestCase):
     def test_service_name_for_pin(self):
         # ensure for backward compatibility that changing the service
         # name via the Pin object also updates integration config
-        Pin(service="intake").onto(self.Klass)
+        Pin(service="intake")._onto(self.Klass)
         instance = self.Klass()
         cfg = config.get_from(instance)
         assert cfg["service_name"] == "intake"
@@ -71,7 +71,7 @@ class InstanceConfigTestCase(TestCase):
         global_config = {
             "service_name": "primary_service",
         }
-        Pin(service="service", _config=global_config).onto(self.Klass)
+        Pin(service="service", _config=global_config)._onto(self.Klass)
         instance = self.Klass()
         cfg = config.get_from(instance)
         assert cfg["service_name"] == "service"
@@ -81,7 +81,7 @@ class InstanceConfigTestCase(TestCase):
         global_config = {
             "service_name": "service",
         }
-        Pin(service="service", _config=global_config).onto(self.Klass)
+        Pin(service="service", _config=global_config)._onto(self.Klass)
         instance = self.Klass()
         cfg = config.get_from(instance)
         cfg["service_name"] = "metrics"
@@ -93,7 +93,7 @@ class InstanceConfigTestCase(TestCase):
         global_config = {
             "service_name": "service",
         }
-        Pin(service="service", _config=global_config).onto(self.Klass)
+        Pin(service="service", _config=global_config)._onto(self.Klass)
         # override the global config: users do that before using the integration
         global_config["service_name"] = "metrics"
         # use the Pin via `get_from`

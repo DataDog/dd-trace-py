@@ -125,7 +125,7 @@ def patch():
     if getattr(openai, "__datadog_patch", False):
         return
 
-    Pin().onto(openai)
+    Pin()._onto(openai)
     integration = OpenAIIntegration(integration_config=config.openai, openai=openai)
 
     if OPENAI_VERSION >= (1, 0, 0):

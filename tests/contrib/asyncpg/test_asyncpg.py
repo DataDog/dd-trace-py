@@ -350,7 +350,7 @@ class AsyncPgTestCase(AsyncioTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(tracer=self.tracer).onto(self.conn)
+            pin._clone(tracer=self.tracer)._onto(self.conn)
 
             return self.conn, self.tracer
 

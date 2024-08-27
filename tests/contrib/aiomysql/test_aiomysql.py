@@ -31,7 +31,7 @@ def patch_aiomysql():
 @pytest.fixture
 async def patched_conn(tracer):
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(tracer=tracer).onto(conn)
+    Pin.get_from(conn)._clone(tracer=tracer)._onto(conn)
     yield conn
     conn.close()
 
@@ -40,7 +40,7 @@ async def patched_conn(tracer):
 async def snapshot_conn():
     tracer = Tracer()
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(tracer=tracer).onto(conn)
+    Pin.get_from(conn)._clone(tracer=tracer)._onto(conn)
     yield conn
     conn.close()
     tracer.shutdown()
@@ -82,7 +82,7 @@ async def test_patch_unpatch(tracer, test_spans):
     service = "fo"
 
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+    Pin.get_from(conn)._clone(service=service, tracer=tracer)._onto(conn)
     await (await conn.cursor()).execute("select 'dba4x4'")
     conn.close()
 
@@ -104,7 +104,7 @@ async def test_patch_unpatch(tracer, test_spans):
     patch()
 
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+    Pin.get_from(conn)._clone(service=service, tracer=tracer)._onto(conn)
     await (await conn.cursor()).execute("select 'dba4x4'")
     conn.close()
 
@@ -241,7 +241,7 @@ class AioMySQLTestCase(AsyncioTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(tracer=self.tracer, tags={**tags, **pin.tags}).onto(self.conn)
+            pin._clone(tracer=self.tracer, tags={**tags, **pin.tags})._onto(self.conn)
 
             return self.conn, self.tracer
 

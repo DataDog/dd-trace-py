@@ -59,7 +59,7 @@ def patch():
     else:
         # Old version before https://github.com/urllib3/urllib3/pull/2398
         _w("urllib3.request", "RequestMethods.request", _wrap_request)
-    Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
+    Pin()._onto(urllib3.connectionpool.HTTPConnectionPool)
 
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_SSRF)

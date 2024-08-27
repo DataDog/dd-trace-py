@@ -13,7 +13,7 @@ from tests.webclient import PingFilter
 os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 opentelemetry.trace.set_tracer_provider(TracerProvider())
 
-ddtrace.tracer.configure(settings={"FILTERS": [PingFilter()]})
+ddtrace.tracer._configure(settings={"FILTERS": [PingFilter()]})
 app = flask.Flask(__name__)
 
 

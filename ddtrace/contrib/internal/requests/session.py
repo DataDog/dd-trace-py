@@ -18,4 +18,4 @@ class TracedSession(requests.Session):
 
 # always patch our `TracedSession` when imported
 _w(TracedSession, "send", _wrap_send)
-Pin(_config=config.requests).onto(TracedSession)
+Pin(_config=config.requests)._onto(TracedSession)

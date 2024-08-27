@@ -13,7 +13,7 @@ class PingFilter(TraceFilter):
         return None if trace and trace[0].trace_id == 1 else trace
 
 
-tracer.configure(
+tracer._configure(
     settings={
         "FILTERS": [PingFilter()],
     }

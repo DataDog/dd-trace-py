@@ -50,7 +50,7 @@ def patch():
     _w("tornado.template", "Template.generate", template.generate)
 
     # configure the global tracer
-    ddtrace.tracer.configure(
+    ddtrace.tracer._configure(
         context_provider=context_provider,
         wrap_executor=decorators.wrap_executor,
     )

@@ -17,7 +17,7 @@ import ddtrace.profiling.auto  # noqa:F401
 from tests.webclient import PingFilter
 
 
-tracer.configure(
+tracer._configure(
     settings={
         "FILTERS": [PingFilter()],
     }

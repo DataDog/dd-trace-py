@@ -9,7 +9,7 @@ from ddtrace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
+tracer._configure(
     settings={
         "FILTERS": [PingFilter()],
     }

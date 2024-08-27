@@ -46,7 +46,7 @@ def get_version():
 
 
 def _wrap_init(func, instance, args, kwargs):
-    Pin(service=None, _config=config.httplib).onto(instance)
+    Pin(service=None, _config=config.httplib)._onto(instance)
     return func(*args, **kwargs)
 
 

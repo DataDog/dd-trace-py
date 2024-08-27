@@ -52,7 +52,7 @@ async def patched_connect(connect_func, _, args, kwargs):
     tags[db.SYSTEM] = "mysql"
 
     c = AIOTracedConnection(conn)
-    Pin(tags=tags).onto(c)
+    Pin(tags=tags)._onto(c)
     return c
 
 
@@ -124,7 +124,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         super(AIOTracedConnection, self).__init__(conn)
         name = dbapi._get_vendor(conn)
         db_pin = pin or Pin(service=name)
-        db_pin.onto(self)
+        db_pin._onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls

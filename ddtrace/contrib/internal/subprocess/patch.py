@@ -47,7 +47,7 @@ def patch():
     import os
 
     if not getattr(os, "_datadog_patch", False):
-        Pin().onto(os)
+        Pin()._onto(os)
         trace_utils.wrap(os, "system", _traced_ossystem(os))
         trace_utils.wrap(os, "fork", _traced_fork(os))
 
@@ -57,7 +57,7 @@ def patch():
         patched.append("os")
 
     if not getattr(subprocess, "_datadog_patch", False):
-        Pin().onto(subprocess)
+        Pin()._onto(subprocess)
         # We store the parameters on __init__ in the context and set the tags on wait
         # (where all the Popen objects eventually arrive, unless killed before it)
         trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))

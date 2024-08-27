@@ -69,7 +69,7 @@ def patch():
         return
 
     fastapi._datadog_patch = True
-    Pin().onto(fastapi)
+    Pin()._onto(fastapi)
     _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
 

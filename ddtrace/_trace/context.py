@@ -129,6 +129,7 @@ class Context(object):
         """Return the context sampling priority for the trace."""
         return self._metrics.get(SAMPLING_PRIORITY_KEY)
 
+    # questionable: should this be revealed to the user?
     @sampling_priority.setter
     def sampling_priority(self, value: Optional[NumericType]) -> None:
         with self._lock:

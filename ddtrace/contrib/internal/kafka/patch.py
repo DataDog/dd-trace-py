@@ -121,10 +121,10 @@ def patch():
 
     # Consume is not implemented in deserializing consumers
     trace_utils.wrap(TracedConsumer, "consume", traced_poll_or_consume)
-    Pin().onto(confluent_kafka.Producer)
-    Pin().onto(confluent_kafka.Consumer)
-    Pin().onto(confluent_kafka.SerializingProducer)
-    Pin().onto(confluent_kafka.DeserializingConsumer)
+    Pin()._onto(confluent_kafka.Producer)
+    Pin()._onto(confluent_kafka.Consumer)
+    Pin()._onto(confluent_kafka.SerializingProducer)
+    Pin()._onto(confluent_kafka.DeserializingConsumer)
 
 
 def unpatch():

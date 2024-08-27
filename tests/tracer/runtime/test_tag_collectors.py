@@ -83,7 +83,7 @@ def test_tracer_tags_service_from_code():
             return None
 
     # Drop all traces so we don't get an error trying to flush
-    ddtrace.tracer.configure(settings={"FILTERS": [DropFilter()]})
+    ddtrace.tracer._configure(settings={"FILTERS": [DropFilter()]})
 
     ddtrace.config.service = "my-service"
 

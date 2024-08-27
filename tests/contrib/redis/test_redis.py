@@ -215,7 +215,7 @@ class TestRedisPatch(TracerTestCase):
         r = self.r
         pin = Pin.get_from(r)
         if pin:
-            pin.clone(tags={"cheese": "camembert"}).onto(r)
+            pin._clone(tags={"cheese": "camembert"})._onto(r)
 
         r.get("cheese")
         spans = self.get_spans()
@@ -232,7 +232,7 @@ class TestRedisPatch(TracerTestCase):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG["port"])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -252,7 +252,7 @@ class TestRedisPatch(TracerTestCase):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG["port"])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -534,7 +534,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         r = self.r
         pin = Pin.get_from(r)
         if pin:
-            pin.clone(tags={"cheese": "camembert"}).onto(r)
+            pin._clone(tags={"cheese": "camembert"})._onto(r)
 
         r.get("cheese")
 
@@ -546,7 +546,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG["port"])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -566,7 +566,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG["port"])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -580,7 +580,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         ot_tracer = init_tracer("redis_svc", ddtrace.tracer)
         # FIXME: OpenTracing always overrides the hostname/port and creates a new
         #        writer so we have to reconfigure with the previous one
-        ddtrace.tracer.configure(writer=writer)
+        ddtrace.tracer._configure(writer=writer)
 
         with ot_tracer.start_active_span("redis_get"):
             us = self.r.get("cheese")

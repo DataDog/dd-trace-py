@@ -42,7 +42,7 @@ def patch():
     _w("requests", "Session.send", _wrap_send)
     # IAST needs to wrap this function because `Session.send` is too late
     _w("requests", "Session.request", _wrap_request)
-    Pin(_config=config.requests).onto(requests.Session)
+    Pin(_config=config.requests)._onto(requests.Session)
 
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_SSRF)

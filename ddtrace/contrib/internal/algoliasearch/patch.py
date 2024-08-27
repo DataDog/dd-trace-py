@@ -54,12 +54,12 @@ def patch():
 
     if algoliasearch_version < V2 and algoliasearch_version >= V1:
         _w(algoliasearch.index, "Index.search", _patched_search)
-        pin.onto(algoliasearch.index.Index)
+        pin._onto(algoliasearch.index.Index)
     elif algoliasearch_version >= V2 and algoliasearch_version < V3:
         from algoliasearch import search_index
 
         _w(algoliasearch, "search_index.SearchIndex.search", _patched_search)
-        pin.onto(search_index.SearchIndex)
+        pin._onto(search_index.SearchIndex)
     else:
         return
 

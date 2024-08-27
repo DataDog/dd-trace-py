@@ -55,5 +55,5 @@ def _connect(func, instance, args, kwargs):
     pin = Pin(tags=tags)
 
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mariadb)
-    pin.onto(wrapped)
+    pin._onto(wrapped)
     return wrapped

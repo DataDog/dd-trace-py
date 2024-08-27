@@ -252,7 +252,7 @@ class TracerTestCases(TracerTestCase):
             self.assertEqual(42, kw_param)
 
         # set the custom wrap factory after the wrapper has been called
-        self.tracer.configure(wrap_executor=wrap_executor)
+        self.tracer._configure(wrap_executor=wrap_executor)
 
         # call the function expecting that the custom tracing wrapper is used
         wrapped_function(42, kw_param=42)
@@ -276,7 +276,7 @@ class TracerTestCases(TracerTestCase):
             self.assertEqual(42, kw_param)
 
         # set the custom wrap factory after the wrapper has been called
-        self.tracer.configure(wrap_executor=wrap_executor)
+        self.tracer._configure(wrap_executor=wrap_executor)
 
         # call the function expecting that the custom tracing wrapper is used
         with self.trace("wrap.parent", service="webserver"):
@@ -488,26 +488,26 @@ class TracerTestCases(TracerTestCase):
 
     def test_configure_dogstatsd_url_host_port(self):
         tracer = Tracer()
-        tracer.configure(dogstatsd_url="foo:1234")
+        tracer._configure(dogstatsd_url="foo:1234")
         assert tracer._writer.dogstatsd.host == "foo"
         assert tracer._writer.dogstatsd.port == 1234
 
         tracer = Tracer()
         writer = AgentWriter("http://localhost:8126")
-        tracer.configure(writer=writer, dogstatsd_url="foo:1234")
+        tracer._configure(writer=writer, dogstatsd_url="foo:1234")
         assert tracer._writer.dogstatsd.host == "foo"
         assert tracer._writer.dogstatsd.port == 1234
 
     def test_configure_dogstatsd_url_socket(self):
         tracer = Tracer()
-        tracer.configure(dogstatsd_url="unix:///foo.sock")
+        tracer._configure(dogstatsd_url="unix:///foo.sock")
         assert tracer._writer.dogstatsd.host is None
         assert tracer._writer.dogstatsd.port is None
         assert tracer._writer.dogstatsd.socket_path == "/foo.sock"
 
         tracer = Tracer()
         writer = AgentWriter("http://localhost:8126")
-        tracer.configure(writer=writer, dogstatsd_url="unix:///foo.sock")
+        tracer._configure(writer=writer, dogstatsd_url="unix:///foo.sock")
         assert tracer._writer.dogstatsd.host is None
         assert tracer._writer.dogstatsd.port is None
         assert tracer._writer.dogstatsd.socket_path == "/foo.sock"
@@ -676,7 +676,7 @@ def test_tracer_configure_writer_stop_unstarted():
     orig_writer = t._writer
 
     # Stop should be called when replacing the writer.
-    t.configure(hostname="localhost", port=8126)
+    t._configure(hostname="localhost", port=8126)
     assert orig_writer.stop.called
 
 
@@ -689,7 +689,7 @@ def test_tracer_configure_writer_stop_started():
     with t.trace("something"):
         pass
 
-    t.configure(hostname="localhost", port=8126)
+    t._configure(hostname="localhost", port=8126)
     orig_writer.stop.assert_called_once_with()
 
 
@@ -948,7 +948,7 @@ class EnvTracerTestCase(TracerTestCase):
         assert not has_aws_lambda_agent_extension()
         tracer = Tracer()
         assert isinstance(tracer._writer, LogWriter)
-        tracer.configure(enabled=True)
+        tracer._configure(enabled=True)
         assert isinstance(tracer._writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
@@ -965,7 +965,7 @@ class EnvTracerTestCase(TracerTestCase):
             assert isinstance(tracer._writer, AgentWriter)
             assert tracer._writer._sync_mode
 
-            tracer.configure(enabled=False)
+            tracer._configure(enabled=False)
             assert isinstance(tracer._writer, AgentWriter)
             assert tracer._writer._sync_mode
 
@@ -1373,22 +1373,22 @@ class TestPartialFlush(TracerTestCase):
         assert [s.name for s in traces[0]] == ["root", "child0", "child1", "child2", "child3", "child4"]
 
     def test_partial_flush_configure(self):
-        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
+        self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=5)
         self.test_partial_flush()
 
     def test_partial_flush_too_many_configure(self):
-        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=1)
+        self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=1)
         self.test_partial_flush_too_many()
 
     def test_partial_flush_too_few_configure(self):
-        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=6)
+        self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=6)
         self.test_partial_flush_too_few()
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="false", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="6")
     )
     def test_partial_flush_configure_precedence(self):
-        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
+        self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=5)
         self.test_partial_flush()
 
     def _test_partial_flush(self):
@@ -1681,16 +1681,16 @@ def test_service_mapping():
 
 def test_configure_url_partial():
     tracer = ddtrace.Tracer()
-    tracer.configure(hostname="abc")
+    tracer._configure(hostname="abc")
     assert tracer._writer.agent_url == "http://abc:8126"
-    tracer.configure(port=123)
+    tracer._configure(port=123)
     assert tracer._writer.agent_url == "http://abc:123"
 
     tracer = ddtrace.Tracer(url="http://abc")
     assert tracer._writer.agent_url == "http://abc"
-    tracer.configure(port=123)
+    tracer._configure(port=123)
     assert tracer._writer.agent_url == "http://abc:123"
-    tracer.configure(port=431)
+    tracer._configure(port=431)
     assert tracer._writer.agent_url == "http://abc:431"
 
 
@@ -1889,10 +1889,10 @@ def test_tracer_api_version():
     t = Tracer()
     assert isinstance(t._writer._encoder, MsgpackEncoderV05)
 
-    t.configure(api_version="v0.3")
+    t._configure(api_version="v0.3")
     assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
-    t.configure(api_version="v0.4")
+    t._configure(api_version="v0.4")
     assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
 
@@ -1914,7 +1914,7 @@ def test_tracer_memory_leak_span_processors(enabled):
 
     t = Tracer()
     t.enabled = enabled
-    t.configure(settings={"FILTERS": [DropAllFilter()]})
+    t._configure(settings={"FILTERS": [DropAllFilter()]})
 
     for _ in range(5):
         with t.trace("test") as span:
@@ -2005,7 +2005,7 @@ def test_import_ddtrace_tracer_not_module():
 
 def test_asm_standalone_configuration():
     tracer = ddtrace.Tracer()
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    tracer._configure(appsec_enabled=True, appsec_standalone_enabled=True)
     assert tracer._asm_enabled is True
     assert tracer._appsec_standalone_enabled is True
     assert tracer._apm_opt_out is True
@@ -2017,4 +2017,4 @@ def test_asm_standalone_configuration():
 
     assert tracer._compute_stats is False
     # reset tracer values
-    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+    tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
