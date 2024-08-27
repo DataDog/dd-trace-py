@@ -1012,7 +1012,6 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
             if tool_input:
                 span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
             if config:
-                # Comment : Is this enough or should I parse the configs one by one and add them
                 span.set_tag_str("langchain.request.config", integration.trunc(str(config)))
         tool_output = func(*args, **kwargs)
         if tool_output is not None:
@@ -1038,7 +1037,6 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
                 attrs={
-                    # Comment : Should we have more info in the log ?
                     "tool_name": instance.__self__.name or "",
                     "input": tool_input,
                     "config": config or "",
@@ -1049,7 +1047,6 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
 
 @with_traced_module
 async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs):
-    # Comment : Is there a better way to trace the async variant besides duplicating the code ?
     integration = langchain._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
     config = get_argument_value(args, kwargs, 1, "config") if len(args) >= 2 else None
@@ -1120,7 +1117,6 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
                 attrs={
-                    # Comment : Should we have more info in the log ?
                     "tool_name": instance.__self__.name or "",
                     "input": tool_input,
                     "config": config or "",
