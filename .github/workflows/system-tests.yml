@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  pull_request:
+      - test-mq-main
   workflow_dispatch: {}
   schedule:
     - cron: '00 04 * * 2-6'
