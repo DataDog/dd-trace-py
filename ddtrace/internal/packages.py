@@ -1,4 +1,6 @@
+import collections
 from functools import lru_cache as cached
+import inspect
 import logging
 from os import fspath  # noqa:F401
 import sys
@@ -40,6 +42,42 @@ def get_distributions():
             pkgs.add(Distribution(path=path, name=name.lower(), version=version))
 
     return pkgs
+
+
+@callonce
+def get_package_distributions() -> t.Mapping[str, t.List[str]]:
+    """a mapping of importable package names to their distribution name(s)"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    # Prefer the official API if available, otherwise fallback to the vendored version
+    if hasattr(importlib_metadata, "packages_distributions"):
+        return importlib_metadata.packages_distributions()
+    return _packages_distributions()
+
+
+@cached(maxsize=256)
+def get_module_distribution_versions(module_name: str) -> t.Dict[str, str]:
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        return {
+            module_name: importlib_metadata.distribution(module_name).version,
+        }
+    except importlib_metadata.PackageNotFoundError:
+        pass
+
+    pkgs = get_package_distributions()
+    names = pkgs.get(module_name)
+    if not names:
+        return {}
+
+    return {name: get_version_for_package(name) for name in names}
 
 
 @cached(maxsize=256)
@@ -220,3 +258,117 @@ def is_distribution_available(name: str) -> bool:
         return False
 
     return True
+
+
+# ----
+# the below helpers are copied from importlib_metadata
+# ----
+
+
+def _packages_distributions() -> t.Mapping[str, t.List[str]]:
+    """
+    Return a mapping of top-level packages to their
+    distributions.
+    >>> import collections.abc
+    >>> pkgs = packages_distributions()
+    >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
+    True
+    """
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    pkg_to_dist = collections.defaultdict(list)
+    for dist in importlib_metadata.distributions():
+        for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
+            pkg_to_dist[pkg].append(dist.metadata["Name"])
+    return dict(pkg_to_dist)
+
+
+def _top_level_declared(dist):
+    return (dist.read_text("top_level.txt") or "").split()
+
+
+def _topmost(name) -> t.Optional[str]:
+    """
+    Return the top-most parent as long as there is a parent.
+    """
+    top, *rest = name.parts
+    return top if rest else None
+
+
+def _get_toplevel_name(name) -> str:
+    """
+    Infer a possibly importable module name from a name presumed on
+    sys.path.
+    >>> _get_toplevel_name(PackagePath('foo.py'))
+    'foo'
+    >>> _get_toplevel_name(PackagePath('foo'))
+    'foo'
+    >>> _get_toplevel_name(PackagePath('foo.pyc'))
+    'foo'
+    >>> _get_toplevel_name(PackagePath('foo/__init__.py'))
+    'foo'
+    >>> _get_toplevel_name(PackagePath('foo.pth'))
+    'foo.pth'
+    >>> _get_toplevel_name(PackagePath('foo.dist-info'))
+    'foo.dist-info'
+    """
+    return _topmost(name) or (
+        # python/typeshed#10328
+        inspect.getmodulename(name)
+        or str(name)
+    )
+
+
+def _top_level_inferred(dist):
+    opt_names = set(map(_get_toplevel_name, _always_iterable(dist.files)))
+
+    def importable_name(name):
+        return "." not in name
+
+    return filter(importable_name, opt_names)
+
+
+# copied from more_itertools 8.8
+def _always_iterable(obj, base_type=(str, bytes)):
+    """If *obj* is iterable, return an iterator over its items::
+        >>> obj = (1, 2, 3)
+        >>> list(always_iterable(obj))
+        [1, 2, 3]
+    If *obj* is not iterable, return a one-item iterable containing *obj*::
+        >>> obj = 1
+        >>> list(always_iterable(obj))
+        [1]
+    If *obj* is ``None``, return an empty iterable:
+        >>> obj = None
+        >>> list(always_iterable(None))
+        []
+    By default, binary and text strings are not considered iterable::
+        >>> obj = 'foo'
+        >>> list(always_iterable(obj))
+        ['foo']
+    If *base_type* is set, objects for which ``isinstance(obj, base_type)``
+    returns ``True`` won't be considered iterable.
+        >>> obj = {'a': 1}
+        >>> list(always_iterable(obj))  # Iterate over the dict's keys
+        ['a']
+        >>> list(always_iterable(obj, base_type=dict))  # Treat dicts as a unit
+        [{'a': 1}]
+    Set *base_type* to ``None`` to avoid any special handling and treat objects
+    Python considers iterable as iterable:
+        >>> obj = 'foo'
+        >>> list(always_iterable(obj, base_type=None))
+        ['f', 'o', 'o']
+    """
+    if obj is None:
+        return iter(())
+
+    if (base_type is not None) and isinstance(obj, base_type):
+        return iter((obj,))
+
+    try:
+        return iter(obj)
+    except TypeError:
+        return iter((obj,))
