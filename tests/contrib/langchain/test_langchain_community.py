@@ -1274,3 +1274,54 @@ def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, requ
             retriever = faiss.as_retriever()
         with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
             retriever.invoke("What was the message of the last test query?")
+
+
+@pytest.mark.snapshot
+def test_base_tool_invoke(langchain, langchain_core, request_vcr):
+    """
+    Test that invoking a tool with langchain will
+    result in a 1-span trace with a tool span.
+    """
+    from math import pi
+
+    cassette_name = "langchain_tool_invoke.yaml"
+    with request_vcr.use_cassette(cassette_name):
+
+        class CircumferenceTool(langchain_core.tools.BaseTool):
+            name = "Circumference calculator"
+            description = "use this tool when you need to calculate a circumference using the radius of a circle"
+
+            def _run(self, radius):
+                return float(radius) * 2.0 * pi
+
+            def _arun(self, radius: int):
+                raise NotImplementedError("This tool does not support async")
+
+        tool = CircumferenceTool()
+        tool.invoke("2")
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_base_tool_ainvoke(langchain, langchain_core, request_vcr):
+    """
+    Test that invoking a tool with langchain will
+    result in a 1-span trace with a tool span. Async mode
+    """
+    from math import pi
+
+    cassette_name = "langchain_tool_invoke.yaml"
+    with request_vcr.use_cassette(cassette_name):
+
+        class CircumferenceTool(langchain_core.tools.BaseTool):
+            name = "Circumference calculator"
+            description = "use this tool when you need to calculate a circumference using the radius of a circle"
+
+            def _run(self, radius):
+                return float(radius) * 2.0 * pi
+
+            async def _arun(self, radius: int):
+                return float(radius) * 2.0 * pi
+
+        tool = CircumferenceTool()
+        await tool.ainvoke(2)
