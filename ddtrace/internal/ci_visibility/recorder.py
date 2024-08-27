@@ -329,6 +329,7 @@ class CIVisibility(Service):
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                "Content-Type": "application/json",
             }
             log.debug("Making EVP request to agent: url=%s, headers=%s", url, _headers)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
@@ -479,6 +480,7 @@ class CIVisibility(Service):
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                "Content-Type": "application/json",
             }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
