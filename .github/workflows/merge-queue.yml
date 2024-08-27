@@ -52,4 +52,5 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Run All Tests
-            run: echo "Would run all tests once it's in the merge queue"
+              run: |
+                echo "Would run all tests once it's in the merge queue"
