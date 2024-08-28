@@ -53,3 +53,4 @@ jobs:
             - name: Run All Tests
               run: |
                 echo "Would run all tests once it's in the merge queue"
+                sleep 30
