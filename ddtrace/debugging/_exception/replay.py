@@ -146,6 +146,8 @@ def can_capture(span: Span) -> bool:
 class SpanExceptionHandler:
     __uploader__ = LogsIntakeUploaderV1
 
+    _instance: t.Optional["SpanExceptionHandler"] = None
+
     def on_span_exception(
         self, span: Span, _exc_type: t.Type[BaseException], exc: BaseException, _tb: t.Optional[TracebackType]
     ) -> None:
@@ -206,10 +208,26 @@ class SpanExceptionHandler:
             span.set_tag_str(DEBUG_INFO_TAG, "true")
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
 
-    def enable(self) -> None:
-        self.__uploader__.register(UploaderProduct.EXCEPTION_REPLAY)
-        core.on("span.exception", self.on_span_exception, name=__name__)
+    @classmethod
+    def enable(cls) -> None:
+        if cls._instance is not None:
+            return
 
-    def disable(self) -> None:
-        core.reset_listeners("span.exception", self.on_span_exception)
-        self.__uploader__.unregister(UploaderProduct.EXCEPTION_REPLAY)
+        instance = cls()
+
+        instance.__uploader__.register(UploaderProduct.EXCEPTION_REPLAY)
+        core.on("span.exception", instance.on_span_exception, name=__name__)
+
+        cls._instance = instance
+
+    @classmethod
+    def disable(cls) -> None:
+        if cls._instance is None:
+            return
+
+        instance = cls._instance
+
+        core.reset_listeners("span.exception", instance.on_span_exception)
+        instance.__uploader__.unregister(UploaderProduct.EXCEPTION_REPLAY)
+
+        cls._instance = None

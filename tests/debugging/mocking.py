@@ -202,9 +202,10 @@ class MockSpanExceptionHandler(SpanExceptionHandler):
 
 @contextmanager
 def exception_replay(**config_overrides: Any) -> Generator[MockLogsIntakeUploaderV1, None, None]:
-    handler = MockSpanExceptionHandler()
-    handler.enable()
+    MockSpanExceptionHandler.enable()
+
+    handler = MockSpanExceptionHandler._instance
     try:
         yield handler.__uploader__._instance
     finally:
-        handler.disable()
+        MockSpanExceptionHandler.disable()
