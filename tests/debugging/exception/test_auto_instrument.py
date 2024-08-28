@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import sys
 
 import pytest
 
@@ -166,16 +167,14 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             assert len(d.test_queue) == 3
 
     def test_debugger_capture_exception(self):
-        from ddtrace.debugging import capture_exception
-
         def a(v):
-            with self.trace("a"):
+            with self.trace("a") as span:
                 try:
                     raise ValueError("hello", v)
                 except Exception:
-                    capture_exception()
+                    span.set_exc_info(*sys.exc_info())
                     # Check that we don't capture multiple times
-                    capture_exception()
+                    span.set_exc_info(*sys.exc_info())
 
         def b():
             with self.trace("b"):

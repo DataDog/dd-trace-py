@@ -212,16 +212,3 @@ class SpanExceptionHandler:
 
             span.set_tag_str(DEBUG_INFO_TAG, "true")
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
-
-
-def capture_exception() -> None:
-    import sys
-
-    from ddtrace import tracer
-
-    try:
-        span = tracer.current_span()
-        if span is not None and not span.error:
-            span.set_exc_info(*sys.exc_info())
-    except Exception:
-        log.exception("error capturing exception")
