@@ -970,7 +970,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
-    config = get_argument_value(args, kwargs, 1, "config") if len(args) >= 2 else None
+    config = get_argument_value(args, kwargs, 1, "config", optional=True)
 
     span = integration.trace(
         pin,
