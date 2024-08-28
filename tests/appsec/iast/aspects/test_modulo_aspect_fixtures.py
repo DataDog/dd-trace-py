@@ -37,7 +37,7 @@ class TestOperatorModuloReplacement(BaseReplacement):
         assert as_formatted_evidence(result, tag_mapping_function=None) == escaped_expected_result
 
     def test_modulo_when_template_is_none_then_raises_attribute_error(self):  # type: () -> None
-        with pytest.raises(TypeError):
+        with pytest.raises(AttributeError):
             mod.do_modulo(None, "")
 
     def test_modulo_when_parameter_is_none_then_does_not_break(self):  # type: () -> None
