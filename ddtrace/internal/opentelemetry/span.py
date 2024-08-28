@@ -207,7 +207,7 @@ class Span(OtelSpan):
     def is_recording(self):
         # type: () -> bool
         """Returns False if Span.end() is called."""
-        return not self._ddspan._finished
+        return not self._ddspan.finished
 
     def set_status(self, status, description=None):
         # type: (Union[Status, StatusCode], Optional[str]) -> None

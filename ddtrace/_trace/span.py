@@ -248,41 +248,27 @@ class Span(object):
         self._resource[0] = value
 
     @property
-    def _finished(self) -> bool:
+    def finished(self) -> bool:
         return self.duration_ns is not None
 
-    @property
-    def finished(self) -> bool:
+    @finished.setter
+    def finished(self, value: bool) -> None:
+        """Finishes the span if set to a truthy value.
+
+        If the span is already finished and a truthy value is provided
+        no action will occur.
+        """
         deprecate(
             "span.finished is deprecated and will be removed in a future version of the tracer.",
             message="""span.finished is deprecated and will be removed in a future version of the tracer.
             Please use span.duration instead to check if a span is finished.""",
             category=DDTraceDeprecationWarning,
         )
-        return self._finished(self)
-
-    @finished.setter
-    def _finished(self, value: bool) -> None:
-        """Finishes the span if set to a truthy value.
-
-        If the span is already finished and a truthy value is provided
-        no action will occur.
-        """
         if value:
-            if not self._finished:
+            if not self.finished:
                 self.duration_ns = time_ns() - self.start_ns
         else:
             self.duration_ns = None
-
-    @finished.setter
-    def finished(self, value: bool) -> None:
-        deprecate(
-            "span.finished is deprecated and will be removed in a future version of the tracer.",
-            message="""span.finished is deprecated and will be removed in a future version of the tracer.
-            Please use span.finish() to finish spans.""",
-            category=DDTraceDeprecationWarning,
-        )
-        return self._finished(value)
 
     @property
     def duration(self) -> Optional[float]:
@@ -292,10 +278,6 @@ class Span(object):
         return None
 
     @duration.setter
-    def _duration(self, value: float) -> None:
-        self.duration_ns = int(value * 1e9)
-
-    @duration.setter
     def duration(self, value: float) -> None:
         deprecate(
             "span.duration is deprecated and will be removed in a future version of the tracer.",
@@ -303,7 +285,7 @@ class Span(object):
             Please avoid setting span.duration directly.""",
             category=DDTraceDeprecationWarning,
         )
-        return self._duration(value)
+        self.duration_ns = int(value * 1e9)
 
     @property
     def sampled(self) -> Optional[bool]:

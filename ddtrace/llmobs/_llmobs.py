@@ -496,7 +496,7 @@ class LLMObs(Service):
         if span.span_type != SpanTypes.LLM:
             log.warning("Span must be an LLMObs-generated span.")
             return
-        if span._finished:
+        if span.finished:
             log.warning("Cannot annotate a finished span.")
             return
         span_kind = span.get_tag(SPAN_KIND)
