@@ -36,12 +36,13 @@ from ddtrace.ext.ci_visibility.api import enable_ci_visibility
 from ddtrace.ext.ci_visibility.api import is_ci_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
-from ddtrace.internal.coverage.util import collapse_ranges
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -89,34 +90,29 @@ def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
 
 def _handle_collected_coverage(test_id, coverage_collector) -> None:
     # TODO: clean up internal coverage API usage
-    test_covered_lines = ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
+    test_covered_lines = coverage_collector.get_covered_lines()
     coverage_collector.__exit__()
 
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
     if not test_covered_lines:
         log.debug("No covered lines found for test %s", test_id)
+        record_code_coverage_empty()
         return
 
-    # TODO: switch representation to bytearrays as part of new ITR coverage strategy
-    # This code is temporary / PoC
-
-    coverage_data: t.Dict[Path, t.List[t.Tuple[int, int]]] = {}
+    coverage_data: t.Dict[Path, CoverageLines] = {}
 
     for path_str, covered_lines in test_covered_lines.items():
-        file_path = Path(path_str)
-        if not file_path.is_absolute():
-            file_path = file_path.resolve()
-
-        sorted_lines = sorted(covered_lines)
-
-        collapsed_ranges = collapse_ranges(sorted_lines)
-        file_segments = []
-        for file_segment in collapsed_ranges:
-            file_segments.append((file_segment[0], file_segment[1]))
-        coverage_data[file_path] = file_segments
+        coverage_data[Path(path_str).absolute()] = covered_lines
 
     CISuite.add_coverage_data(test_id.parent_id, coverage_data)
+
+
+def _handle_coverage_dependencies(suite_id) -> None:
+    coverage_data = CISuite.get_coverage_data(suite_id)
+    coverage_paths = coverage_data.keys()
+    import_coverage = ModuleCodeCollector.get_import_coverage_for_paths(coverage_paths)
+    CISuite.add_coverage_data(suite_id, import_coverage)
 
 
 def _disable_ci_visibility():
@@ -281,6 +277,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         if CISuite.is_item_itr_skippable(suite_id) and not CISuite.was_forced_run(suite_id):
             CISuite.mark_itr_skipped(suite_id)
         else:
+            _handle_coverage_dependencies(suite_id)
             CISuite.finish(suite_id)
         if nextitem is None or (next_test_id is not None and next_test_id.parent_id.parent_id != module_id):
             CIModule.finish(module_id)
@@ -320,11 +317,17 @@ def _pytest_runtest_makereport(item, call, outcome):
 
     has_exception = call.excinfo is not None
 
+    # There are scenarios in which we may have already finished this item in setup or call, eg:
+    # - it was skipped by ITR
+    # - it was marked with skipif
+    if CITest.is_finished(test_id):
+        return
+
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
     if getattr(result, "wasxfail", None):
         CITest.set_tag(test_id, XFAIL_REASON, result.wasxfail)
-    elif getattr(result, "longrepr", None):
+    elif "xfail" in getattr(result, "keywords", []) and getattr(result, "longrepr", None):
         CITest.set_tag(test_id, XFAIL_REASON, result.longrepr)
 
     # Only capture result if:
@@ -335,12 +338,6 @@ def _pytest_runtest_makereport(item, call, outcome):
     # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
 
     if call.when != "teardown" and not (has_exception or result.failed):
-        return
-
-    # There are scenarios in which we may have already finished this item in setup or call, eg:
-    # - it was skipped by ITR
-    # - it was marked with skipif
-    if CITest.is_finished(test_id):
         return
 
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
