@@ -4,11 +4,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-from ddtrace.internal.logger import get_logger
-
-
-log = get_logger(__name__)
-
 
 def path_to_regex(pattern):
     # type: (str) -> re.Pattern
@@ -131,13 +126,9 @@ class Codeowners(object):
         :param path: path to CODEOWNERS file otherwise try to use any from known locations
         """
         path = path or self.location(cwd)
-        self.patterns: List[Tuple[re.Pattern, List[str]]] = []
-
-        if path is None:
-            log.warning("CODEOWNERS file is not available")
-            return
-
-        self.path: str = path
+        if path is not None:
+            self.path = path  # type: str
+        self.patterns = []  # type: List[Tuple[re.Pattern, List[str]]]
         self.parse()
 
     def location(self, cwd: Optional[str] = None) -> Optional[str]:

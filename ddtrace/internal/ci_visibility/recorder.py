@@ -239,6 +239,8 @@ class CIVisibility(Service):
 
         try:
             self._codeowners = Codeowners()
+        except ValueError:
+            log.warning("CODEOWNERS file is not available")
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
 
@@ -681,10 +683,8 @@ class CIVisibility(Service):
             handles = cls._instance._codeowners.of(location)
             if handles:
                 span.set_tag(test.CODEOWNERS, json.dumps(handles))
-            else:
-                log.debug("no matching codeowners for %s", location)
-        except Exception:
-            log.debug("Failed to set codeowners for %s", location, exc_info=True)
+        except KeyError:
+            log.debug("no matching codeowners for %s", location)
 
     @classmethod
     def add_session(cls, session: CIVisibilitySession):
