@@ -148,11 +148,10 @@ class BaseTestLLMObsLangchain:
         return mock_tracer.pop_traces()[0]
 
     @classmethod
-    def _invoke_tool(cls, tool, tool_input, mock_tracer, cassette_name):
+    def _invoke_tool(cls, tool, tool_input, mock_tracer):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
-        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
-            if LANGCHAIN_VERSION > (0, 1):
-                tool.invoke(tool_input)
+        if LANGCHAIN_VERSION > (0, 1):
+            tool.invoke(tool_input)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
@@ -635,24 +634,28 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         if langchain_core is None:
             pytest.skip("langchain-core not installed which is required for this test.")
 
+        if langchain_core is None:
+            pytest.skip("langchain-core not installed which is required for this test.")
+
         from math import pi
 
-        class CircumferenceTool(langchain_core.tools.BaseTool):
-            name = "Circumference calculator"
-            description = "use this tool when you need to calculate a circumference using the radius of a circle"
+        from langchain_core.tools import StructuredTool
 
-            def _run(self, radius):
-                return float(radius) * 2.0 * pi
+        def circumference_tool(radius: float) -> float:
+            return float(radius) * 2.0 * pi
 
-            def _arun(self, radius: int):
-                raise NotImplementedError("This tool does not support async")
+        calculator = StructuredTool.from_function(
+            func=circumference_tool,
+            name="Circumference calculator",
+            description="Use this tool when you need to calculate a circumference using the radius of a circle",
+            return_direct=True,
+            response_format="content",
+        )
 
-        cassette_name = "langchain_tool_invoke_39.yaml" if PY39 else "langchain_tool_invoke.yaml"
         span = self._invoke_tool(
-            tool=CircumferenceTool(),
+            tool=calculator,
             tool_input="2",
             mock_tracer=mock_tracer,
-            cassette_name=cassette_name,
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         mock_llmobs_span_writer.enqueue.assert_called_with(
