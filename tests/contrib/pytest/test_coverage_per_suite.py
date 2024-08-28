@@ -7,11 +7,11 @@ import pytest
 import ddtrace
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest.plugin import is_enabled
+from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.coverage.util import collapse_ranges
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase

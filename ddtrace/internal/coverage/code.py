@@ -6,9 +6,9 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.compat import Path
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
-from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges

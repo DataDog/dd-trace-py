@@ -3,7 +3,7 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace.ext import test
-from ddtrace.ext.ci_visibility.api import CIModuleId
+from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
@@ -18,7 +18,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilitySession(CIVisibilityParentItem[CIModuleId, CIVisibilityModule]):
+class CIVisibilitySession(CIVisibilityParentItem[TestModuleId, CIVisibilityModule]):
     """This class represents a CI session and is the top level in the hierarchy of CI visibility items.
 
     It does not access its skip-level descendents directly as they are expected to be managed through their own parent

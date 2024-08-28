@@ -2,8 +2,8 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace.ext import test
-from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISuiteId
+from ddtrace.ext.test_visibility.api import TestModuleId
+from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
@@ -24,7 +24,7 @@ class CIVisibilitySuiteType:
     pass
 
 
-class CIVisibilityModule(CIVisibilityParentItem[CISuiteId, CIVisibilitySuite], CIVisibilityChildItem[CIModuleId]):
+class CIVisibilityModule(CIVisibilityParentItem[TestSuiteId, CIVisibilitySuite], CIVisibilityChildItem[TestModuleId]):
     _event_type = MODULE_TYPE
     _event_type_metric_name = EVENT_TYPES.MODULE
 

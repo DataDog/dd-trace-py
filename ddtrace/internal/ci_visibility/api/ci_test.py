@@ -4,10 +4,11 @@ from typing import List
 from typing import Optional
 
 from ddtrace.ext import test
-from ddtrace.ext.ci_visibility.api import CIExcInfo
-from ddtrace.ext.ci_visibility.api import CISourceFileInfo
-from ddtrace.ext.ci_visibility.api import CITestId
-from ddtrace.ext.ci_visibility.api import CITestStatus
+from ddtrace.ext.test_visibility.api import TestExcInfo
+from ddtrace.ext.test_visibility.api import TestId
+from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBase
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
@@ -16,14 +17,13 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
-from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
 
 
-class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
+class CIVisibilityTest(CIVisibilityChildItem[TestId], CIVisibilityItemBase):
     _event_type = TEST
     _event_type_metric_name = EVENT_TYPES.TEST
 
@@ -33,7 +33,7 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         session_settings: CIVisibilitySessionSettings,
         parameters: Optional[str] = None,
         codeowners: Optional[List[str]] = None,
-        source_file_info: Optional[CISourceFileInfo] = None,
+        source_file_info: Optional[TestSourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
         is_early_flake_retry: bool = False,
         resource: Optional[str] = None,
@@ -50,7 +50,7 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         self._source_file_info = source_file_info
         self._original_test: Optional[CIVisibilityTest] = None
         self._is_early_flake_retry = is_early_flake_retry  # NOTE: currently unused
-        self._exc_info: Optional[CIExcInfo] = None
+        self._exc_info: Optional[TestExcInfo] = None
         self._coverage_data: CICoverageData = CICoverageData()
 
         if self._parameters is not None:
@@ -97,9 +97,9 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
 
     def finish_test(
         self,
-        status: CITestStatus,
+        status: TestStatus,
         reason: Optional[str] = None,
-        exc_info: Optional[CIExcInfo] = None,
+        exc_info: Optional[TestExcInfo] = None,
     ) -> None:
         log.debug("CI Visibility: finishing %s, with status: %s, reason: %s", self, status, reason)
         self.set_status(status)
@@ -121,13 +121,13 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         log.debug("Finishing CI Visibility test %s with ITR skipped", self)
         self.count_itr_skipped()
         self.mark_itr_skipped()
-        self.finish_test(CITestStatus.SKIP)
+        self.finish_test(TestStatus.SKIP)
 
-    def make_early_flake_retry_from_test(self, original_test_id: CITestId, retry_number: int) -> None:
+    def make_early_flake_retry_from_test(self, original_test_id: TestId, retry_number: int) -> None:
         if self.parent is None:
             raise ValueError("Cannot make early flake retry from test without a parent")
 
-        new_test_id = CITestId(
+        new_test_id = TestId(
             original_test_id.parent_id, original_test_id.name, original_test_id.parameters, retry_number
         )
         self.parent.add_child(

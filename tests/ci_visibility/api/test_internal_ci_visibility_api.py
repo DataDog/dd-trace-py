@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISourceFileInfo
-from ddtrace.ext.ci_visibility.api import CISuiteId
-from ddtrace.ext.ci_visibility.api import CITestId
+from ddtrace.ext.test_visibility.api import TestId
+from ddtrace.ext.test_visibility.api import TestModuleId
+from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api.ci_suite import CIVisibilitySuite
 from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
@@ -30,19 +30,19 @@ def _get_default_civisibility_settings():
 
 
 def _get_default_module_id():
-    return CIModuleId("module_name")
+    return TestModuleId("module_name")
 
 
 def _get_default_suite_id():
-    return CISuiteId(_get_default_module_id(), "suite_name")
+    return TestSuiteId(_get_default_module_id(), "suite_name")
 
 
 def _get_default_test_id():
-    return CITestId(_get_default_suite_id(), "test_name")
+    return TestId(_get_default_suite_id(), "test_name")
 
 
 def _get_good_test_source_file_info():
-    return CISourceFileInfo(Path("/absolute/path/to/my_file_name"), 1, 2)
+    return TestSourceFileInfo(Path("/absolute/path/to/my_file_name"), 1, 2)
 
 
 def _get_bad_test_source_file_info():
@@ -52,7 +52,7 @@ def _get_bad_test_source_file_info():
 
 
 def _get_good_suite_source_file_info():
-    return CISourceFileInfo(Path("/absolute/path/to/my_file_name"))
+    return TestSourceFileInfo(Path("/absolute/path/to/my_file_name"))
 
 
 def _get_bad_suite_source_file_info():

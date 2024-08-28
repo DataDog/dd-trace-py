@@ -3,7 +3,7 @@ import sys
 from types import CodeType
 import typing as t
 
-from ddtrace.internal.coverage.lines import CoverageLines
+from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.injection import HookType
 
 

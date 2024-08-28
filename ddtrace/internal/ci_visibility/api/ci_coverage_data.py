@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict
 from typing import List
 
-from ddtrace.internal.coverage.lines import CoverageLines
+from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 
 
 try:
