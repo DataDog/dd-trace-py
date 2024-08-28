@@ -37,7 +37,6 @@ COPY . /ddtrace
 RUN rm -rf /ddtrace/build
 RUN find / -name "CMakeCache.txt" -exec rm -f {} \;
 
-ENV CMAKE_BUILD_PARALLEL_LEVEL=12
 
 # Install ddtrace
 WORKDIR /ddtrace
