@@ -131,7 +131,7 @@ class Codeowners(object):
         self.patterns: List[Tuple[re.Pattern, List[str]]] = []
         self.parse()
 
-    def location(self, cwd=None) -> Optional[str]:
+    def location(self, cwd: Optional[str] = None) -> Optional[str]:
         """Return the location of the CODEOWNERS file."""
         cwd = cwd or os.getcwd()
         for location in self.KNOWN_LOCATIONS:
