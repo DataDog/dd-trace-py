@@ -93,6 +93,7 @@ def test_fork_no_pid_check():
             os._exit(0)
 
 
+@pytest.mark.subprocess()
 def test_fork_pid_check():
     import os
 
