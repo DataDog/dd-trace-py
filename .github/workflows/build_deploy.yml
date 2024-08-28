@@ -10,7 +10,8 @@ on:
       # before merging/releasing
       - build_deploy*
       - test-mq-main
-  # pull_request:
+      - 'upgrade-latest-*'
+  pull_request:
   release:
     types:
       - published
