@@ -89,9 +89,9 @@ def patch():
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
-    Pin().onto(botocore.client.BaseClient)
+    Pin()._onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
-    Pin().onto(botocore.parsers.ResponseParser)
+    Pin()._onto(botocore.parsers.ResponseParser)
     _PATCHED_SUBMODULES.clear()
 
 

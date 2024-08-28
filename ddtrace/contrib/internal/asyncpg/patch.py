@@ -148,7 +148,7 @@ def patch():
     if getattr(asyncpg, "_datadog_patch", False):
         return
 
-    Pin().onto(asyncpg)
+    Pin()._onto(asyncpg)
     _patch(asyncpg)
 
     asyncpg._datadog_patch = True

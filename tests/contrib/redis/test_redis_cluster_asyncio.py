@@ -182,7 +182,7 @@ def test_default_service_name_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         await r.get("key")
         await r.close()
 
@@ -231,7 +231,7 @@ def test_user_specified_service_v0():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         await r.get("key")
         await r.close()
 
@@ -280,7 +280,7 @@ def test_user_specified_service_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         await r.get("key")
         await r.close()
 
@@ -321,7 +321,7 @@ def test_env_user_specified_rediscluster_service_v0():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         await r.get("key")
         await r.close()
 
@@ -362,7 +362,7 @@ def test_env_user_specified_rediscluster_service_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         await r.get("key")
         await r.close()
 
@@ -411,7 +411,7 @@ def test_service_precedence_v0():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         await r.get("key")
         await r.close()
 
@@ -456,7 +456,7 @@ def test_service_precedence_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer)._onto(r)
         await r.get("key")
         await r.close()
 

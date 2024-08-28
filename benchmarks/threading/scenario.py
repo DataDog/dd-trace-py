@@ -42,7 +42,7 @@ class Threading(bm.Scenario):
         from ddtrace import tracer
 
         # configure global tracer to drop traces rather
-        tracer.configure(writer=NoopWriter())
+        tracer._configure(writer=NoopWriter())
 
         def _(loops: int) -> None:
             for _ in range(loops):

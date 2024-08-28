@@ -32,7 +32,7 @@ def patch():
 
     # Create a global pin with default configuration for our pymemcache clients
     service = schematize_service_name(memcachedx.SERVICE)
-    Pin(service=service).onto(pymemcache)
+    Pin(service=service)._onto(pymemcache)
 
 
 def unpatch():

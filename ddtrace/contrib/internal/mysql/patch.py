@@ -77,5 +77,5 @@ def patch_conn(conn):
 
     # grab the metadata from the conn
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysql)
-    pin.onto(wrapped)
+    pin._onto(wrapped)
     return wrapped

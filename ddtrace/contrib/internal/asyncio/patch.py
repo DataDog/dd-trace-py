@@ -19,7 +19,7 @@ def patch():
     if getattr(asyncio, "_datadog_patch", False):
         return
     asyncio._datadog_patch = True
-    Pin().onto(asyncio)
+    Pin()._onto(asyncio)
     wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task_py37)
 
 

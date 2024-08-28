@@ -1488,7 +1488,7 @@ def test_tracer():
     ddtrace.tracer = tracer
 
     # Yield to our test
-    tracer.configure(api_version="v0.4")
+    tracer._configure(api_version="v0.4")
     yield tracer
     tracer.pop()
     ddtrace.tracer = original_tracer

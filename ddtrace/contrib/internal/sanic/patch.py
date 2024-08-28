@@ -188,7 +188,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 def _create_sanic_request_span(request):
     """Helper to create sanic.request span and attach a pin to request.ctx"""
     pin = Pin()
-    pin.onto(request.ctx)
+    pin._onto(request.ctx)
 
     if SANIC_VERSION < (21, 0, 0):
         # Set span resource from the framework request

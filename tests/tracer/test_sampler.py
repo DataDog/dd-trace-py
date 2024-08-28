@@ -188,7 +188,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
     def _test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
-            tracer.configure(sampler=RateByServiceSampler())
+            tracer._configure(sampler=RateByServiceSampler())
             tracer._sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)

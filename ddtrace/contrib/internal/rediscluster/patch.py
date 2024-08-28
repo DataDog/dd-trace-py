@@ -56,12 +56,12 @@ def patch():
         _w("rediscluster", "client.RedisCluster.execute_command", instrumented_execute_command(config.rediscluster))
         _w("rediscluster", "client.RedisCluster.pipeline", instrumented_pipeline)
         _w("rediscluster", "pipeline.ClusterPipeline.execute", traced_execute_pipeline)
-        Pin().onto(rediscluster.RedisCluster)
+        Pin()._onto(rediscluster.RedisCluster)
     else:
         _w("rediscluster", "StrictRedisCluster.execute_command", instrumented_execute_command(config.rediscluster))
         _w("rediscluster", "StrictRedisCluster.pipeline", instrumented_pipeline)
         _w("rediscluster", "StrictClusterPipeline.execute", traced_execute_pipeline)
-        Pin().onto(rediscluster.StrictRedisCluster)
+        Pin()._onto(rediscluster.StrictRedisCluster)
 
 
 def unpatch():

@@ -61,7 +61,7 @@ def patch():
             _w("redis.cluster", "RedisCluster.execute_command", instrumented_execute_command(config.redis))
             _w("redis.cluster", "RedisCluster.pipeline", instrumented_pipeline)
             _w("redis.cluster", "ClusterPipeline.execute", instrumented_execute_pipeline(config.redis, True))
-            Pin(service=None).onto(redis.cluster.RedisCluster)
+            Pin(service=None)._onto(redis.cluster.RedisCluster)
         # Avoid mypy invalid syntax errors when parsing Python 2 files
         if redis.VERSION >= (4, 2, 0):
             from .asyncio_patch import instrumented_async_execute_command
@@ -71,7 +71,7 @@ def patch():
             _w("redis.asyncio.client", "Redis.pipeline", instrumented_pipeline)
             _w("redis.asyncio.client", "Pipeline.execute", instrumented_async_execute_pipeline)
             _w("redis.asyncio.client", "Pipeline.immediate_execute_command", instrumented_async_execute_command)
-            Pin(service=None).onto(redis.asyncio.Redis)
+            Pin(service=None)._onto(redis.asyncio.Redis)
 
         if redis.VERSION >= (4, 3, 0):
             from .asyncio_patch import instrumented_async_execute_command
@@ -84,9 +84,9 @@ def patch():
                 _w("redis.asyncio.cluster", "RedisCluster.pipeline", instrumented_pipeline)
                 _w("redis.asyncio.cluster", "ClusterPipeline.execute", instrumented_async_execute_cluster_pipeline)
 
-            Pin(service=None).onto(redis.asyncio.RedisCluster)
+            Pin(service=None)._onto(redis.asyncio.RedisCluster)
 
-    Pin(service=None).onto(redis.StrictRedis)
+    Pin(service=None)._onto(redis.StrictRedis)
 
 
 def unpatch():
@@ -158,7 +158,7 @@ def instrumented_pipeline(func, instance, args, kwargs):
     pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
-        pin.onto(pipeline)
+        pin._onto(pipeline)
     return pipeline
 
 

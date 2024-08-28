@@ -11,7 +11,7 @@ from ddtrace.contrib.trace_utils import set_user
 from tests.webclient import PingFilter
 
 
-tracer.configure(
+tracer._configure(
     settings={
         "FILTERS": [PingFilter()],
     }

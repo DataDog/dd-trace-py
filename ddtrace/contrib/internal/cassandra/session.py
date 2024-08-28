@@ -62,7 +62,7 @@ def get_version():
 def patch():
     """patch will add tracing to the cassandra library."""
     cassandra_cluster.Cluster.connect = wrapt.FunctionWrapper(_connect, traced_connect)
-    Pin(service=SERVICE).onto(cassandra_cluster.Cluster)
+    Pin(service=SERVICE)._onto(cassandra_cluster.Cluster)
     cassandra_cluster._datadog_patch = True
 
 

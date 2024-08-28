@@ -438,7 +438,7 @@ class Tracer(object):
         }
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
-    def configure(
+    def _configure(
         self,
         enabled: Optional[bool] = None,
         hostname: Optional[str] = None,
@@ -609,6 +609,57 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         self._generate_diagnostic_logs()
+
+    def configure(
+        self,
+        enabled: Optional[bool] = None,
+        hostname: Optional[str] = None,
+        port: Optional[int] = None,
+        uds_path: Optional[str] = None,
+        https: Optional[bool] = None,
+        sampler: Optional[BaseSampler] = None,
+        context_provider: Optional[DefaultContextProvider] = None,
+        wrap_executor: Optional[Callable] = None,
+        priority_sampling: Optional[bool] = None,
+        settings: Optional[Dict[str, Any]] = None,
+        dogstatsd_url: Optional[str] = None,
+        writer: Optional[TraceWriter] = None,
+        partial_flush_enabled: Optional[bool] = None,
+        partial_flush_min_spans: Optional[int] = None,
+        api_version: Optional[str] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        appsec_enabled: Optional[bool] = None,
+        iast_enabled: Optional[bool] = None,
+        appsec_standalone_enabled: Optional[bool] = None,
+    ) -> None:
+        deprecate(
+            "tracer.configure() is deprecated and will be removed.",
+            message="""tracer.configure() is deprecated and will be removed.
+            Please use tracer.shutdown() and initialize a new tracer if you need different parameters.""",
+            category=DDTraceDeprecationWarning,
+        )
+
+        return self._configure(
+            enabled=enabled,
+            hostname=hostname,
+            port=port,
+            uds_path=uds_path,
+            https=https,
+            sampler=sampler,
+            context_provider=context_provider,
+            wrap_executor=wrap_executor,
+            priority_sampling=priority_sampling,
+            settings=settings,
+            dogstatsd_url=dogstatsd_url,
+            writer=writer,
+            partial_flush_enabled=partial_flush_enabled,
+            partial_flush_min_spans=partial_flush_min_spans,
+            api_version=api_version,
+            compute_stats_enabled=compute_stats_enabled,
+            appsec_enabled=appsec_enabled,
+            iast_enabled=iast_enabled,
+            appsec_standalone_enabled=appsec_standalone_enabled,
+        )
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.

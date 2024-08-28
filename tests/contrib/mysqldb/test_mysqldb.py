@@ -557,7 +557,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
     def tearDown(self):
         super(TestMysqlPatch, self).tearDown()
-        self._old_mysqldb_pin.onto(MySQLdb)
+        self._old_mysqldb_pin._onto(MySQLdb)
 
     def _connect_with_kwargs(self):
         return MySQLdb.Connect(
@@ -576,7 +576,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         assert pin
         # Customize the service
         # we have to apply it on the existing one since new one won't inherit `app`
-        pin.clone(tracer=self.tracer).onto(obj)
+        pin._clone(tracer=self.tracer)._onto(obj)
 
     def _get_conn_tracer(self):
         if not self.conn:
@@ -601,7 +601,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(tracer=self.tracer).onto(self.conn)
+            pin._clone(tracer=self.tracer)._onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -617,7 +617,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             conn = self._connect_with_kwargs()
             pin = Pin.get_from(conn)
             assert pin
-            pin.clone(tracer=self.tracer).onto(conn)
+            pin._clone(tracer=self.tracer)._onto(conn)
             conn.ping()
 
             cursor = conn.cursor()
@@ -659,7 +659,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     def test_user_pin_override(self):
         conn, tracer = self._get_conn_tracer()
         pin = Pin.get_from(conn)
-        pin.clone(service="pin-svc", tracer=self.tracer).onto(conn)
+        pin._clone(service="pin-svc", tracer=self.tracer)._onto(conn)
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()

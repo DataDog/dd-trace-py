@@ -56,7 +56,7 @@ def patch_conn(conn):
         tags = {}
     pin = Pin(service=None, tags=tags)
     wrapped = PyODBCTracedConnection(conn, pin=pin)
-    pin.onto(wrapped)
+    pin._onto(wrapped)
     return wrapped
 
 

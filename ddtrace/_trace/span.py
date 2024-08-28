@@ -234,6 +234,7 @@ class Span(object):
         """The start timestamp in Unix epoch seconds."""
         return self.start_ns / 1e9
 
+    # revisit: questionable... do we want customers to be able to start
     @start.setter
     def start(self, value: Union[int, float]) -> None:
         self.start_ns = int(value * 1e9)
@@ -257,6 +258,12 @@ class Span(object):
         If the span is already finished and a truthy value is provided
         no action will occur.
         """
+        deprecate(
+            "span.finished is deprecated and will be removed in a future version of the tracer.",
+            message="""span.finished is deprecated and will be removed in a future version of the tracer.
+            Please use span.duration instead to check if a span is finished.""",
+            category=DDTraceDeprecationWarning,
+        )
         if value:
             if not self.finished:
                 self.duration_ns = time_ns() - self.start_ns
@@ -272,6 +279,12 @@ class Span(object):
 
     @duration.setter
     def duration(self, value: float) -> None:
+        deprecate(
+            "span.duration is deprecated and will be removed in a future version of the tracer.",
+            message="""span.duration is deprecated and will be removed in a future version of the tracer.
+            Please avoid setting span.duration directly.""",
+            category=DDTraceDeprecationWarning,
+        )
         self.duration_ns = int(value * 1e9)
 
     @property
@@ -411,6 +424,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
+    #  questionable: ask asm (since it's mostly used by them)
     def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct

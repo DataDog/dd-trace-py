@@ -99,7 +99,7 @@ def test_filters(writer, tracer):
 def test_synchronous_writer():
     tracer = Tracer()
     writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
-    tracer.configure(writer=writer)
+    tracer._configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
             pass

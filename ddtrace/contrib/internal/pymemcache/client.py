@@ -59,12 +59,12 @@ class _WrapperBase(wrapt.ObjectProxy):
         parent_pin = Pin.get_from(pymemcache)
 
         if parent_pin:
-            pin = parent_pin.clone(tags=tags)
+            pin = parent_pin._clone(tags=tags)
         else:
             pin = Pin(tags=tags)
 
         # attach the pin onto this instance
-        pin.onto(self)
+        pin._onto(self)
 
     def _trace_function_as_command(self, func, cmd, *args, **kwargs):
         p = Pin.get_from(self)

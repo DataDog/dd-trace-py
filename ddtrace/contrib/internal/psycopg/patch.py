@@ -116,7 +116,7 @@ def _patch(psycopg_module):
         return
     psycopg_module._datadog_patch = True
 
-    Pin(_config=config.psycopg).onto(psycopg_module)
+    Pin(_config=config.psycopg)._onto(psycopg_module)
 
     if psycopg_module.__name__ == "psycopg2":
         # patch all psycopg2 extensions
@@ -164,7 +164,7 @@ def _unpatch(psycopg_module):
 
         pin = Pin.get_from(psycopg_module)
         if pin:
-            pin.remove_from(psycopg_module)
+            pin._remove_from(psycopg_module)
 
 
 def init_cursor_from_connection_factory(psycopg_module):
@@ -180,7 +180,7 @@ def init_cursor_from_connection_factory(psycopg_module):
             if not connection:
                 return wrapped_cursor_cls(*args, **kwargs)
 
-        pin = Pin.get_from(connection).clone()
+        pin = Pin.get_from(connection)._clone()
         cfg = config.psycopg
 
         if cfg and cfg.trace_fetch_methods:

@@ -182,7 +182,7 @@ def test_snowflake_pin_override(client):
         rowtype=["TEXT"],
         rows=[("4.30.2",)],
     )
-    Pin(service="pin-sv", tags={"custom": "tag"}).onto(client)
+    Pin(service="pin-sv", tags={"custom": "tag"})._onto(client)
     with client.cursor() as cur:
         res = cur.execute("select current_version();")
         assert res == cur

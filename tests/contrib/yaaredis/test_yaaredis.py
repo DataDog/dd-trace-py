@@ -129,7 +129,7 @@ async def test_pipeline_immediate(snapshot_context, traced_yaaredis):
 async def test_meta_override(tracer, test_spans, traced_yaaredis):
     pin = Pin.get_from(traced_yaaredis)
     assert pin is not None
-    pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(traced_yaaredis)
+    pin._clone(tags={"cheese": "camembert"}, tracer=tracer)._onto(traced_yaaredis)
 
     await traced_yaaredis.get("cheese")
     test_spans.assert_trace_count(1)

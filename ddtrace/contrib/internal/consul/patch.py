@@ -32,7 +32,7 @@ def patch():
     consul.__datadog_patch = True
 
     pin = Pin(service=schematize_service_name(consulx.SERVICE))
-    pin.onto(consul.Consul.KV)
+    pin._onto(consul.Consul.KV)
 
     for f_name in _KV_FUNCS:
         _w("consul", "Consul.KV.%s" % f_name, wrap_function(f_name))

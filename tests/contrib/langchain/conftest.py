@@ -59,7 +59,7 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
     pin = Pin.get_from(langchain)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin.override(langchain, tracer=mock_tracer)
-    pin.tracer.configure()
+    pin.tracer._configure()
     yield mock_tracer
 
     mock_logs.reset_mock()

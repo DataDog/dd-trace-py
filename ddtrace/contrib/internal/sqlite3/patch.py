@@ -65,7 +65,7 @@ def traced_connect(func, _, args, kwargs):
 
 def patch_conn(conn):
     wrapped = TracedSQLite(conn)
-    Pin(tags={db.SYSTEM: "sqlite"}).onto(wrapped)
+    Pin(tags={db.SYSTEM: "sqlite"})._onto(wrapped)
     return wrapped
 
 

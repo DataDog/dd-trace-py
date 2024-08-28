@@ -21,7 +21,7 @@ class PinTestCase(TestCase):
         # ensure a Pin can be attached to an instance
         obj = self.Obj()
         pin = Pin(service="metrics")
-        pin.onto(obj)
+        pin._onto(obj)
 
         got = Pin.get_from(obj)
         assert got.service == pin.service
@@ -33,12 +33,12 @@ class PinTestCase(TestCase):
         # Override service
         obj_a = self.Obj()
         pin = Pin(service="service-a")
-        pin.onto(obj_a)
+        pin._onto(obj_a)
 
         # Override service
         obj_b = self.Obj()
         pin = Pin(service="service-b")
-        pin.onto(obj_b)
+        pin._onto(obj_b)
 
         # No Pin set
         obj_c = self.Obj()
@@ -65,7 +65,7 @@ class PinTestCase(TestCase):
         obj = Obj()
         obj.value = 1
 
-        Pin(service="metrics").onto(obj)
+        Pin(service="metrics")._onto(obj)
         got = Pin.get_from(obj)
         assert got is None
 
@@ -78,7 +78,7 @@ class PinTestCase(TestCase):
     def test_copy(self):
         # ensure a Pin is copied when using the clone methods
         p1 = Pin(service="metrics", tags={"key": "value"})
-        p2 = p1.clone(service="intake")
+        p2 = p1._clone(service="intake")
         # values are the same
         assert p1.service == "metrics"
         assert p2.service == "intake"
@@ -102,7 +102,7 @@ class PinTestCase(TestCase):
         class A(object):
             pass
 
-        Pin(service="metrics").onto(A)
+        Pin(service="metrics")._onto(A)
         a = A()
         Pin.override(a)
         assert Pin.get_from(a).service == "metrics"
@@ -175,7 +175,7 @@ class PinTestCase(TestCase):
             pass
 
         pin = Pin(service="metrics")
-        pin.onto(A)
+        pin._onto(A)
         global_pin = Pin.get_from(A)
         global_pin._config["distributed_tracing"] = True
 

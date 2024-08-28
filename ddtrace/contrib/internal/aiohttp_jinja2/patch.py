@@ -44,7 +44,7 @@ def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
 
 
 def _patch(aiohttp_jinja2):
-    Pin().onto(aiohttp_jinja2)
+    Pin()._onto(aiohttp_jinja2)
     wrap("aiohttp_jinja2", "render_template", traced_render_template(aiohttp_jinja2))
 
 

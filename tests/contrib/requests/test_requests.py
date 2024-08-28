@@ -640,7 +640,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
                 "analytics_sample_rate": 0.5,
             },
         )
-        pin.onto(self.session)
+        pin._onto(self.session)
         self.session.get(URL_200)
 
         spans = self.pop_spans()
@@ -663,7 +663,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
                 "analytics_enabled": True,
             },
         )
-        pin.onto(self.session)
+        pin._onto(self.session)
         self.session.get(URL_200)
 
         spans = self.pop_spans()

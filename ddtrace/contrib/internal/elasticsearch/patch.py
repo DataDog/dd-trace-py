@@ -98,11 +98,11 @@ def _patch(transport):
     if hasattr(transport, "Transport"):
         transport._datadog_patch = True
         _w(transport.Transport, "perform_request", _get_perform_request(transport))
-        Pin().onto(transport.Transport)
+        Pin()._onto(transport.Transport)
     if hasattr(transport, "AsyncTransport"):
         transport._datadog_patch = True
         _w(transport.AsyncTransport, "perform_request", _get_perform_request_async(transport))
-        Pin().onto(transport.AsyncTransport)
+        Pin()._onto(transport.AsyncTransport)
 
 
 def unpatch():

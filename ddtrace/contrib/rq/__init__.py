@@ -241,19 +241,19 @@ def patch():
     if getattr(rq, "_datadog_patch", False):
         return
 
-    Pin().onto(rq)
+    Pin()._onto(rq)
 
     # Patch rq.job.Job
-    Pin().onto(rq.job.Job)
+    Pin()._onto(rq.job.Job)
     trace_utils.wrap(rq.job, "Job.perform", traced_job_perform(rq.job.Job))
 
     # Patch rq.queue.Queue
-    Pin().onto(rq.queue.Queue)
+    Pin()._onto(rq.queue.Queue)
     trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq))
     trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job(rq))
 
     # Patch rq.worker.Worker
-    Pin().onto(rq.worker.Worker)
+    Pin()._onto(rq.worker.Worker)
     trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
 
     rq._datadog_patch = True
@@ -265,19 +265,19 @@ def unpatch():
     if not getattr(rq, "_datadog_patch", False):
         return
 
-    Pin().remove_from(rq)
+    Pin()._remove_from(rq)
 
     # Unpatch rq.job.Job
-    Pin().remove_from(rq.job.Job)
+    Pin()._remove_from(rq.job.Job)
     trace_utils.unwrap(rq.job.Job, "perform")
 
     # Unpatch rq.queue.Queue
-    Pin().remove_from(rq.queue.Queue)
+    Pin()._remove_from(rq.queue.Queue)
     trace_utils.unwrap(rq.queue.Queue, "enqueue_job")
     trace_utils.unwrap(rq.queue.Queue, "fetch_job")
 
     # Unpatch rq.worker.Worker
-    Pin().remove_from(rq.worker.Worker)
+    Pin()._remove_from(rq.worker.Worker)
     trace_utils.unwrap(rq.worker.Worker, "perform_job")
 
     rq._datadog_patch = False

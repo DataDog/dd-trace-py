@@ -65,7 +65,7 @@ class TestSQLite(TracerTestCase):
             db = sqlite3.connect(":memory:")
             pin = Pin.get_from(db)
             assert pin
-            pin.clone(service=service, tracer=self.tracer).onto(db)
+            pin._clone(service=service, tracer=self.tracer)._onto(db)
 
             # Ensure we can run a query and it's correctly traced
             q = "select * from sqlite_master"
@@ -217,7 +217,7 @@ class TestSQLite(TracerTestCase):
             db = sqlite3.connect(":memory:")
             pin = Pin.get_from(db)
             assert pin
-            pin.clone(tracer=self.tracer).onto(db)
+            pin._clone(tracer=self.tracer)._onto(db)
             cursor = db.execute(q)
             rows = cursor.fetchall()
         assert not rows
@@ -234,7 +234,7 @@ class TestSQLite(TracerTestCase):
                 db = sqlite3.connect(":memory:")
                 pin = Pin.get_from(db)
                 assert pin
-                pin.clone(tracer=self.tracer).onto(db)
+                pin._clone(tracer=self.tracer)._onto(db)
                 cursor = db.execute(q)
                 rows = cursor.fetchall()
                 assert not rows
@@ -271,7 +271,7 @@ class TestSQLite(TracerTestCase):
         db = sqlite3.connect(":memory:")
         pin = Pin.get_from(db)
         assert pin
-        pin.clone(tracer=self.tracer).onto(db)
+        pin._clone(tracer=self.tracer)._onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         self.assert_structure(
@@ -293,7 +293,7 @@ class TestSQLite(TracerTestCase):
         db = sqlite3.connect(":memory:")
         pin = Pin.get_from(db)
         assert pin
-        pin.clone(tracer=self.tracer).onto(db)
+        pin._clone(tracer=self.tracer)._onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         self.assert_structure(
@@ -302,7 +302,7 @@ class TestSQLite(TracerTestCase):
 
     def _given_a_traced_connection(self, tracer):
         db = sqlite3.connect(":memory:")
-        Pin.get_from(db).clone(tracer=tracer).onto(db)
+        Pin.get_from(db)._clone(tracer=tracer)._onto(db)
         return db
 
     def test_analytics_default(self):

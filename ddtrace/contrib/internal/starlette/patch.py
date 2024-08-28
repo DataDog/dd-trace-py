@@ -65,7 +65,7 @@ def patch():
     starlette._datadog_patch = True
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
-    Pin().onto(starlette)
+    Pin()._onto(starlette)
 
     # We need to check that Fastapi instrumentation hasn't already patched these
     if not isinstance(starlette.routing.Route.handle, ObjectProxy):

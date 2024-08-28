@@ -182,12 +182,12 @@ def patch():
         # httpx==0.11 created synchronous Client class separate from AsyncClient
         _w(httpx.Client, "send", _wrapped_sync_send)
         _w(httpx.AsyncClient, "send", _wrapped_async_send)
-        pin.onto(httpx.AsyncClient)
+        pin._onto(httpx.AsyncClient)
     else:
         # httpx==0.9 Client class was asynchronous, httpx==0.10 made Client synonymous with AsyncClient
         _w(httpx.Client, "send", _wrapped_async_send)
 
-    pin.onto(httpx.Client)
+    pin._onto(httpx.Client)
 
 
 def unpatch():

@@ -55,7 +55,7 @@ def patch():
     pin = Pin()
 
     # add pin to module since many classes use __slots__
-    pin.onto(molten)
+    pin._onto(molten)
 
     _w(molten.BaseApp, "__init__", patch_app_init)
     _w(molten.App, "__call__", patch_app_call)
@@ -69,7 +69,7 @@ def unpatch():
         # remove pin
         pin = Pin.get_from(molten)
         if pin:
-            pin.remove_from(molten)
+            pin._remove_from(molten)
 
         _u(molten.BaseApp, "__init__")
         _u(molten.App, "__call__")

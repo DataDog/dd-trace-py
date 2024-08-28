@@ -202,7 +202,7 @@ def patch():
 
     anthropic._datadog_patch = True
 
-    Pin().onto(anthropic)
+    Pin()._onto(anthropic)
     integration = AnthropicIntegration(integration_config=config.anthropic)
     anthropic._datadog_integration = integration
 

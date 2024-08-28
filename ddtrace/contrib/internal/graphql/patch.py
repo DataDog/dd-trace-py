@@ -73,7 +73,7 @@ def patch():
     if getattr(graphql, "_datadog_patch", False):
         return
     graphql._datadog_patch = True
-    Pin().onto(graphql)
+    Pin()._onto(graphql)
 
     for module_str, func_name, wrapper in _get_patching_candidates():
         _update_patching(wrap, module_str, func_name, wrapper)

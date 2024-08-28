@@ -52,7 +52,7 @@ class TracedClient(ObjectProxy):
 
         schematized_service = schematize_service_name(service)
         pin = ddtrace.Pin(service=schematized_service, tracer=tracer)
-        pin.onto(self)
+        pin._onto(self)
 
         # attempt to collect the pool of urls this client talks to
         try:
@@ -66,7 +66,7 @@ class TracedClient(ObjectProxy):
         traced_client = TracedClient(cloned)
         pin = ddtrace.Pin.get_from(self)
         if pin:
-            pin.clone().onto(traced_client)
+            pin._clone()._onto(traced_client)
         return traced_client
 
     def add(self, *args, **kwargs):
