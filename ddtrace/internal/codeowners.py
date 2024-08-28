@@ -190,4 +190,4 @@ class Codeowners(object):
         for pattern, owners in self.patterns:
             if pattern.search(path):
                 return owners
-        raise KeyError("no code owners found for {path}".format(path=path))
+        return []
