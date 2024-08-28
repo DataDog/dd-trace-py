@@ -5,7 +5,7 @@
 #    pip-compile --allow-unsafe --config=pyproject.toml --no-annotate --resolver=backtracking .riot/requirements/9b18162.in
 #
 annotated-types==0.5.0
-attrs==23.2.0
+attrs==24.2.0
 aws-sam-translator==1.82.0
 aws-xray-sdk==2.14.0
 boto==2.49.0
