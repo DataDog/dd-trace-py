@@ -124,8 +124,10 @@ class Codeowners(object):
         :param path: path to CODEOWNERS file otherwise try to use any from known locations
         """
         path = path or self.location(cwd)
-        if path is not None:
-            self.path: str = path
+        if path is None:
+            raise ValueError("CODEOWNERS file not found")
+
+        self.path: str = path
         self.patterns: List[Tuple[re.Pattern, List[str]]] = []
         self.parse()
 
@@ -136,7 +138,7 @@ class Codeowners(object):
             path = os.path.join(cwd, location)
             if os.path.isfile(path):
                 return path
-        raise ValueError("CODEOWNERS file not found")
+        return None
 
     def parse(self) -> None:
         """Parse CODEOWNERS file and store the lines and regexes."""
