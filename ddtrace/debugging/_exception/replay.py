@@ -143,7 +143,6 @@ def can_capture(span: Span) -> bool:
     raise ValueError(msg)
 
 
-@dataclass
 class SpanExceptionHandler:
     __uploader__ = LogsIntakeUploaderV1
 
