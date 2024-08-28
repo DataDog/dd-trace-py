@@ -57,13 +57,15 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
+        span_event = None
         try:
             span_event = self._llmobs_span_event(span)
             self._span_writer.enqueue(span_event)
-            for callback in self._evaluations_callbacks:
-                callback.enqueue(span_event)
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
+        if span_event is not None:
+            for callback in self._evaluations_callbacks:
+                callback.enqueue(span_event)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
@@ -108,6 +110,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "session_id": session_id,
+            "ml_app": ml_app,
             "name": _get_span_name(span),
             "tags": self._llmobs_tags(span, ml_app=ml_app, session_id=session_id),
             "start_ns": span.start_ns,

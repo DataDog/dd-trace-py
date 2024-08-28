@@ -15,7 +15,7 @@ log = get_logger(__name__)
 
 class RagasRunner(LLMObsEvaluationRunner):
     def __init__(self, writer, metrics: Optional[List[str]] = None):
-        super().__init__(interval=1, writer=writer)
+        super().__init__(interval=0.1, writer=writer)
         self.metrics = metrics
 
     def run(self, spans: List[LLMObsSpanContext]) -> List[EvaluationMetric]:

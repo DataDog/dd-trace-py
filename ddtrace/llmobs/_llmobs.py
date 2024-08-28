@@ -99,6 +99,7 @@ class LLMObs(Service):
                     self._evaluation_callbacks.append(
                         SUPPORTED_LLMOBS_EVALUATIONS[evaluation_name](writer=self._llmobs_eval_metric_writer)
                     )
+                    print(self._evaluation_callbacks)
 
         self._trace_processor = LLMObsTraceProcessor(
             self._llmobs_span_writer, evaluation_callbacks=self._evaluation_callbacks

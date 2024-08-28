@@ -71,12 +71,14 @@ class LLMObsSpanContext(BaseModel):
 
 class EvaluationMetric(BaseModel):
     label: str
-    categorical_value: str
-    score_value: Union[int, float]
+    categorical_value: str = ""
+    score_value: Union[int, float] = 0.0
     metric_type: str
-    tags: Dict[str, str] = {}
+    tags: List[str] = []
     ml_app: str
     timestamp_ms: int
+    span_id: str
+    trace_id: str
 
 
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})

@@ -26,13 +26,13 @@ class LLMObsEvaluationRunner(PeriodicService):
 
     def start(self, *args, **kwargs):
         super(LLMObsEvaluationRunner, self).start()
-        logger.debug("started %r to %r", self.__class__.__name__, self._url)
+        logger.debug("started %r", self.__class__.__name__)
         atexit.register(self.on_shutdown)
 
     def on_shutdown(self):
         self.periodic()
 
-    def _enqueue(self, raw_span_event: Dict) -> None:
+    def enqueue(self, raw_span_event: Dict) -> None:
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
@@ -41,8 +41,8 @@ class LLMObsEvaluationRunner(PeriodicService):
                 return
             try:
                 self._buffer.append(LLMObsSpanContext(**raw_span_event))
-            except ValueError:
-                logger.error("Failed to validate span event for eval")
+            except Exception as e:
+                logger.error("Failed to validate span event for eval", e)
 
     def run(self, spans: List[LLMObsSpanContext]) -> List[EvaluationMetric]:
         raise NotImplementedError
@@ -56,6 +56,6 @@ class LLMObsEvaluationRunner(PeriodicService):
         evaluation_metrics = self.run(events)
         for metric in evaluation_metrics:
             try:
-                self._llmobs_eval_metric_writer.enqueue(metric.dict())
+                self._llmobs_eval_metric_writer.enqueue(metric.model_dump())
             except ValueError:
                 logger.error("Failed to dump model")
