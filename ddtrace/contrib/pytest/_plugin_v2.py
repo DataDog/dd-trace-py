@@ -327,7 +327,7 @@ def _pytest_runtest_makereport(item, call, outcome):
     # add it as a tag immediately:
     if getattr(result, "wasxfail", None):
         CITest.set_tag(test_id, XFAIL_REASON, result.wasxfail)
-    elif getattr(result, "longrepr", None):
+    elif "xfail" in getattr(result, "keywords", []) and getattr(result, "longrepr", None):
         CITest.set_tag(test_id, XFAIL_REASON, result.longrepr)
 
     # Only capture result if:
