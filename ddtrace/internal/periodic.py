@@ -31,7 +31,7 @@ def _():
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    def __init__(self, interval=0.0):
+    def __init__(self, interval: float = 0.0) -> None:
         super().__init__()
         self._interval = interval
         self._worker: typing.Optional[PeriodicThread] = None
@@ -94,3 +94,27 @@ class AwakeablePeriodicService(PeriodicService):
         # type: (...) -> None
         if self._worker:
             self._worker.awake()
+
+
+class ForksafeAwakeablePeriodicService(AwakeablePeriodicService):
+    """An awakeable periodic service that auto-restarts on fork."""
+
+    def reset(self) -> None:
+        """Reset the service on fork.
+
+        Implement this to clear the service state before restarting the thread
+        in the child process.
+        """
+        pass
+
+    def _restart(self) -> None:
+        self.reset()
+        super()._start_service()
+
+    def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        super()._start_service(*args, **kwargs)
+        forksafe.register(self._restart)
+
+    def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        forksafe.unregister(self._restart)
+        super()._stop_service(*args, **kwargs)

@@ -39,6 +39,7 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
@@ -245,7 +246,6 @@ class Tracer(object):
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
-                priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if (self._compute_stats or self._apm_opt_out) else {},
@@ -406,27 +406,32 @@ class Tracer(object):
             return active.context
         return None
 
-    def get_log_correlation_context(self) -> Dict[str, str]:
+    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.
         Generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
-        active: Optional[Union[Context, Span]] = None
-        if self.enabled or self._apm_opt_out:
+        if active is None and (self.enabled or self._apm_opt_out):
             active = self.context_provider.active()
 
         if isinstance(active, Span) and active.service:
             service = active.service
         else:
             service = config.service
+
+        span_id = "0"
+        trace_id = "0"
         if active:
-            trace_id = active.trace_id
-            if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-                trace_id = active._trace_id_64bits
+            span_id = str(active.span_id if active.span_id else span_id)
+            trace_id = str(active.trace_id if active.trace_id else trace_id)
+            # check if we are using 128 bit ids, and switch trace id to hex since backend needs hex 128 bit ids
+            if active.trace_id and active.trace_id > MAX_UINT_64BITS:
+                trace_id = "{:032x}".format(active.trace_id)
+
         return {
-            "trace_id": str(trace_id) if active else "0",
-            "span_id": str(active.span_id) if active else "0",
+            "trace_id": trace_id,
+            "span_id": span_id,
             "service": service or "",
             "version": config.version or "",
             "env": config.env or "",
@@ -469,12 +474,18 @@ class Tracer(object):
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
-        :param priority_sampling: enable priority sampling, this is required for
-            complete distributed tracing support. Enabled by default.
+        :param priority_sampling: This argument is deprecated and will be removed in a future version.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
         """
         if enabled is not None:
             self.enabled = enabled
+
+        if priority_sampling is not None:
+            deprecate(
+                "Configuring priority sampling on tracing clients is deprecated",
+                version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         if settings is not None:
             self._filters = settings.get("FILTERS") or self._filters
@@ -541,7 +552,6 @@ class Tracer(object):
                 api_version = "v0.4"
             self._writer = AgentWriter(
                 self._agent_url,
-                priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,

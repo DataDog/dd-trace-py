@@ -3,8 +3,6 @@ This module when included on the PYTHONPATH will update the PYTHONPATH to point 
 containing the ddtrace package compatible with the current Python version and platform.
 """
 
-from __future__ import print_function  # noqa: E402
-
 from collections import namedtuple
 import csv
 import json
@@ -285,6 +283,7 @@ def _inject():
             send_telemetry(event)
             return
         else:
+
             if not FORCE_INJECT:
                 for module in incompat_pkgs.keys():
                     ddtrace._monkey.PATCH_MODULES[module] = False
@@ -292,6 +291,7 @@ def _inject():
             os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
             ddtrace.settings.config._lib_was_injected = True
             # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
+
             try:
                 import ddtrace.bootstrap.sitecustomize
 

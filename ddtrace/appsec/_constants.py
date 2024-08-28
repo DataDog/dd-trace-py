@@ -1,4 +1,5 @@
 import os
+from re import Match
 import sys
 
 
@@ -121,6 +122,7 @@ class IAST(metaclass=Constant_Class):
     SEP_MODULES: Literal[","] = ","
     REQUEST_IAST_ENABLED: Literal["_dd.iast.request_enabled"] = "_dd.iast.request_enabled"
     TEXT_TYPES = (str, bytes, bytearray)
+    TAINTEABLE_TYPES = (str, bytes, bytearray, Match)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
@@ -165,6 +167,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
 
     # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
+    CMDI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
     LFI_ADDRESS: Literal["server.io.fs.file"] = "server.io.fs.file"
     SSRF_ADDRESS: Literal["server.io.net.url"] = "server.io.net.url"
     SQLI_ADDRESS: Literal["server.db.statement"] = "server.db.statement"
@@ -296,12 +299,22 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     MAX_STACK_TRACE_DEPTH: Literal["DD_APPSEC_MAX_STACK_TRACE_DEPTH"] = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
 
     class TYPE(metaclass=Constant_Class):
+        CMDI: Literal["command_injection"] = "command_injection"
         LFI: Literal["lfi"] = "lfi"
         SSRF: Literal["ssrf"] = "ssrf"
         SQLI: Literal["sql_injection"] = "sql_injection"
 
     class ADDRESS(metaclass=Constant_Class):
+        CMDI: Literal["CMDI_ADDRESS"] = "CMDI_ADDRESS"
         LFI: Literal["LFI_ADDRESS"] = "LFI_ADDRESS"
         SSRF: Literal["SSRF_ADDRESS"] = "SSRF_ADDRESS"
         SQLI: Literal["SQLI_ADDRESS"] = "SQLI_ADDRESS"
         SQLI_TYPE: Literal["SQLI_SYSTEM_ADDRESS"] = "SQLI_SYSTEM_ADDRESS"
+
+
+class FINGERPRINTING(metaclass=Constant_Class):
+    PREFIX = "_dd.appsec.fp."
+    ENDPOINT = PREFIX + "http.endpoint"
+    HEADER = PREFIX + "http.header"
+    NETWORK = PREFIX + "http.network"
+    SESSION = PREFIX + "session"

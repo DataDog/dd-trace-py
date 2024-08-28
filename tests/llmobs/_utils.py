@@ -1,5 +1,6 @@
 import os
 
+import mock
 import vcr
 
 import ddtrace
@@ -62,7 +63,7 @@ def _expected_llmobs_llm_span_event(
 ):
     """
     Helper function to create an expected LLM span event.
-    span_kind: either "llm" or "agent"
+    span_kind: either "llm" or "agent" or "embedding"
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
     parameters: dict of input parameters
@@ -113,6 +114,7 @@ def _expected_llmobs_non_llm_span_event(
     span_kind,
     input_value=None,
     output_value=None,
+    output_documents=None,
     parameters=None,
     metadata=None,
     token_metrics=None,
@@ -124,8 +126,8 @@ def _expected_llmobs_non_llm_span_event(
     integration=None,
 ):
     """
-    Helper function to create an expected span event of type (workflow, task, tool).
-    span_kind: one of "workflow", "task", "tool"
+    Helper function to create an expected span event of type (workflow, task, tool, retrieval).
+    span_kind: one of "workflow", "task", "tool", "retrieval"
     input_value: input value string
     output_value: output value string
     parameters: dict of input parameters
@@ -141,6 +143,13 @@ def _expected_llmobs_non_llm_span_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
     )
     meta_dict = {"input": {}, "output": {}}
+    if span_kind == "retrieval":
+        if input_value is not None:
+            meta_dict["input"].update({"value": input_value})
+        if output_documents is not None:
+            meta_dict["output"].update({"documents": output_documents})
+        if output_value is not None:
+            meta_dict["output"].update({"value": output_value})
     if input_value is not None:
         meta_dict["input"].update({"value": input_value})
     if parameters is not None:
@@ -205,14 +214,26 @@ def _get_llmobs_parent_id(span: Span):
 
 
 def _expected_llmobs_eval_metric_event(
-    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None, tags=None
+    span_id,
+    trace_id,
+    metric_type,
+    label,
+    ml_app,
+    timestamp_ms=None,
+    categorical_value=None,
+    score_value=None,
+    numerical_value=None,
+    tags=None,
 ):
     eval_metric_event = {
         "span_id": span_id,
         "trace_id": trace_id,
         "metric_type": metric_type,
         "label": label,
-        "tags": ["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:{}".format("unnamed-ml-app")],
+        "tags": [
+            "ddtrace.version:{}".format(ddtrace.__version__),
+            "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
+        ],
     }
     if categorical_value is not None:
         eval_metric_event["categorical_value"] = categorical_value
@@ -222,5 +243,198 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["numerical_value"] = numerical_value
     if tags is not None:
         eval_metric_event["tags"] = tags
+    if timestamp_ms is not None:
+        eval_metric_event["timestamp_ms"] = timestamp_ms
+    else:
+        eval_metric_event["timestamp_ms"] = mock.ANY
+
+    if ml_app is not None:
+        eval_metric_event["ml_app"] = ml_app
 
     return eval_metric_event
+
+
+def _completion_event():
+    return {
+        "kind": "llm",
+        "span_id": "12345678901",
+        "trace_id": "98765432101",
+        "parent_id": "",
+        "session_id": "98765432101",
+        "name": "completion_span",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223236,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "ada",
+            "model_provider": "openai",
+            "input": {
+                "messages": [{"content": "who broke enigma?"}],
+                "parameters": {"temperature": 0, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."  # noqa: E501
+                    }
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _chat_completion_event():
+    return {
+        "span_id": "12345678902",
+        "trace_id": "98765432102",
+        "parent_id": "",
+        "session_id": "98765432102",
+        "name": "chat_completion_span",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "Ah, a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very well, little creature, I shall play along. But know that I am always watching, and your quest will not go unnoticed",  # noqa: E501
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _large_event():
+    return {
+        "span_id": "12345678903",
+        "trace_id": "98765432103",
+        "parent_id": "",
+        "session_id": "98765432103",
+        "name": "large_span",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "A" * 900_000,
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _oversized_llm_event():
+    return {
+        "span_id": "12345678904",
+        "trace_id": "98765432104",
+        "parent_id": "",
+        "session_id": "98765432104",
+        "name": "oversized_llm_event",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "A" * 700_000},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "A" * 700_000,
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _oversized_workflow_event():
+    return {
+        "span_id": "12345678905",
+        "trace_id": "98765432105",
+        "parent_id": "",
+        "session_id": "98765432105",
+        "name": "oversized_workflow_event",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "workflow",
+            "input": {"value": "A" * 700_000},
+            "output": {"value": "A" * 700_000},
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _oversized_retrieval_event():
+    return {
+        "span_id": "12345678906",
+        "trace_id": "98765432106",
+        "parent_id": "",
+        "session_id": "98765432106",
+        "name": "oversized_retrieval_event",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "retrieval",
+            "input": {"documents": {"content": "A" * 700_000}},
+            "output": {"value": "A" * 700_000},
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }

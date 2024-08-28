@@ -18,6 +18,7 @@
       "out.host": "127.0.0.1",
       "redis.raw_command": "SET blah boo\nSET foo bar\nGET blah\nGET foo",
       "runtime-id": "3cf1df7fb079462ab81608355e026651",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {

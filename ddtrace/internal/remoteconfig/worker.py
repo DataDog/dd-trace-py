@@ -34,6 +34,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._client = RemoteConfigClient()
         self._state = self._agent_check
         self._parent_id = os.getpid()
+        self._products_to_restart_on_fork = set()
         log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
 
     def _agent_check(self):
@@ -92,8 +93,15 @@ class RemoteConfigPoller(periodic.PeriodicService):
         # type: () -> None
         """Client Id needs to be refreshed when application forks"""
         self._enable = False
-        log.debug("[%s][P: %s] Remote Config Poller fork. Refreshing state", os.getpid(), os.getppid())
+        log.debug("[%d][P: %d] Remote Config Poller fork. Refreshing state", os.getpid(), os.getppid())
         self._client.renew_id()
+        self.start_subscribers_by_product(self._products_to_restart_on_fork)
+        log.debug(
+            "[%d][P: %d] Remote Config Poller restarted services: %s",
+            os.getpid(),
+            os.getppid(),
+            str(self._products_to_restart_on_fork),
+        )
 
     def start_subscribers_by_product(self, products_list):
         # type: (List[str]) -> None
@@ -147,8 +155,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """
         return self._client.update_product_callback(product, callback)
 
-    def register(self, product, pubsub_instance, skip_enabled=False):
-        # type: (str, PubSub, bool) -> None
+    def register(self, product, pubsub_instance, skip_enabled=False, restart_on_fork=False):
+        # type: (str, PubSub, bool, bool) -> None
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
@@ -158,6 +166,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
             self._client.register_product(product, pubsub_instance)
             if not self._client.is_subscriber_running(pubsub_instance):
                 pubsub_instance.start_subscriber()
+
+            if restart_on_fork:
+                self._products_to_restart_on_fork.add(product)
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 

@@ -652,7 +652,7 @@ class BotocoreTest(TracerTestCase):
         # DEV: We want to mock time to ensure we only create a single bucket
         self._test_distributed_tracing_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
     def test_distributed_tracing_sns_to_sqs_raw_delivery(self, mock_encode):
         """
         Moto doesn't currently handle raw delivery message handling quite correctly.
@@ -1046,9 +1046,11 @@ class BotocoreTest(TracerTestCase):
             roleArn="arn:aws:iam::012345678901:role/DummyRole",
         )
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
-        sf.start_execution(
-            stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln", input='{"baz":1}'
-        )
+        start_execution_dict = {
+            "stateMachineArn": "arn:aws:states:us-west-2:000000000000:stateMachine:lincoln",
+            "input": '{"baz": 1}',
+        }
+        sf.start_execution(**start_execution_dict)
         # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
         spans = self.get_spans()
         assert spans
@@ -1198,7 +1200,7 @@ class BotocoreTest(TracerTestCase):
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
         """
@@ -3271,6 +3273,50 @@ class BotocoreTest(TracerTestCase):
         decoded_record_data = self._test_kinesis_put_records_trace_injection("json_string", records)
 
         assert decoded_record_data.endswith("\n")
+
+    @mock_kinesis
+    def test_kinesis_parenting(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+        stream_name = "test"
+
+        partition_key = "1234"
+        data = [
+            {"Data": json.dumps({"Hello": "World"}), "PartitionKey": partition_key},
+            {"Data": json.dumps({"foo": "bar"}), "PartitionKey": partition_key},
+        ]
+
+        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
+
+        with self.tracer.trace("kinesis.manual_span"):
+            client.create_stream(StreamName=stream_name, ShardCount=1)
+            client.put_records(StreamName=stream_name, Records=data)
+
+        spans = self.get_spans()
+
+        assert spans[0].name == "kinesis.manual_span"
+
+        assert spans[1].service == "aws.kinesis"
+        assert spans[1].name == "kinesis.command"
+        assert spans[1].parent_id == spans[0].span_id
+
+        assert spans[2].service == "aws.kinesis"
+        assert spans[2].name == "kinesis.command"
+        assert spans[2].parent_id == spans[0].span_id
+
+    @mock_sqs
+    def test_sqs_parenting(self):
+        Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+
+        with self.tracer.trace("sqs.manual_span"):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+
+        spans = self.get_spans()
+
+        assert spans[0].name == "sqs.manual_span"
+
+        assert spans[1].service == "aws.sqs"
+        assert spans[1].name == "sqs.command"
+        assert spans[1].parent_id == spans[0].span_id
 
     @mock_kinesis
     def test_kinesis_put_records_newline_base64_trace_injection(self):

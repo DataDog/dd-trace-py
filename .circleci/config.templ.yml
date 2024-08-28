@@ -4,7 +4,7 @@ default_resource_class: &default_resource_class medium
 ubuntu_base_image: &ubuntu_base_img ubuntu-2004:2023.04.2
 cimg_base_image: &cimg_base_image cimg/base:2022.08
 python310_image: &python310_image cimg/python:3.10.12
-ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner@sha256:9b2364afa4d1cd8382f251aca5963113cfc47e6c6b9aaed2c28e8a2a48ac1f75
+ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner@sha256:4c8afd048321e702f3605b4ae4d206fcd00e74bac708089cfe7f9c24383dc53b
 redis_image: &redis_image redis:4.0-alpine@sha256:3e99741f293147ff406657dda7644c2b88564b80a498cd00da8f905743449c9f
 memcached_image: &memcached_image memcached:1.5-alpine@sha256:48cb7207e3d34871893fa1628f3a4984375153e9942facf82e25935b0a633c8a
 cassandra_image: &cassandra_image cassandra:3.11.7@sha256:495e5752526f7e75d3ad85b6a6bbf3b79714321b17a44255a216c341e3baae11
@@ -80,7 +80,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.19.0
+      - run: pip3 install riot==0.19.1
 
   setup_rust:
     description: "Install rust toolchain"
@@ -88,10 +88,43 @@ commands:
       -  run: curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
       -  run: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
 
+  setup_sccache:
+    description: "Install and configure sccache"
+    steps:
+      - run:
+          name: "Install sccache"
+          command: |
+              curl -L https://github.com/mozilla/sccache/releases/download/v0.8.1/sccache-v0.8.1-x86_64-unknown-linux-musl.tar.gz | tar zx --strip-components=1 -C /usr/local/bin/ sccache-v0.8.1-x86_64-unknown-linux-musl/sccache
+              echo "export SCCACHE_DIR=/root/.cache/sccache" >> "$BASH_ENV"
+              echo "export SCCACHE_CACHE_SIZE=1G" >> "$BASH_ENV"
+              echo "export SCCACHE_DIRECT=true" >> "$BASH_ENV"
+              echo "export DD_USE_SCCACHE=1" >> "$BASH_ENV"
+              /usr/local/bin/sccache --version
+      - restore_cache:
+          name: Restore sccache cache
+          key: v0-sccache-cache-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}
+
+  save_sccache:
+   description: "Save the sccache cache"
+   steps:
+     - run:
+         name: "sccache stats"
+         command: /usr/local/bin/sccache --show-stats
+     - save_cache:
+         name: Save sccache cache
+         key: v0-sccache-cache-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
+         paths:
+           - /root/.cache/sccache/
+
   setup_hatch:
     description: "Install hatch"
     steps:
-      - run: pip3 install hatch~=1.8.0 hatch-containers==0.7.0
+      - run:
+          name: "Install hatch"
+          command: |
+            curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
+            sudo install -t /usr/local/bin hatch
+            hatch -q
 
   start_docker_services:
     description: "Start Docker services"
@@ -153,6 +186,7 @@ commands:
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                no_output_timeout: 5m
                 command: |
                   ulimit -c unlimited
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
@@ -188,6 +222,7 @@ commands:
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                no_output_timeout: 5m
                 command: |
                   ulimit -c unlimited
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>>
@@ -455,6 +490,7 @@ jobs:
     steps:
       - checkout
       - setup_riot
+      - setup_sccache
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
@@ -462,6 +498,7 @@ jobs:
           environment:
             CMAKE_BUILD_PARALLEL_LEVEL: 12
             PIP_VERBOSE: 1
+      - save_sccache
       - persist_to_workspace:
           root: .
           paths:
@@ -519,36 +556,6 @@ jobs:
           run_agent_checks: false
           docker_services: "pygoat"
 
-  appsec_threats_django:
-    parallelism: 12
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_hatch_env_test:
-          env: 'appsec_threats_django'
-          snapshot: false
-
-  appsec_threats_flask:
-    parallelism: 10
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_hatch_env_test:
-          env: 'appsec_threats_flask'
-          snapshot: false
-
-  appsec_threats_fastapi:
-    parallelism: 9
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_hatch_env_test:
-          env: 'appsec_threats_fastapi'
-          snapshot: false
-
   aws_lambda:
     <<: *machine_executor
     steps:
@@ -556,28 +563,11 @@ jobs:
           pattern: 'aws_lambda'
           snapshot: true
 
-  internal:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "internal"
-
   datastreams:
     <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "datastreams"
-
-  tracer:
-    parallelism: 10
-    <<: *contrib_job_large
-    steps:
-      - run_test:
-          pattern: "tracer"
-          trace_agent_url: ""
 
   ci_visibility:
     <<: *machine_executor
@@ -594,7 +584,6 @@ jobs:
       - run_hatch_env_test:
           env: 'dd_coverage'
           snapshot: true
-
 
   llmobs:
     <<: *contrib_job
@@ -1045,6 +1034,14 @@ jobs:
           pattern: 'pytest'
           snapshot: true
 
+  pytest_v2:
+    <<: *machine_executor
+    parallelism: 10
+    steps:
+     - run_hatch_env_test:
+          env: 'pytest_plugin_v2'
+          snapshot: true
+
   unittest:
     <<: *machine_executor
     steps:
@@ -1343,7 +1340,6 @@ jobs:
     # build documentation and store as an artifact
     executor: ddtrace_dev
     steps:
-      - setup_hatch
       - checkout
       - run:
           command: |

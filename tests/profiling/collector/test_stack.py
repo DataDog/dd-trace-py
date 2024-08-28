@@ -23,7 +23,10 @@ from . import test_collector
 
 
 # FIXME: remove version limitation when gevent segfaults are fixed on Python 3.12
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and sys.version_info < (3, 12)
+# Python 3.11.9 is not compatible with gevent, https://github.com/python/cpython/issues/117983
+# The fix was not backported to 3.11. 3.12 got the fix but was not released yet.
+# Revisit this when 3.12.5 is released to check whether tests can be enabled.
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and sys.version_info < (3, 11, 9)
 
 
 def func1():
@@ -768,7 +771,7 @@ def test_collect_gevent_threads():
     assert values.pop() > 0
 
 
-@flaky(1735812000)
+@flaky(1731169861)
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
 def test_collect_ensure_all_frames_gc():
     # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+
@@ -783,4 +786,5 @@ def test_collect_ensure_all_frames_gc():
             _foo()
 
     gc.collect()  # Make sure we don't race with gc when we check frame objects
+    # DEV - this is flaky because this line returns `assert 10 == 0` in CI
     assert sum(isinstance(_, FrameType) for _ in gc.get_objects()) == 0

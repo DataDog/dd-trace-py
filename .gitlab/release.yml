@@ -1,0 +1,42 @@
+variables:
+  PYPI_PUBLISH_IMAGE: registry.ddbuild.io/images/mirror/python:3.12.0
+
+.release_base:
+  stage: release
+  only:
+    # v2.10.0
+    # v2.10.1
+    # v2.10.0rc0
+    # v2.10.0rc5
+    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+
+.release_pypi:
+  extends: .release_base
+  image: ${PYPI_PUBLISH_IMAGE}
+  tags: [ "arch:amd64" ]
+  variables:
+    TWINE_USERNAME: "__token__"
+    TWINE_NON_INTERACTIVE: "1"
+  before_script:
+    - export TWINE_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name "ci.${CI_PROJECT_NAME}.${PYPI_REPOSITORY}_token" --with-decryption --query "Parameter.Value" --out text)
+    - python -m pip install twine
+    - python -m twine check --strict pywheels/*
+  script:
+    - echo "python -m twine upload --repository ${PYPI_REPOSITORY} pywheels/*"
+  artifacts:
+    paths:
+      - pywheels/*.whl
+      - pywheels/*.tar.gz
+
+release_pypi_test:
+  extends: .release_pypi
+  dependencies: [ "download_ddtrace_artifacts" ]
+  variables:
+    PYPI_REPOSITORY: testpypi
+
+# TODO: Replace GitHub Action PyPI upload with this job
+# release_pypi_prod:
+#   extends: .release_pypi
+#   needs: [ "release_pypi_test" ]
+#   variables:
+#     PYPI_REPOSITORY: pypi

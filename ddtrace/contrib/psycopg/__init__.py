@@ -60,9 +60,19 @@ To configure the psycopg integration on an per-connection basis use the
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
 """
-from .patch import get_version
-from .patch import get_versions
-from .patch import patch
+from ...internal.utils.importlib import require_modules
 
 
-__all__ = ["patch", "get_version", "get_versions"]
+required_modules = ["psycopg", "psycopg2"]
+with require_modules(required_modules) as missing_modules:
+    # If psycopg and/or psycopg2 is available, patch these modules
+    if len(missing_modules) < len(required_modules):
+        # Required to allow users to import from `ddtrace.contrib.openai.patch` directly
+        from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ..internal.psycopg.patch import get_version
+        from ..internal.psycopg.patch import get_versions
+        from ..internal.psycopg.patch import patch
+
+        __all__ = ["patch", "get_version", "get_versions"]

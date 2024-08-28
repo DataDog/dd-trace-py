@@ -12,7 +12,7 @@ with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
 
-def setup():
+def setup_module():
     create_context()
     oce._enabled = True
 

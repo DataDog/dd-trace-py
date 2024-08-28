@@ -266,10 +266,7 @@ class Response(object):
                 # This typically happens when using a priority-sampling enabled
                 # library with an outdated agent. It still works, but priority sampling
                 # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug(
-                    "Cannot parse Datadog Agent response. "
-                    "This occurs because Datadog agent is out of date or DATADOG_PRIORITY_SAMPLING=false is set"
-                )
+                log.debug("Cannot parse Datadog Agent response. This occurs because Datadog agent is out of date")
                 return
 
             return loads(body)
@@ -286,8 +283,7 @@ class Response(object):
         )
 
 
-def get_connection(url, timeout=DEFAULT_TIMEOUT):
-    # type: (str, float) -> ConnectionType
+def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType:
     """Return an HTTP connection to the given URL."""
     parsed = verify_url(url)
     hostname = parsed.hostname or ""
@@ -303,8 +299,7 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
     raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
 
 
-def verify_url(url):
-    # type: (str) -> parse.ParseResult
+def verify_url(url: str) -> parse.ParseResult:
     """Validates that the given URL can be used as an intake
     Returns a parse.ParseResult.
     Raises a ``ValueError`` if the URL cannot be used as an intake
@@ -438,6 +433,7 @@ class FormData:
 def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
     from email.mime.application import MIMEApplication
     from email.mime.multipart import MIMEMultipart
+    from email.policy import HTTP
 
     msg = MIMEMultipart("form-data")
     del msg["MIME-Version"]
@@ -449,6 +445,6 @@ def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
         msg.attach(app)
 
     # Split headers and body
-    headers, _, body = msg.as_string().partition("\n\n")
+    headers, _, body = msg.as_string(policy=HTTP).partition("\r\n\r\n")
 
     return body.encode("utf-8"), dict(_.split(": ") for _ in headers.splitlines())
