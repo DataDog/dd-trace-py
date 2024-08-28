@@ -174,22 +174,28 @@ class LangChainIntegration(BaseLLMIntegration):
                         "role": role,
                     }
 
-                    tool_calls = getattr(chat_completion_msg, "tool_calls", None)
-                    tool_calls_info = []
-                    if tool_calls:
-                        if not isinstance(tool_calls, list):
-                            tool_calls = [tool_calls]
-                        for tool_call in tool_calls:
-                            tool_call_info = {
-                                "name": tool_call.get("name", ""),
-                                "arguments": tool_call.get("args", {}),  # this is already a dict
-                                "tool_id": tool_call.get("id", ""),
-                            }
-                            tool_calls_info.append(tool_call_info)
+                    tool_calls_info = self._extract_tool_calls(chat_completion_msg)
+                    if tool_calls_info:
                         output_message["tool_calls"] = tool_calls_info
 
                     output_messages.append(output_message)
         span.set_tag_str(output_tag_key, json.dumps(output_messages))
+
+    def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
+        """Extracts tool calls from a langchain chat completion."""
+        tool_calls = getattr(chat_completion_msg, "tool_calls", None)
+        tool_calls_info = []
+        if tool_calls:
+            if not isinstance(tool_calls, list):
+                tool_calls = [tool_calls]
+            for tool_call in tool_calls:
+                tool_call_info = {
+                    "name": tool_call.get("name", ""),
+                    "arguments": tool_call.get("args", {}),  # this is already a dict
+                    "tool_id": tool_call.get("id", ""),
+                }
+                tool_calls_info.append(tool_call_info)
+        return tool_calls_info
 
     def _llmobs_set_meta_tags_from_chain(
         self,
