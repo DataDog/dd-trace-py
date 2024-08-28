@@ -1,13 +1,13 @@
 # distutils: language = c++
 # cython: language_level=3
 
-import platform
 from typing import Dict
 from typing import Optional
 from typing import Union
 
 import ddtrace
-from ..types import StringType
+import platform
+from .._types import StringType
 from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -39,6 +39,8 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
     void ddup_config_timeline(bint enable)
+    void ddup_config_output_filename(string_view output_filename)
+    void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
@@ -94,6 +96,9 @@ cdef call_ddup_config_profiler_version(bytes profiler_version):
 cdef call_ddup_config_user_tag(bytes key, bytes val):
     ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
 
+cdef call_ddup_config_output_filename(bytes output_filename):
+    ddup_config_output_filename(string_view(<const char*>output_filename, len(output_filename)))
+
 
 # Conversion functions
 cdef uint64_t clamp_to_uint64_unsigned(value):
@@ -123,7 +128,9 @@ def config(
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
         url: StringType = None,
-        timeline_enabled: Optional[bool] = None) -> None:
+        timeline_enabled: Optional[bool] = None,
+        output_filename: StringType = None,
+        sample_pool_capacity: Optional[int] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -136,6 +143,8 @@ def config(
         call_ddup_config_version(ensure_binary_or_empty(version))
     if url:
         call_ddup_config_url(ensure_binary_or_empty(url))
+    if output_filename:
+        call_ddup_config_output_filename(ensure_binary_or_empty(output_filename))
 
     # Inherited
     call_ddup_config_runtime(ensure_binary_or_empty(platform.python_implementation()))
@@ -151,6 +160,8 @@ def config(
 
     if timeline_enabled is True:
         ddup_config_timeline(True)
+    if sample_pool_capacity:
+        ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
 
 def start() -> None:
@@ -273,10 +284,10 @@ cdef class SampleHandle:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
         if endpoint_collection_enabled:
-            root_service_bytes = ensure_binary_or_empty(span._local_root.service)
+            root_resource_bytes = ensure_binary_or_empty(span._local_root.resource)
             ddup_push_trace_resource_container(
                     self.ptr,
-                    string_view(<const char*>root_service_bytes, len(root_service_bytes))
+                    string_view(<const char*>root_resource_bytes, len(root_resource_bytes))
             )
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:

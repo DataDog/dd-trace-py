@@ -10,7 +10,7 @@ import pytest
 
 import ddtrace
 from ddtrace import patch
-from ddtrace.contrib.openai.utils import _est_tokens
+from ddtrace.contrib.internal.openai.utils import _est_tokens
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -22,7 +22,7 @@ from tests.utils import snapshot_context
 
 TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
 pytestmark = pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) >= (1, 0, 0), reason="This module only tests openai < 1.0"
+    parse_version(openai_module.version.VERSION) >= (1, 0), reason="This module only tests openai < 1.0"
 )
 
 
@@ -151,6 +151,7 @@ def test_completion(
         "env:",
         "service:",
         "openai.request.model:ada",
+        "model:ada",
         "openai.request.endpoint:/v1/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
@@ -220,6 +221,7 @@ async def test_acompletion(
         "env:",
         "service:",
         "openai.request.model:curie",
+        "model:curie",
         "openai.request.endpoint:/v1/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
@@ -321,6 +323,7 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
             "env:staging",
             "version:1234",
             "openai.request.model:ada",
+            "model:ada",
             "openai.request.endpoint:/v1/completions",
             "openai.request.method:POST",
             "openai.organization.name:datadog-4",
@@ -1264,7 +1267,7 @@ def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
 
 def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             resp = openai.Completion.create(model="ada", prompt="Hello world", stream=True)
@@ -1285,6 +1288,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         "env:",
         "service:",
         "openai.request.model:ada",
+        "model:ada",
         "openai.request.endpoint:/v1/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
@@ -1305,7 +1309,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
 @pytest.mark.asyncio
 async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_async_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             expected_completion = "\" and just start creating stuff. Don't expect it to draw like this."
             resp = await openai.Completion.acreate(model="ada", prompt="Hello world", stream=True)
@@ -1325,6 +1329,7 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "env:",
         "service:",
         "openai.request.model:ada",
+        "model:ada",
         "openai.request.endpoint:/v1/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
@@ -1345,7 +1350,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
         pytest.skip("ChatCompletion not supported for this version of openai")
 
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
             expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
             resp = openai.ChatCompletion.create(
@@ -1372,6 +1377,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
         "env:",
         "service:",
         "openai.request.model:gpt-3.5-turbo",
+        "model:gpt-3.5-turbo",
         "openai.request.endpoint:/v1/chat/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
@@ -1395,7 +1401,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("chat_completion_streamed_async.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             expected_completion = "As an AI language model, I do not have access to real-time information but as of the 2021 season, the captain of the Toronto Maple Leafs is John Tavares."  # noqa: E501
             resp = await openai.ChatCompletion.acreate(
@@ -1422,6 +1428,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
         "env:",
         "service:",
         "openai.request.model:gpt-3.5-turbo",
+        "model:gpt-3.5-turbo",
         "openai.request.endpoint:/v1/chat/completions",
         "openai.request.method:POST",
         "openai.organization.id:",

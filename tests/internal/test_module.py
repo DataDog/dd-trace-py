@@ -97,14 +97,6 @@ def test_after_module_imported_decorator(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-def test_register_hook_without_install():
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.register_origin_hook(__file__, mock.Mock())
-
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.register_module_hook(__name__, mock.Mock())
-
-
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
 def test_import_origin_hook_for_module_not_yet_imported():
     import os
@@ -238,8 +230,7 @@ def test_module_unregister_origin_hook(module_watchdog):
 
     assert module_watchdog._instance._hook_map[str(path)] == []
 
-    with pytest.raises(ValueError):
-        module_watchdog.unregister_origin_hook(path, hook)
+    module_watchdog.unregister_origin_hook(path, hook)
 
 
 def test_module_unregister_module_hook(module_watchdog):
@@ -257,21 +248,18 @@ def test_module_unregister_module_hook(module_watchdog):
     module_watchdog.unregister_module_hook(module, hook)
     assert module_watchdog._instance._hook_map[module] == []
 
-    with pytest.raises(ValueError):
-        module_watchdog.unregister_module_hook(module, hook)
+    module_watchdog.unregister_module_hook(module, hook)
 
 
 def test_module_watchdog_multiple_install():
     ModuleWatchdog.install()
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.install()
-
+    assert ModuleWatchdog.is_installed()
+    ModuleWatchdog.install()
     assert ModuleWatchdog.is_installed()
 
     ModuleWatchdog.uninstall()
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.uninstall()
-
+    assert not ModuleWatchdog.is_installed()
+    ModuleWatchdog.uninstall()
     assert not ModuleWatchdog.is_installed()
 
 
@@ -502,3 +490,46 @@ def test_module_watchdog_importlib_resources_files():
     import importlib.resources as r
 
     assert isinstance(r.files("namespace_test"), MultiplexedPath)
+
+
+@pytest.mark.subprocess
+def test_module_watchdog_does_not_rewrap_get_code():
+    """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
+    from importlib import reload
+
+    import ddtrace  #  noqa:F401
+    from tests.internal.namespace_test import ns_module
+
+    # Check that the loader's get_code is wrapped:
+    assert ns_module.__loader__.get_code._dd_get_code is True
+    initial_get_code = ns_module.__loader__.get_code
+
+    # Reload module a couple of times and check that the loader's get_code is still the same as the original
+    reload(ns_module)
+    reload(ns_module)
+    new_get_code = ns_module.__loader__.get_code
+    assert (
+        new_get_code is initial_get_code
+    ), f"module loader get_code (id: {id(new_get_code)}is not initial get_code (id: {id(initial_get_code)})"
+
+
+@pytest.mark.subprocess
+def test_module_watchdog_reloads_dont_cause_errors():
+    """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
+    from importlib import reload
+    import sys
+
+    from tests.internal.namespace_test import ns_module
+
+    # Since this test is running in a subprocess, the odds that the recursionlimit gets modified are low, so we set it
+    # to a reasonably low number, but still loop higher to make sure we don't hit the limit.
+    sys.setrecursionlimit(1000)
+    for _ in range(sys.getrecursionlimit() * 2):
+        reload(ns_module)
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_module_import_side_effect():
+    # Test that we can import a module that raises an exception during specific
+    # attribute lookups.
+    import tests.internal.side_effect_module  # noqa:F401

@@ -37,9 +37,10 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
-from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
-from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
-from tests.contrib.fastapi.test_fastapi import tracer  # noqa:F401
+from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
+from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
+from tests.contrib.fastapi.conftest import test_spans as fastapi_test_spans  # noqa:F401
+from tests.contrib.fastapi.conftest import tracer  # noqa:F401
 
 from ..utils import override_global_config
 
@@ -1282,7 +1283,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 None,
-                "0000000000000000",
+                None,
             ),
             None,
             None,
@@ -1295,7 +1296,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (  # "ts_string,expected_tuple,expected_logging,expected_exception",
             "dd=foo|bar:hi|l¢¢¢¢¢¢:",
-            (None, {}, None, "0000000000000000"),
+            (None, {}, None, None),
             None,
             None,
         ),
@@ -1373,7 +1374,6 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.origin": "rum",
-                    LAST_DD_PARENT_ID_KEY: "0000000000000000",
                     "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
                 },
                 "metrics": {"_sampling_priority_v1": 2},
@@ -2175,7 +2175,6 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "meta": {
                 "tracestate": "dd=o:rum",
                 "traceparent": TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION[_HTTP_HEADER_TRACEPARENT],
-                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
         },
     ),
@@ -2329,7 +2328,6 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[],
@@ -2356,7 +2354,6 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -2390,7 +2387,6 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[

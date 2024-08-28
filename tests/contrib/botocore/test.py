@@ -418,6 +418,37 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("component") == "botocore"
 
     @mock_s3
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_SERVICE="botocore"))
+    def test_service_name_override(self):
+        s3 = self.session.create_client("s3", region_name="us-west-2")
+        Pin.get_from(s3).clone(tracer=self.tracer).onto(s3)
+
+        params = {
+            "Bucket": "mybucket",
+            "CreateBucketConfiguration": {
+                "LocationConstraint": "us-west-2",
+            },
+        }
+        s3.create_bucket(**params)
+        params = dict(Key="foo", Bucket="mybucket", Body=b"bar")
+        s3.put_object(**params)
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.service == "botocore.s3", "Expected 'botocore.s3' but got {}".format(span.service)
+
+        cfg = config.botocore
+        cfg["service"] = "boto-service"
+
+        s3.list_buckets()
+        spans = self.get_spans()
+        assert spans
+        span = spans[-1]
+
+        assert span.service == "boto-service.s3", "Expected 'boto-service.s3' but got {}".format(span.service)
+
+    @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_s3_client_default(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
@@ -621,7 +652,7 @@ class BotocoreTest(TracerTestCase):
         # DEV: We want to mock time to ensure we only create a single bucket
         self._test_distributed_tracing_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
     def test_distributed_tracing_sns_to_sqs_raw_delivery(self, mock_encode):
         """
         Moto doesn't currently handle raw delivery message handling quite correctly.
@@ -1167,7 +1198,7 @@ class BotocoreTest(TracerTestCase):
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
         """
@@ -1234,7 +1265,7 @@ class BotocoreTest(TracerTestCase):
                         3337976778666780987,
                         0,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
@@ -1244,7 +1275,7 @@ class BotocoreTest(TracerTestCase):
                         3337976778666780987,
                         0,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
@@ -1260,13 +1291,13 @@ class BotocoreTest(TracerTestCase):
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
@@ -1313,21 +1344,19 @@ class BotocoreTest(TracerTestCase):
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
-            assert (
-                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
-            )
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 1
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
@@ -1379,21 +1408,19 @@ class BotocoreTest(TracerTestCase):
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
-            assert (
-                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 3
-            )
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 3
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 3
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 3
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 3
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 3
             )
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 3
             )
             assert (
@@ -1455,13 +1482,11 @@ class BotocoreTest(TracerTestCase):
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
-            assert (
-                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
-            )
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 1
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency._count >= 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency._count >= 1
+            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency.count >= 1
+            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency.count >= 1
             assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].payload_size.count == 1
 
     @mock_lambda
@@ -2974,7 +2999,7 @@ class BotocoreTest(TracerTestCase):
                         7250761453654470644,
                         17012262583645342129,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 2
             )
             assert (
@@ -2984,7 +3009,7 @@ class BotocoreTest(TracerTestCase):
                         7250761453654470644,
                         17012262583645342129,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 2
             )
             assert (
@@ -3004,7 +3029,7 @@ class BotocoreTest(TracerTestCase):
                         17012262583645342129,
                         0,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 2
             )
             assert (
@@ -3014,7 +3039,7 @@ class BotocoreTest(TracerTestCase):
                         17012262583645342129,
                         0,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 2
             )
             assert (
@@ -3067,7 +3092,7 @@ class BotocoreTest(TracerTestCase):
                         7186383338881463054,
                         14715769790627487616,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
@@ -3077,7 +3102,7 @@ class BotocoreTest(TracerTestCase):
                         7186383338881463054,
                         14715769790627487616,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
@@ -3097,7 +3122,7 @@ class BotocoreTest(TracerTestCase):
                         14715769790627487616,
                         0,
                     )
-                ].full_pathway_latency._count
+                ].full_pathway_latency.count
                 >= 1
             )
             assert (
@@ -3107,7 +3132,7 @@ class BotocoreTest(TracerTestCase):
                         14715769790627487616,
                         0,
                     )
-                ].edge_latency._count
+                ].edge_latency.count
                 >= 1
             )
             assert (
@@ -3246,6 +3271,50 @@ class BotocoreTest(TracerTestCase):
         decoded_record_data = self._test_kinesis_put_records_trace_injection("json_string", records)
 
         assert decoded_record_data.endswith("\n")
+
+    @mock_kinesis
+    def test_kinesis_parenting(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+        stream_name = "test"
+
+        partition_key = "1234"
+        data = [
+            {"Data": json.dumps({"Hello": "World"}), "PartitionKey": partition_key},
+            {"Data": json.dumps({"foo": "bar"}), "PartitionKey": partition_key},
+        ]
+
+        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
+
+        with self.tracer.trace("kinesis.manual_span"):
+            client.create_stream(StreamName=stream_name, ShardCount=1)
+            client.put_records(StreamName=stream_name, Records=data)
+
+        spans = self.get_spans()
+
+        assert spans[0].name == "kinesis.manual_span"
+
+        assert spans[1].service == "aws.kinesis"
+        assert spans[1].name == "kinesis.command"
+        assert spans[1].parent_id == spans[0].span_id
+
+        assert spans[2].service == "aws.kinesis"
+        assert spans[2].name == "kinesis.command"
+        assert spans[2].parent_id == spans[0].span_id
+
+    @mock_sqs
+    def test_sqs_parenting(self):
+        Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+
+        with self.tracer.trace("sqs.manual_span"):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+
+        spans = self.get_spans()
+
+        assert spans[0].name == "sqs.manual_span"
+
+        assert spans[1].service == "aws.sqs"
+        assert spans[1].name == "sqs.command"
+        assert spans[1].parent_id == spans[0].span_id
 
     @mock_kinesis
     def test_kinesis_put_records_newline_base64_trace_injection(self):

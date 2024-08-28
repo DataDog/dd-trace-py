@@ -23,10 +23,7 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._config import ed_config
-from ddtrace.debugging._encoding import LogSignalJsonEncoder
-from ddtrace.debugging._encoding import SignalQueue
-from ddtrace.debugging._exception.auto_instrument import SpanExceptionHandler
+from ddtrace.debugging._exception.replay import SpanExceptionHandler
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
@@ -58,9 +55,9 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._signal.tracing import SpanDecoration
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import ModuleHookType
@@ -174,22 +171,7 @@ class DebuggerWrappingContext(WrappingContext):
     def has_probes(self) -> bool:
         return bool(self.probes)
 
-    def _close_contexts(self, retval=None, exc_info=(None, None, None)) -> None:
-        end_time = compat.monotonic_ns()
-        contexts = self.get("contexts")
-        while contexts:
-            # Open probe signal contexts are ordered, with those that have
-            # created new tracing context first. We need to finalise them in
-            # reverse order, so we pop them from the end of the queue (LIFO).
-            context = contexts.pop()
-            context.exit(retval, exc_info, end_time - self.get("start_time"))
-            signal = context.signal
-            if signal.state is SignalState.DONE:
-                self._probe_registry.set_emitting(signal.probe)
-
-    def __enter__(self) -> "DebuggerWrappingContext":
-        super().__enter__()
-
+    def _open_contexts(self) -> None:
         frame = self.__frame__
         assert frame is not None  # nosec
 
@@ -255,16 +237,43 @@ class DebuggerWrappingContext(WrappingContext):
         self.set("start_time", compat.monotonic_ns())
         self.set("contexts", contexts)
 
+    def _close_contexts(self, retval=None, exc_info=(None, None, None)) -> None:
+        end_time = compat.monotonic_ns()
+        contexts = self.get("contexts")
+        while contexts:
+            # Open probe signal contexts are ordered, with those that have
+            # created new tracing context first. We need to finalise them in
+            # reverse order, so we pop them from the end of the queue (LIFO).
+            context = contexts.pop()
+            context.exit(retval, exc_info, end_time - self.get("start_time"))
+            signal = context.signal
+            if signal.state is SignalState.DONE:
+                self._probe_registry.set_emitting(signal.probe)
+
+    def __enter__(self) -> "DebuggerWrappingContext":
+        super().__enter__()
+
+        try:
+            self._open_contexts()
+        except Exception:
+            log.exception("Failed to open debugging contexts")
+
         return self
 
     def __return__(self, value: T) -> T:
-        self._close_contexts(retval=value)
+        try:
+            self._close_contexts(retval=value)
+        except Exception:
+            log.exception("Failed to close debugging contexts from return")
         return super().__return__(value)
 
     def __exit__(
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
-        self._close_contexts(exc_info=(exc_type, exc_val, exc_tb))
+        try:
+            self._close_contexts(exc_info=(exc_type, exc_val, exc_tb))
+        except Exception:
+            log.exception("Failed to close debugging contexts from exception block")
         super().__exit__(exc_type, exc_val, exc_tb)
 
 
@@ -275,7 +284,6 @@ class Debugger(Service):
 
     __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
-    __collector__ = SignalCollector
     __watchdog__ = DebuggerModuleWatchdog
     __logger__ = ProbeStatusLogger
 
@@ -303,7 +311,6 @@ class Debugger(Service):
 
         debugger.start()
 
-        forksafe.register(cls._restart)
         atexit.register(cls.disable)
         register_post_run_module_hook(cls._on_run_module)
 
@@ -324,7 +331,6 @@ class Debugger(Service):
 
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
 
-        forksafe.unregister(cls._restart)
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
 
@@ -347,16 +353,9 @@ class Debugger(Service):
         self._tracer = tracer or ddtrace.tracer
         service_name = di_config.service_name
 
-        self._signal_queue = SignalQueue(
-            encoder=LogSignalJsonEncoder(service_name),
-            on_full=self._on_encoder_buffer_full,
-        )
         self._status_logger = status_logger = self.__logger__(service_name)
 
         self._probe_registry = ProbeRegistry(status_logger=status_logger)
-        self._uploader = self.__uploader__(self._signal_queue)
-        self._collector = self.__collector__(self._signal_queue)
-        self._services = [self._uploader]
 
         self._function_store = FunctionStore(extra_attrs=["__dd_wrappers__"])
 
@@ -368,14 +367,6 @@ class Debugger(Service):
             raise_on_exceed=False,
         )
 
-        if ed_config.enabled:
-            from ddtrace.debugging._exception.auto_instrument import SpanExceptionHandler
-
-            self._span_exc_handler = SpanExceptionHandler(collector=self._collector)
-            self._span_exc_handler.install()
-        else:
-            self._span_exc_handler = None
-
         if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
             #  has been removed
@@ -384,9 +375,8 @@ class Debugger(Service):
                 log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
             # Register the debugger with the RCM client.
-            if not remoteconfig_poller.update_product_callback("LIVE_DEBUGGING", self._on_configuration):
-                di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
-                remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
+            di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
+            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback, restart_on_fork=True)
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
@@ -439,7 +429,7 @@ class Debugger(Service):
             signal.line()
 
             log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
-            self._collector.push(signal)
+            self.__uploader__.get_collector().push(signal)
 
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(probe)
@@ -511,7 +501,7 @@ class Debugger(Service):
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
-            resolved_source = probe.source_file
+            resolved_source = probe.resolved_source_file
             if resolved_source is None:
                 log.error(
                     "Cannot inject probe %s: source file %s cannot be resolved", probe.probe_id, probe.source_file
@@ -519,12 +509,12 @@ class Debugger(Service):
                 self._probe_registry.set_error(probe, "NoSourceFile", "Source file location cannot be resolved")
                 continue
 
-        for source in {probe.source_file for probe in probes if probe.source_file is not None}:
+        for source in {probe.resolved_source_file for probe in probes if probe.resolved_source_file is not None}:
             try:
                 self.__watchdog__.register_origin_hook(source, self._probe_injection_hook)
             except Exception as exc:
                 for probe in probes:
-                    if probe.source_file != source:
+                    if probe.resolved_source_file != source:
                         continue
                     exc_type = type(exc)
                     self._probe_registry.set_error(probe, exc_type.__name__, str(exc))
@@ -544,9 +534,9 @@ class Debugger(Service):
 
         probes_for_source: Dict[Path, List[LineProbe]] = defaultdict(list)
         for probe in unregistered_probes:
-            if probe.source_file is None:
+            if probe.resolved_source_file is None:
                 continue
-            probes_for_source[probe.source_file].append(probe)
+            probes_for_source[probe.resolved_source_file].append(probe)
 
         for resolved_source, probes in probes_for_source.items():
             module = self.__watchdog__.get_by_origin(resolved_source)
@@ -610,7 +600,7 @@ class Debugger(Service):
             else:
                 context = DebuggerWrappingContext(
                     function,
-                    collector=self._collector,
+                    collector=self.__uploader__.get_collector(),
                     registry=self._probe_registry,
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
@@ -720,21 +710,10 @@ class Debugger(Service):
 
     def _stop_service(self, join: bool = True) -> None:
         self._function_store.restore_all()
-        for service in self._services:
-            service.stop()
-            if join:
-                service.join()
+        self.__uploader__.unregister(UploaderProduct.DEBUGGER)
 
     def _start_service(self) -> None:
-        for service in self._services:
-            log.debug("[%s][P: %s] Debugger. Start service %s", os.getpid(), os.getppid(), service)
-            service.start()
-
-    @classmethod
-    def _restart(cls):
-        log.info("[%s][P: %s] Restarting the debugger in child process", os.getpid(), os.getppid())
-        cls.disable(join=False)
-        cls.enable()
+        self.__uploader__.register(UploaderProduct.DEBUGGER)
 
     @classmethod
     def _on_run_module(cls, module: ModuleType) -> None:

@@ -9,11 +9,11 @@ def remove_from_zip(zip_filename, patterns):
     with zipfile.ZipFile(zip_filename, "r") as source_zip, zipfile.ZipFile(
         temp_zip_filename, "w", zipfile.ZIP_DEFLATED
     ) as temp_zip:
-        files_to_keep = (
-            file for file in source_zip.namelist() if not any(fnmatch.fnmatch(file, pattern) for pattern in patterns)
-        )
-        for file in files_to_keep:
-            temp_zip.writestr(file, source_zip.read(file))
+        # DEV: Use ZipInfo objects to ensure original file attributes are preserved
+        for file in source_zip.infolist():
+            if any(fnmatch.fnmatch(file.filename, pattern) for pattern in patterns):
+                continue
+            temp_zip.writestr(file, source_zip.read(file.filename))
     os.replace(temp_zip_filename, zip_filename)
 
 

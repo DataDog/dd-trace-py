@@ -214,10 +214,12 @@ required_modules = ["langchain"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from . import patch as _patch
+        # Required to allow users to import from `ddtrace.contrib.langchain.patch` directly
+        from . import patch as _  # noqa: F401, I001
 
-        patch = _patch.patch
-        unpatch = _patch.unpatch
-        get_version = _patch.get_version
+        # Expose public methods
+        from ..internal.langchain.patch import get_version
+        from ..internal.langchain.patch import patch
+        from ..internal.langchain.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

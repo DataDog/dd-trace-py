@@ -5,7 +5,6 @@ import os
 from os import environ
 from os import getpid
 from threading import RLock
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -40,6 +39,7 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
@@ -52,27 +52,25 @@ from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 from ddtrace.vendor.debtcollector import deprecate
 
-
-if TYPE_CHECKING:
-    from ddtrace.internal.writer import AgentResponse  # noqa: F401
-    from ddtrace.settings import Config  # noqa: F401
 
 log = get_logger(__name__)
 
@@ -248,7 +246,6 @@ class Tracer(object):
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
-                priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if (self._compute_stats or self._apm_opt_out) else {},
@@ -409,27 +406,32 @@ class Tracer(object):
             return active.context
         return None
 
-    def get_log_correlation_context(self) -> Dict[str, str]:
+    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.
         Generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
-        active: Optional[Union[Context, Span]] = None
-        if self.enabled or self._apm_opt_out:
+        if active is None and (self.enabled or self._apm_opt_out):
             active = self.context_provider.active()
 
         if isinstance(active, Span) and active.service:
             service = active.service
         else:
             service = config.service
+
+        span_id = "0"
+        trace_id = "0"
         if active:
-            trace_id = active.trace_id
-            if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-                trace_id = active._trace_id_64bits
+            span_id = str(active.span_id if active.span_id else span_id)
+            trace_id = str(active.trace_id if active.trace_id else trace_id)
+            # check if we are using 128 bit ids, and switch trace id to hex since backend needs hex 128 bit ids
+            if active.trace_id and active.trace_id > MAX_UINT_64BITS:
+                trace_id = "{:032x}".format(active.trace_id)
+
         return {
-            "trace_id": str(trace_id) if active else "0",
-            "span_id": str(active.span_id) if active else "0",
+            "trace_id": trace_id,
+            "span_id": span_id,
             "service": service or "",
             "version": config.version or "",
             "env": config.env or "",
@@ -472,12 +474,18 @@ class Tracer(object):
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
-        :param priority_sampling: enable priority sampling, this is required for
-            complete distributed tracing support. Enabled by default.
+        :param priority_sampling: This argument is deprecated and will be removed in a future version.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
         """
         if enabled is not None:
             self.enabled = enabled
+
+        if priority_sampling is not None:
+            deprecate(
+                "Configuring priority sampling on tracing clients is deprecated",
+                version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         if settings is not None:
             self._filters = settings.get("FILTERS") or self._filters
@@ -544,14 +552,13 @@ class Tracer(object):
                 api_version = "v0.4"
             self._writer = AgentWriter(
                 self._agent_url,
-                priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 # if apm opt out, neither agent or tracer should compute the stats
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (compute_stats_enabled or self._apm_opt_out)
-                else {},
+                headers=(
+                    {"Datadog-Client-Computed-Stats": "yes"} if (compute_stats_enabled or self._apm_opt_out) else {}
+                ),
                 report_metrics=not self._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
@@ -603,8 +610,7 @@ class Tracer(object):
 
         self._generate_diagnostic_logs()
 
-    def _agent_response_callback(self, resp):
-        # type: (AgentResponse) -> None
+    def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
 
         The agent can return updated sample rates for the priority sampler.
@@ -1127,7 +1133,7 @@ class Tracer(object):
         elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
-        elif in_gcp_function() or in_azure_function_consumption_plan():
+        elif in_gcp_function() or in_azure_function():
             return False
         else:
             return in_aws_lambda()
@@ -1142,22 +1148,16 @@ class Tracer(object):
         - AWS Lambdas can have the Datadog agent installed via an extension.
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
-        - Google Cloud Functions and Azure Consumption Plan Functions have a mini-agent spun up by the tracer.
+        - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
-        return (
-            (in_aws_lambda() and has_aws_lambda_agent_extension())
-            or in_gcp_function()
-            or in_azure_function_consumption_plan()
-        )
+        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
 
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
 
-    def _on_global_config_update(self, cfg, items):
-        # type: (Config, List) -> None
-
+    def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
         if "_trace_sample_rate" in items and "_trace_sampling_rules" in items:
             self._handle_sampler_update(cfg)
@@ -1184,8 +1184,7 @@ class Tracer(object):
 
                 unpatch()
 
-    def _handle_sampler_update(self, cfg):
-        # type: (Config) -> None
+    def _handle_sampler_update(self, cfg: Config) -> None:
         if (
             cfg._get_source("_trace_sample_rate") != "remote_config"
             and cfg._get_source("_trace_sampling_rules") != "remote_config"

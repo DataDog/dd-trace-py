@@ -1,7 +1,10 @@
 #include "crashtracker_interface.hpp"
 #include "crashtracker.hpp"
 
+#include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
+#include <unistd.h>
 
 // A global instance of the crashtracker is created here.
 Datadog::Crashtracker crashtracker;
@@ -80,27 +83,33 @@ crashtracker_set_alt_stack(bool alt_stack) // cppcheck-suppress unusedFunction
 }
 
 void
+crashtracker_set_wait_for_receiver(bool wait) // cppcheck-suppress unusedFunction
+{
+    crashtracker.set_wait_for_receiver(wait);
+}
+
+void
 crashtracker_set_resolve_frames_disable() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_DISABLED);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_DISABLED);
 }
 
 void
 crashtracker_set_resolve_frames_fast() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS);
 }
 
 void
 crashtracker_set_resolve_frames_full() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED_WITH_INPROCESS_SYMBOLS);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_ENABLED_WITH_INPROCESS_SYMBOLS);
 }
 
 void
 crashtracker_set_resolve_frames_safe() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED_WITH_SYMBOLS_IN_RECEIVER);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_ENABLED_WITH_SYMBOLS_IN_RECEIVER);
 }
 
 bool
@@ -110,12 +119,48 @@ crashtracker_set_receiver_binary_path(std::string_view path) // cppcheck-suppres
 }
 
 void
+crashtracker_set_tag(std::string_view key, std::string_view value) // cppcheck-suppress unusedFunction
+{
+    crashtracker.set_tag(key, value);
+}
+
+// Store the old segfault handler (uses sigaction prototype)
+void (*old_sigsegv_handler)(int, siginfo_t*, void*) = nullptr;
+void (*old_sigbus_handler)(int, siginfo_t*, void*) = nullptr;
+
+// Trap sigsegv JUST to suppress stderr
+void
+close_stderr_chainer(int signo, siginfo_t* info, void* context)
+{
+    if (old_sigsegv_handler) {
+        close(STDERR_FILENO);
+        old_sigsegv_handler(signo, info, context);
+    }
+    _exit(0);
+}
+
+void
 crashtracker_start() // cppcheck-suppress unusedFunction
 {
     // This is a one-time start pattern to ensure that the crashtracker is only started once.
     const static bool initialized = []() {
         crashtracker.start();
         crashtracker_initialized = true;
+
+        // v11.0 of crashtracker has a bug where it prints erroneously to stderr
+        // If any handle is detected on the signals (sigsegv/sigbus) crashtracker attaches to,
+        // we suppress stderr
+        struct sigaction sa;
+        sigaction(SIGSEGV, nullptr, &sa);
+        old_sigsegv_handler = sa.sa_sigaction;
+        sa.sa_sigaction = close_stderr_chainer;
+        sigaction(SIGSEGV, &sa, nullptr);
+
+        // Handle sigbus
+        sigaction(SIGBUS, nullptr, &sa);
+        old_sigbus_handler = sa.sa_sigaction;
+        sa.sa_sigaction = close_stderr_chainer;
+        sigaction(SIGBUS, &sa, nullptr);
 
         // Also install the post-fork handler for the child process
         pthread_atfork(nullptr, nullptr, crashtracker_postfork_child);
@@ -175,4 +220,10 @@ crashtracker_profiling_state_serializing_stop() // cppcheck-suppress unusedFunct
     if (crashtracker_initialized) {
         crashtracker.serializing_stop();
     }
+}
+
+bool
+crashtracker_is_started() // cppcheck-suppress unusedFunction
+{
+    return crashtracker_initialized;
 }

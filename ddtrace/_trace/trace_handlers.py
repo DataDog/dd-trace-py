@@ -1,10 +1,13 @@
 import functools
+import re
 import sys
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+
+import wrapt
 
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
@@ -32,7 +35,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -153,6 +155,43 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
         )
 
 
+def _use_html(headers) -> bool:
+    """decide if the response should be html or json.
+
+    Add support for quality values in the Accept header.
+    """
+    ctype = headers.get("Accept", headers.get("accept", ""))
+    if not ctype:
+        return False
+    html_score = 0.0
+    json_score = 0.0
+    ctypes = ctype.split(",")
+    for ct in ctypes:
+        if len(ct) > 128:
+            # ignore long (and probably malicious) headers to avoid performances issues
+            continue
+        m = re.match(r"([^/;]+/[^/;]+)(?:;q=([01](?:\.\d*)?))?", ct.strip())
+        if m:
+            if m.group(1) == "text/html":
+                html_score = max(html_score, min(1.0, float(1.0 if m.group(2) is None else m.group(2))))
+            elif m.group(1) == "text/*":
+                html_score = max(html_score, min(1.0, float(0.2 if m.group(2) is None else m.group(2))))
+            elif m.group(1) == "application/json":
+                json_score = max(json_score, min(1.0, float(1.0 if m.group(2) is None else m.group(2))))
+            elif m.group(1) == "application/*":
+                json_score = max(json_score, min(1.0, float(0.2 if m.group(2) is None else m.group(2))))
+    return html_score > json_score
+
+
+def _ctype_from_headers(block_config, headers) -> str:
+    """compute MIME type of the blocked response."""
+    desired_type = block_config.get("type", "auto")
+    if desired_type == "auto":
+        return "text/html" if _use_html(headers) else "application/json"
+    else:
+        return "text/html" if block_config["type"] == "html" else "application/json"
+
+
 def _wsgi_make_block_content(ctx, construct_url):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
@@ -167,10 +206,7 @@ def _wsgi_make_block_content(ctx, construct_url):
         content = ""
         resp_headers = [("content-type", "text/plain; charset=utf-8"), ("location", block_config.get("location", ""))]
     else:
-        if desired_type == "auto":
-            ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-        else:
-            ctype = "text/" + block_config["type"]
+        ctype = _ctype_from_headers(block_config, headers)
         content = http_utils._get_blocked_template(ctype).encode("UTF-8")
         resp_headers = [("content-type", ctype)]
     status = block_config.get("status_code", 403)
@@ -213,12 +249,7 @@ def _asgi_make_block_content(ctx, url):
             (b"location", block_config.get("location", "").encode()),
         ]
     else:
-        if desired_type == "auto":
-            ctype = (
-                "text/html" if "text/html" in headers.get("Accept", headers.get("accept", "")).lower() else "text/json"
-            )
-        else:
-            ctype = "text/" + block_config["type"]
+        ctype = _ctype_from_headers(block_config, headers)
         content = http_utils._get_blocked_template(ctype).encode("UTF-8")
         # ctype = f"{ctype}; charset=utf-8" can be considered at some point
         resp_headers = [(b"content-type", ctype.encode())]
@@ -487,10 +518,12 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
 
 
 def _on_django_start_response(
-    ctx, request, extract_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
+    ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
 ):
     parsed_query = request.GET
     body = extract_body(request)
+    remake_body(request)
+
     trace_utils.set_http_meta(
         ctx["call"],
         ctx["distributed_headers_config"],
@@ -748,6 +781,8 @@ def listen():
     core.on("botocore.prep_context_injection.post", _on_botocore_trace_context_injection_prepared)
     core.on("botocore.patched_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_kinesis_api_call.started", _on_botocore_patched_api_call_started)
+    core.on("botocore.patched_kinesis_api_call.exception", _on_botocore_patched_api_call_exception)
+    core.on("botocore.patched_kinesis_api_call.success", _on_botocore_patched_api_call_success)
     core.on("botocore.kinesis.update_record", _on_botocore_kinesis_update_record)
     core.on("botocore.patched_sqs_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_sqs_api_call.exception", _on_botocore_patched_api_call_exception)

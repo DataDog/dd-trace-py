@@ -4,7 +4,7 @@
 FROM debian:buster-20221219-slim
 
 ARG TARGETARCH
-ARG HATCH_VERSION=1.8.1
+ARG HATCH_VERSION=1.12.0
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -70,16 +70,15 @@ RUN curl https://sh.rustup.rs -sSf | \
     sh -s -- --default-toolchain stable -y
 
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch v2.3.33 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch v2.4.2 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
 RUN if [ "$TARGETARCH" = "amd64" ]; \
-    then curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-${HATCH_VERSION}-x86_64-unknown-linux-gnu.tar.gz | tar zx; \
-    else curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-${HATCH_VERSION}-aarch64-unknown-linux-gnu.tar.gz | tar zx; \
+    then curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx; \
+    else curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-aarch64-unknown-linux-gnu.tar.gz | tar zx; \
     fi \
-  && mv hatch-${HATCH_VERSION}-* hatch \
   && install -t /usr/local/bin hatch \
   && hatch -q
 

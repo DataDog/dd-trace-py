@@ -22,6 +22,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs.utils import Document
 from ddtrace.pin import Pin
 
@@ -97,11 +98,13 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     @classmethod
     def _metrics_tags(cls, span: Span) -> List[str]:
+        model_name = span.get_tag("openai.request.model") or ""
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
-            "openai.request.model:%s" % (span.get_tag("openai.request.model") or ""),
+            "openai.request.model:%s" % model_name,
+            "model:%s" % model_name,
             "openai.request.endpoint:%s" % (span.get_tag("openai.request.endpoint") or ""),
             "openai.request.method:%s" % (span.get_tag("openai.request.method") or ""),
             "openai.organization.id:%s" % (span.get_tag("openai.organization.id") or ""),
@@ -161,10 +164,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         if isinstance(prompt, str):
             prompt = [prompt]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
-        if kwargs.get("max_tokens"):
-            parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(METADATA, json.dumps(parameters))
+
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt")}
+        span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
+
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
@@ -187,10 +190,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                 continue
             input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
-        if kwargs.get("max_tokens"):
-            parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(METADATA, json.dumps(parameters))
+
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
+        span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
+
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
@@ -205,20 +208,32 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         output_messages = []
         for idx, choice in enumerate(resp.choices):
+            tool_calls_info = []
             content = getattr(choice.message, "content", "")
             if getattr(choice.message, "function_call", None):
-                content = "[function: {}]\n\n{}".format(
-                    getattr(choice.message.function_call, "name", ""),
-                    getattr(choice.message.function_call, "arguments", ""),
+                function_call_info = {
+                    "name": getattr(choice.message.function_call, "name", ""),
+                    "arguments": json.loads(getattr(choice.message.function_call, "arguments", "")),
+                }
+                if content is None:
+                    content = ""
+                output_messages.append(
+                    {"content": content, "role": choice.message.role, "tool_calls": [function_call_info]}
                 )
             elif getattr(choice.message, "tool_calls", None):
-                content = ""
                 for tool_call in choice.message.tool_calls:
-                    content += "\n[tool: {}]\n\n{}\n".format(
-                        getattr(tool_call.function, "name", ""),
-                        getattr(tool_call.function, "arguments", ""),
-                    )
-            output_messages.append({"content": str(content).strip(), "role": choice.message.role})
+                    tool_call_info = {
+                        "name": getattr(tool_call.function, "name", ""),
+                        "arguments": json.loads(getattr(tool_call.function, "arguments", "")),
+                        "tool_id": getattr(tool_call, "id", ""),
+                        "type": getattr(tool_call, "type", ""),
+                    }
+                    tool_calls_info.append(tool_call_info)
+                if content is None:
+                    content = ""
+                output_messages.append({"content": content, "role": choice.message.role, "tool_calls": tool_calls_info})
+            else:
+                output_messages.append({"content": content, "role": choice.message.role})
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod

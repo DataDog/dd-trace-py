@@ -1,8 +1,6 @@
 from collections import namedtuple
 import typing
 
-import attr
-
 from ddtrace._trace import span as ddspan  # noqa:F401
 from ddtrace.internal import compat
 
@@ -13,18 +11,14 @@ DDFrame = namedtuple("DDFrame", ["file_name", "lineno", "function_name", "class_
 StackTraceType = typing.List[DDFrame]
 
 
-def event_class(
-    klass,  # type: typing.Type[_T]
-):
-    # type: (...) -> typing.Type[_T]
-    return attr.s(slots=True)(klass)
-
-
-@event_class
 class Event(object):
     """An event happening at a point in time."""
 
-    timestamp = attr.ib(factory=compat.time_ns)
+    __slots__ = ("timestamp",)
+
+    def __init__(self, timestamp=compat.time_ns()):
+        # type: (typing.Optional[int]) -> None
+        self.timestamp = timestamp
 
     @property
     def name(self):
@@ -33,33 +27,71 @@ class Event(object):
         return self.__class__.__name__
 
 
-@event_class
 class TimedEvent(Event):
     """An event that has a duration."""
 
-    duration = attr.ib(default=None)
+    __slots__ = ("duration",)
+
+    def __init__(self, duration=None, *args, **kwargs):
+        # type: (typing.Optional[int], *typing.Any, **typing.Any) -> None
+        super().__init__(*args, **kwargs)
+        self.duration = duration
 
 
-@event_class
 class SampleEvent(Event):
     """An event representing a sample gathered from the system."""
 
-    sampling_period = attr.ib(default=None)
+    __slots__ = ("sampling_period",)
+
+    def __init__(self, sampling_period=None, *args, **kwargs):
+        # type: (typing.Optional[int], *typing.Any, **typing.Any) -> None
+        super().__init__(*args, **kwargs)
+        self.sampling_period = sampling_period
 
 
-@event_class
 class StackBasedEvent(SampleEvent):
-    thread_id = attr.ib(default=None, type=typing.Optional[int])
-    thread_name = attr.ib(default=None, type=typing.Optional[str])
-    thread_native_id = attr.ib(default=None, type=typing.Optional[int])
-    task_id = attr.ib(default=None, type=typing.Optional[int])
-    task_name = attr.ib(default=None, type=typing.Optional[str])
-    frames = attr.ib(default=None, type=StackTraceType)
-    nframes = attr.ib(default=0, type=int)
-    local_root_span_id = attr.ib(default=None, type=typing.Optional[int])
-    span_id = attr.ib(default=None, type=typing.Optional[int])
-    trace_type = attr.ib(default=None, type=typing.Optional[str])
-    trace_resource_container = attr.ib(default=None, type=typing.List[str])
+    __slots__ = (
+        "thread_id",
+        "thread_name",
+        "thread_native_id",
+        "task_id",
+        "task_name",
+        "frames",
+        "nframes",
+        "local_root_span_id",
+        "span_id",
+        "trace_type",
+        "trace_resource_container",
+    )
+
+    def __init__(
+        self,
+        thread_id=None,
+        thread_name=None,
+        thread_native_id=None,
+        task_id=None,
+        task_name=None,
+        frames=None,
+        nframes=0,
+        local_root_span_id=None,
+        span_id=None,
+        trace_type=None,
+        trace_resource_container=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.thread_id = thread_id
+        self.thread_name = thread_name
+        self.thread_native_id = thread_native_id
+        self.task_id = task_id
+        self.task_name = task_name
+        self.frames = frames
+        self.nframes = nframes
+        self.local_root_span_id = local_root_span_id
+        self.span_id = span_id
+        self.trace_type = trace_type
+        self.trace_resource_container = trace_resource_container
 
     def set_trace_info(
         self,

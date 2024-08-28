@@ -1,13 +1,12 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
-import typing
+from typing import Any
+from typing import Dict
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Type  # noqa:F401
 from typing import Union  # noqa:F401
-
-import attr
 
 import ddtrace
 from ddtrace.internal import agent
@@ -93,11 +92,10 @@ class Profiler(object):
         self,
         key,  # type: str
     ):
-        # type: (...) -> typing.Any
+        # type: (...) -> Any
         return getattr(self._profiler, key)
 
 
-@attr.s
 class _ProfilerInstance(service.Service):
     """A instance of the profiler.
 
@@ -105,32 +103,59 @@ class _ProfilerInstance(service.Service):
 
     """
 
-    # User-supplied values
-    url = attr.ib(default=None)
-    service = attr.ib(factory=lambda: os.environ.get("DD_SERVICE"))
-    tags = attr.ib(factory=dict, type=typing.Dict[str, str])
-    env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
-    version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
-    tracer = attr.ib(default=ddtrace.tracer)
-    api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
-    agentless = attr.ib(type=bool, default=config.agentless)
-    _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
-    _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
-    _stack_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
-    _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
-    enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
-    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
-
-    _recorder = attr.ib(init=False, default=None)
-    _collectors = attr.ib(init=False, default=None)
-    _collectors_on_import = attr.ib(init=False, default=None, eq=False)
-    _scheduler = attr.ib(init=False, default=None, type=Union[scheduler.Scheduler, scheduler.ServerlessScheduler])
-    _lambda_function_name = attr.ib(
-        init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
-    )
-    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
+
+    def __init__(
+        self,
+        url: Optional[str] = None,
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        env: Optional[str] = None,
+        version: Optional[str] = None,
+        tracer: Any = ddtrace.tracer,
+        api_key: Optional[str] = None,
+        agentless: bool = config.agentless,
+        _memory_collector_enabled: bool = config.memory.enabled,
+        _stack_collector_enabled: bool = config.stack.enabled,
+        _stack_v2_enabled: bool = config.stack.v2_enabled,
+        _lock_collector_enabled: bool = config.lock.enabled,
+        enable_code_provenance: bool = config.code_provenance,
+        endpoint_collection_enabled: bool = config.endpoint_collection,
+    ):
+        super().__init__()
+        # User-supplied values
+        self.url: Optional[str] = url
+        self.service: Optional[str] = service if service is not None else os.environ.get("DD_SERVICE")
+        self.tags: Dict[str, str] = tags if tags is not None else config.tags
+        self.env: Optional[str] = env if env is not None else os.environ.get("DD_ENV")
+        self.version: Optional[str] = version if version is not None else os.environ.get("DD_VERSION")
+        self.tracer: Any = tracer
+        self.api_key: Optional[str] = api_key if api_key is not None else os.environ.get("DD_API_KEY")
+        self.agentless: bool = agentless
+        self._memory_collector_enabled: bool = _memory_collector_enabled
+        self._stack_collector_enabled: bool = _stack_collector_enabled
+        self._stack_v2_enabled: bool = _stack_v2_enabled
+        self._lock_collector_enabled: bool = _lock_collector_enabled
+        self.enable_code_provenance: bool = enable_code_provenance
+        self.endpoint_collection_enabled: bool = endpoint_collection_enabled
+
+        # Non-user-supplied values
+        self._recorder: Any = None
+        self._collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = []
+        self._collectors_on_import: Any = None
+        self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
+        self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._export_libdd_enabled: bool = config.export.libdd_enabled
+
+        self.__post_init__()
+
+    def __eq__(self, other):
+        for k, v in vars(self).items():
+            if k.startswith("_") or k in self._COPY_IGNORE_ATTRIBUTES:
+                continue
+            if v != getattr(other, k, None):
+                return False
+        return True
 
     def _build_default_exporters(self):
         # type: (...) -> List[exporter.Exporter]
@@ -209,6 +234,8 @@ class _ProfilerInstance(service.Service):
                     max_nframes=config.max_frames,
                     url=endpoint,
                     timeline_enabled=config.timeline_enabled,
+                    output_filename=config.output_pprof,
+                    sample_pool_capacity=config.sample_pool_capacity,
                 )
                 ddup.start()
 
@@ -242,7 +269,7 @@ class _ProfilerInstance(service.Service):
             )
         ]
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         # type: (...) -> None
         # Allow to store up to 10 threads for 60 seconds at 50 Hz
         max_stack_events = 10 * 60 * 50
@@ -260,8 +287,6 @@ class _ProfilerInstance(service.Service):
             default_max_events=config.max_events,
         )
 
-        self._collectors = []
-
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
@@ -270,7 +295,7 @@ class _ProfilerInstance(service.Service):
                         r,
                         tracer=self.tracer,
                         endpoint_collection_enabled=self.endpoint_collection_enabled,
-                    )  # type: ignore[call-arg]
+                    )
                 )
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:
@@ -336,9 +361,9 @@ class _ProfilerInstance(service.Service):
     def copy(self):
         return self.__class__(
             **{
-                a.name: getattr(self, a.name)
-                for a in attr.fields(self.__class__)
-                if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
+                key: value
+                for key, value in vars(self).items()
+                if not key.startswith("_") and key not in self._COPY_IGNORE_ATTRIBUTES
             }
         )
 

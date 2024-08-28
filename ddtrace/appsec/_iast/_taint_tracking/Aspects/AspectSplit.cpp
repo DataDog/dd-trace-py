@@ -8,7 +8,7 @@ api_split_text(const StrType& text, const optional<StrType>& separator, const op
     const auto split = text.attr("split");
     const auto split_result = split(separator, maxsplit);
 
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return split_result;
     }
@@ -26,7 +26,7 @@ api_rsplit_text(const StrType& text, const optional<StrType>& separator, const o
 {
     const auto rsplit = text.attr("rsplit");
     const auto split_result = rsplit(separator, maxsplit);
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return split_result;
     }
@@ -43,7 +43,7 @@ api_splitlines_text(const StrType& text, bool keepends)
 {
     const auto splitlines = text.attr("splitlines");
     const auto split_result = splitlines(keepends);
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return split_result;
     }
@@ -57,16 +57,58 @@ api_splitlines_text(const StrType& text, bool keepends)
 void
 pyexport_aspect_split(py::module& m)
 {
-    m.def("_aspect_split", &api_split_text<py::str>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
-    m.def("_aspect_split", &api_split_text<py::bytes>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
-    m.def("_aspect_split", &api_split_text<py::bytearray>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
-    m.def("_aspect_rsplit", &api_rsplit_text<py::str>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
-    m.def("_aspect_rsplit", &api_rsplit_text<py::bytes>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
-    m.def("_aspect_rsplit", &api_rsplit_text<py::bytearray>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
+    m.def("_aspect_split",
+          &api_split_text<py::str>,
+          "text"_a,
+          "separator"_a = py::none(),
+          "maxsplit"_a = -1,
+          py::return_value_policy::move);
+    m.def("_aspect_split",
+          &api_split_text<py::bytes>,
+          "text"_a,
+          "separator"_a = py::none(),
+          "maxsplit"_a = -1,
+          py::return_value_policy::move);
+    m.def("_aspect_split",
+          &api_split_text<py::bytearray>,
+          "text"_a,
+          "separator"_a = py::none(),
+          "maxsplit"_a = -1,
+          py::return_value_policy::move);
+    m.def("_aspect_rsplit",
+          &api_rsplit_text<py::str>,
+          "text"_a,
+          "separator"_a = py::none(),
+          "maxsplit"_a = -1,
+          py::return_value_policy::move);
+    m.def("_aspect_rsplit",
+          &api_rsplit_text<py::bytes>,
+          "text"_a,
+          "separator"_a = py::none(),
+          "maxsplit"_a = -1,
+          py::return_value_policy::move);
+    m.def("_aspect_rsplit",
+          &api_rsplit_text<py::bytearray>,
+          "text"_a,
+          "separator"_a = py::none(),
+          "maxsplit"_a = -1,
+          py::return_value_policy::move);
     // cppcheck-suppress assignBoolToPointer
-    m.def("_aspect_splitlines", &api_splitlines_text<py::str>, "text"_a, "keepends"_a = false);
+    m.def("_aspect_splitlines",
+          &api_splitlines_text<py::str>,
+          "text"_a,
+          "keepends"_a = false,
+          py::return_value_policy::move);
     // cppcheck-suppress assignBoolToPointer
-    m.def("_aspect_splitlines", &api_splitlines_text<py::bytes>, "text"_a, "keepends"_a = false);
+    m.def("_aspect_splitlines",
+          &api_splitlines_text<py::bytes>,
+          "text"_a,
+          "keepends"_a = false,
+          py::return_value_policy::move);
     // cppcheck-suppress assignBoolToPointer
-    m.def("_aspect_splitlines", &api_splitlines_text<py::bytearray>, "text"_a, "keepends"_a = false);
+    m.def("_aspect_splitlines",
+          &api_splitlines_text<py::bytearray>,
+          "text"_a,
+          "keepends"_a = false,
+          py::return_value_policy::move);
 }

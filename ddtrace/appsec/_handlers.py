@@ -3,6 +3,8 @@ import functools
 import io
 import json
 
+from wrapt import when_imported
+from wrapt import wrap_function_wrapper as _w
 import xmltodict
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -16,8 +18,6 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.wrapt import when_imported
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 MessageMapContainer = None
@@ -412,12 +412,39 @@ def _patch_protobuf_class(cls):
             pass
 
 
-def _on_grpc_response(response):
+def _on_grpc_response(message):
     if not _is_iast_enabled():
         return
 
-    msg_cls = type(response)
+    msg_cls = type(message)
     _patch_protobuf_class(msg_cls)
+
+
+def _on_grpc_server_response(message):
+    if not _is_iast_enabled():
+        return
+
+    from ddtrace.appsec._asm_request_context import set_waf_address
+
+    set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_RESPONSE_MESSAGE, message)
+    _on_grpc_response(message)
+
+
+def _on_grpc_server_data(headers, request_message, method, metadata):
+    if not _is_iast_enabled():
+        return
+
+    from ddtrace.appsec._asm_request_context import set_headers
+    from ddtrace.appsec._asm_request_context import set_waf_address
+
+    set_headers(headers)
+    if request_message is not None:
+        set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_MESSAGE, request_message)
+
+    set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_METHOD, method)
+
+    if metadata:
+        set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, dict(metadata))
 
 
 def listen():
@@ -432,4 +459,7 @@ core.on("django.patch", _on_django_patch)
 core.on("flask.patch", _on_flask_patch)
 
 core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
-core.on("grpc.response_message", _on_grpc_response)
+
+core.on("grpc.client.response.message", _on_grpc_response)
+core.on("grpc.server.response.message", _on_grpc_server_response)
+core.on("grpc.server.data", _on_grpc_server_data)
