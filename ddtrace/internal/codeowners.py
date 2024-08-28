@@ -127,18 +127,18 @@ class Codeowners(object):
         """
         path = path or self.location(cwd)
         if path is not None:
-            self.path = path  # type: str
-        self.patterns = []  # type: List[Tuple[re.Pattern, List[str]]]
+            self.path: str = path
+        self.patterns: List[Tuple[re.Pattern, List[str]]] = []
         self.parse()
 
-    def location(self, cwd: Optional[str] = None) -> Optional[str]:
+    def location(self, cwd=None) -> Optional[str]:
         """Return the location of the CODEOWNERS file."""
         cwd = cwd or os.getcwd()
         for location in self.KNOWN_LOCATIONS:
             path = os.path.join(cwd, location)
             if os.path.isfile(path):
                 return path
-        return None
+        raise ValueError("CODEOWNERS file not found")
 
     def parse(self):
         # type: () -> None
@@ -190,4 +190,4 @@ class Codeowners(object):
         for pattern, owners in self.patterns:
             if pattern.search(path):
                 return owners
-        return []
+        raise KeyError("no code owners found for {path}".format(path=path))
