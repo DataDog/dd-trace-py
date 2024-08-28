@@ -399,7 +399,7 @@ venv = Venv(
         Venv(
             name="internal",
             env={
-                "DD_TRACE_AGENT_URL": "http://localhost:8126",
+                "DD_TRACE_AGENT_URL": "http://ddagent:8126",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
             },
             command="pytest -v {cmdargs} tests/internal/",
