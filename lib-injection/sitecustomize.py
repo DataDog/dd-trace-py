@@ -283,7 +283,6 @@ def _inject():
             send_telemetry(event)
             return
         else:
-
             if not FORCE_INJECT:
                 for module in incompat_pkgs.keys():
                     ddtrace._monkey.PATCH_MODULES[module] = False
