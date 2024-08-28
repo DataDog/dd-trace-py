@@ -108,7 +108,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "name": _get_span_name(span),
             "tags": self._llmobs_tags(span, ml_app=ml_app, session_id=session_id),
             "start_ns": span.start_ns,
-            "duration": span.duration_ns,
+            "duration": span._duration_ns,
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,

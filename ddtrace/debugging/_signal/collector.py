@@ -45,14 +45,14 @@ class SignalContext(object):
 
         self.signal.enter()
 
-    def exit(self, retval: Any, exc_info: ExcInfoType, duration_ns: int) -> None:
+    def exit(self, retval: Any, exc_info: ExcInfoType, _duration_ns: int) -> None:
         """Exit the snapshot context.
 
         The arguments are used to record either the return value or the exception, and
         the duration of the wrapped call.
         """
         self.return_value = retval
-        self.duration = duration_ns
+        self.duration = _duration_ns
 
         return self.__exit__(*exc_info)
 

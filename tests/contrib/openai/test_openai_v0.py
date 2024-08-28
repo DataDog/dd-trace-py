@@ -1385,7 +1385,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
         "openai.user.api_key:sk-...key>",
         "error:0",
     ]
-    assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("request.duration", span._duration_ns, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.gauge("ratelimit.requests", 3, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.gauge("ratelimit.remaining.requests", 2, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
@@ -1436,7 +1436,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
         "openai.user.api_key:sk-...key>",
         "error:0",
     ]
-    assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("request.duration", span._duration_ns, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.gauge("ratelimit.requests", 3500, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.gauge("ratelimit.tokens", 90000, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.gauge("ratelimit.remaining.requests", 3499, tags=expected_tags) in mock_metrics.mock_calls

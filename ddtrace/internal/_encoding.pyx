@@ -748,7 +748,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             ret = pack_bytes(&self.pk, <char *> b"duration", 8)
             if ret != 0:
                 return ret
-            ret = pack_number(&self.pk, span.duration_ns)
+            ret = pack_number(&self.pk, span._duration_ns)
             if ret != 0:
                 return ret
 
@@ -893,7 +893,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        _ = span.duration_ns
+        _ = span._duration_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0:
             return ret

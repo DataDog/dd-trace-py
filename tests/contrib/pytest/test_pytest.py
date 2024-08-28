@@ -1011,7 +1011,7 @@ class PytestTestCase(TracerTestCase):
         assert test_suite_a_span.get_tag("type") == "test_suite_end"
         if not _USE_PLUGIN_V2:
             assert test_span_a_inside_class.get_tag("test.class_hierarchy") == "TestClass"
-        assert test_suite_a_span.start_ns + test_suite_a_span.duration_ns >= test_span_a_outside_after_class.start_ns
+        assert test_suite_a_span.start_ns + test_suite_a_span._duration_ns >= test_span_a_outside_after_class.start_ns
 
     def test_pytest_suites_one_fails_propagates(self):
         """Test that if any tests fail, the status propagates upwards."""
@@ -1381,7 +1381,7 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 7
         test_span_outside_after_class = spans[3]
         test_module_span = spans[5]
-        assert test_module_span.start_ns + test_module_span.duration_ns >= test_span_outside_after_class.start_ns
+        assert test_module_span.start_ns + test_module_span._duration_ns >= test_span_outside_after_class.start_ns
 
     def test_pytest_packages_skip_one(self):
         """

@@ -87,12 +87,12 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
                 self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
             )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span._duration_ns)
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span._duration_ns)
             raise
 
 
@@ -117,12 +117,12 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
                 self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
             )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span._duration_ns)
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span._duration_ns)
             raise
 
 

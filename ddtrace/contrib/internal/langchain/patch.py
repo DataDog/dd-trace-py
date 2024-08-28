@@ -252,7 +252,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 error=bool(span.error),
             )
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
         if integration.is_pc_sampled_log(span):
             if completions is None:
                 log_completions = []
@@ -330,7 +330,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 error=bool(span.error),
             )
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
         if integration.is_pc_sampled_log(span):
             if completions is None:
                 log_completions = []
@@ -446,7 +446,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 error=bool(span.error),
             )
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
         if integration.is_pc_sampled_log(span):
             if chat_completions is None:
                 log_chat_completions = []
@@ -576,7 +576,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 error=bool(span.error),
             )
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
         if integration.is_pc_sampled_log(span):
             if chat_completions is None:
                 log_chat_completions = []
@@ -666,7 +666,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
                 error=bool(span.error),
             )
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
         if integration.is_pc_sampled_log(span):
             integration.log(
                 span,
@@ -715,7 +715,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags("chain", span, inputs, final_outputs, error=bool(span.error))
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
         if integration.is_pc_sampled_log(span):
             log_inputs = {}
             log_outputs = {}
@@ -772,7 +772,7 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags("chain", span, inputs, final_outputs, error=bool(span.error))
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
         if integration.is_pc_sampled_log(span):
             log_inputs = {}
             log_outputs = {}
@@ -845,7 +845,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags("chain", span, inputs, final_output, error=bool(span.error))
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
     return final_output
 
 
@@ -892,7 +892,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags("chain", span, inputs, final_output, error=bool(span.error))
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
     return final_output
 
 
@@ -948,7 +948,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         raise
     finally:
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        integration.metric(span, "dist", "request.duration", span._duration_ns)
         if integration.is_pc_sampled_log(span):
             integration.log(
                 span,

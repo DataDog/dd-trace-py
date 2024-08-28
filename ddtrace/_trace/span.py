@@ -107,7 +107,7 @@ class Span(object):
         "_store",
         "span_type",
         "start_ns",
-        "duration_ns",
+        "_duration_ns",
         # Internal attributes
         "_context",
         "_local_root",
@@ -181,7 +181,7 @@ class Span(object):
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
         self.start_ns: int = time_ns() if start is None else int(start * 1e9)
-        self.duration_ns: Optional[int] = None
+        self._duration_ns: Optional[int] = None
 
         if trace_id is not None:
             self.trace_id: int = trace_id
@@ -234,9 +234,14 @@ class Span(object):
         """The start timestamp in Unix epoch seconds."""
         return self.start_ns / 1e9
 
-    # revisit: questionable... do we want customers to be able to start
     @start.setter
     def start(self, value: Union[int, float]) -> None:
+        deprecate(
+            "setting span.start is deprecated and will be removed in a future version of the tracer.",
+            message="""setting span.start is deprecated and will be removed in a future version of the tracer.
+        Please start the span at the start time you desire.""",
+        )
+
         self.start_ns = int(value * 1e9)
 
     @property
@@ -249,7 +254,7 @@ class Span(object):
 
     @property
     def finished(self) -> bool:
-        return self.duration_ns is not None
+        return self._duration_ns is not None
 
     @finished.setter
     def finished(self, value: bool) -> None:
@@ -266,16 +271,14 @@ class Span(object):
         )
         if value:
             if not self.finished:
-                self.duration_ns = time_ns() - self.start_ns
+                self._duration_ns = time_ns() - self.start_ns
         else:
-            self.duration_ns = None
+            self._duration_ns = None
 
     @property
-    def duration(self) -> Optional[float]:
+    def duration(self) -> float:
         """The span duration in seconds."""
-        if self.duration_ns is not None:
-            return self.duration_ns / 1e9
-        return None
+        return (time_ns() - self.start_ns) / 1e9
 
     @duration.setter
     def duration(self, value: float) -> None:
@@ -285,7 +288,7 @@ class Span(object):
             Please avoid setting span.duration directly.""",
             category=DDTraceDeprecationWarning,
         )
-        self.duration_ns = int(value * 1e9)
+        self._duration_ns = int(value * 1e9)
 
     @property
     def sampled(self) -> Optional[bool]:
@@ -310,23 +313,33 @@ class Span(object):
             category=DDTraceDeprecationWarning,
         )
 
+    #
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
         If the span has already been finished don't do anything.
 
         :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
+
         if finish_time is None:
             self._finish_ns(time_ns())
         else:
+            deprecate(
+                """manually setting finish time for span is deprecated and will be removed in a future version of
+                the tracer.""",
+                message="""manually setting finish time for span is deprecated and will be removed
+                in a future version of the tracer. Please finish the span at the end time you desire.""",
+                category=DDTraceDeprecationWarning,
+            )
+
             self._finish_ns(int(finish_time * 1e9))
 
     def _finish_ns(self, finish_time_ns: int) -> None:
-        if self.duration_ns is not None:
+        if self._duration_ns is not None:
             return
 
         # be defensive so we don't die if start isn't set
-        self.duration_ns = finish_time_ns - (self.start_ns or finish_time_ns)
+        self._duration_ns = finish_time_ns - (self.start_ns or finish_time_ns)
 
         for cb in self._on_finish_callbacks:
             cb(self)
@@ -352,6 +365,13 @@ class Span(object):
 
         if not isinstance(key, str):
             log.warning("Ignoring tag pair %s:%s. Key must be a string.", key, value)
+            return
+
+        # test that value can be converted to str or int
+        try:
+            str(value)
+        except TypeError:
+            log.warning("tag value is cannot be cast to str %s", value)
             return
 
         # Special case, force `http.status_code` as a string
@@ -583,7 +603,7 @@ class Span(object):
             ("resource", self.resource),
             ("type", self.span_type),
             ("start", self.start),
-            ("end", None if not self.duration else self.start + self.duration),
+            ("end", None if not self.finished else self.start + (self._duration_ns / 1e9)),  # type: ignore[operator]
             ("duration", self.duration),
             ("error", self.error),
             ("tags", dict(sorted(self._meta.items()))),

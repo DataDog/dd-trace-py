@@ -196,13 +196,13 @@ class SpanTestCase(TracerTestCase):
         s.finish()
         assert s.duration == 1337.0
 
-    def test_setter_casts_duration_ns_as_int(self):
+    def test_setter_casts__duration_ns_as_int(self):
         s = Span(name="test.span")
         s.duration = 3.2
         s.finish()
         assert s.duration == 3.2
-        assert s.duration_ns == 3200000000
-        assert isinstance(s.duration_ns, int)
+        assert s._duration_ns == 3200000000
+        assert isinstance(s._duration_ns, int)
 
     def test_get_span_returns_none_by_default(self):
         s = Span(name="test.span")
@@ -335,7 +335,7 @@ class SpanTestCase(TracerTestCase):
     def test_duration_zero(self):
         s = Span(name="foo.bar", service="s", resource="r", start=123)
         s.finish(finish_time=123)
-        assert s.duration_ns == 0
+        assert s._duration_ns == 0
         assert s.duration == 0
 
     def test_start_int(self):
@@ -355,22 +355,22 @@ class SpanTestCase(TracerTestCase):
     def test_duration_int(self):
         s = Span(name="foo.bar", service="s", resource="r")
         s.finish()
-        assert isinstance(s.duration_ns, int)
+        assert isinstance(s._duration_ns, int)
         assert isinstance(s.duration, float)
 
         s = Span(name="foo.bar", service="s", resource="r", start=123)
         s.finish(finish_time=123.2)
-        assert s.duration_ns == 200000000
+        assert s._duration_ns == 200000000
         assert s.duration == 0.2
 
         s = Span(name="foo.bar", service="s", resource="r", start=123.1)
         s.finish(finish_time=123.2)
-        assert s.duration_ns == 100000000
+        assert s._duration_ns == 100000000
         assert s.duration == 0.1
 
         s = Span(name="foo.bar", service="s", resource="r", start=122)
         s.finish(finish_time=123)
-        assert s.duration_ns == 1000000000
+        assert s._duration_ns == 1000000000
         assert s.duration == 1
 
     def test_set_tag_version(self):
@@ -523,23 +523,23 @@ def test_span_key(span_log):
 def test_spans_finished():
     span = Span(None)
     assert span.finished is False
-    assert span.duration_ns is None
+    assert span._duration_ns is None
 
     span.finished = True
     assert span.finished is True
-    assert span.duration_ns is not None
-    duration = span.duration_ns
+    assert span._duration_ns is not None
+    duration = span._duration_ns
 
     span.finished = True
     assert span.finished is True
-    assert span.duration_ns == duration
+    assert span._duration_ns == duration
 
     span.finished = False
     assert span.finished is False
 
     span.finished = True
     assert span.finished is True
-    assert span.duration_ns != duration
+    assert span._duration_ns != duration
 
 
 def test_span_unicode_set_tag():

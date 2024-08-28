@@ -48,7 +48,7 @@ def span_to_tuple(span):
         span.span_id or 0,
         span.parent_id or 0,
         span.start_ns or 0,
-        span.duration_ns or 0,
+        span._duration_ns or 0,
         int(bool(span.error)),
         span.get_tags() or {},
         span.get_metrics() or {},
@@ -378,7 +378,7 @@ def test_custom_msgpack_encode(encoding):
 
     s = Span(None)
     # Need to .finish() to have a duration since the old implementation will not encode
-    # duration_ns, the new one will encode as None
+    # _duration_ns, the new one will encode as None
     s.finish()
     encoder.put([s])
     assert decode(refencoder.encode_traces([[s]])) == decode(encoder.encode())
@@ -814,7 +814,7 @@ def _value():
         {"resource": 50},
         {"name": [1, 2, 3]},
         {"start_ns": "start_time"},
-        {"duration_ns": "duration_time"},
+        {"_duration_ns": "duration_time"},
         {"span_type": 100},
         {"_meta": {"num": 100}},
         # Validating behavior with a context manager is a customer regression

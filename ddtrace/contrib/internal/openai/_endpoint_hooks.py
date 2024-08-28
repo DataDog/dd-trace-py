@@ -113,7 +113,7 @@ class _BaseCompletionHook(_EndpointHook):
                 _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=is_completion)
             finally:
                 span.finish()
-                integration.metric(span, "dist", "request.duration", span.duration_ns)
+                integration.metric(span, "dist", "request.duration", span._duration_ns)
 
         if _is_async_generator(resp):
 

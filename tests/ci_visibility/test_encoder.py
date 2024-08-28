@@ -79,7 +79,7 @@ def test_encode_traces_civisibility_v0():
                 b"service": JSONEncoder._normalize_str(given_span.service).encode("utf-8"),
                 b"type": given_span.span_type.encode("utf-8") if given_span.span_type else None,
                 b"start": given_span.start_ns,
-                b"duration": given_span.duration_ns,
+                b"duration": given_span._duration_ns,
                 b"meta": expected_meta,
                 b"metrics": dict(sorted(given_span._metrics.items())),
                 b"error": 0,
@@ -322,7 +322,7 @@ class PytestEncodingTestCase(TracerTestCase):
         }
         expected_test_event = {
             b"content": {
-                b"duration": given_test_span.duration_ns,
+                b"duration": given_test_span._duration_ns,
                 b"error": given_test_span.error,
                 b"meta": expected_meta,
                 b"metrics": expected_metrics,
@@ -384,7 +384,7 @@ class PytestEncodingTestCase(TracerTestCase):
         }
         expected_test_suite_event = {
             b"content": {
-                b"duration": given_test_suite_span.duration_ns,
+                b"duration": given_test_suite_span._duration_ns,
                 b"error": given_test_suite_span.error,
                 b"meta": expected_meta,
                 b"metrics": expected_metrics,
@@ -437,7 +437,7 @@ class PytestEncodingTestCase(TracerTestCase):
         }
         expected_test_module_event = {
             b"content": {
-                b"duration": given_test_module_span.duration_ns,
+                b"duration": given_test_module_span._duration_ns,
                 b"error": given_test_module_span.error,
                 b"meta": expected_meta,
                 b"metrics": expected_metrics,
@@ -487,7 +487,7 @@ class PytestEncodingTestCase(TracerTestCase):
         }
         expected_test_session_event = {
             b"content": {
-                b"duration": given_test_session_span.duration_ns,
+                b"duration": given_test_session_span._duration_ns,
                 b"error": given_test_session_span.error,
                 b"meta": expected_meta,
                 b"metrics": expected_metrics,

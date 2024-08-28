@@ -235,7 +235,7 @@ def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
         # Streamed responses with error will need to be finished manually as well.
         if not kwargs.get("stream") or err is not None:
             span.finish()
-            integration.metric(span, "dist", "request.duration", span.duration_ns)
+            integration.metric(span, "dist", "request.duration", span._duration_ns)
 
 
 def _patched_endpoint(openai, integration, patch_hook):

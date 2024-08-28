@@ -137,21 +137,21 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
         with self._lock:
             # Align the span into the corresponding stats bucket
-            assert span.duration_ns is not None
-            span_end_ns = span.start_ns + span.duration_ns
+            assert span._duration_ns is not None
+            span_end_ns = span.start_ns + span._duration_ns
             bucket_time_ns = span_end_ns - (span_end_ns % self._bucket_size_ns)
             aggr_key = _span_aggr_key(span)
             stats = self._buckets[bucket_time_ns][aggr_key]
 
             stats.hits += 1
-            stats.duration += span.duration_ns
+            stats.duration += span._duration_ns
             if is_top_level:
                 stats.top_level_hits += 1
             if span.error:
                 stats.errors += 1
-                stats.err_distribution.add(span.duration_ns)
+                stats.err_distribution.add(span._duration_ns)
             else:
-                stats.ok_distribution.add(span.duration_ns)
+                stats.ok_distribution.add(span._duration_ns)
 
     def _serialize_buckets(self):
         # type: () -> List[Dict]

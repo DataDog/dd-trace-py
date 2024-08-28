@@ -96,7 +96,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
-        sp["duration"] = span.duration_ns
+        sp["duration"] = span._duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
         sp["metrics"] = dict(sorted(span._metrics.items()))
         if dd_origin is not None:

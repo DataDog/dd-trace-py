@@ -499,7 +499,7 @@ class _PprofConverter(object):
             function=self._functions.values(),
             string_table=self._string_table,
             time_nanos=start_time_ns,
-            duration_nanos=duration_ns,
+            duration_nanos=_duration_ns,
             period=period,
             period_type=period_type,
         )
@@ -804,7 +804,7 @@ class PprofExporter(exporter.Exporter):
         if nb_event:
             period = int(sum_period / nb_event)
 
-        duration_ns = end_time_ns - start_time_ns
+        _duration_ns = end_time_ns - start_time_ns
 
         sample_types = (
             ("cpu-samples", "count"),
@@ -822,7 +822,7 @@ class PprofExporter(exporter.Exporter):
 
         profile = converter._build_profile(
             start_time_ns=start_time_ns,
-            duration_ns=duration_ns,
+            duration_ns=_duration_ns,
             period=period,
             sample_types=sample_types,
             program_name=program_name,

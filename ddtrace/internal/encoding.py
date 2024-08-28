@@ -70,8 +70,8 @@ class _EncoderBase(object):
         if span.start_ns:
             d["start"] = span.start_ns
 
-        if span.duration_ns:
-            d["duration"] = span.duration_ns
+        if span._duration_ns:
+            d["duration"] = span._duration_ns
 
         if span._meta:
             d["meta"] = span._meta
