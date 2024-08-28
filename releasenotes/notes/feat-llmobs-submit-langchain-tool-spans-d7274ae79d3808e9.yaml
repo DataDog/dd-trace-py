@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    APM : The LangChain integration now submits spans from tool.invoke to APM as tool spans.
-    LLM Observability: The LangChain integration now submits tool spans from tool.invoke to LLM Observability as retrieval spans.
+    Langchain : Adds support for tracing tool invocations.
+    LLM Observability: The LangChain integration now submits tool spans to LLM Observability.
