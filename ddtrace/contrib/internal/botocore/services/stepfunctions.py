@@ -5,6 +5,7 @@ from typing import Dict
 import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -34,8 +35,11 @@ def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
         return
 
     input_obj["_datadog"] = {}
-
-    core.dispatch("botocore.stepfunctions.update_input", [ctx, None, None, input_obj["_datadog"], None])
+    core.dispatch("botocore.stepfunctions.update_input", [ctx, None, None, input_obj, None])
+    updated_input_obj = ctx.get_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY)
+    if updated_input_obj:
+        input_json_str = json.dumps(updated_input_obj)
+        params["input"] = input_json_str
 
 
 def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, function_vars: Dict):
