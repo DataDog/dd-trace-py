@@ -11,7 +11,6 @@ on:
 
 jobs:
     can_enqueue:
-        needs: [require-checklist]
         if: always()
         permissions:
             actions: read
@@ -26,7 +25,7 @@ jobs:
           run: |
             "[ $ALL_SUCCESS == true ]" 
     can_merge:
-        needs: [require-checklist, run_all_checks]
+        needs: [run_all_checks]
         if: always() && github.event_name == 'merge_group'
         # Same thing as above, from here on:
         permissions:
