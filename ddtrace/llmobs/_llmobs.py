@@ -91,13 +91,13 @@ class LLMObs(Service):
         )
         self._evaluation_callbacks = []
         if evaluation_callbacks:
-            for evaluation in evaluation_callbacks:
-                if evaluation not in SUPPORTED_LLMOBS_EVALUATIONS:
+            for evaluation_name in evaluation_callbacks:
+                if evaluation_name not in SUPPORTED_LLMOBS_EVALUATIONS:
                     log.warning("unsupported evaluation runner")
                     continue
                 else:
                     self._evaluation_callbacks.append(
-                        SUPPORTED_LLMOBS_EVALUATIONS[eval](writer=self._llmobs_eval_metric_writer)
+                        SUPPORTED_LLMOBS_EVALUATIONS[evaluation_name](writer=self._llmobs_eval_metric_writer)
                     )
 
         self._trace_processor = LLMObsTraceProcessor(
@@ -152,7 +152,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        evaluations: Optional[List[str]] = None,
+        evaluation_callbacks: Optional[List[str]] = None,
         _tracer: Optional[ddtrace.Tracer] = None,
     ) -> None:
         """
@@ -217,7 +217,7 @@ class LLMObs(Service):
             cls._patch_integrations()
 
         # override the default _instance with a new tracer
-        cls._instance = cls(tracer=_tracer, evaluation_callbacks=evaluations)
+        cls._instance = cls(tracer=_tracer, evaluation_callbacks=evaluation_callbacks)
         cls.enabled = True
         cls._instance.start()
 
