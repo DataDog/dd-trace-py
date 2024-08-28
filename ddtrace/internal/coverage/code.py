@@ -1,7 +1,6 @@
 from collections import defaultdict
 from copy import deepcopy
 from inspect import getmodule
-import json
 import os
 from types import CodeType
 from types import ModuleType
@@ -9,9 +8,11 @@ import typing as t
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path
@@ -20,6 +21,8 @@ from ddtrace.internal.packages import stdlib_path
 from ddtrace.vendor.contextvars import ContextVar
 
 
+log = get_logger(__name__)
+
 _original_exec = exec
 
 ctx_covered = ContextVar("ctx_covered", default=None)
@@ -27,8 +30,8 @@ ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
 
-def _get_ctx_covered_lines() -> t.DefaultDict[str, t.Set]:
-    return ctx_covered.get()[-1] if ctx_coverage_enabled.get() else defaultdict(set)
+def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
+    return ctx_covered.get()[-1] if ctx_coverage_enabled.get() else defaultdict(CoverageLines)
 
 
 class ModuleCodeCollector(ModuleWatchdog):
@@ -47,11 +50,11 @@ class ModuleCodeCollector(ModuleWatchdog):
         self.seen: t.Set[t.Tuple[CodeType, str]] = set()
 
         # Data structures for coverage data
-        self.lines: t.DefaultDict[str, t.Set] = defaultdict(set)
-        self.covered: t.DefaultDict[str, t.Set] = defaultdict(set)
+        self.lines: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
+        self.covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
 
         # Import-time coverage data
-        self._import_time_covered: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
+        self._import_time_covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
         self._import_time_contexts: t.Dict[str, "ModuleCodeCollector.CollectInContext"] = {}
         self._import_time_name_to_path: t.Dict[str, str] = {}
         self._import_names_by_path: t.Dict[str, t.Set[t.Tuple[str, t.Tuple[str, ...]]]] = defaultdict(set)
@@ -94,53 +97,42 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         if self._coverage_enabled:
             lines = self.covered[path]
-            if line not in lines:
-                # This line has already been covered
-                lines.add(line)
+            lines.add(line)
 
         if ctx_coverage_enabled.get():
             # Import-time contexts store their lines in a non-context variable to be aggregated on request when
             # reporting coverage
             ctx_lines = _get_ctx_covered_lines()[path]
-
-            if line not in ctx_lines:
-                ctx_lines.add(line)
+            ctx_lines.add(line)
 
         if import_name is not None and self._collect_import_coverage:
             self._import_names_by_path[path].add(import_name)
 
     @classmethod
-    def absorb_data_json(cls, data_json: str):
-        """Absorb a JSON report of coverage data. This is used to aggregate coverage data from multiple processes.
-
-        Absolute paths are expected.
-        """
-        data = json.loads(data_json)
-        cls.inject_coverage(lines=data["lines"], covered=data["covered"])
-
-    @classmethod
     def inject_coverage(
-        cls, lines: t.Optional[t.Dict[str, t.Set[int]]] = None, covered: t.Optional[t.Dict[str, t.Set[int]]] = None
+        cls,
+        lines: t.Optional[t.Dict[str, CoverageLines]] = None,
+        covered: t.Optional[t.Dict[str, CoverageLines]] = None,
     ):
         """Inject coverage data into the collector. This can be used to arbitrarily add covered files."""
         instance = cls._instance
+
+        if instance is None:
+            return
 
         ctx_covered_lines = None
         if ctx_coverage_enabled.get():
             ctx_covered_lines = _get_ctx_covered_lines()
 
-        if instance is None:
-            return
-
         if lines:
             for path, path_lines in lines.items():
-                instance.lines[path] |= set(path_lines)
+                instance.lines[path].update(path_lines)
         if covered:
             for path, path_covered in covered.items():
                 if instance._coverage_enabled:
-                    instance.covered[path] |= set(path_covered)
+                    instance.covered[path].update(path_covered)
                 if ctx_coverage_enabled.get() and ctx_covered_lines is not None:
-                    ctx_covered_lines[path] |= set(path_covered)
+                    ctx_covered_lines[path].update(path_covered)
 
     @classmethod
     def report(cls, workspace_path: Path, ignore_nocover: bool = False):
@@ -154,23 +146,6 @@ class ModuleCodeCollector(ModuleWatchdog):
         print_coverage_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover)
 
     @classmethod
-    def get_data_json(cls) -> str:
-        if cls._instance is None:
-            return "{}"
-        instance: ModuleCodeCollector = cls._instance
-
-        executable_lines = {path: list(lines) for path, lines in instance.lines.items()}
-        covered_lines = {path: list(lines) for path, lines in instance._get_covered_lines().items()}
-
-        return json.dumps({"lines": executable_lines, "covered": covered_lines})
-
-    @classmethod
-    def get_context_data_json(cls) -> str:
-        covered_lines = _get_ctx_covered_lines()
-
-        return json.dumps({"lines": {}, "covered": {path: list(lines) for path, lines in covered_lines.items()}})
-
-    @classmethod
     def write_json_report_to_file(cls, filename: str, workspace_path: Path, ignore_nocover: bool = False):
         if cls._instance is None:
             return
@@ -182,7 +157,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         with open(filename, "w") as f:
             f.write(gen_json_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover))
 
-    def _get_covered_lines(self, include_imported: bool = False) -> t.Dict[str, t.Set[int]]:
+    def _get_covered_lines(self, include_imported: bool = False) -> t.Dict[str, CoverageLines]:
         # Covered lines should always be a copy to make sure the original cannot be altered
         covered_lines = deepcopy(_get_ctx_covered_lines() if ctx_coverage_enabled.get() else self.covered)
         if include_imported:
@@ -207,7 +182,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                 continue
 
             imported_module_lines = self._import_time_covered[path]
-            covered_lines[path] |= imported_module_lines
+            covered_lines[path].update(imported_module_lines)
 
             # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
             for dependencies in self._import_names_by_path.get(path, set()):
@@ -241,7 +216,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                 ctx_covered.set([])
 
         def __enter__(self):
-            ctx_covered.get().append(defaultdict(set))
+            ctx_covered.get().append(defaultdict(CoverageLines))
             ctx_coverage_enabled.set(True)
 
             if self.is_import_coverage:
@@ -257,7 +232,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
 
-        def get_covered_lines(self):
+        def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
             return ctx_covered.get()[-1]
 
     @classmethod
@@ -279,6 +254,19 @@ class ModuleCodeCollector(ModuleWatchdog):
         if cls._instance is None:
             return False
         return cls._instance._coverage_enabled
+
+    @classmethod
+    def get_import_coverage_for_paths(cls, paths: t.Iterable[Path]) -> t.Optional[t.Dict[Path, CoverageLines]]:
+        """Returns import-time coverage data for the given paths"""
+        coverages: t.Dict[Path, CoverageLines] = {}
+        if cls._instance is None:
+            return {}
+        for path in paths:
+            path_str = str(path)
+            if path_str in cls._instance._import_time_covered:
+                coverages[path] = cls._instance._import_time_covered[path_str]
+
+        return coverages
 
     @classmethod
     def coverage_enabled_in_context(cls):
@@ -311,7 +299,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                 str(abs_path.relative_to(workspace_path)) if abs_path.is_relative_to(workspace_path) else abs_path_str
             )
 
-            sorted_lines = sorted(lines)
+            sorted_lines = [i for i, v in enumerate(sorted(lines.to_sorted_list())) if v == 1]
 
             collapsed_ranges = collapse_ranges(sorted_lines)
             file_segments = []
@@ -378,7 +366,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         self.seen.add((new_code, code.co_filename))
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
-        self.lines[code.co_filename] |= lines
+        self.lines[code.co_filename].update(lines)
         return new_code
 
     def _exec(self, _object, _globals=None, _locals=None, **kwargs):

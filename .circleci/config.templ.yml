@@ -119,7 +119,12 @@ commands:
   setup_hatch:
     description: "Install hatch"
     steps:
-      - run: pip3 install hatch~=1.8.0 hatch-containers==0.7.0
+      - run:
+          name: "Install hatch"
+          command: |
+            curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
+            sudo install -t /usr/local/bin hatch
+            hatch -q
 
   start_docker_services:
     description: "Start Docker services"
@@ -1327,7 +1332,6 @@ jobs:
     # build documentation and store as an artifact
     executor: ddtrace_dev
     steps:
-      - setup_hatch
       - checkout
       - run:
           command: |
