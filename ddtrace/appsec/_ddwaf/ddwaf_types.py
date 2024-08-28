@@ -181,7 +181,7 @@ class ddwaf_object(ctypes.Structure):
     def struct(self) -> DDWafRulesType:
         """Generate a python structure from ddwaf_object"""
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING:
-            return self.stringValue[: self.nbEntries].decode("UTF-8", errors="ignore")
+            return self.value.stringValue[: self.nbEntries].decode("UTF-8", errors="ignore")
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
             return {
                 self.value.array[i].parameterName.decode("UTF-8", errors="ignore"): self.value.array[i].struct
