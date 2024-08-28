@@ -172,7 +172,7 @@ def _on_iast_fastapi_patch():
     _set_metric_iast_instrumented_source(OriginType.HEADER)
 
     # Instrumented on _iast_starlette_scope_taint
-    _set_metric_iast_instrumented_source(OriginType.HEAPATH_PARAMETERDER)
+    _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
 
 
 def _iast_instrument_starlette_scope(scope):
