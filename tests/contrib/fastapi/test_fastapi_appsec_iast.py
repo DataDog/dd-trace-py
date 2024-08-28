@@ -1,4 +1,5 @@
 import json
+import sys
 import typing
 
 from fastapi import Cookie
@@ -115,6 +116,7 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
 
 
 @pytest.mark.usefixtures("setup_core_ok_after_test")
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
 @pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Header annotation doesn't work on fastapi 94 or lower")
 def test_header_value_source_typing_param(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
@@ -185,6 +187,7 @@ def test_cookies_source(fastapi_application, client, tracer, test_spans):
 
 
 @pytest.mark.usefixtures("setup_core_ok_after_test")
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
 @pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Cookie annotation doesn't work on fastapi 94 or lower")
 def test_cookies_source_typing_param(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
