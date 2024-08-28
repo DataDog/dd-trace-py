@@ -1,12 +1,11 @@
 import os
 import re
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 
-def path_to_regex(pattern):
-    # type: (str) -> re.Pattern
+def path_to_regex(pattern: str) -> re.Pattern:
     """
     source https://github.com/sbdchd/codeowners/blob/c95e13d384ac09cfa1c23be1a8601987f41968ea/codeowners/__init__.py
 
@@ -119,8 +118,7 @@ class Codeowners(object):
         ".gitlab/CODEOWNERS",
     )
 
-    def __init__(self, path=None, cwd=None):
-        # type: (Optional[str], Optional[str]) -> None
+    def __init__(self, path: Optional[str] = None, cwd: Optional[str] = None):
         """Initialize Codeowners object.
 
         :param path: path to CODEOWNERS file otherwise try to use any from known locations
@@ -140,8 +138,7 @@ class Codeowners(object):
                 return path
         raise ValueError("CODEOWNERS file not found")
 
-    def parse(self):
-        # type: () -> None
+    def parse(self) -> None:
         """Parse CODEOWNERS file and store the lines and regexes."""
         with open(self.path) as f:
             patterns = []
