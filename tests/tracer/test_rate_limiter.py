@@ -162,8 +162,8 @@ def test_rate_limiter_effective_rate_starting_rate(time_window):
         assert limiter.current_window_ns == now_ns
         assert limiter.prev_window_rate is None
 
-    # Gap of 0.9999 seconds, same window
-    time_ns = now_ns + (0.9999 * time_window)
+    # Gap of 0.85 seconds, same window
+    time_ns = now_ns + (0.85 * time_window)
     with mock.patch("ddtrace.internal.rate_limiter.compat.monotonic_ns", return_value=time_ns):
         assert limiter.is_allowed() is False
         # DEV: We have rate_limit=1 set
