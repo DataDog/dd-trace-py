@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.11.2
+
+
+### New Features
+
+- openai: This introduces 'model' tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as <span class="title-ref">openai.request.model</span>.
+
+### Bug Fixes
+
+- LLM Observability: This fix resolves an issue where LLM Observability spans were not being submitted in forked processes, such as when using `celery` or `gunicorn` workers. The LLM Observability writer thread now automatically restarts when a forked process is detected.
+- openai: Fixes a bug where \`asyncio.TimeoutError\`s were not being propagated correctly from canceled OpenAI API requests.
+
+
+---
+
 ## 2.11.1
 
 
