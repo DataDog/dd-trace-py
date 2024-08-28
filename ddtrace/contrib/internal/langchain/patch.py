@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from typing import Any
@@ -980,37 +981,33 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
 
     tool_output = None
     try:
-        if instance.name:
-            span.set_tag_str("langchain.request.tool.name", integration.trunc(str(instance.name)))
+        tool_attributes = [
+            "name",
+            "description",
+        ]
+        for attribute in tool_attributes:
+            value = getattr(instance, attribute, None)
+            if value:
+                span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
+
+        if getattr(instance, "metadata", None):
+            for key, value in instance.metadata.items():
+                span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(value))
+        if getattr(instance, "tags", None):
+            for idx, tag in enumerate(instance.tags):
+                span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(tag))
+
         if integration.is_pc_sampled_span(span):
-            tool_attributes = [
-                "description",
-                "return_direct",
-                "verbose",
-                "handle_tool_error",
-                "handle_validation_error",
-                "response_format",
-            ]
-            for attribute in tool_attributes:
-                value = getattr(instance, attribute, None)
-                if value:
-                    span.set_tag_str("langchain.request.tool.%s" % attribute, integration.trunc(str(value)))
-            if getattr(instance, "metadata", None):
-                for key, value in instance.metadata.items():
-                    span.set_tag_str("langchain.request.tool.metadata.%s" % key, integration.trunc(str(value)))
-            if getattr(instance, "tags", None):
-                for idx, tag in enumerate(instance.tags):
-                    span.set_tag_str("langchain.request.tool.tags.%d" % idx, integration.trunc(str(tag)))
             if tool_input:
                 span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
             if config:
-                span.set_tag_str("langchain.request.config", integration.trunc(str(config)))
+                span.set_tag_str("langchain.request.config", json.dumps(config))
         tool_output = func(*args, **kwargs)
         if tool_output is not None:
-            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+            if integration.is_pc_sampled_span(span):
+                span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         if integration.is_pc_sampled_llmobs(span):
@@ -1022,18 +1019,6 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
                 error=bool(span.error),
             )
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
-                attrs={
-                    "tool_name": instance.__self__.name or "",
-                    "input": tool_input,
-                    "config": config or "",
-                },
-            )
     return tool_output
 
 
@@ -1045,52 +1030,40 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
 
     span = integration.trace(
         pin,
-        "%s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
+        "%s.%s.%s.%s" % (func.__module__, func.__class__.__name__, func.__name__, func.__self__.name),
         interface_type="tool",
         submit_to_llmobs=True,
     )
 
     tool_output = None
     try:
-        if instance.name:
-            span.set_tag_str("langchain.request.tool.name", integration.trunc(str(instance.name)))
+        tool_attributes = [
+            "name",
+            "description",
+        ]
+        for attribute in tool_attributes:
+            value = getattr(instance, attribute, None)
+            if value:
+                span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
+
+        if getattr(instance, "metadata", None):
+            for key, value in instance.metadata.items():
+                span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(value))
+        if getattr(instance, "tags", None):
+            for idx, tag in enumerate(instance.tags):
+                span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(tag))
+
         if integration.is_pc_sampled_span(span):
-            if instance.description:
-                span.set_tag_str("langchain.request.tool.description", integration.trunc(str(instance.description)))
-            if instance.return_direct:
-                span.set_tag_str("langchain.request.tool.return_direct", integration.trunc(str(instance.return_direct)))
-            if instance.verbose:
-                span.set_tag_str("langchain.request.tool.verbose", integration.trunc(str(instance.verbose)))
-            if instance.metadata:
-                for key, value in instance.metadata.items():
-                    span.set_tag_str("langchain.request.tool.metadata.%s" % key, integration.trunc(str(value)))
-            if instance.tags:
-                for idx, tag in enumerate(instance.tags):
-                    span.set_tag_str("langchain.request.tool.tags.%d" % idx, integration.trunc(str(tag)))
-            if instance.handle_tool_error:
-                span.set_tag_str(
-                    "langchain.request.tool.handle_tool_error",
-                    integration.trunc(str(instance.handle_tool_error)),
-                )
-            if instance.handle_validation_error:
-                span.set_tag_str(
-                    "langchain.request.tool.handle_validation_error",
-                    integration.trunc(str(instance.handle_validation_error)),
-                )
-            if instance.response_format:
-                span.set_tag_str(
-                    "langchain.request.tool.response_format", integration.trunc(str(instance.response_format))
-                )
             if tool_input:
                 span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
             if config:
-                span.set_tag_str("langchain.request.config", integration.trunc(str(config)))
+                span.set_tag_str("langchain.request.config", json.dumps(config))
         tool_output = await func(*args, **kwargs)
         if tool_output is not None:
-            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+            if integration.is_pc_sampled_span(span):
+                span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         if integration.is_pc_sampled_llmobs(span):
@@ -1102,18 +1075,6 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
                 error=bool(span.error),
             )
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
-                attrs={
-                    "tool_name": instance.__self__.name or "",
-                    "input": tool_input,
-                    "config": config or "",
-                },
-            )
     return tool_output
 
 

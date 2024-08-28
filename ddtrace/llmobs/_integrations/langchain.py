@@ -221,7 +221,7 @@ class LangChainIntegration(BaseLLMIntegration):
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
         output_tag_key = OUTPUT_VALUE
 
-        output_values: Any
+        output_values: object
 
         try:
             if isinstance(input_texts, str) or (
@@ -265,8 +265,8 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_meta_tags_from_tool(
         self,
         span: Span,
-        tool_input: Union[str, Dict[str, Any], Any],
-        tool_output: Any,
+        tool_input: Union[str, Dict[str, object], object],
+        tool_output: object,
         error: bool,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "tool")
