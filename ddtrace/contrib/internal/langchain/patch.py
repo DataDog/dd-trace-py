@@ -973,7 +973,7 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
 
     span = integration.trace(
         pin,
-        "%s.%s.%s" % (func.__module__, func.__class__.__name__, func.__self__.__class__.__name__),
+        "%s.%s.%s.%s" % (func.__module__, func.__class__.__name__, func.__name__, func.__self__.name),
         interface_type="tool",
         submit_to_llmobs=True,
     )
@@ -983,32 +983,24 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         if instance.name:
             span.set_tag_str("langchain.request.tool.name", integration.trunc(str(instance.name)))
         if integration.is_pc_sampled_span(span):
-            if instance.description:
-                span.set_tag_str("langchain.request.tool.description", integration.trunc(str(instance.description)))
-            if instance.return_direct:
-                span.set_tag_str("langchain.request.tool.return_direct", integration.trunc(str(instance.return_direct)))
-            if instance.verbose:
-                span.set_tag_str("langchain.request.tool.verbose", integration.trunc(str(instance.verbose)))
-            if instance.metadata:
+            tool_attributes = [
+                "description",
+                "return_direct",
+                "verbose",
+                "handle_tool_error",
+                "handle_validation_error",
+                "response_format",
+            ]
+            for attribute in tool_attributes:
+                value = getattr(instance, attribute, None)
+                if value:
+                    span.set_tag_str("langchain.request.tool.%s" % attribute, integration.trunc(str(value)))
+            if getattr(instance, "metadata", None):
                 for key, value in instance.metadata.items():
                     span.set_tag_str("langchain.request.tool.metadata.%s" % key, integration.trunc(str(value)))
-            if instance.tags:
+            if getattr(instance, "tags", None):
                 for idx, tag in enumerate(instance.tags):
                     span.set_tag_str("langchain.request.tool.tags.%d" % idx, integration.trunc(str(tag)))
-            if instance.handle_tool_error:
-                span.set_tag_str(
-                    "langchain.request.tool.handle_tool_error",
-                    integration.trunc(str(instance.handle_tool_error)),
-                )
-            if instance.handle_validation_error:
-                span.set_tag_str(
-                    "langchain.request.tool.handle_validation_error",
-                    integration.trunc(str(instance.handle_validation_error)),
-                )
-            if instance.response_format:
-                span.set_tag_str(
-                    "langchain.request.tool.response_format", integration.trunc(str(instance.response_format))
-                )
             if tool_input:
                 span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
             if config:
@@ -1252,8 +1244,8 @@ def patch():
         )
         wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
         wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
-        wrap("langchain_core", "tools.base.BaseTool.invoke", traced_base_tool_invoke(langchain))
-        wrap("langchain_core", "tools.base.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
+        wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain))
+        wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
         if langchain_openai:
             wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         if langchain_pinecone:
