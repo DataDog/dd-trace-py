@@ -20,6 +20,7 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
+from .._taint_tracking import _aspect_modulo
 from .._taint_tracking import _aspect_ospathbasename
 from .._taint_tracking import _aspect_ospathdirname
 from .._taint_tracking import _aspect_ospathjoin
@@ -52,13 +53,21 @@ from .._taint_tracking._native import aspects  # noqa: F401
 
 TEXT_TYPES = Union[str, bytes, bytearray]
 
-
 add_aspect = aspects.add_aspect
 add_inplace_aspect = aspects.add_inplace_aspect
 _extend_aspect = aspects.extend_aspect
 index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
 slice_aspect = aspects.slice_aspect
+ospathjoin_aspect = _aspect_ospathjoin
+ospathbasename_aspect = _aspect_ospathbasename
+ospathdirname_aspect = _aspect_ospathdirname
+ospathsplit_aspect = _aspect_ospathsplit
+ospathsplitext_aspect = _aspect_ospathsplitext
+ospathsplitdrive_aspect = _aspect_ospathsplitdrive
+ospathsplitroot_aspect = _aspect_ospathsplitroot
+ospathnormcase_aspect = _aspect_ospathnormcase
+modulo_aspect = _aspect_modulo
 
 __all__ = [
     "add_aspect",
@@ -68,18 +77,20 @@ __all__ = [
     "decode_aspect",
     "encode_aspect",
     "re_sub_aspect",
-    "_aspect_ospathjoin",
+    "ospathjoin_aspect",
     "_aspect_split",
     "_aspect_rsplit",
+    "modulo_aspect",
     "_aspect_splitlines",
-    "_aspect_ospathbasename",
-    "_aspect_ospathdirname",
-    "_aspect_ospathnormcase",
-    "_aspect_ospathsplit",
-    "_aspect_ospathsplitext",
-    "_aspect_ospathsplitdrive",
-    "_aspect_ospathsplitroot",
+    "ospathbasename_aspect",
+    "ospathdirname_aspect",
+    "ospathnormcase_aspect",
+    "ospathsplit_aspect",
+    "ospathsplitext_aspect",
+    "ospathsplitdrive_aspect",
+    "ospathsplitroot_aspect",
 ]
+
 
 # TODO: Factorize the "flags_added_args" copypasta into a decorator
 
@@ -244,44 +255,6 @@ def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: 
     except Exception as e:
         iast_taint_log_error("IAST propagation error. extend_aspect. {}".format(e))
         return op1.extend(op2)
-
-
-def modulo_aspect(candidate_text: Text, candidate_tuple: Any) -> Any:
-    if not isinstance(candidate_text, IAST.TEXT_TYPES):
-        return candidate_text % candidate_tuple
-
-    try:
-        if isinstance(candidate_tuple, tuple):
-            parameter_list = candidate_tuple
-        else:
-            parameter_list = (candidate_tuple,)
-
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, parameter_list)
-        if not ranges_orig:
-            return candidate_text % candidate_tuple
-
-        return _convert_escaped_text_to_tainted_text(
-            as_formatted_evidence(
-                candidate_text,
-                candidate_text_ranges,
-                tag_mapping_function=TagMappingMode.Mapper,
-            )
-            % tuple(
-                (
-                    as_formatted_evidence(
-                        parameter,
-                        tag_mapping_function=TagMappingMode.Mapper,
-                    )
-                    if isinstance(parameter, IAST.TEXT_TYPES)
-                    else parameter
-                )
-                for parameter in parameter_list
-            ),
-            ranges_orig=ranges_orig,
-        )
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. modulo_aspect. {}".format(e))
-        return candidate_text % candidate_tuple
 
 
 def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:
@@ -516,86 +489,6 @@ def format_value_aspect(
         return new_text
 
 
-def ospathjoin_aspect(*args, **kwargs):
-    try:
-        return _aspect_ospathjoin(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. ospathjoin_aspect. {}".format(e))
-        import os.path
-
-        return os.path.join(*args, **kwargs)
-
-
-def ospathbasename_aspect(*args, **kwargs):
-    try:
-        return _aspect_ospathbasename(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. ospathbasename_aspect. {}".format(e))
-        import os.path
-
-        return os.path.basename(*args, **kwargs)
-
-
-def ospathdirname_aspect(*args, **kwargs):
-    try:
-        return _aspect_ospathdirname(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. ospathdirname_aspect. {}".format(e))
-        import os.path
-
-        return os.path.dirname(*args, **kwargs)
-
-
-def ospathsplit_aspect(*args, **kwargs):
-    try:
-        return _aspect_ospathsplit(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. ospathsplit_aspect. {}".format(e))
-        import os.path
-
-        return os.path.split(*args, **kwargs)
-
-
-def ospathsplitext_aspect(*args, **kwargs):
-    try:
-        return _aspect_ospathsplitext(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. ospathsplitext_aspect. {}".format(e))
-        import os.path
-
-        return os.path.splitext(*args, **kwargs)
-
-
-def ospathsplitroot_aspect(*args, **kwargs):
-    try:
-        return _aspect_ospathsplitroot(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. ospathsplitroot_aspect. {}".format(e))
-        import os.path
-
-        return os.path.splitroot(*args, **kwargs)
-
-
-def ospathnormcase_aspect(*args, **kwargs):
-    try:
-        return _aspect_ospathnormcase(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. ospathnormcase_aspect. {}".format(e))
-        import os.path
-
-        return os.path.normcase(*args, **kwargs)
-
-
-def ospathsplitdrive_aspect(*args, **kwargs):
-    try:
-        return _aspect_ospathsplitdrive(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. ospathsplitdrive_aspect. {}".format(e))
-        import os.path
-
-        return os.path.splitdrive(*args, **kwargs)
-
-
 def incremental_translation(self, incr_coder, funcode, empty):
     tainted_ranges = iter(get_tainted_ranges(self))
     result_list, new_ranges = [], []
@@ -828,7 +721,9 @@ def aspect_replace_api(
                     empty,
                 ]
                 + (
-                    list(candidate_text) if isinstance(candidate_text, str) else [bytes([x]) for x in candidate_text]  # type: ignore
+                    list(candidate_text)
+                    if isinstance(candidate_text, str)
+                    else [bytes([x]) for x in candidate_text]  # type: ignore
                 )
                 + [
                     empty,

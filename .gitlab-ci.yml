@@ -6,6 +6,7 @@ stages:
   - benchmarks
   - macrobenchmarks
   - dogfood
+  - release
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -24,6 +25,7 @@ include:
   - local: ".gitlab/tests.yml"
   - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/dogfood.yml"
+  - local: ".gitlab/release.yml"
 
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
@@ -55,16 +57,3 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
-
-
-# Final step which only runs when a pipeline has finished successfully.
-# This gives us something block on/wait for in GitHub
-finished:
-  image: registry.ddbuild.io/images/mirror/library/alpine:3.19.3
-  tags: [ "arch:amd64" ]
-  stage: .post
-  rules:
-    - when: on_success
-  script:
-    # TODO: Can we get this to reflect the status from the whole pipeline?
-    - exit 0

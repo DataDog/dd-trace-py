@@ -70,9 +70,9 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
 }
 
 py::object
-api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
+api_set_ranges(py::handle& str, const TaintRangeRefs& ranges)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     if (not tx_map) {
         throw py::value_error(MSG_ERROR_TAINT_MAP);
@@ -111,7 +111,7 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize
 
     if (nargs == 5) {
         PyObject* tainted_object = args[0];
-        const auto tx_map = initializer->get_tainting_map();
+        const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map) {
             py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
             return nullptr;
@@ -201,7 +201,7 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
         return {};
 
     TaintRangeRefs all_ranges;
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return { {}, {} };
     }
@@ -238,9 +238,9 @@ get_range_by_hash(const size_t range_hash, optional<TaintRangeRefs>& taint_range
 }
 
 TaintRangeRefs
-api_get_ranges(const py::object& string_input)
+api_get_ranges(const py::handle& string_input)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     if (not tx_map) {
         throw py::value_error(MSG_ERROR_TAINT_MAP);
@@ -254,9 +254,9 @@ api_get_ranges(const py::object& string_input)
 }
 
 void
-api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
+api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
@@ -274,12 +274,12 @@ api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 }
 
 inline void
-api_copy_and_shift_ranges_from_strings(py::object& str_1,
-                                       py::object& str_2,
+api_copy_and_shift_ranges_from_strings(py::handle& str_1,
+                                       py::handle& str_2,
                                        const int offset,
                                        const int new_length = -1)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
         return;

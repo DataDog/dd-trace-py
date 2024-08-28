@@ -1,3 +1,4 @@
+import functools
 import sys
 from typing import Callable
 from typing import Text
@@ -7,6 +8,7 @@ from wrapt import FunctionWrapper
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
 
+from ._metrics import _set_metric_iast_instrumented_source
 from ._utils import _is_iast_enabled
 
 
@@ -55,6 +57,10 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
+                from ddtrace.appsec._iast._taint_tracking import OriginType
+
+                if origin == OriginType.HEADER and name.lower() in ["cookie", "cookies"]:
+                    origin = OriginType.COOKIE
                 return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
@@ -80,3 +86,87 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
     else:
         for key, value in wrapped(*args, **kwargs):
             yield key, value
+
+
+def _patched_fastapi_request_cookies(original_func, instance, args, kwargs):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+
+    result = original_func(*args, **kwargs)
+
+    if isinstance(result, (LazyTaintDict)):
+        return result
+
+    return LazyTaintDict(result, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE), override_pyobject_tainted=True)
+
+
+def _patched_fastapi_function(origin, original_func, instance, args, kwargs):
+    result = original_func(*args, **kwargs)
+
+    if _is_iast_enabled():
+        try:
+            from ._taint_tracking import is_pyobject_tainted
+            from ._taint_tracking import taint_pyobject
+            from .processor import AppSecIastSpanProcessor
+
+            if not AppSecIastSpanProcessor.is_span_analyzed():
+                return result
+
+            if not is_pyobject_tainted(result):
+                from ._taint_tracking._native.taint_tracking import origin_to_str
+
+                return taint_pyobject(
+                    pyobject=result, source_name=origin_to_str(origin), source_value=result, source_origin=origin
+                )
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+    return result
+
+
+def _on_iast_fastapi_patch():
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+
+    # Cookies sources
+    try_wrap_function_wrapper(
+        "starlette.requests",
+        "cookie_parser",
+        _patched_fastapi_request_cookies,
+    )
+    try_wrap_function_wrapper(
+        "fastapi",
+        "Cookie",
+        functools.partial(_patched_fastapi_function, OriginType.COOKIE_NAME),
+    )
+    _set_metric_iast_instrumented_source(OriginType.COOKIE)
+    _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+
+    # Parameter sources
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "QueryParams.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+    )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "QueryParams.get",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+    )
+    _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+
+    # Header sources
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "Headers.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+    )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "Headers.get",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+    )
+    try_wrap_function_wrapper(
+        "fastapi",
+        "Header",
+        functools.partial(_patched_fastapi_function, OriginType.HEADER),
+    )
+    _set_metric_iast_instrumented_source(OriginType.HEADER)
