@@ -123,6 +123,7 @@ class BotocoreTest(TracerTestCase):
         assert spans
 
     @mock_ec2
+    @pytest.mark.snapshot
     def test_traced_client(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
@@ -388,6 +389,7 @@ class BotocoreTest(TracerTestCase):
         assert not span._links
 
     @mock_s3
+    @pytest.mark.snapshot
     def test_s3_client(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
@@ -421,6 +423,7 @@ class BotocoreTest(TracerTestCase):
             assert span.resource == "s3.listobjects"
 
     @mock_s3
+    @pytest.mark.snapshot
     def test_s3_head_404_default(self):
         """
         By default we do not attach exception information to s3 HeadObject
@@ -449,6 +452,7 @@ class BotocoreTest(TracerTestCase):
             assert head_object.get_tag(t) is None
 
     @mock_s3
+    @pytest.mark.snapshot
     def test_s3_head_404_as_errors(self):
         """
         When add 404 as a error status for "s3.headobject" operation
@@ -512,6 +516,7 @@ class BotocoreTest(TracerTestCase):
         return spans[1]
 
     @mock_s3
+    @pytest.mark.snapshot
     def test_s3_put(self):
         span = self._test_s3_put()
         assert span.get_tag("aws.s3.bucket_name") == "mybucket"
@@ -538,6 +543,7 @@ class BotocoreTest(TracerTestCase):
             assert span._links == []
 
     @mock_s3
+    @pytest.mark.snapshot
     def test_s3_put_no_params(self):
         with self.override_config("botocore", dict(tag_no_params=True)):
             span = self._test_s3_put()
@@ -561,6 +567,7 @@ class BotocoreTest(TracerTestCase):
             ]
 
     @mock_s3
+    @pytest.mark.snapshot
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_SERVICE="botocore"))
     def test_service_name_override(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
@@ -592,6 +599,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "boto-service.s3", "Expected 'boto-service.s3' but got {}".format(span.service)
 
     @mock_s3
+    @pytest.mark.snapshot
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_s3_client_default(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
@@ -606,6 +614,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "s3.command"
 
     @mock_s3
+    @pytest.mark.snapshot
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_s3_client_v0(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
@@ -696,6 +705,7 @@ class BotocoreTest(TracerTestCase):
         return span
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_sqs_client(self):
         span = self._test_sqs_client()
         assert span.get_tag("aws.sqs.queue_name") == "Test"
@@ -705,6 +715,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("component") == "botocore"
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_sqs_client_no_params(self):
         with self.override_config("botocore", dict(tag_no_params=True)):
             span = self._test_sqs_client()
@@ -713,6 +724,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.MessageBody") is None
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_sqs_send_message_non_url_queue(self):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
 
@@ -725,6 +737,7 @@ class BotocoreTest(TracerTestCase):
         assert span.resource == "sqs.sendmessage"
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_sqs_send_message_distributed_tracing_off(self):
         with self.override_config("botocore", dict(distributed_tracing=False)):
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -755,6 +768,7 @@ class BotocoreTest(TracerTestCase):
             assert trace_in_message is False
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_sqs_send_message_distributed_tracing_on(self):
         with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -795,6 +809,7 @@ class BotocoreTest(TracerTestCase):
         # DEV: We want to mock time to ensure we only create a single bucket
         self._test_distributed_tracing_sns_to_sqs(False)
 
+    @pytest.mark.snapshot
     @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
     def test_distributed_tracing_sns_to_sqs_raw_delivery(self, mock_encode):
         """
@@ -812,6 +827,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
+    @pytest.mark.snapshot
     def _test_distributed_tracing_sns_to_sqs(self, raw_message_delivery):
         with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
             with mock.patch("time.time") as mt:
@@ -873,6 +889,7 @@ class BotocoreTest(TracerTestCase):
                 assert consume_span.trace_id == publish_span.trace_id
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_sqs_send_message_trace_injection_with_max_message_attributes(self):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
         message_attributes = {
@@ -916,6 +933,7 @@ class BotocoreTest(TracerTestCase):
         assert trace_in_message is False
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_sqs_send_message_batch_trace_injection_with_no_message_attributes(self):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
         entries = [
@@ -951,6 +969,7 @@ class BotocoreTest(TracerTestCase):
         assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_sqs_send_message_batch_trace_injection_with_message_attributes(self):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
         entries = [
@@ -998,6 +1017,7 @@ class BotocoreTest(TracerTestCase):
         assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_sqs_send_message_batch_trace_injection_with_max_message_attributes(self):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
         entries = [
@@ -1044,6 +1064,7 @@ class BotocoreTest(TracerTestCase):
         assert trace_in_message is False
 
     @mock_sqs
+    @pytest.mark.snapshot
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_sqs_client_default(self):
         Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
@@ -1189,11 +1210,9 @@ class BotocoreTest(TracerTestCase):
             roleArn="arn:aws:iam::012345678901:role/DummyRole",
         )
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
-        start_execution_dict = {
-            "stateMachineArn": "arn:aws:states:us-west-2:000000000000:stateMachine:lincoln",
-            "input": '{"baz": 1}',
-        }
-        sf.start_execution(**start_execution_dict)
+        sf.start_execution(
+            stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln", input='{"baz":1}'
+        )
         # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
         spans = self.get_spans()
         assert spans
@@ -1266,6 +1285,7 @@ class BotocoreTest(TracerTestCase):
         return span
 
     @mock_kinesis
+    @pytest.mark.snapshot
     def test_kinesis_client_all_params_tagged(self):
         with self.override_config("botocore", dict(tag_no_params=False)):
             span = self._test_kinesis_client()
@@ -1274,12 +1294,14 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("streamname") == "test"
 
     @mock_kinesis
+    @pytest.mark.snapshot
     def test_kinesis_client(self):
         span = self._test_kinesis_client()
         assert span.get_tag("aws.kinesis.stream_name") == "test"
         assert span.get_tag("streamname") == "test"
 
     @mock_kinesis
+    @pytest.mark.snapshot
     def test_kinesis_client_no_params(self):
         with self.override_config("botocore", dict(tag_no_params=True)):
             span = self._test_kinesis_client()
@@ -1288,6 +1310,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.Records") is None
 
     @mock_kinesis
+    @pytest.mark.snapshot
     def test_kinesis_client_all_params(self):
         with self.override_config("botocore", dict(tag_no_params=True)):
             span = self._test_kinesis_client()
@@ -1296,6 +1319,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.MessageBody") is None
 
     @mock_kinesis
+    @pytest.mark.snapshot
     def test_kinesis_distributed_tracing_on(self):
         with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
             # dict -> json string
@@ -1316,6 +1340,7 @@ class BotocoreTest(TracerTestCase):
             assert consume_span.trace_id == produce_span.trace_id
 
     @mock_kinesis
+    @pytest.mark.snapshot
     def test_unpatch(self):
         kinesis = self.session.create_client("kinesis", region_name="us-east-1")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(kinesis)
@@ -1327,6 +1352,7 @@ class BotocoreTest(TracerTestCase):
         assert not spans, spans
 
     @mock_sqs
+    @pytest.mark.snapshot
     def test_double_patch(self):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
 
@@ -1361,6 +1387,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
+    @pytest.mark.snapshot
     def _test_data_streams_sns_to_sqs(self, use_raw_delivery):
         # DEV: We want to mock time to ensure we only create a single bucket
         with mock.patch("time.time") as mt, mock.patch(
@@ -1453,6 +1480,7 @@ class BotocoreTest(TracerTestCase):
             )
 
     @mock_sqs
+    @pytest.mark.snapshot
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs(self):
         # DEV: We want to mock time to ensure we only create a single bucket
@@ -1512,6 +1540,7 @@ class BotocoreTest(TracerTestCase):
             )
 
     @mock_sqs
+    @pytest.mark.snapshot
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
         # DEV: We want to mock time to ensure we only create a single bucket
@@ -1590,6 +1619,7 @@ class BotocoreTest(TracerTestCase):
         assert "_datadog" in response["Messages"][0]["MessageAttributes"]
 
     @mock_sqs
+    @pytest.mark.snapshot
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_no_header(self):
         # DEV: We want to mock time to ensure we only create a single bucket
@@ -1634,6 +1664,7 @@ class BotocoreTest(TracerTestCase):
             assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency.count >= 1
             assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].payload_size.count == 1
 
+    @pytest.mark.snapshot
     @mock_lambda
     def test_lambda_client(self):
         # DEV: No lambda params tagged so we only check no ClientContext
@@ -1658,6 +1689,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("params.ClientContext") is None
 
     @mock_lambda
+    @pytest.mark.snapshot
     def test_lambda_invoke_distributed_tracing_off(self):
         with self.override_config("botocore", dict(distributed_tracing=False)):
             lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
@@ -1699,6 +1731,7 @@ class BotocoreTest(TracerTestCase):
             lamb.delete_function(FunctionName="ironmaiden")
 
     @mock_lambda
+    @pytest.mark.snapshot
     def test_lambda_invoke_bad_context_client(self):
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
         lamb.create_function(
@@ -1735,6 +1768,7 @@ class BotocoreTest(TracerTestCase):
         lamb.delete_function(FunctionName="black-sabbath")
 
     @mock_lambda
+    @pytest.mark.snapshot
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_lambda_client_default(self):
         # DEV: No lambda params tagged so we only check no ClientContext
