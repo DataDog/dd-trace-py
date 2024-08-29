@@ -8,9 +8,9 @@ import socket
 import textwrap
 import time
 from typing import DefaultDict
-from unittest import mock
 from unittest.mock import Mock
 
+import mock
 import pytest
 
 import ddtrace
