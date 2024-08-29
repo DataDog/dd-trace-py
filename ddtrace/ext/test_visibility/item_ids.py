@@ -1,4 +1,7 @@
-"""Provides identifier classes for items used in the Test Visibility API"""
+"""Provides identifier classes for items used in the Test Visibility API
+
+NOTE: BETA - this API is currently in development and is subject to change.
+"""
 import dataclasses
 from typing import Optional
 
