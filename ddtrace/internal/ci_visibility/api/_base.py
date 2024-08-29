@@ -23,7 +23,7 @@ from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 from ddtrace.ext.test_visibility.item_ids import TestId
 from ddtrace.ext.test_visibility.item_ids import TestModuleId
 from ddtrace.ext.test_visibility.item_ids import TestSuiteId
-from ddtrace.internal.ci_visibility.api.coverage_data import DDTestVisibilityCoverageData
+from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
@@ -41,7 +41,7 @@ log = get_logger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
-class DDTestVisibilitySessionSettings:
+class TestVisibilitySessionSettings:
     tracer: Tracer
     test_service: str
     test_command: str
@@ -77,7 +77,7 @@ class SPECIAL_STATUS(Enum):
 
 
 CIDT = TypeVar("CIDT", TestModuleId, TestSuiteId, TestId)  # Child item ID types
-ITEMT = TypeVar("ITEMT", bound="DDTestVisibilityItemBase")  # All item types
+ITEMT = TypeVar("ITEMT", bound="TestVisibilityItemBase")  # All item types
 
 
 def _require_not_finished(func):
@@ -102,23 +102,23 @@ def _require_span(func):
     return wrapper
 
 
-class DDTestVisibilityItemBase(abc.ABC):
+class TestVisibilityItemBase(abc.ABC):
     _event_type = "unset_event_type"
     _event_type_metric_name = EVENT_TYPES.UNSET
 
     def __init__(
         self,
         name: str,
-        session_settings: DDTestVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         operation_name: str,
         initial_tags: Optional[Dict[str, Any]] = None,
-        parent: Optional["DDTestVisibilityParentItem"] = None,
+        parent: Optional["TestVisibilityParentItem"] = None,
         resource: Optional[str] = None,
     ) -> None:
         self.name: str = name
-        self.parent: Optional["DDTestVisibilityParentItem"] = parent
+        self.parent: Optional["TestVisibilityParentItem"] = parent
         self._status: TestStatus = TestStatus.FAIL
-        self._session_settings: DDTestVisibilitySessionSettings = session_settings
+        self._session_settings: TestVisibilitySessionSettings = session_settings
         self._tracer: Tracer = session_settings.tracer
         self._service: str = session_settings.test_service
         self._operation_name: str = operation_name
@@ -139,7 +139,7 @@ class DDTestVisibilityItemBase(abc.ABC):
         # General purpose attributes not used by all item types
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[TestSourceFileInfo] = None
-        self._coverage_data: Optional[DDTestVisibilityCoverageData] = None
+        self._coverage_data: Optional[TestVisibilityCoverageData] = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"
@@ -162,7 +162,7 @@ class DDTestVisibilityItemBase(abc.ABC):
 
     def _start_span(self) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
-        parent_span = self.get_parent_span() if isinstance(self, DDTestVisibilityParentItem) else None
+        parent_span = self.get_parent_span() if isinstance(self, TestVisibilityParentItem) else None
 
         self._span = self._tracer._start_span(
             self._operation_name,
@@ -276,13 +276,13 @@ class DDTestVisibilityItemBase(abc.ABC):
         self.__source_file_info = source_file_info_value
 
     @property
-    def _session_settings(self) -> DDTestVisibilitySessionSettings:
+    def _session_settings(self) -> TestVisibilitySessionSettings:
         return self.__session_settings
 
     @_session_settings.setter
-    def _session_settings(self, session_settings_value: DDTestVisibilitySessionSettings) -> None:
-        if not isinstance(session_settings_value, DDTestVisibilitySessionSettings):
-            raise TypeError("Session settings must be of type DDTestVisibilitySessionSettings")
+    def _session_settings(self, session_settings_value: TestVisibilitySessionSettings) -> None:
+        if not isinstance(session_settings_value, TestVisibilitySessionSettings):
+            raise TypeError("Session settings must be of type TestVisibilitySessionSettings")
         self.__session_settings = session_settings_value
 
     @abc.abstractmethod
@@ -449,18 +449,18 @@ class DDTestVisibilityItemBase(abc.ABC):
         return self._coverage_data.get_data()
 
 
-class DDTestVisibilityChildItem(DDTestVisibilityItemBase, Generic[CIDT]):
+class TestVisibilityChildItem(TestVisibilityItemBase, Generic[CIDT]):
     pass
 
 
-CITEMT = TypeVar("CITEMT", bound="DDTestVisibilityChildItem")
+CITEMT = TypeVar("CITEMT", bound="TestVisibilityChildItem")
 
 
-class DDTestVisibilityParentItem(DDTestVisibilityItemBase, Generic[CIDT, CITEMT]):
+class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
     def __init__(
         self,
         name: str,
-        session_settings: DDTestVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         operation_name: str,
         initial_tags: Optional[Dict[str, Any]],
     ) -> None:

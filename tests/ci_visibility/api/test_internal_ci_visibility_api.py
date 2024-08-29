@@ -6,15 +6,15 @@ from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.item_ids import TestId
 from ddtrace.ext.test_visibility.item_ids import TestModuleId
 from ddtrace.ext.test_visibility.item_ids import TestSuiteId
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_suite import DDTestVisibilitySuite
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_test import DDTestVisibilityTest
+from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
+from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from tests.utils import DummyTracer
 
 
 def _get_default_civisibility_settings():
-    return DDTestVisibilitySessionSettings(
+    return TestVisibilitySessionSettings(
         tracer=DummyTracer(),
         test_service="test_service",
         test_command="test_command",
@@ -63,7 +63,7 @@ def _get_bad_suite_source_file_info():
 
 class TestCIVisibilityItems:
     def test_civisibilityitem_enforces_sourcefile_info_on_tests(self):
-        ci_test = DDTestVisibilityTest(
+        ci_test = TestVisibilityTest(
             _get_default_test_id().name,
             _get_default_civisibility_settings(),
             source_file_info=_get_good_test_source_file_info(),
@@ -73,7 +73,7 @@ class TestCIVisibilityItems:
         assert ci_test._source_file_info.end_line == 2
 
     def test_civiisibilityitem_enforces_sourcefile_info_on_suites(self):
-        ci_suite = DDTestVisibilitySuite(
+        ci_suite = TestVisibilitySuite(
             _get_default_suite_id().name,
             _get_default_civisibility_settings(),
             source_file_info=_get_good_suite_source_file_info(),
@@ -90,7 +90,7 @@ class TestCIVisibilitySessionSettings:
 
     def test_civisibility_sessionsettings_root_dir_rejects_relative_path(self):
         with pytest.raises(ValueError):
-            _ = DDTestVisibilitySessionSettings(
+            _ = TestVisibilitySessionSettings(
                 tracer=DummyTracer(),
                 test_service="test_service",
                 test_command="test_command",
@@ -106,7 +106,7 @@ class TestCIVisibilitySessionSettings:
 
     def test_civisibility_sessionsettings_root_dir_rejects_non_path(self):
         with pytest.raises(TypeError):
-            _ = DDTestVisibilitySessionSettings(
+            _ = TestVisibilitySessionSettings(
                 tracer=DummyTracer(),
                 test_service="test_service",
                 test_command="test_command",
@@ -122,7 +122,7 @@ class TestCIVisibilitySessionSettings:
 
     def test_civisibility_sessionsettings_rejects_non_tracer(self):
         with pytest.raises(TypeError):
-            _ = DDTestVisibilitySessionSettings(
+            _ = TestVisibilitySessionSettings(
                 tracer="not a tracer",
                 test_service="test_service",
                 test_command="test_command",

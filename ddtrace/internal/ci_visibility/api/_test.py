@@ -9,10 +9,10 @@ from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 from ddtrace.ext.test_visibility.item_ids import TestId
-from ddtrace.internal.ci_visibility.api.coverage_data import DDTestVisibilityCoverageData
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilityChildItem
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilityItemBase
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
+from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
@@ -23,14 +23,14 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class DDTestVisibilityTest(DDTestVisibilityChildItem[TestId], DDTestVisibilityItemBase):
+class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase):
     _event_type = TEST
     _event_type_metric_name = EVENT_TYPES.TEST
 
     def __init__(
         self,
         name: str,
-        session_settings: DDTestVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         parameters: Optional[str] = None,
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[TestSourceFileInfo] = None,
@@ -48,10 +48,10 @@ class DDTestVisibilityTest(DDTestVisibilityChildItem[TestId], DDTestVisibilityIt
         )
         self._codeowners = codeowners
         self._source_file_info = source_file_info
-        self._original_test: Optional[DDTestVisibilityTest] = None
+        self._original_test: Optional[TestVisibilityTest] = None
         self._is_early_flake_retry = is_early_flake_retry  # NOTE: currently unused
         self._exc_info: Optional[TestExcInfo] = None
-        self._coverage_data: DDTestVisibilityCoverageData = DDTestVisibilityCoverageData()
+        self._coverage_data: TestVisibilityCoverageData = TestVisibilityCoverageData()
 
         if self._parameters is not None:
             self.set_tag(test.PARAMETERS, parameters)

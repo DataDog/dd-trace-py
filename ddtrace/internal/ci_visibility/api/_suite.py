@@ -9,11 +9,11 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 from ddtrace.ext.test_visibility.item_ids import TestId
 from ddtrace.ext.test_visibility.item_ids import TestSuiteId
-from ddtrace.internal.ci_visibility.api.coverage_data import DDTestVisibilityCoverageData
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilityChildItem
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilityParentItem
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_test import DDTestVisibilityTest
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
+from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
+from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
@@ -26,16 +26,14 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class DDTestVisibilitySuite(
-    DDTestVisibilityParentItem[TestId, DDTestVisibilityTest], DDTestVisibilityChildItem[TestSuiteId]
-):
+class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], TestVisibilityChildItem[TestSuiteId]):
     _event_type = SUITE_TYPE
     _event_type_metric_name = EVENT_TYPES.SUITE
 
     def __init__(
         self,
         name: str,
-        session_settings: DDTestVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[TestSourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
@@ -44,7 +42,7 @@ class DDTestVisibilitySuite(
         self._codeowner = codeowners
         self._source_file_info = source_file_info
 
-        self._coverage_data: DDTestVisibilityCoverageData = DDTestVisibilityCoverageData()
+        self._coverage_data: TestVisibilityCoverageData = TestVisibilityCoverageData()
 
     def __repr__(self) -> str:
         module_name = self.parent.name if self.parent is not None else "none"

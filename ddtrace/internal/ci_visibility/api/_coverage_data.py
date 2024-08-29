@@ -18,7 +18,7 @@ class CoverageFilePayload(TypedDict):
     bitmap: bytes
 
 
-class DDTestVisibilityCoverageData:
+class TestVisibilityCoverageData:
     """Container for coverage data for an item (suite or test)"""
 
     def __init__(self) -> None:

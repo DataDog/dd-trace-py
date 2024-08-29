@@ -4,10 +4,10 @@ from typing import Optional
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility.item_ids import TestModuleId
 from ddtrace.ext.test_visibility.item_ids import TestSuiteId
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilityChildItem
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilityParentItem
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_suite import DDTestVisibilitySuite
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
+from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
@@ -20,8 +20,8 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class DDTestVisibilityModule(
-    DDTestVisibilityParentItem[TestSuiteId, DDTestVisibilitySuite], DDTestVisibilityChildItem[TestModuleId]
+class TestVisibilityModule(
+    TestVisibilityParentItem[TestSuiteId, TestVisibilitySuite], TestVisibilityChildItem[TestModuleId]
 ):
     _event_type = MODULE_TYPE
     _event_type_metric_name = EVENT_TYPES.MODULE
@@ -30,7 +30,7 @@ class DDTestVisibilityModule(
         self,
         name: str,
         module_path: Optional[Path],
-        session_settings: DDTestVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
     ):
         super().__init__(name, session_settings, session_settings.module_operation_name, initial_tags)

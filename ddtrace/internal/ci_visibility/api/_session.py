@@ -4,9 +4,9 @@ from typing import Optional
 
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility.item_ids import TestModuleId
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilityParentItem
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_base import DDTestVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.dd_test_visibility_module import DDTestVisibilityModule
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
+from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
@@ -18,7 +18,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class DDTestVisibilitySession(DDTestVisibilityParentItem[TestModuleId, DDTestVisibilityModule]):
+class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilityModule]):
     """This class represents a Test session and is the top level in the hierarchy of Test visibility items.
 
     It does not access its skip-level descendents directly as they are expected to be managed through their own parent
@@ -30,7 +30,7 @@ class DDTestVisibilitySession(DDTestVisibilityParentItem[TestModuleId, DDTestVis
 
     def __init__(
         self,
-        session_settings: DDTestVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
         log.debug("Initializing Test Visibility session")
@@ -46,7 +46,7 @@ class DDTestVisibilitySession(DDTestVisibilityParentItem[TestModuleId, DDTestVis
             SESSION_ID: str(self.get_span_id()),
         }
 
-    def get_session_settings(self) -> DDTestVisibilitySessionSettings:
+    def get_session_settings(self) -> TestVisibilitySessionSettings:
         return self._session_settings
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
