@@ -86,8 +86,7 @@ def convert_to_json_compatible(obj: Any) -> Any:
         return {convert_key(k): convert_to_json_compatible(v) for k, v in obj.items() if v is not None}
     elif hasattr(obj, "__dataclass_fields__"):
         return {convert_key(k): convert_to_json_compatible(v) for k, v in asdict(obj).items() if v is not None}
-    else:
-        return obj
+    return obj
 
 
 def convert_key(key: str) -> str:
