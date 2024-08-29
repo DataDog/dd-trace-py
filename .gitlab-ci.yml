@@ -10,11 +10,14 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
+  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner@sha256:4c8afd048321e702f3605b4ae4d206fcd00e74bac708089cfe7f9c24383dc53b
+  CI_DEBUG_SERVICES: "true"
 
 .testrunner:
   image: $TESTRUNNER_IMAGE
-  tags: [ "arch:arm64" ]
+  # DEV: we have a larger pool of amd64 runners, prefer that over arm64
+  tags: [ "arch:amd64" ]
+  timeout: 20m
   before_script:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
 
