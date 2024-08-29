@@ -3,7 +3,6 @@ Variety of test cases ensuring that ddtrace does not leak memory.
 """
 
 import gc
-import os
 from threading import Thread
 from typing import TYPE_CHECKING
 from weakref import WeakValueDictionary
@@ -11,7 +10,6 @@ from weakref import WeakValueDictionary
 import pytest
 
 from ddtrace import Tracer
-from tests.utils import flaky
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -38,15 +36,14 @@ def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs):
 
 def test_leak(tracer):
     wd = WeakValueDictionary()
-    span = trace(wd, tracer, "span1")
-    span2 = trace(wd, tracer, "span2")
+    with trace(wd, tracer, "span1") as span:
+        with trace(wd, tracer, "span2") as span2:
+            pass
     assert len(wd) == 2
 
     # The spans are still open and referenced so they should not be gc'd
     gc.collect()
     assert len(wd) == 2
-    span2.finish()
-    span.finish()
     del span, span2
     gc.collect()
     assert len(wd) == 0
@@ -98,25 +95,31 @@ def test_multithread_trace(tracer):
             assert len(wd) == 2
         state.append(1)
 
-    span = trace(wd, tracer, "")
-    t = Thread(target=_target, args=(span.context,))
-    t.start()
-    t.join()
-    # Ensure thread finished successfully
-    assert state == [1]
+    with trace(wd, tracer, "") as span:
+        t = Thread(target=_target, args=(span.context,))
+        t.start()
+        t.join()
+        # Ensure thread finished successfully
+        assert state == [1]
 
-    span.finish()
     del span
     gc.collect()
     assert len(wd) == 0
 
 
-@flaky(1731172242)
-def test_fork_open_span(tracer):
+@pytest.mark.subprocess
+def test_fork_open_span():
     """
     When a fork occurs with an open span then the child process should not have
     a strong reference to the span because it might never be closed.
     """
+    import gc
+    import os
+    from weakref import WeakValueDictionary
+
+    from ddtrace import tracer
+    from tests.tracer.test_memory_leak import trace
+
     wd = WeakValueDictionary()
     span = trace(wd, tracer, "span")
     pid = os.fork()
