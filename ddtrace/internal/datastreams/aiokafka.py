@@ -10,7 +10,7 @@ from ddtrace.internal.utils import get_argument_value
 INT_TYPES = (int,)
 
 
-def dsm_aiokafka_message_produce(instance, topic, value, key, headers, span):
+def dsm_aiokafka_send_start(topic, value, key, headers, span):
     from . import data_streams_processor as processor
 
     payload_size = 0
@@ -27,18 +27,17 @@ def dsm_aiokafka_message_produce(instance, topic, value, key, headers, span):
         headers.append((key, value.encode("utf-8")))
 
 
-def dsm_aiokafka_message_produce_completed(record_metadata):
+def dsm_aiokafka_send_completed(record_metadata):
     from . import data_streams_processor as processor
 
     reported_offset = record_metadata.offset if isinstance(record_metadata.offset, INT_TYPES) else -1
     processor().track_kafka_produce(record_metadata.topic, record_metadata.partition, reported_offset, time.time())
 
 
-def dsm_aiokafka_message_consume(instance, message, span):
+def dsm_aiokafka_get_completed(instance, message, span):
     from . import data_streams_processor as processor
 
     headers = {header[0]: header[1].decode("utf-8") for header in (message.headers or [])}
-    topic = core.get_item("kafka_topic")
     group = instance._group_id
 
     payload_size = 0
@@ -48,7 +47,7 @@ def dsm_aiokafka_message_consume(instance, message, span):
 
     ctx = DsmPathwayCodec.decode(headers, processor())
     ctx.set_checkpoint(
-        ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
+        ["direction:in", "group:" + group, "topic:" + message.topic, "type:kafka"], payload_size=payload_size, span=span
     )
 
     if instance._enable_auto_commit:
@@ -60,7 +59,7 @@ def dsm_aiokafka_message_consume(instance, message, span):
         )
 
 
-def dsm_aiokafka_message_commit(instance, args, kwargs):
+def dsm_aiokafka_commit_start(instance, args, kwargs):
     from . import data_streams_processor as processor
 
     offsets = get_argument_value(args, kwargs, 0, "offsets", optional=True)
@@ -71,7 +70,7 @@ def dsm_aiokafka_message_commit(instance, args, kwargs):
 
 
 if config._data_streams_enabled:
-    core.on("aiokafka.produce.start", dsm_aiokafka_message_produce)
-    core.on("aiokafka.produce.completed", dsm_aiokafka_message_produce_completed)
-    core.on("aiokafka.consume.start", dsm_aiokafka_message_consume)
-    core.on("aiokafka.commit.start", dsm_aiokafka_message_commit)
+    core.on("aiokafka.send.start", dsm_aiokafka_send_start)
+    core.on("aiokafka.send.completed", dsm_aiokafka_send_completed)
+    core.on("aiokafka.get.completed", dsm_aiokafka_get_completed)
+    core.on("aiokafka.commit.start", dsm_aiokafka_commit_start)

@@ -51,6 +51,7 @@ def patch():
 
     _w("aiokafka", "AIOKafkaProducer.send_and_wait", traced_send_and_wait)
     _w("aiokafka", "AIOKafkaConsumer.getone", traced_getone)
+    _w("aiokafka", "AIOKafkaConsumer.commit", traced_commit)
 
     Pin().onto(aiokafka.AIOKafkaProducer)
     Pin().onto(aiokafka.AIOKafkaConsumer)
@@ -64,6 +65,7 @@ def unpatch():
 
     _u(aiokafka.AIOKafkaProducer, "send_and_wait")
     _u(aiokafka.AIOKafkaConsumer, "getone")
+    _u(aiokafka.AIOKafkaConsumer, "commit")
 
 
 def bootstrap_servers(instance):
@@ -119,8 +121,12 @@ async def traced_send_and_wait(func, instance, args, kwargs):
             tracing_headers = {}
             HTTPPropagator.inject(span.context, tracing_headers)
             headers = merge_headers_to_aiokafka(tracing_headers, headers)
-            args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
+
+        core.dispatch("aiokafka.send.start", (topic, value, key, headers, span))
+        args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
+
         result = await func(*args, **kwargs)
+        core.dispatch("aiokafka.send.completed", (result,))
         return result
 
 
@@ -174,6 +180,12 @@ async def traced_getone(func, instance, args, kwargs):
             distributed_context=child_of,
             tags=create_get_span_tags(instance, args, kwargs),
             pin=pin,
-        ) as ctx, ctx[ctx["call_key"]]:
+        ) as ctx, ctx[ctx["call_key"]] as span:
             core.dispatch("aiokafka.getone.message", (ctx, result, err))
+            core.dispatch("aiokafka.get.completed", (instance, result, span))
         return result
+
+
+async def traced_commit(func, instance, args, kwargs):
+    core.dispatch("aiokafka.commit.start", (instance, args, kwargs))
+    return await func(*args, **kwargs)
