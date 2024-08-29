@@ -492,7 +492,7 @@ def telemetry_writer():
     finally:
         if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
             telemetry_writer.disable()
-        # ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
+        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
 
 
 class TelemetryTestSession(object):

@@ -30,7 +30,7 @@ variables:
       alias: testagent
       variables:
         DD_HOSTNAME: testagent
-        LOG_LEVEL: DEBUG
+        LOG_LEVEL: INFO
         SNAPSHOT_DIR: /builds/${CI_PROJECT_PATH}/tests/snapshots
         SNAPSHOT_CI: 1
         PORT: 9126
