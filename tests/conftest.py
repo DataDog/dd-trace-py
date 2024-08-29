@@ -582,7 +582,6 @@ def test_agent_session(telemetry_writer, request):
                 pytest.xfail("Failed to connect to test agent")
             time.sleep(pow(exp_time, try_nb))
         finally:
-            requests.clear()
             conn.close()
 
     p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
