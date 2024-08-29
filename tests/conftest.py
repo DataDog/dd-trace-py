@@ -563,6 +563,7 @@ class TelemetryTestSession(object):
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
+    print("TOKEN %s", token)
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
@@ -581,6 +582,7 @@ def test_agent_session(telemetry_writer, request):
                 pytest.xfail("Failed to connect to test agent")
             time.sleep(pow(exp_time, try_nb))
         finally:
+            requests.clear()
             conn.close()
 
     p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
