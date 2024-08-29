@@ -30,7 +30,6 @@ variables:
       alias: testagent
       variables:
         DD_HOSTNAME: testagent
-        DD_TRACE_AGENT_URL: http://testagent:9126
         LOG_LEVEL: DEBUG
         SNAPSHOT_DIR: /snapshots
         SNAPSHOT_CI: 1
