@@ -1191,8 +1191,7 @@ def test_runtime_id_parent_only():
     PYTHON_VERSION_INFO >= (3, 12),
     reason="This test runs in a multithreaded process, using os.fork() may cause deadlocks in child processes",
 )
-# Datadog Agent is not available in CI
-@pytest.mark.subprocess(env={"DD_TRACE_ENABLED": "false"})
+@pytest.mark.subprocess
 def test_runtime_id_fork():
     import os
 
@@ -1850,9 +1849,7 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     assert len(spans) == 2
 
 
-# Disable tracing to avoid sending traces to the agent
-# Datadog Agent is not available in CI
-@pytest.mark.subprocess(env={"DD_TRACE_ENABLED": "false"})
+@pytest.mark.subprocess
 def test_fork_manual_span_same_context():
     import os
 
@@ -1876,9 +1873,7 @@ def test_fork_manual_span_same_context():
     assert exit_code == 12
 
 
-# Disable tracing to avoid sending traces to the agent
-# Datadog Agent is not available in CI
-@pytest.mark.subprocess(env={"DD_TRACE_ENABLED": "false"})
+@pytest.mark.subprocess()
 def test_fork_manual_span_different_contexts():
     import os
 
@@ -1901,9 +1896,7 @@ def test_fork_manual_span_different_contexts():
     assert exit_code == 12
 
 
-# Disable tracing to avoid sending traces to the agent
-# Datadog Agent is not available in CI
-@pytest.mark.subprocess(env={"DD_TRACE_ENABLED": "false"})
+@pytest.mark.subprocess
 def test_fork_pid():
     import os
 

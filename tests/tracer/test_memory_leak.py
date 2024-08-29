@@ -107,9 +107,7 @@ def test_multithread_trace(tracer):
     assert len(wd) == 0
 
 
-# Disable tracing to avoid sending traces to the agent
-# Datadog Agent is not available in CI
-@pytest.mark.subprocess(env={"DD_TRACE_ENABLED": "false"})
+@pytest.mark.subprocess
 def test_fork_open_span():
     """
     When a fork occurs with an open span then the child process should not have

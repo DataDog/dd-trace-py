@@ -203,9 +203,7 @@ def test_threadsafe():
     assert len(ids) > 0
 
 
-# Disable tracing to avoid sending traces to the agent
-# Datadog Agent is not available in CI
-@pytest.mark.subprocess(env={"DD_TRACE_ENABLED": "false"})
+@pytest.mark.subprocess
 def test_tracer_usage_fork():
     from itertools import chain
     import os
