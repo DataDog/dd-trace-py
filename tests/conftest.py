@@ -594,3 +594,4 @@ def test_agent_session(telemetry_writer, request):
     finally:
         os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()
+        requests.clear()
