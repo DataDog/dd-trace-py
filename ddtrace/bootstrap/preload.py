@@ -17,6 +17,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.internal.uwsgi import check_uwsgi  # noqa:F401
+from ddtrace.internal.uwsgi import uWSGIConfigError  # noqa:F401
 from ddtrace.internal.uwsgi import uWSGIMasterProcess  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace import tracer
@@ -137,6 +138,11 @@ except uWSGIMasterProcess:
     def _():
         do_products()
         forksafe.unregister(_)
+
+except uWSGIConfigError:
+    log.error("uWSGI configuration error", exc_info=True)
+except Exception:
+    log.exception("Failed to check uWSGI configuration")
 
 else:
     do_products()
