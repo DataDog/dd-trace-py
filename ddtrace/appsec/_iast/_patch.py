@@ -88,8 +88,7 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
             yield key, value
 
 
-def _patched_fastapi_request_cookies(original_func, instance, args, kwargs):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
+def _patched_dictionary(origins, original_func, instance, args, kwargs):
     from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 
     result = original_func(*args, **kwargs)
@@ -97,7 +96,7 @@ def _patched_fastapi_request_cookies(original_func, instance, args, kwargs):
     if isinstance(result, (LazyTaintDict)):
         return result
 
-    return LazyTaintDict(result, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE), override_pyobject_tainted=True)
+    return LazyTaintDict(result, origins=origins, override_pyobject_tainted=True)
 
 
 def _patched_fastapi_function(origin, original_func, instance, args, kwargs):
@@ -130,7 +129,7 @@ def _on_iast_fastapi_patch():
     try_wrap_function_wrapper(
         "starlette.requests",
         "cookie_parser",
-        _patched_fastapi_request_cookies,
+        functools.partial(_patched_dictionary, (OriginType.COOKIE_NAME, OriginType.COOKIE)),
     )
     try_wrap_function_wrapper(
         "fastapi",

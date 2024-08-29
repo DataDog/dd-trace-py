@@ -8,6 +8,7 @@ from wrapt import wrap_function_wrapper as _w
 import xmltodict
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._iast._patch import _patched_dictionary
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec._iast._utils import _is_iast_enabled
@@ -252,6 +253,12 @@ def _on_flask_patch(flask_version):
                 "Request.get_data",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
             )
+            _w(
+                "werkzeug.wrappers.request",
+                "Request.get_json",
+                functools.partial(_patched_dictionary, (OriginType.BODY, OriginType.BODY)),
+            )
+
             _set_metric_iast_instrumented_source(OriginType.BODY)
 
             if flask_version < (2, 0, 0):
@@ -345,9 +352,9 @@ def _on_django_patch():
             from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec._iast._taint_tracking import OriginType
 
+            # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
-            # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
             _set_metric_iast_instrumented_source(OriginType.PATH)
             _set_metric_iast_instrumented_source(OriginType.COOKIE)
