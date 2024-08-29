@@ -2,6 +2,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <iostream>  // JJJ
 
 #include "TaintTracking/TaintRange.h"
 
@@ -51,9 +52,8 @@ template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
 convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
 
-template<class StrType>
 bool
-set_ranges_on_splitted(const StrType& source_str,
+set_ranges_on_splitted(const py::object& source_str,
                        const TaintRangeRefs& source_ranges,
                        const py::list& split_result,
                        const TaintRangeMapTypePtr& tx_map,
@@ -180,27 +180,42 @@ as_formatted_evidence(StrType& text,
 inline PyObject*
 process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyObject* args, PyObject* kwargs)
 {
-    // If orig_function is not None and not the built-in str, slice args
-    // JJJ add also check for bytearray and bytes!
-    if (orig_function != Py_None && orig_function != (PyObject*)&PyUnicode_Type) {
+    // If orig_function is not None and not the built-in str, bytes, or bytearray, slice args
+    auto orig_function_type = Py_TYPE(orig_function);
+    const char* type_name = Py_TYPE(orig_function)->tp_name;
+    cerr << "JJJ orig_function_type_name: " << type_name << endl;
+    cerr << "JJJ orig_function_type: " << orig_function_type << endl;
+    cerr << "JJJ PyUnicode_Type: " << &PyUnicode_Type << endl;
+    cerr << "JJJ PyByteArray_Type: " << &PyByteArray_Type << endl;
+    cerr << "JJJ PyBytesType: " << &PyBytes_Type << endl;
+
+    if (orig_function != Py_None &&
+        orig_function_type != &PyUnicode_Type &&
+        orig_function_type != &PyByteArray_Type &&
+        orig_function_type != &PyBytes_Type) {
+        cerr << "JJJ inside the orig function if" << endl;
+
         if (flag_added_args > 0) {
             Py_ssize_t num_args = PyTuple_Size(args);
             PyObject* sliced_args = PyTuple_New(num_args - flag_added_args);
             for (Py_ssize_t i = 0; i < num_args - flag_added_args; ++i) {
                 PyTuple_SET_ITEM(sliced_args, i, PyTuple_GetItem(args, i + flag_added_args));
-                Py_INCREF(PyTuple_GetItem(args, i + flag_added_args)); // Increment reference count
+                Py_INCREF(PyTuple_GetItem(args, i + flag_added_args));
             }
             // Call the original function with the sliced args and return its result
             PyObject* result = PyObject_Call(orig_function, sliced_args, kwargs);
             Py_DECREF(sliced_args);
+            cerr << "JJJ returning result after calling orig_function" << endl;
             return result;
         }
         // Else: call the original function with all args if no slicing is needed
+        cerr << "JJJ returning result after calling orig_function2" << endl;
         return PyObject_Call(orig_function, args, kwargs);
     }
 
-    // If orig_function is None or the built-in str, just return args for further processing
+    // If orig_function is None or one of the built-in types, just return args for further processing
     Py_INCREF(args); // Increment reference count before returning
+    cerr << "JJJ returning args for further processing" << endl;
     return args;
 }
 
@@ -210,7 +225,6 @@ process_flag_added_args(py::object orig_function, const int flag_added_args, py:
     PyObject* result = process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
     return py::reinterpret_borrow<py::object>(result);
 }
-
 void
 pyexport_aspect_helpers(py::module& m);
 

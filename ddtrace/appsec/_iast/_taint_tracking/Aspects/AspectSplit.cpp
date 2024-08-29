@@ -1,6 +1,7 @@
 #include "AspectSplit.h"
 #include "Initializer/Initializer.h"
 #include "TaintedOps/TaintedOps.h"
+#include <iostream>  // JJJ
 
 
 static std::pair<py::object, const int> get_separator_maxsplit_from_args(const py::tuple& args, const py::kwargs& kwargs)
@@ -60,29 +61,38 @@ split_text_common(const py::object& orig_function,
                  const py::kwargs& kwargs,
                  const std::string& split_func)
 {
-    const py::object result_or_args = process_flag_added_args(orig_function, flag_added_args, args, kwargs);
-
+    cerr << "JJJ 1\n";
+    PyObject* result_or_args = process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
     py::tuple args_tuple;
-    if (py::isinstance<py::tuple>(result_or_args)) {
-        args_tuple = result_or_args.cast<py::tuple>();
+    if (PyTuple_Check(result_or_args)) {
+    cerr << "JJJ 1.1\n";
+        args_tuple = py::reinterpret_borrow<py::tuple>(result_or_args);
     } else {
-        return result_or_args.cast<py::list>();
+    cerr << "JJJ 1.2\n";
+        return py::reinterpret_borrow<py::list>(result_or_args);
     }
 
-    const auto& text = py::cast<StrType>(args_tuple[0]);
+    cerr << "JJJ 1.5\n";
+    // JJJ ERROR HERE
+    // const auto& text = py::cast<StrType>(args_tuple[0]);
+    const auto& text = args_tuple[0];
 
+    cerr << "JJJ 2\n";
     auto [separator, max_split] = get_separator_maxsplit_from_args(args_tuple, kwargs);
     py::object result_o = text.attr(split_func.c_str())(separator, max_split);
+    cerr << "JJJ 3, result_o: " << py::str(result_o) << "\n";
 
     TRY_CATCH_ASPECT("split_aspect", {
         if (split_func == "split") {
             if (auto re_split_result = handle_potential_re_split(args_tuple, kwargs, Initializer::get_tainting_map());re_split_result.has_value()) {
+    cerr << "JJJ 4\n";
                 return *re_split_result;
             }
         }
 
         const auto tx_map = Initializer::get_tainting_map();
         if (!tx_map || tx_map->empty()) {
+    cerr << "JJJ 5\n";
             return result_o;
         }
 
@@ -91,6 +101,7 @@ split_text_common(const py::object& orig_function,
             set_ranges_on_splitted(text, ranges, result_o, tx_map, false);
         }
 
+    cerr << "JJJ 6\n";
         return result_o;
     });
 }
@@ -112,7 +123,7 @@ api_splitlines_text(const py::object& orig_function,
         return result_or_args.cast<py::list>();
     }
 
-    const auto& text = py::cast<StrType>(args_tuple[0]);
+    const auto& text = args_tuple[0];
     bool keepends = false;
     if (kwargs.contains("keepends")) {
         keepends = kwargs["keepends"].cast<bool>();

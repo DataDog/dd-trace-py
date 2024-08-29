@@ -569,6 +569,8 @@ class AstVisitor(ast.NodeTransformer):
                 aspect = self._aspect_methods.get(method_name)
 
                 if aspect:
+                    if aspect == "ddtrace_aspects.split_aspect":  # JJJ
+                        pass  # JJJ
                     # Move the Attribute.value to 'args'
                     new_arg = func_member.value
                     call_node.args.insert(0, new_arg)
