@@ -176,10 +176,12 @@ as_formatted_evidence(StrType& text,
     return StrType(EVIDENCE_MARKS::BLANK).attr("join")(res_vector);
 }
 
+// JJJ test with a pure pybind11 implementation
 inline PyObject*
-process_args(PyObject* orig_function, const int flag_added_args, PyObject* args, PyObject* kwargs)
+process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyObject* args, PyObject* kwargs)
 {
     // If orig_function is not None and not the built-in str, slice args
+    // JJJ add also check for bytearray and bytes!
     if (orig_function != Py_None && orig_function != (PyObject*)&PyUnicode_Type) {
         if (flag_added_args > 0) {
             Py_ssize_t num_args = PyTuple_Size(args);
@@ -203,9 +205,9 @@ process_args(PyObject* orig_function, const int flag_added_args, PyObject* args,
 }
 
 inline py::object
-process_args(py::object orig_function, const int flag_added_args, py::object args, py::object kwargs)
+process_flag_added_args(py::object orig_function, const int flag_added_args, py::object args, py::object kwargs)
 {
-    PyObject* result = process_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
+    PyObject* result = process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
     return py::reinterpret_borrow<py::object>(result);
 }
 
