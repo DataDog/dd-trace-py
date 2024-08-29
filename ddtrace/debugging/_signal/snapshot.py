@@ -4,6 +4,8 @@ from dataclasses import field
 from itertools import chain
 import sys
 from types import FrameType
+from types import FunctionType
+from types import ModuleType
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -41,6 +43,9 @@ CAPTURE_TIME_BUDGET = 0.2  # seconds
 _NOTSET = object()
 
 
+EXCLUDE_GLOBAL_TYPES = (ModuleType, type, FunctionType)
+
+
 def _capture_context(
     frame: FrameType,
     throwable: ExcInfoType,
@@ -54,7 +59,7 @@ def _capture_context(
 
         arguments = get_args(frame)
         _locals = get_locals(frame)
-        _globals = get_globals(frame)
+        _globals = ((n, v) for n, v in get_globals(frame) if not isinstance(v, EXCLUDE_GLOBAL_TYPES))
 
         _, exc, _ = throwable
         if exc is not None:
