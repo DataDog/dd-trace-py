@@ -398,7 +398,7 @@ class DataStreamsProcessor(PeriodicService):
         sampler = self._schema_samplers.setdefault(topic, SchemaSampler())
         return sampler.can_sample(now_ms)
 
-    def get_schema(schema_name, iterator):
+    def get_schema(self, schema_name, iterator):
         return SchemaBuilder.get_schema(schema_name, iterator)
 
 
