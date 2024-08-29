@@ -680,8 +680,10 @@ class CIVisibility(Service):
             handles = cls._instance._codeowners.of(location)
             if handles:
                 span.set_tag(test.CODEOWNERS, json.dumps(handles))
-        except KeyError:
-            log.debug("no matching codeowners for %s", location)
+            else:
+                log.debug("no matching codeowners for %s", location)
+        except:  # noqa: E722
+            log.debug("Error setting codeowners for %s", location, exc_info=True)
 
     @classmethod
     def add_session(cls, session: CIVisibilitySession):
