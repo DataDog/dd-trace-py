@@ -17,13 +17,13 @@ from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
-from ddtrace.ext.test_visibility.api import TestId
-from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
-from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
-from ddtrace.internal.ci_visibility.api.ci_coverage_data import CICoverageData
+from ddtrace.ext.test_visibility.item_ids import TestId
+from ddtrace.ext.test_visibility.item_ids import TestModuleId
+from ddtrace.ext.test_visibility.item_ids import TestSuiteId
+from ddtrace.internal.ci_visibility.api.coverage_data import DDTestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
@@ -41,7 +41,7 @@ log = get_logger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
-class CIVisibilitySessionSettings:
+class DDTestVisibilitySessionSettings:
     tracer: Tracer
     test_service: str
     test_command: str
@@ -77,7 +77,7 @@ class SPECIAL_STATUS(Enum):
 
 
 CIDT = TypeVar("CIDT", TestModuleId, TestSuiteId, TestId)  # Child item ID types
-ITEMT = TypeVar("ITEMT", bound="CIVisibilityItemBase")  # All item types
+ITEMT = TypeVar("ITEMT", bound="DDTestVisibilityItemBase")  # All item types
 
 
 def _require_not_finished(func):
@@ -102,23 +102,23 @@ def _require_span(func):
     return wrapper
 
 
-class CIVisibilityItemBase(abc.ABC):
+class DDTestVisibilityItemBase(abc.ABC):
     _event_type = "unset_event_type"
     _event_type_metric_name = EVENT_TYPES.UNSET
 
     def __init__(
         self,
         name: str,
-        session_settings: CIVisibilitySessionSettings,
+        session_settings: DDTestVisibilitySessionSettings,
         operation_name: str,
         initial_tags: Optional[Dict[str, Any]] = None,
-        parent: Optional["CIVisibilityParentItem"] = None,
+        parent: Optional["DDTestVisibilityParentItem"] = None,
         resource: Optional[str] = None,
     ) -> None:
         self.name: str = name
-        self.parent: Optional["CIVisibilityParentItem"] = parent
+        self.parent: Optional["DDTestVisibilityParentItem"] = parent
         self._status: TestStatus = TestStatus.FAIL
-        self._session_settings: CIVisibilitySessionSettings = session_settings
+        self._session_settings: DDTestVisibilitySessionSettings = session_settings
         self._tracer: Tracer = session_settings.tracer
         self._service: str = session_settings.test_service
         self._operation_name: str = operation_name
@@ -139,7 +139,7 @@ class CIVisibilityItemBase(abc.ABC):
         # General purpose attributes not used by all item types
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[TestSourceFileInfo] = None
-        self._coverage_data: Optional[CICoverageData] = None
+        self._coverage_data: Optional[DDTestVisibilityCoverageData] = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"
@@ -162,7 +162,7 @@ class CIVisibilityItemBase(abc.ABC):
 
     def _start_span(self) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
-        parent_span = self.get_parent_span() if isinstance(self, CIVisibilityParentItem) else None
+        parent_span = self.get_parent_span() if isinstance(self, DDTestVisibilityParentItem) else None
 
         self._span = self._tracer._start_span(
             self._operation_name,
@@ -265,10 +265,10 @@ class CIVisibilityItemBase(abc.ABC):
             # Source file info is invalid if path is None
             return
         if not isinstance(source_file_info_value, TestSourceFileInfo):
-            log.warning("Source file info must be of type CISourceFileInfo")
+            log.warning("Source file info must be of type TestSourceFileInfo")
             return
         if not source_file_info_value.path.is_absolute():
-            # Note: this should effectively be unreachable code because the CISourceFileInfoBase class enforces
+            # Note: this should effectively be unreachable code because the TestSourceFileInfoBase class enforces
             # that paths be absolute at creation time
             log.warning("Source file path must be absolute, removing source file info")
             return
@@ -276,13 +276,13 @@ class CIVisibilityItemBase(abc.ABC):
         self.__source_file_info = source_file_info_value
 
     @property
-    def _session_settings(self) -> CIVisibilitySessionSettings:
+    def _session_settings(self) -> DDTestVisibilitySessionSettings:
         return self.__session_settings
 
     @_session_settings.setter
-    def _session_settings(self, session_settings_value: CIVisibilitySessionSettings) -> None:
-        if not isinstance(session_settings_value, CIVisibilitySessionSettings):
-            raise TypeError("Session settings must be of type CIVisibilitySessionSettings")
+    def _session_settings(self, session_settings_value: DDTestVisibilitySessionSettings) -> None:
+        if not isinstance(session_settings_value, DDTestVisibilitySessionSettings):
+            raise TypeError("Session settings must be of type DDTestVisibilitySessionSettings")
         self.__session_settings = session_settings_value
 
     @abc.abstractmethod
@@ -313,7 +313,7 @@ class CIVisibilityItemBase(abc.ABC):
         raise NotImplementedError("This method must be implemented by the subclass")
 
     def start(self) -> None:
-        log.debug("CI Visibility: starting %s", self)
+        log.debug("Test Visibility: starting %s", self)
 
         if self.is_started():
             if self._session_settings.reject_duplicates:
@@ -332,7 +332,7 @@ class CIVisibilityItemBase(abc.ABC):
 
         Nothing should be called after this method is called.
         """
-        log.debug("CI Visibility: finishing %s", self)
+        log.debug("Test Visibility: finishing %s", self)
 
         self._telemetry_record_event_finished()
         self._finish_span()
@@ -449,18 +449,18 @@ class CIVisibilityItemBase(abc.ABC):
         return self._coverage_data.get_data()
 
 
-class CIVisibilityChildItem(CIVisibilityItemBase, Generic[CIDT]):
+class DDTestVisibilityChildItem(DDTestVisibilityItemBase, Generic[CIDT]):
     pass
 
 
-CITEMT = TypeVar("CITEMT", bound="CIVisibilityChildItem")
+CITEMT = TypeVar("CITEMT", bound="DDTestVisibilityChildItem")
 
 
-class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIDT, CITEMT]):
+class DDTestVisibilityParentItem(DDTestVisibilityItemBase, Generic[CIDT, CITEMT]):
     def __init__(
         self,
         name: str,
-        session_settings: CIVisibilitySessionSettings,
+        session_settings: DDTestVisibilitySessionSettings,
         operation_name: str,
         initial_tags: Optional[Dict[str, Any]],
     ) -> None:

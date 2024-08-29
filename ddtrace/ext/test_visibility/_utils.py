@@ -14,7 +14,7 @@ log = get_logger(__name__)
 
 
 def _catch_and_log_exceptions(func):
-    """This decorator is meant to be used around all methods of the CIVisibility classes.
+    """This decorator is meant to be used around all methods of the Test Visibility classes.
 
     It accepts an optional parameter to allow it to be used on functions and methods.
 

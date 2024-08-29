@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.ext.test_visibility import api
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+import ddtrace.ext.test_visibility.item_ids
 from ddtrace.internal.ci_visibility import CIVisibility
 from tests.ci_visibility.util import set_up_mock_civisibility
 
@@ -78,14 +79,20 @@ class TestCIITRMixin:
             assert CIVisibility.enabled is True
             assert CIVisibility._instance._suite_skipping_mode is False
 
-            skippable_module_id = api.TestModuleId("skippable_module")
+            skippable_module_id = ddtrace.ext.test_visibility.item_ids.TestModuleId("skippable_module")
 
-            skippable_suite_id = api.TestSuiteId(skippable_module_id, "suite.py")
-            skippable_test_id = api.TestId(skippable_suite_id, "skippable_test")
-            non_skippable_test_id = api.TestId(skippable_suite_id, "non_skippable_test")
+            skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(skippable_module_id, "suite.py")
+            skippable_test_id = ddtrace.ext.test_visibility.item_ids.TestId(skippable_suite_id, "skippable_test")
+            non_skippable_test_id = ddtrace.ext.test_visibility.item_ids.TestId(
+                skippable_suite_id, "non_skippable_test"
+            )
 
-            non_skippable_suite_id = api.TestSuiteId(skippable_module_id, "non_skippable_suite.py")
-            non_skippable_suite_skippable_test_id = api.TestId(non_skippable_suite_id, "skippable_test")
+            non_skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(
+                skippable_module_id, "non_skippable_suite.py"
+            )
+            non_skippable_suite_skippable_test_id = ddtrace.ext.test_visibility.item_ids.TestId(
+                non_skippable_suite_id, "skippable_test"
+            )
 
             assert api.Test.is_itr_skippable(skippable_test_id) is True
             assert api.Test.is_itr_skippable(non_skippable_test_id) is False
@@ -107,14 +114,20 @@ class TestCIITRMixin:
             assert CIVisibility.enabled is True
             assert CIVisibility._instance._suite_skipping_mode is False
 
-            skippable_module_id = api.TestModuleId("skippable_module")
+            skippable_module_id = ddtrace.ext.test_visibility.item_ids.TestModuleId("skippable_module")
 
-            skippable_suite_id = api.TestSuiteId(skippable_module_id, "suite.py")
-            skippable_test_id = api.TestId(skippable_suite_id, "skippable_test")
-            non_skippable_test_id = api.TestId(skippable_suite_id, "non_skippable_test")
+            skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(skippable_module_id, "suite.py")
+            skippable_test_id = ddtrace.ext.test_visibility.item_ids.TestId(skippable_suite_id, "skippable_test")
+            non_skippable_test_id = ddtrace.ext.test_visibility.item_ids.TestId(
+                skippable_suite_id, "non_skippable_test"
+            )
 
-            non_skippable_suite_id = api.TestSuiteId(skippable_module_id, "non_skippable_suite.py")
-            non_skippable_suite_skippable_test_id = api.TestId(non_skippable_suite_id, "skippable_test")
+            non_skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(
+                skippable_module_id, "non_skippable_suite.py"
+            )
+            non_skippable_suite_skippable_test_id = ddtrace.ext.test_visibility.item_ids.TestId(
+                non_skippable_suite_id, "skippable_test"
+            )
 
             assert api.Test.is_itr_skippable(skippable_test_id) is False
             assert api.Test.is_itr_skippable(non_skippable_test_id) is False
@@ -134,12 +147,18 @@ class TestCIITRMixin:
             assert CIVisibility.enabled is True
             assert CIVisibility._instance._suite_skipping_mode is True
 
-            skippable_module_id = api.TestModuleId("skippable_module")
-            skippable_suite_id = api.TestSuiteId(skippable_module_id, "skippable_suite.py")
-            non_skippable_suite_id = api.TestSuiteId(skippable_module_id, "non_skippable_suite.py")
+            skippable_module_id = ddtrace.ext.test_visibility.item_ids.TestModuleId("skippable_module")
+            skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(
+                skippable_module_id, "skippable_suite.py"
+            )
+            non_skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(
+                skippable_module_id, "non_skippable_suite.py"
+            )
 
-            non_skippable_module_id = api.TestModuleId("non_skippable_module")
-            non_skippable_module_skippable_suite_id = api.TestSuiteId(non_skippable_module_id, "skippable_suite.py")
+            non_skippable_module_id = ddtrace.ext.test_visibility.item_ids.TestModuleId("non_skippable_module")
+            non_skippable_module_skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(
+                non_skippable_module_id, "skippable_suite.py"
+            )
 
             assert api.TestSuite.is_itr_skippable(skippable_suite_id) is True
             assert api.TestSuite.is_itr_skippable(non_skippable_suite_id) is False
@@ -159,12 +178,18 @@ class TestCIITRMixin:
             assert CIVisibility.enabled is True
             assert CIVisibility._instance._suite_skipping_mode is True
 
-            skippable_module_id = api.TestModuleId("skippable_module")
-            skippable_suite_id = api.TestSuiteId(skippable_module_id, "skippable_suite.py")
-            non_skippable_suite_id = api.TestSuiteId(skippable_module_id, "non_skippable_suite.py")
+            skippable_module_id = ddtrace.ext.test_visibility.item_ids.TestModuleId("skippable_module")
+            skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(
+                skippable_module_id, "skippable_suite.py"
+            )
+            non_skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(
+                skippable_module_id, "non_skippable_suite.py"
+            )
 
-            non_skippable_module_id = api.TestModuleId("non_skippable_module")
-            non_skippable_module_skippable_suite_id = api.TestSuiteId(non_skippable_module_id, "skippable_suite.py")
+            non_skippable_module_id = ddtrace.ext.test_visibility.item_ids.TestModuleId("non_skippable_module")
+            non_skippable_module_skippable_suite_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(
+                non_skippable_module_id, "skippable_suite.py"
+            )
 
             assert api.TestSuite.is_itr_skippable(skippable_suite_id) is False
             assert api.TestSuite.is_itr_skippable(non_skippable_suite_id) is False

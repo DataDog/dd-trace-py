@@ -49,11 +49,11 @@ from ddtrace.internal.writer.writer import Response
 from .. import agent
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
-from .api.ci_module import CIVisibilityModule
-from .api.ci_session import CIVisibilitySession
-from .api.ci_session import CIVisibilitySessionSettings
-from .api.ci_suite import CIVisibilitySuite
-from .api.ci_test import CIVisibilityTest
+from .api.dd_test_visibility_module import DDTestVisibilityModule
+from .api.dd_test_visibility_session import DDTestVisibilitySession
+from .api.dd_test_visibility_session import DDTestVisibilitySessionSettings
+from .api.dd_test_visibility_suite import DDTestVisibilitySuite
+from .api.dd_test_visibility_test import DDTestVisibilityTest
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import CUSTOM_CONFIGURATIONS_PREFIX
@@ -183,7 +183,7 @@ class CIVisibility(Service):
         self._should_upload_git_metadata = True
         self._itr_meta = {}  # type: Dict[str, Any]
 
-        self._session: Optional[CIVisibilitySession] = None
+        self._session: Optional[DDTestVisibilitySession] = None
 
         if service is None:
             # Use service if provided to enable() or __init__()
@@ -687,7 +687,7 @@ class CIVisibility(Service):
             log.debug("no matching codeowners for %s", location)
 
     @classmethod
-    def add_session(cls, session: CIVisibilitySession):
+    def add_session(cls, session: DDTestVisibilitySession):
         log.debug("Adding session: %s", session)
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
@@ -720,7 +720,7 @@ class CIVisibility(Service):
         raise CIVisibilityError(error_msg)
 
     @classmethod
-    def get_session(cls) -> CIVisibilitySession:
+    def get_session(cls) -> DDTestVisibilitySession:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -732,7 +732,7 @@ class CIVisibility(Service):
         return cls._instance._session
 
     @classmethod
-    def get_module_by_id(cls, module_id: TestModuleId) -> CIVisibilityModule:
+    def get_module_by_id(cls, module_id: TestModuleId) -> DDTestVisibilityModule:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -740,7 +740,7 @@ class CIVisibility(Service):
         return cls.get_session().get_child_by_id(module_id)
 
     @classmethod
-    def get_suite_by_id(cls, suite_id: TestSuiteId) -> CIVisibilitySuite:
+    def get_suite_by_id(cls, suite_id: TestSuiteId) -> DDTestVisibilitySuite:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -748,7 +748,7 @@ class CIVisibility(Service):
         return cls.get_module_by_id(suite_id.parent_id).get_child_by_id(suite_id)
 
     @classmethod
-    def get_test_by_id(cls, test_id: TestId) -> CIVisibilityTest:
+    def get_test_by_id(cls, test_id: TestId) -> DDTestVisibilityTest:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -756,7 +756,7 @@ class CIVisibility(Service):
         return cls.get_suite_by_id(test_id.parent_id).get_child_by_id(test_id)
 
     @classmethod
-    def get_session_settings(cls) -> CIVisibilitySessionSettings:
+    def get_session_settings(cls) -> DDTestVisibilitySessionSettings:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -902,7 +902,7 @@ def _on_discover_session(
 
     test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
 
-    session_settings = CIVisibilitySessionSettings(
+    session_settings = DDTestVisibilitySessionSettings(
         tracer=tracer,
         test_service=test_service,
         test_command=discover_args.test_command,
@@ -923,7 +923,7 @@ def _on_discover_session(
         coverage_enabled=CIVisibility.should_collect_coverage(),
     )
 
-    session = CIVisibilitySession(
+    session = DDTestVisibilitySession(
         session_settings,
     )
 
@@ -995,7 +995,7 @@ def _on_discover_module(discover_args: TestModule.DiscoverArgs):
 
     session.add_child(
         discover_args.module_id,
-        CIVisibilityModule(
+        DDTestVisibilityModule(
             discover_args.module_id.name,
             discover_args.module_path,
             CIVisibility.get_session_settings(),
@@ -1029,7 +1029,7 @@ def _on_discover_suite(discover_args: TestSuite.DiscoverArgs):
 
     module.add_child(
         discover_args.suite_id,
-        CIVisibilitySuite(
+        DDTestVisibilitySuite(
             discover_args.suite_id.name,
             CIVisibility.get_session_settings(),
             discover_args.codeowners,
@@ -1066,7 +1066,7 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
 
     suite.add_child(
         discover_args.test_id,
-        CIVisibilityTest(
+        DDTestVisibilityTest(
             discover_args.test_id.name,
             CIVisibility.get_session_settings(),
             parameters=discover_args.test_id.parameters,

@@ -41,12 +41,15 @@ from ddtrace.ext.test_visibility._utils import _is_item_finished
 from ddtrace.ext.test_visibility._utils import _set_item_tag
 from ddtrace.ext.test_visibility._utils import _set_item_tags
 from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
+from ddtrace.ext.test_visibility.item_ids import TestId
+from ddtrace.ext.test_visibility.item_ids import TestModuleId
+from ddtrace.ext.test_visibility.item_ids import TestSuiteId
 from ddtrace.internal import core
-from ddtrace.internal.codeowners import Codeowners
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.codeowners import Codeowners as _Codeowners
+from ddtrace.internal.logger import get_logger as _get_logger
 
 
-log = get_logger(__name__)
+log = _get_logger(__name__)
 
 
 class TestStatus(Enum):
@@ -68,37 +71,6 @@ class DEFAULT_OPERATION_NAMES(Enum):
 
 
 @dataclasses.dataclass(frozen=True)
-class TestModuleId(_TestVisibilityRootItemIdBase):
-    name: str
-
-    def __repr__(self):
-        return "TestModuleId(module={})".format(
-            self.name,
-        )
-
-
-@dataclasses.dataclass(frozen=True)
-class TestSuiteId(_TestVisibilityChildItemIdBase[TestModuleId]):
-    def __repr__(self):
-        return "TestSuiteId(module={}, suite={})".format(self.parent_id.name, self.name)
-
-
-@dataclasses.dataclass(frozen=True)
-class TestId(_TestVisibilityChildItemIdBase[TestSuiteId]):
-    parameters: Optional[str] = None  # For hashability, a JSON string of a dictionary of parameters
-    retry_number: int = 0
-
-    def __repr__(self):
-        return "TestId(module={}, suite={}, test={}, parameters={}, retry_number={})".format(
-            self.parent_id.parent_id.name,
-            self.parent_id.name,
-            self.name,
-            self.parameters,
-            self.retry_number,
-        )
-
-
-@dataclasses.dataclass(frozen=True)
 class TestSourceFileInfo(TestSourceFileInfoBase):
     path: Path
     start_line: Optional[int] = None
@@ -114,27 +86,24 @@ class TestExcInfo:
 
 @_catch_and_log_exceptions
 def enable_test_visibility(config: Optional[Any] = None):
-    from ddtrace.internal.ci_visibility import CIVisibility
+    log.debug("Enabling Test Visibility with config: %s", config)
+    core.dispatch("test_visibility.enable", (config,))
 
-    CIVisibility.enable(config=config)
-    if not CIVisibility.enabled:
-        log.warning("Test Visibility enabling failed.")
+    if not is_test_visibility_enabled():
+        log.warning("Failed to enable Test Visibility")
 
 
 @_catch_and_log_exceptions
 def is_test_visibility_enabled():
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    return CIVisibility.enabled
+    return core.dispatch_with_results("test_visibility.is_enabled").is_enabled.value
 
 
 @_catch_and_log_exceptions
 def disable_test_visibility():
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    CIVisibility.disable()
-    if CIVisibility.enabled:
-        log.warning("Test Visibility disabling failed.")
+    log.debug("Disabling Test Visibility")
+    core.dispatch("test_visibility.disable")
+    if is_test_visibility_enabled():
+        log.warning("Failed to disable Test Visibility")
 
 
 class TestBase(_TestVisibilityAPIBase):
@@ -266,10 +235,10 @@ class TestSession(_TestVisibilityAPIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_codeowners() -> Optional[Codeowners]:
+    def get_codeowners() -> Optional[_Codeowners]:
         log.debug("Getting codeowners object")
 
-        codeowners: Optional[Codeowners] = core.dispatch_with_results(
+        codeowners: Optional[_Codeowners] = core.dispatch_with_results(
             "test_visibility.session.get_codeowners",
         ).codeowners.value
         return codeowners
@@ -309,11 +278,6 @@ class TestSession(_TestVisibilityAPIBase):
         log.debug("Test skipping is enabled: %s", _is_test_skipping_enabled)
 
         return _is_test_skipping_enabled
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def get_known_tests():
-        pass
 
 
 class TestModule(TestBase):
