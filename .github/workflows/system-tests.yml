@@ -243,6 +243,10 @@ jobs:
         if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RASP
 
+      - name: Run APPSEC_STANDALONE
+        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_STANDALONE
+
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
