@@ -112,6 +112,7 @@ ddtrace/profiling                   @DataDog/profiling-python
 ddtrace/settings/profiling.py       @DataDog/profiling-python
 ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
+.gitlab/tests/profiling.yml         @DataDog/profiling-python
 
 # MLObs
 ddtrace/llmobs/                                         @DataDog/ml-observability
