@@ -1,16 +1,22 @@
-import os
-
-from ddtrace.internal import runtime
+import pytest
 
 
+@pytest.mark.subprocess
 def test_get_runtime_id():
+    from ddtrace.internal import runtime
+
     runtime_id = runtime.get_runtime_id()
     assert isinstance(runtime_id, str)
     assert runtime_id == runtime.get_runtime_id()
     assert runtime_id == runtime.get_runtime_id()
 
 
+@pytest.mark.subprocess
 def test_get_runtime_id_fork():
+    import os
+
+    from ddtrace.internal import runtime
+
     runtime_id = runtime.get_runtime_id()
     assert isinstance(runtime_id, str)
     assert runtime_id == runtime.get_runtime_id()
@@ -34,7 +40,12 @@ def test_get_runtime_id_fork():
     assert exit_code == 42
 
 
+@pytest.mark.subprocess
 def test_get_runtime_id_double_fork():
+    import os
+
+    from ddtrace.internal import runtime
+
     runtime_id = runtime.get_runtime_id()
 
     child = os.fork()
@@ -62,11 +73,16 @@ def test_get_runtime_id_double_fork():
     assert exit_code == 42
 
 
+@pytest.mark.subprocess
 def test_ancestor_runtime_id():
     """
     Check that the ancestor runtime ID is set after a fork, and that it remains
     the same in nested forks.
     """
+    import os
+
+    from ddtrace.internal import runtime
+
     ancestor_runtime_id = runtime.get_runtime_id()
 
     assert ancestor_runtime_id is not None

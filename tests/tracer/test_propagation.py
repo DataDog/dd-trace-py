@@ -37,9 +37,10 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
-from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
-from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
-from tests.contrib.fastapi.test_fastapi import tracer  # noqa:F401
+from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
+from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
+from tests.contrib.fastapi.conftest import test_spans as fastapi_test_spans  # noqa:F401
+from tests.contrib.fastapi.conftest import tracer  # noqa:F401
 
 from ..utils import override_global_config
 

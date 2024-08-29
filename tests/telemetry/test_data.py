@@ -7,8 +7,6 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.module import origin
-from ddtrace.internal.packages import Distribution
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
 from ddtrace.internal.telemetry.data import _get_container_id
@@ -191,30 +189,24 @@ def test_update_imported_dependencies():
     import xmltodict
 
     already_imported = {}
-    res = update_imported_dependencies(already_imported, [str(origin(xmltodict))])
+    res = update_imported_dependencies(already_imported, [xmltodict.__name__])
     assert len(res) == 1
     assert res[0]["name"] == "xmltodict"
     assert res[0]["version"]
     assert "xmltodict" in already_imported
-    assert isinstance(already_imported["xmltodict"], Distribution)
-    assert already_imported["xmltodict"].name == "xmltodict"
-    assert already_imported["xmltodict"].version == res[0]["version"]
+    assert already_imported["xmltodict"] == res[0]["version"]
 
     import typing
 
     import pytest
 
-    res = update_imported_dependencies(
-        already_imported, [str(origin(xmltodict)), str(origin(typing)), str(origin(pytest))]
-    )
+    res = update_imported_dependencies(already_imported, [xmltodict.__name__, typing.__name__, pytest.__name__])
     assert len(res) == 1  # typing is stdlib so should not be in the result
     assert res[0]["name"] == "pytest"
     assert res[0]["version"]
     assert len(already_imported) == 2
     assert "pytest" in already_imported
-    assert isinstance(already_imported["pytest"], Distribution)
-    assert already_imported["pytest"].name == "pytest"
-    assert already_imported["pytest"].version == res[0]["version"]
+    assert already_imported["pytest"] == res[0]["version"]
 
 
 def test_enable_products(run_python_code_in_subprocess):

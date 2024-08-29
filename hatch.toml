@@ -1,8 +1,3 @@
-[env]
-requires = [
-    "hatch-containers==0.7.0",
-]
-
 [envs.lint]
 detached = true
 python = "3.10"
@@ -114,10 +109,6 @@ build = [
     "scripts/docs/build.sh",
 ]
 
-[envs.docs.overrides]
-# Local MacOS development requires Docker containers
-platform.macos.type = { value = "container" }
-
 [envs.slotscheck]
 template = "slotscheck"
 python = "3.10"
@@ -145,6 +136,7 @@ test = [
 ]
 
 [envs.meta-testing]
+python = "3.10"
 extra-dependencies = [
     "pytest",
     "pytest-cov",
@@ -376,3 +368,15 @@ pytest = ["~=6.0", "latest"]
 [[envs.pytest_plugin_v2.matrix]]
 python = ["3.10", "3.12"]
 pytest = ["~=6.0", "~=7.0", "latest"]
+
+[envs.snapshot_viewer]
+dev-mode = false
+template = "snapshot_viewer"
+dependencies = [
+    "PrettyPrintTree"
+]
+
+[envs.snapshot_viewer.scripts]
+view = [
+    "python scripts/ci_visibility/view_snapshot.py {args:}",
+]
