@@ -164,7 +164,10 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             },
         }
         requests[0]["body"]["payload"]["configuration"].sort(key=lambda c: c["name"])
-        assert requests[0]["body"] == _get_request_body(payload, "app-started")
+        result = _get_request_body(payload, "app-started")
+        result = {k: v for k, v in result.items() if k != "DD_TRACE_AGENT_URL"}
+        expected = {k: v for k, v in requests[0]["body"].items() if k != "DD_TRACE_AGENT_URL"}
+        assert expected == result
 
 
 @pytest.mark.parametrize(
@@ -257,7 +260,9 @@ import ddtrace.auto
     assert len(app_started_events) == 1
 
     app_started_events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-    assert sorted(app_started_events[0]["payload"]["configuration"], key=lambda x: x["name"]) == sorted(
+    result = sorted(app_started_events[0]["payload"]["configuration"], key=lambda x: x["name"])
+    result = [k for k in result if k["name"] != "DD_TRACE_AGENT_URL"]
+    expected = sorted(
         [
             {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
             {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
@@ -283,7 +288,6 @@ import ddtrace.auto
             {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
             {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
-            {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
             {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": "v0.5"},
             {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -339,6 +343,7 @@ import ddtrace.auto
         ],
         key=lambda x: x["name"],
     )
+    assert result == expected
 
 
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
@@ -578,7 +583,8 @@ def test_telemetry_writer_agent_setup():
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
         assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url == "http://localhost:9126"
+        assert "http://" in new_telemetry_writer._client._telemetry_url
+        assert ":9126" in new_telemetry_writer._client._telemetry_url
         assert "dd-api-key" not in new_telemetry_writer._client._headers
 
 

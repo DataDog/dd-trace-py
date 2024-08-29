@@ -215,6 +215,10 @@ jobs:
         if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_RATE_LIMITER
 
+      - name: Run APPSEC_STANDALONE
+        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_STANDALONE
+
       - name: Run APPSEC_RUNTIME_ACTIVATION
         if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RUNTIME_ACTIVATION
