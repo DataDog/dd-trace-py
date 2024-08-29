@@ -53,6 +53,7 @@ RUN \
       python-openssl\
       unixodbc-dev \
       wget \
+      vim \
       zlib1g-dev \
   # Install Mariadb
   && wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup \
@@ -69,10 +70,18 @@ RUN \
 RUN curl https://sh.rustup.rs -sSf | \
     sh -s -- --default-toolchain stable -y
 
+# Get pyenv
+RUN git clone --depth 1 --branch v2.4.10 https://github.com/pyenv/pyenv "${PYENV_ROOT}"
+
+## Copy patches
+# COPY ./0001-hamt_pref_err.3.11.5.patch ${PYENV_ROOT}/plugins/python-build/share/python-build/patches/3.11.5/Python-3.11.5/
+COPY ./0001-hamt_pref_err.3.9.19.patch ${PYENV_ROOT}/plugins/python-build/share/python-build/patches/3.9.19/Python-3.9.19/
+
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch v2.4.2 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
-  && cd /root \
-  && pyenv local | xargs -L 1 pyenv install \
+#ENV PYTHON_CONFIGURE_OPTS="--with-pydebug"
+RUN  cd /root \
+  && export CFLAGS="${CFLAGS} -ggdb3" \
+  && pyenv local | xargs -L 1 pyenv install || (cat /tmp/python-build.*.log && false) \
   && cd -
 
 RUN if [ "$TARGETARCH" = "amd64" ]; \

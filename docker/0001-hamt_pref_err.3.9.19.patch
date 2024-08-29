@@ -1,0 +1,281 @@
+diff --git a/Include/internal/pycore_hamt.h b/Include/internal/pycore_hamt.h
+index 357d9661627..696b6199265 100644
+--- a/Include/internal/pycore_hamt.h
++++ b/Include/internal/pycore_hamt.h
+@@ -5,6 +5,12 @@
+ #  error "this header requires Py_BUILD_CORE define"
+ #endif
+ 
++// David's logging utilities
++void print_err(const char *msg);
++void print_err_ptr(const char *msg, void *ptr);
++void print_err_str(const char *msg, const char *str);
++char is_ptr_bad(void *ptr);
++
+ 
+ /*
+ HAMT tree is shaped by hashes of keys. Every group of 5 bits of a hash denotes
+diff --git a/Python/context.c b/Python/context.c
+index bacc7010c45..6dd084f941f 100644
+--- a/Python/context.c
++++ b/Python/context.c
+@@ -266,12 +266,57 @@ PyContextVar_Set(PyObject *ovar, PyObject *val)
+         return NULL;
+     }
+ 
++    // Log some diagnostic information, possibly
++    if (is_ptr_bad(ovar)) {
++        print_err_ptr("PyContextVar_Set, invalid ptr", ovar);
++        PyErr_SetString(PyExc_RuntimeError, "bad pointer (ovar)");
++        return NULL;
++    }
++    if (is_ptr_bad(val)) {
++        print_err_ptr("PyContextVar_Set, invalid ptr", val);
++        PyErr_SetString(PyExc_RuntimeError, "bad pointer (val)");
++        return NULL;
++    }
++    if (is_ptr_bad(ctx)) {
++        print_err_ptr("PyContextVar_Set, invalid ptr", ctx);
++        PyErr_SetString(PyExc_RuntimeError, "bad pointer (ctx)");
++        return NULL;
++    }
++
++    // Check refcount
++    if (ovar && Py_REFCNT(ovar) <= 0) {
++        print_err_ptr("PyContextVar_Set, invalid refcount", ovar);
++        PyErr_SetString(PyExc_RuntimeError, "bad refcount (ovar)");
++        return NULL;
++    }
++    if (val && Py_REFCNT(val) <= 0) {
++        print_err_ptr("PyContextVar_Set, invalid refcount", val);
++        PyErr_SetString(PyExc_RuntimeError, "bad refcount (val)");
++        return NULL;
++    }
++    if (ctx && Py_REFCNT(ctx) <= 0) {
++        print_err_ptr("PyContextVar_Set, invalid refcount", ctx);
++        PyErr_SetString(PyExc_RuntimeError, "bad refcount (ctx)");
++        return NULL;
++    }
++
+     PyObject *old_val = NULL;
+     int found = _PyHamt_Find(ctx->ctx_vars, (PyObject *)var, &old_val);
+     if (found < 0) {
+         return NULL;
+     }
+ 
++    if (is_ptr_bad(old_val)) {
++        print_err_ptr("PyContextVar_Set, invalid ptr", old_val);
++        PyErr_SetString(PyExc_RuntimeError, "bad pointer (old_val)");
++        return NULL;
++    }
++    if (old_val && Py_REFCNT(old_val) <= 0) {
++        print_err_ptr("PyContextVar_Set, invalid refcount", old_val);
++        PyErr_SetString(PyExc_RuntimeError, "bad refcount (old_val)");
++        return NULL;
++    }
++
+     Py_XINCREF(old_val);
+     PyContextToken *tok = token_new(ctx, var, old_val);
+     Py_XDECREF(old_val);
+diff --git a/Python/hamt.c b/Python/hamt.c
+index 3296109f726..4da8fa5dd0a 100644
+--- a/Python/hamt.c
++++ b/Python/hamt.c
+@@ -4,6 +4,88 @@
+ #include "pycore_object.h"        // _PyObject_GC_TRACK()
+ #include <stddef.h>               // offsetof()
+ 
++
++#include <errno.h>
++#include <sys/uio.h>
++#include <unistd.h>
++#include <fcntl.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++
++
++// The logging interfaces below are written to avoid any allocation, as we are trying to diagnose
++// memory corruption issues.
++int log_fd = -1;
++__attribute__((constructor))
++void logutils_init()
++{
++    char log_path[32];
++    snprintf(log_path, sizeof(log_path), "/tmp/ddtrace.%d.log", getpid());
++    log_fd = open(log_path, O_CREAT | O_APPEND | O_WRONLY, 0644);
++}
++
++void
++print_err(const char *msg)
++{
++    write(log_fd, msg, strlen(msg));
++    write(log_fd, "\n", 1);
++}
++
++void
++print_err_ptr(const char *msg, void *ptr)
++{
++    static char hex[] = "0123456789abcdef";
++    uintptr_t addr = (uintptr_t)ptr;
++    write(log_fd, msg, strlen(msg));
++    write(log_fd, ": 0x", 4);
++    for (size_t i = 0; i < sizeof(void *) * 2; i++) {
++        write(log_fd, &hex[(addr >> (4 * (sizeof(void *) * 2 - 1 - i))) & 0xf], 1);
++    }
++    write(log_fd, "\n", 1);
++}
++
++void
++print_err_str(const char *msg, const char *str)
++{
++    write(log_fd, msg, strlen(msg));
++    write(log_fd, ": ", 2);
++    write(log_fd, str, strlen(str));
++    write(log_fd, "\n", 1);
++}
++
++char
++is_ptr_bad(void *ptr)
++{
++    // only checks non-NULL pointers
++    if (ptr == NULL) {
++        return 0;
++    }
++    static char msg[] = "read X bytes";
++    static size_t msg_ptr = 5;
++    static char buf[16] = {0};
++    struct iovec local[1];
++    struct iovec remote[1];
++    local[0].iov_base = buf;
++    local[0].iov_len = sizeof(buf);
++    remote[0].iov_base = ptr;
++    remote[0].iov_len = sizeof(void *);
++    ssize_t nread = process_vm_readv(getpid(), local, 1, remote, 1, 0);
++    if (nread == -1) {
++        print_err_ptr("<ERR> is_ptr_bad", ptr);
++        print_err_str("    strerror", strerror(errno));
++        return 1;
++    } else if (nread != sizeof(void *)) {
++        print_err_ptr("<ERR> is_ptr_bad", ptr);
++        msg[msg_ptr] = '0' + nread;
++        print_err_str("    read", msg);
++        return 1;
++    }
++    if (-1 == process_vm_readv(getpid(), local, 1, remote, 1, 0)) {
++        return 1;
++    }
++    return 0;
++}
++
+ /*
+ This file provides an implementation of an immutable mapping using the
+ Hash Array Mapped Trie (or HAMT) datastructure.
+@@ -598,7 +680,34 @@ hamt_node_bitmap_clone(PyHamtNode_Bitmap *node)
+         return NULL;
+     }
+ 
++    // Record the address of the clone node
++    print_err_ptr("hamt_node_bitmap_clone", clone);
++
++    // Check that the node is even valid
++    if (is_ptr_bad(node)) {
++        print_err_ptr("    <ERR> invalid pointer (node)", node);
++        PyErr_SetString(PyExc_SystemError, "hamt_node_bitmap_clone: invalid pointer (node)");
++        return NULL;
++    }
++
+     for (i = 0; i < Py_SIZE(node); i++) {
++        if (is_ptr_bad(node->b_array[i])) {
++            // Print some diagnostic information about `node`, such as its type and other details
++            print_err("    <ERR>");
++            print_err_ptr("    invalid pointer (node->b_array[i])", node->b_array[i]);
++            print_err_str("    node->ob_base.ob_base.ob_type->tp_name", node->ob_base.ob_base.ob_type->tp_name);
++            PyErr_SetString(PyExc_SystemError, "hamt_node_bitmap_clone: child node is not a valid pointer");
++            return NULL;
++        }
++        if (node->b_array[i] && node->b_array[i]->ob_refcnt <= 0) {
++            print_err("    <ERR>");
++            print_err_ptr("    child node has 0 refcnt", node->b_array[i]);
++            PyErr_SetString(PyExc_SystemError, "hamt_node_bitmap_clone: child node has 0 refcnt");
++            return NULL;
++        }
++
++        print_err_ptr("    clone child node", node->b_array[i]);
++
+         Py_XINCREF(node->b_array[i]);
+         clone->b_array[i] = node->b_array[i];
+     }
+@@ -714,6 +823,43 @@ hamt_node_bitmap_assoc(PyHamtNode_Bitmap *self,
+        'added_leaf' is later used in '_PyHamt_Assoc' to determine if
+        `hamt.set(key, val)` increased the size of the collection.
+     */
++    print_err("hamt_node_bitmap_assoc");
++    if (is_ptr_bad(self)) {
++        print_err("    <ERR>");
++        print_err_ptr("    invalid pointer (self)", self);
++        PyErr_SetString(PyExc_SystemError, "hamt_node_bitmap_assoc: invalid pointer (self)");
++        return NULL;
++    }
++    if (self && Py_REFCNT(self) <= 0) {
++        print_err("    <ERR>");
++        print_err_ptr("    (self) refcnt is 0", self);
++        PyErr_SetString(PyExc_SystemError, "hamt_node_bitmap_assoc: refcnt is 0");
++        return NULL;
++    }
++    if (is_ptr_bad(key)) {
++        print_err("    <ERR>");
++        print_err_ptr("    invalid pointer (key)", key);
++        PyErr_SetString(PyExc_SystemError, "hamt_node_bitmap_assoc: invalid pointer (key)");
++        return NULL;
++    }
++    if (key && Py_REFCNT(key) <= 0) {
++        print_err("    <ERR>");
++        print_err_ptr("    (key) refcnt is 0", key);
++        PyErr_SetString(PyExc_SystemError, "hamt_node_bitmap_assoc: refcnt is 0");
++        return NULL;
++    }
++    if (is_ptr_bad(val)) {
++        print_err("    <ERR>");
++        print_err_ptr("    invalid pointer (val)", val);
++        PyErr_SetString(PyExc_SystemError, "hamt_node_bitmap_assoc: invalid pointer (val)");
++        return NULL;
++    }
++    if (val && Py_REFCNT(val) <= 0) {
++        print_err("    <ERR>");
++        print_err_ptr("    (val) refcnt is 0", val);
++        PyErr_SetString(PyExc_SystemError, "hamt_node_bitmap_assoc: refcnt is 0");
++        return NULL;
++    }
+ 
+     uint32_t bit = hamt_bitpos(hash, shift);
+     uint32_t idx = hamt_bitindex(self->b_bitmap, bit);
+@@ -2050,6 +2196,7 @@ hamt_node_assoc(PyHamtNode *node,
+        This method automatically dispatches to the suitable
+        hamt_node_{nodetype}_assoc method.
+     */
++    print_err_ptr("hamt_node_assoc", node);
+ 
+     if (IS_BITMAP_NODE(node)) {
+         return hamt_node_bitmap_assoc(
+@@ -2324,6 +2471,21 @@ _PyHamt_Assoc(PyHamtObject *o, PyObject *key, PyObject *val)
+         return NULL;
+     }
+ 
++    if (is_ptr_bad(key)) {
++        print_err_ptr("Invalid pointer (key)", key);
++        PyErr_SetString(PyExc_SystemError, "_PyHamt_Assoc: Invalid pointer (key)");
++        return NULL;
++    }
++    if (is_ptr_bad(val)) {
++        print_err_ptr("Invalid pointer (val)", val);
++        PyErr_SetString(PyExc_SystemError, "_PyHamt_Assoc: Invalid pointer (key)");
++        return NULL;
++    }
++    print_err_ptr("_PyHamt_Assoc key: ", key);
++    print_err_str("    type", Py_TYPE(key)->tp_name);
++    print_err_ptr("_PyHamt_Assoc val: ", val);
++    print_err_str("    type", Py_TYPE(val)->tp_name);
++
+     new_root = hamt_node_assoc(
+         (PyHamtNode *)(o->h_root),
+         0, key_hash, key, val, &added_leaf);
