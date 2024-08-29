@@ -1035,11 +1035,11 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
 async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
-    config = get_argument_value(args, kwargs, 1, "config") if len(args) >= 2 else None
+    tool_config = get_argument_value(args, kwargs, 1, "config", optional=True)
 
     span = integration.trace(
         pin,
-        "%s.%s.%s.%s" % (func.__module__, func.__class__.__name__, func.__name__, func.__self__.name),
+        "%s" % func.__self__.name,
         interface_type="tool",
         submit_to_llmobs=True,
     )
@@ -1065,8 +1065,8 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         if integration.is_pc_sampled_span(span):
             if tool_input:
                 span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
-            if config:
-                span.set_tag_str("langchain.request.config", json.dumps(config))
+            if tool_config:
+                span.set_tag_str("langchain.request.config", json.dumps(tool_config))
         tool_output = await func(*args, **kwargs)
         if tool_output is not None:
             if integration.is_pc_sampled_span(span):
