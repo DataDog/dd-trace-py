@@ -8,7 +8,7 @@ api_split_text(const StrType& text, const optional<StrType>& separator, const op
     const auto split = text.attr("split");
     const auto split_result = split(separator, maxsplit);
 
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return split_result;
     }
@@ -26,7 +26,7 @@ api_rsplit_text(const StrType& text, const optional<StrType>& separator, const o
 {
     const auto rsplit = text.attr("rsplit");
     const auto split_result = rsplit(separator, maxsplit);
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return split_result;
     }
@@ -43,7 +43,7 @@ api_splitlines_text(const StrType& text, bool keepends)
 {
     const auto splitlines = text.attr("splitlines");
     const auto split_result = splitlines(keepends);
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return split_result;
     }

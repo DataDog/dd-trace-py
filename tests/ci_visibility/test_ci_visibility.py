@@ -628,6 +628,7 @@ class TestCheckEnabledFeatures:
         },
         REQUESTS_MODE.EVP_PROXY_EVENTS: {
             "X-Datadog-EVP-Subdomain": "api",
+            "Content-Type": "application/json",
         },
     }
 

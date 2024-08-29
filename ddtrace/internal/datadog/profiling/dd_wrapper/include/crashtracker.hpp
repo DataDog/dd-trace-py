@@ -32,6 +32,7 @@ class Crashtracker
 {
   private:
     bool create_alt_stack = false;
+    bool wait_for_receiver = true;
     std::optional<std::string> stderr_filename{ std::nullopt };
     std::optional<std::string> stdout_filename{ std::nullopt };
     std::string path_to_receiver_binary;
@@ -71,6 +72,7 @@ class Crashtracker
     void set_library_version(std::string_view _library_version);
     void set_url(std::string_view _url);
     void set_tag(std::string_view _key, std::string_view _value);
+    void set_wait_for_receiver(bool _wait);
 
     void set_create_alt_stack(bool _create_alt_stack);
     void set_stderr_filename(std::string_view _stderr_filename);
