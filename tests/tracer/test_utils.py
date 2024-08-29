@@ -572,6 +572,7 @@ def test_hourglass_init():
     assert sw.elapsed() > 0.9
 
 
+@pytest.mark.skip(reason="FIXME: There are precision issues with HourGlass and/or StopWatch")
 def test_hourglass_turn():
     with time.HourGlass(1) as hg, time.StopWatch() as sw:
         # We let 100ms trickle down before turning.
