@@ -245,7 +245,7 @@ async def test_getmany_multiple_messages_multiple_topics(producer, tracer, kafka
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-async def test_getone_without_distributed_tracing(producer, consumer, kafka_topic, tracer):
+async def test_distributed_tracing_headers_disabled(producer, consumer, kafka_topic, tracer):
     with override_config("aiokafka", dict(distributed_tracing_enabled=False)):
         await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
         await producer.stop()
@@ -260,8 +260,8 @@ async def test_getone_without_distributed_tracing(producer, consumer, kafka_topi
         assert propagation_asserted is False
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-async def test_getone_with_distributed_tracing_no_headers(producer, consumer, kafka_topic, tracer):
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.tracestate"])
+async def test_distributed_tracing_headers_enabled(producer, consumer, kafka_topic, tracer):
     with override_config("aiokafka", dict(distributed_tracing_enabled=True)):
         await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
         await producer.stop()
@@ -276,8 +276,8 @@ async def test_getone_with_distributed_tracing_no_headers(producer, consumer, ka
         assert propagation_asserted is True
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-async def test_getone_with_distributed_tracing_with_headers(producer, consumer, kafka_topic, tracer):
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.tracestate"])
+async def test_distributed_tracing_headers_with_additional_headers(producer, consumer, kafka_topic, tracer):
     with override_config("aiokafka", dict(distributed_tracing_enabled=True)):
         await producer.send_and_wait(
             kafka_topic, value=PAYLOAD, key=KEY, headers=[("some_header", "some_value".encode("utf-8"))]
@@ -294,9 +294,30 @@ async def test_getone_with_distributed_tracing_with_headers(producer, consumer, 
         assert propagation_asserted is True
 
 
-@pytest.mark.skip(reason="datastreams not implemented yet")
+async def test_distributed_tracing_parent_span(producer, consumer, kafka_topic, dummy_tracer):
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+    with override_config("aiokafka", dict(distributed_tracing_enabled=True)):
+        await producer.send_and_wait(
+            kafka_topic, value=PAYLOAD, key=KEY, headers=[("some_header", "some_value".encode("utf-8"))]
+        )
+        await producer.stop()
+        await consumer.getone()
+        await consumer.commit()
+
+        traces = dummy_tracer.pop_traces()
+
+        assert 2 == len(traces)
+
+        send_and_wait_span = traces[0][0]
+        getone_span = traces[1][0]
+
+        assert getone_span.parent_id == send_and_wait_span.span_id
+
+
 @pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
 @pytest.mark.parametrize("enable_auto_commit", [True, False])
+@pytest.mark.skip(reason="data streams not implemented yet")
 async def test_data_streams_kafka(
     dsm_processor, consumer, producer, kafka_topic, distributed_tracing_enabled, enable_auto_commit
 ):
