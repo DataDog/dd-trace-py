@@ -1,4 +1,4 @@
 class Schema:
-    def __init__(self, definition, id):
+    def __init__(self, definition, _id):
         self.definition = definition
-        self.id = id
+        self.id = _id
