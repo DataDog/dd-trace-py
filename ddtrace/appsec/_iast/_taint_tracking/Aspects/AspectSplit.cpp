@@ -4,20 +4,27 @@
 #include <iostream>  // JJJ
 
 
-static std::pair<py::object, const int> get_separator_maxsplit_from_args(const py::tuple& args, const py::kwargs& kwargs)
+static std::pair<py::object, py::object> get_separator_maxsplit_from_args(const py::tuple& args, const py::kwargs& kwargs)
 {
+    cerr << "JJJ getsep1 \n";
     py::object separator;
     if (kwargs.contains("separator")) {
+    cerr << "JJJ getsep2 \n";
         separator = kwargs["separator"];
     } else {
+    cerr << "JJJ getsep3 \n";
         if (args.size() > 1) {
+    cerr << "JJJ getsep4 \n";
             separator = args[1];
         } else {
+    cerr << "JJJ getsep5 \n";
             separator = py::none();
         }
+    cerr << "JJJ getsep6 \n";
     }
 
-    const int max_split = kwargs.contains("maxsplit") ? kwargs["maxsplit"].cast<int>() : args.size() > 2 ? py::cast<int>(args[2]) : -1;
+    auto max_split = kwargs.contains("maxsplit") ? kwargs["maxsplit"] : args.size() > 2 ? args[2] : py::int_(-1);
+    cerr << "JJJ getsep7 \n";
     return std::make_pair(separator, max_split);
 }
 
@@ -73,12 +80,11 @@ split_text_common(const py::object& orig_function,
     }
 
     cerr << "JJJ 1.5\n";
-    // JJJ ERROR HERE
-    // const auto& text = py::cast<StrType>(args_tuple[0]);
     const auto& text = args_tuple[0];
 
     cerr << "JJJ 2\n";
     auto [separator, max_split] = get_separator_maxsplit_from_args(args_tuple, kwargs);
+    cerr << "JJJ 2.5 separator: " << py::str(separator) << ", max_split: " << py::str(max_split) << "\n";
     py::object result_o = text.attr(split_func.c_str())(separator, max_split);
     cerr << "JJJ 3, result_o: " << py::str(result_o) << "\n";
 
