@@ -685,7 +685,7 @@ class CIVisibility(Service):
                 span.set_tag(test.CODEOWNERS, json.dumps(handles))
             else:
                 log.debug("no matching codeowners for %s", location)
-        except KeyError:
+        except:  # noqa: E722
             log.debug("Error setting codeowners for %s", location, exc_info=True)
 
     @classmethod
