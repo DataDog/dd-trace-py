@@ -1,6 +1,6 @@
 [[
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_1",
     "trace_id": 0,
@@ -52,7 +52,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_2",
     "trace_id": 1,
@@ -102,7 +102,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_3",
     "trace_id": 2,
@@ -155,7 +155,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_3",
     "trace_id": 3,
@@ -208,7 +208,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_3",
     "trace_id": 4,
@@ -261,7 +261,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_3",
     "trace_id": 5,
@@ -314,7 +314,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_4",
     "trace_id": 6,
@@ -367,7 +367,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_4",
     "trace_id": 7,
@@ -417,7 +417,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_4",
     "trace_id": 8,
@@ -516,9 +516,9 @@
     "start": 1723819319175817754
   },
      {
-       "name": "ci_visibility.module",
+       "name": "test_visibility.module",
        "service": "default_ci_visibility_service",
-       "resource": "ci_visibility.module",
+       "resource": "test_visibility.module",
        "trace_id": 9,
        "span_id": 2,
        "parent_id": 1,
@@ -560,9 +560,9 @@
        "start": 1723819319176282379
      },
         {
-          "name": "ci_visibility.suite",
+          "name": "test_visibility.suite",
           "service": "default_ci_visibility_service",
-          "resource": "ci_visibility.suite",
+          "resource": "test_visibility.suite",
           "trace_id": 9,
           "span_id": 5,
           "parent_id": 2,
@@ -604,9 +604,9 @@
           "start": 1723819319176306504
         },
      {
-       "name": "ci_visibility.module",
+       "name": "test_visibility.module",
        "service": "default_ci_visibility_service",
-       "resource": "ci_visibility.module",
+       "resource": "test_visibility.module",
        "trace_id": 9,
        "span_id": 3,
        "parent_id": 1,
@@ -648,9 +648,9 @@
        "start": 1723819319177826171
      },
         {
-          "name": "ci_visibility.suite",
+          "name": "test_visibility.suite",
           "service": "default_ci_visibility_service",
-          "resource": "ci_visibility.suite",
+          "resource": "test_visibility.suite",
           "trace_id": 9,
           "span_id": 6,
           "parent_id": 3,
@@ -692,9 +692,9 @@
           "start": 1723819319177845963
         },
      {
-       "name": "ci_visibility.module",
+       "name": "test_visibility.module",
        "service": "default_ci_visibility_service",
-       "resource": "ci_visibility.module",
+       "resource": "test_visibility.module",
        "trace_id": 9,
        "span_id": 4,
        "parent_id": 1,
@@ -736,9 +736,9 @@
        "start": 1723819319178619296
      },
         {
-          "name": "ci_visibility.suite",
+          "name": "test_visibility.suite",
           "service": "default_ci_visibility_service",
-          "resource": "ci_visibility.suite",
+          "resource": "test_visibility.suite",
           "trace_id": 9,
           "span_id": 7,
           "parent_id": 4,
@@ -780,9 +780,9 @@
           "start": 1723819319178636879
         },
         {
-          "name": "ci_visibility.suite",
+          "name": "test_visibility.suite",
           "service": "default_ci_visibility_service",
-          "resource": "ci_visibility.suite",
+          "resource": "test_visibility.suite",
           "trace_id": 9,
           "span_id": 8,
           "parent_id": 4,
@@ -825,7 +825,7 @@
         }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_1",
     "trace_id": 10,
@@ -877,7 +877,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_2",
     "trace_id": 11,
@@ -933,7 +933,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_2",
     "trace_id": 12,
@@ -986,7 +986,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_2",
     "trace_id": 13,
@@ -1039,7 +1039,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_2",
     "trace_id": 14,
@@ -1092,7 +1092,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_2",
     "trace_id": 15,
@@ -1145,7 +1145,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_3",
     "trace_id": 16,
@@ -1201,7 +1201,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_1",
     "trace_id": 17,
@@ -1253,7 +1253,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_2",
     "trace_id": 18,
@@ -1305,7 +1305,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_3",
     "trace_id": 19,
@@ -1357,7 +1357,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_1",
     "trace_id": 20,
@@ -1409,7 +1409,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_2",
     "trace_id": 21,
@@ -1461,7 +1461,7 @@
   }],
 [
   {
-    "name": "ci_visibility.test",
+    "name": "test_visibility.test",
     "service": "default_ci_visibility_service",
     "resource": "test_3",
     "trace_id": 22,
