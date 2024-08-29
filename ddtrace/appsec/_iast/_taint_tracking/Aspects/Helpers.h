@@ -176,6 +176,39 @@ as_formatted_evidence(StrType& text,
     return StrType(EVIDENCE_MARKS::BLANK).attr("join")(res_vector);
 }
 
+inline PyObject*
+process_args(PyObject* orig_function, const int flag_added_args, PyObject* args, PyObject* kwargs)
+{
+    // If orig_function is not None and not the built-in str, slice args
+    if (orig_function != Py_None && orig_function != (PyObject*)&PyUnicode_Type) {
+        if (flag_added_args > 0) {
+            Py_ssize_t num_args = PyTuple_Size(args);
+            PyObject* sliced_args = PyTuple_New(num_args - flag_added_args);
+            for (Py_ssize_t i = 0; i < num_args - flag_added_args; ++i) {
+                PyTuple_SET_ITEM(sliced_args, i, PyTuple_GetItem(args, i + flag_added_args));
+                Py_INCREF(PyTuple_GetItem(args, i + flag_added_args)); // Increment reference count
+            }
+            // Call the original function with the sliced args and return its result
+            PyObject* result = PyObject_Call(orig_function, sliced_args, kwargs);
+            Py_DECREF(sliced_args);
+            return result;
+        }
+        // Else: call the original function with all args if no slicing is needed
+        return PyObject_Call(orig_function, args, kwargs);
+    }
+
+    // If orig_function is None or the built-in str, just return args for further processing
+    Py_INCREF(args); // Increment reference count before returning
+    return args;
+}
+
+inline py::object
+process_args(py::object orig_function, const int flag_added_args, py::object args, py::object kwargs)
+{
+    PyObject* result = process_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
+    return py::reinterpret_borrow<py::object>(result);
+}
+
 void
 pyexport_aspect_helpers(py::module& m);
 

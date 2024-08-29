@@ -2,6 +2,7 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
+from http.cookiejar import split_header_words
 from re import Match
 from re import Pattern
 from types import BuiltinFunctionType
@@ -59,6 +60,7 @@ _extend_aspect = aspects.extend_aspect
 index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
 slice_aspect = aspects.slice_aspect
+split_aspect = _aspect_split
 ospathjoin_aspect = _aspect_ospathjoin
 ospathbasename_aspect = _aspect_ospathbasename
 ospathdirname_aspect = _aspect_ospathdirname
@@ -95,34 +97,34 @@ __all__ = [
 # TODO: Factorize the "flags_added_args" copypasta into a decorator
 
 
-def split_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[List[TEXT_TYPES], TEXT_TYPES]:
-    if orig_function is not None:
-        if orig_function != builtin_str:
-            if flag_added_args > 0:
-                args = args[flag_added_args:]
-            return orig_function(*args, **kwargs)
-    try:
-        # re.split aspect, either with pattern as first arg or with re module
-        if isinstance(args[0], Pattern) or (
-            isinstance(args[0], ModuleType) and args[0].__name__ == "re" and args[0].__package__ in ("", "re")
-        ):
-            result = args[0].split(*args[1:], **kwargs)
-            offset = 0
-            if isinstance(args[0], Pattern):
-                offset = -1
-
-            if len(args) >= (3 + offset) and is_pyobject_tainted(args[2 + offset]):
-                for i in result:
-                    if len(i):
-                        copy_and_shift_ranges_from_strings(args[2 + offset], i, 0, len(i))
-            return result
-
-        return _aspect_split(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. split_aspect. {}".format(e))
-        return args[0].split(*args[1:], **kwargs)
+# def split_aspect(
+#     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+# ) -> Union[List[TEXT_TYPES], TEXT_TYPES]:
+#     if orig_function is not None:
+#         if orig_function != builtin_str:
+#             if flag_added_args > 0:
+#                 args = args[flag_added_args:]
+#             return orig_function(*args, **kwargs)
+#     try:
+#         # re.split aspect, either with pattern as first arg or with re module
+#         if isinstance(args[0], Pattern) or (
+#             isinstance(args[0], ModuleType) and args[0].__name__ == "re" and args[0].__package__ in ("", "re")
+#         ):
+#             result = args[0].split(*args[1:], **kwargs)
+#             offset = 0
+#             if isinstance(args[0], Pattern):
+#                 offset = -1
+#
+#             if len(args) >= (3 + offset) and is_pyobject_tainted(args[2 + offset]):
+#                 for i in result:
+#                     if len(i):
+#                         copy_and_shift_ranges_from_strings(args[2 + offset], i, 0, len(i))
+#             return result
+#
+#         return _aspect_split(*args, **kwargs)
+#     except Exception as e:
+#         iast_taint_log_error("IAST propagation error. split_aspect. {}".format(e))
+#         return args[0].split(*args[1:], **kwargs)
 
 
 def rsplit_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
