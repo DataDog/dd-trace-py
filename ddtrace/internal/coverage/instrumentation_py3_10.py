@@ -357,11 +357,12 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
             seen_lines.update(nested_lines)
 
-    code = code.replace(
-        co_code=bytes(new_code),
-        co_consts=tuple(new_consts),
-        co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-        co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
+    return (
+        code.replace(
+            co_code=bytes(new_code),
+            co_consts=tuple(new_consts),
+            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+            co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
+        ),
+        seen_lines,
     )
-
-    return code, seen_lines
