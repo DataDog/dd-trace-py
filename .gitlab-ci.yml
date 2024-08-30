@@ -5,6 +5,7 @@ stages:
   - benchmarks
   - macrobenchmarks
   - dogfood
+  - release
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
@@ -12,12 +13,13 @@ include:
   - local: ".gitlab/package.yml"
   - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/dogfood.yml"
+  - local: ".gitlab/release.yml"
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
 
 package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_wheels ]
+  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
 onboarding_tests_installer:
   parallel:

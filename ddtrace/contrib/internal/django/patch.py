@@ -6,6 +6,7 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
+
 import functools
 from inspect import getmro
 from inspect import isclass
@@ -121,8 +122,10 @@ def patch_conn(django, conn):
     settings_dict = getattr(conn, "settings_dict", {})
     for tag, attr in DB_CONN_ATTR_BY_TAG.items():
         if attr in settings_dict:
-            tags[tag] = trace_utils._convert_to_string(conn.settings_dict.get(attr))
-
+            try:
+                tags[tag] = trace_utils._convert_to_string(conn.settings_dict.get(attr))
+            except Exception:
+                tags[tag] = str(conn.settings_dict.get(attr))
     conn._datadog_tags = tags
 
     def cursor(django, pin, func, instance, args, kwargs):

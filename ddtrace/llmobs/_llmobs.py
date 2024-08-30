@@ -11,6 +11,7 @@ from ddtrace import config
 from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
+from ddtrace.internal import forksafe
 from ddtrace.internal import telemetry
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
@@ -82,11 +83,22 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
+        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
+        forksafe.register(self._child_after_fork)
+
+    def _child_after_fork(self):
+        self._llmobs_span_writer = self._llmobs_span_writer.recreate()
+        self._trace_processor._span_writer = self._llmobs_span_writer
+        self.tracer.configure(settings={"FILTERS": [self._trace_processor]})
+        try:
+            self._llmobs_span_writer.start()
+        except ServiceStatusError:
+            log.debug("Error starting LLMObs span writer after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [LLMObsTraceProcessor(self._llmobs_span_writer)]
+            tracer_filters += [self._trace_processor]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
@@ -102,6 +114,7 @@ class LLMObs(Service):
             log.debug("Error stopping LLMObs writers")
 
         try:
+            forksafe.unregister(self._child_after_fork)
             self.tracer.shutdown()
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)

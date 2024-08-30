@@ -101,5 +101,13 @@ class CrashtrackingConfig(En):
         "This is generally useful only for dd-trace-py development.",
     )
 
+    wait_for_receiver = En.v(
+        bool,
+        "wait_for_receiver",
+        default=True,
+        help_type="Boolean",
+        help="Whether to wait for the crashtracking receiver",
+    )
+
 
 config = CrashtrackingConfig()
