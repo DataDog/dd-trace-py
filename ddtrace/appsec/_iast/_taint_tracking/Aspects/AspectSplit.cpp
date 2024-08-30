@@ -37,7 +37,6 @@ handle_potential_re_split(const py::tuple& args,
     return std::nullopt;
 }
 
-template<class StrType>
 static py::object
 split_text_common(const py::object& orig_function,
                   const int flag_added_args,
@@ -80,7 +79,6 @@ split_text_common(const py::object& orig_function,
     });
 }
 
-template<class StrType>
 py::list
 api_splitlines_text(const py::object& orig_function,
                     const int flag_added_args,
@@ -128,26 +126,8 @@ pyexport_aspect_split(py::module& m)
 {
     m.def(
       "_aspect_split",
-      [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
-          return split_text_common<py::str>(orig_function, flag_added_args, args, kwargs, "split");
-      },
-      "orig_function"_a = py::none(),
-      "flag_added_args"_a = 0,
-      py::return_value_policy::move);
-
-    m.def(
-      "_aspect_split",
-      [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
-          return split_text_common<py::bytes>(orig_function, flag_added_args, args, kwargs, "split");
-      },
-      "orig_function"_a = py::none(),
-      "flag_added_args"_a = 0,
-      py::return_value_policy::move);
-
-    m.def(
-      "_aspect_split",
-      [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
-          return split_text_common<py::bytearray>(orig_function, flag_added_args, args, kwargs, "split");
+      [](const py::object& orig_function, const int flag_added_args, const py::args& args, const py::kwargs& kwargs) {
+          return split_text_common(orig_function, flag_added_args, args, kwargs, "split");
       },
       "orig_function"_a = py::none(),
       "flag_added_args"_a = 0,
@@ -155,33 +135,15 @@ pyexport_aspect_split(py::module& m)
 
     m.def(
       "_aspect_rsplit",
-      [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
-          return split_text_common<py::str>(orig_function, flag_added_args, args, kwargs, "rsplit");
-      },
-      "orig_function"_a = py::none(),
-      "flag_added_args"_a = 0,
-      py::return_value_policy::move);
-
-    m.def(
-      "_aspect_rsplit",
-      [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
-          return split_text_common<py::bytes>(orig_function, flag_added_args, args, kwargs, "rsplit");
-      },
-      "orig_function"_a = py::none(),
-      "flag_added_args"_a = 0,
-      py::return_value_policy::move);
-
-    m.def(
-      "_aspect_rsplit",
-      [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
-          return split_text_common<py::bytearray>(orig_function, flag_added_args, args, kwargs, "rsplit");
+      [](const py::object& orig_function, const int flag_added_args, const py::args& args, const py::kwargs& kwargs) {
+          return split_text_common(orig_function, flag_added_args, args, kwargs, "rsplit");
       },
       "orig_function"_a = py::none(),
       "flag_added_args"_a = 0,
       py::return_value_policy::move);
 
     m.def("_aspect_splitlines",
-          &api_splitlines_text<py::str>,
+          &api_splitlines_text,
           "orig_function"_a = py::none(),
           "flag_added_args"_a = 0,
           py::return_value_policy::move);
