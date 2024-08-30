@@ -21,7 +21,6 @@ from typing import Dict
 from typing import List
 from typing import NamedTuple
 from typing import Optional
-from typing import Tuple
 from typing import Type
 from typing import Union
 
@@ -43,6 +42,7 @@ from ddtrace.ext.ci_visibility._utils import _set_item_tags
 from ddtrace.ext.test import Status as TestStatus
 from ddtrace.internal import core
 from ddtrace.internal.codeowners import Codeowners
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -421,13 +421,23 @@ class CIITRMixin(CIBase):
 
     class AddCoverageArgs(NamedTuple):
         item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
-        coverage_data: Dict[Path, List[Tuple[int, int]]]
+        coverage_data: Dict[Path, CoverageLines]
 
     @staticmethod
     @_catch_and_log_exceptions
-    def add_coverage_data(item_id: Union[CISuiteId, CITestId], coverage_data: Dict[Path, List[Tuple[int, int]]]):
+    def add_coverage_data(item_id: Union[CISuiteId, CITestId], coverage_data: Dict[Path, CoverageLines]):
         log.debug("Adding coverage data for item %s: %s", item_id, coverage_data)
         core.dispatch("ci_visibility.item.add_coverage_data", (CIITRMixin.AddCoverageArgs(item_id, coverage_data),))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_coverage_data(item_id: Union[CISuiteId, CITestId]) -> Optional[Dict[Path, CoverageLines]]:
+        log.debug("Getting coverage data for item %s", item_id)
+        coverage_data = core.dispatch_with_results(
+            "ci_visibility.item.get_coverage_data", (item_id,)
+        ).coverage_data.value
+        log.debug("Coverage data for item %s: %s", item_id, coverage_data)
+        return coverage_data
 
 
 class CISuite(CIITRMixin, CIBase):

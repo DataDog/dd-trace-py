@@ -1,0 +1,6 @@
+tracer:
+  extends: .test_base_riot
+  parallel: 9
+  variables:
+    DD_TRACE_AGENT_URL: "http://localhost:8126"
+    SUITE_NAME: "tracer"

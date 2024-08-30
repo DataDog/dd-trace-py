@@ -9,7 +9,6 @@ from typing import Dict
 from typing import Generic
 from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
@@ -34,6 +33,7 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -431,7 +431,7 @@ class CIVisibilityItemBase(abc.ABC):
         return None
 
     @abc.abstractmethod
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
+    def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
         pass
 
     @_require_span
@@ -439,9 +439,14 @@ class CIVisibilityItemBase(abc.ABC):
         if self._span is None:
             return
         if self._coverage_data:
-            self._span.set_tag_str(
+            self._span.set_struct_tag(
                 COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.workspace_path)
             )
+
+    def get_coverage_data(self) -> Optional[Dict[Path, CoverageLines]]:
+        if self._coverage_data is None:
+            return None
+        return self._coverage_data.get_data()
 
 
 class CIVisibilityChildItem(CIVisibilityItemBase, Generic[CIDT]):

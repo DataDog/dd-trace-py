@@ -6,6 +6,7 @@ from pathlib import Path
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Union  # noqa:F401
@@ -45,6 +46,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
 from .. import agent
+from ..coverage.lines import CoverageLines
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .api.ci_module import CIVisibilityModule
@@ -80,7 +82,6 @@ from .writer import CIVisibilityWriter
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import DefaultDict  # noqa:F401
-    from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
     from typing import Tuple  # noqa:F401
 
@@ -329,6 +330,7 @@ class CIVisibility(Service):
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                "Content-Type": "application/json",
             }
             log.debug("Making EVP request to agent: url=%s, headers=%s", url, _headers)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
@@ -479,6 +481,7 @@ class CIVisibility(Service):
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                "Content-Type": "application/json",
             }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
@@ -680,8 +683,10 @@ class CIVisibility(Service):
             handles = cls._instance._codeowners.of(location)
             if handles:
                 span.set_tag(test.CODEOWNERS, json.dumps(handles))
-        except KeyError:
-            log.debug("no matching codeowners for %s", location)
+            else:
+                log.debug("no matching codeowners for %s", location)
+        except:  # noqa: E722
+            log.debug("Error setting codeowners for %s", location, exc_info=True)
 
     @classmethod
     def add_session(cls, session: CIVisibilitySession):
@@ -1126,6 +1131,12 @@ def _register_item_handlers():
 
 
 @_requires_civisibility_enabled
+def _on_get_coverage_data(item_id: Union[CISuiteId, CITestId]) -> Optional[Dict[Path, CoverageLines]]:
+    log.debug("Handling get coverage data for item %s", item_id)
+    return CIVisibility.get_item_by_id(item_id).get_coverage_data()
+
+
+@_requires_civisibility_enabled
 def _on_add_coverage_data(add_coverage_args: CIITRMixin.AddCoverageArgs):
     """Adds coverage data to an item, merging with existing coverage data if necessary"""
     item_id = add_coverage_args.item_id
@@ -1142,6 +1153,7 @@ def _on_add_coverage_data(add_coverage_args: CIITRMixin.AddCoverageArgs):
 
 def _register_coverage_handlers():
     log.debug("Registering coverage handlers")
+    core.on("ci_visibility.item.get_coverage_data", _on_get_coverage_data, "coverage_data")
     core.on("ci_visibility.item.add_coverage_data", _on_add_coverage_data)
 
 
