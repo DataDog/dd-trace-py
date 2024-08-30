@@ -9,8 +9,8 @@ from types import FrameType
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Optional
-from typing import Tuple
 from typing import Union
 from typing import cast
 from uuid import uuid4
@@ -22,6 +22,8 @@ from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
+from ddtrace.debugging._safety import get_args
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
@@ -52,13 +54,12 @@ class Signal(abc.ABC):
     frame: FrameType
     thread: Thread
     trace_context: Optional[Union[Span, Context]] = None
-    args: Optional[List[Tuple[str, Any]]] = None
     state: str = SignalState.NONE
     errors: List[EvaluationError] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
 
-    def _eval_condition(self, _locals: Optional[Dict[str, Any]] = None) -> bool:
+    def _eval_condition(self, scope: Optional[Mapping[str, Any]] = None) -> bool:
         """Evaluate the probe condition against the collected frame."""
         probe = cast(ProbeConditionMixin, self.probe)
         condition = probe.condition
@@ -66,7 +67,7 @@ class Signal(abc.ABC):
             return True
 
         try:
-            if bool(condition.eval(_locals or self.frame.f_locals)):
+            if bool(condition.eval(scope)):
                 return True
         except DDExpressionEvaluationError as e:
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
@@ -80,19 +81,22 @@ class Signal(abc.ABC):
 
         return False
 
-    def _enrich_locals(self, retval, exc_info, duration):
+    def get_full_scope(self, retval: Any, exc_info: ExcInfoType, duration: float) -> Mapping[str, Any]:
         frame = self.frame
-        _locals = dict(frame.f_locals)
-        _locals["@duration"] = duration / 1e6  # milliseconds
+        extra: Dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
 
         exc = exc_info[1]
         if exc is not None:
-            _locals["@exception"] = exc
+            extra["@exception"] = exc
         else:
-            _locals["@return"] = retval
+            extra["@return"] = retval
 
-        # Include the frame globals.
-        return ChainMap(_locals, frame.f_globals)
+        # Include the frame locals and globals.
+        return ChainMap(extra, frame.f_locals, frame.f_globals)
+
+    @property
+    def args(self):
+        return dict(get_args(self.frame))
 
     @abc.abstractmethod
     def enter(self):
