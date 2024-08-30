@@ -603,14 +603,6 @@ jobs:
       - run_test:
           pattern: "sourcecode"
 
-  telemetry:
-    parallelism: 6
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "telemetry"
-          snapshot: true
-
   debugger:
     <<: *contrib_job
     steps:
@@ -876,14 +868,6 @@ jobs:
           pattern: "dramatiq"
           snapshot: true
           docker_services: "redis"
-
-  fastapi:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "fastapi"
-          snapshot: true
 
   flask:
     <<: *machine_executor
