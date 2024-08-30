@@ -1,4 +1,5 @@
 #pragma once
+#include <sstream>
 #include <utility>
 
 #include <pybind11/stl.h>
@@ -148,8 +149,8 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRa
 inline void
 copy_and_shift_ranges_from_strings(const py::handle& str_1,
                                    const py::handle& str_2,
-                                   int offset,
-                                   int new_length,
+                                   const int offset,
+                                   const int new_length,
                                    const TaintRangeMapTypePtr& tx_map)
 {
     if (!tx_map)

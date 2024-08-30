@@ -26,7 +26,7 @@ handle_potential_re_split(const py::tuple& args,
         if (const int offset = isinstance(args[0], re_pattern_type) ? -1 : 0;
             args.size() >= (static_cast<size_t>(3) + offset) && is_tainted(args[2 + offset].ptr(), tx_map)) {
             for (auto& i : result) {
-                if (!i.is_none()) {
+                if (!i.is_none() and len(i) > 0) {
                     copy_and_shift_ranges_from_strings(args[2 + offset], i, 0, len(i), tx_map);
                 }
             }
@@ -71,7 +71,7 @@ split_text_common(const py::object& orig_function,
             return result_o;
         }
 
-        if (auto ranges = api_get_ranges(text); !ranges.empty()) {
+        if (const auto ranges = api_get_ranges(text); !ranges.empty()) {
             set_ranges_on_splitted(text, ranges, result_o, tx_map, false);
         }
 
