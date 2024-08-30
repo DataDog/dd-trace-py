@@ -135,9 +135,9 @@ class Snapshot(LogSignal):
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
             return
 
-        _args = self.args
+        scope = ChainMap(self.args, frame.f_globals)
 
-        if not self._eval_condition(_args):
+        if not self._eval_condition(scope):
             return
 
         if probe.limiter.limit() is RateLimitExceeded:
@@ -148,7 +148,7 @@ class Snapshot(LogSignal):
             self.entry_capture = _capture_context(frame, (None, None, None), limits=probe.limits)
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.ENTER:
-            self._eval_message(_args)
+            self._eval_message(scope)
             self.state = SignalState.DONE
 
     def exit(self, retval, exc_info, duration):
