@@ -394,17 +394,24 @@ class Tracer(object):
     def debug_logging(self):
         return log.isEnabledFor(logging.DEBUG)
 
-    def current_trace_context(self, *args, **kwargs) -> Optional[Context]:
+    def current_trace_context(self, *args, **kwargs) -> Context:
         """Return the context for the current trace.
 
-        If there is no active trace then None is returned.
+        If there is no active trace then a new context is returned.
         """
         active = self.context_provider.active()
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
             return active.context
-        return None
+        else:
+            log.error(
+                """No active trace context found. Creating a new context. This is unexpected behavior.
+                      This function should only be called when there is an expected active trace
+                      context to be returned."""
+            )
+            # instead of returning None, we are now returning a new Context
+            return Context()
 
     def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.

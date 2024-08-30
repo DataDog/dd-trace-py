@@ -708,3 +708,92 @@ def _is_top_level(span: Span) -> bool:
     return (span._local_root is span) or (
         span._parent is not None and span._parent.service != span.service and span.service is not None
     )
+
+
+class NonRecordingSpan(object):
+    def __init__(self, *args, **kwargs):
+        self.context = kwargs.pop("context", None)
+
+    @property
+    def resource(self) -> None:
+        pass
+
+    @resource.setter
+    def resource(self, value: str) -> None:
+        pass
+
+    @property
+    def finished(self) -> None:
+        pass
+
+    @finished.setter
+    def finished(self, value: bool) -> None:
+        pass
+
+    def finish(self, finish_time: Optional[float] = None) -> None:
+        pass
+
+    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
+        pass
+
+    #  questionable: ask asm (since it's mostly used by them)
+    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+        pass
+
+    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+        return {}
+
+    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+        pass
+
+    def get_tag(self, key: _TagNameType) -> None:
+        return None
+
+    def get_tags(self) -> _MetaDictType:
+        return {}
+
+    def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
+        pass
+
+    def set_metric(self, key: _TagNameType, value: NumericType) -> None:
+        pass
+
+    def get_metric(self, key: _TagNameType) -> None:
+        return None
+
+    def set_metrics(self, metrics: _MetricDictType) -> None:
+        pass
+
+    def get_metrics(self) -> _MetricDictType:
+        return {}
+
+    def set_traceback(self, limit: Optional[int] = None):
+        pass
+
+    def set_exc_info(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
+    ) -> None:
+        pass
+
+    @property
+    def context(self) -> Context:
+        return self.context
+
+    def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
+        pass
+
+    def set_link(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        pass
+
+    def finish_with_ancestors(self) -> None:
+        pass
+
+    def __repr__(self) -> str:
+        return f"NonRecordingSpan({self.context!r})"
