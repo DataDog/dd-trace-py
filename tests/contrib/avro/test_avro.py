@@ -1,6 +1,8 @@
 import avro
-from avro.datafile import DataFileReader, DataFileWriter
-from avro.io import DatumReader, DatumWriter
+from avro.datafile import DataFileReader
+from avro.datafile import DataFileWriter
+from avro.io import DatumReader
+from avro.io import DatumWriter
 from wrapt import ObjectProxy
 
 from ddtrace import Pin
@@ -8,8 +10,20 @@ from ddtrace.contrib.avro.patch import patch
 from ddtrace.contrib.avro.patch import unpatch
 
 
-OPENAPI_USER_SCHEMA_DEF = "{\"openapi\": \"3.0.0\", \"components\": {\"schemas\": {\"example.avro.User\": {\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}, \"favorite_number\": {\"type\": \"string\"}, \"favorite_color\": {\"type\": \"string\"}}}}}}"
-OPENAPI_ADVANCED_USER_SCHEMA_DEF = "{\"openapi\": \"3.0.0\", \"components\": {\"schemas\": {\"example.avro.AdvancedUser\": {\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}, \"age\": {\"type\": \"integer\", \"format\": \"int32\"}, \"email\": {\"type\": \"string\", \"nullable\": true}, \"height\": {\"type\": \"number\", \"format\": \"float\"}, \"preferences\": {\"type\": \"object\", \"additionalProperties\": {\"type\": \"string\"}, \"description\": \"Map type\"}, \"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}, \"status\": {\"type\": \"string\", \"enum\": [\"ACTIVE\", \"INACTIVE\", \"BANNED\"]}, \"profile_picture\": {\"type\": \"string\", \"format\": \"byte\"}, \"metadata\": {\"type\": \"string\"}, \"address\": {\"type\": \"object\", \"properties\": {\"street\": {\"type\": \"string\"}, \"city\": {\"type\": \"string\"}, \"zipcode\": {\"type\": \"string\"}}}}}}}}"
+OPENAPI_USER_SCHEMA_DEF = (
+    '{"openapi": "3.0.0", "components": {"schemas": {"example.avro.User": {"type": "object", "properties": '
+    '{"name": {"type": "string"}, "favorite_number": {"type": "string"}, "favorite_color": {"type": "string"}}}}}}'
+)
+
+OPENAPI_ADVANCED_USER_SCHEMA_DEF = (
+    '{"openapi": "3.0.0", "components": {"schemas": {"example.avro.AdvancedUser": {"type": "object", "properties": '
+    '{"name": {"type": "string"}, "age": {"type": "integer", "format": "int32"}, "email": {"type": "string", '
+    '"nullable": true}, "height": {"type": "number", "format": "float"}, "preferences": {"type": "object", '
+    '"additionalProperties": {"type": "string"}, "description": "Map type"}, "tags": {"type": "array", "items": '
+    '{"type": "string"}}, "status": {"type": "string", "enum": ["ACTIVE", "INACTIVE", "BANNED"]}, "profile_picture": '
+    '{"type": "string", "format": "byte"}, "metadata": {"type": "string"}, "address": {"type": "object", "properties": '
+    '{"street": {"type": "string"}, "city": {"type": "string"}, "zipcode": {"type": "string"}}}}}}}}'
+)
 
 
 def test_patching():
@@ -74,7 +88,20 @@ def test_advanced_schema_serialize(tracer, test_spans):
     schema = avro.schema.parse(open("schemas/advanced_user.avsc", "rb").read())
 
     writer = DataFileWriter(open("advanced_users.avro", "wb"), writer, schema)
-    writer.append({"name": "Alyssa", "age": 30, "email": "alyssa@example.com", "height": 5.6, "preferences": {"theme": "dark", "notifications": "enabled"}, "tags": ["vip", "premium"], "status": "ACTIVE", "profile_picture": b"binarydata", "metadata": b"metadata12345678", "address": {"street": "123 Main St", "city": "Metropolis", "zipcode": "12345"}})
+    writer.append(
+        {
+            "name": "Alyssa",
+            "age": 30,
+            "email": "alyssa@example.com",
+            "height": 5.6,
+            "preferences": {"theme": "dark", "notifications": "enabled"},
+            "tags": ["vip", "premium"],
+            "status": "ACTIVE",
+            "profile_picture": b"binarydata",
+            "metadata": b"metadata12345678",
+            "address": {"street": "123 Main St", "city": "Metropolis", "zipcode": "12345"},
+        }
+    )
     writer.close()
 
     # Check if there is exactly one trace (in this context, one span)
