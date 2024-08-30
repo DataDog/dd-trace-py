@@ -64,6 +64,7 @@ variables:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
   script:
     - sleep 60
+    - !reference [.test_base_riot, script]
 
 include:
   - local: ".gitlab/tests/appsec.yml"
