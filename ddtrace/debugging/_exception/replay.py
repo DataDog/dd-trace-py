@@ -211,7 +211,10 @@ class SpanExceptionHandler:
     @classmethod
     def enable(cls) -> None:
         if cls._instance is not None:
+            log.debug("SpanExceptionHandler already enabled")
             return
+
+        log.debug("Enabling SpanExceptionHandler")
 
         instance = cls()
 
@@ -223,7 +226,10 @@ class SpanExceptionHandler:
     @classmethod
     def disable(cls) -> None:
         if cls._instance is None:
+            log.debug("SpanExceptionHandler already disabled")
             return
+
+        log.debug("Disabling SpanExceptionHandler")
 
         instance = cls._instance
 
