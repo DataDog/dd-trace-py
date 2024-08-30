@@ -12,6 +12,7 @@ on:
       - test-mq-main
       - 'upgrade-latest-*'
   pull_request:
+  merge_group:
   release:
     types:
       - published
