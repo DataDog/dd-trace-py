@@ -11,7 +11,7 @@ from tests.utils import DummyWriter
 
 
 if __name__ == "__main__":
-    r = redis.Redis(port=REDIS_CONFIG["port"])
+    r = redis.Redis(host=REDIS_CONFIG["host"], port=REDIS_CONFIG["port"])
     pin = Pin.get_from(r)
     assert pin
 
