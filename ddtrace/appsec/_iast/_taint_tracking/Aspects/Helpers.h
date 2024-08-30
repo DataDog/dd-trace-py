@@ -205,12 +205,6 @@ process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyOb
     return args;
 }
 
-inline py::object
-process_flag_added_args(py::object orig_function, const int flag_added_args, py::object args, py::object kwargs)
-{
-    PyObject* result = process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
-    return py::reinterpret_borrow<py::object>(result);
-}
 void
 pyexport_aspect_helpers(py::module& m);
 

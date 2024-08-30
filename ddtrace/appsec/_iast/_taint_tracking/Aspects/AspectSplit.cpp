@@ -79,13 +79,14 @@ split_text_common(const py::object& orig_function,
     });
 }
 
-py::list
+py::object
 api_splitlines_text(const py::object& orig_function,
                     const int flag_added_args,
                     const py::args& args,
                     const py::kwargs& kwargs)
 {
-    const py::object result_or_args = process_flag_added_args(orig_function, flag_added_args, args, kwargs);
+    const auto result_or_args = py::reinterpret_borrow<py::object>(
+      process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr()));
 
     py::tuple args_tuple;
     if (py::isinstance<py::tuple>(result_or_args)) {
@@ -95,14 +96,6 @@ api_splitlines_text(const py::object& orig_function,
     }
 
     const auto& text = args_tuple[0];
-    bool keepends = false;
-    if (kwargs.contains("keepends")) {
-        keepends = kwargs["keepends"].cast<bool>();
-    } else {
-        if (args.size() > 1) {
-            keepends = args[1].cast<bool>();
-        }
-    }
     const py::tuple sliced_args = len(args) > 1 ? args[py::slice(1, len(args), 1)] : py::tuple();
     py::object result_o = text.attr("splitlines")(*sliced_args, **kwargs);
 
@@ -116,7 +109,30 @@ api_splitlines_text(const py::object& orig_function,
         if (ranges_error || ranges.empty()) {
             return result_o;
         }
-        set_ranges_on_splitted(text, ranges, result_o, tx_map, keepends);
+
+        // Retrieve keepends and check that is a boolean. If not, return the original value
+        // because it could be a method of a different type.
+        bool keepends_is_other_type = false;
+        bool keepends = false;
+        if (kwargs.contains("keepends")) {
+            if (py::isinstance<py::bool_>(kwargs["keepends"])) {
+                keepends = kwargs["keepends"].cast<bool>();
+            } else {
+                keepends_is_other_type = true;
+            }
+        } else {
+            if (args.size() > 1) {
+                if (py::isinstance<py::bool_>(args[1])) {
+                    keepends = args[1].cast<bool>();
+                } else {
+                    keepends_is_other_type = true;
+                }
+            }
+        }
+
+        if (!keepends_is_other_type) {
+            set_ranges_on_splitted(text, ranges, result_o, tx_map, keepends);
+        }
         return result_o;
     });
 }

@@ -2,7 +2,7 @@
 
 #include "Helpers.h"
 
-py::list
+py::object
 api_splitlines_text(const py::object& orig_function,
                     int flag_added_args,
                     const py::args& args,
