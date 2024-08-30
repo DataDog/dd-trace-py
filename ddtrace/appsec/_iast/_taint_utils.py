@@ -335,10 +335,12 @@ class LazyTaintList:
 
 class LazyTaintDict:
     def __init__(self, original_dict, origins=(0, 0), override_pyobject_tainted=False):
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+
         self._obj = original_dict
         self._origins = origins
-        self._origin_key = origins[0]
-        self._origin_value = origins[1]
+        self._origin_key = origins[0] if origins[0] else OriginType.PARAMETER_NAME
+        self._origin_value = origins[1] if origins[1] else OriginType.PARAMETER
         self._override_pyobject_tainted = override_pyobject_tainted
 
     def _taint(self, value, key, origin=None):
@@ -358,10 +360,6 @@ class LazyTaintDict:
                             source_value=value,
                             source_origin=origin,
                         )
-                    except SystemError:
-                        # TODO: Find the root cause for
-                        # SystemError: NULL object passed to Py_BuildValue
-                        log.debug("IAST SystemError while tainting value: %s", value, exc_info=True)
                     except Exception:
                         log.debug("IAST Unexpected exception while tainting value", exc_info=True)
             elif isinstance(value, abc.Mapping) and not _is_tainted_struct(value):

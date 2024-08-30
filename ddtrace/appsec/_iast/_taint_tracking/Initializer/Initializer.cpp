@@ -70,7 +70,7 @@ Initializer::clear_tainting_maps()
 int
 Initializer::num_objects_tainted()
 {
-    if (const auto ctx_map = initializer->get_tainting_map()) {
+    if (const auto ctx_map = get_tainting_map()) {
         return static_cast<int>(ctx_map->size());
     }
     return 0;
@@ -79,7 +79,7 @@ Initializer::num_objects_tainted()
 string
 Initializer::debug_taint_map()
 {
-    const auto ctx_map = initializer->get_tainting_map();
+    const auto ctx_map = get_tainting_map();
     if (!ctx_map) {
         return ("[]");
     }
@@ -222,9 +222,9 @@ void
 pyexport_initializer(py::module& m)
 {
     m.def("clear_tainting_maps", [] { initializer->clear_tainting_maps(); });
-    m.def("debug_taint_map", [] { return initializer->debug_taint_map(); });
+    m.def("debug_taint_map", [] { return Initializer::debug_taint_map(); });
 
-    m.def("num_objects_tainted", [] { return initializer->num_objects_tainted(); });
+    m.def("num_objects_tainted", [] { return Initializer::num_objects_tainted(); });
     m.def("initializer_size", [] { return initializer->initializer_size(); });
     m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
 

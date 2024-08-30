@@ -20,6 +20,7 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
+from .._taint_tracking import _aspect_modulo
 from .._taint_tracking import _aspect_ospathbasename
 from .._taint_tracking import _aspect_ospathdirname
 from .._taint_tracking import _aspect_ospathjoin
@@ -66,6 +67,7 @@ ospathsplitext_aspect = _aspect_ospathsplitext
 ospathsplitdrive_aspect = _aspect_ospathsplitdrive
 ospathsplitroot_aspect = _aspect_ospathsplitroot
 ospathnormcase_aspect = _aspect_ospathnormcase
+modulo_aspect = _aspect_modulo
 
 __all__ = [
     "add_aspect",
@@ -78,6 +80,7 @@ __all__ = [
     "ospathjoin_aspect",
     "_aspect_split",
     "_aspect_rsplit",
+    "modulo_aspect",
     "_aspect_splitlines",
     "ospathbasename_aspect",
     "ospathdirname_aspect",
@@ -252,44 +255,6 @@ def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: 
     except Exception as e:
         iast_taint_log_error("IAST propagation error. extend_aspect. {}".format(e))
         return op1.extend(op2)
-
-
-def modulo_aspect(candidate_text: Text, candidate_tuple: Any) -> Any:
-    if not isinstance(candidate_text, IAST.TEXT_TYPES):
-        return candidate_text % candidate_tuple
-
-    try:
-        if isinstance(candidate_tuple, tuple):
-            parameter_list = candidate_tuple
-        else:
-            parameter_list = (candidate_tuple,)
-
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, parameter_list)
-        if not ranges_orig:
-            return candidate_text % candidate_tuple
-
-        return _convert_escaped_text_to_tainted_text(
-            as_formatted_evidence(
-                candidate_text,
-                candidate_text_ranges,
-                tag_mapping_function=TagMappingMode.Mapper,
-            )
-            % tuple(
-                (
-                    as_formatted_evidence(
-                        parameter,
-                        tag_mapping_function=TagMappingMode.Mapper,
-                    )
-                    if isinstance(parameter, IAST.TEXT_TYPES)
-                    else parameter
-                )
-                for parameter in parameter_list
-            ),
-            ranges_orig=ranges_orig,
-        )
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. modulo_aspect. {}".format(e))
-        return candidate_text % candidate_tuple
 
 
 def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:

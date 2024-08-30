@@ -1,9 +1,6 @@
-from pathlib import Path
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
@@ -77,5 +74,5 @@ class CIVisibilitySession(CIVisibilityParentItem[CIModuleId, CIVisibilityModule]
             is_unsupported_ci=self._session_settings.is_unsupported_ci,
         )
 
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
-        raise NotImplementedError("Coverage data cannot be added to sessions.")
+    def add_coverage_data(self, *args, **kwargs):
+        raise NotImplementedError("Coverage data cannot be added to modules.")

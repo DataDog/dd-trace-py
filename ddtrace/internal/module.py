@@ -214,20 +214,6 @@ class _ImportHookChainedLoader:
         for callback in self.callbacks.values():
             callback(module)
 
-    def import_exception_call_back(self, module: ModuleType) -> None:
-        # Restore the original loader
-        try:
-            module.__loader__ = self.loader
-        except AttributeError:
-            pass
-        try:
-            module.spec.loader = self.loader
-        except AttributeError:
-            pass
-
-        for import_exception_callback in self.import_exception_callbacks.values():
-            import_exception_callback(module)
-
     def load_module(self, fullname: str) -> t.Optional[ModuleType]:
         if self.loader is None:
             if self.spec is None:

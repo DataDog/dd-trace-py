@@ -246,7 +246,6 @@ class Tracer(object):
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
-                priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if (self._compute_stats or self._apm_opt_out) else {},
@@ -472,12 +471,18 @@ class Tracer(object):
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
-        :param priority_sampling: enable priority sampling, this is required for
-            complete distributed tracing support. Enabled by default.
+        :param priority_sampling: This argument is deprecated and will be removed in a future version.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
         """
         if enabled is not None:
             self.enabled = enabled
+
+        if priority_sampling is not None:
+            deprecate(
+                "Configuring priority sampling on tracing clients is deprecated",
+                version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         if settings is not None:
             self._filters = settings.get("FILTERS") or self._filters
@@ -544,7 +549,6 @@ class Tracer(object):
                 api_version = "v0.4"
             self._writer = AgentWriter(
                 self._agent_url,
-                priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
