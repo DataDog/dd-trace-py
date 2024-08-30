@@ -581,8 +581,11 @@ def test_agent_session(telemetry_writer, request):
     for try_nb in range(MAX_RETRY):
         print("attempting to start session")
         try:
+            print(conn)
             conn.request("GET", "/test/session/start?test_session_token=%s" % token)
+            print("did request")
             conn.getresponse()
+            print("got response")
             break
         except BaseException:
             if try_nb == MAX_RETRY - 1:
