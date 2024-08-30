@@ -514,7 +514,9 @@ def django_check(all_issues, display_num_errors=False):
             (
                 "no issues"
                 if visible_issue_count == 0
-                else "1 issue" if visible_issue_count == 1 else "%s issues" % visible_issue_count
+                else "1 issue"
+                if visible_issue_count == 1
+                else "%s issues" % visible_issue_count
             ),
             len(all_issues) - visible_issue_count,
         )
@@ -554,7 +556,9 @@ def django_check_simple_formatted_multiple_ifs(f):
         (
             "no issues"
             if visible_issue_count == 0
-            else "1 issue" if visible_issue_count == 1 else "%s issues" % visible_issue_count
+            else "1 issue"
+            if visible_issue_count == 1
+            else "%s issues" % visible_issue_count
         ),
         5 - visible_issue_count,
     )
