@@ -502,6 +502,8 @@ class TelemetryTestSession(object):
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
+        print(parsed.hostname)
+        print(parsed.port)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method, url):
