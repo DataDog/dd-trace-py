@@ -125,7 +125,7 @@ def _on_iast_fastapi_patch():
     try_wrap_function_wrapper(
         "starlette.requests",
         "cookie_parser",
-        functools.partial(_patched_dictionary, (OriginType.COOKIE_NAME, OriginType.COOKIE)),
+        functools.partial(_patched_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
     )
     try_wrap_function_wrapper(
         "fastapi",

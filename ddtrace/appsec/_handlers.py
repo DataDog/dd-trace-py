@@ -256,7 +256,7 @@ def _on_flask_patch(flask_version):
             _w(
                 "werkzeug.wrappers.request",
                 "Request.get_json",
-                functools.partial(_patched_dictionary, (OriginType.BODY, OriginType.BODY)),
+                functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
             )
 
             _set_metric_iast_instrumented_source(OriginType.BODY)
