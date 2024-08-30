@@ -1,4 +1,17 @@
-fastapi:
+elasticsearch:
   extends: .test_base_riot_snapshot
+  parallel: 17
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - name: elasticsearch:7.17.13
+      alias: elasticsearch
+      variables:
+        discovery.type: single-node
+        xpack.security.enabled: false
+    - name: opensearchproject/opensearch:1.3.6
+      alias: opensearch
+      variables:
+        DISABLE_SECURITY_PLUGIN: true
+        discovery.type: single-node
   variables:
-    SUITE_NAME: "fastapi"
+    SUITE_NAME: "elasticsearch"
