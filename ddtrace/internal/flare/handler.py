@@ -10,6 +10,10 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+def _hellow_world():
+    return 1
+
+
 def _tracerFlarePubSub():
     from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
