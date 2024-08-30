@@ -4,7 +4,7 @@ internal:
     SUITE_NAME: "internal"
 
 telemetry:
-  extends: .test_base_riot
+  extends: .test_base_riot_snapshot
   parallel: 4
   variables:
     SUITE_NAME: "telemetry"

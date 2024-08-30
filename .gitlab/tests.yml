@@ -28,6 +28,9 @@ variables:
         DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
     - name: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
       alias: testagent
+      command:
+        - >
+          for i in $(seq 30); do date; ls ${SNAPSHOT_DIR} || true; sleep 2; done;
       variables:
         DD_HOSTNAME: testagent
         LOG_LEVEL: INFO
@@ -35,7 +38,7 @@ variables:
         SNAPSHOT_CI: 1
         PORT: 9126
         DD_POOL_TRACE_CHECK_FAILURES: true
-        DD_TRACE_AGENT_URL: http://ddagent:8126
+        DD_TRACE_AGENT_URL: "http://ddagent:8126"
         DD_DISABLE_ERROR_RESPONSES: true
         ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
   script:
@@ -52,6 +55,16 @@ variables:
         riot list "${hash}"
         ${RIOT_RUN_CMD} "${hash}"
       done
+
+.test_base_riot_snapshot:
+  extends: .test_base_riot
+  needs: []
+  before_script:
+    - !reference [.testrunner, before_script]
+    # DEV: Export here instead of via variables to avoid forwarding testagent requests to ddagent
+    - export DD_TRACE_AGENT_URL="http://testagent:9126"
+  script:
+    - sleep 60
 
 include:
   - local: ".gitlab/tests/appsec.yml"
