@@ -631,17 +631,6 @@ jobs:
           pattern: 'opentelemetry'
           snapshot: true
 
-  profile:
-    <<: *contrib_job
-    resource_class: large
-    # There are 32 jobs, so 2 per-node
-    parallelism: 16
-    steps:
-      - run_test:
-          # We don't want to run the profile-diff venvs
-          pattern: 'profile$'
-          trace_agent_url: ""
-
   integration_agent:
     <<: *machine_executor
     parallelism: 2
