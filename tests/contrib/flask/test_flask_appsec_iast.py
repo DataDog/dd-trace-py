@@ -815,7 +815,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                         iterate_json(item, parent_key)
                 else:
                     assert is_pyobject_tainted(parent_key), f"{parent_key} taint error"
-                    if type(data) == str:
+                    if isinstance(data, str):
                         assert is_pyobject_tainted(data), f"{parent_key}.{data} taint error"
                     else:
                         assert not is_pyobject_tainted(data), f"{parent_key}.{data} taint error"
