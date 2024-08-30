@@ -63,12 +63,12 @@ def test_iast_leaks(iterations: int, fail_percent: float, print_every: int):
                 "{percent_increase:.2f}% which is greater than {fail_percent}%"
             )
             return 1
-        else:
-            print(
-                f"Success: memory increase is {percent_increase:.2f}% from half-point ({half_iterations} "
-                "iterations) which is less than {fail_percent}%"
-            )
-            return 0
+
+        print(
+            f"Success: memory increase is {percent_increase:.2f}% from half-point ({half_iterations} "
+            "iterations) which is less than {fail_percent}%"
+        )
+        return 0
 
     except KeyboardInterrupt:
         print("Test interrupted.")
