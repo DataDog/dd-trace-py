@@ -8,9 +8,6 @@ from ddtrace.internal.datastreams.schemas.schema_builder import SchemaBuilder
 from ddtrace.internal.datastreams.schemas.schema_iterator import SchemaIterator
 
 
-dsm_processor = data_streams_processor()
-
-
 class SchemaExtractor(SchemaIterator):
     SERIALIZATION = "serialization"
     DESERIALIZATION = "deserialization"
@@ -38,6 +35,12 @@ class SchemaExtractor(SchemaIterator):
                 if isinstance(sub_type, dict) and sub_type.get("type") == "array":
                     type_ = "array"
                     break
+        elif field_type.type == "union":
+            type_ = "union[" + SchemaExtractor.get_type(field_type.schemas[0])
+            for schema in field_type.schemas[1:]:
+                type_ += "," + SchemaExtractor.get_type(schema)
+            type_ += "]"
+
         elif isinstance(field_type, dict):
             # Complex type (record, enum, array, map, fixed)
             type_name = field_type.get("type")
@@ -88,7 +91,7 @@ class SchemaExtractor(SchemaIterator):
 
     @staticmethod
     def extract_schemas(schema: AvroSchema) -> bool:
-        return dsm_processor.get_schema(schema.fullname, SchemaExtractor(schema))
+        return data_streams_processor().get_schema(schema.fullname, SchemaExtractor(schema))
 
     def iterate_over_schema(self, builder: SchemaBuilder):
         self.extract_schema(self.schema, builder, 0)
@@ -102,20 +105,21 @@ class SchemaExtractor(SchemaIterator):
         span.set_tag(SCHEMA_TAGS.SCHEMA_NAME, schema.fullname)
         span.set_tag(SCHEMA_TAGS.SCHEMA_OPERATION, operation)
 
-        if not dsm_processor.can_sample_schema(operation):
+        if not data_streams_processor().can_sample_schema(operation):
             return
 
         # prio = span.context.sampling_priority
         # if prio is None or prio <= 0:
         #     return
 
-        weight = dsm_processor.try_sample_schema(operation)
+        weight = data_streams_processor().try_sample_schema(operation)
         if weight == 0:
             return
 
         schema_data = SchemaExtractor.extract_schemas(schema)
+
         span.set_tag(SCHEMA_TAGS.SCHEMA_DEFINITION, schema_data.definition)
-        span.set_tag(SCHEMA_TAGS.SCHEMA_WEIGHT, weight)
+        span.set_metric(SCHEMA_TAGS.SCHEMA_WEIGHT, weight)
         span.set_tag(SCHEMA_TAGS.SCHEMA_ID, schema_data.id)
 
     @staticmethod
@@ -134,4 +138,4 @@ class SchemaExtractor(SchemaIterator):
             "array": "array",
             "map": "object",
             "fixed": "string",
-        }.get(type_, "string")
+        }.get(type_.type, "string")

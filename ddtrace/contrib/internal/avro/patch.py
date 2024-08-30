@@ -57,11 +57,11 @@ def traced_serialize(func, instance, args, kwargs):
 
     with core.context_with_data(
         "avro.write",
-        span_name="write",
+        span_name=SchemaExtractor.SERIALIZATION,
         pin=pin,
         service=trace_utils.ext_service(pin, config.avro),
         span_type=SpanTypes.REDIS,
-        resource="write",
+        resource=SchemaExtractor.SERIALIZATION,
         call_key="avro_write",
     ) as ctx, ctx[ctx["call_key"]] as span:
         # _set_span_tags(span, pin, config_integration, args, instance, query)
@@ -81,11 +81,11 @@ def traced_deserialize(func, instance, args, kwargs):
 
     with core.context_with_data(
         "avro.read",
-        span_name="read",
+        span_name=SchemaExtractor.DESERIALIZATION,
         pin=pin,
         service=trace_utils.ext_service(pin, config.avro),
         span_type="reader",
-        resource="read",
+        resource=SchemaExtractor.DESERIALIZATION,
         call_key="avro_read",
     ) as ctx, ctx[ctx["call_key"]] as span:
         # _set_span_tags(span, pin, config_integration, args, instance, query)
@@ -96,7 +96,6 @@ def traced_deserialize(func, instance, args, kwargs):
             return result
         finally:
             if config._data_streams_enabled and span:
-                breakpoint()
                 reader = instance
                 if reader:
                     SchemaExtractor.attach_schema_on_span(reader.writers_schema, span, SchemaExtractor.DESERIALIZATION)

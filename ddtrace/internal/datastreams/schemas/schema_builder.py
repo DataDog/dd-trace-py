@@ -33,7 +33,6 @@ class SchemaBuilder:
         return True
 
     def build(self):
-        breakpoint()
         self.iterator.iterate_over_schema(self)
         no_nones = convert_to_json_compatible(self.schema)
         definition = json.dumps(no_nones, default=lambda o: o.__dict__)
