@@ -2106,6 +2106,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="avro",
+            pys=select_pys(min_version="3.7", max_version="3.12"),
+            command="pytest {cmdargs} tests/contrib/avro",
+            pkgs={
+                "avro": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={

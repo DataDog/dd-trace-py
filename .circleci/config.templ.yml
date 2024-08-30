@@ -1199,6 +1199,12 @@ jobs:
           pattern: 'aredis$'
           snapshot: true
 
+  avro:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'avro$'
+
   yaaredis:
     <<: *machine_executor
     steps:
