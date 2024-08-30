@@ -176,15 +176,14 @@ def _on_iast_fastapi_patch():
 
 
 def _iast_instrument_starlette_scope(scope):
-    if _is_iast_enabled():
-        from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
-        if scope.get("path_params"):
-            try:
-                for k, v in scope["path_params"].items():
-                    scope["path_params"][k] = taint_pyobject(
-                        v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-                    )
-            except Exception:
-                log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
+    if scope.get("path_params"):
+        try:
+            for k, v in scope["path_params"].items():
+                scope["path_params"][k] = taint_pyobject(
+                    v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+                )
+        except Exception:
+            log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
