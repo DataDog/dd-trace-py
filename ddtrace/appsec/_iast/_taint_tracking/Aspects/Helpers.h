@@ -30,8 +30,8 @@ template<class StrType>
 StrType
 as_formatted_evidence(StrType& text,
                       TaintRangeRefs& text_ranges,
-                      const optional<TagMappingMode>& tag_mapping_mode,
-                      const optional<const py::dict>& new_ranges);
+                      const optional<TagMappingMode>& tag_mapping_mode = TagMappingMode::Mapper,
+                      const optional<const py::dict>& new_ranges = nullopt);
 
 template<class StrType>
 StrType
@@ -72,5 +72,143 @@ has_pyerr();
 std::string
 has_pyerr_as_string();
 
+struct EVIDENCE_MARKS
+{
+    static constexpr const char* BLANK = "";
+    static constexpr const char* START_EVIDENCE = ":+-";
+    static constexpr const char* END_EVIDENCE = "-+:";
+    static constexpr const char* LESS = "<";
+    static constexpr const char* GREATER = ">";
+};
+
+inline bool
+range_sort(const TaintRangePtr& t1, const TaintRangePtr& t2)
+{
+    return t1->start < t2->start;
+}
+
+template<class StrType>
+static StrType
+get_tag(const py::object& content)
+{
+    if (content.is_none()) {
+        return StrType(EVIDENCE_MARKS::BLANK);
+    }
+
+    if (py::isinstance<py::str>(StrType(EVIDENCE_MARKS::LESS))) {
+        return StrType(EVIDENCE_MARKS::LESS) + content.cast<py::str>() + StrType(EVIDENCE_MARKS::GREATER);
+    }
+    return StrType(EVIDENCE_MARKS::LESS) + py::bytes(content.cast<py::str>()) + StrType(EVIDENCE_MARKS::GREATER);
+}
+
+inline py::object
+get_default_content(const TaintRangePtr& taint_range)
+{
+    if (!taint_range->source.name.empty()) {
+        return py::str(taint_range->source.name);
+    }
+
+    return py::cast<py::none>(Py_None);
+}
+
+// TODO OPTIMIZATION: check if we can use instead a struct object with range_guid_map, new_ranges and default members so
+// we dont have to get the keys by string
+inline py::object
+mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>& new_ranges)
+{
+    if (!taint_range or !new_ranges) {
+        return py::none{};
+    }
+    py::object o = py::cast(taint_range);
+
+    if (!new_ranges->contains(o)) {
+        return py::none{};
+    }
+    const TaintRange new_range = py::cast<TaintRange>((*new_ranges)[o]);
+    return py::int_(new_range.get_hash());
+}
+
+// TODO OPTIMIZATION: Remove py::types once this isn't used in Python
+template<class StrType>
+StrType
+as_formatted_evidence(StrType& text,
+                      TaintRangeRefs& text_ranges,
+                      const optional<TagMappingMode>& tag_mapping_mode,
+                      const optional<const py::dict>& new_ranges)
+{
+    if (text_ranges.empty()) {
+        return text;
+    }
+    vector<StrType> res_vector;
+    long index = 0;
+
+    sort(text_ranges.begin(), text_ranges.end(), &range_sort);
+    for (const auto& taint_range : text_ranges) {
+        py::object content;
+        if (!tag_mapping_mode) {
+            content = get_default_content(taint_range);
+        } else
+            switch (*tag_mapping_mode) {
+                case TagMappingMode::Mapper:
+                    content = py::int_(taint_range->get_hash());
+                    break;
+                case TagMappingMode::Mapper_Replace:
+                    content = mapper_replace(taint_range, new_ranges);
+                    break;
+                default: {
+                    // Nothing
+                }
+            }
+        const auto tag = get_tag<StrType>(content);
+
+        const auto range_end = taint_range->start + taint_range->length;
+
+        res_vector.push_back(text[py::slice(py::int_{ index }, py::int_{ taint_range->start }, nullptr)]);
+        res_vector.push_back(StrType(EVIDENCE_MARKS::START_EVIDENCE));
+        res_vector.push_back(tag);
+        res_vector.push_back(text[py::slice(py::int_{ taint_range->start }, py::int_{ range_end }, nullptr)]);
+        res_vector.push_back(tag);
+        res_vector.push_back(StrType(EVIDENCE_MARKS::END_EVIDENCE));
+
+        index = range_end;
+    }
+    res_vector.push_back(text[py::slice(py::int_(index), nullptr, nullptr)]);
+    return StrType(EVIDENCE_MARKS::BLANK).attr("join")(res_vector);
+}
+
 void
 pyexport_aspect_helpers(py::module& m);
+
+// Yup. This is a macro. It's used to wrap the try-catch block around the aspect code to make sure no exceptions
+// escape to the user code causing a SIGABRT. This is a common pattern in the IAST codebase.
+// Why not a template function? Because performance. Even a simple one like this cause a huge increase in overhead
+// on the fastest aspects:
+
+/*
+template<typename Func, typename... Args>
+auto
+exception_wrapper(Func func, const char* aspect_name, Args... args) -> std::optional<decltype(func(args...))>
+{
+    try {
+        return func(args...);
+    } catch (const std::exception& e) {
+        iast_taint_log_error(std::string(aspect_name) + ": " + e.what());
+    } catch (...) {
+        iast_taint_log_error(std::string(aspect_name) + ": Unknown error");
+    }
+    return std::nullopt;
+}
+*/
+
+#define TRY_CATCH_ASPECT(NAME, ...)                                                                                    \
+    try {                                                                                                              \
+        __VA_ARGS__;                                                                                                   \
+    } catch (const std::exception& e) {                                                                                \
+        const std::string error_message = "IAST propagation error in " NAME ". " + std::string(e.what());              \
+        iast_taint_log_error(error_message);                                                                           \
+        return result_o;                                                                                               \
+    } catch (...) {                                                                                                    \
+        const std::string error_message = "Unknown IAST propagation error in " NAME ". ";                              \
+        iast_taint_log_error(error_message);                                                                           \
+        return result_o;                                                                                               \
+    }

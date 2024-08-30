@@ -1203,7 +1203,9 @@ def test_debugger_redacted_identifiers():
                     },
                     "@return": {"type": "str", "value": "'top secret'"},  # TODO: Ouch!
                 },
-                "staticFields": {},
+                "staticFields": {
+                    "SensitiveData": {"type": "type", "value": "<class 'tests.submod.stuff.SensitiveData'>"}
+                },
                 "throwable": None,
             },
         }

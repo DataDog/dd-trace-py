@@ -17,7 +17,6 @@ from uuid import uuid4
 
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
-from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
@@ -83,14 +82,17 @@ class Signal(abc.ABC):
 
     def _enrich_locals(self, retval, exc_info, duration):
         frame = self.frame
-        _locals = list(self.args or _safety.get_args(frame))
-        _locals.append(("@duration", duration / 1e6))  # milliseconds
+        _locals = dict(frame.f_locals)
+        _locals["@duration"] = duration / 1e6  # milliseconds
 
         exc = exc_info[1]
-        _locals.append(("@return", retval) if exc is None else ("@exception", exc))
+        if exc is not None:
+            _locals["@exception"] = exc
+        else:
+            _locals["@return"] = retval
 
-        # Include the frame locals and globals.
-        return ChainMap(dict(_locals), frame.f_locals, frame.f_globals)
+        # Include the frame globals.
+        return ChainMap(_locals, frame.f_globals)
 
     @abc.abstractmethod
     def enter(self):
@@ -135,7 +137,7 @@ class LogSignal(Signal):
         if isinstance(probe, LineLocationMixin):
             location = {
                 "file": str(probe.resolved_source_file),
-                "lines": [probe.line],
+                "lines": [str(probe.line)],
             }
         elif isinstance(probe, FunctionLocationMixin):
             location = {
