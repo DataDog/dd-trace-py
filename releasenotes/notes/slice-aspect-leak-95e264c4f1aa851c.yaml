@@ -1,0 +1,4 @@
+---
+issues:
+  - |
+    Fix a memory leak on the native slice aspect.
