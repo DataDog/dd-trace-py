@@ -164,7 +164,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         }
         requests[0]["body"]["payload"]["configuration"].sort(key=lambda c: c["name"])
         result = _get_request_body(payload, "app-started")
-        result = {k: v for k, v in result.items() if k != "DD_TRACE_AGENT_URL"}
+        result["payload"]["configuration"] = [
+            a for a in result["payload"]["configuration"] if a["name"] != "DD_TRACE_AGENT_URL"
+        ]
         expected = requests[0]["body"]
         assert expected == result
 
