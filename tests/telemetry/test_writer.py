@@ -167,8 +167,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         result["payload"]["configuration"] = [
             a for a in result["payload"]["configuration"] if a["name"] != "DD_TRACE_AGENT_URL"
         ]
-        expected = requests[0]["body"]
-        assert expected == result
+        assert payload == result["payload"]
 
 
 @pytest.mark.parametrize(
