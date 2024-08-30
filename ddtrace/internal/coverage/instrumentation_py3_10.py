@@ -116,6 +116,14 @@ def update_location_data(
             offset_delta = next(data_iter)
             line_delta = next(data_iter)
 
+            # If the current offset delta is 0, it means we are only incrementing the amount of lines jumped by the
+            # next non-zero offset. See <https://github.com/python/cpython/blob/3.10/Objects/lnotab_notes.txt>.
+            while offset_delta == 0:
+                new_data.append(offset_delta)
+                new_data.append(line_delta)
+                offset_delta = next(data_iter)
+                line_delta = next(data_iter)
+
             original_offset += offset_delta
             offset += offset_delta
             if ext_arg_offset is not None and ext_arg_size is not None and offset > ext_arg_offset:
@@ -349,12 +357,11 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
             seen_lines.update(nested_lines)
 
-    return (
-        code.replace(
-            co_code=bytes(new_code),
-            co_consts=tuple(new_consts),
-            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-            co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
-        ),
-        seen_lines,
+    code = code.replace(
+        co_code=bytes(new_code),
+        co_consts=tuple(new_consts),
+        co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+        co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
     )
+
+    return code, seen_lines
