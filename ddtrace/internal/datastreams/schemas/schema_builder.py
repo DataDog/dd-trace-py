@@ -1,7 +1,6 @@
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
-from functools import lru_cache
 import json
 from typing import Any
 from typing import Dict
@@ -16,7 +15,7 @@ from .schema_iterator import SchemaIterator
 class SchemaBuilder:
     max_depth = 10
     max_properties = 1000
-    CACHE = lru_cache(maxsize=32)
+    CACHE: Dict[str, Schema] = {}
     properties = 0
 
     def __init__(self, iterator):
@@ -34,6 +33,7 @@ class SchemaBuilder:
         return True
 
     def build(self):
+        breakpoint()
         self.iterator.iterate_over_schema(self)
         no_nones = convert_to_json_compatible(self.schema)
         definition = json.dumps(no_nones, default=lambda o: o.__dict__)

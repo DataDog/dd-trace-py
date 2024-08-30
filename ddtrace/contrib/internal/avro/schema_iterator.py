@@ -1,9 +1,11 @@
+import avro
+from avro.schema import Schema as AvroSchema
+
+from ddtrace._trace.span import Span
 from ddtrace.ext import schema as SCHEMA_TAGS
+from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.schemas.schema_builder import SchemaBuilder
 from ddtrace.internal.datastreams.schemas.schema_iterator import SchemaIterator
-from ddtrace.internal.datastreams.schemas.schema import Schema as DsmSchema
-from ddtrace.internal.datastreams import data_streams_processor
-from avro.schema import Schema as AvroSchema
 
 
 dsm_processor = data_streams_processor()
@@ -18,7 +20,7 @@ class SchemaExtractor(SchemaIterator):
         self.schema = schema
 
     @staticmethod
-    def extract_property(field, schema_name, field_name, builder, depth):
+    def extract_property(field: avro, schema_name: str, field_name: str, builder: SchemaBuilder, depth: int) -> int:
         array = False
         type_ = None
         format_ = None
@@ -26,51 +28,52 @@ class SchemaExtractor(SchemaIterator):
         ref = None
         enum_values = None
 
-        field_type = field.schema.type
-        if field_type == "RECORD":
-            type_ = "object"
-        elif field_type == "ENUM":
-            type_ = "string"
-            enum_values = field.schema.symbols
-        elif field_type == "ARRAY":
-            array = True
-            type_ = SchemaExtractor.get_type(field.schema.items.type)
-        elif field_type == "MAP":
-            type_ = "object"
-            description = "Map type"
-        elif field_type == "STRING":
-            type_ = "string"
-        elif field_type == "BYTES":
-            type_ = "string"
-            format_ = "byte"
-        elif field_type == "INT":
-            type_ = "integer"
-            format_ = "int32"
-        elif field_type == "LONG":
-            type_ = "integer"
-            format_ = "int64"
-        elif field_type == "FLOAT":
-            type_ = "number"
-            format_ = "float"
-        elif field_type == "DOUBLE":
-            type_ = "number"
-            format_ = "double"
-        elif field_type == "BOOLEAN":
-            type_ = "boolean"
-        elif field_type == "NULL":
-            type_ = "null"
-        elif field_type == "FIXED":
-            type_ = "string"
-        else:
-            type_ = "string"
-            description = "Unknown type"
+        field_type = field.type
 
-        return builder.add_property(
-            schema_name, field_name, array, type_, description, ref, format_, enum_values
-        )
+        if isinstance(field_type, list):
+            # Union type
+            array = True
+            type_ = SchemaExtractor.get_type(field_type[0].type)
+            for sub_type in field_type:
+                if isinstance(sub_type, dict) and sub_type.get("type") == "array":
+                    type_ = "array"
+                    break
+        elif isinstance(field_type, dict):
+            # Complex type (record, enum, array, map, fixed)
+            type_name = field_type.get("type")
+            if type_name == "record":
+                type_ = "object"
+            elif type_name == "enum":
+                type_ = "string"
+                enum_values = field_type.get("symbols")
+            elif type_name == "array":
+                array = True
+                type_ = SchemaExtractor.get_type(field_type.get("items"))
+            elif type_name == "map":
+                type_ = "object"
+                description = "Map type"
+            elif type_name == "fixed":
+                type_ = "string"
+            else:
+                type_ = "string"
+                description = "Unknown complex type"
+        else:
+            # Primitive type
+            type_ = SchemaExtractor.get_type(field_type)
+            if field_type == "bytes":
+                format_ = "byte"
+            elif field_type == "int":
+                format_ = "int32"
+            elif field_type == "long":
+                format_ = "int64"
+            elif field_type == "float":
+                format_ = "float"
+            elif field_type == "double":
+                format_ = "double"
+        return builder.add_property(schema_name, field_name, array, type_, description, ref, format_, enum_values)
 
     @staticmethod
-    def extract_schema(schema, builder, depth):
+    def extract_schema(schema: AvroSchema, builder: SchemaBuilder, depth: int) -> bool:
         depth += 1
         schema_name = schema.fullname
         if not builder.should_extract_schema(schema_name, depth):
@@ -84,16 +87,14 @@ class SchemaExtractor(SchemaIterator):
         return True
 
     @staticmethod
-    def extract_schemas(schema):
-        return dsm_processor.get_schema(
-            schema.fullname, SchemaExtractor(schema)
-        )
+    def extract_schemas(schema: AvroSchema) -> bool:
+        return dsm_processor.get_schema(schema.fullname, SchemaExtractor(schema))
 
-    def iterate_over_schema(self, builder):
+    def iterate_over_schema(self, builder: SchemaBuilder):
         self.extract_schema(self.schema, builder, 0)
 
     @staticmethod
-    def attach_schema_on_span(schema, span, operation):
+    def attach_schema_on_span(schema: AvroSchema, span: Span, operation: str):
         if schema is None or span is None:
             return
 
@@ -104,9 +105,9 @@ class SchemaExtractor(SchemaIterator):
         if not dsm_processor.can_sample_schema(operation):
             return
 
-        prio = span.force_sampling_decision()
-        if prio is None or prio <= 0:
-            return
+        # prio = span.context.sampling_priority
+        # if prio is None or prio <= 0:
+        #     return
 
         weight = dsm_processor.try_sample_schema(operation)
         if weight == 0:
@@ -118,7 +119,7 @@ class SchemaExtractor(SchemaIterator):
         span.set_tag(SCHEMA_TAGS.SCHEMA_ID, schema_data.id)
 
     @staticmethod
-    def get_type(type_):
+    def get_type(type_: str) -> str:
         return {
             "string": "string",
             "int": "integer",
@@ -127,4 +128,10 @@ class SchemaExtractor(SchemaIterator):
             "double": "number",
             "boolean": "boolean",
             "null": "null",
+            "bytes": "string",
+            "record": "object",
+            "enum": "string",
+            "array": "array",
+            "map": "object",
+            "fixed": "string",
         }.get(type_, "string")

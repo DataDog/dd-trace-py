@@ -1,16 +1,16 @@
-import os
-
 import avro
 import wrapt
 
 from ddtrace import config
+from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
-from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanTypes
+
 from .schema_iterator import SchemaExtractor
+
 
 config._add(
     "avro",
@@ -46,15 +46,15 @@ def unpatch():
         unwrap(avro.io.DatumReader, "read")
         unwrap(avro.io.DatumWriter, "write")
 
+
 #
 # tracing functions
 #
 def traced_serialize(func, instance, args, kwargs):
-    breakpoint()
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
-    
+
     with core.context_with_data(
         "avro.write",
         span_name="write",
@@ -66,22 +66,19 @@ def traced_serialize(func, instance, args, kwargs):
     ) as ctx, ctx[ctx["call_key"]] as span:
         # _set_span_tags(span, pin, config_integration, args, instance, query)
 
-        result = None
         try:
-            result = func(*args, **kwargs)
-            return result
+            func(*args, **kwargs)
         finally:
             if config._data_streams_enabled and span:
-                SchemaExtractor.attach_schema_on_span(
-                    kwargs.get("schema").get_schema(), span, SchemaExtractor.SERIALIZATION
-                )
+                SchemaExtractor.attach_schema_on_span(instance.writers_schema, span, SchemaExtractor.SERIALIZATION)
             # core.dispatch("redis.async_command.post", [ctx, rowcount])
+
 
 def traced_deserialize(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
-    
+
     with core.context_with_data(
         "avro.read",
         span_name="read",
@@ -99,9 +96,8 @@ def traced_deserialize(func, instance, args, kwargs):
             return result
         finally:
             if config._data_streams_enabled and span:
-                reader = kwargs.get("reader")
+                breakpoint()
+                reader = instance
                 if reader:
-                    SchemaExtractor.attach_schema_on_span(
-                        reader.get_schema(), span, SchemaExtractor.SERIALIZATION
-                    )
+                    SchemaExtractor.attach_schema_on_span(reader.writers_schema, span, SchemaExtractor.DESERIALIZATION)
             # core.dispatch("redis.async_command.post", [ctx, rowcount])
