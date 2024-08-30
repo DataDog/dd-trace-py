@@ -181,9 +181,7 @@ process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyOb
     // If orig_function is not None and not the built-in str, bytes, or bytearray, slice args
     auto orig_function_type = Py_TYPE(orig_function);
 
-    if (orig_function != Py_None &&
-        orig_function_type != &PyUnicode_Type &&
-        orig_function_type != &PyByteArray_Type &&
+    if (orig_function != Py_None && orig_function_type != &PyUnicode_Type && orig_function_type != &PyByteArray_Type &&
         orig_function_type != &PyBytes_Type) {
 
         if (flag_added_args > 0) {

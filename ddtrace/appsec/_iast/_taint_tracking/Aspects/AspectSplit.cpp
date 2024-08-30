@@ -2,8 +2,11 @@
 #include "Initializer/Initializer.h"
 #include "TaintedOps/TaintedOps.h"
 
-
-static std::optional<py::object> handle_potential_re_split(const py::tuple& args, const py::tuple& sliced_args, const py::kwargs& kwargs, const TaintRangeMapTypePtr& tx_map)
+static std::optional<py::object>
+handle_potential_re_split(const py::tuple& args,
+                          const py::tuple& sliced_args,
+                          const py::kwargs& kwargs,
+                          const TaintRangeMapTypePtr& tx_map)
 {
     const py::module re = py::module::import("re");
     const py::object re_pattern_type = re.attr("Pattern");
@@ -37,10 +40,10 @@ static std::optional<py::object> handle_potential_re_split(const py::tuple& args
 template<class StrType>
 static py::object
 split_text_common(const py::object& orig_function,
-                 const int flag_added_args,
-                 const py::args& args,
-                 const py::kwargs& kwargs,
-                 const std::string& split_func)
+                  const int flag_added_args,
+                  const py::args& args,
+                  const py::kwargs& kwargs,
+                  const std::string& split_func)
 {
     PyObject* result_or_args = process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
     py::tuple args_tuple;
@@ -52,13 +55,14 @@ split_text_common(const py::object& orig_function,
 
     const auto& text = args_tuple[0];
 
-
     const py::tuple sliced_args = len(args) > 1 ? args[py::slice(1, len(args), 1)] : py::tuple();
     auto result_o = text.attr(split_func.c_str())(*sliced_args, **kwargs);
 
     TRY_CATCH_ASPECT("split_aspect", {
         if (split_func == "split") {
-            if (auto re_split_result = handle_potential_re_split(args_tuple, sliced_args, kwargs, Initializer::get_tainting_map());re_split_result.has_value()) {
+            if (auto re_split_result =
+                  handle_potential_re_split(args_tuple, sliced_args, kwargs, Initializer::get_tainting_map());
+                re_split_result.has_value()) {
                 return *re_split_result;
             }
         }
@@ -68,7 +72,6 @@ split_text_common(const py::object& orig_function,
             return result_o;
         }
 
-
         if (auto ranges = api_get_ranges(text); !ranges.empty()) {
             set_ranges_on_splitted(text, ranges, result_o, tx_map, false);
         }
@@ -77,13 +80,12 @@ split_text_common(const py::object& orig_function,
     });
 }
 
-
 template<class StrType>
 py::list
 api_splitlines_text(const py::object& orig_function,
-                 const int flag_added_args,
-                 const py::args& args,
-                 const py::kwargs& kwargs)
+                    const int flag_added_args,
+                    const py::args& args,
+                    const py::kwargs& kwargs)
 {
     const py::object result_or_args = process_flag_added_args(orig_function, flag_added_args, args, kwargs);
 
@@ -124,7 +126,8 @@ api_splitlines_text(const py::object& orig_function,
 void
 pyexport_aspect_split(py::module& m)
 {
-    m.def("_aspect_split",
+    m.def(
+      "_aspect_split",
       [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
           return split_text_common<py::str>(orig_function, flag_added_args, args, kwargs, "split");
       },
@@ -132,7 +135,8 @@ pyexport_aspect_split(py::module& m)
       "flag_added_args"_a = 0,
       py::return_value_policy::move);
 
-    m.def("_aspect_split",
+    m.def(
+      "_aspect_split",
       [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
           return split_text_common<py::bytes>(orig_function, flag_added_args, args, kwargs, "split");
       },
@@ -140,7 +144,8 @@ pyexport_aspect_split(py::module& m)
       "flag_added_args"_a = 0,
       py::return_value_policy::move);
 
-    m.def("_aspect_split",
+    m.def(
+      "_aspect_split",
       [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
           return split_text_common<py::bytearray>(orig_function, flag_added_args, args, kwargs, "split");
       },
@@ -148,7 +153,8 @@ pyexport_aspect_split(py::module& m)
       "flag_added_args"_a = 0,
       py::return_value_policy::move);
 
-    m.def("_aspect_rsplit",
+    m.def(
+      "_aspect_rsplit",
       [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
           return split_text_common<py::str>(orig_function, flag_added_args, args, kwargs, "rsplit");
       },
@@ -156,7 +162,8 @@ pyexport_aspect_split(py::module& m)
       "flag_added_args"_a = 0,
       py::return_value_policy::move);
 
-    m.def("_aspect_rsplit",
+    m.def(
+      "_aspect_rsplit",
       [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
           return split_text_common<py::bytes>(orig_function, flag_added_args, args, kwargs, "rsplit");
       },
@@ -164,7 +171,8 @@ pyexport_aspect_split(py::module& m)
       "flag_added_args"_a = 0,
       py::return_value_policy::move);
 
-    m.def("_aspect_rsplit",
+    m.def(
+      "_aspect_rsplit",
       [](const py::object& orig_function, const int flag_added_args, py::args args, const py::kwargs& kwargs) {
           return split_text_common<py::bytearray>(orig_function, flag_added_args, args, kwargs, "rsplit");
       },
@@ -173,8 +181,8 @@ pyexport_aspect_split(py::module& m)
       py::return_value_policy::move);
 
     m.def("_aspect_splitlines",
-        &api_splitlines_text<py::str>,
-      "orig_function"_a = py::none(),
-      "flag_added_args"_a = 0,
-      py::return_value_policy::move);
+          &api_splitlines_text<py::str>,
+          "orig_function"_a = py::none(),
+          "flag_added_args"_a = 0,
+          py::return_value_policy::move);
 }
