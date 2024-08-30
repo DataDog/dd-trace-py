@@ -56,11 +56,13 @@ variables:
   extends: .test_base_riot
   before_script:
     - !reference [.testrunner, before_script]
-    # DEV: Export here instead of via variables to avoid forwarding testagent requests to ddagent
+    # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
+    # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
 
 include:
   - local: ".gitlab/tests/appsec.yml"
+  - local: ".gitlab/tests/contrib.yml"
   - local: ".gitlab/tests/core.yml"
   - local: ".gitlab/tests/tracer.yml"
   - local: ".gitlab/tests/profiling.yml"
