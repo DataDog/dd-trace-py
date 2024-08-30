@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
@@ -26,6 +27,7 @@ IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
 IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 werkzeug_version = version("werkzeug")
+flask_version = tuple([int(v) for v in version("flask").split(".")])
 
 
 @pytest.fixture(autouse=True)
@@ -54,6 +56,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             patch_sqlite_sqli()
             patch_header_injection()
+            patch_json()
             oce.reconfigure()
 
             self.tracer._iast_enabled = True
@@ -532,9 +535,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_enabled_http_request_body(self):
+    def test_flask_request_body(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_10():
+            import json
             import sqlite3
 
             from flask import request
@@ -544,12 +548,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
-
-            value = request.json.get("body")
+            if flask_version > (2, 0):
+                json_data = request.json
+            else:
+                json_data = json.loads(request.data)
+            value = json_data.get("body")
             assert value == "master"
             assert is_pyobject_tainted(value)
             query = add_aspect(add_aspect("SELECT tbl_name FROM sqlite_", value), " WHERE tbl_name LIKE 'password'")
-            # label test_flask_full_sqli_iast_enabled_http_request_body
+            # label test_flask_request_body
             cur.execute(query)
 
             return "OK", 200
@@ -557,6 +564,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
+                _deduplication_enabled=False,
             )
         ):
             resp = self.client.post(
@@ -571,7 +579,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["sources"] == [{"name": "body", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
-                "test_flask_full_sqli_iast_enabled_http_request_body",
+                "test_flask_request_body",
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )
@@ -591,7 +599,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_enabled_http_request_body_complex_3_lvls(self):
+    def test_flask_request_body_complex_3_lvls(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_11():
             import sqlite3
@@ -604,11 +612,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
 
-            value = request.json.get("body").get("body2").get("body3")
+            if flask_version > (2, 0):
+                json_data = request.json
+            else:
+                json_data = json.loads(request.data)
+            value = json_data.get("body").get("body2").get("body3")
             assert value == "master"
             assert is_pyobject_tainted(value)
             query = add_aspect(add_aspect("SELECT tbl_name FROM sqlite_", value), " WHERE tbl_name LIKE 'password'")
-            # label test_flask_full_sqli_iast_enabled_http_request_body_complex_3_lvls
+            # label test_flask_request_body_complex_3_lvls
             cur.execute(query)
 
             return "OK", 200
@@ -632,7 +644,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["sources"] == [{"name": "body3", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
-                "test_flask_full_sqli_iast_enabled_http_request_body_complex_3_lvls",
+                "test_flask_request_body_complex_3_lvls",
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )
@@ -652,7 +664,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_enabled_http_request_body_complex_3_lvls_and_list(self):
+    def test_flask_request_body_complex_3_lvls_and_list(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_11():
             import sqlite3
@@ -665,11 +677,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
 
-            value = request.json.get("body").get("body2").get("body3")[3]
+            if flask_version > (2, 0):
+                json_data = request.json
+            else:
+                json_data = json.loads(request.data)
+            value = json_data.get("body").get("body2").get("body3")[3]
             assert value == "master"
             assert is_pyobject_tainted(value)
             query = add_aspect(add_aspect("SELECT tbl_name FROM sqlite_", value), " WHERE tbl_name LIKE 'password'")
-            # label test_flask_full_sqli_iast_enabled_http_request_body_complex_3_lvls_and_list
+            # label test_flask_request_body_complex_3_lvls_and_list
             cur.execute(query)
 
             return "OK", 200
@@ -693,7 +709,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["sources"] == [{"name": "body3", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
-                "test_flask_full_sqli_iast_enabled_http_request_body_complex_3_lvls_and_list",
+                "test_flask_request_body_complex_3_lvls_and_list",
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )
@@ -713,7 +729,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_enabled_http_request_body_complex_3_lvls_list_dict(self):
+    def test_flask_request_body_complex_3_lvls_list_dict(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_11():
             import sqlite3
@@ -726,11 +742,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
 
-            value = request.json.get("body").get("body2").get("body3")[3].get("body4")
+            if flask_version > (2, 0):
+                json_data = request.json
+            else:
+                json_data = json.loads(request.data)
+            value = json_data.get("body").get("body2").get("body3")[3].get("body4")
             assert value == "master"
             assert is_pyobject_tainted(value)
             query = add_aspect(add_aspect("SELECT tbl_name FROM sqlite_", value), " WHERE tbl_name LIKE 'password'")
-            # label test_flask_full_sqli_iast_enabled_http_request_body_complex_3_lvls_list_dict
+            # label test_flask_request_body_complex_3_lvls_list_dict
             cur.execute(query)
 
             return "OK", 200
@@ -756,7 +776,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["sources"] == [{"name": "body4", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
-                "test_flask_full_sqli_iast_enabled_http_request_body_complex_3_lvls_list_dict",
+                "test_flask_request_body_complex_3_lvls_list_dict",
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )
@@ -776,7 +796,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_enabled_http_request_body_complex_json_all_types_of_values(self):
+    def test_flask_request_body_complex_json_all_types_of_values(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_11():
             import sqlite3
@@ -800,7 +820,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     else:
                         assert not is_pyobject_tainted(data), f"{parent_key}.{data} taint error"
 
-            request_json = request.json
+            if flask_version > (2, 0):
+                request_json = request.json
+            else:
+                request_json = json.loads(request.data)
+
             iterate_json(request_json)
 
             con = sqlite3.connect(":memory:")
@@ -810,7 +834,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert value == "master"
             assert is_pyobject_tainted(value)
             query = add_aspect(add_aspect("SELECT tbl_name FROM sqlite_", value), " WHERE tbl_name LIKE 'password'")
-            # label test_flask_full_sqli_iast_enabled_http_request_body_complex_json_all_types_of_values
+            # label test_flask_request_body_complex_json_all_types_of_values
             cur.execute(query)
 
             return "OK", 200
@@ -890,7 +914,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["sources"] == [{"name": "extra", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
-                "test_flask_full_sqli_iast_enabled_http_request_body_complex_json_all_types_of_values",
+                "test_flask_request_body_complex_json_all_types_of_values",
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )

@@ -9,6 +9,7 @@ from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
 
 from ._metrics import _set_metric_iast_instrumented_source
+from ._taint_utils import taint_structure
 from ._utils import _is_iast_enabled
 
 
@@ -88,15 +89,10 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
             yield key, value
 
 
-def _patched_dictionary(origins, original_func, instance, args, kwargs):
-    from ddtrace.appsec._iast._taint_utils import LazyTaintDict
-
+def _patched_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):
     result = original_func(*args, **kwargs)
 
-    if isinstance(result, (LazyTaintDict)):
-        return result
-
-    return LazyTaintDict(result, origins=origins, override_pyobject_tainted=True)
+    return taint_structure(result, origin_key, origin_value, override_pyobject_tainted=True)
 
 
 def _patched_fastapi_function(origin, original_func, instance, args, kwargs):
