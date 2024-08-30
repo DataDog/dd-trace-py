@@ -850,14 +850,6 @@ jobs:
           snapshot: true
           docker_services: "redis"
 
-  fastapi:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "fastapi"
-          snapshot: true
-
   flask:
     <<: *machine_executor
     parallelism: 10
