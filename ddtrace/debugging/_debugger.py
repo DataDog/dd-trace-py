@@ -45,7 +45,6 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.debugging._safety import get_args
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.debugging._signal.metric_sample import MetricSample
@@ -175,7 +174,6 @@ class DebuggerWrappingContext(WrappingContext):
         frame = self.__frame__
         assert frame is not None  # nosec
 
-        args = list(get_args(frame))
         thread = threading.current_thread()
 
         signal: Optional[Signal] = None
@@ -200,7 +198,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                     trace_context=trace_context,
                     meter=self._probe_meter,
                 )
@@ -209,7 +206,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                     trace_context=trace_context,
                 )
             elif isinstance(probe, SpanFunctionProbe):
@@ -217,7 +213,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                     trace_context=trace_context,
                 )
             elif isinstance(probe, SpanDecorationFunctionProbe):
@@ -225,7 +220,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                 )
             else:
                 log.error("Unsupported probe type: %s", type(probe))
