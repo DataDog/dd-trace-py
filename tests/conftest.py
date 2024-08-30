@@ -564,16 +564,22 @@ class TelemetryTestSession(object):
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
+    print("in test agent session")
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
+    print("setted headers")
 
     requests = TelemetryTestSession(token, telemetry_writer)
 
+    print("created TTS")
+
     conn = requests.create_connection()
+    print("created connection")
     MAX_RETRY = 9
     exp_time = 1.618034
     for try_nb in range(MAX_RETRY):
+        print("attempting to start session")
         try:
             conn.request("GET", "/test/session/start?test_session_token=%s" % token)
             conn.getresponse()

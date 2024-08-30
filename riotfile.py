@@ -318,7 +318,7 @@ venv = Venv(
         ),
         Venv(
             name="telemetry",
-            command="pytest {cmdargs} -vv tests/telemetry/",
+            command="pytest {cmdargs} -s -vv tests/telemetry/",
             env={
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
             },
