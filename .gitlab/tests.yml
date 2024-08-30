@@ -32,7 +32,6 @@ variables:
         - >
           for i in $(seq 30); do date; ls ${SNAPSHOT_DIR} || true; sleep 2; done;
       variables:
-        DD_HOSTNAME: testagent
         LOG_LEVEL: INFO
         SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
         SNAPSHOT_CI: 1
