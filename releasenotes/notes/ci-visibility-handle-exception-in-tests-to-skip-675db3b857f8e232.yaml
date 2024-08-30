@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where exceptions raised while fetching the list of skippable tests for ITR
+    were not being handled correctly and caused the tracer to crash.
