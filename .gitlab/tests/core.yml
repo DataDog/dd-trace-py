@@ -14,6 +14,11 @@ integration-testagent:
   variables:
     SUITE_NAME: "integration-snapshot*"
 
+integration_agent:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "integration-latest*"
+
 ddtracerun:
   extends: .test_base_riot
   variables:
