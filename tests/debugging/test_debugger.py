@@ -1174,7 +1174,7 @@ def test_debugger_redacted_identifiers():
                     "size": 3,
                 },
             },
-            "staticFields": {"SensitiveData": {"type": "type", "value": "<class 'tests.submod.stuff.SensitiveData'>"}},
+            "staticFields": {},
             "throwable": None,
         }
 
@@ -1203,9 +1203,7 @@ def test_debugger_redacted_identifiers():
                     },
                     "@return": {"type": "str", "value": "'top secret'"},  # TODO: Ouch!
                 },
-                "staticFields": {
-                    "SensitiveData": {"type": "type", "value": "<class 'tests.submod.stuff.SensitiveData'>"}
-                },
+                "staticFields": {},
                 "throwable": None,
             },
         }
