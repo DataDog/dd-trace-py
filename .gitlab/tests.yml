@@ -29,9 +29,6 @@ variables:
         DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
     - name: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
       alias: testagent
-      command:
-        - >
-          for i in $(seq 30); do date; ls ${SNAPSHOT_DIR} || true; sleep 2; done;
       variables:
         LOG_LEVEL: INFO
         SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
@@ -61,9 +58,6 @@ variables:
     - !reference [.testrunner, before_script]
     # DEV: Export here instead of via variables to avoid forwarding testagent requests to ddagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
-  script:
-    - sleep 60
-    - !reference [.test_base_riot, script]
 
 include:
   - local: ".gitlab/tests/appsec.yml"
