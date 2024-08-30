@@ -8,3 +8,13 @@ telemetry:
   parallel: 4
   variables:
     SUITE_NAME: "telemetry"
+
+integration-testagent:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "integration-snapshot*"
+
+ddtracerun:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "ddtracerun"

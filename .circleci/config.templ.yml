@@ -657,14 +657,6 @@ jobs:
           name: "Store core dumps"
           path: /tmp/core_dumps
 
-  integration_testagent:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          snapshot: true
-          pattern: 'integration-snapshot*'
-          trace_agent_url: ""
-
   vendor:
     <<: *contrib_job_small
     docker:
@@ -681,17 +673,6 @@ jobs:
           pattern: 'botocore'
           snapshot: true
           docker_services: "localstack"
-
-  ddtracerun:
-    <<: *contrib_job
-    parallelism: 8
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-    steps:
-      - run_test:
-          pattern: 'ddtracerun'
-          trace_agent_url: ""
 
   test_logging:
     <<: *contrib_job
