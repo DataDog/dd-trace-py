@@ -57,7 +57,6 @@ variables:
 
 .test_base_riot_snapshot:
   extends: .test_base_riot
-  needs: []
   before_script:
     - !reference [.testrunner, before_script]
     # DEV: Export here instead of via variables to avoid forwarding testagent requests to ddagent
