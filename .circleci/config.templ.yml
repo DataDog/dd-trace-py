@@ -631,14 +631,6 @@ jobs:
           pattern: 'opentelemetry'
           snapshot: true
 
-  vendor:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_test:
-          pattern: 'vendor'
-
   botocore:
     <<: *machine_executor
     parallelism: 6
