@@ -34,7 +34,7 @@ variables:
       variables:
         DD_HOSTNAME: testagent
         LOG_LEVEL: INFO
-        SNAPSHOT_DIR: /builds/${CI_PROJECT_PATH}/tests/snapshots
+        SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
         SNAPSHOT_CI: 1
         PORT: 9126
         DD_POOL_TRACE_CHECK_FAILURES: true
