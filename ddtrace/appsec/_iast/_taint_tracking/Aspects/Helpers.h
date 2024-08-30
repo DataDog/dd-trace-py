@@ -2,7 +2,6 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <iostream>  // JJJ
 
 #include "TaintTracking/TaintRange.h"
 
@@ -176,24 +175,16 @@ as_formatted_evidence(StrType& text,
     return StrType(EVIDENCE_MARKS::BLANK).attr("join")(res_vector);
 }
 
-// JJJ test with a pure pybind11 implementation
 inline PyObject*
 process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyObject* args, PyObject* kwargs)
 {
     // If orig_function is not None and not the built-in str, bytes, or bytearray, slice args
     auto orig_function_type = Py_TYPE(orig_function);
-    const char* type_name = Py_TYPE(orig_function)->tp_name;
-    cerr << "JJJ orig_function_type_name: " << type_name << endl;
-    cerr << "JJJ orig_function_type: " << orig_function_type << endl;
-    cerr << "JJJ PyUnicode_Type: " << &PyUnicode_Type << endl;
-    cerr << "JJJ PyByteArray_Type: " << &PyByteArray_Type << endl;
-    cerr << "JJJ PyBytesType: " << &PyBytes_Type << endl;
 
     if (orig_function != Py_None &&
         orig_function_type != &PyUnicode_Type &&
         orig_function_type != &PyByteArray_Type &&
         orig_function_type != &PyBytes_Type) {
-        cerr << "JJJ inside the orig function if" << endl;
 
         if (flag_added_args > 0) {
             Py_ssize_t num_args = PyTuple_Size(args);
@@ -205,17 +196,14 @@ process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyOb
             // Call the original function with the sliced args and return its result
             PyObject* result = PyObject_Call(orig_function, sliced_args, kwargs);
             Py_DECREF(sliced_args);
-            cerr << "JJJ returning result after calling orig_function" << endl;
             return result;
         }
         // Else: call the original function with all args if no slicing is needed
-        cerr << "JJJ returning result after calling orig_function2" << endl;
         return PyObject_Call(orig_function, args, kwargs);
     }
 
     // If orig_function is None or one of the built-in types, just return args for further processing
     Py_INCREF(args); // Increment reference count before returning
-    cerr << "JJJ returning args for further processing" << endl;
     return args;
 }
 
