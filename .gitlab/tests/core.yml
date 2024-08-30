@@ -8,3 +8,4 @@ telemetry:
   parallel: 4
   variables:
     SUITE_NAME: "telemetry"
+    DD_TRACE_AGENT_URL: "http://testagent:9126"
