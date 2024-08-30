@@ -502,8 +502,6 @@ class TelemetryTestSession(object):
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
-        print(parsed.hostname)
-        print(parsed.port)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method, url):
@@ -564,30 +562,19 @@ class TelemetryTestSession(object):
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
-    print("in test agent session")
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
-    print("setted headers")
 
     requests = TelemetryTestSession(token, telemetry_writer)
 
-    print("created TTS")
-
     conn = requests.create_connection()
-    print("created connection")
     MAX_RETRY = 9
     exp_time = 1.618034
     for try_nb in range(MAX_RETRY):
-        print("attempting to start session")
         try:
-            print(f"host: {conn.host}")
-            print(f"port: {conn.port}")
-            print(f"token: {token}")
             conn.request("GET", "/test/session/start?test_session_token=%s" % token)
-            print("did request")
             conn.getresponse()
-            print("got response")
             break
         except BaseException:
             if try_nb == MAX_RETRY - 1:
