@@ -20,6 +20,7 @@ variables:
       alias: ddagent
       variables:
         DD_HOSTNAME: ddagent
+        LOG_LEVEL: ERROR
         DD_REMOTE_CONFIGURATION_ENABLED: true
         DD_SITE: datadoghq.com
         DD_API_KEY: invalid_but_this_is_fine

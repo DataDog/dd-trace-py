@@ -581,7 +581,9 @@ def test_agent_session(telemetry_writer, request):
     for try_nb in range(MAX_RETRY):
         print("attempting to start session")
         try:
-            print(conn)
+            print(f"host: {conn.host}")
+            print(f"port: {conn.port}")
+            print(f"token: {token}")
             conn.request("GET", "/test/session/start?test_session_token=%s" % token)
             print("did request")
             conn.getresponse()
