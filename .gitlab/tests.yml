@@ -9,11 +9,11 @@ variables:
   parallel: 4
   script:
     - |
-      envs=( hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh )
+      envs=( $(hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh) )
       for env in "${envs[@]}"
       do
-        echo "Running hatch env: ${env}"
-        hatch run ${hash}:test
+        echo "Running hatch env: ${env}:test"
+        hatch run ${env}:test
       done
 
 .test_base_riot:
