@@ -60,3 +60,43 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
+
+started:
+  image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  tags: [ "arch:amd64" ]
+  stage: .pre
+  before_script:
+    - aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+    - gh auth login --with-token < token
+    - rm token
+  script:
+    - >
+      gh api --method POST -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28"
+      /repos/DataDog/${CI_PROJECT_NAME}/check-runs
+      -f "name=dd-gitlab" -f "head_sha=${CI_COMMIT_SHA}" -f "status=in_progress" -f "started_at=$(date +"%Y-%m-%dT%H:%M:%S%:z")"
+      -f "details_url=${CI_PIPELINE_URL}" -f "output[title]=DataDog/${CI_PROJECT_NAME} GitLab Pipeline" | jq .id > dd-gitlab_check_run_id
+  artifacts:
+    paths:
+      - ./dd-gitlab_check_run_id
+
+finished:
+  extends: started
+  stage: .post
+  dependencies: [ "started" ]
+  rules:
+    - when: on_success
+  script:
+    - >
+      gh api --method PATCH -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28"
+      /repos/DataDog/${CI_PROJECT_NAME}/check-runs/$(cat dd-gitlab_check_run_id)
+      -f "status=completed" -f "conclusion=success" -f "completed_at=$(date +"%Y-%m-%dT%H:%M:%S%:z")"
+
+failed:
+  extends: finished
+  rules:
+    - when: on_failure
+  script:
+    - >
+      gh api --method PATCH -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28"
+      /repos/DataDog/${CI_PROJECT_NAME}/check-runs/$(cat dd-gitlab_check_run_id)
+      -f "status=completed" -f "conclusion=failure" -f "completed_at=$(date +"%Y-%m-%dT%H:%M:%S%:z")"
