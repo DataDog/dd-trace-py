@@ -2,3 +2,17 @@ fastapi:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "fastapi"
+
+flask:
+  extends: .test_base_riot_snapshot
+  parallel: 14
+  services:
+    - !references [.test_base_riot_snapshot, services]
+    - name: registry.ddbuild.io/images/mirror/library/memcached:1.5-alpine
+      alias: memcached
+    - name: registry.ddbuild.io/redis:7.0.7
+      alias: redis
+  variables:
+    SUITE_NAME: "flask"
+    TEST_MEMCACHED_HOST: "memcached"
+    TEST_REDIS_HOST: "redis"

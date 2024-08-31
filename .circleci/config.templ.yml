@@ -869,17 +869,6 @@ jobs:
           snapshot: true
           docker_services: "redis"
 
-  flask:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          # Run both flask and flask_cache test suites
-          # TODO: Re-enable coverage for Flask tests
-          snapshot: true
-          pattern: "flask"
-          docker_services: "memcached redis"
-
   gevent:
     <<: *contrib_job_small
     docker:
