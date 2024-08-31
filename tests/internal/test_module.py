@@ -533,3 +533,77 @@ def test_module_import_side_effect():
     # Test that we can import a module that raises an exception during specific
     # attribute lookups.
     import tests.internal.side_effect_module  # noqa:F401
+
+
+def test_deprecations_in_contrib():
+    # Test that all files in the ddtrace/contrib directory except a few exceptions (ex: trace_util)
+    # have the deprecation template added to them
+    template = """from ddtrace.contrib.internal.{} import *  # noqa: F401,F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
+"""
+
+    contrib_dir = Path(ROOT_PROJECT_DIR) / "ddtrace" / "contrib"
+
+    missing_deprecations = set()
+    for root, _, file_names in os.walk(contrib_dir):
+        if root.startswith(str(contrib_dir / "internal")):
+            # Skip files in ddtrace/contrib/internal/...
+            continue
+        for file_name in file_names:
+            if file_name.endswith(".py") and file_name != "__init__.py":
+                # Open files in ddtrace/contrib/{integration_name} and check if the content matches the template
+                # Skip files with the name __init__.py, as they are not supposed to have the deprecation template
+                with open(os.path.join(root, file_name), "r") as f:
+                    content = f.read()
+                    # Get the relative path of the file from ddtrace/contrib to the deprecated file (ex: pymongo/patch)
+                    relative_path = Path(root).relative_to(contrib_dir) / file_name[:-3]  # Remove the .py extension
+                    # Convert the relative patch to python module format (ex: [pymongo, patch] -> pymongo.patch)
+                    sub_modules = ".".join(relative_path.parts)
+                    if template.format(sub_modules) != content:
+                        missing_deprecations.add(f"ddtrace.contrib.{sub_modules}")
+
+    assert missing_deprecations == set(
+        [
+            "ddtrace.contrib.redis_utils",
+            "ddtrace.contrib.trace_utils",
+            "ddtrace.contrib.trace_utils_async",
+            "ddtrace.contrib.trace_utils_redis",
+            # We should confirm whether the following files should have the deprecation template added to them
+            "ddtrace.contrib.unittest.patch",
+            "ddtrace.contrib.unittest.constants",
+            "ddtrace.contrib.pytest.constants",
+            "ddtrace.contrib.pytest._plugin_v2",
+            "ddtrace.contrib.pytest.newhooks",
+            "ddtrace.contrib.pytest._plugin_v1",
+            "ddtrace.contrib.pytest.plugin",
+            "ddtrace.contrib.pytest._utils",
+            "ddtrace.contrib.pytest_benchmark._plugin",
+            "ddtrace.contrib.pytest_benchmark.constants",
+            "ddtrace.contrib.pytest_benchmark.plugin",
+            "ddtrace.contrib.pytest_bdd._plugin",
+            "ddtrace.contrib.pytest_bdd.constants",
+            "ddtrace.contrib.pytest_bdd.plugin",
+            "ddtrace.contrib.consul.patch",
+            "ddtrace.contrib.cassandra.patch",
+            "ddtrace.contrib.celery.patch",
+            "ddtrace.contrib.coverage.patch",
+            "ddtrace.contrib.coverage.utils",
+            "ddtrace.contrib.coverage.data",
+            "ddtrace.contrib.cassandra.patch",
+            "ddtrace.contrib.celery.patch",
+            "ddtrace.contrib.pymongo.parse",
+            "ddtrace.contrib.wsgi.wsgi",
+        ]
+    )
