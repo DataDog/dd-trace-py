@@ -535,10 +535,10 @@ def test_module_import_side_effect():
     import tests.internal.side_effect_module  # noqa:F401
 
 
-def test_deprecations_in_contrib():
-    # Test that all files in the ddtrace/contrib directory except a few exceptions (ex: trace_util)
-    # have the deprecation template added to them
-    template = """from ddtrace.contrib.internal.{} import *  # noqa: F401,F403
+def test_deprecated_modules_in_ddtrace_contrib():
+    # Test that all files in the ddtrace/contrib directory except a few exceptions (ex: ddtrace/contrib/redis_utils.py)
+    # have the deprecation template below.
+    deprecation_template = """from ddtrace.contrib.internal.{} import *  # noqa: F401,F403
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -571,16 +571,19 @@ def __getattr__(name):
                     relative_path = Path(root).relative_to(contrib_dir) / file_name[:-3]  # Remove the .py extension
                     # Convert the relative patch to python module format (ex: [pymongo, patch] -> pymongo.patch)
                     sub_modules = ".".join(relative_path.parts)
-                    if template.format(sub_modules) != content:
+                    if deprecation_template.format(sub_modules) != content:
                         missing_deprecations.add(f"ddtrace.contrib.{sub_modules}")
 
     assert missing_deprecations == set(
         [
+            # Note: The following ddtrace.contrib modules are expected to be part of the public API
+            # TODO: Revist whether integration utils should be part of the public API
             "ddtrace.contrib.redis_utils",
             "ddtrace.contrib.trace_utils",
             "ddtrace.contrib.trace_utils_async",
             "ddtrace.contrib.trace_utils_redis",
-            # We should confirm whether the following files should have the deprecation template added to them
+            # TODO: The following contrib modules are part of the public API (unlike most integrations).
+            # We should consider privatizing the internals of these integrations.
             "ddtrace.contrib.unittest.patch",
             "ddtrace.contrib.unittest.constants",
             "ddtrace.contrib.pytest.constants",
@@ -595,6 +598,8 @@ def __getattr__(name):
             "ddtrace.contrib.pytest_bdd._plugin",
             "ddtrace.contrib.pytest_bdd.constants",
             "ddtrace.contrib.pytest_bdd.plugin",
+            # TODO: ddtrace/contrib/coverage/constants.py is deprecated/privatized but coverage/patch.py,
+            # coverage/utils.py, and coverage/data.py are not. We should make this integration consistent.
             "ddtrace.contrib.coverage.patch",
             "ddtrace.contrib.coverage.utils",
             "ddtrace.contrib.coverage.data",
