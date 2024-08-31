@@ -10,6 +10,19 @@ variables:
     # v2.10.0rc5
     - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
 
+check_commit_status:
+  extends: .github_cli
+  stage: !reference [.release_base, stage]
+  # only: !reference [.release_base, only]
+  script:
+    - |
+      for check in ( "${GITHUB_REQUIRED_CHECKS}" );
+      do
+        ./assert-github-check-status.sh "${check}"
+      done
+  variables:
+    GITHUB_REQUIRED_CHECKS: "codeql-analysis.yml system-tests.yml unit_tests.yml"
+
 .release_pypi:
   extends: .release_base
   image: ${PYPI_PUBLISH_IMAGE}
@@ -30,7 +43,7 @@ variables:
 
 release_pypi_test:
   extends: .release_pypi
-  dependencies: [ "download_ddtrace_artifacts" ]
+  dependencies: [ "download_ddtrace_artifacts", "check_commit_status" ]
   variables:
     PYPI_REPOSITORY: testpypi
 

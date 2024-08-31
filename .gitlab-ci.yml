@@ -21,6 +21,14 @@ variables:
   before_script:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
 
+.github_cli:
+  image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  tags: [ "arch:amd64" ]
+  before_script:
+    - aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+    - gh auth login --with-token < token
+    - rm token
+
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/benchmarks.yml"
