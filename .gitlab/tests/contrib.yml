@@ -15,3 +15,8 @@ elasticsearch:
         discovery.type: single-node
   variables:
     SUITE_NAME: "elasticsearch"
+
+fastapi:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "fastapi"

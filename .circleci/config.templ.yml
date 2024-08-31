@@ -603,14 +603,6 @@ jobs:
       - run_test:
           pattern: "sourcecode"
 
-  telemetry:
-    parallelism: 6
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "telemetry"
-          snapshot: true
-
   debugger:
     <<: *contrib_job
     steps:
