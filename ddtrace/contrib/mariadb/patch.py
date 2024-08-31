@@ -1,7 +1,6 @@
+from ddtrace.contrib.internal.mariadb.patch import *  # noqa: F401,F403
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
-
-from ..internal.mariadb.patch import *  # noqa: F401,F403
 
 
 def __getattr__(name):

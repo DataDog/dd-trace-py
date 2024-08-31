@@ -1,4 +1,4 @@
-from ..internal.consul.patch import *  # noqa: F401,F403
+from ddtrace.contrib.internal.consul.patch import *  # noqa: F401,F403
 
 
 # TODO: deprecate and remove this module

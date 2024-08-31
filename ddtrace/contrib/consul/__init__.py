@@ -19,7 +19,7 @@ Only supports tracing for the synchronous client.
     Pin.override(client, service='consul-kv')
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["consul"]
@@ -30,8 +30,8 @@ with require_modules(required_modules) as missing_modules:
         from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.consul.patch import get_version
-        from ..internal.consul.patch import patch
-        from ..internal.consul.patch import unpatch
+        from ddtrace.contrib.internal.consul.patch import get_version
+        from ddtrace.contrib.internal.consul.patch import patch
+        from ddtrace.contrib.internal.consul.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

@@ -67,7 +67,7 @@ To configure particular redis instances use the :class:`Pin <ddtrace.Pin>` API::
     client.get("my-key")
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["redis", "redis.client"]
@@ -82,7 +82,7 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.redis.patch import get_version
-        from ..internal.redis.patch import patch
+        from ddtrace.contrib.internal.redis.patch import get_version
+        from ddtrace.contrib.internal.redis.patch import patch
 
         __all__ = ["patch", "get_version"]

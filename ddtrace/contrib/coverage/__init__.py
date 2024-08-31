@@ -15,8 +15,8 @@ Alternately, use :func:`patch()<ddtrace.patch>` to manually enable the integrati
 
 Note: Coverage.py instrumentation is only enabled if `pytest` or `unittest` instrumentation is enabled.
 """
-from ...internal.logger import get_logger
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["coverage"]
@@ -29,8 +29,8 @@ with require_modules(required_modules) as missing_modules:
         from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.coverage.patch import get_version
-        from ..internal.coverage.patch import patch
-        from ..internal.coverage.patch import unpatch
+        from ddtrace.contrib.internal.coverage.patch import get_version
+        from ddtrace.contrib.internal.coverage.patch import patch
+        from ddtrace.contrib.internal.coverage.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]
