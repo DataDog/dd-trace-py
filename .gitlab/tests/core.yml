@@ -26,6 +26,10 @@ vendor:
 
 ddtracerun:
   extends: .test_base_riot
+  services:
+    - !reference [.test_base_riot, services]
+    - name: registry.ddbuild.io/redis:7.0.7
+      alias: redis
   variables:
     SUITE_NAME: "ddtracerun"
     TEST_REDIS_HOST: "redis"
