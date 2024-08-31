@@ -17,6 +17,7 @@ appsec iast:
         POSTGRES_DB: postgres
   variables:
     SUITE_NAME: "appsec_iast$"
+    TEST_POSTGRES_HOST: "postgres"
 
 appsec iast tdd_propagation:
   extends: .test_base_riot_snapshot
