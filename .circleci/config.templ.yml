@@ -504,15 +504,6 @@ jobs:
           paths:
             - "."
 
-  appsec_iast:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: 'appsec_iast$'
-          snapshot: true
-          docker_services: "postgres"
-
   appsec_iast_packages:
     <<: *machine_executor
     parallelism: 5
