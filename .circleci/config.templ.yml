@@ -631,40 +631,6 @@ jobs:
           pattern: 'opentelemetry'
           snapshot: true
 
-  integration_agent:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - setup_riot
-      - start_docker_services:
-          services: ddagent
-      - run:
-          environment:
-            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-          command: |
-            ulimit -c unlimited
-            ./scripts/run-test-suite 'integration-latest*' <<pipeline.parameters.coverage>> 1
-      - run:
-          command: |
-            mkdir -p /tmp/core_dumps
-            cp core.* /tmp/core_dumps || true
-            ./scripts/bt
-          when: on_fail
-      - store_artifacts:
-          name: "Store core dumps"
-          path: /tmp/core_dumps
-
-  vendor:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_test:
-          pattern: 'vendor'
-
   botocore:
     <<: *machine_executor
     parallelism: 6
