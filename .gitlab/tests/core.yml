@@ -1,5 +1,5 @@
 internal:
-  extends: .test_base_riot
+  extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "internal"
 
