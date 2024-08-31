@@ -1,4 +1,4 @@
-from ddtrace.contrib.internal.django.compat import *  # noqa: F401,F403
+from ddtrace.contrib.internal.django.compat import *  # noqa: F403
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 

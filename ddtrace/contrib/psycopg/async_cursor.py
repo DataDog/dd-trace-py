@@ -1,4 +1,4 @@
-from ddtrace.contrib.internal.psycopg.async_cursor import *  # noqa: F401,F403
+from ddtrace.contrib.internal.psycopg.async_cursor import *  # noqa: F403
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 

@@ -538,7 +538,7 @@ def test_module_import_side_effect():
 def test_deprecated_modules_in_ddtrace_contrib():
     # Test that all files in the ddtrace/contrib directory except a few exceptions (ex: ddtrace/contrib/redis_utils.py)
     # have the deprecation template below.
-    deprecation_template = """from ddtrace.contrib.internal.{} import *  # noqa: F401,F403
+    deprecation_template = """from ddtrace.contrib.internal.{} import *  # noqa: F403
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
