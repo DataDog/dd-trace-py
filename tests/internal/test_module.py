@@ -595,15 +595,8 @@ def __getattr__(name):
             "ddtrace.contrib.pytest_bdd._plugin",
             "ddtrace.contrib.pytest_bdd.constants",
             "ddtrace.contrib.pytest_bdd.plugin",
-            "ddtrace.contrib.consul.patch",
-            "ddtrace.contrib.cassandra.patch",
-            "ddtrace.contrib.celery.patch",
             "ddtrace.contrib.coverage.patch",
             "ddtrace.contrib.coverage.utils",
             "ddtrace.contrib.coverage.data",
-            "ddtrace.contrib.cassandra.patch",
-            "ddtrace.contrib.celery.patch",
-            "ddtrace.contrib.pymongo.parse",
-            "ddtrace.contrib.wsgi.wsgi",
         ]
     )
