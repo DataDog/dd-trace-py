@@ -1,15 +1,18 @@
 appsec:
   extends: .test_base_riot_snapshot
+  parallel: 6
   variables:
     SUITE_NAME: "appsec$"
 
 appsec iast tdd_propagation:
   extends: .test_base_riot_snapshot
+  parallel: 2
   variables:
     SUITE_NAME: "appsec_iast_tdd_propagation"
 
 appsec iast memcheck:
   extends: .test_base_riot_snapshot
+  parallel: 5
   variables:
     SUITE_NAME: "appsec_iast_memcheck"
 
