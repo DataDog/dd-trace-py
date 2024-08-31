@@ -3,12 +3,12 @@ elasticsearch:
   parallel: 17
   services:
     - !reference [.test_base_riot_snapshot, services]
-    - name: registry.ddbuild.io/elasticsearch:7.17.3
+    - name: registry.ddbuild.io/images/mirror/library/elasticsearch:7.17.23
       alias: elasticsearch
       variables:
         discovery.type: single-node
         xpack.security.enabled: false
-    - name: registry.ddbuild.io/opensearchproject/opensearch:1.3.13
+    - name: registry.ddbuild.io/images/mirror/opensearchproject/opensearch:1.3.13
       alias: opensearch
       variables:
         DISABLE_SECURITY_PLUGIN: true
