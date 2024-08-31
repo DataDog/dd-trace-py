@@ -3,7 +3,7 @@ elasticsearch:
   parallel: 17
   services:
     - !reference [.test_base_riot_snapshot, services]
-    - name: registry.ddbuild.io/library/elasticsearch:7.17.23
+    - name: registry.ddbuild.io/elasticsearch:7.17.3
       alias: elasticsearch
       variables:
         discovery.type: single-node
