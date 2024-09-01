@@ -20,6 +20,7 @@ variables:
       alias: ddagent
       variables:
         DD_HOSTNAME: ddagent
+        LOG_LEVEL: ERROR
         DD_REMOTE_CONFIGURATION_ENABLED: true
         DD_SITE: datadoghq.com
         DD_API_KEY: invalid_but_this_is_fine
@@ -27,9 +28,10 @@ variables:
         DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
         DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
     - name: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
+      alias: testagent
       variables:
-        LOG_LEVEL: DEBUG
-        SNAPSHOT_DIR: /snapshots
+        LOG_LEVEL: INFO
+        SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
         SNAPSHOT_CI: 1
         PORT: 9126
         DD_POOL_TRACE_CHECK_FAILURES: true
@@ -50,8 +52,17 @@ variables:
         ${RIOT_RUN_CMD} "${hash}"
       done
 
+.test_base_riot_snapshot:
+  extends: .test_base_riot
+  before_script:
+    - !reference [.testrunner, before_script]
+    # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
+    # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
+    - export DD_TRACE_AGENT_URL="http://testagent:9126"
+
 include:
   - local: ".gitlab/tests/appsec.yml"
+  - local: ".gitlab/tests/contrib.yml"
   - local: ".gitlab/tests/core.yml"
   - local: ".gitlab/tests/tracer.yml"
   - local: ".gitlab/tests/profiling.yml"
