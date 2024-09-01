@@ -99,7 +99,6 @@ class LLMObs(Service):
                     self._evaluation_callbacks.append(
                         SUPPORTED_LLMOBS_EVALUATIONS[evaluation_name](writer=self._llmobs_eval_metric_writer)
                     )
-                    print(self._evaluation_callbacks)
 
         self._trace_processor = LLMObsTraceProcessor(
             self._llmobs_span_writer, evaluation_callbacks=self._evaluation_callbacks
@@ -153,7 +152,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        evaluation_callbacks: Optional[List[str]] = None,
+        evaluations_enabled: Optional[List[str]] = None,
         _tracer: Optional[ddtrace.Tracer] = None,
     ) -> None:
         """
@@ -218,7 +217,7 @@ class LLMObs(Service):
             cls._patch_integrations()
 
         # override the default _instance with a new tracer
-        cls._instance = cls(tracer=_tracer, evaluation_callbacks=evaluation_callbacks)
+        cls._instance = cls(tracer=_tracer, evaluation_callbacks=evaluations_enabled)
         cls.enabled = True
         cls._instance.start()
 
@@ -487,6 +486,7 @@ class LLMObs(Service):
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
+        prompt: Optional[Dict] = None,
         tags: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
@@ -528,6 +528,8 @@ class LLMObs(Service):
             log.warning("Cannot annotate a finished span.")
             return
         span_kind = span.get_tag(SPAN_KIND)
+        if prompt:
+            span.set_tag_str("_ml_obs.meta.input.prompt", json.dumps(prompt))
         if not span_kind:
             log.warning("LLMObs span must have a span kind specified.")
             return

@@ -21,18 +21,25 @@ log = get_logger(__name__)
 DocumentType = Dict[str, Union[str, int, float]]
 
 
-class MetaIO(BaseModel):
-    prompt: Optional[Dict] = None
-    value: Optional[str] = None
-    # (TODO): lievan, let Messages and Documents inherit from BaseModel
-    documents: Optional[List[DocumentType]] = None
-    messages: Optional[List[Dict[str, str]]] = None
+class ToolCall(BaseModel):
+    name: Optional[str] = ""
+    arguments: Optional[Dict] = {}
+    tool_id: Optional[str] = ""
+    type: Optional[str] = ""
 
 
 class Prompt(BaseModel):
     template: str = ""
     variables: Dict = {}
     prompt_version: str = ""
+
+
+class MetaIO(BaseModel):
+    prompt: Optional[Prompt] = None
+    value: Optional[str] = None
+    # (TODO): lievan, let Messages and Documents inherit from BaseModel
+    documents: Optional[List[DocumentType]] = None
+    messages: Optional[List[Dict[str, str]]] = None
 
 
 class SpanField(BaseModel):

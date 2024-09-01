@@ -71,6 +71,9 @@ class LLMObsTraceProcessor(TraceProcessor):
         """Span event object structure."""
         span_kind = span._meta.pop(SPAN_KIND)
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
+        if span.get_tag("_ml_obs.meta.input.prompt") is not None:
+            prompt = span._meta.pop("_ml_obs.meta.input.prompt")
+            meta["input"]["prompt"] = json.loads(prompt)
         if span_kind in ("llm", "embedding") and span.get_tag(MODEL_NAME) is not None:
             meta["model_name"] = span._meta.pop(MODEL_NAME)
             meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom").lower()
