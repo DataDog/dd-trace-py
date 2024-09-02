@@ -30,7 +30,7 @@ variables:
 
 release_pypi_test:
   extends: .release_pypi
-  dependencies: [ "download_ddtrace_wheels" ]
+  dependencies: [ "download_ddtrace_artifacts" ]
   variables:
     PYPI_REPOSITORY: testpypi
 
