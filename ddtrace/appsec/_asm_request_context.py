@@ -605,6 +605,6 @@ def listen_context_handlers():
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
     core.on("flask.set_request_tags", _on_set_request_tags)
 
-    core.on("asgi.start_request", _call_waf_first)
+    # core.on("asgi.start_request", _call_waf_first)
     core.on("asgi.start_response", _call_waf)
     core.on("asgi.finalize_response", _set_headers_and_response)
