@@ -56,6 +56,10 @@ split_text_common(const py::object& orig_function,
 
     const py::tuple sliced_args = len(args) > 1 ? args[py::slice(1, len(args), 1)] : py::tuple();
     auto result_o = text.attr(split_func.c_str())(*sliced_args, **kwargs);
+    const auto tx_map = Initializer::get_tainting_map();
+    if (!tx_map || tx_map->empty()) {
+        return result_o;
+    }
 
     TRY_CATCH_ASPECT("split_aspect", {
         if (split_func == "split") {
@@ -66,17 +70,11 @@ split_text_common(const py::object& orig_function,
             }
         }
 
-        const auto tx_map = Initializer::get_tainting_map();
-        if (!tx_map || tx_map->empty()) {
-            return result_o;
-        }
-
         if (const auto ranges = api_get_ranges(text); !ranges.empty()) {
             set_ranges_on_splitted(text, ranges, result_o, tx_map, false);
         }
-
-        return result_o;
     });
+    return result_o;
 }
 
 py::object
@@ -99,12 +97,12 @@ api_splitlines_text(const py::object& orig_function,
     const py::tuple sliced_args = len(args) > 1 ? args[py::slice(1, len(args), 1)] : py::tuple();
     py::object result_o = text.attr("splitlines")(*sliced_args, **kwargs);
 
-    TRY_CATCH_ASPECT("splitlines_aspect", {
-        const auto tx_map = Initializer::get_tainting_map();
-        if (!tx_map || tx_map->empty()) {
-            return result_o;
-        }
+    const auto tx_map = Initializer::get_tainting_map();
+    if (!tx_map || tx_map->empty()) {
+        return result_o;
+    }
 
+    TRY_CATCH_ASPECT("split_aspect", , {
         auto [ranges, ranges_error] = get_ranges(text.ptr(), tx_map);
         if (ranges_error || ranges.empty()) {
             return result_o;
@@ -133,8 +131,8 @@ api_splitlines_text(const py::object& orig_function,
         if (!keepends_is_other_type) {
             set_ranges_on_splitted(text, ranges, result_o, tx_map, keepends);
         }
-        return result_o;
     });
+    return result_o;
 }
 
 void
