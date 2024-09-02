@@ -63,8 +63,7 @@ split_text_common(const py::object& orig_function,
 
     TRY_CATCH_ASPECT("split_aspect", {
         if (split_func == "split") {
-            if (auto re_split_result =
-                  handle_potential_re_split(args_tuple, sliced_args, kwargs, Initializer::get_tainting_map());
+            if (auto re_split_result = handle_potential_re_split(args_tuple, sliced_args, kwargs, tx_map);
                 re_split_result.has_value()) {
                 return *re_split_result;
             }
