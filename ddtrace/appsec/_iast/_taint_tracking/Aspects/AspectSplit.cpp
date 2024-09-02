@@ -54,14 +54,15 @@ split_text_common(const py::object& orig_function,
 
     const auto& text = args_tuple[0];
 
-    const py::tuple sliced_args = len(args) > 1 ? args[py::slice(1, len(args), 1)] : py::tuple();
-    auto result_o = text.attr(split_func.c_str())(*sliced_args, **kwargs);
+    const py::tuple sliced_args = len(args) > 1 ? args[py::slice(1, len(args), 1)] : py::tuple(); // (,)
+    auto result_o = text.attr(split_func.c_str())(*sliced_args, **kwargs); // returns['', ''] WHY?
+
     const auto tx_map = Initializer::get_tainting_map();
     if (!tx_map || tx_map->empty()) {
         return result_o;
     }
 
-    TRY_CATCH_ASPECT("split_aspect", {
+    TRY_CATCH_ASPECT("split_aspect", , {
         if (split_func == "split") {
             if (auto re_split_result = handle_potential_re_split(args_tuple, sliced_args, kwargs, tx_map);
                 re_split_result.has_value()) {
@@ -69,7 +70,8 @@ split_text_common(const py::object& orig_function,
             }
         }
 
-        if (const auto ranges = api_get_ranges(text); !ranges.empty()) {
+        auto [ranges, ranges_error] = get_ranges(text.ptr(), tx_map);
+        if (!ranges_error and !ranges.empty()) {
             set_ranges_on_splitted(text, ranges, result_o, tx_map, false);
         }
     });
