@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Langchain : Adds support for tracing tool invocations.
