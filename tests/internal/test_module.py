@@ -557,20 +557,20 @@ def __getattr__(name):
     contrib_dir = Path(ROOT_PROJECT_DIR) / "ddtrace" / "contrib"
 
     missing_deprecations = set()
-    for root, _, file_names in os.walk(contrib_dir):
-        if root.startswith(str(contrib_dir / "internal")):
-            # Skip files in ddtrace/contrib/internal/...
+    for directory, _, file_names in os.walk(contrib_dir):
+        if directory.startswith(str(contrib_dir / "internal")):
+            # Files in ddtrace/contrib/internal/... are not part of the public API, they should not be deprecated
             continue
+        # Open files in ddtrace/contrib/ and check if the content matches the template
         for file_name in file_names:
+            # Skip files with the name __init__.py, as they are not supposed to have the deprecation template
             if file_name.endswith(".py") and file_name != "__init__.py":
-                # Open files in ddtrace/contrib/{integration_name} and check if the content matches the template
-                # Skip files with the name __init__.py, as they are not supposed to have the deprecation template
-                with open(os.path.join(root, file_name), "r") as f:
+                # Get the relative path of the file from ddtrace/contrib to the deprecated file (ex: pymongo/patch)
+                relative_path = Path(directory).relative_to(contrib_dir) / file_name[:-3]  # Remove the .py extension
+                # Convert the relative path to python module format (ex: [pymongo, patch] -> pymongo.patch)
+                sub_modules = ".".join(relative_path.parts)
+                with open(os.path.join(directory, file_name), "r") as f:
                     content = f.read()
-                    # Get the relative path of the file from ddtrace/contrib to the deprecated file (ex: pymongo/patch)
-                    relative_path = Path(root).relative_to(contrib_dir) / file_name[:-3]  # Remove the .py extension
-                    # Convert the relative patch to python module format (ex: [pymongo, patch] -> pymongo.patch)
-                    sub_modules = ".".join(relative_path.parts)
                     if deprecation_template.format(sub_modules) != content:
                         missing_deprecations.add(f"ddtrace.contrib.{sub_modules}")
 
