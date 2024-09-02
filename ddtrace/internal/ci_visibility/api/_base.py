@@ -235,7 +235,7 @@ class TestVisibilityItemBase(abc.ABC):
 
         if self._is_itr_skipped:
             self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
-        self.set_tag(test.ITR_SKIPPED, True)
+        self.set_tag(test.ITR_SKIPPED, self._is_itr_skipped)
 
         self.set_tag(test.ITR_UNSKIPPABLE, self._is_itr_unskippable)
         self.set_tag(test.ITR_FORCED_RUN, self._is_itr_forced_run)
