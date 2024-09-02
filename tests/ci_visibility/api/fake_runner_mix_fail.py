@@ -42,9 +42,6 @@ def main():
     suite_1_test_1_id = api.TestId(suite_1_id, "test_1")
     suite_1_test_2_id = api.TestId(suite_1_id, "test_2")
     suite_1_test_3_id = api.TestId(suite_1_id, "test_3")
-    suite_1_test_3_retry_1_id = api.TestId(suite_1_id, "test_3", retry_number=1)
-    suite_1_test_3_retry_2_id = api.TestId(suite_1_id, "test_3", retry_number=2)
-    suite_1_test_3_retry_3_id = api.TestId(suite_1_id, "test_3", retry_number=3)
 
     suite_1_test_4_parametrized_1_id = api.TestId(suite_1_id, "test_4", parameters=json.dumps({"param1": "value1"}))
     suite_1_test_4_parametrized_2_id = api.TestId(suite_1_id, "test_4", parameters=json.dumps({"param1": "value2"}))
@@ -58,9 +55,6 @@ def main():
         source_file_info=api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
         is_early_flake_detection=True,
     )
-    api.Test.discover_early_flake_retry(suite_1_test_3_retry_1_id)
-    api.Test.discover_early_flake_retry(suite_1_test_3_retry_2_id)
-    api.Test.discover_early_flake_retry(suite_1_test_3_retry_3_id)
 
     api.Test.discover(suite_1_test_4_parametrized_1_id)
     api.Test.discover(suite_1_test_4_parametrized_2_id)
@@ -140,16 +134,8 @@ def main():
     #
     # suite_1_test_3 test and EFD retries
     api.Test.start(suite_1_test_3_id)
-    api.Test.mark_itr_skipped(suite_1_test_3_id)
+    api.Test.mark_skip(suite_1_test_3_id)
     #
-    api.Test.start(suite_1_test_3_retry_1_id)
-    api.Test.mark_pass(suite_1_test_3_retry_1_id)
-    #
-    api.Test.start(suite_1_test_3_retry_2_id)
-    api.Test.mark_pass(suite_1_test_3_retry_2_id)
-    #
-    api.Test.start(suite_1_test_3_retry_3_id)
-    api.Test.mark_pass(suite_1_test_3_retry_3_id)
 
     #
     # suite1_test_4 parametrized tests
@@ -208,7 +194,7 @@ def main():
     #
     api.Test.start(suite_2_test_2_parametrized_3_id)
 
-    api.Test.mark_itr_skipped(suite_2_test_2_parametrized_3_id)
+    api.Test.mark_skip(suite_2_test_2_parametrized_3_id)
     #
     api.Test.start(suite_2_test_2_parametrized_4_id)
     api.Test.mark_pass(suite_2_test_2_parametrized_4_id)

@@ -3,7 +3,6 @@ from typing import Any
 from typing import Dict
 from typing import List
 
-from ddtrace import Span
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
 from ddtrace.ext.test_visibility._test_visibility_base import _TestVisibilityAPIBase
 from ddtrace.internal import core
@@ -57,12 +56,6 @@ def _delete_item_tag(item_id: TestVisibilityItemId, tag_name: str, recurse: bool
 def _delete_item_tags(item_id: TestVisibilityItemId, tag_names: List[str], recurse: bool = False):
     log.debug("Deleting tags for item %s: %s", item_id, tag_names)
     core.dispatch("test_visibility.item.delete_tags", (_TestVisibilityAPIBase.DeleteTagsArgs(item_id, tag_names),))
-
-
-def _get_item_span(item_id: TestVisibilityItemId) -> Span:
-    log.debug("Getting span for item %s", item_id)
-    span: Span = core.dispatch_with_results("test_visibility.item.get_span", (item_id,)).span.value
-    return span
 
 
 def _is_item_finished(item_id: TestVisibilityItemId) -> bool:

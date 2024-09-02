@@ -22,30 +22,23 @@ from typing import List
 from typing import NamedTuple
 from typing import Optional
 from typing import Type
-from typing import Union
 
-from ddtrace import Span
 from ddtrace.ext.test import Status as _TestStatus
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSourceFileInfoBase
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
 from ddtrace.ext.test_visibility._test_visibility_base import _TestVisibilityAPIBase
-from ddtrace.ext.test_visibility._test_visibility_base import _TestVisibilityChildItemIdBase
-from ddtrace.ext.test_visibility._test_visibility_base import _TestVisibilityRootItemIdBase
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility._utils import _delete_item_tag
 from ddtrace.ext.test_visibility._utils import _delete_item_tags
-from ddtrace.ext.test_visibility._utils import _get_item_span
 from ddtrace.ext.test_visibility._utils import _get_item_tag
 from ddtrace.ext.test_visibility._utils import _is_item_finished
 from ddtrace.ext.test_visibility._utils import _set_item_tag
 from ddtrace.ext.test_visibility._utils import _set_item_tags
-from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 from ddtrace.ext.test_visibility.item_ids import TestId
 from ddtrace.ext.test_visibility.item_ids import TestModuleId
 from ddtrace.ext.test_visibility.item_ids import TestSuiteId
 from ddtrace.internal import core
-from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger as _get_logger
 import ddtrace.tracing  # noqa: F401 -- this triggers the registration of trace handlers
 
@@ -127,10 +120,6 @@ class TestBase(_TestVisibilityAPIBase):
     @staticmethod
     def delete_tags(item_id: TestVisibilityItemId, tag_names: List[str], recurse: bool = False):
         _delete_item_tags(item_id, tag_names, recurse)
-
-    @staticmethod
-    def get_span(item_id: TestVisibilityItemId) -> Span:
-        return _get_item_span(item_id)
 
     @staticmethod
     def is_finished(item_id: TestVisibilityItemId) -> bool:
@@ -226,60 +215,6 @@ class TestSession(_TestVisibilityAPIBase):
     def delete_tags(tag_names: List[str], recurse: bool = False):
         _delete_item_tags(TestSessionId(), tag_names, recurse)
 
-    @staticmethod
-    def get_span() -> Span:
-        return _get_item_span(TestSessionId())
-
-    @staticmethod
-    def is_finished() -> bool:
-        return _is_item_finished(TestSessionId())
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def get_codeowners() -> Optional[_Codeowners]:
-        log.debug("Getting codeowners object")
-
-        codeowners: Optional[_Codeowners] = core.dispatch_with_results(
-            "test_visibility.session.get_codeowners",
-        ).codeowners.value
-        return codeowners
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def get_workspace_path() -> Path:
-        log.debug("Getting session workspace path")
-
-        workspace_path: Path = core.dispatch_with_results(
-            "test_visibility.session.get_workspace_path"
-        ).workspace_path.value
-        return workspace_path
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def should_collect_coverage() -> bool:
-        log.debug("Checking if coverage should be collected for session")
-
-        _should_collect_coverage = bool(
-            core.dispatch_with_results("test_visibility.session.should_collect_coverage").should_collect_coverage.value
-        )
-        log.debug("Coverage should be collected: %s", _should_collect_coverage)
-
-        return _should_collect_coverage
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def is_test_skipping_enabled() -> bool:
-        log.debug("Checking if test skipping is enabled")
-
-        _is_test_skipping_enabled = bool(
-            core.dispatch_with_results(
-                "test_visibility.session.is_test_skipping_enabled"
-            ).is_test_skipping_enabled.value
-        )
-        log.debug("Test skipping is enabled: %s", _is_test_skipping_enabled)
-
-        return _is_test_skipping_enabled
-
 
 class TestModule(TestBase):
     class DiscoverArgs(NamedTuple):
@@ -321,95 +256,7 @@ class TestModule(TestBase):
         )
 
 
-class ITRMixin(TestBase):
-    """Mixin class for ITR-related functionality."""
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def mark_itr_skipped(item_id: Union[TestSuiteId, TestId]):
-        log.debug("Marking item %s as skipped by ITR", item_id)
-        core.dispatch("test_visibility.itr.finish_skipped_by_itr", (item_id,))
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def mark_itr_unskippable(item_id: Union[TestSuiteId, TestId]):
-        log.debug("Marking item %s as unskippable by ITR", item_id)
-        core.dispatch("test_visibility.itr.mark_unskippable", (item_id,))
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def mark_itr_forced_run(item_id: Union[TestSuiteId, TestId]):
-        log.debug("Marking item %s as unskippable by ITR", item_id)
-        core.dispatch("test_visibility.itr.mark_forced_run", (item_id,))
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def was_forced_run(item_id: Union[TestSuiteId, TestId]) -> bool:
-        """Skippable items are not currently tied to a test session, so no session ID is passed"""
-        log.debug("Checking if item %s was forced to run", item_id)
-        _was_forced_run = bool(
-            core.dispatch_with_results("test_visibility.itr.was_forced_run", (item_id,)).was_forced_run.value
-        )
-        log.debug("Item %s was forced run: %s", item_id, _was_forced_run)
-        return _was_forced_run
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def is_itr_skippable(item_id: Union[TestSuiteId, TestId]) -> bool:
-        """Skippable items are not currently tied to a test session, so no session ID is passed"""
-        log.debug("Checking if item %s is skippable", item_id)
-        is_item_skippable = bool(
-            core.dispatch_with_results("test_visibility.itr.is_item_skippable", (item_id,)).is_item_skippable.value
-        )
-        log.debug("Item %s is skippable: %s", item_id, is_item_skippable)
-
-        return is_item_skippable
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def is_itr_unskippable(item_id: Union[TestSuiteId, TestId]) -> bool:
-        """Skippable items are not currently tied to a test session, so no session ID is passed"""
-        log.debug("Checking if item %s is unskippable", item_id)
-        is_item_unskippable = bool(
-            core.dispatch_with_results("test_visibility.itr.is_item_unskippable", (item_id,)).is_item_unskippable.value
-        )
-        log.debug("Item %s is unskippable: %s", item_id, is_item_unskippable)
-
-        return is_item_unskippable
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def was_skipped_by_itr(item_id: Union[TestSuiteId, TestId]) -> bool:
-        """Skippable items are not currently tied to a test session, so no session ID is passed"""
-        log.debug("Checking if item %s was skipped by ITR", item_id)
-        was_item_skipped = bool(
-            core.dispatch_with_results("test_visibility.itr.was_item_skipped", (item_id,)).was_item_skipped.value
-        )
-        log.debug("Item %s was skipped by ITR: %s", item_id, was_item_skipped)
-        return was_item_skipped
-
-    class AddCoverageArgs(NamedTuple):
-        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase]
-        coverage_data: Dict[Path, CoverageLines]
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def add_coverage_data(item_id: Union[TestSuiteId, TestId], coverage_data: Dict[Path, CoverageLines]):
-        log.debug("Adding coverage data for item %s: %s", item_id, coverage_data)
-        core.dispatch("test_visibility.item.add_coverage_data", (ITRMixin.AddCoverageArgs(item_id, coverage_data),))
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def get_coverage_data(item_id: Union[TestSuiteId, TestId]) -> Optional[Dict[Path, CoverageLines]]:
-        log.debug("Getting coverage data for item %s", item_id)
-        coverage_data = core.dispatch_with_results(
-            "test_visibility.item.get_coverage_data", (item_id,)
-        ).coverage_data.value
-        log.debug("Coverage data for item %s: %s", item_id, coverage_data)
-        return coverage_data
-
-
-class TestSuite(ITRMixin, TestBase):
+class TestSuite(TestBase):
     class DiscoverArgs(NamedTuple):
         suite_id: TestSuiteId
         codeowners: Optional[List[str]] = None
@@ -458,7 +305,7 @@ class TestSuite(ITRMixin, TestBase):
         )
 
 
-class Test(ITRMixin, TestBase):
+class Test(TestBase):
     class DiscoverArgs(NamedTuple):
         test_id: TestId
         codeowners: Optional[List[str]] = None
@@ -484,24 +331,6 @@ class Test(ITRMixin, TestBase):
         )
         core.dispatch(
             "test_visibility.test.discover", (Test.DiscoverArgs(item_id, codeowners, source_file_info, resource),)
-        )
-
-    class DiscoverEarlyFlakeRetryArgs(NamedTuple):
-        test_id: TestId
-        retry_number: int
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def discover_early_flake_retry(item_id: TestId):
-        if item_id.retry_number <= 0:
-            log.warning(
-                "Cannot register early flake retry of test %s with retry number %s", item_id, item_id.retry_number
-            )
-        log.debug("Registered early flake retry for test %s, retry number: %s", item_id, item_id.retry_number)
-        original_test_id = TestId(item_id.parent_id, item_id.name, item_id.parameters)
-        core.dispatch(
-            "test_visibility.test.discover_early_flake_retry",
-            (Test.DiscoverEarlyFlakeRetryArgs(original_test_id, item_id.retry_number),),
         )
 
     @staticmethod
@@ -535,11 +364,6 @@ class Test(ITRMixin, TestBase):
             "test_visibility.test.finish",
             (Test.FinishArgs(item_id, status, skip_reason=skip_reason, exc_info=exc_info),),
         )
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def mark_unskippable():
-        log.debug("Marking test as unskippable")
 
     @staticmethod
     @_catch_and_log_exceptions

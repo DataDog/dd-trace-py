@@ -20,7 +20,6 @@ from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
-from ddtrace.ext.test_visibility.api import ITRMixin
 from ddtrace.ext.test_visibility.api import Test
 from ddtrace.ext.test_visibility.api import TestBase
 from ddtrace.ext.test_visibility.api import TestId
@@ -43,6 +42,8 @@ from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.test_visibility.api import InternalTest
+from ddtrace.internal.test_visibility.api import ITRMixin
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
@@ -1086,7 +1087,7 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
 
 
 @_requires_civisibility_enabled
-def _on_discover_test_early_flake_retry(args: Test.DiscoverEarlyFlakeRetryArgs):
+def _on_discover_test_early_flake_retry(args: InternalTest.DiscoverEarlyFlakeRetryArgs):
     log.debug("Handling early flake discovery for test %s", args.test_id)
     try:
         original_test = CIVisibility.get_test_by_id(args.test_id)

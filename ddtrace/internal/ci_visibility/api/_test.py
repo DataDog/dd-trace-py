@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility.api import TestExcInfo
@@ -18,12 +19,15 @@ from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility.api import InternalTestId
 
 
 log = get_logger(__name__)
 
+TID = Union[TestId, InternalTestId]
 
-class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase):
+
+class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     _event_type = TEST
     _event_type_metric_name = EVENT_TYPES.TEST
 
@@ -123,11 +127,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         self.mark_itr_skipped()
         self.finish_test(TestStatus.SKIP)
 
-    def make_early_flake_retry_from_test(self, original_test_id: TestId, retry_number: int) -> None:
+    def make_early_flake_retry_from_test(self, original_test_id: InternalTestId, retry_number: int) -> None:
         if self.parent is None:
             raise ValueError("Cannot make early flake retry from test without a parent")
 
-        new_test_id = TestId(
+        new_test_id = InternalTestId(
             original_test_id.parent_id, original_test_id.name, original_test_id.parameters, retry_number
         )
         self.parent.add_child(

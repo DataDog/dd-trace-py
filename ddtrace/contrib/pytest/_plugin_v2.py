@@ -26,11 +26,7 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import test
-from ddtrace.ext.test_visibility.api import Test
 from ddtrace.ext.test_visibility.api import TestExcInfo
-from ddtrace.ext.test_visibility.api import TestModule
-from ddtrace.ext.test_visibility.api import TestSession
-from ddtrace.ext.test_visibility.api import TestSuite
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
@@ -44,6 +40,10 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility.api import InternalTest
+from ddtrace.internal.test_visibility.api import InternalTestModule
+from ddtrace.internal.test_visibility.api import InternalTestSession
+from ddtrace.internal.test_visibility.api import InternalTestSuite
 
 
 log = get_logger(__name__)
@@ -57,20 +57,20 @@ def _handle_itr_should_skip(item, test_id) -> bool:
 
     This function has the side effect of marking the test as skipped immediately if it should be skipped.
     """
-    if not TestSession.is_test_skipping_enabled():
+    if not InternalTestSession.is_test_skipping_enabled():
         return False
 
     suite_id = test_id.parent_id
 
-    item_is_unskippable = TestSuite.is_itr_unskippable(suite_id)
+    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id)
 
-    if TestSuite.is_itr_skippable(suite_id):
+    if InternalTestSuite.is_itr_skippable(suite_id):
         if item_is_unskippable:
             # Marking the test as forced run also applies to its hierarchy
-            Test.mark_itr_forced_run(test_id)
+            InternalTest.mark_itr_forced_run(test_id)
             return False
         else:
-            Test.mark_itr_skipped(test_id)
+            InternalTest.mark_itr_skipped(test_id)
             # Marking the test as skipped by ITR so that it appears in pytest's output
             item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
             return True
@@ -105,14 +105,14 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
     for path_str, covered_lines in test_covered_lines.items():
         coverage_data[Path(path_str).absolute()] = covered_lines
 
-    TestSuite.add_coverage_data(test_id.parent_id, coverage_data)
+    InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
 
 
 def _handle_coverage_dependencies(suite_id) -> None:
-    coverage_data = TestSuite.get_coverage_data(suite_id)
+    coverage_data = InternalTestSuite.get_coverage_data(suite_id)
     coverage_paths = coverage_data.keys()
     import_coverage = ModuleCodeCollector.get_import_coverage_for_paths(coverage_paths)
-    TestSuite.add_coverage_data(suite_id, import_coverage)
+    InternalTestSuite.add_coverage_data(suite_id, import_coverage)
 
 
 def _disable_ci_visibility():
@@ -135,8 +135,8 @@ def pytest_load_initial_conftests(early_config, parser, args):
         take_over_logger_stream_handler()
         dd_config.test_visibility.itr_skipping_level = "suite"
         enable_test_visibility(config=dd_config.pytest)
-        if TestSession.should_collect_coverage():
-            workspace_path = TestSession.get_workspace_path()
+        if InternalTestSession.should_collect_coverage():
+            workspace_path = InternalTestSession.get_workspace_path()
             if workspace_path is None:
                 workspace_path = Path.cwd().absolute()
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
@@ -172,7 +172,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     try:
         command = _get_session_command(session)
 
-        TestSession.discover(
+        InternalTestSession.discover(
             test_command=command,
             test_framework=FRAMEWORK,
             test_framework_version=pytest.__version__,
@@ -183,7 +183,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             reject_duplicates=False,
         )
 
-        TestSession.start()
+        InternalTestSession.start()
     except:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
@@ -195,7 +195,7 @@ def _pytest_collection_finish(session) -> None:
     NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
     tests that pytest has selection for run (eg: with the use of -k as an argument).
     """
-    codeowners = TestSession.get_codeowners()
+    codeowners = InternalTestSession.get_codeowners()
 
     for item in session.items:
         test_id = _get_test_id_from_item(item)
@@ -203,8 +203,8 @@ def _pytest_collection_finish(session) -> None:
         module_id = suite_id.parent_id
 
         # TODO: don't rediscover modules and suites if already discovered
-        TestModule.discover(module_id, _get_module_path_from_item(item))
-        TestSuite.discover(suite_id)
+        InternalTestModule.discover(module_id, _get_module_path_from_item(item))
+        InternalTestSuite.discover(suite_id)
 
         item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
 
@@ -212,18 +212,18 @@ def _pytest_collection_finish(session) -> None:
 
         source_file_info = _get_source_file_info(item, item_path)
 
-        Test.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
+        InternalTest.discover(test_id, codeowners=item_codeowners, source_file_info=source_file_info)
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
-            Test.set_tags(test_id, tags)
+            InternalTest.set_tags(test_id, tags)
 
         # Pytest markers do not allow us to determine if the test or the suite was marked as unskippable, but any
         # test marked unskippable in a suite makes the entire suite unskippable (since we are in suite skipping
         # mode)
-        if TestSession.is_test_skipping_enabled() and _is_test_unskippable(item):
-            Test.mark_itr_unskippable(test_id)
-            TestSuite.mark_itr_unskippable(suite_id)
+        if InternalTestSession.is_test_skipping_enabled() and _is_test_unskippable(item):
+            InternalTest.mark_itr_unskippable(test_id)
+            InternalTestSuite.mark_itr_unskippable(suite_id)
 
 
 def pytest_collection_finish(session) -> None:
@@ -243,16 +243,16 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     module_id = suite_id.parent_id
 
     # TODO: don't re-start modules if already started
-    TestModule.start(module_id)
-    TestSuite.start(suite_id)
+    InternalTestModule.start(module_id)
+    InternalTestSuite.start(suite_id)
 
-    Test.start(test_id)
+    InternalTest.start(test_id)
 
     _handle_itr_should_skip(item, test_id)
 
-    item_will_skip = _pytest_marked_to_skip(item) or Test.was_skipped_by_itr(test_id)
+    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
 
-    collect_test_coverage = TestSession.should_collect_coverage() and not item_will_skip
+    collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
 
     if collect_test_coverage:
         return _start_collecting_coverage()
@@ -275,13 +275,13 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # - we trust that the next item is in the same module if it is in the same suite
     next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
     if next_test_id is None or next_test_id.parent_id != suite_id:
-        if TestSuite.is_itr_skippable(suite_id) and not TestSuite.was_forced_run(suite_id):
-            TestSuite.mark_itr_skipped(suite_id)
+        if InternalTestSuite.is_itr_skippable(suite_id) and not InternalTestSuite.was_forced_run(suite_id):
+            InternalTestSuite.mark_itr_skipped(suite_id)
         else:
             _handle_coverage_dependencies(suite_id)
-            TestSuite.finish(suite_id)
+            InternalTestSuite.finish(suite_id)
         if nextitem is None or (next_test_id is not None and next_test_id.parent_id.parent_id != module_id):
-            TestModule.finish(module_id)
+            InternalTestModule.finish(module_id)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -321,15 +321,15 @@ def _pytest_runtest_makereport(item, call, outcome):
     # There are scenarios in which we may have already finished this item in setup or call, eg:
     # - it was skipped by ITR
     # - it was marked with skipif
-    if Test.is_finished(test_id):
+    if InternalTest.is_finished(test_id):
         return
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
     if getattr(result, "wasxfail", None):
-        Test.set_tag(test_id, XFAIL_REASON, result.wasxfail)
+        InternalTest.set_tag(test_id, XFAIL_REASON, result.wasxfail)
     elif "xfail" in getattr(result, "keywords", []) and getattr(result, "longrepr", None):
-        Test.set_tag(test_id, XFAIL_REASON, result.longrepr)
+        InternalTest.set_tag(test_id, XFAIL_REASON, result.longrepr)
 
     # Only capture result if:
     # - there is an exception
@@ -342,49 +342,49 @@ def _pytest_runtest_makereport(item, call, outcome):
         return
 
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
-    xfail_reason_tag = Test.get_tag(test_id, XFAIL_REASON) if xfail else None
+    xfail_reason_tag = InternalTest.get_tag(test_id, XFAIL_REASON) if xfail else None
     has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
     # If run with --runxfail flag, tests behave as if they were not marked with xfail,
     # that's why no XFAIL_REASON or test.RESULT tags will be added.
     if result.skipped:
-        if Test.was_skipped_by_itr(test_id):
+        if InternalTest.was_skipped_by_itr(test_id):
             # Items that were skipped by ITR already have their status set
             return
 
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
             if not item.config.option.runxfail:
-                Test.set_tag(test_id, test.RESULT, test.Status.XFAIL.value)
+                InternalTest.set_tag(test_id, test.RESULT, test.Status.XFAIL.value)
                 if xfail_reason_tag is None:
-                    Test.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
-                Test.mark_pass(test_id)
+                    InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                InternalTest.mark_pass(test_id)
                 return
 
-        Test.mark_skip(test_id, _extract_reason(call))
+        InternalTest.mark_skip(test_id, _extract_reason(call))
         return
 
     if result.passed:
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=False) are recorded passed by pytest
             if xfail_reason_tag is None:
-                Test.set_tag(test_id, XFAIL_REASON, "XFail")
-            Test.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
+                InternalTest.set_tag(test_id, XFAIL_REASON, "XFail")
+            InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
 
-        Test.mark_pass(test_id)
+        InternalTest.mark_pass(test_id)
         return
 
     if xfail and not has_skip_keyword and not item.config.option.runxfail:
         # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
         if xfail_reason_tag is None:
-            Test.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
-        Test.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
-        Test.mark_fail(test_id)
+            InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
+        InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
+        InternalTest.mark_fail(test_id)
         return
 
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 
-    Test.mark_fail(test_id, exc_info)
+    InternalTest.mark_fail(test_id, exc_info)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -417,12 +417,12 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if not isinstance(lines_pct_value, float):
             log.warning("Tried to add total covered percentage to session span but the format was unexpected")
             return
-        TestSession.set_tag(test.TEST_LINES_PCT, lines_pct_value)
+        InternalTestSession.set_tag(test.TEST_LINES_PCT, lines_pct_value)
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
 
-    TestSession.finish(force_finish_children=True)
+    InternalTestSession.finish(force_finish_children=True)
     disable_test_visibility()
 
 

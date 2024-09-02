@@ -23,9 +23,6 @@ def main():
     suite_1_test_1_id = api.TestId(suite_1_id, "test_1")
     suite_1_test_2_id = api.TestId(suite_1_id, "test_2")
     suite_1_test_3_id = api.TestId(suite_1_id, "test_3")
-    suite_1_test_3_retry_1_id = api.TestId(suite_1_id, "test_3", retry_number=1)
-    suite_1_test_3_retry_2_id = api.TestId(suite_1_id, "test_3", retry_number=2)
-    suite_1_test_3_retry_3_id = api.TestId(suite_1_id, "test_3", retry_number=3)
 
     api.Test.discover(suite_1_test_1_id, source_file_info=api.TestSourceFileInfo(Path("my_file_1.py"), 1, 2))
     api.Test.discover(suite_1_test_2_id, source_file_info=None)
@@ -35,19 +32,12 @@ def main():
         source_file_info=api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
         is_early_flake_detection=True,
     )
-    api.Test.discover_early_flake_retry(suite_1_test_3_retry_1_id)
-    api.Test.discover_early_flake_retry(suite_1_test_3_retry_2_id)
-    api.Test.discover_early_flake_retry(suite_1_test_3_retry_3_id)
 
     module_2_id = api.TestModuleId("module_2")
     suite_2_id = api.TestSuiteId(module_2_id, "suite_2")
     suite_2_test_1_id = api.TestId(suite_2_id, "test_1")
     suite_2_test_2_id = api.TestId(suite_2_id, "test_2")
     suite_2_test_3_id = api.TestId(suite_2_id, "test_3")
-
-    suite_2_test_3_retry_1_id = api.TestId(suite_2_id, "test_3", retry_number=1)
-    suite_2_test_3_retry_2_id = api.TestId(suite_2_id, "test_3", retry_number=2)
-    suite_2_test_3_retry_3_id = api.TestId(suite_2_id, "test_3", retry_number=3)
 
     api.TestModule.discover(module_2_id)
     api.TestSuite.discover(suite_2_id)
@@ -59,9 +49,6 @@ def main():
         source_file_info=api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
         is_early_flake_detection=True,
     )
-    api.Test.discover_early_flake_retry(suite_2_test_3_retry_1_id)
-    api.Test.discover_early_flake_retry(suite_2_test_3_retry_2_id)
-    api.Test.discover_early_flake_retry(suite_2_test_3_retry_3_id)
 
     # END DISCOVERY
 
@@ -77,24 +64,6 @@ def main():
     api.Test.finish(suite_1_test_2_id, api.TestStatus.SKIP, skip_reason="This test was skipped")
     api.Test.start(suite_1_test_3_id)
     api.Test.finish(suite_1_test_3_id, api.TestStatus.SKIP, skip_reason="This test was skipped")
-    api.Test.start(suite_1_test_3_retry_1_id)
-    api.Test.finish(
-        suite_1_test_3_retry_1_id,
-        api.TestStatus.SKIP,
-        skip_reason="This test was skipped",
-    )
-    api.Test.start(suite_1_test_3_retry_2_id)
-    api.Test.finish(
-        suite_1_test_3_retry_2_id,
-        api.TestStatus.SKIP,
-        skip_reason="This test was skipped",
-    )
-    api.Test.start(suite_1_test_3_retry_3_id)
-    api.Test.finish(
-        suite_1_test_3_retry_3_id,
-        api.TestStatus.SKIP,
-        skip_reason="This test was skipped",
-    )
 
     api.TestSuite.finish(suite_1_id)
 
@@ -110,12 +79,6 @@ def main():
     api.Test.mark_skip(suite_2_test_2_id, skip_reason="This test was skipped with mark_skip")
     api.Test.start(suite_2_test_3_id)
     api.Test.mark_skip(suite_2_test_3_id, skip_reason="This test was skipped with mark_skip")
-    api.Test.start(suite_2_test_3_retry_1_id)
-    api.Test.mark_skip(suite_2_test_3_retry_1_id, skip_reason="This test was skipped with mark_skip")
-    api.Test.start(suite_2_test_3_retry_2_id)
-    api.Test.mark_skip(suite_2_test_3_retry_2_id, skip_reason="This test was skipped with mark_skip")
-    api.Test.start(suite_2_test_3_retry_3_id)
-    api.Test.mark_skip(suite_2_test_3_retry_3_id, skip_reason="This test was skipped with mark_skip")
 
     api.TestSuite.finish(suite_2_id)
 
