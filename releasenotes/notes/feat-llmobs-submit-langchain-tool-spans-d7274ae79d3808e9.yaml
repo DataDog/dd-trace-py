@@ -1,5 +1,4 @@
 ---
 features:
   - |
-    Langchain : Adds support for tracing tool invocations.
     LLM Observability: The LangChain integration now submits tool spans to LLM Observability.
