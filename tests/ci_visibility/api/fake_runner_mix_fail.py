@@ -15,8 +15,6 @@ from pathlib import Path
 import sys
 
 from ddtrace.ext.test_visibility import api
-import ddtrace.ext.test_visibility.item_ids
-from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 
 
 def _make_excinfo():
@@ -27,8 +25,6 @@ def _make_excinfo():
 
 
 def main():
-    take_over_logger_stream_handler()
-
     api.enable_test_visibility()
 
     # START DISCOVERY
@@ -36,29 +32,23 @@ def main():
     api.TestSession.discover("manual_test_mix_fail", "dd_manual_test_fw", "1.0.0")
     api.TestSession.start()
 
-    module_1_id = ddtrace.ext.test_visibility.item_ids.TestModuleId("module_1")
+    module_1_id = api.TestModuleId("module_1")
 
     api.TestModule.discover(module_1_id)
 
-    suite_1_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(module_1_id, "suite_1")
+    suite_1_id = api.TestSuiteId(module_1_id, "suite_1")
     api.TestSuite.discover(suite_1_id)
 
-    suite_1_test_1_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_1_id, "test_1")
-    suite_1_test_2_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_1_id, "test_2")
-    suite_1_test_3_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_1_id, "test_3")
-    suite_1_test_3_retry_1_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_1_id, "test_3", retry_number=1)
-    suite_1_test_3_retry_2_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_1_id, "test_3", retry_number=2)
-    suite_1_test_3_retry_3_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_1_id, "test_3", retry_number=3)
+    suite_1_test_1_id = api.TestId(suite_1_id, "test_1")
+    suite_1_test_2_id = api.TestId(suite_1_id, "test_2")
+    suite_1_test_3_id = api.TestId(suite_1_id, "test_3")
+    suite_1_test_3_retry_1_id = api.TestId(suite_1_id, "test_3", retry_number=1)
+    suite_1_test_3_retry_2_id = api.TestId(suite_1_id, "test_3", retry_number=2)
+    suite_1_test_3_retry_3_id = api.TestId(suite_1_id, "test_3", retry_number=3)
 
-    suite_1_test_4_parametrized_1_id = ddtrace.ext.test_visibility.item_ids.TestId(
-        suite_1_id, "test_4", parameters=json.dumps({"param1": "value1"})
-    )
-    suite_1_test_4_parametrized_2_id = ddtrace.ext.test_visibility.item_ids.TestId(
-        suite_1_id, "test_4", parameters=json.dumps({"param1": "value2"})
-    )
-    suite_1_test_4_parametrized_3_id = ddtrace.ext.test_visibility.item_ids.TestId(
-        suite_1_id, "test_4", parameters=json.dumps({"param1": "value3"})
-    )
+    suite_1_test_4_parametrized_1_id = api.TestId(suite_1_id, "test_4", parameters=json.dumps({"param1": "value1"}))
+    suite_1_test_4_parametrized_2_id = api.TestId(suite_1_id, "test_4", parameters=json.dumps({"param1": "value2"}))
+    suite_1_test_4_parametrized_3_id = api.TestId(suite_1_id, "test_4", parameters=json.dumps({"param1": "value3"}))
 
     api.Test.discover(suite_1_test_1_id, source_file_info=api.TestSourceFileInfo(Path("my_file_1.py"), 1, 2))
     api.Test.discover(suite_1_test_2_id, source_file_info=None)
@@ -76,26 +66,16 @@ def main():
     api.Test.discover(suite_1_test_4_parametrized_2_id)
     api.Test.discover(suite_1_test_4_parametrized_3_id)
 
-    module_2_id = ddtrace.ext.test_visibility.item_ids.TestModuleId("module_2")
-    suite_2_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(module_2_id, "suite_2")
-    suite_2_test_1_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_2_id, "test_1")
-    suite_2_test_2_parametrized_1_id = ddtrace.ext.test_visibility.item_ids.TestId(
-        suite_2_id, "test_2", parameters=json.dumps({"param1": "value1"})
-    )
-    suite_2_test_2_parametrized_2_id = ddtrace.ext.test_visibility.item_ids.TestId(
-        suite_2_id, "test_2", parameters=json.dumps({"param1": "value2"})
-    )
-    suite_2_test_2_parametrized_3_id = ddtrace.ext.test_visibility.item_ids.TestId(
-        suite_2_id, "test_2", parameters=json.dumps({"param1": "value3"})
-    )
-    suite_2_test_2_parametrized_4_id = ddtrace.ext.test_visibility.item_ids.TestId(
-        suite_2_id, "test_2", parameters=json.dumps({"param1": "value4"})
-    )
-    suite_2_test_2_parametrized_5_id = ddtrace.ext.test_visibility.item_ids.TestId(
-        suite_2_id, "test_2", parameters=json.dumps({"param1": "value5"})
-    )
+    module_2_id = api.TestModuleId("module_2")
+    suite_2_id = api.TestSuiteId(module_2_id, "suite_2")
+    suite_2_test_1_id = api.TestId(suite_2_id, "test_1")
+    suite_2_test_2_parametrized_1_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value1"}))
+    suite_2_test_2_parametrized_2_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value2"}))
+    suite_2_test_2_parametrized_3_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value3"}))
+    suite_2_test_2_parametrized_4_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value4"}))
+    suite_2_test_2_parametrized_5_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value5"}))
     suite_2_test_2_source_file_info = api.TestSourceFileInfo(Path("test_file_2.py"), 8, 9)
-    suite_2_test_3_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_2_id, "test_3")
+    suite_2_test_3_id = api.TestId(suite_2_id, "test_3")
 
     api.TestModule.discover(module_2_id)
     api.TestSuite.discover(suite_2_id)
@@ -113,17 +93,17 @@ def main():
         is_early_flake_detection=True,
     )
 
-    module_3_id = ddtrace.ext.test_visibility.item_ids.TestModuleId("module_3")
-    suite_3_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(module_3_id, "suite_3")
-    suite_4_id = ddtrace.ext.test_visibility.item_ids.TestSuiteId(module_3_id, "suite_4")
+    module_3_id = api.TestModuleId("module_3")
+    suite_3_id = api.TestSuiteId(module_3_id, "suite_3")
+    suite_4_id = api.TestSuiteId(module_3_id, "suite_4")
 
-    suite_3_test_1_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_3_id, "test_1")
-    suite_3_test_2_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_3_id, "test_2")
-    suite_3_test_3_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_3_id, "test_3")
+    suite_3_test_1_id = api.TestId(suite_3_id, "test_1")
+    suite_3_test_2_id = api.TestId(suite_3_id, "test_2")
+    suite_3_test_3_id = api.TestId(suite_3_id, "test_3")
 
-    suite_4_test_1_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_4_id, "test_1")
-    suite_4_test_2_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_4_id, "test_2")
-    suite_4_test_3_id = ddtrace.ext.test_visibility.item_ids.TestId(suite_4_id, "test_3")
+    suite_4_test_1_id = api.TestId(suite_4_id, "test_1")
+    suite_4_test_2_id = api.TestId(suite_4_id, "test_2")
+    suite_4_test_3_id = api.TestId(suite_4_id, "test_3")
 
     api.TestModule.discover(module_3_id)
 
