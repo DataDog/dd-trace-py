@@ -197,4 +197,4 @@ def test_aggregated_leaks():
     with override_env({"DD_IAST_ENABLED": "True"}):
         from scripts.iast.test_leak_functions import test_iast_leaks
 
-        assert test_iast_leaks(100000, 2.0, 1000) == 0
+        assert test_iast_leaks(100000, 2.0, 50) == 0
