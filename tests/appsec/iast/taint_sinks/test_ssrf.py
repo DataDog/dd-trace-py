@@ -223,7 +223,7 @@ def test_ssrf_httplib_deduplication(num_vuln_expected, tracer, iast_span_dedupli
         tainted_url, tainted_path = _get_tainted_url()
         for _ in range(0, 5):
             try:
-                conn = http.client.HTTPConnection("localhost")
+                conn = http.client.HTTPConnection("127.0.0.1")
                 # label test_ssrf_httplib_deduplication
                 conn.request("GET", tainted_url)
                 conn.getresponse()
