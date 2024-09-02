@@ -16,6 +16,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
+from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -33,17 +34,14 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import db
 from ddtrace.ext import http
-<<<<<<< HEAD
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
-=======
 from ddtrace.ext.kafka import MESSAGE_KEY
 from ddtrace.ext.kafka import MESSAGE_OFFSET
 from ddtrace.ext.kafka import PARTITION
 from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
->>>>>>> c21ed68d57 (fix: move logic to trace_handlers)
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
@@ -1135,7 +1133,16 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         scope["datadog"]["request_spans"].append(span)
 
 
-def _aiokafka_getone_message(ctx, message, err):
+def _on_aiokafka_send_start(topic, value, key, headers, span):
+    if config.aiokafka.distributed_tracing_enabled:
+        # inject headers with Datadog tags:
+        tracing_headers = {}
+        HTTPPropagator.inject(span.context, tracing_headers)
+        for key, value in tracing_headers.items():
+            headers.append((key, value.encode("utf-8")))
+
+
+def _on_aiokafka_getone_message(ctx, message, err):
     span = ctx[ctx["call_key"]]
     span.set_tag(TOMBSTONE, str(message is None).lower())
     if message is not None:
@@ -1232,8 +1239,8 @@ def listen():
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
-    core.on("aiokafka.send_and_wait.post", _on_aiokafka_send_and_wait_post)
-    core.on("aiokafka.getone.message", _aiokafka_getone_message)
+    core.on("aiokafka.send.start", _on_aiokafka_send_start)
+    core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
 
     for context_name in (
         # web frameworks
@@ -1292,8 +1299,10 @@ def listen():
         "azure.servicebus.patched_producer_schedule",
         "azure.servicebus.patched_producer_send",
         "psycopg.patched_connect",
+        "aiokafka.send",
         "aiokafka.send_and_wait",
         "aiokafka.getone",
+        "aiokafka.getmany",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
