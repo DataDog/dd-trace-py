@@ -31,7 +31,6 @@ from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
-from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -423,39 +422,40 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
-        try:
-            if span.span_type in {SpanTypes.WEB, SpanTypes.GRPC}:
-                # Force to set respond headers at the end
-                headers_res = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
-                if headers_res:
-                    _set_headers(span, headers_res, kind="response")
-
-                headers_req = core.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span)
-                if headers_req:
-                    _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
-
-                # this call is only necessary for tests or frameworks that are not using blocking
-                if not has_triggers(span) and _asm_request_context.in_context():
-                    log.debug("metrics waf call")
-                    _asm_request_context.call_waf_callback()
-
-                self._ddwaf._at_request_end()
-        finally:
-            # release asm context if it was created by the span
-            _asm_request_context.unregister(span)
-
-            if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
-                return
-
-            to_delete = []
-            for iterspan, ctx in self._span_to_waf_ctx.items():
-                # delete all the ddwaf ctxs associated with this span or finished or deleted ones
-                if iterspan == span or iterspan.finished:
-                    # so we don't change the dictionary size on iteration
-                    to_delete.append(iterspan)
-
-            for s in to_delete:
-                try:
-                    del self._span_to_waf_ctx[s]
-                except Exception:  # nosec B110
-                    pass
+        # try:
+        #     if span.span_type in {SpanTypes.WEB, SpanTypes.GRPC}:
+        #         # Force to set respond headers at the end
+        #         headers_res = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+        #         if headers_res:
+        #             _set_headers(span, headers_res, kind="response")
+        #
+        #         headers_req = core.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span)
+        #         if headers_req:
+        #             _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
+        #
+        #         # this call is only necessary for tests or frameworks that are not using blocking
+        #         if not has_triggers(span) and _asm_request_context.in_context():
+        #             log.debug("metrics waf call")
+        #             _asm_request_context.call_waf_callback()
+        #
+        #         self._ddwaf._at_request_end()
+        # finally:
+        #     # release asm context if it was created by the span
+        #     _asm_request_context.unregister(span)
+        #
+        #     if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
+        #         return
+        #
+        #     to_delete = []
+        #     for iterspan, ctx in self._span_to_waf_ctx.items():
+        #         # delete all the ddwaf ctxs associated with this span or finished or deleted ones
+        #         if iterspan == span or iterspan.finished:
+        #             # so we don't change the dictionary size on iteration
+        #             to_delete.append(iterspan)
+        #
+        #     for s in to_delete:
+        #         try:
+        #             del self._span_to_waf_ctx[s]
+        #         except Exception:  # nosec B110
+        #             pass
+        pass
