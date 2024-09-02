@@ -9,6 +9,7 @@ from typing import Optional
 
 import wrapt
 
+from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
@@ -754,7 +755,16 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
-def _aiokafka_getone_message(ctx, message, err):
+def _on_aiokafka_send_start(topic, value, key, headers, span):
+    if config.aiokafka.distributed_tracing_enabled:
+        # inject headers with Datadog tags:
+        tracing_headers = {}
+        HTTPPropagator.inject(span.context, tracing_headers)
+        for key, value in tracing_headers.items():
+            headers.append((key, value.encode("utf-8")))
+
+
+def _on_aiokafka_getone_message(ctx, message, err):
     span = ctx[ctx["call_key"]]
     span.set_tag(TOMBSTONE, str(message is None).lower())
     if message is not None:
@@ -825,7 +835,8 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
-    core.on("aiokafka.getone.message", _aiokafka_getone_message)
+    core.on("aiokafka.send.start", _on_aiokafka_send_start)
+    core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
 
     for context_name in (
         "flask.call",
@@ -844,8 +855,10 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "aiokafka.send",
         "aiokafka.send_and_wait",
         "aiokafka.getone",
+        "aiokafka.getmany",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

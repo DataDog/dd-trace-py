@@ -162,7 +162,7 @@ async def test_send_none_key(dummy_tracer, producer, kafka_topic):
 
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-async def test_message(producer, tombstone, kafka_topic):
+async def test_send_and_wait_message(producer, tombstone, kafka_topic):
     if tombstone:
         await producer.send_and_wait(kafka_topic, value=None, key=KEY)
     else:
@@ -170,22 +170,47 @@ async def test_message(producer, tombstone, kafka_topic):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-async def test_getone_with_commit(producer, consumer, kafka_topic):
-    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+async def test_send_getone_with_commit(producer, consumer, kafka_topic):
+    fut = await producer.send(kafka_topic, value=PAYLOAD, key=KEY)
+    await fut
     await producer.stop()
-    await consumer.getone()
+    result = await consumer.getone()
     await consumer.commit()
+    assert result.key == KEY
+    assert result.value == PAYLOAD
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-async def test_getone_with_commit_with_offset(producer, consumer, kafka_topic):
+async def test_send_getone_with_commit_with_offset(producer, consumer, kafka_topic):
+    fut = await producer.send(kafka_topic, value=PAYLOAD, key=KEY)
+    await fut
+    await producer.stop()
+    result = await consumer.getone()
+    await consumer.commit({TopicPartition(result.topic, result.partition): result.offset + 1})
+    assert result.key == KEY
+    assert result.value == PAYLOAD
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+async def test_send_and_wait_getone_with_commit(producer, consumer, kafka_topic):
+    await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
+    await producer.stop()
+    result = await consumer.getone()
+    await consumer.commit()
+    assert result.key == KEY
+    assert result.value == PAYLOAD
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+async def test_send_and_wait_getone_with_commit_with_offset(producer, consumer, kafka_topic):
     await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
     await producer.stop()
     result = await consumer.getone()
     await consumer.commit({TopicPartition(result.topic, result.partition): result.offset + 1})
+    assert result.key == KEY
+    assert result.value == PAYLOAD
 
 
-@pytest.mark.skip(reason="getmany not instrumented yet")
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getmany_single_message_with_commit(producer, tracer, kafka_topic):
     await producer.send_and_wait(kafka_topic, value=PAYLOAD, key=KEY)
@@ -201,7 +226,6 @@ async def test_getmany_single_message_with_commit(producer, tracer, kafka_topic)
     await consumer.stop()
 
 
-@pytest.mark.skip(reason="getmany not instrumented yet")
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getmany_multiple_messages_with_commit(producer, tracer, kafka_topic):
     await producer.send_and_wait(kafka_topic, value=PAYLOAD)
@@ -220,7 +244,6 @@ async def test_getmany_multiple_messages_with_commit(producer, tracer, kafka_top
     await consumer.stop()
 
 
-@pytest.mark.skip(reason="getmany not instrumented yet")
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 async def test_getmany_multiple_messages_multiple_topics(producer, tracer, kafka_topic, kafka_topic_2):
     await producer.send_and_wait(kafka_topic, PAYLOAD)
@@ -242,6 +265,58 @@ async def test_getmany_multiple_messages_multiple_topics(producer, tracer, kafka
                 assert len(records) == 1
     finally:
         await consumer.stop()
+
+
+async def test_getmany_multiple_messages_multiple_topics_distributed_tracing(
+    producer, dummy_tracer, kafka_topic, kafka_topic_2
+):
+    Pin.override(producer, tracer=dummy_tracer)
+    with override_config("aiokafka", dict(distributed_tracing_enabled=True)):
+        await producer.send_and_wait(kafka_topic, PAYLOAD)
+        await producer.send_and_wait(kafka_topic, PAYLOAD)
+        await producer.send_and_wait(kafka_topic_2, PAYLOAD)
+        await producer.stop()
+
+        consumer = get_consumer()
+        Pin.override(consumer, tracer=dummy_tracer)
+        consumer.subscribe([kafka_topic, kafka_topic_2])
+        await consumer.start()
+        try:
+            results = await consumer.getmany(timeout_ms=1000)
+            assert len(results) == 2
+            # Check that all received message on all topics have the headers set
+            for tp, records in results.items():
+                if tp.topic == kafka_topic:
+                    assert len(records) == 2
+                    for record in records:
+                        header_found = False
+                        for header in record.headers:
+                            if header[0] == "x-datadog-trace-id":
+                                header_found = True
+                        assert header_found is True
+                if tp.topic == kafka_topic_2:
+                    assert len(records) == 1
+                    for record in records:
+                        header_found = False
+                        for header in record.headers:
+                            if header[0] == "x-datadog-trace-id":
+                                header_found = True
+                        assert header_found is True
+
+            # Check that the traces span id and parent id match
+            traces = dummy_tracer.pop_traces()
+            assert 6 == len(traces)
+            for x in range(3, 6):
+                # consume span
+                consume_span = traces[x][0]
+                # parent found?
+                found_parent = False
+                for y in range(3):
+                    if consume_span.parent_id == traces[y][0].span_id:
+                        found_parent = True
+                assert found_parent is True
+        finally:
+            await consumer.stop()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
