@@ -1032,7 +1032,6 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         pin,
         "%s" % func.__self__.name,
         interface_type="tool",
-        submit_to_llmobs=True,
     )
 
     tool_output = None
@@ -1066,14 +1065,6 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "tool",
-                span,
-                tool_input,
-                tool_output,
-                error=bool(span.error),
-            )
         span.finish()
     return tool_output
 
