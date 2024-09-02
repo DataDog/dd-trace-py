@@ -174,8 +174,14 @@ class CIVisibility(Service):
         self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
-        self._suite_skipping_mode = asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False))
-        self.config = config or ddconfig.ci_visibility  # type: Optional[IntegrationConfig]
+        self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
+        if ddconfig.test_visibility.itr_skipping_level not in [SUITE, TEST]:
+            log.warning(
+                "Invalid value '%s' for itr_skipping_level, defaulting to %s",
+                ddconfig.test_visibility.itr_skipping_level,
+                TEST,
+            )
+        self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == SUITE
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None

@@ -133,6 +133,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
+        dd_config.test_visibility.itr_skipping_level = "suite"
         enable_test_visibility(config=dd_config.pytest)
         if TestSession.should_collect_coverage():
             workspace_path = TestSession.get_workspace_path()
