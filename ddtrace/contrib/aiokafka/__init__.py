@@ -1,28 +1,45 @@
 """
-The foo integration instruments the bar and baz features of the
-foo library.
+This integration instruments the ``aiokafka<https://github.com/aio-libs/aiokafka>``
+library to trace event streaming.
+
 Enabling
 ~~~~~~~~
-The foo integration is enabled automatically when using
-:ref:`ddtrace-run <ddtracerun>` or :ref:`import ddtrace.auto <ddtraceauto>`.
+
+The aiokafka integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
+
 Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
+
     from ddtrace import patch
-    patch(foo=True)
+    patch(aiokafka=True)
+    import aiokafka
+    ...
+
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
-.. py:data:: ddtrace.config.foo["service"]
-   The service name reported by default for foo instances.
-   This option can also be set with the ``DD_FOO_SERVICE`` environment
+
+.. py:data:: ddtrace.config.aiokafka["service"]
+
+   The service name reported by default for your kafka spans.
+
+   This option can also be set with the ``DD_AIOKAFKA_SERVICE`` environment
    variable.
-   Default: ``"foo"``
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-To configure the foo integration on an per-instance basis use the
+
+   Default: ``"kafka"``
+
+
+To configure the aiokafka integration using the
 ``Pin`` API::
-    import foo
+
     from ddtrace import Pin
-    myfoo = foo.Foo()
-    Pin.override(myfoo, service="myfoo")
+    from ddtrace import patch
+
+    # Make sure to patch before importing confluent_kafka
+    patch(aiokafka=True)
+
+    import aiokafka
+
+    Pin.override(aiokafka, service="custom-service-name")
 """
 
 from ...internal.utils.importlib import require_modules
