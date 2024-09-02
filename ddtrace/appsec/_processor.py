@@ -29,12 +29,10 @@ from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
 from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
-from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import ORIGIN_KEY
-from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
@@ -231,47 +229,48 @@ class AppSecSpanProcessor(SpanProcessor):
         return WAF_DATA_NAMES.SQLI_ADDRESS in self._addresses_to_keep
 
     def on_span_start(self, span: Span) -> None:
-        from ddtrace.contrib import trace_utils
-
-        if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
-            return
-
-        if _asm_request_context.free_context_available():
-            _asm_request_context.register(span)
-        else:
-            new_asm_context = _asm_request_context.asm_request_context_manager()
-            new_asm_context.__enter__()
-            _asm_request_context.register(span, new_asm_context)
-
-        ctx = self._ddwaf._at_request_start()
-        self._span_to_waf_ctx[span] = ctx
-        peer_ip = _asm_request_context.get_ip()
-        headers = _asm_request_context.get_headers()
-        headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
-
-        span.set_metric(APPSEC.ENABLED, 1.0)
-        span.set_tag_str(RUNTIME_FAMILY, "python")
-
-        def waf_callable(custom_data=None, **kwargs):
-            return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
-
-        _asm_request_context.set_waf_callback(waf_callable)
-        _asm_request_context.add_context_callback(_set_waf_request_metrics)
-        if headers is not None:
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
-            _asm_request_context.set_waf_address(
-                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive, span
-            )
-            if not peer_ip:
-                return
-
-            ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
-            # Save the IP and headers in the context so the retrieval can be skipped later
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span)
-            if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
-                log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
-                # _asm_request_context.call_callback()
-                _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
+        # from ddtrace.contrib import trace_utils
+        #
+        # if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
+        #     return
+        #
+        # if _asm_request_context.free_context_available():
+        #     _asm_request_context.register(span)
+        # else:
+        #     new_asm_context = _asm_request_context.asm_request_context_manager()
+        #     new_asm_context.__enter__()
+        #     _asm_request_context.register(span, new_asm_context)
+        #
+        # ctx = self._ddwaf._at_request_start()
+        # self._span_to_waf_ctx[span] = ctx
+        # peer_ip = _asm_request_context.get_ip()
+        # headers = _asm_request_context.get_headers()
+        # headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
+        #
+        # span.set_metric(APPSEC.ENABLED, 1.0)
+        # span.set_tag_str(RUNTIME_FAMILY, "python")
+        #
+        # def waf_callable(custom_data=None, **kwargs):
+        #     return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
+        #
+        # _asm_request_context.set_waf_callback(waf_callable)
+        # _asm_request_context.add_context_callback(_set_waf_request_metrics)
+        # if headers is not None:
+        #     _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
+        #     _asm_request_context.set_waf_address(
+        #         SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive, span
+        #     )
+        #     if not peer_ip:
+        #         return
+        #
+        #     ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
+        #     # Save the IP and headers in the context so the retrieval can be skipped later
+        #     _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span)
+        #     if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
+        #         log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
+        #         # _asm_request_context.call_callback()
+        #         _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
+        pass
 
     def _waf_action(
         self,
