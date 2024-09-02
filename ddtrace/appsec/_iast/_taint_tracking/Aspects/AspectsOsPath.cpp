@@ -23,7 +23,7 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
         return result_o;
     }
 
-    TRY_CATCH_ASPECT("ospathjoin_aspect", {
+    TRY_CATCH_ASPECT("ospathjoin_aspect", , {
         const auto separator = ospath.attr("sep").cast<std::string>();
         const auto sepsize = separator.size();
 
@@ -105,7 +105,7 @@ api_ospathbasename_aspect(const StrType& path)
     auto basename = ospath.attr("basename");
     auto result_o = basename(path);
 
-    TRY_CATCH_ASPECT("ospathbasename_aspect", {
+    TRY_CATCH_ASPECT("ospathbasename_aspect", , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty() or py::len(result_o) == 0) {
             return result_o;
@@ -138,7 +138,7 @@ api_ospathdirname_aspect(const StrType& path)
     auto dirname = ospath.attr("dirname");
     auto result_o = dirname(path);
 
-    TRY_CATCH_ASPECT("ospathdirname_aspect", {
+    TRY_CATCH_ASPECT("ospathdirname_aspect", , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty() or py::len(result_o) == 0) {
             return result_o;
@@ -171,7 +171,7 @@ forward_to_set_ranges_on_splitted(const char* function_name, const StrType& path
     auto function = ospath.attr(function_name);
     auto result_o = function(path);
 
-    TRY_CATCH_ASPECT("forward_to_set_ranges_on_splitted", {
+    TRY_CATCH_ASPECT("forward_to_set_ranges_on_splitted", , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty() or py::len(result_o) == 0) {
             return result_o;
@@ -223,7 +223,7 @@ api_ospathnormcase_aspect(const StrType& path)
     auto normcase = ospath.attr("normcase");
     auto result_o = normcase(path);
 
-    TRY_CATCH_ASPECT("ospathnormcase_aspect", {
+    TRY_CATCH_ASPECT("ospathnormcase_aspect", , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return result_o;

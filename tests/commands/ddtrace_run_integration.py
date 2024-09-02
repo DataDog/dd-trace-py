@@ -11,7 +11,7 @@ from tests.utils import DummyWriter
 
 
 if __name__ == "__main__":
-    r = redis.Redis(port=REDIS_CONFIG["port"])
+    r = redis.Redis(host=REDIS_CONFIG["host"], port=REDIS_CONFIG["port"])
     pin = Pin.get_from(r)
     assert pin
 
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     assert span.error == 0
     assert span.get_metric("network.destination.port") == REDIS_CONFIG["port"]
     assert span.get_metric("out.redis_db") == 0
-    assert span.get_tag("out.host") == "localhost"
+    assert span.get_tag("out.host") == REDIS_CONFIG["host"]
     assert span.get_tag("redis.raw_command").startswith("mget 0 1 2 3")
     assert span.get_tag("redis.raw_command").endswith("...")
 
