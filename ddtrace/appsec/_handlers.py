@@ -216,53 +216,58 @@ def _on_request_init(wrapped, instance, args, kwargs):
 
 def _on_flask_patch(flask_version):
     if _is_iast_enabled():
-        try:
-            from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-            from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
+        from ddtrace.appsec._iast._patch import _patched_dictionary
+        from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+        from ddtrace.appsec._iast._taint_tracking import OriginType
 
+        try_wrap_function_wrapper(
+            "werkzeug.datastructures",
+            "Headers.items",
+            functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
+        )
+        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+        _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+        try_wrap_function_wrapper(
+            "werkzeug.datastructures",
+            "ImmutableMultiDict.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+        )
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+
+        try_wrap_function_wrapper(
+            "werkzeug.datastructures",
+            "EnvironHeaders.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+        )
+        _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+        try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+
+        _set_metric_iast_instrumented_source(OriginType.PATH)
+        _set_metric_iast_instrumented_source(OriginType.QUERY)
+
+        try_wrap_function_wrapper(
+            "werkzeug.wrappers.request",
+            "Request.get_data",
+            functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+        )
+        try_wrap_function_wrapper(
+            "werkzeug.wrappers.request",
+            "Request.get_json",
+            functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+        )
+
+        _set_metric_iast_instrumented_source(OriginType.BODY)
+
+        if flask_version < (2, 0, 0):
             _w(
-                "werkzeug.datastructures",
-                "Headers.items",
-                functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
+                "werkzeug._internal",
+                "_DictAccessorProperty.__get__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
             )
-            _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
-            _set_metric_iast_instrumented_source(OriginType.HEADER)
-
-            _w(
-                "werkzeug.datastructures",
-                "ImmutableMultiDict.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-            )
-            _set_metric_iast_instrumented_source(OriginType.PARAMETER)
-
-            _w(
-                "werkzeug.datastructures",
-                "EnvironHeaders.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-            )
-            _set_metric_iast_instrumented_source(OriginType.HEADER)
-
-            _w("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
-
-            _set_metric_iast_instrumented_source(OriginType.PATH)
             _set_metric_iast_instrumented_source(OriginType.QUERY)
-
-            _w(
-                "werkzeug.wrappers.request",
-                "Request.get_data",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
-            )
-            _set_metric_iast_instrumented_source(OriginType.BODY)
-
-            if flask_version < (2, 0, 0):
-                _w(
-                    "werkzeug._internal",
-                    "_DictAccessorProperty.__get__",
-                    functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
-                )
-                _set_metric_iast_instrumented_source(OriginType.QUERY)
-        except Exception:
-            log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
 def _on_flask_blocked_request(_):
@@ -345,9 +350,9 @@ def _on_django_patch():
             from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec._iast._taint_tracking import OriginType
 
+            # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
-            # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
             _set_metric_iast_instrumented_source(OriginType.PATH)
             _set_metric_iast_instrumented_source(OriginType.COOKIE)
