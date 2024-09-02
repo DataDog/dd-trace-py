@@ -193,7 +193,6 @@ def test_stacktrace_memory_random_string_check():
         assert line_number == -1
 
 
-@pytest.mark.skip(reason="Hangs on CI around 3500 iterations")
 def test_aggregated_leaks():
     with override_env({"DD_IAST_ENABLED": "True"}):
         from scripts.iast.test_leak_functions import test_iast_leaks
