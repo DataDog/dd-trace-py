@@ -110,7 +110,7 @@ def test_ssrf_httplib(tracer, iast_span_defaults):
 
             tainted_url, tainted_path = _get_tainted_url()
             try:
-                conn = http.client.HTTPConnection("localhost")
+                conn = http.client.HTTPConnection("127.0.0.1")
                 # label test_ssrf_httplib
                 conn.request("GET", tainted_url)
                 conn.getresponse()
