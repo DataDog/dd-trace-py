@@ -47,6 +47,7 @@ from ddtrace.ext.test_visibility.item_ids import TestSuiteId
 from ddtrace.internal import core
 from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger as _get_logger
+import ddtrace.tracing  # noqa: F401 -- this triggers the registration of trace handlers
 
 
 log = _get_logger(__name__)
