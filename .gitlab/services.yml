@@ -33,4 +33,4 @@
     alias: kafka
   httpbin_local:
     name: registry.ddbuild.io/images/mirror/kennethreitz/httpbin:1
-    alias: httpbin_local
+    alias: httpbin-local
