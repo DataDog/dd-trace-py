@@ -1,6 +1,6 @@
 .services:
   ddagent:
-    name: datadog/agent:latest
+    name: registry.ddbuild.io/images/mirror/datadog/agent:7.40.1
     alias: ddagent
     variables:
       DD_HOSTNAME: ddagent
