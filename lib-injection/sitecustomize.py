@@ -38,7 +38,9 @@ INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
 PYTHON_RUNTIME = None
 PKGS_ALLOW_LIST = None
+EXECUTABLES_DENY_LIST = None
 VERSION_COMPAT_FILE_LOCATIONS = ("../datadog-lib/min_compatible_versions.csv", "min_compatible_versions.csv")
+EXECUTABLE_DENY_LOCATION = "denied_executables.txt"
 
 
 def build_installed_pkgs():
@@ -74,6 +76,15 @@ def build_min_pkgs():
                     min_pkgs[row[0].lower()] = parse_version(row[1])
             break
     return min_pkgs
+
+
+def build_denied_executables():
+    denied_executables = set()
+    if os.path.exists(EXECUTABLE_DENY_LOCATION):
+        with open(EXECUTABLE_DENY_LOCATION, "r") as denyfile:
+            for line in denyfile.readlines():
+                denied_executables.add(line.strip("\n"))
+    return denied_executables
 
 
 def create_count_metric(metric, tags=None):
@@ -159,15 +170,21 @@ def package_is_compatible(package_name, package_version):
     return installed_version.version >= supported_version_spec.version
 
 
+def executable_is_compatible():
+    return sys.argv[0] not in EXECUTABLES_DENY_LIST and sys.argv[1] not in EXECUTABLES_DENY_LIST
+
+
 def _inject():
     global INSTALLED_PACKAGES
     global PYTHON_VERSION
     global PYTHON_RUNTIME
     global PKGS_ALLOW_LIST
+    global EXECUTABLES_DENY_LIST
     INSTALLED_PACKAGES = build_installed_pkgs()
     PYTHON_RUNTIME = platform.python_implementation().lower()
     PYTHON_VERSION = platform.python_version()
     PKGS_ALLOW_LIST = build_min_pkgs()
+    EXECUTABLES_DENY_LIST = build_denied_executables()
     telemetry_data = []
     integration_incomp = False
     runtime_incomp = False
@@ -184,6 +201,21 @@ def _inject():
         pkgs_path = os.path.join(script_dir, "ddtrace_pkgs")
         _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
         _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
+
+        if not executable_is_compatible():
+            _log("Found incompatible executable: %s." % sys.argv, level="debug")
+            if not FORCE_INJECT:
+                _log("Aborting dd-trace-py instrumentation.", level="debug")
+                telemetry_data.append(
+                    create_count_metric(
+                        "library_entrypoint.abort.integration",
+                    )
+                )
+            else:
+                _log(
+                    "DD_INJECT_FORCE set to True, allowing unsupported executables and continuing.",
+                    level="debug",
+                )
 
         # check installed packages against allow list
         incompatible_packages = {}
