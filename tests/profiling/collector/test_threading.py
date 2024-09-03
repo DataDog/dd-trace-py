@@ -593,9 +593,20 @@ def test_anonymous_lock():
 
 
 @pytest.mark.subprocess(
-    env=dict(WRAPT_DISABLE_EXTENSIONs="True"),
+    env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__),
 )
 def test_wrapt_disable_extensions():
+    import os
+    import sys
+    import threading
+
+    from ddtrace.profiling import recorder
+    from ddtrace.profiling.collector import threading as collector_threading
+    from tests.profiling.collector.utils import get_lock_linenos
+    from tests.profiling.collector.utils import init_linenos
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
     # WRAPT_DISABLE_EXTENSIONS is a flag that can be set to disable the C extension
     # for wrapt. It's not set by default in dd-trace-py, but it can be set by
     # users. This test checks that the collector works even if the flag is set.
@@ -604,20 +615,33 @@ def test_wrapt_disable_extensions():
 
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        th_lock = threading.Lock()  # !CREATE! test_wrapt_c_ext_config
-        with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_c_ext_config
+        th_lock = threading.Lock()  # !CREATE! test_wrapt_disable_extensions
+        with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
             pass
 
-    linenos = get_lock_linenos("test_wrapt_c_ext_config")
+    linenos = get_lock_linenos("test_wrapt_disable_extensions")
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
     assert acquire_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
-    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos.acquire, "test_wrapt_c_ext_config", "")
+
+    expected_filename = os.environ["DD_PROFILING_FILE_PATH"].replace(".pyc", ".py").replace("/root/project/", "")
+
+    assert acquire_event.frames[0] == (
+        expected_filename,
+        linenos.acquire,
+        "<module>",
+        "",
+    )
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert release_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
     release_lineno = linenos.acquire + (0 if sys.version_info >= (3, 10) else 1)
-    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_wrapt_c_ext_config", "")
+    assert release_event.frames[0] == (
+        expected_filename,
+        release_lineno,
+        "<module>",
+        "",
+    )
 
 
 def test_global_locks():
