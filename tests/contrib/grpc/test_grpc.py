@@ -17,6 +17,7 @@ from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.internal.grpc.patch import _unpatch_server
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
+from tests.utils import flaky
 from tests.utils import snapshot
 
 from .common import _GRPC_PORT
@@ -704,6 +705,7 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
 
 
 @snapshot(ignores=["meta.network.destination.port"], wait_for_num_traces=2)
+@flaky(until=1729294610, reason="GitLab CI does not support ipv6 at this time")
 def test_method_service(patch_grpc):
     def handler(request, context):
         return b""
