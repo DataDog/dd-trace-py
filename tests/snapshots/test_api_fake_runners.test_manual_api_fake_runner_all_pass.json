@@ -1,7 +1,7 @@
 [[
   {
     "name": "test_visibility.test",
-    "service": "default_ci_visibility_service",
+    "service": "default_test_visibility_service",
     "resource": "test_1",
     "trace_id": 0,
     "span_id": 1,
@@ -53,7 +53,7 @@
 [
   {
     "name": "test_visibility.test",
-    "service": "default_ci_visibility_service",
+    "service": "default_test_visibility_service",
     "resource": "test_2",
     "trace_id": 1,
     "span_id": 1,
@@ -102,7 +102,7 @@
 [
   {
     "name": "test_visibility.test",
-    "service": "default_ci_visibility_service",
+    "service": "default_test_visibility_service",
     "resource": "test_3",
     "trace_id": 2,
     "span_id": 1,
@@ -155,7 +155,7 @@
 [
   {
     "name": "test_visibility.session",
-    "service": "default_ci_visibility_service",
+    "service": "default_test_visibility_service",
     "resource": "test_visibility.session",
     "trace_id": 3,
     "span_id": 1,
@@ -199,7 +199,7 @@
   },
      {
        "name": "test_visibility.module",
-       "service": "default_ci_visibility_service",
+       "service": "default_test_visibility_service",
        "resource": "test_visibility.module",
        "trace_id": 3,
        "span_id": 2,
@@ -243,7 +243,7 @@
      },
         {
           "name": "test_visibility.suite",
-          "service": "default_ci_visibility_service",
+          "service": "default_test_visibility_service",
           "resource": "test_visibility.suite",
           "trace_id": 3,
           "span_id": 4,
@@ -287,7 +287,7 @@
         },
      {
        "name": "test_visibility.module",
-       "service": "default_ci_visibility_service",
+       "service": "default_test_visibility_service",
        "resource": "test_visibility.module",
        "trace_id": 3,
        "span_id": 3,
@@ -331,7 +331,7 @@
      },
         {
           "name": "test_visibility.suite",
-          "service": "default_ci_visibility_service",
+          "service": "default_test_visibility_service",
           "resource": "test_visibility.suite",
           "trace_id": 3,
           "span_id": 5,
@@ -376,7 +376,7 @@
 [
   {
     "name": "test_visibility.test",
-    "service": "default_ci_visibility_service",
+    "service": "default_test_visibility_service",
     "resource": "test_1",
     "trace_id": 4,
     "span_id": 1,
@@ -428,7 +428,7 @@
 [
   {
     "name": "test_visibility.test",
-    "service": "default_ci_visibility_service",
+    "service": "default_test_visibility_service",
     "resource": "test_2",
     "trace_id": 5,
     "span_id": 1,
@@ -477,7 +477,7 @@
 [
   {
     "name": "test_visibility.test",
-    "service": "default_ci_visibility_service",
+    "service": "default_test_visibility_service",
     "resource": "test_3",
     "trace_id": 6,
     "span_id": 1,

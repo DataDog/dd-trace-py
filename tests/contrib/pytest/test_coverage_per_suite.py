@@ -13,6 +13,7 @@ from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -146,7 +147,7 @@ class PytestTestCase(TracerTestCase):
         with override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=_CIVisibilitySettings(True, False, False, True),
-        ):
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")):
             self.inline_run(
                 "-p",
                 "no:randomly",
@@ -264,6 +265,8 @@ class PytestTestCase(TracerTestCase):
             [
                 "test_cov_second.py",
             ],
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run(
                 "-p",
