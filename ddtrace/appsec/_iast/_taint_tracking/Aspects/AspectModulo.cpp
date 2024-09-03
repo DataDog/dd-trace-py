@@ -6,24 +6,26 @@ api_modulo_aspect_pyobject(py::object candidate_text, py::object candidate_tuple
 {
     return candidate_text.attr("__mod__")(candidate_tuple);
 }
-#include <Python.h>
 
 static PyObject*
 do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 {
-    // If the insert argument is not a tuple, wrap it in a tuple
-    PyObject* insert_tuple;
-    if (!PyTuple_Check(insert_tuple_or_obj)) {
+    PyObject* result = nullptr;
+
+    // If the second argument is not a tuple and not a mapping, wrap it in a tuple
+    PyObject* insert_tuple = nullptr;
+    if (PyMapping_Check(insert_tuple_or_obj)) {
+        insert_tuple = insert_tuple_or_obj;
+        Py_INCREF(insert_tuple); // Increment the reference count since we'll be using this directly
+    } else if (PyTuple_Check(insert_tuple_or_obj)) {
+        insert_tuple = insert_tuple_or_obj;
+        Py_INCREF(insert_tuple); // Increment the reference count since we'll be using this directly
+    } else {
         insert_tuple = PyTuple_Pack(1, insert_tuple_or_obj);
         if (insert_tuple == nullptr) {
             return nullptr; // Return if PyTuple_Pack fails
         }
-    } else {
-        insert_tuple = insert_tuple_or_obj;
-        Py_INCREF(insert_tuple); // Increment the reference count since we'll be using this directly
     }
-
-    PyObject* result = nullptr;
 
     // Check if text is a Unicode object
     if (PyUnicode_Check(text)) {
@@ -36,61 +38,49 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 #else // Python 3.12 and later
       // Convert bytes to str, format, and convert back to bytes
         PyObject* text_unicode = PyUnicode_FromEncodedObject(text, "utf-8", "strict");
-        if (text_unicode == nullptr) {
-            Py_DECREF(insert_tuple);
-            return nullptr;
-        }
+        if (text_unicode != nullptr) {
+            result = PyUnicode_Format(text_unicode, insert_tuple);
+            Py_DECREF(text_unicode);
 
-        PyObject* formatted_unicode = PyUnicode_Format(text_unicode, insert_tuple);
-        Py_DECREF(text_unicode);
-        if (formatted_unicode == nullptr) {
-            Py_DECREF(insert_tuple);
-            return nullptr;
+            if (result != nullptr) {
+                PyObject* encoded_result = PyUnicode_AsEncodedString(result, "utf-8", "strict");
+                Py_DECREF(result);
+                result = encoded_result;
+            }
         }
-
-        result = PyUnicode_AsEncodedString(formatted_unicode, "utf-8", "strict");
-        Py_DECREF(formatted_unicode);
 #endif
     }
     // Check if text is a bytearray object
     else if (PyByteArray_Check(text)) {
         PyObject* text_bytes = PyBytes_FromStringAndSize(PyByteArray_AsString(text), PyByteArray_Size(text));
-        if (text_bytes == nullptr) {
-            Py_DECREF(insert_tuple);
-            return nullptr;
-        }
-
+        if (text_bytes != nullptr) {
 #if PY_VERSION_HEX < 0x030C0000 // Python versions earlier than 3.12
-        PyObject* result_bytes = PyBytes_Format(text_bytes, insert_tuple);
+            result = PyBytes_Format(text_bytes, insert_tuple);
 #else // Python 3.12 and later
-      // Convert bytes to str, format, and convert back to bytes
-        PyObject* text_unicode = PyUnicode_FromEncodedObject(text_bytes, "utf-8", "strict");
-        Py_DECREF(text_bytes);
-        if (text_unicode == nullptr) {
-            Py_DECREF(insert_tuple);
-            return nullptr;
-        }
+            PyObject* text_unicode = PyUnicode_FromEncodedObject(text_bytes, "utf-8", "strict");
+            Py_DECREF(text_bytes);
+            if (text_unicode != nullptr) {
+                result = PyUnicode_Format(text_unicode, insert_tuple);
+                Py_DECREF(text_unicode);
 
-        PyObject* formatted_unicode = PyUnicode_Format(text_unicode, insert_tuple);
-        Py_DECREF(text_unicode);
-        if (formatted_unicode == nullptr) {
-            Py_DECREF(insert_tuple);
-            return nullptr;
-        }
-
-        PyObject* result_bytes = PyUnicode_AsEncodedString(formatted_unicode, "utf-8", "strict");
-        Py_DECREF(formatted_unicode);
+                if (result != nullptr) {
+                    PyObject* encoded_result = PyUnicode_AsEncodedString(result, "utf-8", "strict");
+                    Py_DECREF(result);
+                    result = encoded_result;
+                }
+            }
 #endif
-        if (result_bytes == nullptr) {
-            Py_DECREF(insert_tuple);
-            return nullptr;
         }
 
-        result = PyByteArray_FromObject(result_bytes);
-        Py_DECREF(result_bytes);
+        if (result != nullptr) {
+            PyObject* result_bytearray = PyByteArray_FromObject(result);
+            Py_DECREF(result);
+            result = result_bytearray;
+        }
     }
     // If text is not one of the expected types, raise an error
     else {
+        Py_DECREF(insert_tuple);
         return nullptr;
     }
 
@@ -108,13 +98,11 @@ api_modulo_aspect(StrType candidate_text, py::object candidate_tuple)
 
     PyObject* pyo_result_o = do_modulo(candidate_text.ptr(), candidate_tuple.ptr());
     if (pyo_result_o == nullptr) {
-        // Try with the attr call
-        StrType result_o = candidate_text.attr("__mod__")(candidate_tuple);
+        return candidate_text.attr("__mod__")(candidate_tuple);
     }
 
-    StrType result_o = py::reinterpret_borrow<StrType>(pyo_result_o);
-
-    py::tuple parameters =
+    StrType result_o = py::reinterpret_steal<StrType>(pyo_result_o);
+    const py::tuple parameters =
       py::isinstance<py::tuple>(candidate_tuple) ? candidate_tuple : py::make_tuple(candidate_tuple);
 
     const auto tx_map = Initializer::get_tainting_map();
@@ -151,9 +139,9 @@ api_modulo_aspect(StrType candidate_text, py::object candidate_tuple)
 
         StrType applied_params;
         if (pyo_applied_params == nullptr) {
-            applied_params = fmttext.attr("__mod__")(formatted_parameters);
+            return result_o;
         } else {
-            applied_params = py::reinterpret_borrow<StrType>(pyo_applied_params);
+            applied_params = py::reinterpret_steal<StrType>(pyo_applied_params);
         }
 
         return api_convert_escaped_text_to_taint_text(applied_params, ranges_orig);
@@ -173,12 +161,11 @@ pyexport_aspect_modulo(py::module& m)
           "candidate_text"_a,
           "candidate_tuple"_a,
           py::return_value_policy::move);
-    // JJJ
-    // m.def("_aspect_modulo",
-    //       &api_modulo_aspect<py::bytearray>,
-    //       "candidate_text"_a,
-    //       "candidate_tuple"_a,
-    //       py::return_value_policy::move);
+    m.def("_aspect_modulo",
+          &api_modulo_aspect<py::bytearray>,
+          "candidate_text"_a,
+          "candidate_tuple"_a,
+          py::return_value_policy::move);
     m.def("_aspect_modulo",
           &api_modulo_aspect_pyobject,
           "candidate_text"_a,
