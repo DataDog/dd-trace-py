@@ -8,7 +8,6 @@ import mock
 import pytest
 
 from ddtrace.profiling import recorder
-from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import threading as collector_threading
 
 from . import test_collector
@@ -601,6 +600,7 @@ def test_wrapt_disable_extensions():
     import threading
 
     from ddtrace.profiling import recorder
+    from ddtrace.profiling.collector import _lock
     from ddtrace.profiling.collector import threading as collector_threading
     from tests.profiling.collector.utils import get_lock_linenos
     from tests.profiling.collector.utils import init_linenos
