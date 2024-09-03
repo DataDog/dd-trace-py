@@ -117,14 +117,17 @@ api_modulo_aspect(StrType candidate_text, py::object candidate_tuple)
             return result_o;
         }
 
-        StrType fmttext = as_formatted_evidence(candidate_text, candidate_text_ranges, TagMappingMode::Mapper);
+        auto fmttext_str = candidate_text.cast<string>();
+        auto fmttext = StrType(as_formatted_evidence(fmttext_str, candidate_text_ranges, TagMappingMode::Mapper));
         py::list list_formatted_parameters;
 
         for (const py::handle& param_handle : parameters) {
             auto param_strtype = py::reinterpret_borrow<py::object>(param_handle).cast<StrType>();
             if (is_text(param_handle.ptr())) {
                 auto [ranges, ranges_error] = get_ranges(param_handle.ptr(), tx_map);
-                StrType n_parameter = as_formatted_evidence(param_strtype, ranges, TagMappingMode::Mapper, nullopt);
+                auto param_strtype_str = param_strtype.cast<string>();
+                auto n_parameter =
+                  StrType(as_formatted_evidence(param_strtype_str, ranges, TagMappingMode::Mapper, nullopt));
                 list_formatted_parameters.append(n_parameter);
             } else {
                 list_formatted_parameters.append(param_handle);

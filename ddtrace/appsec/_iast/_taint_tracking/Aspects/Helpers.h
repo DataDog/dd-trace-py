@@ -26,9 +26,8 @@ template<class StrType>
 StrType
 int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode);
 
-template<class StrType>
-StrType
-as_formatted_evidence(StrType& text,
+string
+as_formatted_evidence(string& text,
                       TaintRangeRefs& text_ranges,
                       const optional<TagMappingMode>& tag_mapping_mode = TagMappingMode::Mapper,
                       const optional<const py::dict>& new_ranges = nullopt);
@@ -86,93 +85,41 @@ range_sort(const TaintRangePtr& t1, const TaintRangePtr& t2)
     return t1->start < t2->start;
 }
 
-template<class StrType>
-static StrType
-get_tag(const py::object& content)
+inline string
+get_tag(const string& content)
 {
-    if (content.is_none()) {
-        return StrType(EVIDENCE_MARKS::BLANK);
+    if (content.empty()) {
+        return string(EVIDENCE_MARKS::BLANK);
     }
 
-    if (py::isinstance<py::str>(StrType(EVIDENCE_MARKS::LESS))) {
-        return StrType(EVIDENCE_MARKS::LESS) + content.cast<py::str>() + StrType(EVIDENCE_MARKS::GREATER);
-    }
-    return StrType(EVIDENCE_MARKS::LESS) + py::bytes(content.cast<py::str>()) + StrType(EVIDENCE_MARKS::GREATER);
+    return string(EVIDENCE_MARKS::LESS) + content + string(EVIDENCE_MARKS::GREATER);
 }
 
-inline py::object
+inline string
 get_default_content(const TaintRangePtr& taint_range)
 {
     if (!taint_range->source.name.empty()) {
-        return py::str(taint_range->source.name);
+        return taint_range->source.name;
     }
 
-    return py::cast<py::none>(Py_None);
+    return {};
 }
 
 // TODO OPTIMIZATION: check if we can use instead a struct object with range_guid_map, new_ranges and default members so
 // we dont have to get the keys by string
-inline py::object
+inline string
 mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>& new_ranges)
 {
     if (!taint_range or !new_ranges) {
-        return py::none{};
+        return {};
     }
     py::object o = py::cast(taint_range);
 
     if (!new_ranges->contains(o)) {
-        return py::none{};
+        return {};
     }
     const TaintRange new_range = py::cast<TaintRange>((*new_ranges)[o]);
-    return py::int_(new_range.get_hash());
-}
-
-// TODO OPTIMIZATION: Remove py::types once this isn't used in Python
-template<class StrType>
-StrType
-as_formatted_evidence(StrType& text,
-                      TaintRangeRefs& text_ranges,
-                      const optional<TagMappingMode>& tag_mapping_mode,
-                      const optional<const py::dict>& new_ranges)
-{
-    if (text_ranges.empty()) {
-        return text;
-    }
-    vector<StrType> res_vector;
-    long index = 0;
-
-    sort(text_ranges.begin(), text_ranges.end(), &range_sort);
-    for (const auto& taint_range : text_ranges) {
-        py::object content;
-        if (!tag_mapping_mode) {
-            content = get_default_content(taint_range);
-        } else
-            switch (*tag_mapping_mode) {
-                case TagMappingMode::Mapper:
-                    content = py::int_(taint_range->get_hash());
-                    break;
-                case TagMappingMode::Mapper_Replace:
-                    content = mapper_replace(taint_range, new_ranges);
-                    break;
-                default: {
-                    // Nothing
-                }
-            }
-        const auto tag = get_tag<StrType>(content);
-
-        const auto range_end = taint_range->start + taint_range->length;
-
-        res_vector.push_back(text[py::slice(py::int_{ index }, py::int_{ taint_range->start }, nullptr)]);
-        res_vector.push_back(StrType(EVIDENCE_MARKS::START_EVIDENCE));
-        res_vector.push_back(tag);
-        res_vector.push_back(text[py::slice(py::int_{ taint_range->start }, py::int_{ range_end }, nullptr)]);
-        res_vector.push_back(tag);
-        res_vector.push_back(StrType(EVIDENCE_MARKS::END_EVIDENCE));
-
-        index = range_end;
-    }
-    res_vector.push_back(text[py::slice(py::int_(index), nullptr, nullptr)]);
-    return StrType(EVIDENCE_MARKS::BLANK).attr("join")(res_vector);
+    return to_string(new_range.get_hash());
 }
 
 inline PyObject*
