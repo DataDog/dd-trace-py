@@ -1240,6 +1240,8 @@ def unpatch():
         unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
         unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
         unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
+        unwrap(langchain_core.tools.BaseTool.invoke, "invoke")
+        unwrap(langchain_core.tools.BaseTool.ainvoke, "ainvoke")
         if langchain_openai:
             unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
         if langchain_pinecone:
