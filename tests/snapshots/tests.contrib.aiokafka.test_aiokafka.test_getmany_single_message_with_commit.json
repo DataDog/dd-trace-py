@@ -17,8 +17,8 @@
       "kafka.message_key": "test_key",
       "kafka.tombstone": "false",
       "kafka.topic": "test_getmany_single_message_with_commit",
-      "messaging.kafka.bootstrap.servers": "127.0.0.1:29092",
       "language": "python",
+      "messaging.kafka.bootstrap.servers": "127.0.0.1:29092",
       "messaging.system": "kafka",
       "runtime-id": "934424b19cb046dbb4c5b7275ee98b4d",
       "span.kind": "consumer"
