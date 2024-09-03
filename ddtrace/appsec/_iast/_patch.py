@@ -101,14 +101,14 @@ def _patched_fastapi_function(origin, original_func, instance, args, kwargs):
     if _is_iast_enabled():
         try:
             from ._taint_tracking import is_pyobject_tainted
-            from ._taint_tracking import taint_pyobject
             from .processor import AppSecIastSpanProcessor
 
             if not AppSecIastSpanProcessor.is_span_analyzed():
                 return result
 
             if not is_pyobject_tainted(result):
-                from ._taint_tracking._native.taint_tracking import origin_to_str
+                from ._taint_tracking import origin_to_str
+                from ._taint_tracking import taint_pyobject
 
                 return taint_pyobject(
                     pyobject=result, source_name=origin_to_str(origin), source_value=result, source_origin=origin
@@ -159,6 +159,8 @@ def _on_iast_fastapi_patch():
         "Headers.get",
         functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
     )
+    try_wrap_function_wrapper("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
+
     try_wrap_function_wrapper(
         "fastapi",
         "Header",
@@ -170,8 +172,28 @@ def _on_iast_fastapi_patch():
     _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
 
 
+def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import origin_to_str
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    def path(self) -> str:
+        return taint_pyobject(
+            self.components.path,
+            source_name=origin_to_str(OriginType.PATH),
+            source_value=self.components.path,
+            source_origin=OriginType.PATH,
+        )
+
+    instance.__class__.path = property(path)
+    wrapped(*args, **kwargs)
+
+    _set_metric_iast_instrumented_source(OriginType.PATH)
+
+
 def _iast_instrument_starlette_scope(scope):
     from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import origin_to_str
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     if scope.get("path_params"):
@@ -182,3 +204,10 @@ def _iast_instrument_starlette_scope(scope):
                 )
         except Exception:
             log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
+    if scope.get("path"):
+        scope["path"] = taint_pyobject(
+            scope["path"],
+            source_name=origin_to_str(OriginType.PATH),
+            source_value=scope["path"],
+            source_origin=OriginType.PATH,
+        )
