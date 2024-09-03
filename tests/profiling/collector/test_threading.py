@@ -629,6 +629,8 @@ def test_wrapt_disable_extensions():
     assert acquire_event.frames[0] == (
         expected_filename,
         linenos.acquire,
+        # As this test is run using a subprocess, the function name is different
+        # from "test_wrapt_disable_extensinos"
         "<module>",
         "",
     )
