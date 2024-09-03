@@ -51,7 +51,7 @@ urllib3:
   extends: .test_base_riot_snapshot
   services:
     - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, httpbin-local]
+    - !reference [.services, httpbin_local]
   variables:
     SUITE_NAME: "urllib3"
 
