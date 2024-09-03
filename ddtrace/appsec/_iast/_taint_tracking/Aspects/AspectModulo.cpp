@@ -117,9 +117,6 @@ api_modulo_aspect(StrType candidate_text, py::object candidate_tuple)
             return result_o;
         }
 
-        // Note: PyCharm could mark an error on this call, but it's only because it doesn't correctly see
-        // that at this point even if we entered from the py::object template instantiation, we are guaranteed
-        // that the candidate_text is a StrType.
         StrType fmttext = as_formatted_evidence(candidate_text, candidate_text_ranges, TagMappingMode::Mapper);
         py::list list_formatted_parameters;
 
