@@ -29,7 +29,7 @@
     name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
     alias: rediscluster
   kafka:
-    name: registry.ddbuild.io/images/mirror/kafka:3.4.1
+    name: registry.ddbuild.io/kafka:3.4.1
     alias: kafka
   httpbin_local:
     name: registry.ddbuild.io/images/mirror/kennethreitz/httpbin:1
