@@ -593,9 +593,9 @@ def test_anonymous_lock():
 
 
 @pytest.mark.subprocess(
-    env=dict(WRAPT_DISABLE_EXTENSION="True"),
+    env=dict(WRAPT_DISABLE_EXTENSIONs="True"),
 )
-def test_wrapt_c_ext_config():
+def test_wrapt_disable_extensions():
     # WRAPT_DISABLE_EXTENSIONS is a flag that can be set to disable the C extension
     # for wrapt. It's not set by default in dd-trace-py, but it can be set by
     # users. This test checks that the collector works even if the flag is set.
