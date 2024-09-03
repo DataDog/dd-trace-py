@@ -10,7 +10,6 @@ from typing import Sequence  # noqa F401
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
