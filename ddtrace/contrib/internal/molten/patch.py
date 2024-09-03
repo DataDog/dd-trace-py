@@ -1,6 +1,8 @@
 import os
 
 import molten
+import wrapt
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
@@ -19,8 +21,6 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .wrappers import MOLTEN_ROUTE
 from .wrappers import WrapperComponent

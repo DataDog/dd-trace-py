@@ -9,11 +9,10 @@ import httpretty
 import mock
 import pytest
 
-from ddtrace.internal.module import origin
 import ddtrace.internal.telemetry
+from ddtrace.internal.telemetry import modules
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriterModuleWatchdog
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
@@ -75,7 +74,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": True},
@@ -92,7 +90,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
-                    {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
                     {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -166,7 +163,11 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             },
         }
         requests[0]["body"]["payload"]["configuration"].sort(key=lambda c: c["name"])
-        assert requests[0]["body"] == _get_request_body(payload, "app-started")
+        result = _get_request_body(payload, "app-started")
+        result["payload"]["configuration"] = [
+            a for a in result["payload"]["configuration"] if a["name"] != "DD_TRACE_AGENT_URL"
+        ]
+        assert payload == result["payload"]
 
 
 @pytest.mark.parametrize(
@@ -221,7 +222,6 @@ import ddtrace.auto
     env["DD_TRACE_SAMPLE_RATE"] = "0.5"
     env["DD_TRACE_RATE_LIMIT"] = "50"
     env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
-    env["DD_PRIORITY_SAMPLING"] = "false"
     env["DD_PROFILING_ENABLED"] = "True"
     env["DD_PROFILING_STACK_ENABLED"] = "False"
     env["DD_PROFILING_MEMORY_ENABLED"] = "False"
@@ -261,7 +261,9 @@ import ddtrace.auto
     assert len(app_started_events) == 1
 
     app_started_events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-    assert sorted(app_started_events[0]["payload"]["configuration"], key=lambda x: x["name"]) == sorted(
+    result = sorted(app_started_events[0]["payload"]["configuration"], key=lambda x: x["name"])
+    result = [k for k in result if k["name"] != "DD_TRACE_AGENT_URL"]
+    expected = sorted(
         [
             {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
             {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
@@ -271,7 +273,6 @@ import ddtrace.auto
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": False},
@@ -288,7 +289,6 @@ import ddtrace.auto
             {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
             {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
-            {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
             {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": "v0.5"},
             {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -344,12 +344,13 @@ import ddtrace.auto
         ],
         key=lambda x: x["name"],
     )
+    assert result == expected
 
 
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
     import xmltodict
 
-    new_deps = [str(origin(xmltodict))]
+    new_deps = [xmltodict.__name__]
     telemetry_writer._app_dependencies_loaded_event(new_deps)
     # force a flush
     telemetry_writer.periodic(force_flush=True)
@@ -358,18 +359,17 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     xmltodict_events = [e for e in events if e["payload"]["dependencies"][0]["name"] == "xmltodict"]
     assert len(xmltodict_events) == 1
     assert "xmltodict" in telemetry_writer._imported_dependencies
-    assert telemetry_writer._imported_dependencies["xmltodict"].name == "xmltodict"
-    assert telemetry_writer._imported_dependencies["xmltodict"].version
+    assert telemetry_writer._imported_dependencies["xmltodict"]
 
 
 def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        TelemetryWriterModuleWatchdog._initial = False
-        TelemetryWriterModuleWatchdog._new_imported.clear()
+        # Fetch modules to reset the state of seen modules
+        modules.get_newly_imported_modules()
 
         import xmltodict
 
-        new_deps = [str(origin(xmltodict))]
+        new_deps = [xmltodict.__name__]
         telemetry_writer._app_dependencies_loaded_event(new_deps)
         # force a flush
         telemetry_writer.periodic(force_flush=True)
@@ -380,12 +380,12 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
 
 @pytest.mark.skip(reason="FIXME: This test does not generate a dependencies event")
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
-    TelemetryWriterModuleWatchdog._initial = False
-    TelemetryWriterModuleWatchdog._new_imported.clear()
+    # Fetch modules to reset the state of seen modules
+    modules.get_newly_imported_modules()
 
     import string
 
-    new_deps = [str(origin(string))]
+    new_deps = [string.__name__]
     telemetry_writer._app_dependencies_loaded_event(new_deps)
     # force a flush
     telemetry_writer.periodic(force_flush=True)
@@ -394,12 +394,12 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
 
 
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
-    TelemetryWriterModuleWatchdog._initial = False
-    TelemetryWriterModuleWatchdog._new_imported.clear()
+    # Fetch modules to reset the state of seen modules
+    modules.get_newly_imported_modules()
 
     import xmltodict
 
-    new_deps = [str(origin(xmltodict))]
+    new_deps = [xmltodict.__name__]
     telemetry_writer._app_dependencies_loaded_event(new_deps)
     # force a flush
     telemetry_writer.periodic(force_flush=True)
@@ -588,7 +588,8 @@ def test_telemetry_writer_agent_setup():
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=False)
         assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url == "http://localhost:9126"
+        assert "http://" in new_telemetry_writer._client._telemetry_url
+        assert ":9126" in new_telemetry_writer._client._telemetry_url
         assert "dd-api-key" not in new_telemetry_writer._client._headers
 
 

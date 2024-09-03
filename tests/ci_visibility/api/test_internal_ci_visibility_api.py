@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 
 from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
@@ -30,12 +29,8 @@ def _get_default_civisibility_settings():
     )
 
 
-def _get_default_session_id():
-    return CISessionId("session_name")
-
-
 def _get_default_module_id():
-    return CIModuleId(_get_default_session_id(), "module_name")
+    return CIModuleId("module_name")
 
 
 def _get_default_suite_id():
@@ -69,7 +64,7 @@ def _get_bad_suite_source_file_info():
 class TestCIVisibilityItems:
     def test_civisibilityitem_enforces_sourcefile_info_on_tests(self):
         ci_test = CIVisibilityTest(
-            _get_default_test_id(),
+            _get_default_test_id().name,
             _get_default_civisibility_settings(),
             source_file_info=_get_good_test_source_file_info(),
         )
@@ -79,7 +74,7 @@ class TestCIVisibilityItems:
 
     def test_civiisibilityitem_enforces_sourcefile_info_on_suites(self):
         ci_suite = CIVisibilitySuite(
-            _get_default_suite_id(),
+            _get_default_suite_id().name,
             _get_default_civisibility_settings(),
             source_file_info=_get_good_suite_source_file_info(),
         )

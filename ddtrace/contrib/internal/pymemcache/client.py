@@ -11,6 +11,7 @@ from pymemcache.exceptions import MemcacheIllegalInputError
 from pymemcache.exceptions import MemcacheServerError
 from pymemcache.exceptions import MemcacheUnknownCommandError
 from pymemcache.exceptions import MemcacheUnknownError
+import wrapt
 
 # 3p
 from ddtrace import config
@@ -29,7 +30,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)

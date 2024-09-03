@@ -654,7 +654,6 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
-    + get_exts_for("wrapt")
     + get_exts_for("psutil"),
     rust_extensions=[
         RustExtension(

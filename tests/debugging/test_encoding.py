@@ -135,15 +135,23 @@ def test_capture_exc_info():
     assert serialized["message"] == "'bad'"
 
 
+def capture_context(*args, **kwargs):
+    return _capture_context(sys._getframe(1), *args, **kwargs)
+
+
 def test_capture_context_default_level():
-    context = _capture_context([("self", tree)], [], [], (None, None, None), CaptureLimits(max_level=0))
-    self = context["arguments"]["self"]
+    def _(self=tree):
+        return capture_context((None, None, None), limits=CaptureLimits(max_level=0))
+
+    self = _()["arguments"]["self"]
     assert self["fields"]["root"]["notCapturedReason"] == "depth"
 
 
 def test_capture_context_one_level():
-    context = _capture_context([("self", tree)], [], [], (None, None, None), CaptureLimits(max_level=1))
-    self = context["arguments"]["self"]
+    def _(self=tree):
+        return capture_context((None, None, None), limits=CaptureLimits(max_level=1))
+
+    self = _()["arguments"]["self"]
 
     assert self["fields"]["root"]["fields"]["left"] == {"notCapturedReason": "depth", "type": "Node"}
 
@@ -152,13 +160,18 @@ def test_capture_context_one_level():
 
 
 def test_capture_context_two_level():
-    context = _capture_context([("self", tree)], [], [], (None, None, None), CaptureLimits(max_level=2))
-    self = context["arguments"]["self"]
+    def _(self=tree):
+        return capture_context((None, None, None), limits=CaptureLimits(max_level=2))
+
+    self = _()["arguments"]["self"]
     assert self["fields"]["root"]["fields"]["left"]["fields"]["right"] == {"notCapturedReason": "depth", "type": "Node"}
 
 
 def test_capture_context_three_level():
-    context = _capture_context([("self", tree)], [], [], (None, None, None), CaptureLimits(max_level=3))
+    def _(self=tree):
+        return capture_context((None, None, None), limits=CaptureLimits(max_level=3))
+
+    context = _()
     self = context["arguments"]["self"]
     assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"]["isNull"], context
     assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["left"]["isNull"], context
@@ -169,13 +182,15 @@ def test_capture_context_exc():
     try:
         raise Exception("test", "me")
     except Exception:
-        context = _capture_context([], [], [], sys.exc_info())
+
+        def _():
+            return capture_context(sys.exc_info())
+
+        context = _()
+
         exc = context.pop("throwable")
-        assert context == {
-            "arguments": {},
-            "locals": {},
-            "staticFields": {},
-        }
+        assert context["arguments"] == {}
+        assert context["locals"] == {"@exception": {"type": "Exception", "fields": {}}}
         assert exc["message"] == "'test', 'me'"
         assert exc["type"] == "Exception"
 
@@ -210,7 +225,8 @@ def test_batch_json_encoder():
     assert len(decoded) == count
     assert n_snapshots <= count
     assert (
-        utils.serialize(cake) == decoded[0]["debugger.snapshot"]["captures"]["lines"]["42"]["locals"]["cake"]["value"]
+        utils.serialize(cake)
+        == decoded[0]["debugger"]["snapshot"]["captures"]["lines"]["42"]["locals"]["cake"]["value"]
     )
     assert queue.flush() is None
     assert queue.flush() is None

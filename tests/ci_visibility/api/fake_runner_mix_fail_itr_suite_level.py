@@ -24,6 +24,7 @@ from unittest import mock
 
 from ddtrace.ext.ci_visibility import api
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
+from ddtrace.internal.coverage.lines import CoverageLines
 
 
 def _make_excinfo():
@@ -39,13 +40,10 @@ def main():
     api.enable_ci_visibility()
 
     # START DISCOVERY
+    api.CISession.discover("manual_test_mix_fail_itr_suite_level", "dd_manual_test_fw", "1.0.0")
+    api.CISession.start()
 
-    session_id = api.CISessionId("manual_test_mix_fail_itr_suite_level")
-
-    api.CISession.discover(session_id, session_id.name, "dd_manual_test_fw", "1.0.0")
-    api.CISession.start(session_id)
-
-    module_1_id = api.CIModuleId(session_id, "module_1")
+    module_1_id = api.CIModuleId("module_1")
 
     api.CIModule.discover(module_1_id)
 
@@ -79,7 +77,7 @@ def main():
     api.CITest.discover(suite_1_test_4_parametrized_2_id)
     api.CITest.discover(suite_1_test_4_parametrized_3_id)
 
-    module_2_id = api.CIModuleId(session_id, "module_2")
+    module_2_id = api.CIModuleId("module_2")
     suite_2_id = api.CISuiteId(module_2_id, "suite_2")
     suite_2_test_1_id = api.CITestId(suite_2_id, "test_1")
     suite_2_test_2_parametrized_1_id = api.CITestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value1"}))
@@ -106,7 +104,7 @@ def main():
         is_early_flake_detection=True,
     )
 
-    module_3_id = api.CIModuleId(session_id, "module_3")
+    module_3_id = api.CIModuleId("module_3")
     suite_3_id = api.CISuiteId(module_3_id, "suite_3")
     suite_4_id = api.CISuiteId(module_3_id, "suite_4")
 
@@ -131,7 +129,7 @@ def main():
     api.CITest.discover(suite_4_test_2_id, source_file_info=api.CISourceFileInfo(Path("module_3/suite_4.py"), 9, 12))
     api.CITest.discover(suite_4_test_3_id, source_file_info=api.CISourceFileInfo(Path("module_3/suite_4.py"), 16, 48))
 
-    module_4_id = api.CIModuleId(session_id, "module_4")
+    module_4_id = api.CIModuleId("module_4")
     suite_5_id = api.CISuiteId(module_4_id, "suite_5")
     suite_6_id = api.CISuiteId(module_4_id, "suite_6")
 
@@ -168,7 +166,7 @@ def main():
     #
     # suite_1_test_1 test
     api.CITest.start(suite_1_test_1_id)
-    api.CITest.add_coverage_data(suite_1_test_1_id, {Path("my_file_1.py"): [(1, 3), (4, 8), (9, 9)]})
+    api.CITest.add_coverage_data(suite_1_test_1_id, {Path("my_file_1.py"): CoverageLines.from_list([1, 2, 3, 4, 8, 9])})
     api.CITest.mark_pass(suite_1_test_1_id)
 
     #
@@ -178,8 +176,8 @@ def main():
     api.CITest.add_coverage_data(
         suite_1_id,
         {
-            Path("my_file_1.py"): [(1, 3), (4, 8), (9, 9)],
-            Path("my/other/path/my_file_2.py"): [(1, 9), (10, 10000000)],
+            Path("my_file_1.py"): CoverageLines.from_list([1, 2, 3, 4, 8, 9]),
+            Path("my/other/path/my_file_2.py"): CoverageLines.from_list([1] + [9] + list(range(10, 101))),
         },
     )
     api.CITest.mark_skip(suite_1_test_2_id)
@@ -188,9 +186,9 @@ def main():
     # suite_1_test_3 test and EFD retries
     api.CITest.start(suite_1_test_3_id)
     suite_1_test_3_abs_path_1 = Path("my_abs_file_3.py").absolute()
-    api.CITest.add_coverage_data(suite_1_id, {suite_1_test_3_abs_path_1: [(1, 3), (4, 8), (9, 9)]})
+    api.CITest.add_coverage_data(suite_1_id, {suite_1_test_3_abs_path_1: CoverageLines.from_list([1, 2, 3, 4, 8, 9])})
     suite_1_test_3_rel_path_1 = Path("my_rel_file_3.py")
-    api.CITest.add_coverage_data(suite_1_id, {suite_1_test_3_rel_path_1: [(2, 2)]})
+    api.CITest.add_coverage_data(suite_1_id, {suite_1_test_3_rel_path_1: CoverageLines.from_list([2, 2])})
     api.CITest.mark_itr_skipped(suite_1_test_3_id)
     #
     api.CITest.start(suite_1_test_3_retry_1_id)
@@ -203,10 +201,10 @@ def main():
     api.CITest.add_coverage_data(
         suite_1_id,
         {
-            Path("my_file_1.py"): [(1, 3), (4, 8), (9, 9)],
-            Path("my/other/path/my_file_2.py"): [(1, 9), (10, 10000000)],
-            Path("my_abs_file_3.py").absolute(): [(1, 1)],
-            Path("my_rel_file_3.py"): [(1, 1), (3, 6), (79, 97)],
+            Path("my_file_1.py"): CoverageLines.from_list([1, 2, 3, 4, 8, 9]),
+            Path("my/other/path/my_file_2.py"): CoverageLines.from_list([1] + [9] + list(range(10, 101))),
+            Path("my_abs_file_3.py").absolute(): CoverageLines.from_list([1]),
+            Path("my_rel_file_3.py"): CoverageLines.from_list([1, 3, 4, 5, 6] + list(range(79, 98))),
         },
     )
     api.CITest.mark_pass(suite_1_test_3_retry_3_id)
@@ -293,10 +291,10 @@ def main():
     api.CITest.add_coverage_data(
         suite_2_id,
         {
-            suite_2_test_2_parametrized_5_abs_path_1: [(1, 3), (2, 6), (10, 12)],
-            suite_2_test_2_parametrized_5_abs_path_2: [(1, 3), (2, 6), (10, 12)],
-            suite_2_test_2_parametrized_5_rel_path_1: [(1, 2)],
-            suite_2_test_2_parametrized_5_rel_path_2: [(3, 3)],
+            suite_2_test_2_parametrized_5_abs_path_1: CoverageLines.from_list([1, 2, 3, 4, 5, 6, 10, 11, 12]),
+            suite_2_test_2_parametrized_5_abs_path_2: CoverageLines.from_list([1, 2, 3, 4, 5, 6, 10, 11, 12]),
+            suite_2_test_2_parametrized_5_rel_path_1: CoverageLines.from_list([1, 2]),
+            suite_2_test_2_parametrized_5_rel_path_2: CoverageLines.from_list([3]),
         },
     )
 
@@ -314,10 +312,12 @@ def main():
     api.CITest.add_coverage_data(
         suite_3_id,
         {
-            Path("my_file_suite_3_1.py"): [(1, 3), (4, 8), (9, 9)],
-            Path("my/other/path/my_file_suite_3_2.py"): [(1, 9), (10, 10000000)],
-            Path("my_abs_file_suite_3_3.py").absolute(): [(1, 1)],
-            Path("my_rel_file_suite_3_3.py"): [(1, 1), (3, 6), (79, 97)],
+            Path("my_file_suite_3_1.py"): CoverageLines.from_list([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+            Path("my/other/path/my_file_suite_3_2.py"): CoverageLines.from_list(
+                list(range(1, 10)) + list(range(10, 101))
+            ),
+            Path("my_abs_file_suite_3_3.py").absolute(): CoverageLines.from_list([1]),
+            Path("my_rel_file_suite_3_3.py"): CoverageLines.from_list([1, 3, 4, 5, 6] + list(range(79, 98))),
         },
     )
     api.CITest.mark_pass(suite_3_test_1_id)
@@ -338,10 +338,10 @@ def main():
     api.CITest.add_coverage_data(
         suite_3_id,
         {
-            suite_2_test_2_parametrized_5_abs_path_1: [(1, 3), (2, 6), (10, 12)],
-            suite_2_test_2_parametrized_5_abs_path_2: [(1, 3), (2, 6), (10, 12)],
-            suite_2_test_2_parametrized_5_rel_path_1: [(1, 2)],
-            suite_2_test_2_parametrized_5_rel_path_2: [(3, 3)],
+            suite_2_test_2_parametrized_5_abs_path_1: CoverageLines.from_list([1, 2, 3, 4, 5, 6, 10, 11, 12]),
+            suite_2_test_2_parametrized_5_abs_path_2: CoverageLines.from_list([1, 2, 3, 4, 5, 6, 10, 11, 12]),
+            suite_2_test_2_parametrized_5_rel_path_1: CoverageLines.from_list([1, 2]),
+            suite_2_test_2_parametrized_5_rel_path_2: CoverageLines.from_list([3, 3]),
         },
     )
 
@@ -405,7 +405,7 @@ def main():
 
     api.CIModule.finish(module_4_id)
 
-    api.CISession.finish(session_id)
+    api.CISession.finish()
 
     # FINISH TESTS
 

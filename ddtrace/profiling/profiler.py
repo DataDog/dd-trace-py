@@ -126,7 +126,7 @@ class _ProfilerInstance(service.Service):
         # User-supplied values
         self.url: Optional[str] = url
         self.service: Optional[str] = service if service is not None else os.environ.get("DD_SERVICE")
-        self.tags: Dict[str, str] = tags if tags is not None else {}
+        self.tags: Dict[str, str] = tags if tags is not None else config.tags
         self.env: Optional[str] = env if env is not None else os.environ.get("DD_ENV")
         self.version: Optional[str] = version if version is not None else os.environ.get("DD_VERSION")
         self.tracer: Any = tracer

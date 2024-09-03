@@ -1,6 +1,7 @@
 import os
 
 import mysql.connector
+import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
@@ -15,7 +16,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
 
 
 config._add(

@@ -28,6 +28,7 @@ cdef extern from "crashtracker_interface.hpp":
     void crashtracker_set_stdout_filename(string_view filename)
     void crashtracker_set_stderr_filename(string_view filename)
     void crashtracker_set_alt_stack(bint alt_stack)
+    void crashtracker_set_wait_for_receiver(bint wait)
     void crashtracker_set_resolve_frames_disable()
     void crashtracker_set_resolve_frames_fast()
     void crashtracker_set_resolve_frames_full()
@@ -96,6 +97,10 @@ def set_stderr_filename(filename: StringType) -> None:
 
 def set_alt_stack(alt_stack: bool) -> None:
     crashtracker_set_alt_stack(alt_stack)
+
+
+def set_wait_for_receiver(wait: bool) -> None:
+    crashtracker_set_wait_for_receiver(wait)
 
 
 def set_resolve_frames_disable() -> None:

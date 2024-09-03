@@ -22,6 +22,26 @@ riotfile.py                         @DataDog/apm-python
 CHANGELOG.md                        @DataDog/apm-python
 README.md                           @DataDog/apm-python
 
+# Guild
+setup.py                            @DataDog/python-guild
+setup.cfg                           @DataDog/python-guild
+pyproject.toml                      @DataDog/python-guild
+hatch.toml                          @DataDog/python-guild
+.readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
+README.md                           @DataDog/python-guild  @DataDog/apm-core-python
+mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
+.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
+.github/                            @DataDog/python-guild  @DataDog/apm-core-python
+.gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/internal/_file_queue.py     @DataDog/python-guild
+ddtrace/internal/_unpatched.py      @DataDog/python-guild
+ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
+docs/                               @DataDog/python-guild
+tests/utils.py                      @DataDog/python-guild
+tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
+tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
+
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
 tests/lib-injection                 @DataDog/apm-core-python
@@ -49,6 +69,7 @@ tests/ci_visibility                 @DataDog/ci-app-libraries
 tests/coverage                      @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/tracer/test_ci.py             @DataDog/ci-app-libraries
 ddtrace/ext/git.py                  @DataDog/ci-app-libraries @DataDog/apm-core-python
+scripts/ci_visibility/*             @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
@@ -64,8 +85,10 @@ tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-p
 tests/internal/symbol_db/           @DataDog/debugger-python
 
 # ASM
+.gitlab/tests/appsec.yml            @DataDog/asm-python
 benchmarks/appsec*                  @DataDog/asm-python
 benchmarks/bm/iast_utils*           @DataDog/asm-python
+benchmarks/bm/iast_fixtures*        @DataDog/asm-python
 benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/settings/asm.py             @DataDog/asm-python
@@ -89,44 +112,29 @@ ddtrace/profiling                   @DataDog/profiling-python
 ddtrace/settings/profiling.py       @DataDog/profiling-python
 ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
+.gitlab/tests/profiling.yml         @DataDog/profiling-python
 
 # MLObs
-ddtrace/llmobs/                                     @DataDog/ml-observability
-ddtrace/contrib/openai                              @DataDog/ml-observability
-ddtrace/contrib/langchain                           @DataDog/ml-observability
-ddtrace/contrib/botocore/services/bedrock.py        @DataDog/ml-observability
-ddtrace/contrib/anthropic                           @DataDog/ml-observability
-tests/llmobs                                        @DataDog/ml-observability
-tests/contrib/openai                                @DataDog/ml-observability
-tests/contrib/langchain                             @DataDog/ml-observability
-tests/contrib/botocore/test_bedrock.py              @DataDog/ml-observability
-tests/contrib/botocore/test_bedrock_llmobs.py       @DataDog/ml-observability
-tests/contrib/botocore/bedrock_cassettes            @DataDog/ml-observability
-tests/contrib/anthropic                             @DataDog/ml-observability
+ddtrace/llmobs/                                         @DataDog/ml-observability
+ddtrace/contrib/internal/openai                         @DataDog/ml-observability
+ddtrace/contrib/openai                                  @DataDog/ml-observability
+ddtrace/contrib/internal/langchain                      @DataDog/ml-observability
+ddtrace/contrib/langchain                               @DataDog/ml-observability
+ddtrace/contrib/internal/botocore/services/bedrock.py   @DataDog/ml-observability
+ddtrace/contrib/botocore/services/bedrock.py            @DataDog/ml-observability
+ddtrace/contrib/internal/anthropic                      @DataDog/ml-observability
+ddtrace/contrib/anthropic                               @DataDog/ml-observability
+tests/llmobs                                            @DataDog/ml-observability
+tests/contrib/openai                                    @DataDog/ml-observability
+tests/contrib/langchain                                 @DataDog/ml-observability
+tests/contrib/botocore/test_bedrock.py                  @DataDog/ml-observability
+tests/contrib/botocore/test_bedrock_llmobs.py           @DataDog/ml-observability
+tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observability
+tests/contrib/anthropic                                 @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
-
-# Guild
-setup.py                            @DataDog/python-guild
-setup.cfg                           @DataDog/python-guild
-pyproject.toml                      @DataDog/python-guild
-hatch.toml                          @DataDog/python-guild
-.readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
-README.md                           @DataDog/python-guild  @DataDog/apm-core-python
-mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
-.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
-.github/                            @DataDog/python-guild  @DataDog/apm-core-python
-.gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/internal/_file_queue.py     @DataDog/python-guild
-ddtrace/internal/_unpatched.py      @DataDog/python-guild
-ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
-docs/                               @DataDog/python-guild
-tests/utils.py                      @DataDog/python-guild
-tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
-tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 
 # API SDK
 ddtrace/_trace/                                    @DataDog/apm-sdk-api-python

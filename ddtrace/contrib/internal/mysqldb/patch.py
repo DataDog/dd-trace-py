@@ -1,6 +1,7 @@
 import os
 
 import MySQLdb
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
@@ -22,7 +23,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 config._add(

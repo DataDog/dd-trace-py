@@ -10,6 +10,7 @@ from typing import Union  # noqa:F401
 from botocore import __version__
 import botocore.client
 import botocore.exceptions
+import wrapt
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
@@ -31,7 +32,6 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.pin import Pin
 from ddtrace.settings.config import Config
-from ddtrace.vendor import wrapt
 
 from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call

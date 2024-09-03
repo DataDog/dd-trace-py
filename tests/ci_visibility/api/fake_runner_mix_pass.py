@@ -20,12 +20,10 @@ def main():
 
     # START DISCOVERY
 
-    session_id = api.CISessionId("manual_test_mix_pass")
+    api.CISession.discover("manual_test_mix_pass", "dd_manual_test_fw", "1.0.0")
+    api.CISession.start()
 
-    api.CISession.discover(session_id, session_id.name, "dd_manual_test_fw", "1.0.0")
-    api.CISession.start(session_id)
-
-    module_1_id = api.CIModuleId(session_id, "module_1")
+    module_1_id = api.CIModuleId("module_1")
 
     api.CIModule.discover(module_1_id)
 
@@ -59,7 +57,7 @@ def main():
     api.CITest.discover(suite_1_test_4_parametrized_2_id)
     api.CITest.discover(suite_1_test_4_parametrized_3_id)
 
-    module_2_id = api.CIModuleId(session_id, "module_2")
+    module_2_id = api.CIModuleId("module_2")
     suite_2_id = api.CISuiteId(module_2_id, "suite_2")
     suite_2_test_1_id = api.CITestId(suite_2_id, "test_1")
     suite_2_test_2_parametrized_1_id = api.CITestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value1"}))
@@ -195,7 +193,7 @@ def main():
 
     api.CIModule.finish(module_2_id)
 
-    api.CISession.finish(session_id)
+    api.CISession.finish()
 
     # FINISH TESTS
 

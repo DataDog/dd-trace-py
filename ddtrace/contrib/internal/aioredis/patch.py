@@ -3,6 +3,7 @@ import os
 import sys
 
 import aioredis
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.utils_redis import _instrument_redis_cmd
@@ -28,7 +29,6 @@ from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 try:

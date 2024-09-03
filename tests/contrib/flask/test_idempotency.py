@@ -2,12 +2,12 @@ import unittest
 
 import flask
 import mock
+import wrapt
 
 from ddtrace.contrib.flask import patch
 from ddtrace.contrib.flask import unpatch
 from ddtrace.contrib.internal.flask.patch import _u
 from ddtrace.contrib.internal.flask.patch import _w
-from ddtrace.vendor import wrapt
 
 
 class FlaskIdempotencyTestCase(unittest.TestCase):

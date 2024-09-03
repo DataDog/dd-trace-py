@@ -1,66 +1,44 @@
 stages:
   - package
+  - tests
   - shared-pipeline
   - dogfood
   - benchmarks
-  - benchmarks-pr-comment
   - macrobenchmarks
   - dogfood
-
-include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
-  - local: ".gitlab/benchmarks.yml"
-  - local: ".gitlab/macrobenchmarks.yml"
-  - local: ".gitlab/dogfood.yml"
+  - release
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
+  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner@sha256:4c8afd048321e702f3605b4ae4d206fcd00e74bac708089cfe7f9c24383dc53b
+  # CI_DEBUG_SERVICES: "true"
 
-download_ddtrace_wheels:
-  image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+.testrunner:
+  image: $TESTRUNNER_IMAGE
+  # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
-  stage: package
-  script:
-    - aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
-    - gh auth login --with-token < token
-    - rm token
-    - .gitlab/download-wheels-from-gh-actions.sh
-  artifacts:
-    paths:
-      - "pywheels/*.whl"
+  timeout: 20m
+  before_script:
+    - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
 
-download_dependency_wheels:
-  image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
-  tags: [ "arch:amd64" ]
-  stage: package
-  needs: [ download_ddtrace_wheels ]
-  parallel:
-    matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
-      - PYTHON_IMAGE_TAG: "3.7"
-        PYTHON_VERSION: "3.7"
-      - PYTHON_IMAGE_TAG: "3.8"
-        PYTHON_VERSION: "3.8"
-      - PYTHON_IMAGE_TAG: "3.9.13"
-        PYTHON_VERSION: "3.9"
-      - PYTHON_IMAGE_TAG: "3.10.13"
-        PYTHON_VERSION: "3.10"
-      - PYTHON_IMAGE_TAG: "3.11.6"
-        PYTHON_VERSION: "3.11"
-      - PYTHON_IMAGE_TAG: "3.12.0"
-        PYTHON_VERSION: "3.12"
-  script:
-    - .gitlab/download-dependency-wheels.sh
-  artifacts:
-    paths:
-      - "pywheels-dep/"
+include:
+  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  - local: ".gitlab/services.yml" # Include early so others can use the definitions
+  - local: ".gitlab/benchmarks.yml"
+  - local: ".gitlab/package.yml"
+  - local: ".gitlab/tests.yml"
+  - local: ".gitlab/macrobenchmarks.yml"
+  - local: ".gitlab/dogfood.yml"
+  - local: ".gitlab/release.yml"
 
 package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_wheels ]
+  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
-# no installer tests for python
 onboarding_tests_installer:
-  rules:
-    - when: never
+  parallel:
+    matrix:
+      - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine-libgcc]
+
 
 onboarding_tests_k8s_injection:
   parallel:

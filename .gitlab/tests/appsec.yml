@@ -1,0 +1,51 @@
+appsec:
+  extends: .test_base_riot_snapshot
+  parallel: 6
+  variables:
+    SUITE_NAME: "appsec$"
+
+appsec iast:
+  extends: .test_base_riot_snapshot
+  parallel: 6
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - name: registry.ddbuild.io/images/mirror/postgres:12-alpine
+      alias: postgres
+      variables:
+        POSTGRES_PASSWORD: postgres
+        POSTGRES_USER: postgres
+        POSTGRES_DB: postgres
+  variables:
+    SUITE_NAME: "appsec_iast$"
+    TEST_POSTGRES_HOST: "postgres"
+
+appsec iast tdd_propagation:
+  extends: .test_base_riot_snapshot
+  allow_failure: true
+  parallel: 2
+  variables:
+    SUITE_NAME: "appsec_iast_tdd_propagation"
+
+appsec iast memcheck:
+  extends: .test_base_riot_snapshot
+  parallel: 5
+  variables:
+    SUITE_NAME: "appsec_iast_memcheck"
+
+appsec threats django:
+  extends: .test_base_hatch
+  parallel: 12
+  variables:
+    SUITE_NAME: "appsec_threats_django"
+
+appsec threats flask:
+  extends: .test_base_hatch
+  parallel: 10
+  variables:
+    SUITE_NAME: "appsec_threats_flask"
+
+appsec threats fastapi:
+  extends: .test_base_hatch
+  parallel: 9
+  variables:
+    SUITE_NAME: "appsec_threats_fastapi"

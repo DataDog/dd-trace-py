@@ -5,6 +5,7 @@ import sys
 from types import CodeType
 import typing as t
 
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.injection import HookType
 
 
@@ -176,7 +177,7 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     )
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -186,7 +187,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     trap_index = len(new_consts)
     new_consts.append(trap_func)
 
-    seen_lines = set()
+    seen_lines = CoverageLines()
 
     offset_map = {}
 

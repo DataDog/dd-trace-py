@@ -17,7 +17,7 @@ api_format_aspect(StrType& candidate_text,
                   const py::args& args,
                   const py::kwargs& kwargs)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     if (not tx_map or tx_map->empty()) {
         return py::getattr(candidate_text, "format")(*args, **kwargs);

@@ -1,6 +1,7 @@
 from pyramid.httpexceptions import HTTPException
 import pyramid.renderers
 from pyramid.settings import asbool
+import wrapt
 
 # project
 import ddtrace
@@ -16,7 +17,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.vendor import wrapt
 
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE

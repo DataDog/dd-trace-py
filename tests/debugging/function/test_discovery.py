@@ -101,7 +101,7 @@ def test_function_mangled(stuff_discovery):
 
 
 def test_discovery_after_external_wrapping(stuff):
-    import ddtrace.vendor.wrapt as wrapt
+    import wrapt
 
     def wrapper(wrapped, inst, args, kwargs):
         pass

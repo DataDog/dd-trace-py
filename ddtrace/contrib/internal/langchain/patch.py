@@ -37,6 +37,8 @@ except ImportError:
     except ImportError:
         get_openai_token_cost_for_model = None
 
+import wrapt
+
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.contrib.internal.langchain.constants import API_KEY
@@ -58,7 +60,6 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -904,6 +905,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
         interface_type="similarity_search",
         provider=provider,
         api_key=_extract_api_key(instance),
@@ -946,6 +948,14 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "retrieval",
+                span,
+                query,
+                documents,
+                error=bool(span.error),
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):

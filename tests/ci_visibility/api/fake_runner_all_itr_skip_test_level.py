@@ -15,11 +15,9 @@ def main():
 
     # START DISCOVERY
 
-    session_id = api.CISessionId("manual_test_all_itr_skip")
+    api.CISession.discover("manual_test_all_itr_skip", "dd_manual_test_fw", "1.0.0")
 
-    api.CISession.discover(session_id, session_id.name, "dd_manual_test_fw", "1.0.0")
-
-    module_1_id = api.CIModuleId(session_id, "module_1")
+    module_1_id = api.CIModuleId("module_1")
 
     api.CIModule.discover(module_1_id)
 
@@ -45,7 +43,7 @@ def main():
     api.CITest.discover_early_flake_retry(suite_1_test_3_retry_2_id)
     api.CITest.discover_early_flake_retry(suite_1_test_3_retry_3_id)
 
-    module_2_id = api.CIModuleId(session_id, "module_2")
+    module_2_id = api.CIModuleId("module_2")
     suite_2_id = api.CISuiteId(module_2_id, "suite_2")
     suite_2_test_1_id = api.CITestId(suite_2_id, "test_1")
     suite_2_test_2_id = api.CITestId(suite_2_id, "test_2")
@@ -71,7 +69,7 @@ def main():
 
     # END DISCOVERY
 
-    api.CISession.start(session_id)
+    api.CISession.start()
 
     api.CIModule.start(module_1_id)
 
@@ -115,7 +113,7 @@ def main():
 
     api.CIModule.finish(module_2_id)
 
-    api.CISession.finish(session_id)
+    api.CISession.finish()
 
 
 if __name__ == "__main__":

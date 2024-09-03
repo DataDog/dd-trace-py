@@ -23,6 +23,7 @@ SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
     link_attributes = {"link.name": "s1_to_s2", "link.kind": "scheduled_by", "key1": "val1"}
     s1.link_span(s2.context, link_attributes)
 """
+
 import dataclasses
 from typing import Optional
 
@@ -78,7 +79,7 @@ class SpanLink:
 
     def _drop_attribute(self, key):
         if key not in self.attributes:
-            raise ValueError(f"Invalid key: {key}")
+            raise KeyError(f"Invalid key: {key}")
         del self.attributes[key]
         self._dropped_attributes += 1
 

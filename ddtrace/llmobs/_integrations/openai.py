@@ -98,11 +98,13 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     @classmethod
     def _metrics_tags(cls, span: Span) -> List[str]:
+        model_name = span.get_tag("openai.request.model") or ""
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
-            "openai.request.model:%s" % (span.get_tag("openai.request.model") or ""),
+            "openai.request.model:%s" % model_name,
+            "model:%s" % model_name,
             "openai.request.endpoint:%s" % (span.get_tag("openai.request.endpoint") or ""),
             "openai.request.method:%s" % (span.get_tag("openai.request.method") or ""),
             "openai.organization.id:%s" % (span.get_tag("openai.organization.id") or ""),

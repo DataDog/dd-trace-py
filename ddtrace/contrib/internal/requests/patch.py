@@ -1,6 +1,7 @@
 import os
 
 import requests
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
@@ -11,7 +12,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .connection import _wrap_send
 

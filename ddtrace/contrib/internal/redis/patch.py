@@ -1,6 +1,7 @@
 import os
 
 import redis
+import wrapt
 
 from ddtrace import config
 from ddtrace._trace.utils_redis import _instrument_redis_cmd
@@ -14,7 +15,6 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 config._add(

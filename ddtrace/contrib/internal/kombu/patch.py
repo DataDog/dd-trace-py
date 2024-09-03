@@ -2,6 +2,7 @@ import os
 
 # 3p
 import kombu
+import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -23,7 +24,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
