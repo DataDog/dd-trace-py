@@ -23,7 +23,6 @@ variables:
   parallel: 4
   services:
     - !reference [.services, ddagent]
-    - !reference [.services, testagent]
   script:
     - pip install riot~=0.19.1
     - unset DD_SERVICE
@@ -41,6 +40,9 @@ variables:
 
 .test_base_riot_snapshot:
   extends: .test_base_riot
+  services:
+    - !reference [.test_base_riot, services]
+    - !reference [.services, testagent]
   before_script:
     - !reference [.testrunner, before_script]
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
