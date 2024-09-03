@@ -100,8 +100,11 @@ core.on("set_http_meta_for_asm", _on_set_http_meta)
 
 async def _on_asgi_request_parse_body(receive, headers):
     if asm_config._asm_enabled:
-        data_received = await receive()
-        body = data_received.get("body", b"")
+        try:
+            data_received = await receive()
+            body = data_received.get("body", b"")
+        except Exception:
+            return receive, None
 
         async def receive_wrapped(once=[True]):
             if once[0]:
