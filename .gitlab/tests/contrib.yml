@@ -10,7 +10,7 @@ flask:
     - !references [.test_base_riot_snapshot, services]
     - name: registry.ddbuild.io/images/mirror/library/memcached:1.5-alpine
       alias: memcached
-    - name: registry.ddbuild.io/redis:7.0.7
+    - name: registry.ddbuild.io/images/mirror/redis:7.0.14-alpine
       alias: redis
   variables:
     SUITE_NAME: "flask"
