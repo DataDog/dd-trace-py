@@ -6,6 +6,7 @@ fastapi:
 aredis:
   extends: .test_base_riot_snapshot
   services:
+    - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, redis]
   variables:
     SUITE_NAME: "aredis$"
@@ -13,6 +14,7 @@ aredis:
 yaaredis:
   extends: .test_base_riot_snapshot
   services:
+    - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, redis]
   variables:
     SUITE_NAME: "yaaredis$"
@@ -20,6 +22,7 @@ yaaredis:
 redis:
   extends: .test_base_riot_snapshot
   services:
+    - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, redis]
     - !reference [.services, rediscluster]
   parallel: 5
@@ -29,6 +32,7 @@ redis:
 rediscluster:
   extends: .test_base_riot_snapshot
   services:
+    - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, redis]
     - !reference [.services, rediscluster]
   variables:
@@ -37,6 +41,7 @@ rediscluster:
 rq:
   extends: .test_base_riot_snapshot
   services:
+    - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, redis]
   variables:
     SUITE_NAME: "rq"
@@ -45,6 +50,7 @@ rq:
 urllib3:
   extends: .test_base_riot_snapshot
   services:
+    - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, httpbin_local]
   variables:
     SUITE_NAME: "urllib3"
@@ -58,6 +64,7 @@ kafka:
   extends: .test_base_riot_snapshot
   parallel: 4
   services:
+    - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, kafka]
   variables:
     SUITE_NAME: "kafka"
