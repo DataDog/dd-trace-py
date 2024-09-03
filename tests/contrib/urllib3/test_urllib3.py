@@ -13,14 +13,15 @@ from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
+from tests.contrib.config import HTTPBIN_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 
 # host:port of httpbin_local container
-HOST = "localhost"
-PORT = 8001
+HOST = HTTPBIN_CONFIG["host"]
+PORT = HTTPBIN_CONFIG["port"]
 SOCKET = "{}:{}".format(HOST, PORT)
 URL_200 = "http://{}/status/200".format(SOCKET)
 URL_500 = "http://{}/status/500".format(SOCKET)
