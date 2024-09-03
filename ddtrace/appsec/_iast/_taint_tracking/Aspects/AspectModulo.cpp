@@ -33,10 +33,7 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
     }
     // Check if text is a bytes object
     else if (PyBytes_Check(text)) {
-#if PY_VERSION_HEX < 0x030C0000 // Python versions earlier than 3.12
-        result = PyBytes_Format(text, insert_tuple);
-#else // Python 3.12 and later
-      // Convert bytes to str, format, and convert back to bytes
+        // Convert bytes to str, format, and convert back to bytes
         PyObject* text_unicode = PyUnicode_FromEncodedObject(text, "utf-8", "strict");
         if (text_unicode != nullptr) {
             result = PyUnicode_Format(text_unicode, insert_tuple);
@@ -48,15 +45,11 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
                 result = encoded_result;
             }
         }
-#endif
     }
     // Check if text is a bytearray object
     else if (PyByteArray_Check(text)) {
         PyObject* text_bytes = PyBytes_FromStringAndSize(PyByteArray_AsString(text), PyByteArray_Size(text));
         if (text_bytes != nullptr) {
-#if PY_VERSION_HEX < 0x030C0000 // Python versions earlier than 3.12
-            result = PyBytes_Format(text_bytes, insert_tuple);
-#else // Python 3.12 and later
             PyObject* text_unicode = PyUnicode_FromEncodedObject(text_bytes, "utf-8", "strict");
             Py_DECREF(text_bytes);
             if (text_unicode != nullptr) {
@@ -69,7 +62,6 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
                     result = encoded_result;
                 }
             }
-#endif
         }
 
         if (result != nullptr) {
