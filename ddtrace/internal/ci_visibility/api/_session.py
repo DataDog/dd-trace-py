@@ -3,7 +3,7 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace.ext import test
-from ddtrace.ext.test_visibility.item_ids import TestModuleId
+from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule

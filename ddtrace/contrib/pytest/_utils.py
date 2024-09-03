@@ -8,11 +8,11 @@ import typing as t
 import pytest
 
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
+from ddtrace.ext.test_visibility._item_ids import TestId
+from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility.api import Test
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
-from ddtrace.ext.test_visibility.item_ids import TestId
-from ddtrace.ext.test_visibility.item_ids import TestModuleId
-from ddtrace.ext.test_visibility.item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger

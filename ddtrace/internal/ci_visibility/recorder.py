@@ -28,7 +28,6 @@ from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSession
 from ddtrace.ext.test_visibility.api import TestSuite
 from ddtrace.ext.test_visibility.api import TestSuiteId
-from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import core
@@ -44,6 +43,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import ITRMixin
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 

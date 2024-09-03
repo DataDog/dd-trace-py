@@ -5,11 +5,10 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility._item_ids import TestId
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
-from ddtrace.ext.test_visibility.coverage_lines import CoverageLines
-from ddtrace.ext.test_visibility.item_ids import TestId
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
@@ -20,6 +19,7 @@ from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTestId
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)

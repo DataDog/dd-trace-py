@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
+from ddtrace.ext.test_visibility._item_ids import TestId
+from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
-from ddtrace.ext.test_visibility.item_ids import TestId
-from ddtrace.ext.test_visibility.item_ids import TestModuleId
-from ddtrace.ext.test_visibility.item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest

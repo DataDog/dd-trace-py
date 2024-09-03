@@ -62,6 +62,7 @@ ddtrace/ext/ci.py                   @DataDog/ci-app-libraries
 ddtrace/ext/test_visibility         @DataDog/ci-app-libraries
 ddtrace/ext/test.py                 @DataDog/ci-app-libraries
 ddtrace/internal/ci_visibility      @DataDog/ci-app-libraries
+ddtrace/internal/test_visibility    @DataDog/ci-app-libraries
 ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
 ddtrace/internal/coverage           @DataDog/apm-core-python @datadog/ci-app-libraries
 tests/internal/test_codeowners.py   @datadog/ci-app-libraries
