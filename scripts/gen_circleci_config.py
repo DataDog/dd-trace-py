@@ -98,14 +98,6 @@ def gen_build_docs(template: dict) -> None:
         template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
 
 
-def gen_slotscheck(template: dict) -> None:
-    """Include the slotscheck if the Python source has changed."""
-    from needs_testrun import pr_matches_patterns
-
-    if pr_matches_patterns({"docker*", "ddtrace/*.py", "hatch.toml"}):
-        template["workflows"]["test"]["jobs"].append({"slotscheck": template["requires_pre_check"]})
-
-
 def gen_conftests(template: dict) -> None:
     """Include the conftests if the Python conftest or tests/meta has changed."""
     from needs_testrun import pr_matches_patterns
