@@ -109,6 +109,8 @@ pyramid:
     SUITE_NAME: "pyramid"
   before_script:
     - !reference [.test_base_riot_snapshot, before_script]
+    # This is because in the riotfile we specify a path to tests/contrib/pyramid/pserve_app
+    # in the lockfile it gets replaced with the absolute path of /root/project/tests/.../pserve_app
     - ln -s "${CI_PROJECT_DIR}" "/root/project"
 
 sanic:

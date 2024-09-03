@@ -147,7 +147,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert span.get_tag("grpc.method.kind") == method_kind
         assert span.get_tag("grpc.status.code") == "StatusCode.OK"
         assert span.get_tag("grpc.host") == "127.0.0.1"
-        assert span.get_tag("peer.hostname") == "127.0.0.1"
+        assert span.get_tag("peer.hostname") is None
         assert span.get_tag("network.destination.port") == "50531"
         assert span.get_tag("component") == "grpc"
         assert span.get_tag("span.kind") == "client"
