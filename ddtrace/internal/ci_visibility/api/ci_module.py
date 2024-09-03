@@ -1,7 +1,5 @@
 from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
@@ -83,5 +81,5 @@ class CIVisibilityModule(CIVisibilityParentItem[CISuiteId, CIVisibilitySuite], C
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+    def add_coverage_data(self, *args, **kwargs):
         raise NotImplementedError("Coverage data cannot be added to modules.")

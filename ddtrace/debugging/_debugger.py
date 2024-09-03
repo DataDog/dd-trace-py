@@ -23,7 +23,6 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._exception.replay import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
@@ -45,7 +44,6 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.debugging._safety import get_args
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.debugging._signal.metric_sample import MetricSample
@@ -58,7 +56,6 @@ from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import ModuleHookType
@@ -176,7 +173,6 @@ class DebuggerWrappingContext(WrappingContext):
         frame = self.__frame__
         assert frame is not None  # nosec
 
-        args = list(get_args(frame))
         thread = threading.current_thread()
 
         signal: Optional[Signal] = None
@@ -201,7 +197,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                     trace_context=trace_context,
                     meter=self._probe_meter,
                 )
@@ -210,7 +205,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                     trace_context=trace_context,
                 )
             elif isinstance(probe, SpanFunctionProbe):
@@ -218,7 +212,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                     trace_context=trace_context,
                 )
             elif isinstance(probe, SpanDecorationFunctionProbe):
@@ -226,7 +219,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                 )
             else:
                 log.error("Unsupported probe type: %s", type(probe))
@@ -281,7 +273,6 @@ class DebuggerWrappingContext(WrappingContext):
 class Debugger(Service):
     _instance: Optional["Debugger"] = None
     _probe_meter = _probe_metrics.get_meter("probe")
-    _span_processor: Optional[SpanExceptionProcessor] = None
 
     __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
@@ -312,7 +303,6 @@ class Debugger(Service):
 
         debugger.start()
 
-        forksafe.register(cls._restart)
         atexit.register(cls.disable)
         register_post_run_module_hook(cls._on_run_module)
 
@@ -333,12 +323,8 @@ class Debugger(Service):
 
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
 
-        forksafe.unregister(cls._restart)
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
-
-        if cls._instance._span_processor:
-            cls._instance._span_processor.unregister()
 
         cls._instance.stop(join=join)
         cls._instance = None
@@ -379,9 +365,8 @@ class Debugger(Service):
                 log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
             # Register the debugger with the RCM client.
-            if not remoteconfig_poller.update_product_callback("LIVE_DEBUGGING", self._on_configuration):
-                di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
-                remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
+            di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
+            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback, restart_on_fork=True)
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
@@ -719,12 +704,6 @@ class Debugger(Service):
 
     def _start_service(self) -> None:
         self.__uploader__.register(UploaderProduct.DEBUGGER)
-
-    @classmethod
-    def _restart(cls):
-        log.info("[%s][P: %s] Restarting the debugger in child process", os.getpid(), os.getppid())
-        cls.disable(join=False)
-        cls.enable()
 
     @classmethod
     def _on_run_module(cls, module: ModuleType) -> None:

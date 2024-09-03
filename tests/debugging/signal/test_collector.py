@@ -36,7 +36,6 @@ def test_collector_cond():
                 condition=DDExpression("a not null", lambda _: _["a"] is not None),
             ),
             frame=sys._getframe(),
-            args=[("a", 42)],
             thread=threading.current_thread(),
         )
         snapshot.line()
@@ -53,7 +52,6 @@ def test_collector_cond():
                 condition=DDExpression("b not null", lambda _: _["b"] is not None),
             ),
             frame=sys._getframe(),
-            args=[("b", None)],
             thread=threading.current_thread(),
         )
         snapshot.line()

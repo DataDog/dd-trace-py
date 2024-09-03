@@ -50,7 +50,6 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "join": "ddtrace_aspects.join_aspect",
         "encode": "ddtrace_aspects.encode_aspect",
         "extend": "ddtrace_aspects.bytearray_extend_aspect",
-        "findall": "ddtrace_aspects.re_findall_aspect",
         "upper": "ddtrace_aspects.upper_aspect",
         "lower": "ddtrace_aspects.lower_aspect",
         "replace": "ddtrace_aspects.replace_aspect",
@@ -63,13 +62,20 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "format_map": "ddtrace_aspects.format_map_aspect",
         "zfill": "ddtrace_aspects.zfill_aspect",
         "ljust": "ddtrace_aspects.ljust_aspect",
-        "split": "ddtrace_aspects.split_aspect",
+        "split": "ddtrace_aspects.split_aspect",  # Both regular split and re.split
         "rsplit": "ddtrace_aspects.rsplit_aspect",
         "splitlines": "ddtrace_aspects.splitlines_aspect",
+        # re module and re.Match methods
+        "findall": "ddtrace_aspects.re_findall_aspect",
+        "finditer": "ddtrace_aspects.re_finditer_aspect",
+        "fullmatch": "ddtrace_aspects.re_fullmatch_aspect",
+        "expand": "ddtrace_aspects.re_expand_aspect",
+        "group": "ddtrace_aspects.re_group_aspect",
+        "groups": "ddtrace_aspects.re_groups_aspect",
+        "match": "ddtrace_aspects.re_match_aspect",
+        "search": "ddtrace_aspects.re_search_aspect",
         "sub": "ddtrace_aspects.re_sub_aspect",
         "subn": "ddtrace_aspects.re_subn_aspect",
-        "match": "ddtrace_aspects.re_match_aspect",
-        "groups": "ddtrace_aspects.re_groups_aspect",
     },
     # Replacement function for indexes and ranges
     "slices": {

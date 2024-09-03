@@ -9,6 +9,7 @@ on:
       # special branches used to test this workflow
       # before merging/releasing
       - build_deploy*
+      - 'upgrade-latest-*'
   pull_request:
   release:
     types:
