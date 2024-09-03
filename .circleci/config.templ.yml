@@ -735,6 +735,15 @@ jobs:
       - run_test:
           pattern: 'dogpile_cache'
 
+  elasticsearch:
+    <<: *machine_executor
+    parallelism: 17
+    steps:
+      - run_test:
+          pattern: 'elasticsearch'
+          snapshot: true
+          docker_services: 'elasticsearch opensearch'
+
   falcon:
     <<: *contrib_job
     docker:
@@ -1083,6 +1092,55 @@ jobs:
       - run_test:
           wait: postgres
           pattern: 'aiopg'
+
+  aredis:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'aredis$'
+          snapshot: true
+
+  yaaredis:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'yaaredis$'
+          snapshot: true
+
+  redis:
+    <<: *machine_executor
+    parallelism: 5
+    steps:
+      - run_test:
+          docker_services: 'redis rediscluster'
+          pattern: 'redis$'
+          snapshot: true
+
+  rediscluster:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'rediscluster'
+          docker_services: 'rediscluster'
+          snapshot: true
+
+  rq:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: "rq"
+          snapshot: true
+          docker_services: "redis"
+
+  wsgi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "wsgi"
+          snapshot: true
 
   kombu:
     <<: *contrib_job
