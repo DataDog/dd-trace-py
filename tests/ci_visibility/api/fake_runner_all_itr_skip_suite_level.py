@@ -4,11 +4,14 @@ from multiprocessing import freeze_support
 from pathlib import Path
 from unittest import mock
 
+import ddtrace
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.internal.test_visibility import api
 
 
 def main():
+    ddtrace.config.test_visibility.itr_skipping_level = "suite"
+
     ext_api.enable_test_visibility()
 
     # START DISCOVERY

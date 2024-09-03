@@ -2775,8 +2775,6 @@ class PytestTestCase(TracerTestCase):
                 ],
                 "test_outer_package/test_outer_abc.py": [],  # simulates defaultdict behavior
             },
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
