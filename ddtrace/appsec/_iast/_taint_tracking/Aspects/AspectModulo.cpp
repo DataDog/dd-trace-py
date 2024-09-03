@@ -19,7 +19,7 @@ api_modulo_aspect(StrType candidate_text, py::object candidate_tuple)
     py::tuple parameters =
       py::isinstance<py::tuple>(candidate_tuple) ? candidate_tuple : py::make_tuple(candidate_tuple);
 
-    TRY_CATCH_ASPECT("modulo_aspect", {
+    TRY_CATCH_ASPECT("modulo_aspect", , {
         auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text.ptr(), parameters);
 
         if (ranges_orig.empty()) {
