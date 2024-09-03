@@ -33,3 +33,14 @@ ddtracerun:
   variables:
     SUITE_NAME: "ddtracerun"
     TEST_REDIS_HOST: "redis"
+
+slotscheck:
+  extends: .testrunner
+  script:
+    - hatch run slotscheck:_
+
+conftests:
+  extends: .testrunner
+  script:
+    - hatch run meta-testing:meta-testing
+
