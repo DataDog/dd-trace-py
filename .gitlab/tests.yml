@@ -8,7 +8,13 @@ variables:
   needs: []
   parallel: 4
   script:
-    - hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh | xargs -n 1 -I {} hatch run {}:test
+    - |
+      envs=( $(hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh) )
+      for env in "${envs[@]}"
+      do
+        echo "Running hatch env: ${env}:test"
+        hatch run ${env}:test
+      done
 
 .test_base_riot:
   extends: .testrunner
