@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    LLM Observability: Added support for tagging tool calls returned as part of chat completions from langchain chat models.
+    LLM Observability: Added support for capturing tool calls returned from LangChain chat completions.
