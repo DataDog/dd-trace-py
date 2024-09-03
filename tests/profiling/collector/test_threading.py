@@ -592,17 +592,16 @@ def test_anonymous_lock():
     assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_anonymous_lock", "")
 
 
+@pytest.mark.subprocess(
+    env=dict(WRAPT_DISABLE_EXTENSION="True"),
+)
 def test_wrapt_c_ext_config():
-    if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
-        assert _lock.WRAPT_C_EXT is False
-    else:
-        try:
-            import wrapt._wrappers as _w
-        except ImportError:
-            assert _lock.WRAPT_C_EXT is False
-        else:
-            assert _lock.WRAPT_C_EXT is True
-            del _w
+    # WRAPT_DISABLE_EXTENSIONS is a flag that can be set to disable the C extension
+    # for wrapt. It's not set by default in dd-trace-py, but it can be set by
+    # users. This test checks that the collector works even if the flag is set.
+    assert os.environ.get("WRAPT_DISABLE_EXTENSIONS")
+    assert _lock.WRAPT_C_EXT is False
+
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
         th_lock = threading.Lock()  # !CREATE! test_wrapt_c_ext_config
