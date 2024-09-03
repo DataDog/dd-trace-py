@@ -2,3 +2,62 @@ fastapi:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "fastapi"
+
+aredis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "aredis$"
+
+yaaredis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "yaaredis$"
+
+redis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.services, redis]
+    - !reference [.services, rediscluster]
+  parallel: 5
+  variables:
+    SUITE_NAME: "^redis$"
+
+rediscluster:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.services, redis]
+    - !reference [.services, rediscluster]
+  variables:
+    SUITE_NAME: "rediscluster"
+
+rq:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "rq"
+  parallel: 2
+
+urllib3:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.services, httpbin_local]
+  variables:
+    SUITE_NAME: "urllib3"
+
+wsgi:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "wsgi"
+
+kafka:
+  extends: .test_base_riot_snapshot
+  parallel: 4
+  services:
+    - !reference [.services, kafka]
+  variables:
+    SUITE_NAME: "kafka"
