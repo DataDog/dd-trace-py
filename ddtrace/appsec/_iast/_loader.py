@@ -9,13 +9,10 @@ from ._utils import _is_iast_enabled
 log = get_logger(__name__)
 
 
-IS_IAST_ENABLED = _is_iast_enabled()
-
-
 def _exec_iast_patched_module(module_watchdog, module):
     patched_source = None
     compiled_code = None
-    if IS_IAST_ENABLED:
+    if _is_iast_enabled():
         try:
             module_path, patched_source = astpatch_module(module)
         except Exception:
