@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import sys
 
 import pytest
 
@@ -79,7 +80,7 @@ class ExceptionReplayTestCase(TracerTestCase):
             snapshots = {str(s.uuid): s for s in uploader.collector.queue}
 
             for n, span in enumerate(self.spans):
-                assert span.get_tag("error.debug_info_captured") == "true"
+                assert span.get_tag(replay.DEBUG_INFO_TAG) == "true"
 
                 exc_id = span.get_tag("_dd.debug.error.exception_id")
 
@@ -146,7 +147,7 @@ class ExceptionReplayTestCase(TracerTestCase):
             number_of_exc_ids = 1
 
             for n, span in enumerate(self.spans):
-                assert span.get_tag("error.debug_info_captured") == "true"
+                assert span.get_tag(replay.DEBUG_INFO_TAG) == "true"
 
                 exc_id = span.get_tag("_dd.debug.error.exception_id")
 
@@ -184,3 +185,30 @@ class ExceptionReplayTestCase(TracerTestCase):
             self.assert_span_count(6)
             # no new snapshots
             assert len(uploader.collector.queue) == 3
+
+    def test_debugger_capture_exception(self):
+        def a(v):
+            with self.trace("a") as span:
+                try:
+                    raise ValueError("hello", v)
+                except Exception:
+                    span.set_exc_info(*sys.exc_info())
+                    # Check that we don't capture multiple times
+                    span.set_exc_info(*sys.exc_info())
+
+        def b():
+            with self.trace("b"):
+                a(42)
+
+        with exception_replay() as uploader:
+            with with_rate_limiter(RateLimiter(limit_rate=1, raise_on_exceed=False)):
+                b()
+
+            self.assert_span_count(2)
+            assert len(uploader.collector.queue) == 1
+
+            span_b, span_a = self.spans
+
+            assert span_a.name == "a"
+            assert span_a.get_tag(replay.DEBUG_INFO_TAG) == "true"
+            assert span_b.get_tag(replay.DEBUG_INFO_TAG) is None
