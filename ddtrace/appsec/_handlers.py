@@ -198,7 +198,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
             if not AppSecIastSpanProcessor.is_span_analyzed():
                 return
 
-            # TODO: instance.query_string: raising an error on werkzeug/_internal.py
+            # TODO(avara1986): instance.query_string: raising an error on werkzeug/_internal.py
             #  "AttributeError: read only property"
             instance.path = taint_pyobject(
                 pyobject=instance.path,

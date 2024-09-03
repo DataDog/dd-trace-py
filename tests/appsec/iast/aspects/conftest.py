@@ -8,6 +8,10 @@ from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
 
+class IastTestException(Exception):
+    pass
+
+
 def _iast_patched_module_and_patched_source(module_name, new_module_object=False):
     module = importlib.import_module(module_name)
     module_path, patched_source = astpatch_module(module)
@@ -21,7 +25,7 @@ def _iast_patched_module(module_name, new_module_object=False):
     if _should_iast_patch(module_name):
         module, _ = _iast_patched_module_and_patched_source(module_name, new_module_object)
     else:
-        raise Exception(f"IAST Test Error: module {module_name} was excluded")
+        raise IastTestException(f"IAST Test Error: module {module_name} was excluded")
     return module
 
 

@@ -11,7 +11,6 @@ import os
 import random
 import re
 import threading
-from typing import Any
 from typing import Callable
 from typing import Generator
 from typing import Iterable
@@ -232,15 +231,15 @@ def do_bytearray_extend(ba: bytearray, b: bytearray) -> bytearray:
     return ba
 
 
-def do_repr(b: Any) -> Text:
+def do_repr(b) -> Text:
     return repr(b)
 
 
-def do_str(b: Any) -> Text:
+def do_str(b) -> Text:
     return str(b)
 
 
-def do_bytes(b: Any) -> bytes:
+def do_bytes(b) -> bytes:
     return bytes(b)
 
 
@@ -698,7 +697,7 @@ class SampleClass(object):
     TIME_ZONE = "UTC/UTM"
 
     @staticmethod
-    def commonprefix(first: Text, *args: List[Any]) -> Sequence:
+    def commonprefix(first: Text, *args: List) -> Sequence:
         return os.path.commonprefix(list([first]) + list(args))
 
 
@@ -923,7 +922,7 @@ def do_join_generator_and_title(mystring: str) -> Text:
     return "".join(gen)
 
 
-def do_modulo(template: Text, parameter: Any) -> Text:
+def do_modulo(template: Text, parameter) -> Text:
     return template % parameter
 
 
@@ -1004,7 +1003,7 @@ def do_slice_condition(s: str, first, second):
     return s[first : second or 0]
 
 
-def do_namedtuple(s: Text) -> Any:
+def do_namedtuple(s: Text):
     PathInfo = namedtuple("PathInfo", "name surname")
     my_string = PathInfo(name=s, surname=None)
     return my_string
@@ -1070,7 +1069,7 @@ def do_index(c: str, i: int) -> Text:
     return c[i]
 
 
-def do_methodcaller(s, func, *args):  # type: (str, str, Any) -> str
+def do_methodcaller(s, func, *args):
     func_method = operator.methodcaller(func, *args)
     return func_method(s)
 
