@@ -36,11 +36,15 @@ ddtracerun:
 
 slotscheck:
   extends: .testrunner
+  stage: tests
+  needs: []
   script:
     - hatch run slotscheck:_
 
 conftests:
   extends: .testrunner
+  stage: tests
+  needs: []
   script:
     - hatch run meta-testing:meta-testing
 
