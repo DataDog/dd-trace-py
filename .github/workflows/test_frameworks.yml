@@ -621,7 +621,7 @@ jobs:
             profiling: 0
             iast: 0
             appsec: 1
-    name: Starlette 0.37.1 (with ${{ matrix.suffix }})
+    name: Starlette 0.38.4 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
     env:
