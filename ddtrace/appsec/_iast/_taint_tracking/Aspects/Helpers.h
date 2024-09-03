@@ -20,21 +20,21 @@ api_common_replace(const py::str& string_method,
 
 template<class StrType>
 StrType
-all_as_formatted_evidence(StrType& text, TagMappingMode tag_mapping_mode);
+all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode);
 
 template<class StrType>
 StrType
-int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode);
+int_as_formatted_evidence(const StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode);
 
 string
-as_formatted_evidence(string& text,
+as_formatted_evidence(const string& text,
                       TaintRangeRefs& text_ranges,
                       const optional<TagMappingMode>& tag_mapping_mode = TagMappingMode::Mapper,
                       const optional<const py::dict>& new_ranges = nullopt);
 
 template<class StrType>
 StrType
-api_as_formatted_evidence(StrType& text,
+api_as_formatted_evidence(const StrType& text,
                           optional<TaintRangeRefs>& text_ranges,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges);
@@ -100,6 +100,29 @@ get_default_content(const TaintRangePtr& taint_range)
 {
     if (!taint_range->source.name.empty()) {
         return taint_range->source.name;
+    }
+
+    return {};
+}
+
+template<typename StrType>
+std::string
+strtype2stdstring(const StrType& py_string_like)
+{
+    // Ensure py_string_like is recognized as a pybind11 object
+    py::object obj = py::reinterpret_borrow<py::object>(py_string_like);
+
+    if (py::isinstance<py::str>(obj)) {
+        // Convert py::str to std::string
+        return obj.cast<std::string>();
+    }
+    if (py::isinstance<py::bytes>(obj)) {
+        // Convert py::bytes to std::string
+        return obj.cast<std::string>();
+    }
+    if (py::isinstance<py::bytearray>(obj)) {
+        // Convert py::bytearray to std::string
+        return py::str(obj).cast<std::string>(); // Convert bytearray to str and then to std::string
     }
 
     return {};

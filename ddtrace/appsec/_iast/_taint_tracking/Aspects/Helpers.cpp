@@ -38,7 +38,7 @@ api_common_replace(const py::str& string_method,
 }
 
 string
-as_formatted_evidence(string& text,
+as_formatted_evidence(const string& text,
                       TaintRangeRefs& text_ranges,
                       const optional<TagMappingMode>& tag_mapping_mode,
                       const optional<const py::dict>& new_ranges)
@@ -70,10 +70,18 @@ as_formatted_evidence(string& text,
 
         const auto range_end = taint_range->start + taint_range->length;
 
-        res_vector.push_back(text.substr(index, taint_range->start));
+        // JJJ
+        // res_vector.push_back(text[py::slice(py::int_{ index }, py::int_{ taint_range->start }, nullptr)]);
+        // res_vector.push_back(StrType(EVIDENCE_MARKS::START_EVIDENCE));
+        // res_vector.push_back(tag);
+        // res_vector.push_back(text[py::slice(py::int_{ taint_range->start }, py::int_{ range_end }, nullptr)]);
+        // res_vector.push_back(tag);
+        // res_vector.push_back(StrType(EVIDENCE_MARKS::END_EVIDENCE));
+
+        res_vector.push_back(text.substr(index, taint_range->start - index));
         res_vector.emplace_back(EVIDENCE_MARKS::START_EVIDENCE);
         res_vector.push_back(tag);
-        res_vector.push_back(text.substr(taint_range->start, range_end));
+        res_vector.push_back(text.substr(taint_range->start, range_end - taint_range->start));
         res_vector.push_back(tag);
         res_vector.emplace_back(EVIDENCE_MARKS::END_EVIDENCE);
 
@@ -90,22 +98,22 @@ as_formatted_evidence(string& text,
 
 template<class StrType>
 StrType
-all_as_formatted_evidence(StrType& text, TagMappingMode tag_mapping_mode)
+all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
 {
     TaintRangeRefs text_ranges = api_get_ranges(text);
-    return StrType(as_formatted_evidence(text, text_ranges, tag_mapping_mode, nullopt));
+    return StrType(as_formatted_evidence(strtype2stdstring(text), text_ranges, tag_mapping_mode, nullopt));
 }
 
 template<class StrType>
 StrType
-int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode)
+int_as_formatted_evidence(const StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode)
 {
-    return StrType(as_formatted_evidence(text, text_ranges, tag_mapping_mode, nullopt));
+    return StrType(as_formatted_evidence(strtype2stdstring(text), text_ranges, tag_mapping_mode, nullopt));
 }
 
 template<class StrType>
 StrType
-api_as_formatted_evidence(StrType& text,
+api_as_formatted_evidence(const StrType& text,
                           optional<TaintRangeRefs>& text_ranges,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges)
@@ -116,7 +124,7 @@ api_as_formatted_evidence(StrType& text,
     } else {
         _ranges = text_ranges.value();
     }
-    return StrType(as_formatted_evidence(text, _ranges, tag_mapping_mode, new_ranges));
+    return StrType(as_formatted_evidence(strtype2stdstring(text), _ranges, tag_mapping_mode, new_ranges));
 }
 
 vector<string>
