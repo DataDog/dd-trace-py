@@ -77,5 +77,3 @@ CIVISIBILITY_LOG_FILTER_RE = re.compile(
 
 
 CIVISIBILITY_SPAN_TYPE = "ci_visibility"
-
-DEFAULT_CI_VISIBILITY_SERVICE = "default_ci_visibility_service"

@@ -3,7 +3,6 @@ from contextlib import contextmanager
 from unittest import mock
 
 import ddtrace
-from ddtrace.internal.ci_visibility import DEFAULT_CI_VISIBILITY_SERVICE
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
@@ -25,7 +24,7 @@ def _get_default_civisibility_ddconfig():
     new_ddconfig._add(
         "ci_visibility",
         {
-            "_default_service": DEFAULT_CI_VISIBILITY_SERVICE,
+            "_default_service": "default_test_visibility_service",
         },
     )
     return new_ddconfig
