@@ -88,7 +88,7 @@ RABBITMQ_CONFIG = {
 
 HTTPBIN_CONFIG = {
     "host": os.getenv("TEST_HTTPBIN_HOST", "127.0.0.1"),
-    "port": 8001,
+    "port": int(os.getenv("TEST_HTTPBIN_PORT", "80")),
 }
 
 KAFKA_CONFIG = {
