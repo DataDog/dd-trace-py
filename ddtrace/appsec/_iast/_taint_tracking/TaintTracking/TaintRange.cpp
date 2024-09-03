@@ -150,8 +150,9 @@ std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
 {
     TaintRangeRefs result;
-    if (not is_tainteable(string_input))
+    if (not is_tainteable(string_input)) {
         return std::make_pair(result, true);
+    }
 
     if (tx_map->empty()) {
         return std::make_pair(result, false);
