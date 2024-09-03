@@ -1093,10 +1093,14 @@ jobs:
           snapshot: true
 
   avro:
-    <<: *machine_executor
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
-          pattern: 'avro$'
+          pattern: 'avro'
+
 
   yaaredis:
     <<: *machine_executor
