@@ -54,6 +54,7 @@ urllib3:
     - !reference [.services, httpbin_local]
   variables:
     SUITE_NAME: "urllib3"
+    TEST_HTTPBIN_HOST: "httpbin-local"
 
 wsgi:
   extends: .test_base_riot_snapshot

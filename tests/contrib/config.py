@@ -87,7 +87,7 @@ RABBITMQ_CONFIG = {
 }
 
 HTTPBIN_CONFIG = {
-    "host": "localhost",
+    "host": os.getenv("TEST_HTTPBIN_HOST", "127.0.0.1"),
     "port": 8001,
 }
 
