@@ -1,3 +1,7 @@
+"""
+NOTE: BETA - this API is currently in development and is subject to change.
+"""
+
 import os
 
 from ddtrace import config

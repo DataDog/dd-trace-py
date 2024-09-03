@@ -31,30 +31,37 @@ class InternalTestId(ext_api.TestId):
         )
 
 
+class InternalTestBase(ext_api.TestBase):
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_span(item_id: t.Union[ext_api.TestVisibilityItemId, InternalTestId]) -> Span:
+        return _get_item_span(item_id)
+
+
 class ITRMixin(ext_api.TestBase):
     """Mixin class for ITR-related functionality."""
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_itr_skipped(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]):
+    def mark_itr_skipped(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]):
         log.debug("Marking item %s as skipped by ITR", item_id)
         core.dispatch("test_visibility.itr.finish_skipped_by_itr", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_itr_unskippable(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]):
+    def mark_itr_unskippable(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]):
         log.debug("Marking item %s as unskippable by ITR", item_id)
         core.dispatch("test_visibility.itr.mark_unskippable", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_itr_forced_run(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]):
+    def mark_itr_forced_run(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]):
         log.debug("Marking item %s as unskippable by ITR", item_id)
         core.dispatch("test_visibility.itr.mark_forced_run", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
-    def was_forced_run(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]) -> bool:
+    def was_forced_run(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Checking if item %s was forced to run", item_id)
         _was_forced_run = bool(
@@ -65,7 +72,7 @@ class ITRMixin(ext_api.TestBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_itr_skippable(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]) -> bool:
+    def is_itr_skippable(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Checking if item %s is skippable", item_id)
         is_item_skippable = bool(
@@ -77,7 +84,7 @@ class ITRMixin(ext_api.TestBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_itr_unskippable(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]) -> bool:
+    def is_itr_unskippable(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Checking if item %s is unskippable", item_id)
         is_item_unskippable = bool(
@@ -89,7 +96,7 @@ class ITRMixin(ext_api.TestBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def was_skipped_by_itr(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]) -> bool:
+    def was_skipped_by_itr(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Checking if item %s was skipped by ITR", item_id)
         was_item_skipped = bool(
@@ -105,7 +112,7 @@ class ITRMixin(ext_api.TestBase):
     @staticmethod
     @_catch_and_log_exceptions
     def add_coverage_data(
-        item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId], coverage_data: t.Dict[Path, CoverageLines]
+        item_id: t.Union[ext_api.TestSuiteId, InternalTestId], coverage_data: t.Dict[Path, CoverageLines]
     ):
         log.debug("Adding coverage data for item %s: %s", item_id, coverage_data)
         core.dispatch("test_visibility.item.add_coverage_data", (ITRMixin.AddCoverageArgs(item_id, coverage_data),))
@@ -113,7 +120,7 @@ class ITRMixin(ext_api.TestBase):
     @staticmethod
     @_catch_and_log_exceptions
     def get_coverage_data(
-        item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]
+        item_id: t.Union[ext_api.TestSuiteId, InternalTestId]
     ) -> t.Optional[t.Dict[Path, CoverageLines]]:
         log.debug("Getting coverage data for item %s", item_id)
         coverage_data = core.dispatch_with_results(
@@ -179,15 +186,15 @@ class InternalTestSession(ext_api.TestSession):
         return _is_test_skipping_enabled
 
 
-class InternalTestModule(ext_api.TestModule):
+class InternalTestModule(ext_api.TestModule, InternalTestBase):
     pass
 
 
-class InternalTestSuite(ext_api.TestSuite, ITRMixin):
+class InternalTestSuite(ext_api.TestSuite, InternalTestBase, ITRMixin):
     pass
 
 
-class InternalTest(ext_api.Test, ITRMixin):
+class InternalTest(ext_api.Test, InternalTestBase, ITRMixin):
     class DiscoverEarlyFlakeRetryArgs(t.NamedTuple):
         test_id: InternalTestId
         retry_number: int

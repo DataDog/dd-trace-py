@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from unittest import mock
 
 import ddtrace
+import ddtrace.ext.test_visibility  # noqa: F401
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
@@ -19,13 +20,13 @@ def _patch_dummy_writer():
     ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
-def _get_default_civisibility_ddconfig():
+def _get_default_civisibility_ddconfig(itr_skipping_level: str = "tests"):
     new_ddconfig = ddtrace.settings.Config()
     new_ddconfig._add(
         "test_visibility",
         {
             "_default_service": "default_test_visibility_service",
-            "itr_skipping_level": "test",
+            "itr_skipping_level": itr_skipping_level,
         },
     )
     return new_ddconfig
@@ -79,28 +80,36 @@ def set_up_mock_civisibility(
     if suite_skipping_mode:
         env_overrides.update({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "true"})
 
-    with override_env(env_overrides), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-        return_value=_CIVisibilitySettings(
-            coverage_enabled=coverage_enabled,
-            skipping_enabled=skipping_enabled,
-            require_git=require_git,
-            itr_enabled=itr_enabled,
+    with (
+        override_env(env_overrides),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig("suite" if suite_skipping_mode else "test"),
         ),
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-        side_effect=_fake_fetch_tests_to_skip,
-    ), mock.patch.multiple(
-        CIVisibilityGitClient,
-        _get_repository_url=classmethod(lambda *args, **kwargs: "git@github.com:TestDog/dd-test-py.git"),
-        _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
-        _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
-        _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
-        _get_filtered_revisions=classmethod(lambda *args, **kwargs: "revision1\nrevision2"),
-        _upload_packfiles=classmethod(lambda *args, **kwargs: None),
-        upload_git_metadata=_mock_upload_git_metadata,
-        _do_request=NotImplementedError,
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder._do_request", side_effect=NotImplementedError
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=_CIVisibilitySettings(
+                coverage_enabled=coverage_enabled,
+                skipping_enabled=skipping_enabled,
+                require_git=require_git,
+                itr_enabled=itr_enabled,
+            ),
+        ),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fake_fetch_tests_to_skip,
+        ),
+        mock.patch.multiple(
+            CIVisibilityGitClient,
+            _get_repository_url=classmethod(lambda *args, **kwargs: "git@github.com:TestDog/dd-test-py.git"),
+            _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
+            _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
+            _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
+            _get_filtered_revisions=classmethod(lambda *args, **kwargs: "revision1\nrevision2"),
+            _upload_packfiles=classmethod(lambda *args, **kwargs: None),
+            upload_git_metadata=_mock_upload_git_metadata,
+            _do_request=NotImplementedError,
+        ),
+        mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=NotImplementedError),
     ):
         yield
