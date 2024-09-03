@@ -107,6 +107,9 @@ pyramid:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "pyramid"
+  before_script:
+    - !reference [.test_base_riot_snapshot, before_script]
+    - ln -s "${CI_PROJECT_DIR}" "/root/project"
 
 sanic:
   extends: .test_base_riot_snapshot
