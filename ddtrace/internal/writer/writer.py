@@ -320,8 +320,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
-        # Queues an app-started event before the first ci-visibility/llmobs/trace payload is sent
-        telemetry_writer.app_started()
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:

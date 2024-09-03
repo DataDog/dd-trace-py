@@ -53,8 +53,6 @@ class Scheduler(periodic.PeriodicService):
         # type: (...) -> None
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
-        # Enable telemetry before the first profile is sent
-        telemetry_writer.app_started()
         if self._export_libdd_enabled:
             ddup.upload()
 

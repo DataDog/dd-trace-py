@@ -273,9 +273,9 @@ class TelemetryWriter(PeriodicService):
         self._enabled = config._telemetry_enabled
 
         if agentless is None:
-            agentless = config._dd_api_key is not None
+            agentless = config._ci_visibility_agentless_enabled or config._dd_api_key is not None
 
-        if config._ci_visibility_agentless_enabled and not agentless:
+        if agentless and not config._dd_api_key:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
             self._enabled = False
         self._client = _TelemetryClient(agentless)
@@ -292,6 +292,9 @@ class TelemetryWriter(PeriodicService):
             # Telemetry events will only be sent after the `app-started` is queued.
             # This will occur when the agent writer starts.
             self.enable()
+            # Force app started for unit tests
+            if asbool(os.environ.get("DD_TELEMETRY_TESTS_FORCE_APP_STARTED", "false")):
+                self._app_started()
 
     def enable(self):
         # type: () -> bool
@@ -441,7 +444,7 @@ class TelemetryWriter(PeriodicService):
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
 
-    def app_started(self, register_app_shutdown=True):
+    def _app_started(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
@@ -772,7 +775,7 @@ class TelemetryWriter(PeriodicService):
 
     def periodic(self, force_flush=False, shutting_down=False):
         # ensure app_started is called at least once in case traces weren't flushed
-        self.app_started()
+        self._app_started()
 
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
@@ -895,7 +898,7 @@ class TelemetryWriter(PeriodicService):
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             if self._enabled and not self.started:
-                self.app_started(False)
+                self._app_started(False)
 
             self.app_shutdown()
 
