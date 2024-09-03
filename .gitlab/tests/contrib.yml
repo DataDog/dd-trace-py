@@ -41,3 +41,4 @@ kafka:
     SUITE_NAME: "kafka"
     TEST_KAFKA_HOST: "kafka"
     TEST_KAFKA_PORT: "9092"
+  timeout: 40m
