@@ -26,11 +26,11 @@
     name: registry.ddbuild.io/redis:7.0.7
     alias: redis
   rediscluster:
-    name: registry.ddbuild.io/redis-cluster:latest
+    name: registry.ddbuild.io/redis-cluster:6.2.0
     alias: rediscluster
   kafka:
-    name: registry.ddbuild.io/kafka:latest
+    name: registry.ddbuild.io/kafka:3.4.1
     alias: kafka
   httpbin_local:
-    name: registry.ddbuild.io/httpbin:latest
+    name: registry.ddbuild.io/httpbin:1
     alias: httpbin_local
