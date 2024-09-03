@@ -735,6 +735,15 @@ jobs:
       - run_test:
           pattern: 'dogpile_cache'
 
+  elasticsearch:
+    <<: *machine_executor
+    parallelism: 17
+    steps:
+      - run_test:
+          pattern: 'elasticsearch'
+          snapshot: true
+          docker_services: 'elasticsearch opensearch'
+
   falcon:
     <<: *contrib_job
     docker:
@@ -1083,6 +1092,23 @@ jobs:
       - run_test:
           wait: postgres
           pattern: 'aiopg'
+
+  urllib3:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'urllib3'
+          snapshot: true
+          docker_services: "httpbin_local"
+
+  kafka:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'kafka'
+          snapshot: true
+          docker_services: 'kafka'
 
   kombu:
     <<: *contrib_job
