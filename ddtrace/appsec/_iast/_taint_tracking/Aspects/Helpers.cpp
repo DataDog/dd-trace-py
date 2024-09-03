@@ -228,9 +228,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRange
  * @param tx_map: The taint map to apply the ranges.
  * @param include_separator: If the separator should be included in the splitted parts.
  */
-template<class StrType>
 bool
-set_ranges_on_splitted(const StrType& source_str,
+set_ranges_on_splitted(const py::object& source_str,
                        const TaintRangeRefs& source_ranges,
                        const py::list& split_result,
                        const TaintRangeMapTypePtr& tx_map,
