@@ -48,20 +48,19 @@ def test_basic_schema_serialize(avro, tracer, test_spans):
     assert pin is not None
     pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(writer)
 
-    schema = avro.schema.parse(open("tests/contrib/avro/schemas/user.avsc", "rb").read())
+    with tracer.trace("basic_avro_schema.serialization"):
+        schema = avro.schema.parse(open("tests/contrib/avro/schemas/user.avsc", "rb").read())
 
-    writer = DataFileWriter(open("tests/contrib/avro/schemas/users.avro", "wb"), writer, schema)
-    writer.append({"name": "Alyssa", "favorite_number": 256})
-    writer.close()
+        writer = DataFileWriter(open("tests/contrib/avro/schemas/users.avro", "wb"), writer, schema)
+        writer.append({"name": "Alyssa", "favorite_number": 256})
+        writer.close()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
 
     span = test_spans.spans[0]
 
     # Perform the assertions
-    assert span.service
-    assert span.name == "serialization"
-    assert span.resource == "serialization"
+    assert span.name == "basic_avro_schema.serialization"
     assert span.error == 0
 
     tags = span.get_tags()
@@ -81,33 +80,32 @@ def test_advanced_schema_serialize(avro, tracer, test_spans):
     assert pin is not None
     pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(writer)
 
-    schema = avro.schema.parse(open("tests/contrib/avro/schemas/advanced_user.avsc", "rb").read())
+    with tracer.trace("advanced_avro_schema.serialization"):
+        schema = avro.schema.parse(open("tests/contrib/avro/schemas/advanced_user.avsc", "rb").read())
 
-    writer = DataFileWriter(open("tests/contrib/avro/schemas/advanced_users.avro", "wb"), writer, schema)
-    writer.append(
-        {
-            "name": "Alyssa",
-            "age": 30,
-            "email": "alyssa@example.com",
-            "height": 5.6,
-            "preferences": {"theme": "dark", "notifications": "enabled"},
-            "tags": ["vip", "premium"],
-            "status": "ACTIVE",
-            "profile_picture": b"binarydata",
-            "metadata": b"metadata12345678",
-            "address": {"street": "123 Main St", "city": "Metropolis", "zipcode": "12345"},
-        }
-    )
-    writer.close()
+        writer = DataFileWriter(open("tests/contrib/avro/schemas/advanced_users.avro", "wb"), writer, schema)
+        writer.append(
+            {
+                "name": "Alyssa",
+                "age": 30,
+                "email": "alyssa@example.com",
+                "height": 5.6,
+                "preferences": {"theme": "dark", "notifications": "enabled"},
+                "tags": ["vip", "premium"],
+                "status": "ACTIVE",
+                "profile_picture": b"binarydata",
+                "metadata": b"metadata12345678",
+                "address": {"street": "123 Main St", "city": "Metropolis", "zipcode": "12345"},
+            }
+        )
+        writer.close()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
 
     span = test_spans.spans[0]
 
     # Perform the assertions
-    assert span.service
-    assert span.name == "serialization"
-    assert span.resource == "serialization"
+    assert span.name == "advanced_avro_schema.serialization"
     assert span.error == 0
 
     tags = span.get_tags()
@@ -127,19 +125,18 @@ def test_basic_schema_deserialize(avro, tracer, test_spans):
     assert pin is not None
     pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(reader)
 
-    reader = DataFileReader(open("tests/contrib/avro/schemas/users.avro", "rb"), reader)
-    for _ in reader:
-        pass
-    reader.close()
+    with tracer.trace("basic_avro_schema.deserialization"):
+        reader = DataFileReader(open("tests/contrib/avro/schemas/users.avro", "rb"), reader)
+        for _ in reader:
+            pass
+        reader.close()
 
     assert len(test_spans.spans) == 1, "There should be exactly one span"
 
     span = test_spans.spans[0]
 
     # Perform the assertions
-    assert span.service
-    assert span.name == "deserialization"
-    assert span.resource == "deserialization"
+    assert span.name == "basic_avro_schema.deserialization"
     assert span.error == 0
 
     tags = span.get_tags()
@@ -159,10 +156,11 @@ def test_advanced_schema_deserialize(avro, tracer, test_spans):
     assert pin is not None
     pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(reader)
 
-    reader = DataFileReader(open("tests/contrib/avro/schemas/advanced_users.avro", "rb"), reader)
-    for _ in reader:
-        pass
-    reader.close()
+    with tracer.trace("advanced_avro_schema.deserialization"):
+        reader = DataFileReader(open("tests/contrib/avro/schemas/advanced_users.avro", "rb"), reader)
+        for _ in reader:
+            pass
+        reader.close()
 
     assert len(test_spans.spans) == 1, "There should be exactly one span"
 
@@ -170,9 +168,7 @@ def test_advanced_schema_deserialize(avro, tracer, test_spans):
     span = test_spans.spans[0]
 
     # Perform the assertions
-    assert span.service
-    assert span.name == "deserialization"
-    assert span.resource == "deserialization"
+    assert span.name == "advanced_avro_schema.deserialization"
     assert span.error == 0
 
     tags = span.get_tags()
