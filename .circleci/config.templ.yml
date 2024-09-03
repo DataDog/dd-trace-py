@@ -1229,22 +1229,6 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
-  slotscheck:
-    executor: python310
-    steps:
-      - checkout
-      - setup_rust
-      - setup_hatch
-      - run: hatch run slotscheck:_
-
-  conftests:
-    executor: python310
-    steps:
-      - checkout
-      - setup_rust
-      - setup_hatch
-      - run: hatch run meta-testing:meta-testing
-
 requires_pre_check: &requires_pre_check
   requires:
     - pre_check
