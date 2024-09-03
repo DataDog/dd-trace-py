@@ -663,6 +663,7 @@ Because iPython uses SQLite, it will be automatically instrumented and your
 traces should be sent off. If an error occurs, a message will be displayed in
 the console, and changes can be made as needed.
 
+Note: ``ddtrace-run`` does not support file paths with spaces (ex: ``/path/to/my app.py``). If you need to run a file with spaces in the path, use ``import ddtrace.auto``.
 
 .. _uwsgi:
 
