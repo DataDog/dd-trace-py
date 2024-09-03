@@ -22,9 +22,10 @@ def _patch_dummy_writer():
 def _get_default_civisibility_ddconfig():
     new_ddconfig = ddtrace.settings.Config()
     new_ddconfig._add(
-        "ci_visibility",
+        "test_visibility",
         {
             "_default_service": "default_test_visibility_service",
+            "itr_skipping_level": "test",
         },
     )
     return new_ddconfig

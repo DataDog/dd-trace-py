@@ -19,7 +19,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _GitSubprocessDetails
-import ddtrace.ext.test_visibility._item_ids
+import ddtrace.ext.test_visibility.api as ext_api
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SUITE
@@ -31,6 +31,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+import ddtrace.internal.test_visibility.api as api
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
@@ -1643,93 +1644,69 @@ class TestIsITRSkippable:
     ]
 
     # Module 1
-    m1 = ddtrace.ext.test_visibility.item_ids.TestModuleId("module_1")
+    m1 = ext_api.TestModuleId("module_1")
     # Module 1 Suite 1
-    m1_s1 = ddtrace.ext.test_visibility.item_ids.TestSuiteId(m1, "module_1_suite_1.py")
-    m1_s1_t1 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s1, "test_1")
-    m1_s1_t2 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s1, "test_2")
-    m1_s1_t3 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s1, "test_3")
-    m1_s1_t4 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s1, "test_4[param1]")
-    m1_s1_t5 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m1_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}'
-    )
-    m1_s1_t6 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m1_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}'
-    )
-    m1_s1_t7 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s1, "test_6[param3]")
+    m1_s1 = ext_api.TestSuiteId(m1, "module_1_suite_1.py")
+    m1_s1_t1 = api.InternalTestId(m1_s1, "test_1")
+    m1_s1_t2 = api.InternalTestId(m1_s1, "test_2")
+    m1_s1_t3 = api.InternalTestId(m1_s1, "test_3")
+    m1_s1_t4 = api.InternalTestId(m1_s1, "test_4[param1]")
+    m1_s1_t5 = api.InternalTestId(m1_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m1_s1_t6 = api.InternalTestId(m1_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m1_s1_t7 = api.InternalTestId(m1_s1, "test_6[param3]")
 
     # Module 1 Suite 2
-    m1_s2 = ddtrace.ext.test_visibility.item_ids.TestSuiteId(m1, "module_1_suite_2.py")
-    m1_s2_t1 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s2, "test_1")
-    m1_s2_t2 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s2, "test_2")
-    m1_s2_t3 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s2, "test_3")
-    m1_s2_t4 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s2, "test_4[param1]")
-    m1_s2_t5 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m1_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}'
-    )
-    m1_s2_t6 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m1_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}'
-    )
-    m1_s2_t7 = ddtrace.ext.test_visibility.item_ids.TestId(m1_s2, "test_6[param3]")
+    m1_s2 = ext_api.TestSuiteId(m1, "module_1_suite_2.py")
+    m1_s2_t1 = api.InternalTestId(m1_s2, "test_1")
+    m1_s2_t2 = api.InternalTestId(m1_s2, "test_2")
+    m1_s2_t3 = api.InternalTestId(m1_s2, "test_3")
+    m1_s2_t4 = api.InternalTestId(m1_s2, "test_4[param1]")
+    m1_s2_t5 = api.InternalTestId(m1_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m1_s2_t6 = api.InternalTestId(m1_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m1_s2_t7 = api.InternalTestId(m1_s2, "test_6[param3]")
 
     # Module 2
-    m2 = ddtrace.ext.test_visibility.item_ids.TestModuleId("module_2")
+    m2 = ext_api.TestModuleId("module_2")
 
     # Module 2 Suite 1
-    m2_s1 = ddtrace.ext.test_visibility.item_ids.TestSuiteId(m2, "module_2_suite_1.py")
-    m2_s1_t1 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s1, "test_1")
-    m2_s1_t2 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s1, "test_2")
-    m2_s1_t3 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s1, "test_3")
-    m2_s1_t4 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s1, "test_4[param1]")
-    m2_s1_t5 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m2_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}'
-    )
-    m2_s1_t6 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m2_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}'
-    )
-    m2_s1_t7 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s1, "test_6[param3]")
+    m2_s1 = ext_api.TestSuiteId(m2, "module_2_suite_1.py")
+    m2_s1_t1 = api.InternalTestId(m2_s1, "test_1")
+    m2_s1_t2 = api.InternalTestId(m2_s1, "test_2")
+    m2_s1_t3 = api.InternalTestId(m2_s1, "test_3")
+    m2_s1_t4 = api.InternalTestId(m2_s1, "test_4[param1]")
+    m2_s1_t5 = api.InternalTestId(m2_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m2_s1_t6 = api.InternalTestId(m2_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m2_s1_t7 = api.InternalTestId(m2_s1, "test_6[param3]")
 
     # Module 2 Suite 2
-    m2_s2 = ddtrace.ext.test_visibility.item_ids.TestSuiteId(m2, "module_2_suite_2.py")
-    m2_s2_t1 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s2, "test_1")
-    m2_s2_t2 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s2, "test_2")
-    m2_s2_t3 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s2, "test_3")
-    m2_s2_t4 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s2, "test_4[param1]")
-    m2_s2_t5 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m2_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}'
-    )
-    m2_s2_t6 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m2_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}'
-    )
-    m2_s2_t7 = ddtrace.ext.test_visibility.item_ids.TestId(m2_s2, "test_6[param3]")
+    m2_s2 = ext_api.TestSuiteId(m2, "module_2_suite_2.py")
+    m2_s2_t1 = api.InternalTestId(m2_s2, "test_1")
+    m2_s2_t2 = api.InternalTestId(m2_s2, "test_2")
+    m2_s2_t3 = api.InternalTestId(m2_s2, "test_3")
+    m2_s2_t4 = api.InternalTestId(m2_s2, "test_4[param1]")
+    m2_s2_t5 = api.InternalTestId(m2_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m2_s2_t6 = api.InternalTestId(m2_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m2_s2_t7 = api.InternalTestId(m2_s2, "test_6[param3]")
 
     # Module 3
-    m3 = ddtrace.ext.test_visibility.item_ids.TestModuleId("")
-    m3_s1 = ddtrace.ext.test_visibility.item_ids.TestSuiteId(m3, "no_module_suite_1.py")
-    m3_s1_t1 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s1, "test_1")
-    m3_s1_t2 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s1, "test_2")
-    m3_s1_t3 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s1, "test_3")
-    m3_s1_t4 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s1, "test_4[param1]")
-    m3_s1_t5 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m3_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}'
-    )
-    m3_s1_t6 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m3_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}'
-    )
-    m3_s1_t7 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s1, "test_6[param3]")
+    m3 = ext_api.TestModuleId("")
+    m3_s1 = ext_api.TestSuiteId(m3, "no_module_suite_1.py")
+    m3_s1_t1 = api.InternalTestId(m3_s1, "test_1")
+    m3_s1_t2 = api.InternalTestId(m3_s1, "test_2")
+    m3_s1_t3 = api.InternalTestId(m3_s1, "test_3")
+    m3_s1_t4 = api.InternalTestId(m3_s1, "test_4[param1]")
+    m3_s1_t5 = api.InternalTestId(m3_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m3_s1_t6 = api.InternalTestId(m3_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m3_s1_t7 = api.InternalTestId(m3_s1, "test_6[param3]")
 
-    m3_s2 = ddtrace.ext.test_visibility.item_ids.TestSuiteId(m3, "no_module_suite_2.py")
-    m3_s2_t1 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s2, "test_1")
-    m3_s2_t2 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s2, "test_2")
-    m3_s2_t3 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s2, "test_3")
-    m3_s2_t4 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s2, "test_4[param1]")
-    m3_s2_t5 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m3_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}'
-    )
-    m3_s2_t6 = ddtrace.ext.test_visibility.item_ids.TestId(
-        m3_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}'
-    )
-    m3_s2_t7 = ddtrace.ext.test_visibility.item_ids.TestId(m3_s2, "test_6[param3]")
+    m3_s2 = ext_api.TestSuiteId(m3, "no_module_suite_2.py")
+    m3_s2_t1 = api.InternalTestId(m3_s2, "test_1")
+    m3_s2_t2 = api.InternalTestId(m3_s2, "test_2")
+    m3_s2_t3 = api.InternalTestId(m3_s2, "test_3")
+    m3_s2_t4 = api.InternalTestId(m3_s2, "test_4[param1]")
+    m3_s2_t5 = api.InternalTestId(m3_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m3_s2_t6 = api.InternalTestId(m3_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m3_s2_t7 = api.InternalTestId(m3_s2, "test_6[param3]")
 
     def _get_all_suite_ids(self):
         return {getattr(self, suite_id) for suite_id in vars(self.__class__) if re.match(r"^m\d_s\d$", suite_id)}
