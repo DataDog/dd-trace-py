@@ -83,7 +83,10 @@ def test_index_lower_add():
     ]
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="Urllib has different behavior on Python 3.7 or lower")
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11),
+    reason="Python 3.11 and 3.12 raise TypeError: don't know how to" "disassemble _lru_cache_wrapper objects",
+)
 def test_urlib_parse_patching():
     _iast_patched_module("urllib.parse")
 
@@ -91,14 +94,13 @@ def test_urlib_parse_patching():
     import urllib.parse
 
     bytecode = dis.Bytecode(urllib.parse.urlsplit)
-    dis.dis(urllib.parse.urlsplit)
     assert "add_aspect" in bytecode.codeobj.co_names
-    assert "replace_aspect" in bytecode.codeobj.co_names
+    if sys.version_info > (3, 9):
+        assert "replace_aspect" in bytecode.codeobj.co_names
     assert "slice_aspect" in bytecode.codeobj.co_names
     assert "lower_aspect" in bytecode.codeobj.co_names
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="Urllib has different behavior on Python 3.7 or lower")
 def test_urlib_parse_propagation():
     _iast_patched_module("urllib.parse")
     mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
@@ -109,10 +111,13 @@ def test_urlib_parse_propagation():
     )
 
     result = mod.urlib_urlsplit(string_input)
-
     assert result.path == "/api/articles"
     assert result.scheme == "http"
     assert result.netloc == "localhost:8000"
 
     assert get_tainted_ranges(result.path) == [TaintRange(0, 13, Source("first_element", text, OriginType.PARAMETER))]
-    assert get_tainted_ranges(result.scheme) == [TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER))]
+    if sys.version_info > (3, 9):
+        assert get_tainted_ranges(result.scheme) == [
+            TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER))
+        ]
+    assert get_tainted_ranges(result.netloc) == [TaintRange(0, 14, Source("first_element", text, OriginType.PARAMETER))]

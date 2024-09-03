@@ -553,7 +553,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 json_data = request.json
             else:
                 json_data = json.loads(request.data)
-            value = json_data.get("body")
+            value = json_data.get("json_body")
             assert value == "master"
             assert is_pyobject_tainted(value)
             query = add_aspect(add_aspect("SELECT tbl_name FROM sqlite_", value), " WHERE tbl_name LIKE 'password'")
@@ -569,7 +569,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             )
         ):
             resp = self.client.post(
-                "/sqli/body/", data=json.dumps(dict(body="master")), content_type="application/json"
+                "/sqli/body/", data=json.dumps(dict(json_body="master")), content_type="application/json"
             )
             assert resp.status_code == 200
 
@@ -577,9 +577,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
             loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [
-                {"name": "http.request.body", "origin": "http.request.body", "value": "master"}
-            ]
+            assert loaded["sources"] == [{"name": "json_body", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
                 "test_flask_request_body",

@@ -220,6 +220,7 @@ def _on_flask_patch(flask_version):
         from ddtrace.appsec._iast._patch import _patched_dictionary
         from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
         from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
         try_wrap_function_wrapper(
             "werkzeug.datastructures",
@@ -253,12 +254,12 @@ def _on_flask_patch(flask_version):
         try_wrap_function_wrapper(
             "werkzeug.wrappers.request",
             "Request.get_data",
-            functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+            functools.partial(_patched_dictionary, origin_to_str(OriginType.BODY), OriginType.BODY),
         )
         try_wrap_function_wrapper(
             "werkzeug.wrappers.request",
             "Request.get_json",
-            functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+            functools.partial(_patched_dictionary, origin_to_str(OriginType.BODY), OriginType.BODY),
         )
 
         _set_metric_iast_instrumented_source(OriginType.BODY)
@@ -303,7 +304,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                 source_origin=OriginType.BODY,
             )
 
-        http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
+        http_req.headers = taint_structure(http_req.headers, origin_to_str(OriginType.HEADER_NAME), OriginType.HEADER)
         http_req.path = taint_pyobject(
             http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
         )
@@ -319,7 +320,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
-        http_req.META = taint_structure(http_req.META, OriginType.HEADER_NAME, OriginType.HEADER)
+        http_req.META = taint_structure(http_req.META, origin_to_str(OriginType.HEADER_NAME), OriginType.HEADER)
         if fn_kwargs:
             try:
                 for k, v in fn_kwargs.items():
@@ -335,14 +336,18 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         if not args:
             return wrapped(*args, **kwargs)
 
-        from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_utils import taint_structure
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         if not AppSecIastSpanProcessor.is_span_analyzed():
             return wrapped(*args, **kwargs)
 
-        return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
+        return wrapped(
+            *((taint_structure(args[0], origin_to_str(OriginType.HEADER_NAME), OriginType.HEADER),) + args[1:]),
+            **kwargs,
+        )
 
     return wrapped(*args, **kwargs)
 

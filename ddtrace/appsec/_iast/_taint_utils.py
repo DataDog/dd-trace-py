@@ -336,11 +336,12 @@ class LazyTaintList:
 class LazyTaintDict:
     def __init__(self, original_dict, origins=(0, 0), override_pyobject_tainted=False):
         from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
         self._obj = original_dict
         self._origins = origins
-        self._origin_key = origins[0] if origins[0] else OriginType.PARAMETER_NAME
-        self._origin_value = origins[1] if origins[1] else OriginType.PARAMETER
+        self._origin_key = origins[0] if origins[0] else origin_to_str(OriginType.PARAMETER_NAME)
+        self._origin_value = origins[1] if origins[1] else origin_to_str(OriginType.PARAMETER)
         self._override_pyobject_tainted = override_pyobject_tainted
 
     def _taint(self, value, key, origin=None):
