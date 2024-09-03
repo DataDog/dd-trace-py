@@ -735,15 +735,6 @@ jobs:
       - run_test:
           pattern: 'dogpile_cache'
 
-  elasticsearch:
-    <<: *machine_executor
-    parallelism: 17
-    steps:
-      - run_test:
-          pattern: 'elasticsearch'
-          snapshot: true
-          docker_services: 'elasticsearch opensearch'
-
   falcon:
     <<: *contrib_job
     docker:
@@ -1173,22 +1164,6 @@ jobs:
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
           path: /tmp/docs
-
-  slotscheck:
-    executor: python310
-    steps:
-      - checkout
-      - setup_rust
-      - setup_hatch
-      - run: hatch run slotscheck:_
-
-  conftests:
-    executor: python310
-    steps:
-      - checkout
-      - setup_rust
-      - setup_hatch
-      - run: hatch run meta-testing:meta-testing
 
 requires_pre_check: &requires_pre_check
   requires:
