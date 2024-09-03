@@ -45,6 +45,10 @@ def unpatch():
 # tracing functions
 #
 def _traced_serialize(func, instance, args, kwargs):
+    # this is a dsm only integration at the moment
+    if not config._data_streams_enabled:
+        return func(*args, **kwargs)
+    
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -54,11 +58,15 @@ def _traced_serialize(func, instance, args, kwargs):
     try:
         func(*args, **kwargs)
     finally:
-        if config._data_streams_enabled and active:
+        if active:
             SchemaExtractor.attach_schema_on_span(instance.writers_schema, active, SchemaExtractor.SERIALIZATION)
 
 
 def _traced_deserialize(func, instance, args, kwargs):
+    # this is a dsm only integration at the moment
+    if not config._data_streams_enabled:
+        return func(*args, **kwargs)
+
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -68,7 +76,6 @@ def _traced_deserialize(func, instance, args, kwargs):
     try:
         func(*args, **kwargs)
     finally:
-        if config._data_streams_enabled and active:
-            reader = instance
-            if reader:
-                SchemaExtractor.attach_schema_on_span(reader.writers_schema, active, SchemaExtractor.DESERIALIZATION)
+        reader = instance
+        if active and reader:
+            SchemaExtractor.attach_schema_on_span(reader.writers_schema, active, SchemaExtractor.DESERIALIZATION)
