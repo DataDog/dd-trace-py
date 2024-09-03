@@ -1093,7 +1093,7 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
-   kombu:
+  kombu:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
