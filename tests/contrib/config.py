@@ -92,5 +92,6 @@ HTTPBIN_CONFIG = {
 }
 
 KAFKA_CONFIG = {
+    "host": os.getenv("TEST_KAFKA_HOST", "127.0.0.1"),
     "port": int(os.getenv("TEST_KAFKA_PORT", 29092)),
 }

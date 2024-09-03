@@ -30,7 +30,7 @@ from tests.utils import override_config
 
 
 GROUP_ID = "test_group"
-BOOTSTRAP_SERVERS = "localhost:{}".format(KAFKA_CONFIG["port"])
+BOOTSTRAP_SERVERS = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
 KEY = "test_key"
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 DSM_TEST_PATH_HEADER_SIZE = 28

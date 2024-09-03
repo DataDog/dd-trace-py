@@ -88,3 +88,5 @@ kafka:
     - !reference [.services, kafka]
   variables:
     SUITE_NAME: "kafka"
+    TEST_KAFKA_HOST: "kafka"
+    TEST_KAFKA_PORT: "9092"
