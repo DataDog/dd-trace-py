@@ -1,3 +1,7 @@
+import sys
+
+import pytest
+
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -79,6 +83,7 @@ def test_index_lower_add():
     ]
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Urllib has different behavior on Python 3.7 or lower")
 def test_urlib_parse_patching():
     _iast_patched_module("urllib.parse")
 
@@ -93,6 +98,7 @@ def test_urlib_parse_patching():
     assert "lower_aspect" in bytecode.codeobj.co_names
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Urllib has different behavior on Python 3.7 or lower")
 def test_urlib_parse_propagation():
     _iast_patched_module("urllib.parse")
     mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")

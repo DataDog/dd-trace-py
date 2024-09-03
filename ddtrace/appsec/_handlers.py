@@ -198,8 +198,12 @@ def _on_request_init(wrapped, instance, args, kwargs):
             if not AppSecIastSpanProcessor.is_span_analyzed():
                 return
 
-            # TODO(avara1986): instance.query_string: raising an error on werkzeug/_internal.py
-            #  "AttributeError: read only property"
+            instance.query_string = taint_pyobject(
+                pyobject=instance.query_string,
+                source_name=OriginType.QUERY,
+                source_value=instance.query_string,
+                source_origin=OriginType.QUERY,
+            )
             instance.path = taint_pyobject(
                 pyobject=instance.path,
                 source_name=origin_to_str(OriginType.PATH),
@@ -239,7 +243,9 @@ def _on_flask_patch(flask_version):
         )
         _set_metric_iast_instrumented_source(OriginType.HEADER)
 
-        try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+        if flask_version >= (2, 0, 0):
+            # instance.query_string: raising an error on werkzeug/_internal.py "AttributeError: read only property"
+            try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
 
         _set_metric_iast_instrumented_source(OriginType.PATH)
         _set_metric_iast_instrumented_source(OriginType.QUERY)

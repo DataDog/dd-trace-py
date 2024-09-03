@@ -577,7 +577,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
             loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [{"name": "body", "origin": "http.request.body", "value": "master"}]
+            assert loaded["sources"] == [
+                {"name": "http.request.body", "origin": "http.request.body", "value": "master"}
+            ]
 
             line, hash_value = get_line_and_hash(
                 "test_flask_request_body",
