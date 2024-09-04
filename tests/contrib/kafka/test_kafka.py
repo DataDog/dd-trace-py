@@ -34,7 +34,7 @@ BOOTSTRAP_SERVERS = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
 KEY = "test_key"
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 DSM_TEST_PATH_HEADER_SIZE = 28
-SNAPSHOT_IGNORES = ["metrics.kafka.message_offset", "meta.error.stack", "messaging.kafka.bootstrap.servers"]
+SNAPSHOT_IGNORES = ["metrics.kafka.message_offset", "meta.error.stack", "meta.messaging.kafka.bootstrap.servers"]
 
 
 class KafkaConsumerPollFilter(TraceFilter):
