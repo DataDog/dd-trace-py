@@ -2,9 +2,6 @@ name: Require Checklist
 on:
   pull_request:
     types: [opened, edited, synchronize]
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
 jobs:
   require-checklist:
     runs-on: ubuntu-latest

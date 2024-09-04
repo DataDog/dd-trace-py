@@ -3,9 +3,6 @@ on:
   push:
     branches:
       - main
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
   pull_request:
     # Important that we run on `labeled` and `unlabeled` to pick up `changelog/no-changelog` being added/removed
     # DEV: [opened, reopened, synchronize] is the default

@@ -8,6 +8,7 @@ on:
   workflow_dispatch: {}
   merge_group:
     # Trigger jobs when PR is added to merge queue
+    branches: ['gh-readonly-queue/main/*']
     types: [checks_requested]
 
 jobs:

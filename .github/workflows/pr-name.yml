@@ -4,9 +4,6 @@ on:
     types: ['opened', 'edited', 'reopened', 'synchronize']
     branches-ignore:
       - "[0-9]+.[0-9]+"
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
 
 jobs:
   pr_name_lint:

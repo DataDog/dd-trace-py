@@ -1,9 +1,6 @@
 name: 'Run Datadog APM Transport Stress Tests'
 on:
   workflow_dispatch:
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
   schedule:
     # Every hour
     - cron: '0 * * * *'
