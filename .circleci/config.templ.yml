@@ -646,33 +646,6 @@ jobs:
           snapshot: true
           docker_services: 'httpbin_local'
 
-  asgi:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'asgi$'
-
-  tornado:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'tornado'
-
-  bottle:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'bottle'
-
   cassandra:
     <<: *contrib_job
     docker:
@@ -708,14 +681,6 @@ jobs:
       - run_test:
           pattern: 'celery'
 
-  cherrypy:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'cherrypy'
-          snapshot: true
-
   consul:
     <<: *contrib_job_small
     docker:
@@ -725,24 +690,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'consul'
-
-  dogpile_cache:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'dogpile_cache'
-
-  falcon:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'falcon'
 
   django:
     <<: *machine_executor
@@ -789,47 +736,6 @@ jobs:
           pattern: "flask"
           docker_services: "memcached redis"
 
-  gevent:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'gevent'
-
-  graphene:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "graphene"
-          snapshot: true
-
-  graphql:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: "graphql"
-          snapshot: true
-
-  grpc:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "grpc"
-          snapshot: true
-
-  gunicorn:
-    <<: *machine_executor
-    parallelism: 8
-    steps:
-      - run_test:
-          pattern: "gunicorn"
-          snapshot: true
-          docker_services: 'ddagent'
-
   httplib:
     <<: *machine_executor
     steps:
@@ -855,15 +761,6 @@ jobs:
           pattern: 'mariadb$'
           snapshot: true
           docker_services: "mariadb"
-
-  molten:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'molten'
 
   mysqlconnector:
     <<: *contrib_job
@@ -965,31 +862,6 @@ jobs:
       - run_test:
           pattern: "pymongo"
 
-  pynamodb:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pynamodb"
-
-  pyodbc:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'pyodbc'
-
-  pyramid:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'pyramid'
-          snapshot: true
-
   requests:
     <<: *contrib_job
     docker:
@@ -999,37 +871,6 @@ jobs:
     steps:
       - run_test:
           pattern: "requests"
-
-  sanic:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "sanic"
-          snapshot: true
-
-  snowflake:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "snowflake"
-          snapshot: true
-
-  starlette:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "starlette"
-          snapshot: true
-
-  structlog:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'structlog'
-          snapshot: true
 
   sqlalchemy:
     <<: *contrib_job_small
@@ -1134,13 +975,6 @@ jobs:
           snapshot: true
           docker_services: "httpbin_local"
 
-  wsgi:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "wsgi"
-          snapshot: true
-
   kafka:
     <<: *machine_executor
     parallelism: 4
@@ -1160,33 +994,6 @@ jobs:
       - run_test:
           wait: rabbitmq
           pattern: 'kombu'
-
-  jinja2:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'jinja2'
-
-  mako:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'mako'
-
-  algoliasearch:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'algoliasearch'
 
   langchain:
     <<: *machine_executor
