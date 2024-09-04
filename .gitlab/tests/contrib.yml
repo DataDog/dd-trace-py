@@ -70,7 +70,7 @@ kafka:
   variables:
     SUITE_NAME: "kafka"
     TEST_KAFKA_HOST: "kafka"
-    TEST_KAFKA_PORT: "9092"
+    TEST_KAFKA_PORT: "29092"
 
 gevent:
   extends: .test_base_riot_snapshot
