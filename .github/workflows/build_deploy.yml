@@ -13,7 +13,7 @@ on:
   pull_request:
   merge_group:
     # Trigger jobs when PR is added to merge queue
-    branches: ['gh-readonly-queue/*']
+    branches: ['test-mq-main']
     types: [checks_requested]
   release:
     types:

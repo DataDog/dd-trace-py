@@ -7,7 +7,7 @@ on:
     types: [opened, reopened, synchronize]
   merge_group:
     # Trigger jobs when PR is added to merge queue
-    branches: ['gh-readonly-queue/*']
+    branches: ['test-mq-main']
     types: [checks_requested]
 jobs:
   validate:
