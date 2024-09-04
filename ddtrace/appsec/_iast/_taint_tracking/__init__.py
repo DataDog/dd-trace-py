@@ -91,7 +91,7 @@ __all__ = [
     "debug_taint_map",
     "get_range_by_hash",
     "get_ranges",
-    "iast_taint_log_error",    
+    "iast_taint_log_error",
     "initializer_size",
     "is_notinterned_notfasttainted_unicode",
     "is_pyobject_tainted",
