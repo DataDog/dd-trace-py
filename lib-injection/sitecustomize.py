@@ -83,7 +83,9 @@ def build_denied_executables():
     if os.path.exists(EXECUTABLE_DENY_LOCATION):
         with open(EXECUTABLE_DENY_LOCATION, "r") as denyfile:
             for line in denyfile.readlines():
-                denied_executables.add(line.strip("\n"))
+                cleaned = line.strip("\n")
+                denied_executables.add(cleaned)
+                denied_executables.add(os.path.basename(cleaned))
     return denied_executables
 
 
@@ -171,13 +173,11 @@ def package_is_compatible(package_name, package_version):
 
 
 def get_first_incompatible_sysarg():
-    for idx in (0, 1):
-        if len(sys.argv) <= idx:
-            break
-        argument = sys.argv[idx]
-        if argument in EXECUTABLES_DENY_LIST:
-            return argument
-    return None
+    if len(sys.argv) <= 1:
+        return
+    argument = sys.argv[0]
+    if argument in EXECUTABLES_DENY_LIST or os.path.basename(argument) in EXECUTABLES_DENY_LIST:
+        return argument
 
 
 def _inject():
