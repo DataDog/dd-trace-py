@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    ASM: This fix improves internal stability for the new fingerprinting feature.
+    ASM: Improves internal stability for the new fingerprinting feature.
