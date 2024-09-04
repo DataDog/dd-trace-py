@@ -39,6 +39,7 @@
       KAFKA_CFG_NODE_ID: 0
       KAFKA_CFG_PROCESS_ROLES: controller,broker
       KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
   httpbin_local:
     name: registry.ddbuild.io/images/mirror/kennethreitz/httpbin:1
     alias: httpbin-local
