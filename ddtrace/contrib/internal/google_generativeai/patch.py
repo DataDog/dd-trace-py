@@ -4,10 +4,10 @@ import sys
 import google.generativeai as genai
 
 from ddtrace import config
-from ddtrace.contrib.internal.google_generativeai._utils import tag_request
-from ddtrace.contrib.internal.google_generativeai._utils import tag_response
 from ddtrace.contrib.internal.google_generativeai._utils import TracedAsyncGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateContentResponse
+from ddtrace.contrib.internal.google_generativeai._utils import tag_request
+from ddtrace.contrib.internal.google_generativeai._utils import tag_response
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
