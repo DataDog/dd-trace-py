@@ -260,7 +260,7 @@ class TelemetryWriter(PeriodicService):
             # This will occur when the agent writer starts.
             self.enable()
             # Force app started for unit tests
-            if asbool(os.environ.get("DD_TELEMETRY_TESTS_FORCE_APP_STARTED", "false")):
+            if asbool(os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false")):
                 self._app_started()
 
     def enable(self):
@@ -456,9 +456,11 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
                 (
                     TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN,
-                    config._obfuscation_query_string_pattern.pattern.decode("ascii")
-                    if config._obfuscation_query_string_pattern
-                    else "",
+                    (
+                        config._obfuscation_query_string_pattern.pattern.decode("ascii")
+                        if config._obfuscation_query_string_pattern
+                        else ""
+                    ),
                     "unknown",
                 ),
                 (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),

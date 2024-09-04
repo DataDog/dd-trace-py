@@ -251,7 +251,7 @@ import ddtrace.auto
     env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
-    env["DD_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 

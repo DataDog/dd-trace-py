@@ -31,7 +31,7 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     # do not patch flask because we will end up with confusing metrics
     # now that we generate metrics for spans
     env["DD_PATCH_MODULES"] = "flask:false"
-    env["DD_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     server_process = subprocess.Popen(
         cmd,
         env=env,
@@ -101,7 +101,7 @@ for _ in range(10):
         pass
 """
     env = os.environ.copy()
-    env["DD_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
     metrics_events = test_agent_session.get_events("generate-metrics")
@@ -129,7 +129,7 @@ for _ in range(9):
 """
     env = os.environ.copy()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
-    env["DD_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
@@ -159,7 +159,7 @@ for _ in range(2):
 """
     env = os.environ.copy()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
-    env["DD_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
@@ -198,7 +198,7 @@ for _ in range(4):
 """
     env = os.environ.copy()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
-    env["DD_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 

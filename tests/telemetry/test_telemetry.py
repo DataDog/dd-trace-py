@@ -33,7 +33,7 @@ span = tracer.trace("test-telemetry")
 span.finish()
     """
     env = os.environ.copy()
-    env["DD_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
     assert stderr == b""
@@ -74,7 +74,7 @@ else:
     print(get_runtime_id())
     """
     env = os.environ.copy()
-    env["DD_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -275,7 +275,7 @@ tracer.trace("hi").finish()
 """
 
     env = os.environ.copy()
-    env["DD_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
@@ -365,7 +365,7 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
             "DD_INSTRUMENTATION_INSTALL_ID": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
             "DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
             "DD_INSTRUMENTATION_INSTALL_TIME": "1703188212",
-            "DD_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
     # Generate a trace to trigger app-started event
