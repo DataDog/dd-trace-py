@@ -429,6 +429,16 @@ class CIITRMixin(CIBase):
         log.debug("Adding coverage data for item %s: %s", item_id, coverage_data)
         core.dispatch("ci_visibility.item.add_coverage_data", (CIITRMixin.AddCoverageArgs(item_id, coverage_data),))
 
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_coverage_data(item_id: Union[CISuiteId, CITestId]) -> Optional[Dict[Path, CoverageLines]]:
+        log.debug("Getting coverage data for item %s", item_id)
+        coverage_data = core.dispatch_with_results(
+            "ci_visibility.item.get_coverage_data", (item_id,)
+        ).coverage_data.value
+        log.debug("Coverage data for item %s: %s", item_id, coverage_data)
+        return coverage_data
+
 
 class CISuite(CIITRMixin, CIBase):
     class DiscoverArgs(NamedTuple):

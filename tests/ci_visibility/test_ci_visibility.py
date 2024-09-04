@@ -207,6 +207,25 @@ def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_fea
         CIVisibility.disable()
 
 
+@mock.patch(
+    "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    return_value=_CIVisibilitySettings(True, True, False, True),
+)
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=ValueError)
+def test_ci_visibility_service_skippable_other_error(_do_request, _check_enabled_features):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), _dummy_noop_git_client():
+        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._test_suites_to_skip == []
+        CIVisibility.disable()
+
+
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
     with override_env(
@@ -628,6 +647,7 @@ class TestCheckEnabledFeatures:
         },
         REQUESTS_MODE.EVP_PROXY_EVENTS: {
             "X-Datadog-EVP-Subdomain": "api",
+            "Content-Type": "application/json",
         },
     }
 

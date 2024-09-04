@@ -22,7 +22,7 @@ variables:
     - python -m pip install twine
     - python -m twine check --strict pywheels/*
   script:
-    - echo "python -m twine upload --repository ${PYPI_REPOSITORY} pywheels/*"
+    - python -m twine upload --repository ${PYPI_REPOSITORY} pywheels/*
   artifacts:
     paths:
       - pywheels/*.whl
@@ -30,7 +30,7 @@ variables:
 
 release_pypi_test:
   extends: .release_pypi
-  dependencies: [ "download_ddtrace_wheels" ]
+  dependencies: [ "download_ddtrace_artifacts" ]
   variables:
     PYPI_REPOSITORY: testpypi
 

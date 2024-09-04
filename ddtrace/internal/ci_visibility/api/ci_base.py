@@ -443,6 +443,11 @@ class CIVisibilityItemBase(abc.ABC):
                 COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.workspace_path)
             )
 
+    def get_coverage_data(self) -> Optional[Dict[Path, CoverageLines]]:
+        if self._coverage_data is None:
+            return None
+        return self._coverage_data.get_data()
+
 
 class CIVisibilityChildItem(CIVisibilityItemBase, Generic[CIDT]):
     pass
