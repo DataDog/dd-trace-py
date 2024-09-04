@@ -626,14 +626,18 @@ def test_wrapt_disable_extensions():
 
     expected_filename = os.environ["DD_PROFILING_FILE_PATH"].replace(".pyc", ".py").replace("/root/project/", "")
 
-    assert acquire_event.frames[0] == (
-        expected_filename,
-        linenos.acquire,
-        # As this test is run using a subprocess, the function name is different
-        # from "test_wrapt_disable_extensinos"
-        "<module>",
-        "",
+    assert len(acquire_event.frames) > 0, "No frames found"
+    frame = acquire_event.frames[0]
+
+    # This test is run in a subprocess, and doesn't show details about why it
+    # failed, so we add more details to the assert message.
+    assert frame.file_name == expected_filename, "Expected filename {}, got {}".format(
+        expected_filename, frame.file_name
     )
+    assert frame.lineno == linenos.acquire, "Expected line number {}, got {}".format(linenos.acquire, frame.lineno)
+    assert frame.function_name == "<module>", "Expected function name <module>, got {}".format(frame.function_name)
+    assert frame.class_name == "", "Expected class name '', got {}".format(frame.class_name)
+
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert release_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
