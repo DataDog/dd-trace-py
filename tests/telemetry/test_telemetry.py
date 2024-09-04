@@ -199,6 +199,10 @@ tracer.configure(
 
 # generate and encode span
 tracer.trace("hello").finish()
+
+# force app_started call instead of waiting for periodic()
+from ddtrace.internal.telemetry import telemetry_writer
+telemetry_writer._app_started()
 """
     _, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
