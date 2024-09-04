@@ -24,7 +24,7 @@ all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode);
 
 template<class StrType>
 StrType
-int_as_formatted_evidence(const StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode);
+int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode);
 
 string
 as_formatted_evidence(const string& text,
@@ -35,20 +35,20 @@ as_formatted_evidence(const string& text,
 template<class StrType>
 StrType
 api_as_formatted_evidence(const StrType& text,
-                          optional<TaintRangeRefs>& text_ranges,
+                          optional<const TaintRangeRefs>& text_ranges,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges);
 
 template<class StrType>
 StrType
-api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
+api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig);
 
 py::bytearray
-api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig);
+api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, const TaintRangeRefs& ranges_orig);
 
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
-convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
+convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig);
 
 bool
 set_ranges_on_splitted(const py::object& source_str,

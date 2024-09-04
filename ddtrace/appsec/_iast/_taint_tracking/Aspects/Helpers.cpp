@@ -119,7 +119,7 @@ all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
 
 template<class StrType>
 StrType
-int_as_formatted_evidence(const StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode)
+int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode)
 {
     return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
 }
@@ -127,7 +127,7 @@ int_as_formatted_evidence(const StrType& text, TaintRangeRefs text_ranges, TagMa
 template<class StrType>
 StrType
 api_as_formatted_evidence(const StrType& text,
-                          optional<TaintRangeRefs>& text_ranges,
+                          optional<const TaintRangeRefs>& text_ranges,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges)
 {
@@ -155,14 +155,14 @@ split_taints(const string& str_to_split)
 }
 
 py::bytearray
-api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
 
     const auto tx_map = Initializer::get_tainting_map();
 
     const py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
-    const std::tuple result = convert_escaped_text_to_taint_text<py::bytes>(bytes_text, std::move(ranges_orig));
+    const std::tuple result = convert_escaped_text_to_taint_text<py::bytes>(bytes_text, ranges_orig);
     PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
     set_ranges(new_result, get<1>(result), tx_map);
     return py::reinterpret_steal<py::bytearray>(new_result);
@@ -170,7 +170,7 @@ api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, 
 
 template<class StrType>
 StrType
-api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
     const auto tx_map = Initializer::get_tainting_map();
 
@@ -236,7 +236,7 @@ getNum(const std::string& s)
 
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
-convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
+convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
     string result;
     string startswith_element{ ":" };
