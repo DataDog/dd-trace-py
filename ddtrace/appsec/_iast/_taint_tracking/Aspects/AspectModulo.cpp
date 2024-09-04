@@ -1,5 +1,6 @@
 #include "AspectModulo.h"
 #include "Helpers.h"
+#include <iostream> // JJJ
 
 py::object
 api_modulo_aspect_pyobject(const py::object& candidate_text, const py::object& candidate_tuple)
@@ -31,8 +32,7 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
     // Check if text is a bytes object
     else if (PyBytes_Check(text)) {
         // Convert bytes to str, format, and convert back to bytes
-        PyObject* text_unicode = PyUnicode_FromEncodedObject(text, "utf-8", "strict");
-        if (text_unicode != nullptr) {
+        if (PyObject* text_unicode = PyUnicode_FromEncodedObject(text, "utf-8", "strict"); text_unicode != nullptr) {
             result = PyUnicode_Format(text_unicode, insert_tuple);
             Py_DECREF(text_unicode);
 
@@ -45,8 +45,8 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
     }
     // Check if text is a bytearray object
     else if (PyByteArray_Check(text)) {
-        PyObject* text_bytes = PyBytes_FromStringAndSize(PyByteArray_AsString(text), PyByteArray_Size(text));
-        if (text_bytes != nullptr) {
+        if (PyObject* text_bytes = PyBytes_FromStringAndSize(PyByteArray_AsString(text), PyByteArray_Size(text));
+            text_bytes != nullptr) {
             PyObject* text_unicode = PyUnicode_FromEncodedObject(text_bytes, "utf-8", "strict");
             Py_DECREF(text_bytes);
             if (text_unicode != nullptr) {
@@ -77,86 +77,87 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
     return result;
 }
 
-template<class StrType>
-StrType
-api_modulo_aspect(StrType candidate_text, py::object candidate_tuple)
+PyObject*
+api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
-    if (not is_text(candidate_text.ptr())) {
-        return candidate_text.attr("__mod__")(candidate_tuple);
+    cerr << "JJJ 1\n";
+    if (nargs != 2) {
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+        cerr << "JJJ 2\n";
+        return nullptr;
+    }
+    PyObject* candidate_text = args[0];
+    PyObject* candidate_tuple = args[1];
+
+    const auto py_candidate_text = py::reinterpret_borrow<py::object>(candidate_text);
+    auto py_candidate_tuple = py::reinterpret_borrow<py::object>(candidate_tuple);
+
+    const auto py_str_type = get_pytext_type(args[0]);
+    cerr << "JJJ 3\n";
+    if (py_str_type == PyTextType::OTHER) {
+        cerr << "JJJ 4\n";
+        return py_candidate_text.attr("__mod__")(py_candidate_tuple).ptr();
     }
 
-    PyObject* pyo_result_o = do_modulo(candidate_text.ptr(), candidate_tuple.ptr());
-    if (pyo_result_o == nullptr) {
-        return candidate_text.attr("__mod__")(candidate_tuple);
-    }
-
-    StrType result_o = py::reinterpret_steal<StrType>(pyo_result_o);
     const py::tuple parameters =
-      py::isinstance<py::tuple>(candidate_tuple) ? candidate_tuple : py::make_tuple(candidate_tuple);
+      py::isinstance<py::tuple>(py_candidate_tuple) ? py_candidate_tuple : py::make_tuple(py_candidate_tuple);
+
+    // Lambda to get the result of the modulo operation
+    auto get_result = [&]() -> PyObject* {
+        PyObject* res = do_modulo(candidate_text, candidate_tuple);
+        if (res == nullptr) {
+            return py_candidate_text.attr("__mod__")(py_candidate_tuple).ptr();
+        }
+        return res;
+    };
 
     const auto tx_map = Initializer::get_tainting_map();
+    cerr << "JJJ 5\n";
     if (!tx_map || tx_map->empty()) {
-        return result_o;
+        cerr << "JJJ 6\n";
+        return get_result();
     }
 
-    TRY_CATCH_ASPECT("modulo_aspect", , {
-        auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text.ptr(), parameters);
+    TRY_CATCH_ASPECT("modulo_aspect", return get_result(), , {
+        cerr << "JJJ 7\n";
+        auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text, parameters);
 
         if (ranges_orig.empty()) {
-            return result_o;
+            cerr << "JJJ 8\n";
+            return get_result();
         }
 
-        auto fmttext = StrType(
-          as_formatted_evidence(strtype2stdstring(candidate_text), candidate_text_ranges, TagMappingMode::Mapper));
+        auto std_candidate_text = py_candidate_text.cast<string>();
+        auto fmttext = as_formatted_evidence(std_candidate_text, candidate_text_ranges, TagMappingMode::Mapper);
         py::list list_formatted_parameters;
 
         for (const py::handle& param_handle : parameters) {
-            auto param_strtype = py::reinterpret_borrow<py::object>(param_handle).cast<StrType>();
             if (is_text(param_handle.ptr())) {
                 auto [ranges, ranges_error] = get_ranges(param_handle.ptr(), tx_map);
-                auto n_parameter = StrType(
-                  as_formatted_evidence(strtype2stdstring(param_strtype), ranges, TagMappingMode::Mapper, nullopt));
-                list_formatted_parameters.append(n_parameter);
+                string n_parameter =
+                  as_formatted_evidence(AnyTextPyObjectToString(param_handle), ranges, TagMappingMode::Mapper, nullopt);
+                list_formatted_parameters.append(StringToPyObject(n_parameter, py_str_type));
             } else {
                 list_formatted_parameters.append(param_handle);
             }
         }
         py::tuple formatted_parameters(list_formatted_parameters);
 
-        PyObject* pyo_applied_params = do_modulo(fmttext.ptr(), formatted_parameters.ptr());
-
-        StrType applied_params;
-        if (pyo_applied_params == nullptr) {
-            return result_o;
-        } else {
-            applied_params = py::reinterpret_steal<StrType>(pyo_applied_params);
+        PyObject* applied_params = do_modulo(StringToPyObject(fmttext, py_str_type).ptr(), formatted_parameters.ptr());
+        cerr << "JJJ 9\n";
+        if (applied_params == nullptr) {
+            cerr << "JJJ 10\n";
+            return get_result();
         }
 
-        return api_convert_escaped_text_to_taint_text(applied_params, ranges_orig);
+        cerr << "JJJ return, applied_params: " << py::str(applied_params) << "\n";
+        auto res = convert_escaped_text_to_taint_text(applied_params, ranges_orig);
+        Py_DECREF(applied_params);
+        if (res == nullptr) {
+            cerr << "JJJ nullptr result from convert\n";
+            return get_result();
+        }
+        cerr << "JJJ final return, value: " << py::str(res) << endl;
+        return res;
     });
-}
-
-void
-pyexport_aspect_modulo(py::module& m)
-{
-    m.def("_aspect_modulo",
-          &api_modulo_aspect<py::str>,
-          "candidate_text"_a,
-          "candidate_tuple"_a,
-          py::return_value_policy::move);
-    m.def("_aspect_modulo",
-          &api_modulo_aspect<py::bytes>,
-          "candidate_text"_a,
-          "candidate_tuple"_a,
-          py::return_value_policy::move);
-    m.def("_aspect_modulo",
-          &api_modulo_aspect<py::bytearray>,
-          "candidate_text"_a,
-          "candidate_tuple"_a,
-          py::return_value_policy::move);
-    m.def("_aspect_modulo",
-          &api_modulo_aspect_pyobject,
-          "candidate_text"_a,
-          "candidate_tuple"_a,
-          py::return_value_policy::move);
 }

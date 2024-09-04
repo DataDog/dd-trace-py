@@ -39,9 +39,6 @@ api_as_formatted_evidence(const StrType& text,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges);
 
-py::bytearray
-api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig);
-
 template<class StrType>
 StrType
 api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
@@ -49,6 +46,9 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintR
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
 convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
+
+PyObject*
+convert_escaped_text_to_taint_text(PyObject* taint_escaped_text, TaintRangeRefs ranges_orig);
 
 bool
 set_ranges_on_splitted(const py::object& source_str,
@@ -100,29 +100,6 @@ get_default_content(const TaintRangePtr& taint_range)
 {
     if (!taint_range->source.name.empty()) {
         return taint_range->source.name;
-    }
-
-    return {};
-}
-
-template<typename StrType>
-std::string
-strtype2stdstring(const StrType& py_string_like)
-{
-    // Ensure py_string_like is recognized as a pybind11 object
-    py::object obj = py::reinterpret_borrow<py::object>(py_string_like);
-
-    if (py::isinstance<py::str>(obj)) {
-        // Convert py::str to std::string
-        return obj.cast<std::string>();
-    }
-    if (py::isinstance<py::bytes>(obj)) {
-        // Convert py::bytes to std::string
-        return obj.cast<std::string>();
-    }
-    if (py::isinstance<py::bytearray>(obj)) {
-        // Convert py::bytearray to std::string
-        return py::str(obj).cast<std::string>(); // Convert bytearray to str and then to std::string
     }
 
     return {};
@@ -202,19 +179,34 @@ exception_wrapper(Func func, const char* aspect_name, Args... args) -> std::opti
     }
     return std::nullopt;
 }
+
+The user of this macro needs to define the "get_results()" function as a lambda, like:
+
+    auto get_result = [&]() -> PyObject* {
+        PyObject* res = do_modulo(candidate_text, candidate_tuple);
+        if (res == nullptr) {
+            return py_candidate_text.attr("__mod__")(py_candidate_tuple).ptr();
+        }
+        return res;
+    };
+
+Example calling:
+    TRY_CATCH_ASPECT("foo_aspect", return result_o, , {  // no cleanup code here, but the comma is still needed
+        // code
+    });
 */
 
-#define TRY_CATCH_ASPECT(NAME, CLEANUP, ...)                                                                           \
+#define TRY_CATCH_ASPECT(NAME, RETURNRESULT, CLEANUP, ...)                                                             \
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
     } catch (const std::exception& e) {                                                                                \
         const std::string error_message = "IAST propagation error in " NAME ". " + std::string(e.what());              \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
-        return result_o;                                                                                               \
+        RETURNRESULT;                                                                                                  \
     } catch (...) {                                                                                                    \
         const std::string error_message = "Unknown IAST propagation error in " NAME ". ";                              \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
-        return result_o;                                                                                               \
+        RETURNRESULT;                                                                                                  \
     }

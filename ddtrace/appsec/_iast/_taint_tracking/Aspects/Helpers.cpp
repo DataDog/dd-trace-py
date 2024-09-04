@@ -1,6 +1,7 @@
 #include "Helpers.h"
 #include "Initializer/Initializer.h"
 #include <algorithm>
+#include <iostream> // JJJ
 #include <regex>
 #include <unicode/unistr.h>
 #include <unicode/ustream.h>
@@ -113,14 +114,14 @@ StrType
 all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
 {
     TaintRangeRefs text_ranges = api_get_ranges(text);
-    return StrType(as_formatted_evidence(strtype2stdstring(text), text_ranges, tag_mapping_mode, nullopt));
+    return StrType(as_formatted_evidence(AnyTextPyObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
 }
 
 template<class StrType>
 StrType
 int_as_formatted_evidence(const StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode)
 {
-    return StrType(as_formatted_evidence(strtype2stdstring(text), text_ranges, tag_mapping_mode, nullopt));
+    return StrType(as_formatted_evidence(AnyTextPyObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
 }
 
 template<class StrType>
@@ -136,7 +137,7 @@ api_as_formatted_evidence(const StrType& text,
     } else {
         _ranges = text_ranges.value();
     }
-    return StrType(as_formatted_evidence(strtype2stdstring(text), _ranges, tag_mapping_mode, new_ranges));
+    return StrType(as_formatted_evidence(AnyTextPyObjectToString(text), _ranges, tag_mapping_mode, new_ranges));
 }
 
 vector<string>
@@ -176,6 +177,39 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintR
     PyObject* new_result = new_pyobject_id(result_text.ptr());
     set_ranges(new_result, result_ranges, tx_map);
     return py::reinterpret_steal<StrType>(new_result);
+}
+
+PyObject*
+convert_escaped_text_to_taint_text(PyObject* taint_escaped_text, TaintRangeRefs ranges_orig)
+{
+    cerr << "JJJ convert1\n";
+    if (!taint_escaped_text) {
+        cerr << "JJJ convert2\n";
+        return nullptr;
+    }
+
+    py::object res;
+    if (PyUnicode_Check(taint_escaped_text)) {
+        PyObject* res_pyobject = api_convert_escaped_text_to_taint_text<py::str>(
+                                   py::reinterpret_borrow<py::str>(taint_escaped_text), std::move(ranges_orig))
+                                   .ptr();
+        cerr << "JJJ convert3\n";
+        return res_pyobject;
+    }
+    if (PyBytes_Check(taint_escaped_text)) {
+        cerr << "JJJ convert4\n";
+        return api_convert_escaped_text_to_taint_text<py::bytes>(py::reinterpret_borrow<py::bytes>(taint_escaped_text),
+                                                                 std::move(ranges_orig))
+          .ptr();
+    }
+    if (PyByteArray_Check(taint_escaped_text)) {
+        cerr << "JJJ convert5\n";
+        return api_convert_escaped_text_to_taint_text<py::bytearray>(
+                 py::reinterpret_borrow<py::bytearray>(taint_escaped_text), std::move(ranges_orig))
+          .ptr();
+    }
+    cerr << "JJJ convert6\n";
+    return nullptr;
 }
 
 unsigned long int
