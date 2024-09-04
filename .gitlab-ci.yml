@@ -10,7 +10,7 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner@sha256:4c8afd048321e702f3605b4ae4d206fcd00e74bac708089cfe7f9c24383dc53b
+  TESTRUNNER_IMAGE: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:ecc5741ff3e7c8a30363fcd9cca79a371dcea5b4
   # CI_DEBUG_SERVICES: "true"
 
 .testrunner:
