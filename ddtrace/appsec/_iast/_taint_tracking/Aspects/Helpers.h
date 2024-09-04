@@ -43,13 +43,12 @@ template<class StrType>
 StrType
 api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
 
+py::bytearray
+api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig);
+
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
 convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
-
-// JJJ
-// PyObject*
-// convert_escaped_text_to_taint_text(PyObject* taint_escaped_text, TaintRangeRefs ranges_orig);
 
 bool
 set_ranges_on_splitted(const py::object& source_str,
@@ -97,7 +96,8 @@ get_tag(const string& content)
         return string(EVIDENCE_MARKS::BLANK);
     }
 
-    return string(EVIDENCE_MARKS::LESS) + content + string(EVIDENCE_MARKS::GREATER);
+    auto result = string(EVIDENCE_MARKS::LESS) + content + string(EVIDENCE_MARKS::GREATER);
+    return result;
 }
 
 inline string

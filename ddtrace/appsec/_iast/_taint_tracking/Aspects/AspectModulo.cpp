@@ -94,8 +94,6 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return res;
     };
 
-    // return get_result();
-
     TRY_CATCH_ASPECT("modulo_aspect", return get_result(), , {
         const auto py_str_type = get_pytext_type(args[0]);
         if (py_str_type == PyTextType::OTHER) {
@@ -129,7 +127,7 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
             if (is_text(param_handle.ptr())) {
                 auto [ranges, ranges_error] = get_ranges(param_handle.ptr(), tx_map);
                 string n_parameter =
-                  as_formatted_evidence(AnyTextPyObjectToString(param_handle), ranges, TagMappingMode::Mapper, nullopt);
+                  as_formatted_evidence(AnyTextObjectToString(param_handle), ranges, TagMappingMode::Mapper, nullopt);
                 list_formatted_parameters.append(StringToPyObject(n_parameter, py_str_type));
             } else {
                 list_formatted_parameters.append(param_handle);
@@ -148,40 +146,5 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
             return get_result();
         }
         return res_pyobject;
-
-        // auto applied_params_opt = PyObjectToPyText(applied_params);
-        // if (!applied_params_opt.has_value()) {
-        //     Py_DECREF(applied_params);
-        //     return get_result();
-        // }
-        //
-        // switch (py_str_type) {
-        //     case PyTextType::UNICODE: {
-        //         auto params_str = py::reinterpret_borrow<py::str>(applied_params_opt.value());
-        //         auto obj = api_convert_escaped_text_to_taint_text<py::str>(params_str, ranges_orig);
-        //         Py_DECREF(applied_params);
-        //         Py_INCREF(obj.ptr());
-        //         return obj.ptr();
-        //     }
-        //
-        //     case PyTextType::BYTES: {
-        //         auto params_bytes = py::reinterpret_borrow<py::bytes>(applied_params_opt.value());
-        //         auto obj = api_convert_escaped_text_to_taint_text<py::bytes>(params_bytes, ranges_orig);
-        //         Py_DECREF(applied_params);
-        //         Py_INCREF(obj.ptr());
-        //         return obj.ptr();
-        //     }
-        //
-        //     case PyTextType::BYTEARRAY: {
-        //         auto params_bytearray = py::reinterpret_borrow<py::bytearray>(applied_params_opt.value());
-        //         auto obj = api_convert_escaped_text_to_taint_text<py::bytearray>(params_bytearray, ranges_orig);
-        //         Py_DECREF(applied_params);
-        //         Py_INCREF(obj.ptr());
-        //         return obj.ptr();
-        //     }
-        //     default:
-        //         Py_DECREF(applied_params);
-        //         return get_result();
-        // }
     });
 }

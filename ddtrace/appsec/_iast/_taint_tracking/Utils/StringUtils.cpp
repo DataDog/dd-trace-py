@@ -65,9 +65,9 @@ set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
 }
 
 string
-AnyTextPyObjectToString(PyObject* py_string_like)
+AnyTextObjectToString(PyObject* py_string_like)
 {
-    return AnyTextPyObjectToString(py::handle(py_string_like));
+    return AnyTextObjectToString(py::handle(py_string_like));
 }
 
 PyObject*

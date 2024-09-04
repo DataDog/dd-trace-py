@@ -118,7 +118,7 @@ PyObjectToString(PyObject* obj)
 }
 
 inline string
-AnyTextPyObjectToString(const py::handle& py_string_like)
+AnyTextObjectToString(const py::handle& py_string_like)
 {
     // Ensure py_string_like is recognized as a pybind11 object
     auto obj = py::reinterpret_borrow<py::object>(py_string_like);
@@ -130,7 +130,7 @@ AnyTextPyObjectToString(const py::handle& py_string_like)
         return obj.cast<string>();
     }
     if (py::isinstance<py::bytearray>(obj)) {
-        return py::str(obj).cast<string>(); // Convert bytearray to str and then to string
+        return obj.cast<string>();
     }
 
     return {};
