@@ -53,6 +53,7 @@ class IASTFilter(LeaksFilterFunction):
     "origin1, origin2",
     [
         ("taintsource1", "taintsource2"),
+        # JJJ
         # ("taintsource", "taintsource"),
         # (b"taintsource1", "taintsource2"),
         # (b"taintsource1", b"taintsource2"),
@@ -84,6 +85,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
             origin2, source_name="path2", source_value=origin2, source_origin=OriginType.PARAMETER
         )
         result = mod.propagation_memory_check(tainted_string_1, tainted_string_2)
+        print("JJJ python result: %s" % result)
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert len(span_report.sources) > 0

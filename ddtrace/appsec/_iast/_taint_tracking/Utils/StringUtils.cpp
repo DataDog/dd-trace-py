@@ -65,36 +65,6 @@ set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
 }
 
 string
-PyObjectToString(PyObject* obj)
-{
-    const char* str = PyUnicode_AsUTF8(obj);
-
-    if (str == nullptr) {
-        return "";
-    }
-    return str;
-}
-
-string
-AnyTextPyObjectToString(const py::handle& py_string_like)
-{
-    // Ensure py_string_like is recognized as a pybind11 object
-    py::object obj = py::reinterpret_borrow<py::object>(py_string_like);
-
-    if (py::isinstance<py::str>(obj)) {
-        return obj.cast<string>();
-    }
-    if (py::isinstance<py::bytes>(obj)) {
-        return obj.cast<string>();
-    }
-    if (py::isinstance<py::bytearray>(obj)) {
-        return py::str(obj).cast<string>(); // Convert bytearray to str and then to string
-    }
-
-    return {};
-}
-
-string
 AnyTextPyObjectToString(PyObject* py_string_like)
 {
     return AnyTextPyObjectToString(py::handle(py_string_like));

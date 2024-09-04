@@ -1,7 +1,6 @@
 #include "Helpers.h"
 #include "Initializer/Initializer.h"
 #include <algorithm>
-#include <iostream> // JJJ
 #include <regex>
 #include <unicode/unistr.h>
 #include <unicode/ustream.h>
@@ -180,36 +179,41 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintR
 }
 
 PyObject*
-convert_escaped_text_to_taint_text(PyObject* taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
+                                       const TaintRangeRefs& ranges_orig,
+                                       const PyTextType py_str_type)
 {
-    cerr << "JJJ convert1\n";
-    if (!taint_escaped_text) {
-        cerr << "JJJ convert2\n";
-        return nullptr;
+    if (taint_escaped_text == nullptr or ranges_orig.empty()) {
+        return taint_escaped_text;
     }
 
-    py::object res;
-    if (PyUnicode_Check(taint_escaped_text)) {
-        PyObject* res_pyobject = api_convert_escaped_text_to_taint_text<py::str>(
-                                   py::reinterpret_borrow<py::str>(taint_escaped_text), std::move(ranges_orig))
-                                   .ptr();
-        cerr << "JJJ convert3\n";
-        return res_pyobject;
+    auto text_pyobj_opt = PyObjectToPyText(taint_escaped_text);
+    if (!text_pyobj_opt.has_value()) {
+        return taint_escaped_text;
     }
-    if (PyBytes_Check(taint_escaped_text)) {
-        cerr << "JJJ convert4\n";
-        return api_convert_escaped_text_to_taint_text<py::bytes>(py::reinterpret_borrow<py::bytes>(taint_escaped_text),
-                                                                 std::move(ranges_orig))
-          .ptr();
+
+    switch (py_str_type) {
+        case PyTextType::UNICODE: {
+            auto text_str = py::reinterpret_borrow<py::str>(text_pyobj_opt.value());
+            auto obj = api_convert_escaped_text_to_taint_text<py::str>(text_str, ranges_orig);
+            Py_INCREF(obj.ptr());
+            return obj.ptr();
+        }
+        case PyTextType::BYTES: {
+            auto text_bytes = py::reinterpret_borrow<py::bytes>(text_pyobj_opt.value());
+            auto obj = api_convert_escaped_text_to_taint_text<py::bytes>(text_bytes, ranges_orig);
+            Py_INCREF(obj.ptr());
+            return obj.ptr();
+        }
+        case PyTextType::BYTEARRAY: {
+            auto text_bytearray = py::reinterpret_borrow<py::bytearray>(text_pyobj_opt.value());
+            auto obj = api_convert_escaped_text_to_taint_text<py::bytearray>(text_bytearray, ranges_orig);
+            Py_INCREF(obj.ptr());
+            return obj.ptr();
+        }
+        default:
+            return taint_escaped_text;
     }
-    if (PyByteArray_Check(taint_escaped_text)) {
-        cerr << "JJJ convert5\n";
-        return api_convert_escaped_text_to_taint_text<py::bytearray>(
-                 py::reinterpret_borrow<py::bytearray>(taint_escaped_text), std::move(ranges_orig))
-          .ptr();
-    }
-    cerr << "JJJ convert6\n";
-    return nullptr;
 }
 
 unsigned long int

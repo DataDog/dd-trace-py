@@ -47,8 +47,9 @@ template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
 convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
 
-PyObject*
-convert_escaped_text_to_taint_text(PyObject* taint_escaped_text, TaintRangeRefs ranges_orig);
+// JJJ
+// PyObject*
+// convert_escaped_text_to_taint_text(PyObject* taint_escaped_text, TaintRangeRefs ranges_orig);
 
 bool
 set_ranges_on_splitted(const py::object& source_str,
@@ -64,6 +65,10 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            const py::list& split_result,
                            bool include_separator = false);
 
+PyObject*
+api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
+                                       const TaintRangeRefs& ranges_orig,
+                                       PyTextType py_str_type);
 bool
 has_pyerr();
 
@@ -199,6 +204,10 @@ Example calling:
 #define TRY_CATCH_ASPECT(NAME, RETURNRESULT, CLEANUP, ...)                                                             \
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
+    } catch (py::error_already_set & e) {                                                                              \
+        e.restore();                                                                                                   \
+        CLEANUP;                                                                                                       \
+        RETURNRESULT;                                                                                                  \
     } catch (const std::exception& e) {                                                                                \
         const std::string error_message = "IAST propagation error in " NAME ". " + std::string(e.what());              \
         iast_taint_log_error(error_message);                                                                           \

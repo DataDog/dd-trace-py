@@ -85,12 +85,6 @@ new_pyobject_id(PyObject* tainted_object);
 size_t
 get_pyobject_size(PyObject* obj);
 
-string
-AnyTextPyObjectToString(const py::handle& py_string_like);
-
-string
-AnyTextPyObjectToString(PyObject* py_string_like);
-
 inline py::object
 StringToPyObject(const string& str, const PyTextType type)
 {
@@ -112,6 +106,52 @@ StringToPyObject(const char* str, const PyTextType type)
     return StringToPyObject(string(str), type);
 }
 
+inline string
+PyObjectToString(PyObject* obj)
+{
+    const char* str = PyUnicode_AsUTF8(obj);
+
+    if (str == nullptr) {
+        return "";
+    }
+    return str;
+}
+
+inline string
+AnyTextPyObjectToString(const py::handle& py_string_like)
+{
+    // Ensure py_string_like is recognized as a pybind11 object
+    auto obj = py::reinterpret_borrow<py::object>(py_string_like);
+
+    if (py::isinstance<py::str>(obj)) {
+        return obj.cast<string>();
+    }
+    if (py::isinstance<py::bytes>(obj)) {
+        return obj.cast<string>();
+    }
+    if (py::isinstance<py::bytearray>(obj)) {
+        return py::str(obj).cast<string>(); // Convert bytearray to str and then to string
+    }
+
+    return {};
+}
+
+inline optional<py::object>
+PyObjectToPyText(PyObject* obj)
+{
+    if (PyUnicode_Check(obj)) {
+        return py::reinterpret_borrow<py::str>(obj);
+    }
+    if (PyBytes_Check(obj)) {
+        return py::reinterpret_borrow<py::bytes>(obj);
+    }
+    if (PyByteArray_Check(obj)) {
+        return py::reinterpret_borrow<py::bytearray>(obj);
+    }
+
+    // If it's not a recognized type, return an empty std::optional
+    return std::nullopt;
+}
 inline PyTextType
 get_pytext_type(PyObject* obj)
 {
