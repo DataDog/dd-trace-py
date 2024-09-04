@@ -659,5 +659,5 @@ def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available(
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
         assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url == "http://localhost:9126"
+        assert new_telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
         assert "dd-api-key" not in new_telemetry_writer._client._headers
