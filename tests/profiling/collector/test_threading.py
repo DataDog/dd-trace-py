@@ -624,30 +624,45 @@ def test_wrapt_disable_extensions():
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
     assert acquire_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
 
-    expected_filename = os.environ["DD_PROFILING_FILE_PATH"].replace(".pyc", ".py").replace("/root/project/", "")
+    expected_filename = os.environ["DD_PROFILING_FILE_PATH"].replace(".pyc", ".py")
 
     assert len(acquire_event.frames) > 0, "No frames found"
-    frame = acquire_event.frames[0]
+    acquire_frame = acquire_event.frames[0]
 
     # This test is run in a subprocess, and doesn't show details about why it
     # failed, so we add more details to the assert message.
-    assert frame.file_name == expected_filename, "Expected filename {}, got {}".format(
-        expected_filename, frame.file_name
+    assert expected_filename.endswith(acquire_frame.file_name), "Expected filename {} to end with {}".format(
+        expected_filename, acquire_frame.file_name
     )
-    assert frame.lineno == linenos.acquire, "Expected line number {}, got {}".format(linenos.acquire, frame.lineno)
-    assert frame.function_name == "<module>", "Expected function name <module>, got {}".format(frame.function_name)
-    assert frame.class_name == "", "Expected class name '', got {}".format(frame.class_name)
+    assert acquire_frame.lineno == linenos.acquire, "Expected line number {}, got {}".format(
+        linenos.acquire, acquire_frame.lineno
+    )
+    # As this test runs in a subprocess, the body of this function is simply
+    # placed in a temporary file, and we don't have a function name and it
+    # defaults to <module>
+    assert acquire_frame.function_name == "<module>", "Expected function name <module>, got {}".format(
+        acquire_frame.function_name
+    )
+    assert acquire_frame.class_name == "", "Expected class name '', got {}".format(acquire_frame.class_name)
 
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert release_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
     release_lineno = linenos.acquire + (0 if sys.version_info >= (3, 10) else 1)
-    assert release_event.frames[0] == (
-        expected_filename,
-        release_lineno,
-        "<module>",
-        "",
+
+    assert len(release_event.frames) > 0, "No frames found"
+    release_frame = release_event.frames[0]
+
+    assert expected_filename.endswith(release_frame.file_name), "Expected filename {} to end with {}".format(
+        expected_filename, release_frame.file_name
     )
+    assert release_frame.lineno == release_lineno, "Expected line number {}, got {}".format(
+        release_lineno, release_frame.lineno
+    )
+    assert release_frame.function_name == "<module>", "Expected function name <module>, got {}".format(
+        release_frame.function_name
+    )
+    assert release_frame.class_name == "", "Expected class name '', got {}".format(release_frame.class_name)
 
 
 def test_global_locks():
