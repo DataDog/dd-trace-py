@@ -1,6 +1,9 @@
 name: Build and publish image
 
 on:
+  merge_group:
+    # Trigger jobs when PR is added to merge queue
+    types: [checks_requested]
   workflow_call:
     inputs:
       tags:
