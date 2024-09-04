@@ -1,12 +1,6 @@
 #include "AspectModulo.h"
 #include "Helpers.h"
 
-py::object
-api_modulo_aspect_pyobject(const py::object& candidate_text, const py::object& candidate_tuple)
-{
-    return candidate_text.attr("__mod__")(candidate_tuple);
-}
-
 static PyObject*
 do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 {
