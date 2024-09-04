@@ -19,7 +19,7 @@ def test_flask_instrumented_metrics(telemetry_writer):
     from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
     with override_global_config(dict(_iast_enabled=True)):
-        _on_flask_patch("2.0.0")
+        _on_flask_patch((2, 0, 0))
 
     metrics_result = telemetry_writer._namespace._metrics_data
     metrics_source_tags_result = [metric._tags[0][1] for metric in metrics_result["generate-metrics"]["iast"].values()]
