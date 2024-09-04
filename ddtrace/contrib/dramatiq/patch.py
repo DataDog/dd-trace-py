@@ -1,8 +1,15 @@
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
 from ..internal.dramatiq.patch import *  # noqa: F401,F403
 
 
-# TODO: deprecate and remove this module
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-
-def test_method(param1: str) -> None:
-    pass
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

@@ -15,6 +15,7 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.trace_utils import with_traced_module
@@ -154,7 +155,13 @@ def traced_handler(wrapped, instance, args, kwargs):
         if name == b"cookie":
             request_cookies = value.decode("utf-8", errors="ignore")
             break
+
     if request_spans:
+        if _is_iast_enabled():
+            from ddtrace.appsec._iast._patch import _iast_instrument_starlette_scope
+
+            _iast_instrument_starlette_scope(scope)
+
         trace_utils.set_http_meta(
             request_spans[0],
             "starlette",

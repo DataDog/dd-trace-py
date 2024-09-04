@@ -83,9 +83,8 @@ split_taints(const string& str_to_split)
 }
 
 py::bytearray
-api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
-
     const auto tx_map = Initializer::get_tainting_map();
 
     const py::bytes bytes_text = py::bytes() + taint_escaped_text;
@@ -228,9 +227,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRange
  * @param tx_map: The taint map to apply the ranges.
  * @param include_separator: If the separator should be included in the splitted parts.
  */
-template<class StrType>
 bool
-set_ranges_on_splitted(const StrType& source_str,
+set_ranges_on_splitted(const py::object& source_str,
                        const TaintRangeRefs& source_ranges,
                        const py::list& split_result,
                        const TaintRangeMapTypePtr& tx_map,
@@ -417,12 +415,12 @@ pyexport_aspect_helpers(py::module& m)
           "ranges_orig"_a,
           py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
-          &api_convert_escaped_text_to_taint_text<py::str>,
+          &api_convert_escaped_text_to_taint_text<py::bytearray>,
           "taint_escaped_text"_a,
           "ranges_orig"_a,
           py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
-          &api_convert_escaped_text_to_taint_text_ba,
+          &api_convert_escaped_text_to_taint_text<py::str>,
           "taint_escaped_text"_a,
           "ranges_orig"_a,
           py::return_value_policy::move);
