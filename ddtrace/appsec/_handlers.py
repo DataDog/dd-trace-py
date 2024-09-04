@@ -251,6 +251,9 @@ def _on_flask_patch(flask_version):
         _set_metric_iast_instrumented_source(OriginType.PATH)
         _set_metric_iast_instrumented_source(OriginType.QUERY)
 
+        # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
+        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+
         try_wrap_function_wrapper(
             "werkzeug.wrappers.request",
             "Request.get_data",
