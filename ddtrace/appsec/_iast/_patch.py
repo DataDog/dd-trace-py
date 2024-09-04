@@ -193,7 +193,8 @@ def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
 
 def _iast_instrument_starlette_scope(scope):
     from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+    # from ddtrace.appsec._iast._taint_tracking import origin_to_str
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     if scope.get("path_params"):
@@ -204,10 +205,10 @@ def _iast_instrument_starlette_scope(scope):
                 )
         except Exception:
             log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
-    if scope.get("path"):
-        scope["path"] = taint_pyobject(
-            scope["path"],
-            source_name=origin_to_str(OriginType.PATH),
-            source_value=scope["path"],
-            source_origin=OriginType.PATH,
-        )
+    # if scope.get("path"):
+    #     scope["path"] = taint_pyobject(
+    #         scope["path"],
+    #         source_name=origin_to_str(OriginType.PATH),
+    #         source_value=scope["path"],
+    #         source_origin=OriginType.PATH,
+    #     )
