@@ -83,9 +83,8 @@ split_taints(const string& str_to_split)
 }
 
 py::bytearray
-api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
-
     const auto tx_map = Initializer::get_tainting_map();
 
     const py::bytes bytes_text = py::bytes() + taint_escaped_text;
@@ -416,12 +415,12 @@ pyexport_aspect_helpers(py::module& m)
           "ranges_orig"_a,
           py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
-          &api_convert_escaped_text_to_taint_text<py::str>,
+          &api_convert_escaped_text_to_taint_text<py::bytearray>,
           "taint_escaped_text"_a,
           "ranges_orig"_a,
           py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
-          &api_convert_escaped_text_to_taint_text_ba,
+          &api_convert_escaped_text_to_taint_text<py::str>,
           "taint_escaped_text"_a,
           "ranges_orig"_a,
           py::return_value_policy::move);
