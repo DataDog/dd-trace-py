@@ -349,6 +349,9 @@
             "ddtrace/contrib/internal/kafka/*",
             "ddtrace/ext/kafka.py"
         ],
+        "kafka_python_ng": [
+            "ddtrace/contrib/kafka_python_ng/*"
+        ],
         "graphql": [
             "ddtrace/contrib/graphql/*",
             "ddtrace/contrib/internal/graphql/*"
@@ -554,6 +557,16 @@
             "@datastreams",
             "tests/contrib/kafka/*",
             "tests/snapshots/tests.contrib.kafka.*"
+        ],
+        "kafka_python_ng": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@kafka_python_ng",
+            "@datastreams",
+            "tests/contrib/kafka_python_ng/*",
+            "tests/snapshots/tests.contrib.kafka_python_ng.*"
         ],
         "tracer": [
             "@tracing",

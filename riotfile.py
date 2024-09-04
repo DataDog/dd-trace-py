@@ -2719,7 +2719,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} tests/contrib/kafka",
+                    command="pytest {cmdargs} tests/contrib/kafka/",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.10"),
@@ -2727,6 +2727,25 @@ venv = Venv(
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
                         Venv(pys=select_pys(min_version="3.11"), pkgs={"confluent-kafka": latest}),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="kafka_python_ng",
+            pkgs={
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    command='pytest --log-level DEBUG --log-format="%(asctime)s %(levelname)s %(name)s %(message)s"'
+                    + ' --log-date-format="%Y-%m-%d %H:%M:%S.%f" {cmdargs} tests/contrib/kafka_python_ng/',
+                    venvs=[
+                        Venv(
+                            pys=["3.7"],
+                            pkgs={"kafka-python": "==2.0.2"},
+                        ),
+                        Venv(pys=select_pys(min_version="3.8"), pkgs={"kafka-python-ng": "==2.2.2"}),
                     ],
                 ),
             ],
