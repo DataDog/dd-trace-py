@@ -1646,6 +1646,9 @@ venv = Venv(
             env={
                 "DD_PATCH_MODULES": "unittest:true",
                 "DD_AGENT_PORT": "9126",
+                # gitlab sets the service name to the repo name while locally the default service name is used
+                # setting DD_SERVICE ensures the output of the snapshot tests is consistent.
+                "DD_UNITTEST_SERVICE": "unittest",
             },
             pys=select_pys(),
         ),
