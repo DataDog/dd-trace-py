@@ -59,7 +59,7 @@ urllib3:
   variables:
     SUITE_NAME: "urllib3"
     TEST_HTTPBIN_HOST: "httpbin-local"
-    TEST_HTTPBIN_PORT: "80"
+    TEST_HTTPBIN_PORT: "8001"
 
 kafka:
   extends: .test_base_riot_snapshot

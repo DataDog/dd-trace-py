@@ -41,5 +41,7 @@
       KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
   httpbin_local:
-    name: registry.ddbuild.io/images/mirror/kennethreitz/httpbin:1
+    name: registry.ddbuild.io/images/mirror/mccutchen/go-httpbin:v2.14.1
     alias: httpbin-local
+    variables:
+      PORT: 8001
