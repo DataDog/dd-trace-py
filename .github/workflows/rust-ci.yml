@@ -6,7 +6,7 @@ on:
       - src/**
   merge_group:
     # Trigger jobs when PR is added to merge queue
-    branches: ['gh-readonly-queue/main/*']
+    branches: ['main']
     types: [checks_requested]
 
 jobs:
