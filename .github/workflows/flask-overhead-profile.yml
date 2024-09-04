@@ -10,7 +10,7 @@ on:
       - '.github/workflows/flask-overhead-profile.yml'
   merge_group:
     # Trigger jobs when PR is added to merge queue
-    branches: ['gh-readonly-queue/main/*']
+    branches: ['gh-readonly-queue/*']
     types: [checks_requested]
 jobs:
   flask-overhead-profile:
