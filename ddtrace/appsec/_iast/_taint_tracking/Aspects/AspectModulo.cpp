@@ -2,7 +2,7 @@
 #include "Helpers.h"
 
 py::object
-api_modulo_aspect_pyobject(py::object candidate_text, py::object candidate_tuple)
+api_modulo_aspect_pyobject(const py::object& candidate_text, const py::object& candidate_tuple)
 {
     return candidate_text.attr("__mod__")(candidate_tuple);
 }
@@ -14,10 +14,7 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 
     // If the second argument is not a tuple and not a mapping, wrap it in a tuple
     PyObject* insert_tuple = nullptr;
-    if (PyMapping_Check(insert_tuple_or_obj)) {
-        insert_tuple = insert_tuple_or_obj;
-        Py_INCREF(insert_tuple); // Increment the reference count since we'll be using this directly
-    } else if (PyTuple_Check(insert_tuple_or_obj)) {
+    if (PyMapping_Check(insert_tuple_or_obj) or PyTuple_Check(insert_tuple_or_obj)) {
         insert_tuple = insert_tuple_or_obj;
         Py_INCREF(insert_tuple); // Increment the reference count since we'll be using this directly
     } else {
