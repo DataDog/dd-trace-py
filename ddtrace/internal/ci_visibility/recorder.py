@@ -219,7 +219,7 @@ class CIVisibility(Service):
             requests_mode_str = "agent EVP proxy"
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
         else:
-            requests_mode_str = "APM (some features will be disabled"
+            requests_mode_str = "APM (some features will be disabled)"
             self._requests_mode = REQUESTS_MODE.TRACES
             self._should_upload_git_metadata = False
 
