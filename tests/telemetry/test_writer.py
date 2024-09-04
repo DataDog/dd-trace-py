@@ -90,7 +90,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
-                    {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
                     {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -165,9 +164,10 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         }
         requests[0]["body"]["payload"]["configuration"].sort(key=lambda c: c["name"])
         result = _get_request_body(payload, "app-started")
-        result = {k: v for k, v in result.items() if k != "DD_TRACE_AGENT_URL"}
-        expected = {k: v for k, v in requests[0]["body"].items() if k != "DD_TRACE_AGENT_URL"}
-        assert expected == result
+        result["payload"]["configuration"] = [
+            a for a in result["payload"]["configuration"] if a["name"] != "DD_TRACE_AGENT_URL"
+        ]
+        assert payload == result["payload"]
 
 
 @pytest.mark.parametrize(
