@@ -556,6 +556,12 @@ class CIVisibility(Service):
                 self._test_suites_to_skip = []
                 self._tests_to_skip = defaultdict(list)
 
+        except Exception:
+            log.warning("Error retrieving skippable test data, no tests will be skipped", exc_info=True)
+            error_type = ERROR_TYPES.UNKNOWN
+            self._test_suites_to_skip = []
+            self._tests_to_skip = defaultdict(list)
+
         finally:
             record_itr_skippable_request(
                 sw.elapsed() * 1000,
@@ -683,8 +689,10 @@ class CIVisibility(Service):
             handles = cls._instance._codeowners.of(location)
             if handles:
                 span.set_tag(test.CODEOWNERS, json.dumps(handles))
-        except KeyError:
-            log.debug("no matching codeowners for %s", location)
+            else:
+                log.debug("no matching codeowners for %s", location)
+        except:  # noqa: E722
+            log.debug("Error setting codeowners for %s", location, exc_info=True)
 
     @classmethod
     def add_session(cls, session: CIVisibilitySession):

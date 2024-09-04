@@ -24,6 +24,7 @@ from ddtrace.debugging._signal.tracing import SPAN_NAME
 from ddtrace.debugging._signal.utils import redacted_value
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import compile_template
@@ -336,13 +337,13 @@ def test_debugger_tracer_correlation():
         )
 
         with d._tracer.trace("test-span") as span:
-            trace_id = str(span.trace_id)
+            trace_id = format_trace_id(span.trace_id)
             span_id = str(span.span_id)
             Stuff().instancestuff()
 
         snapshots = d.uploader.wait_for_payloads()
-        assert all(snapshot["dd.trace_id"] == trace_id for snapshot in snapshots)
-        assert all(snapshot["dd.span_id"] == span_id for snapshot in snapshots)
+        assert all(snapshot["dd"]["trace_id"] == trace_id for snapshot in snapshots)
+        assert all(snapshot["dd"]["span_id"] == span_id for snapshot in snapshots)
 
 
 def test_debugger_captured_exception():
@@ -1174,7 +1175,7 @@ def test_debugger_redacted_identifiers():
                     "size": 3,
                 },
             },
-            "staticFields": {"SensitiveData": {"type": "type", "value": "<class 'tests.submod.stuff.SensitiveData'>"}},
+            "staticFields": {},
             "throwable": None,
         }
 
@@ -1203,9 +1204,7 @@ def test_debugger_redacted_identifiers():
                     },
                     "@return": {"type": "str", "value": "'top secret'"},  # TODO: Ouch!
                 },
-                "staticFields": {
-                    "SensitiveData": {"type": "type", "value": "<class 'tests.submod.stuff.SensitiveData'>"}
-                },
+                "staticFields": {},
                 "throwable": None,
             },
         }

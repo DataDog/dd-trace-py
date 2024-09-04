@@ -1,0 +1,126 @@
+algoliasearch:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "algoliasearch"
+
+asgi:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "asgi$"
+
+bottle:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "bottle"
+
+cherrypy:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "cherrypy"
+
+dogpile_cache:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "dogpile_cache"
+
+falcon:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "falcon"
+
+fastapi:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "fastapi"
+
+gevent:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "gevent"
+
+graphene:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "graphene"
+
+graphql:
+  extends: .test_base_riot_snapshot
+  parallel: 6
+  variables:
+    SUITE_NAME: "graphql"
+
+grpc:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "grpc"
+
+gunicorn:
+  extends: .test_base_riot_snapshot
+  parallel: 12
+  variables:
+    SUITE_NAME: "gunicorn"
+
+jinja2:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "jinja2"
+
+mako:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "mako"
+
+molten:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "molten"
+
+pynamodb:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "pynamodb"
+
+pyodbc:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "pyodbc"
+
+pyramid:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "pyramid"
+  before_script:
+    - !reference [.test_base_riot_snapshot, before_script]
+    # This is because in the riotfile we specify a path to tests/contrib/pyramid/pserve_app
+    # in the lockfile it gets replaced with the absolute path of /root/project/tests/.../pserve_app
+    - ln -s "${CI_PROJECT_DIR}" "/root/project"
+
+sanic:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "sanic"
+
+snowflake:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "snowflake"
+
+starlette:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "starlette"
+
+structlog:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "structlog"
+
+tornado:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "tornado"
+
+wsgi:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "wsgi"
