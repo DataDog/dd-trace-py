@@ -556,6 +556,12 @@ class CIVisibility(Service):
                 self._test_suites_to_skip = []
                 self._tests_to_skip = defaultdict(list)
 
+        except Exception:
+            log.warning("Error retrieving skippable test data, no tests will be skipped", exc_info=True)
+            error_type = ERROR_TYPES.UNKNOWN
+            self._test_suites_to_skip = []
+            self._tests_to_skip = defaultdict(list)
+
         finally:
             record_itr_skippable_request(
                 sw.elapsed() * 1000,
