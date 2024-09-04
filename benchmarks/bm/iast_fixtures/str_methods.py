@@ -18,6 +18,7 @@ from typing import List
 from typing import Optional
 from typing import Sequence
 from typing import Text
+from typing import Tuple
 import urllib.parse
 
 
@@ -89,7 +90,7 @@ def uppercase_decorator(function: Callable) -> Callable:
 
 
 @uppercase_decorator
-def do_add_and_uppercase(a, b) -> Text:
+def do_add_and_uppercase(a: Text, b: Text) -> Text:
     return a + b
 
 
@@ -180,40 +181,37 @@ def do_decode(s, encoding="utf-8", errors="strict"):  # type: (bytes, str, str) 
     return s.decode(encoding, errors)
 
 
-def do_translate(s, translate_dict):
-    # type: (str, dict) -> str
+def do_translate(s: str, translate_dict: dict) -> str:
     return s.translate(translate_dict)
 
 
-def do_decode_simple(s: bytes) -> Text:
+def do_decode_simple(s: bytes) -> str:
     return s.decode()
 
 
-def do_encode(s, encoding="utf-8", errors="strict"):
-    # type: (str, str, str) -> bytes
+def do_encode(s: str, encoding: str = "utf-8", errors: str = "strict") -> bytes:
     return s.encode(encoding, errors)
 
 
-def do_encode_from_dict(s, encoding="utf-8", errors="strict"):
-    # type: (str, str, str) -> bytes
+def do_encode_from_dict(s: str, encoding: str = "utf-8", errors: str = "strict") -> bytes:
     my_dictionary = {}
     my_dictionary["test"] = s
     return my_dictionary.get("test", "").encode(encoding, errors)
 
 
-def do_str_to_bytes(s):  # type: (str) -> bytes
+def do_str_to_bytes(s: str) -> bytes:
     return bytes(s, encoding="utf-8")
 
 
-def do_str_to_bytearray(s):  # type: (str) -> bytearray
+def do_str_to_bytearray(s: str) -> bytearray:
     return bytearray(s, encoding="utf-8")
 
 
-def do_str_to_bytes_to_bytearray(s):  # type: (str) -> bytearray
+def do_str_to_bytes_to_bytearray(s: str) -> bytearray:
     return bytearray(bytes(s, encoding="utf-8"))
 
 
-def do_str_to_bytes_to_bytearray_to_str(s):  # type: (str) -> str
+def do_str_to_bytes_to_bytearray_to_str(s: str) -> str:
     return str(bytearray(bytes(s, encoding="utf-8")), encoding="utf-8")
 
 
@@ -823,7 +821,7 @@ def conditional_escape(a: str) -> Text:
     return a
 
 
-def format_html(a, args):
+def format_html(a: str, args: Tuple) -> str:
     return a.join(args)
 
 
@@ -844,10 +842,7 @@ def get_wrapped_repeat_text_with_join(wrapper: Callable) -> Callable:
     return repeat_text_with_join
 
 
-def do_format_with_positional_parameter(
-    template,
-    parameter,
-):
+def do_format_with_positional_parameter(template: str, parameter: str) -> str:
     return template.format(parameter)
 
 
@@ -1009,39 +1004,39 @@ def do_namedtuple(s: Text):
     return my_string
 
 
-def do_split_no_args(s):
+def do_split_no_args(s: str) -> List[str]:
     return s.split()
 
 
-def do_rsplit_no_args(s):
+def do_rsplit_no_args(s: str) -> List[str]:
     return s.rsplit()
 
 
-def do_split_maxsplit(s, maxsplit=-1):
+def do_split_maxsplit(s: str, maxsplit: int = -1) -> List[str]:
     return s.split(maxsplit=maxsplit)
 
 
-def do_rsplit_maxsplit(s, maxsplit=-1):
+def do_rsplit_maxsplit(s: str, maxsplit: int = -1) -> List[str]:
     return s.rsplit(maxsplit=maxsplit)
 
 
-def do_split_separator(s, separator):
+def do_split_separator(s: str, separator: str) -> List[str]:
     return s.split(separator)
 
 
-def do_rsplit_separator(s, separator):
+def do_rsplit_separator(s: str, separator: str) -> List[str]:
     return s.rsplit(separator)
 
 
-def do_split_separator_and_maxsplit(s, separator, maxsplit):
+def do_split_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> List[str]:
     return s.split(separator, maxsplit)
 
 
-def do_rsplit_separator_and_maxsplit(s, separator, maxsplit):
+def do_rsplit_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> List[str]:
     return s.rsplit(separator, maxsplit)
 
 
-def do_splitlines_no_arg(s):
+def do_splitlines_no_arg(s: str) -> List[str]:
     return s.splitlines()
 
 
@@ -1053,7 +1048,7 @@ def do_partition(s, sep):
     return s.partition(sep)
 
 
-def do_zfill(s, width) -> Text:
+def do_zfill(s: str, width: int) -> str:
     return s.zfill(width)
 
 
@@ -1074,7 +1069,7 @@ def do_methodcaller(s, func, *args):
     return func_method(s)
 
 
-def get_http_headers(header_key):  # type: (str) -> bytes
+def get_http_headers(header_key: str) -> bytes:
     RANDOM_PORT = 0
     server = StoppableHTTPServer(("127.0.0.1", RANDOM_PORT), WebServerHandler)
     thread = threading.Thread(None, server.run)
