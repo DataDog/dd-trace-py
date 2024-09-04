@@ -49,11 +49,22 @@ file(GLOB HEADER_FILES "*.h"
         "Utils/*.h"
         )
 
+# Find ICU library
+find_package(ICU REQUIRED COMPONENTS uc i18n)  # 'uc' for the common library, 'i18n' for the internationalization library
+
+# Add ICU include directories
+include_directories(${ICU_INCLUDE_DIRS})
+
+# Link ICU libraries to the project
+list(APPEND ICU_LIBS ${ICU_LIBRARIES})
+
 # Debug messages
 message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${Python_EXECUTABLE}")
-message(STATUS "PYTHON_INCLUDE_DIRS = ${Python_INCLUDE_DIRS}")
+message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
+message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}")
+message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
 
 add_subdirectory(_vendor/pybind11)
 
@@ -65,6 +76,9 @@ set_target_properties(
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 )
 
+# Link ICU to the module
+target_link_libraries(_native PRIVATE ${ICU_LIBS})
+
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
 endif()
@@ -74,3 +88,4 @@ install(TARGETS _native DESTINATION
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${LIB_INSTALL_DIR}
 )
+

@@ -2,6 +2,8 @@
 #include "Initializer/Initializer.h"
 #include <algorithm>
 #include <regex>
+#include <unicode/unistr.h>
+#include <unicode/ustream.h>
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -38,6 +40,24 @@ api_common_replace(const py::str& string_method,
 }
 
 string
+substrCodePoints(const string& str, const long start, const long length = -1)
+{
+    icu::UnicodeString uStr = icu::UnicodeString::fromUTF8(str);
+
+    // Convert start and length from code point units to UTF-16 code units
+    const long utf16Start = uStr.moveIndex32(0, start); // Move from 0 to the start code point index
+    const long utf16Length = (length == -1) ? uStr.countChar32() - start : length;
+    const long utf16End = uStr.moveIndex32(utf16Start, utf16Length); // Get the UTF-16 index at the end of the substring
+
+    // Extract the substring in UTF-16 space and convert it back to UTF-8
+    const icu::UnicodeString uSubStr = uStr.tempSubStringBetween(utf16Start, utf16End);
+
+    string result;
+    uSubStr.toUTF8String(result);
+    return result;
+}
+
+string
 as_formatted_evidence(const string& text,
                       TaintRangeRefs& text_ranges,
                       const optional<TagMappingMode>& tag_mapping_mode,
@@ -70,24 +90,16 @@ as_formatted_evidence(const string& text,
 
         const auto range_end = taint_range->start + taint_range->length;
 
-        // JJJ
-        // res_vector.push_back(text[py::slice(py::int_{ index }, py::int_{ taint_range->start }, nullptr)]);
-        // res_vector.push_back(StrType(EVIDENCE_MARKS::START_EVIDENCE));
-        // res_vector.push_back(tag);
-        // res_vector.push_back(text[py::slice(py::int_{ taint_range->start }, py::int_{ range_end }, nullptr)]);
-        // res_vector.push_back(tag);
-        // res_vector.push_back(StrType(EVIDENCE_MARKS::END_EVIDENCE));
-
-        res_vector.push_back(text.substr(index, taint_range->start - index));
+        res_vector.push_back(substrCodePoints(text, index, taint_range->start - index));
         res_vector.emplace_back(EVIDENCE_MARKS::START_EVIDENCE);
         res_vector.push_back(tag);
-        res_vector.push_back(text.substr(taint_range->start, range_end - taint_range->start));
+        res_vector.push_back(substrCodePoints(text, taint_range->start, range_end - taint_range->start));
         res_vector.push_back(tag);
         res_vector.emplace_back(EVIDENCE_MARKS::END_EVIDENCE);
 
         index = range_end;
     }
-    res_vector.push_back(text.substr(index));
+    res_vector.push_back(substrCodePoints(text, index, -1));
     ostringstream oss;
     for (const auto& str : res_vector) {
         oss << str;
