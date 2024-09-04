@@ -170,8 +170,14 @@ def package_is_compatible(package_name, package_version):
     return installed_version.version >= supported_version_spec.version
 
 
-def executable_is_compatible():
-    return sys.argv[0] not in EXECUTABLES_DENY_LIST and sys.argv[1] not in EXECUTABLES_DENY_LIST
+def get_first_incompatible_sysarg():
+    for idx in (0, 1):
+        if len(sys.argv) <= idx:
+            break
+        argument = sys.argv[idx]
+        if argument in EXECUTABLES_DENY_LIST:
+            return argument
+    return None
 
 
 def _inject():
@@ -202,8 +208,9 @@ def _inject():
         _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
         _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
 
-        if not executable_is_compatible():
-            _log("Found incompatible executable: %s." % sys.argv, level="debug")
+        incompatible_sysarg = get_first_incompatible_sysarg()
+        if incompatible_sysarg is not None:
+            _log("Found incompatible executable: %s." % incompatible_sysarg, level="debug")
             if not FORCE_INJECT:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
                 telemetry_data.append(
