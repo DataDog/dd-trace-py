@@ -1,6 +1,3 @@
-check appsec:
-  
-
 appsec threats django:
   extends: .test_base_hatch
   parallel: 12
