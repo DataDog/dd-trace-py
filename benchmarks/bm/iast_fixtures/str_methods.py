@@ -825,7 +825,7 @@ def format_html(a: str, args: Tuple) -> str:
     return a.join(args)
 
 
-def format_html_join(attrs, args_generator=None):
+def format_html_join(attrs: str, args_generator: List[str] = None) -> str:
     if args_generator is None:
         args_generator = ["a", "b", "c"]
 
