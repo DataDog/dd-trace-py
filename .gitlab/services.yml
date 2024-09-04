@@ -38,7 +38,7 @@
       KAFKA_CFGOFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_CFG_NODE_ID: 1
       KAFKA_CFG_PROCESS_ROLES: controller,broker
-      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
   httpbin_local:
     name: registry.ddbuild.io/images/mirror/kennethreitz/httpbin:1
