@@ -115,6 +115,14 @@ def update_location_data(
             offset_delta = next(data_iter)
             line_delta = next(data_iter)
 
+            # If the current offset delta is 0, it means we are only incrementing the amount of lines jumped by the
+            # next non-zero offset. See <https://github.com/python/cpython/blob/3.10/Objects/lnotab_notes.txt>.
+            while offset_delta == 0:
+                new_data.append(offset_delta)
+                new_data.append(line_delta)
+                offset_delta = next(data_iter)
+                line_delta = next(data_iter)
+
             original_offset += offset_delta
             offset += offset_delta
             if ext_arg_offset is not None and ext_arg_size is not None and offset > ext_arg_offset:
