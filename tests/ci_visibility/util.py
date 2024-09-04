@@ -33,6 +33,16 @@ def _get_default_civisibility_ddconfig(itr_skipping_level: str = "tests"):
 
 
 @contextmanager
+def _mock_ddconfig_test_visibility(itr_skipping_level: str = "tests"):
+    mock_test_visibility_config = mock.Mock()
+    mock_test_visibility_config._default_service = "default_test_visibility_service"
+    mock_test_visibility_config.itr_skipping_level = itr_skipping_level
+
+    with mock.patch("ddtrace.config.test_visibility", mock_test_visibility_config):
+        yield
+
+
+@contextmanager
 def set_up_mock_civisibility(
     use_agentless: bool = True,
     coverage_enabled: bool = False,
