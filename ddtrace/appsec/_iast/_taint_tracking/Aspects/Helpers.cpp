@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <iostream>
 #include <regex>
-#include <unicode/unistr.h>
-#include <unicode/ustream.h>
 
 using namespace pybind11::literals;
 namespace py = pybind11;
