@@ -19,5 +19,8 @@ jobs:
       platforms: 'linux/amd64,linux/arm64/v8'
       build-args: ''
       context: ./docker
+    permissions:
+      contents: read         # Allows access to repository contents
+      packages: write        # Allows publishing to GHCR
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}

@@ -20,5 +20,8 @@ jobs:
       build-args: ''
       context: ./docker
       file: Dockerfile.pypa_musllinux_1_2_i686
+    permissions:
+      contents: read         # Allows access to repository contents
+      packages: write        # Allows publishing to GHCR
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
