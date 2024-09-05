@@ -14,7 +14,30 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-_DD_CONTEXTVAR: contextvars.ContextVar[Optional[Union[Context, Span]]] = contextvars.ContextVar(
+class ContextWrapper:
+    """
+    The underlying implementation for ContextVar involves an immutable data structure (HAMT), the maintenance of which
+    may require de-referecing pointers to Python objects interned in the Context().  Sometimes the lifetimes of those
+    objects are mismanaged, causing them to be GC'd even though the Context() is supposed to hold a strong reference.
+
+    That situation can cause segmentation faults to originate from this code (even though it's not our fault). In
+    order to get around this, we create a wrapper object that holds a strong reference to the object we want to,
+    which allows us to `set()` the contextvar only once.  Since the issue mainly arises during re-allocation (i.e.,
+    when a key is associated to a new value), this technique should minimize the clone operations arising from
+    this code.
+    """
+    def __init__(self, context: Optional[Union[Context, Span]] = None):
+        self.context = context
+
+    def set_context(self, context: Optional[Union[Context, Span]]):
+        self.context = context
+
+    def get_context(self) -> Optional[Union[Context, Span]]:
+        return self.context
+
+
+# Initialize the ContextWrapper once per context
+_DD_CONTEXTVAR: contextvars.ContextVar[Optional[ContextWrapper]] = contextvars.ContextVar(
     "datadog_contextvar", default=None
 )
 
@@ -112,17 +135,24 @@ class DefaultContextProvider(BaseContextProvider, DatadogContextMixin):
 
     def _has_active_context(self) -> bool:
         """Returns whether there is an active context in the current execution."""
-        ctx = _DD_CONTEXTVAR.get()
-        return ctx is not None
+        wrapper = _DD_CONTEXTVAR.get()
+        return wrapper is not None and wrapper.get_context() is not None
 
     def activate(self, ctx: Optional[Union[Span, Context]]) -> None:
         """Makes the given context active in the current execution."""
-        _DD_CONTEXTVAR.set(ctx)
+        wrapper = _DD_CONTEXTVAR.get()
+        if wrapper is None:
+            wrapper = ContextWrapper()
+            _DD_CONTEXTVAR.set(wrapper)
+        wrapper.set_context(ctx)
         super(DefaultContextProvider, self).activate(ctx)
 
     def active(self) -> Optional[Union[Context, Span]]:
         """Returns the active span or context for the current execution."""
-        item = _DD_CONTEXTVAR.get()
+        wrapper = _DD_CONTEXTVAR.get()
+        if wrapper is None:
+            return None
+        item = wrapper.get_context()
         if isinstance(item, Span):
             return self._update_active(item)
         return item
