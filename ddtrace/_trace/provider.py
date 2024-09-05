@@ -56,9 +56,7 @@ class ContextVarManager:
         wrapper = self._context_var.get()
         if wrapper is None:
             wrapper = self.ContextWrapper(value)
-            self._context_var.set(wrapper)
-        else:
-            wrapper.set_context(value)
+        wrapper.set_context(value)
 
 
 # Initialize the context manager
