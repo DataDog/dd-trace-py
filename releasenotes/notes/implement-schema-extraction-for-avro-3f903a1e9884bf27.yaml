@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    DSM: This PR introduces new tracing and datastreams monitoring functionality for Avro Schemas.
