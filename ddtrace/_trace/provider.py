@@ -28,8 +28,8 @@ class ContextVarManager:
     """
 
     def __init__(self, name: str):
-        # Initialize the context variable with a default value of a ContextWrapper
-        self._context_var = contextvars.ContextVar(name, default=None)
+        # Initialize to None, don't create the ContextVar until the first operation
+        self._context_var = None
 
     class ContextWrapper:
         """A wrapper to hold and manipulate the context or span."""
@@ -45,7 +45,7 @@ class ContextVarManager:
 
     def get(self) -> Optional[Union[Context, Span]]:
         """Retrieve the current context or span from the wrapper."""
-        wrapper = self._context_var.get()
+        wrapper = self._context_var
         if wrapper is None:
             return None
         return wrapper.get_context()
