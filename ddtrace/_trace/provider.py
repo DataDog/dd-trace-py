@@ -28,7 +28,6 @@ class ContextVarManager:
     """
 
     def __init__(self, name: str):
-        # Initialize to None, don't create the ContextVar until the first operation
         self._name = name
         self._context_var = contextvars.ContextVar[Optional[Union[Context, Span]]](name, default=None)
 
