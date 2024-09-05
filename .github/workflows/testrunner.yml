@@ -9,7 +9,6 @@ on:
       - 'docker/**'
   merge_group:
     # Trigger jobs when PR is added to merge queue
-    branches: ['test-mq-main']
     types: [checks_requested]
 
 jobs:
