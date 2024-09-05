@@ -784,7 +784,7 @@
             "@core",
             "@profiling",
             "tests/profiling-v2/*"
-        ]
+        ],
         "vendor": [
             "@vendor",
             "tests/vendor/*"
