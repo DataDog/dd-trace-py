@@ -16,7 +16,7 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     from ddtrace import patch
     patch(futures=True)
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["concurrent.futures"]
@@ -31,9 +31,9 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.futures.patch import get_version
-        from ..internal.futures.patch import patch
-        from ..internal.futures.patch import unpatch
+        from ddtrace.contrib.internal.futures.patch import get_version
+        from ddtrace.contrib.internal.futures.patch import patch
+        from ddtrace.contrib.internal.futures.patch import unpatch
 
         __all__ = [
             "get_version",
