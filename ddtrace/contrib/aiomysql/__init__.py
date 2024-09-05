@@ -36,7 +36,7 @@ To configure the integration on an per-connection basis use the
     await cur.execute("SELECT 6*7 AS the_answer;")
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["aiomysql"]
@@ -50,8 +50,8 @@ with require_modules(required_modules) as missing_modules:
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
 
-        from ..internal.aiomysql.patch import get_version
-        from ..internal.aiomysql.patch import patch
-        from ..internal.aiomysql.patch import unpatch
+        from ddtrace.contrib.internal.aiomysql.patch import get_version
+        from ddtrace.contrib.internal.aiomysql.patch import patch
+        from ddtrace.contrib.internal.aiomysql.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]
