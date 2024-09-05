@@ -8,8 +8,9 @@ from ddtrace.internal.utils import get_argument_value
 class BaseTracedGenerateContentResponse(wrapt.ObjectProxy):
     """Base wrapper class for GenerateContentResponse objects for tracing streamed responses."""
 
-    def __init__(self, wrapped, integration, span, args, kwargs):
+    def __init__(self, wrapped, instance, integration, span, args, kwargs):
         super().__init__(wrapped)
+        self._model_instance = instance
         self._dd_integration = integration
         self._dd_span = span
         self._args = args
@@ -25,7 +26,7 @@ class TracedGenerateContentResponse(BaseTracedGenerateContentResponse):
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         else:
-            tag_response(self._dd_span, self.__wrapped__, self._dd_integration)
+            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
         finally:
             self._dd_span.finish()
 
@@ -39,9 +40,32 @@ class TracedAsyncGenerateContentResponse(BaseTracedGenerateContentResponse):
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         else:
-            tag_response(self._dd_span, self.__wrapped__, self._dd_integration)
+            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
         finally:
             self._dd_span.finish()
+
+
+def _extract_model_name(instance):
+    """Extract the model name from the instance."""
+    model_name = getattr(instance, "model_name", "")
+    if not model_name or not isinstance(model_name, str):
+        return ""
+    if "/" in model_name:
+        return model_name.split("/")[-1]
+    return model_name
+
+
+def _extract_api_key(instance):
+    """Extract the API key from the model instance."""
+    client = getattr(instance, "_client", None)
+    if getattr(instance, "_async_client", None):
+        client = getattr(instance._async_client, "_client", None)
+    if not client:
+        return None
+    client_options = getattr(client, "_client_options", None)
+    if not client_options:
+        return None
+    return getattr(client_options, "api_key", None)
 
 
 def _tag_request_content_part(span, integration, part, part_idx, content_idx):
@@ -130,6 +154,8 @@ def tag_request(span, integration, instance, args, kwargs):
         for k, v in generation_config_dict.items():
             span.set_tag_str("genai.request.generation_config.%s" % k, str(v))
 
+    span.set_tag_str("genai.request.model", str(_extract_model_name(instance)))
+
     if not integration.is_pc_sampled_span(span):
         return
 
@@ -147,10 +173,14 @@ def tag_request(span, integration, instance, args, kwargs):
         _tag_request_content(span, integration, content, content_idx)
 
 
-def tag_response(span, generations, integration):
+def tag_response(span, generations, integration, instance):
     """Tag the generation span with response details.
     Includes capturing generation text, roles, finish reasons, and token counts.
     """
+    api_key = _extract_api_key(instance)
+    if api_key:
+        span.set_tag("genai.request.api_key", "...{}".format(api_key[-4:]))
+
     generations_dict = generations.to_dict()
     for candidate_idx, candidate in enumerate(generations_dict.get("candidates", [])):
         finish_reason = candidate.get("finish_reason", None)
@@ -163,7 +193,7 @@ def tag_response(span, generations, integration):
             continue
         parts = candidate_content.get("parts", [])
         for part_idx, part in enumerate(parts):
-            _tag_response_part(span, integration, parts, part_idx, candidate_idx)
+            _tag_response_part(span, integration, part, part_idx, candidate_idx)
 
     token_counts = generations_dict.get("usage_metadata", None)
     if not token_counts:
