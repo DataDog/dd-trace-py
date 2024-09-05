@@ -72,9 +72,9 @@ if di_config.enabled:  # Dynamic Instrumentation
     DynamicInstrumentation.enable()
 
 if er_config.enabled:  # Exception Replay
-    from ddtrace.debugging._exception.replay import SpanExceptionProcessor
+    from ddtrace.debugging._exception.replay import SpanExceptionHandler
 
-    SpanExceptionProcessor().register()
+    SpanExceptionHandler.enable()
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()

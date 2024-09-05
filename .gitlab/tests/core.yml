@@ -1,0 +1,49 @@
+internal:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "internal"
+
+telemetry:
+  extends: .test_base_riot_snapshot
+  parallel: 4
+  variables:
+    SUITE_NAME: "telemetry"
+
+integration-testagent:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "integration-snapshot*"
+
+integration-agent:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "integration-latest*"
+
+vendor:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "vendor"
+
+ddtracerun:
+  extends: .test_base_riot
+  services:
+    - !reference [.test_base_riot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "ddtracerun"
+    TEST_REDIS_HOST: "redis"
+
+slotscheck:
+  extends: .testrunner
+  stage: tests
+  needs: []
+  script:
+    - hatch run slotscheck:_
+
+conftests:
+  extends: .testrunner
+  stage: tests
+  needs: []
+  script:
+    - hatch run meta-testing:meta-testing
+

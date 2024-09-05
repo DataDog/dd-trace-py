@@ -17,7 +17,7 @@
     Pin.override(client, service="mongo-master")
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["mongoengine"]
@@ -25,10 +25,14 @@ required_modules = ["mongoengine"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.mongoengine.patch` directly
-        from . import patch as _  # noqa: F401, I001
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.mongoengine.patch import get_version
-        from ..internal.mongoengine.patch import patch
+        from ddtrace.contrib.internal.mongoengine.patch import get_version
+        from ddtrace.contrib.internal.mongoengine.patch import patch
 
         __all__ = ["patch", "get_version"]
