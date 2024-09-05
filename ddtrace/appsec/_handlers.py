@@ -194,22 +194,22 @@ def _on_request_init(wrapped, instance, args, kwargs):
     if _is_iast_enabled():
         try:
             from ddtrace.appsec._iast._taint_tracking import OriginType
+            from ddtrace.appsec._iast._taint_tracking import origin_to_str
             from ddtrace.appsec._iast._taint_tracking import taint_pyobject
             from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
             if not AppSecIastSpanProcessor.is_span_analyzed():
                 return
 
-            # TODO: instance.query_string = ??
             instance.query_string = taint_pyobject(
                 pyobject=instance.query_string,
-                source_name=OriginType.QUERY,
+                source_name=origin_to_str(OriginType.QUERY),
                 source_value=instance.query_string,
                 source_origin=OriginType.QUERY,
             )
             instance.path = taint_pyobject(
                 pyobject=instance.path,
-                source_name=OriginType.PATH,
+                source_name=origin_to_str(OriginType.PATH),
                 source_value=instance.path,
                 source_origin=OriginType.PATH,
             )
@@ -246,10 +246,15 @@ def _on_flask_patch(flask_version):
         )
         _set_metric_iast_instrumented_source(OriginType.HEADER)
 
-        try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+        if flask_version >= (2, 0, 0):
+            # instance.query_string: raising an error on werkzeug/_internal.py "AttributeError: read only property"
+            try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
 
         _set_metric_iast_instrumented_source(OriginType.PATH)
         _set_metric_iast_instrumented_source(OriginType.QUERY)
+
+        # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
+        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
 
         try_wrap_function_wrapper(
             "werkzeug.wrappers.request",
@@ -283,6 +288,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
         from ddtrace.appsec._iast._taint_utils import taint_structure
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
@@ -298,7 +304,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         if not is_pyobject_tainted(getattr(http_req, "_body", None)):
             http_req._body = taint_pyobject(
                 http_req.body,
-                source_name="body",
+                source_name=origin_to_str(OriginType.BODY),
                 source_value=http_req.body,
                 source_origin=OriginType.BODY,
             )
@@ -309,13 +315,13 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         )
         http_req.path_info = taint_pyobject(
             http_req.path_info,
-            source_name="path",
+            source_name=origin_to_str(OriginType.PATH),
             source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
         http_req.environ["PATH_INFO"] = taint_pyobject(
             http_req.environ["PATH_INFO"],
-            source_name="path",
+            source_name=origin_to_str(OriginType.PATH),
             source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
