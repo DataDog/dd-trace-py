@@ -246,7 +246,7 @@ To configure the OpenAI integration on a per-instance basis use the
 
     Pin.override(openai, service="my-openai-service")
 """  # noqa: E501
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["openai"]
@@ -261,8 +261,8 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.openai.patch import get_version
-        from ..internal.openai.patch import patch
-        from ..internal.openai.patch import unpatch
+        from ddtrace.contrib.internal.openai.patch import get_version
+        from ddtrace.contrib.internal.openai.patch import patch
+        from ddtrace.contrib.internal.openai.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

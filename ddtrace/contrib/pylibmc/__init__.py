@@ -19,7 +19,7 @@
     Pin.override(client, service="memcached-sessions")
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["pylibmc"]
@@ -33,8 +33,8 @@ with require_modules(required_modules) as missing_modules:
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
         # Expose public methods
-        from ..internal.pylibmc.client import TracedClient
-        from ..internal.pylibmc.patch import get_version
-        from ..internal.pylibmc.patch import patch
+        from ddtrace.contrib.internal.pylibmc.client import TracedClient
+        from ddtrace.contrib.internal.pylibmc.patch import get_version
+        from ddtrace.contrib.internal.pylibmc.patch import patch
 
         __all__ = ["TracedClient", "patch", "get_version"]
