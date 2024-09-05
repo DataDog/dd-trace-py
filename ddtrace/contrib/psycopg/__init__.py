@@ -67,8 +67,12 @@ required_modules = ["psycopg", "psycopg2"]
 with require_modules(required_modules) as missing_modules:
     # If psycopg and/or psycopg2 is available, patch these modules
     if len(missing_modules) < len(required_modules):
-        # Required to allow users to import from `ddtrace.contrib.openai.patch` directly
-        from . import patch as _  # noqa: F401, I001
+        # Required to allow users to import from `ddtrace.contrib.psycopg.patch` directly
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
         from ..internal.psycopg.patch import get_version

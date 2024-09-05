@@ -10,6 +10,7 @@ from typing import Type
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
+from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
@@ -134,7 +135,7 @@ class LogProbeFactory(ProbeFactory):
                 )
             )
             if "capture" in attribs
-            else None,
+            else DEFAULT_CAPTURE_LIMITS,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             take_snapshot=take_snapshot,
             template=attribs.get("template"),

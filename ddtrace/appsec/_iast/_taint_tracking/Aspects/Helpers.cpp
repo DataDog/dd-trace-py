@@ -23,7 +23,7 @@ api_common_replace(const py::str& string_method,
 {
     const StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
 
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return res;
     }
@@ -35,62 +35,6 @@ api_common_replace(const py::str& string_method,
 
     set_ranges(res.ptr(), shift_taint_ranges(candidate_text_ranges, 0, -1), tx_map);
     return res;
-}
-
-struct EVIDENCE_MARKS
-{
-    static constexpr const char* BLANK = "";
-    static constexpr const char* START_EVIDENCE = ":+-";
-    static constexpr const char* END_EVIDENCE = "-+:";
-    static constexpr const char* LESS = "<";
-    static constexpr const char* GREATER = ">";
-};
-
-template<class StrType>
-static StrType
-get_tag(const py::object& content)
-{
-    if (content.is_none()) {
-        return StrType(EVIDENCE_MARKS::BLANK);
-    }
-
-    if (py::isinstance<py::str>(StrType(EVIDENCE_MARKS::LESS))) {
-        return StrType(EVIDENCE_MARKS::LESS) + content.cast<py::str>() + StrType(EVIDENCE_MARKS::GREATER);
-    }
-    return StrType(EVIDENCE_MARKS::LESS) + py::bytes(content.cast<py::str>()) + StrType(EVIDENCE_MARKS::GREATER);
-}
-
-// TODO OPTIMIZATION: check if we can use instead a struct object with range_guid_map, new_ranges and default members so
-// we dont have to get the keys by string
-static py::object
-mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>& new_ranges)
-{
-    if (!taint_range or !new_ranges) {
-        return py::none{};
-    }
-    py::object o = py::cast(taint_range);
-
-    if (!new_ranges->contains(o)) {
-        return py::none{};
-    }
-    const TaintRange new_range = py::cast<TaintRange>((*new_ranges)[o]);
-    return py::int_(new_range.get_hash());
-}
-
-py::object
-get_default_content(const TaintRangePtr& taint_range)
-{
-    if (!taint_range->source.name.empty()) {
-        return py::str(taint_range->source.name);
-    }
-
-    return py::cast<py::none>(Py_None);
-}
-
-bool
-range_sort(const TaintRangePtr& t1, const TaintRangePtr& t2)
-{
-    return t1->start < t2->start;
 }
 
 template<class StrType>
@@ -106,54 +50,6 @@ StrType
 int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode)
 {
     return as_formatted_evidence<StrType>(text, text_ranges, tag_mapping_mode, nullopt);
-}
-
-// TODO OPTIMIZATION: Remove py::types once this isn't used in Python
-template<class StrType>
-StrType
-as_formatted_evidence(StrType& text,
-                      TaintRangeRefs& text_ranges,
-                      const optional<TagMappingMode>& tag_mapping_mode,
-                      const optional<const py::dict>& new_ranges)
-{
-    if (text_ranges.empty()) {
-        return text;
-    }
-    vector<StrType> res_vector;
-    long index = 0;
-
-    sort(text_ranges.begin(), text_ranges.end(), &range_sort);
-    for (const auto& taint_range : text_ranges) {
-        py::object content;
-        if (!tag_mapping_mode) {
-            content = get_default_content(taint_range);
-        } else
-            switch (*tag_mapping_mode) {
-                case TagMappingMode::Mapper:
-                    content = py::int_(taint_range->get_hash());
-                    break;
-                case TagMappingMode::Mapper_Replace:
-                    content = mapper_replace(taint_range, new_ranges);
-                    break;
-                default: {
-                    // Nothing
-                }
-            }
-        const auto tag = get_tag<StrType>(content);
-
-        const auto range_end = taint_range->start + taint_range->length;
-
-        res_vector.push_back(text[py::slice(py::int_{ index }, py::int_{ taint_range->start }, nullptr)]);
-        res_vector.push_back(StrType(EVIDENCE_MARKS::START_EVIDENCE));
-        res_vector.push_back(tag);
-        res_vector.push_back(text[py::slice(py::int_{ taint_range->start }, py::int_{ range_end }, nullptr)]);
-        res_vector.push_back(tag);
-        res_vector.push_back(StrType(EVIDENCE_MARKS::END_EVIDENCE));
-
-        index = range_end;
-    }
-    res_vector.push_back(text[py::slice(py::int_(index), nullptr, nullptr)]);
-    return StrType(EVIDENCE_MARKS::BLANK).attr("join")(res_vector);
 }
 
 template<class StrType>
@@ -187,10 +83,9 @@ split_taints(const string& str_to_split)
 }
 
 py::bytearray
-api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
-
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     const py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
@@ -204,11 +99,9 @@ template<class StrType>
 StrType
 api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
-    std::tuple result = convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
-    StrType result_text = get<0>(result);
-    const TaintRangeRefs result_ranges = get<1>(result);
+    auto [result_text, result_ranges] = convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     PyObject* new_result = new_pyobject_id(result_text.ptr());
     set_ranges(new_result, result_ranges, tx_map);
     return py::reinterpret_steal<StrType>(new_result);
@@ -334,9 +227,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRange
  * @param tx_map: The taint map to apply the ranges.
  * @param include_separator: If the separator should be included in the splitted parts.
  */
-template<class StrType>
 bool
-set_ranges_on_splitted(const StrType& source_str,
+set_ranges_on_splitted(const py::object& source_str,
                        const TaintRangeRefs& source_ranges,
                        const py::list& split_result,
                        const TaintRangeMapTypePtr& tx_map,
@@ -397,7 +289,7 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            const py::list& split_result,
                            bool include_separator)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return false;
     }
@@ -423,19 +315,27 @@ parse_params(size_t position,
 bool
 has_pyerr()
 {
-    if (const auto exception = PyErr_Occurred()) {
+    return !has_pyerr_as_string().empty();
+}
+
+std::string
+has_pyerr_as_string()
+{
+
+    if (PyErr_Occurred()) {
         PyObject *extype, *value, *traceback;
         PyErr_Fetch(&extype, &value, &traceback);
         PyErr_NormalizeException(&extype, &value, &traceback);
-        const auto exception_msg = py::str(PyObject_Str(value));
-        py::set_error(extype, exception_msg);
+        const auto exception_msg_as_pystr = py::str(PyObject_Str(value));
+        const auto exception_msg_as_string = std::string(PyUnicode_AsUTF8(exception_msg_as_pystr.ptr()));
+        py::set_error(extype, exception_msg_as_pystr);
         Py_DecRef(extype);
         Py_DecRef(value);
         Py_DecRef(traceback);
-        return true;
+        return exception_msg_as_string;
     }
 
-    return false;
+    return {};
 }
 
 void
@@ -515,15 +415,16 @@ pyexport_aspect_helpers(py::module& m)
           "ranges_orig"_a,
           py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
-          &api_convert_escaped_text_to_taint_text<py::str>,
+          &api_convert_escaped_text_to_taint_text<py::bytearray>,
           "taint_escaped_text"_a,
           "ranges_orig"_a,
           py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
-          &api_convert_escaped_text_to_taint_text_ba,
+          &api_convert_escaped_text_to_taint_text<py::str>,
           "taint_escaped_text"_a,
           "ranges_orig"_a,
           py::return_value_policy::move);
     m.def("parse_params", &parse_params);
     m.def("has_pyerr", &has_pyerr);
+    m.def("has_pyerr_as_string", &has_pyerr_as_string);
 }

@@ -1,5 +1,6 @@
 import os
 
+import mock
 import vcr
 
 import ddtrace
@@ -62,7 +63,7 @@ def _expected_llmobs_llm_span_event(
 ):
     """
     Helper function to create an expected LLM span event.
-    span_kind: either "llm" or "agent"
+    span_kind: either "llm" or "agent" or "embedding"
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
     parameters: dict of input parameters
@@ -113,6 +114,7 @@ def _expected_llmobs_non_llm_span_event(
     span_kind,
     input_value=None,
     output_value=None,
+    output_documents=None,
     parameters=None,
     metadata=None,
     token_metrics=None,
@@ -124,8 +126,8 @@ def _expected_llmobs_non_llm_span_event(
     integration=None,
 ):
     """
-    Helper function to create an expected span event of type (workflow, task, tool).
-    span_kind: one of "workflow", "task", "tool"
+    Helper function to create an expected span event of type (workflow, task, tool, retrieval).
+    span_kind: one of "workflow", "task", "tool", "retrieval"
     input_value: input value string
     output_value: output value string
     parameters: dict of input parameters
@@ -141,6 +143,13 @@ def _expected_llmobs_non_llm_span_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
     )
     meta_dict = {"input": {}, "output": {}}
+    if span_kind == "retrieval":
+        if input_value is not None:
+            meta_dict["input"].update({"value": input_value})
+        if output_documents is not None:
+            meta_dict["output"].update({"documents": output_documents})
+        if output_value is not None:
+            meta_dict["output"].update({"value": output_value})
     if input_value is not None:
         meta_dict["input"].update({"value": input_value})
     if parameters is not None:
@@ -205,14 +214,26 @@ def _get_llmobs_parent_id(span: Span):
 
 
 def _expected_llmobs_eval_metric_event(
-    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None, tags=None
+    span_id,
+    trace_id,
+    metric_type,
+    label,
+    ml_app,
+    timestamp_ms=None,
+    categorical_value=None,
+    score_value=None,
+    numerical_value=None,
+    tags=None,
 ):
     eval_metric_event = {
         "span_id": span_id,
         "trace_id": trace_id,
         "metric_type": metric_type,
         "label": label,
-        "tags": ["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:{}".format("unnamed-ml-app")],
+        "tags": [
+            "ddtrace.version:{}".format(ddtrace.__version__),
+            "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
+        ],
     }
     if categorical_value is not None:
         eval_metric_event["categorical_value"] = categorical_value
@@ -222,6 +243,13 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["numerical_value"] = numerical_value
     if tags is not None:
         eval_metric_event["tags"] = tags
+    if timestamp_ms is not None:
+        eval_metric_event["timestamp_ms"] = timestamp_ms
+    else:
+        eval_metric_event["timestamp_ms"] = mock.ANY
+
+    if ml_app is not None:
+        eval_metric_event["ml_app"] = ml_app
 
     return eval_metric_event
 

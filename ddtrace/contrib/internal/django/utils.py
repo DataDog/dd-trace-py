@@ -16,7 +16,6 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib import func_name
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
 from ddtrace.contrib.internal.django.compat import user_is_authenticated
@@ -28,6 +27,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
+from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._utils import from_wsgi_header
 
 
@@ -442,7 +442,7 @@ class DjangoViewProxy(FunctionWrapper):
     @property
     def __module__(self):
         """
-        DjangoViewProxy.__module__ defaults to ddtrace.contrib.django when a wrapped function does not have
+        DjangoViewProxy.__module__ defaults to ddtrace.contrib.internal.django when a wrapped function does not have
         a __module__ attribute. This method ensures that DjangoViewProxy.__module__ always returns the module
         attribute of the wrapped function or an empty string if this attribute is not available.
         The function Django.urls.path() does not have a __module__ attribute and would require this override

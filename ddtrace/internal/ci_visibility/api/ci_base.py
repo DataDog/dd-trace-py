@@ -9,7 +9,6 @@ from typing import Dict
 from typing import Generic
 from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
@@ -19,7 +18,6 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
@@ -35,6 +33,7 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 
 
@@ -55,7 +54,6 @@ class CIVisibilitySessionSettings:
     test_operation_name: str
     workspace_path: Path
     is_unsupported_ci: bool = False
-    reject_unknown_items: bool = True
     reject_duplicates: bool = True
     itr_enabled: bool = False
     itr_test_skipping_enabled: bool = False
@@ -80,15 +78,13 @@ class SPECIAL_STATUS(Enum):
 
 CIDT = TypeVar("CIDT", CIModuleId, CISuiteId, CITestId)  # Child item ID types
 ITEMT = TypeVar("ITEMT", bound="CIVisibilityItemBase")  # All item types
-PIDT = TypeVar("PIDT", CISessionId, CIModuleId, CISuiteId)  # Parent item ID types
-ANYIDT = TypeVar("ANYIDT", CISessionId, CIModuleId, CISuiteId, CITestId)  # Any item ID type
 
 
 def _require_not_finished(func):
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.is_finished():
-            log.warning("Method %s called on item %s, but it is already finished", func, self.item_id)
+            log.warning("Method %s called on item %s, but it is already finished", func, self)
             return
         return func(self, *args, **kwargs)
 
@@ -99,29 +95,28 @@ def _require_span(func):
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         if self._span is None:
-            log.warning("Method %s called on item %s, but self._span is None", func, self.item_id)
+            log.warning("Method %s called on item %s, but self._span is None", func, self)
             return
         return func(self, *args, **kwargs)
 
     return wrapper
 
 
-class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
-    event_type = "unset_event_type"
-    event_type_metric_name = EVENT_TYPES.UNSET
+class CIVisibilityItemBase(abc.ABC):
+    _event_type = "unset_event_type"
+    _event_type_metric_name = EVENT_TYPES.UNSET
 
     def __init__(
         self,
-        item_id: ANYIDT,
+        name: str,
         session_settings: CIVisibilitySessionSettings,
         operation_name: str,
         initial_tags: Optional[Dict[str, Any]] = None,
         parent: Optional["CIVisibilityParentItem"] = None,
         resource: Optional[str] = None,
     ) -> None:
-        self.item_id: ANYIDT = item_id
-        self.parent: Optional["CIVisibilityItemBase"] = parent
-        self.name: str = self.item_id.name
+        self.name: str = name
+        self.parent: Optional["CIVisibilityParentItem"] = parent
         self._status: CITestStatus = CITestStatus.FAIL
         self._session_settings: CIVisibilitySessionSettings = session_settings
         self._tracer: Tracer = session_settings.tracer
@@ -147,7 +142,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._coverage_data: Optional[CICoverageData] = None
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.item_id})"
+        return f"{self.__class__.__name__}(name={self.name})"
 
     @_require_span
     def _add_all_tags_to_span(self) -> None:
@@ -177,7 +172,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             span_type=SpanTypes.TEST,
             activate=True,
         )
-        log.debug("Started span %s for item %s", self._span, self.item_id)
+        log.debug("Started span %s for item %s", self._span, self)
 
     @_require_span
     def _finish_span(self) -> None:
@@ -206,7 +201,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         self.set_tags(
             {
-                EVENT_TYPE: self.event_type,
+                EVENT_TYPE: self._event_type,
                 SPAN_KIND: "test",
                 COMPONENT: self._session_settings.test_framework,
                 test.FRAMEWORK: self._session_settings.test_framework,
@@ -318,9 +313,11 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         raise NotImplementedError("This method must be implemented by the subclass")
 
     def start(self) -> None:
+        log.debug("CI Visibility: starting %s", self)
+
         if self.is_started():
             if self._session_settings.reject_duplicates:
-                error_msg = f"Item {self.item_id} has already been started"
+                error_msg = f"Item {self} has already been started"
                 log.warning(error_msg)
                 raise CIVisibilityDataError(error_msg)
             return
@@ -335,6 +332,8 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         Nothing should be called after this method is called.
         """
+        log.debug("CI Visibility: finishing %s", self)
+
         self._telemetry_record_event_finished()
         self._finish_span()
 
@@ -356,7 +355,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
     def set_status(self, status: CITestStatus) -> None:
         if self.is_finished():
-            error_msg = f"Status already set for item {self.item_id}"
+            error_msg = f"Status already set for item {self}"
             log.warning(error_msg)
             return
         self._status_set = True
@@ -368,14 +367,14 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             self.parent.count_itr_skipped()
 
     def mark_itr_skipped(self) -> None:
-        record_itr_skipped(self.event_type_metric_name)
+        record_itr_skipped(self._event_type_metric_name)
         self._is_itr_skipped = True
 
     def is_itr_skipped(self) -> bool:
         return self._is_itr_skipped
 
     def mark_itr_unskippable(self) -> None:
-        record_itr_unskippable(self.event_type_metric_name)
+        record_itr_unskippable(self._event_type_metric_name)
         self._is_itr_unskippable = True
         if self.parent is not None:
             self.parent.mark_itr_unskippable()
@@ -385,7 +384,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
     def mark_itr_forced_run(self) -> None:
         """If any item is forced to run, all ancestors are forced to run and increment by one"""
-        record_itr_forced_run(self.event_type_metric_name)
+        record_itr_forced_run(self._event_type_metric_name)
         self._is_itr_forced_run = True
         if self.parent is not None:
             self.parent.mark_itr_forced_run()
@@ -404,13 +403,13 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
     @_require_not_finished
     def get_tag(self, tag_name: str) -> Any:
-        return self._tags[tag_name]
+        return self._tags.get(tag_name)
 
     @_require_not_finished
     def get_tags(self, tag_names: List[str]) -> Dict[str, Any]:
         tags = {}
         for tag_name in tag_names:
-            tags[tag_name] = self._tags[tag_name]
+            tags[tag_name] = self._tags.get(tag_name)
 
         return tags
 
@@ -432,7 +431,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         return None
 
     @abc.abstractmethod
-    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]) -> None:
+    def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
         pass
 
     @_require_span
@@ -440,27 +439,32 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         if self._span is None:
             return
         if self._coverage_data:
-            self._span.set_tag_str(
+            self._span.set_struct_tag(
                 COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.workspace_path)
             )
 
+    def get_coverage_data(self) -> Optional[Dict[Path, CoverageLines]]:
+        if self._coverage_data is None:
+            return None
+        return self._coverage_data.get_data()
+
 
 class CIVisibilityChildItem(CIVisibilityItemBase, Generic[CIDT]):
-    item_id: CIDT
+    pass
 
 
 CITEMT = TypeVar("CITEMT", bound="CIVisibilityChildItem")
 
 
-class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
+class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIDT, CITEMT]):
     def __init__(
         self,
-        item_id: PIDT,
+        name: str,
         session_settings: CIVisibilitySessionSettings,
         operation_name: str,
         initial_tags: Optional[Dict[str, Any]],
     ) -> None:
-        super().__init__(item_id, session_settings, operation_name, initial_tags)
+        super().__init__(name, session_settings, operation_name, initial_tags)
         self._children: Dict[CIDT, CITEMT] = {}
 
     def get_status(self) -> Union[CITestStatus, SPECIAL_STATUS]:
@@ -487,11 +491,11 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
             child_status = child.get_status()
             if child_status == SPECIAL_STATUS.UNFINISHED:
                 # There's no point in continuing to count if we care about unfinished children
-                log.debug("Item %s has unfinished children", self.item_id)
+                log.debug("Item %s has unfinished children", self)
                 return SPECIAL_STATUS.UNFINISHED
             children_status_counts[child_status.value] += 1
 
-        log.debug("Children status counts for %s: %s", self.item_id, children_status_counts)
+        log.debug("Children status counts for %s: %s", self, children_status_counts)
 
         if children_status_counts[CITestStatus.FAIL.value] > 0:
             return CITestStatus.FAIL
@@ -536,21 +540,21 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
 
         super().finish(force=force)
 
-    def add_child(self, child: CITEMT) -> None:
+    def add_child(self, child_item_id: CIDT, child: CITEMT) -> None:
         child.parent = self
-        if child.item_id in self._children:
+        if child_item_id in self._children:
             if self._session_settings.reject_duplicates:
-                error_msg = f"{child.item_id} already exists in {self.item_id}'s children"
+                error_msg = f"{child_item_id} already exists in {self}'s children"
                 log.warning(error_msg)
                 raise CIVisibilityDataError(error_msg)
             # If duplicates are allowed, we don't need to do anything
             return
-        self._children[child.item_id] = child
+        self._children[child_item_id] = child
 
     def get_child_by_id(self, child_id: CIDT) -> CITEMT:
         if child_id in self._children:
             return self._children[child_id]
-        error_msg = f"{child_id} not found in {self.item_id}'s children"
+        error_msg = f"{child_id} not found in {self}'s children"
         raise CIVisibilityDataError(error_msg)
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:

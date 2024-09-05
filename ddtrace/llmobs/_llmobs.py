@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -11,6 +12,7 @@ from ddtrace import config
 from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
+from ddtrace.internal import forksafe
 from ddtrace.internal import telemetry
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
@@ -82,11 +84,25 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
+        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
+        forksafe.register(self._child_after_fork)
+
+    def _child_after_fork(self):
+        self._llmobs_span_writer = self._llmobs_span_writer.recreate()
+        self._trace_processor._span_writer = self._llmobs_span_writer
+        tracer_filters = self.tracer._filters
+        if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
+            tracer_filters += [self._trace_processor]
+        self.tracer.configure(settings={"FILTERS": tracer_filters})
+        try:
+            self._llmobs_span_writer.start()
+        except ServiceStatusError:
+            log.debug("Error starting LLMObs span writer after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [LLMObsTraceProcessor(self._llmobs_span_writer)]
+            tracer_filters += [self._trace_processor]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
@@ -102,6 +118,7 @@ class LLMObs(Service):
             log.debug("Error stopping LLMObs writers")
 
         try:
+            forksafe.unregister(self._child_after_fork)
             self.tracer.shutdown()
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
@@ -655,6 +672,8 @@ class LLMObs(Service):
         metric_type: str,
         value: Union[str, int, float],
         tags: Optional[Dict[str, str]] = None,
+        ml_app: Optional[str] = None,
+        timestamp_ms: Optional[int] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -665,6 +684,8 @@ class LLMObs(Service):
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), or float (score).
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
+        :param str ml_app: The name of the ML application
+        :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
         """
         if cls.enabled is False:
             log.warning(
@@ -683,6 +704,21 @@ class LLMObs(Service):
                 "LLMObs.export_span() can be used to generate this dictionary from a given span."
             )
             return
+
+        ml_app = ml_app if ml_app else config._llmobs_ml_app
+        if not ml_app:
+            log.warning(
+                "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                "Ensure this configuration is set before running your application."
+            )
+            return
+
+        timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
+
+        if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
+            log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+            return
+
         span_id = span_context.get("span_id")
         trace_id = span_context.get("trace_id")
         if not (span_id and trace_id):
@@ -717,7 +753,7 @@ class LLMObs(Service):
         # initialize tags with default values that will be overridden by user-provided tags
         evaluation_tags = {
             "ddtrace.version": ddtrace.__version__,
-            "ml_app": config._llmobs_ml_app or "unknown",
+            "ml_app": ml_app,
         }
 
         if tags:
@@ -733,7 +769,9 @@ class LLMObs(Service):
                 "trace_id": trace_id,
                 "label": str(label),
                 "metric_type": metric_type.lower(),
+                "timestamp_ms": timestamp_ms,
                 "{}_value".format(metric_type): value,
+                "ml_app": ml_app,
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
         )

@@ -22,6 +22,7 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import common_replace
     from ._native.aspect_helpers import parse_params
     from ._native.aspect_helpers import set_ranges_on_splitted
+    from ._native.aspect_modulo import _aspect_modulo
     from ._native.aspect_split import _aspect_rsplit
     from ._native.aspect_split import _aspect_split
     from ._native.aspect_split import _aspect_splitlines
@@ -62,49 +63,52 @@ if _is_python_version_supported():
 
 
 __all__ = [
-    "_convert_escaped_text_to_tainted_text",
-    "new_pyobject_id",
-    "setup",
-    "Source",
     "OriginType",
+    "Source",
     "TagMappingMode",
     "TaintRange",
-    "get_ranges",
-    "set_ranges",
-    "copy_ranges_from_strings",
-    "copy_and_shift_ranges_from_strings",
-    "are_all_text_all_ranges",
-    "shift_taint_range",
-    "shift_taint_ranges",
-    "get_range_by_hash",
-    "is_notinterned_notfasttainted_unicode",
-    "set_fast_tainted_if_notinterned_unicode",
-    "aspect_helpers",
-    "reset_context",
-    "initializer_size",
-    "active_map_addreses_size",
-    "create_context",
-    "str_to_origin",
-    "origin_to_str",
-    "common_replace",
-    "_aspect_ospathjoin",
-    "_aspect_split",
-    "_aspect_rsplit",
-    "_aspect_splitlines",
+    "_aspect_modulo",
     "_aspect_ospathbasename",
     "_aspect_ospathdirname",
+    "_aspect_ospathjoin",
     "_aspect_ospathnormcase",
     "_aspect_ospathsplit",
-    "_aspect_ospathsplitext",
     "_aspect_ospathsplitdrive",
+    "_aspect_ospathsplitext",
     "_aspect_ospathsplitroot",
+    "_aspect_rsplit",
+    "_aspect_split",
+    "_aspect_splitlines",
+    "_convert_escaped_text_to_tainted_text",
     "_format_aspect",
+    "active_map_addreses_size",
+    "are_all_text_all_ranges",
     "as_formatted_evidence",
-    "parse_params",
-    "set_ranges_on_splitted",
-    "num_objects_tainted",
+    "aspect_helpers",
+    "common_replace",
+    "copy_and_shift_ranges_from_strings",
+    "copy_ranges_from_strings",
+    "create_context",
     "debug_taint_map",
+    "get_range_by_hash",
+    "get_ranges",
     "iast_taint_log_error",
+    "initializer_size",
+    "is_notinterned_notfasttainted_unicode",
+    "is_pyobject_tainted",
+    "new_pyobject_id",
+    "num_objects_tainted",
+    "origin_to_str",
+    "parse_params",
+    "reset_context",
+    "set_fast_tainted_if_notinterned_unicode",
+    "set_ranges",
+    "set_ranges_on_splitted",
+    "setup",
+    "shift_taint_range",
+    "shift_taint_ranges",
+    "str_to_origin",
+    "taint_pyobject",
 ]
 
 
@@ -123,7 +127,7 @@ def iast_taint_log_error(msg):
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
-    if not isinstance(pyobject, IAST.TEXT_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
 
     try:
@@ -135,12 +139,15 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     # Pyobject must be Text with len > 1
-    if not isinstance(pyobject, IAST.TEXT_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
     # We need this validation in different contition if pyobject is not a text type and creates a side-effect such as
     # __len__ magic method call.
-    if len(pyobject) == 0:
-        return pyobject
+    pyobject_len = 0
+    if isinstance(pyobject, IAST.TEXT_TYPES):
+        pyobject_len = len(pyobject)
+        if pyobject_len == 0:
+            return pyobject
 
     if isinstance(source_name, (bytes, bytearray)):
         source_name = str(source_name, encoding="utf8", errors="ignore")
@@ -153,7 +160,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
         source_origin = OriginType.PARAMETER
 
     try:
-        pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
+        pyobject_newid = set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
         _set_metric_iast_executed_source(source_origin)
         return pyobject_newid
     except ValueError as e:
@@ -162,7 +169,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
-    if not isinstance(pyobject, IAST.TEXT_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
     try:
         set_ranges(pyobject, ranges)
@@ -173,7 +180,7 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
-    if not isinstance(pyobject, IAST.TEXT_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return tuple()
     try:
         return get_ranges(pyobject)

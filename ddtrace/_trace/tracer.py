@@ -39,7 +39,6 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
-from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
@@ -58,6 +57,7 @@ from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_a
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
@@ -246,7 +246,6 @@ class Tracer(object):
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
-                priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if (self._compute_stats or self._apm_opt_out) else {},
@@ -424,11 +423,8 @@ class Tracer(object):
         span_id = "0"
         trace_id = "0"
         if active:
-            span_id = str(active.span_id if active.span_id else span_id)
-            trace_id = str(active.trace_id if active.trace_id else trace_id)
-            # check if we are using 128 bit ids, and switch trace id to hex since backend needs hex 128 bit ids
-            if active.trace_id and active.trace_id > MAX_UINT_64BITS:
-                trace_id = "{:032x}".format(active.trace_id)
+            span_id = str(active.span_id) if active.span_id else span_id
+            trace_id = format_trace_id(active.trace_id) if active.trace_id else trace_id
 
         return {
             "trace_id": trace_id,
@@ -475,12 +471,18 @@ class Tracer(object):
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
-        :param priority_sampling: enable priority sampling, this is required for
-            complete distributed tracing support. Enabled by default.
+        :param priority_sampling: This argument is deprecated and will be removed in a future version.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
         """
         if enabled is not None:
             self.enabled = enabled
+
+        if priority_sampling is not None:
+            deprecate(
+                "Configuring priority sampling on tracing clients is deprecated",
+                version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         if settings is not None:
             self._filters = settings.get("FILTERS") or self._filters
@@ -547,7 +549,6 @@ class Tracer(object):
                 api_version = "v0.4"
             self._writer = AgentWriter(
                 self._agent_url,
-                priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,

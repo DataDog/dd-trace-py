@@ -6,6 +6,7 @@ from pathlib import Path
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Union  # noqa:F401
@@ -18,13 +19,12 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
-from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityRootItemIdBase
+from ddtrace.ext.ci_visibility._ci_visibility_base import _CISessionId
 from ddtrace.ext.ci_visibility.api import CIBase
 from ddtrace.ext.ci_visibility.api import CIITRMixin
 from ddtrace.ext.ci_visibility.api import CIModule
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISession
-from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISuite
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITest
@@ -46,6 +46,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
 from .. import agent
+from ..coverage.lines import CoverageLines
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .api.ci_module import CIVisibilityModule
@@ -81,7 +82,6 @@ from .writer import CIVisibilityWriter
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import DefaultDict  # noqa:F401
-    from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
     from typing import Tuple  # noqa:F401
 
@@ -183,7 +183,7 @@ class CIVisibility(Service):
         self._should_upload_git_metadata = True
         self._itr_meta = {}  # type: Dict[str, Any]
 
-        self._session_data: Dict[_CIVisibilityRootItemIdBase, CIVisibilitySession] = {}
+        self._session: Optional[CIVisibilitySession] = None
 
         if service is None:
             # Use service if provided to enable() or __init__()
@@ -330,6 +330,7 @@ class CIVisibility(Service):
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                "Content-Type": "application/json",
             }
             log.debug("Making EVP request to agent: url=%s, headers=%s", url, _headers)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
@@ -480,6 +481,7 @@ class CIVisibility(Service):
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                "Content-Type": "application/json",
             }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
@@ -553,6 +555,12 @@ class CIVisibility(Service):
                 error_type = ERROR_TYPES.UNKNOWN
                 self._test_suites_to_skip = []
                 self._tests_to_skip = defaultdict(list)
+
+        except Exception:
+            log.warning("Error retrieving skippable test data, no tests will be skipped", exc_info=True)
+            error_type = ERROR_TYPES.UNKNOWN
+            self._test_suites_to_skip = []
+            self._tests_to_skip = defaultdict(list)
 
         finally:
             record_itr_skippable_request(
@@ -681,32 +689,34 @@ class CIVisibility(Service):
             handles = cls._instance._codeowners.of(location)
             if handles:
                 span.set_tag(test.CODEOWNERS, json.dumps(handles))
-        except KeyError:
-            log.debug("no matching codeowners for %s", location)
+            else:
+                log.debug("no matching codeowners for %s", location)
+        except:  # noqa: E722
+            log.debug("Error setting codeowners for %s", location, exc_info=True)
 
     @classmethod
     def add_session(cls, session: CIVisibilitySession):
-        log.debug("Adding session: %s", session.item_id)
+        log.debug("Adding session: %s", session)
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        session_item_id = session.item_id.get_session_id()
-        if session_item_id in cls._instance._session_data:
-            log.warning(
-                "Session with id %s already exists: %s", session_item_id, cls._instance._session_data[session_item_id]
-            )
+        if cls._instance._session is not None:
+            log.warning("Session already exists: %s", cls._instance._session)
             return
-        cls._instance._session_data[session_item_id] = session
+        cls._instance._session = session
 
     @classmethod
-    def get_item_by_id(cls, item_id: CIItemId):
+    def get_item_by_id(
+        cls,
+        item_id: CIItemId,
+    ):
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        if isinstance(item_id, CISessionId):
-            return cls.get_session_by_id(item_id)
+        if isinstance(item_id, _CISessionId):
+            return cls.get_session()
         if isinstance(item_id, CIModuleId):
             return cls.get_module_by_id(item_id)
         if isinstance(item_id, CISuiteId):
@@ -718,23 +728,16 @@ class CIVisibility(Service):
         raise CIVisibilityError(error_msg)
 
     @classmethod
-    def get_session_by_id(cls, session_id: _CIVisibilityRootItemIdBase) -> CIVisibilitySession:
+    def get_session(cls) -> CIVisibilitySession:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        if session_id not in cls._instance._session_data:
-            log.warning("Session not found: %s", session_id)
-            raise CIVisibilityDataError(f"No session with id {session_id} found")
-        return cls._instance._session_data[session_id]
-
-    @classmethod
-    def get_session_settings_by_id(cls, session_id: CISessionId) -> CIVisibilitySessionSettings:
-        if cls._instance is None:
-            error_msg = "CI Visibility is not enabled"
+        if cls._instance._session is None:
+            error_msg = "No session exists"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        return cls.get_session_by_id(session_id).get_session_settings()
+        return cls._instance._session
 
     @classmethod
     def get_module_by_id(cls, module_id: CIModuleId) -> CIVisibilityModule:
@@ -742,7 +745,7 @@ class CIVisibility(Service):
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        return cls.get_session_by_id(module_id.parent_id).get_child_by_id(module_id)
+        return cls.get_session().get_child_by_id(module_id)
 
     @classmethod
     def get_suite_by_id(cls, suite_id: CISuiteId) -> CIVisibilitySuite:
@@ -761,12 +764,12 @@ class CIVisibility(Service):
         return cls.get_suite_by_id(test_id.parent_id).get_child_by_id(test_id)
 
     @classmethod
-    def get_session_settings(cls, item_id: CIItemId) -> CIVisibilitySessionSettings:
+    def get_session_settings(cls) -> CIVisibilitySessionSettings:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        return cls._instance._session_data[item_id.get_session_id()].get_session_settings()
+        return cls.get_session().get_session_settings()
 
     @classmethod
     def get_instance(cls) -> "CIVisibility":
@@ -890,7 +893,7 @@ def _requires_civisibility_enabled(func):
 def _on_discover_session(
     discover_args: CISession.DiscoverArgs, test_framework_telemetry_name: Optional[TEST_FRAMEWORKS] = None
 ):
-    log.debug("Handling session discovery for session id %s", discover_args.session_id)
+    log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
     tracer = CIVisibility.get_tracer()
@@ -911,7 +914,6 @@ def _on_discover_session(
         tracer=tracer,
         test_service=test_service,
         test_command=discover_args.test_command,
-        reject_unknown_items=discover_args.reject_unknown_items,
         reject_duplicates=discover_args.reject_duplicates,
         test_framework=discover_args.test_framework,
         test_framework_metric_name=test_framework_telemetry_name,
@@ -930,7 +932,6 @@ def _on_discover_session(
     )
 
     session = CIVisibilitySession(
-        discover_args.session_id,
         session_settings,
     )
 
@@ -938,42 +939,40 @@ def _on_discover_session(
 
 
 @_requires_civisibility_enabled
-def _on_start_session(session_id: CISessionId):
-    log.debug("Handling start for session id %s", session_id)
-    session = CIVisibility.get_session_by_id(session_id)
+def _on_start_session():
+    log.debug("Handling start session")
+    session = CIVisibility.get_session()
     session.start()
 
 
 @_requires_civisibility_enabled
 def _on_finish_session(finish_args: CISession.FinishArgs):
-    log.debug("Handling finish for session id %s", finish_args)
-    session = CIVisibility.get_session_by_id(finish_args.session_id)
+    log.debug("Handling finish session")
+    session = CIVisibility.get_session()
     session.finish(finish_args.force_finish_children, finish_args.override_status)
 
 
 @_requires_civisibility_enabled
-def _on_session_is_test_skipping_enabled() -> Path:
+def _on_session_is_test_skipping_enabled() -> bool:
     log.debug("Handling is test skipping enabled")
     return CIVisibility.test_skipping_enabled()
 
 
 @_requires_civisibility_enabled
-def _on_session_get_workspace_path(session_id: CISessionId) -> Path:
-    log.debug("Handling finish for session id %s", session_id)
-    session_settings = CIVisibility.get_session_by_id(session_id).get_session_settings()
-    return session_settings.workspace_path
+def _on_session_get_workspace_path() -> Optional[Path]:
+    log.debug("Handling finish for session id %s")
+    path_str = CIVisibility.get_workspace_path()
+    return Path(path_str) if path_str is not None else None
 
 
 @_requires_civisibility_enabled
 def _on_session_should_collect_coverage() -> bool:
-    """Code coverage collection is not tied to any given session ID"""
     log.debug("Handling should collect coverage")
     return CIVisibility.should_collect_coverage()
 
 
 @_requires_civisibility_enabled
 def _on_session_get_codeowners() -> Optional[Codeowners]:
-    """The codeowners object is not related to any given session ID"""
     log.debug("Getting codeowners")
     return CIVisibility.get_codeowners()
 
@@ -998,14 +997,15 @@ def _register_session_handlers():
 @_requires_civisibility_enabled
 def _on_discover_module(discover_args: CIModule.DiscoverArgs):
     log.debug("Handling discovery for module %s", discover_args.module_id)
-    session = CIVisibility.get_session_by_id(discover_args.module_id.get_session_id())
+    session = CIVisibility.get_session()
 
     session.add_child(
+        discover_args.module_id,
         CIVisibilityModule(
-            discover_args.module_id,
+            discover_args.module_id.name,
             discover_args.module_path,
-            CIVisibility.get_session_settings(discover_args.module_id),
-        )
+            CIVisibility.get_session_settings(),
+        ),
     )
 
 
@@ -1034,12 +1034,13 @@ def _on_discover_suite(discover_args: CISuite.DiscoverArgs):
     module = CIVisibility.get_module_by_id(discover_args.suite_id.parent_id)
 
     module.add_child(
+        discover_args.suite_id,
         CIVisibilitySuite(
-            discover_args.suite_id,
-            CIVisibility.get_session_settings(discover_args.suite_id),
+            discover_args.suite_id.name,
+            CIVisibility.get_session_settings(),
             discover_args.codeowners,
             discover_args.source_file_info,
-        )
+        ),
     )
 
 
@@ -1070,27 +1071,28 @@ def _on_discover_test(discover_args: CITest.DiscoverArgs):
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
     suite.add_child(
+        discover_args.test_id,
         CIVisibilityTest(
-            discover_args.test_id,
-            CIVisibility.get_session_settings(discover_args.test_id),
+            discover_args.test_id.name,
+            CIVisibility.get_session_settings(),
+            parameters=discover_args.test_id.parameters,
             codeowners=discover_args.codeowners,
             source_file_info=discover_args.source_file_info,
             resource=discover_args.resource,
-        )
+        ),
     )
 
 
 @_requires_civisibility_enabled
 def _on_discover_test_early_flake_retry(args: CITest.DiscoverEarlyFlakeRetryArgs):
     log.debug("Handling early flake discovery for test %s", args.test_id)
-    suite = CIVisibility.get_suite_by_id(args.test_id.parent_id)
     try:
-        original_test = suite.get_child_by_id(args.test_id)
+        original_test = CIVisibility.get_test_by_id(args.test_id)
     except CIVisibilityDataError:
         log.warning("Cannot find original test %s to register retry number %s", args.test_id, args.retry_number)
         raise
 
-    suite.add_child(CIVisibilityTest.make_early_flake_retry_from_test(original_test, args.retry_number))
+    original_test.make_early_flake_retry_from_test(args.test_id, args.retry_number)
 
 
 @_requires_civisibility_enabled
@@ -1135,6 +1137,12 @@ def _register_item_handlers():
 
 
 @_requires_civisibility_enabled
+def _on_get_coverage_data(item_id: Union[CISuiteId, CITestId]) -> Optional[Dict[Path, CoverageLines]]:
+    log.debug("Handling get coverage data for item %s", item_id)
+    return CIVisibility.get_item_by_id(item_id).get_coverage_data()
+
+
+@_requires_civisibility_enabled
 def _on_add_coverage_data(add_coverage_args: CIITRMixin.AddCoverageArgs):
     """Adds coverage data to an item, merging with existing coverage data if necessary"""
     item_id = add_coverage_args.item_id
@@ -1151,6 +1159,7 @@ def _on_add_coverage_data(add_coverage_args: CIITRMixin.AddCoverageArgs):
 
 def _register_coverage_handlers():
     log.debug("Registering coverage handlers")
+    core.on("ci_visibility.item.get_coverage_data", _on_get_coverage_data, "coverage_data")
     core.on("ci_visibility.item.add_coverage_data", _on_add_coverage_data)
 
 
@@ -1207,6 +1216,9 @@ def _register_tag_handlers():
 @_requires_civisibility_enabled
 def _on_itr_finish_item_skipped(item_id: Union[CISuiteId, CITestId]) -> None:
     log.debug("Handling finish ITR skipped for item id %s", item_id)
+    if not isinstance(item_id, (CISuiteId, CITestId)):
+        log.warning("Only suites or tests can be skipped, not %s", type(item_id))
+        return
     CIVisibility.get_item_by_id(item_id).finish_itr_skipped()
 
 

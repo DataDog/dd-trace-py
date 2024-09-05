@@ -12,6 +12,7 @@ def config(
     max_nframes: Optional[int],
     url: Optional[str],
     timeline_enabled: Optional[bool],
+    output_filename: Optional[str],
     sample_pool_capacity: Optional[int],
 ) -> None: ...
 def start() -> None: ...

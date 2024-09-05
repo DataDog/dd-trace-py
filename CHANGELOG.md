@@ -4,6 +4,172 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.11.2
+
+
+### New Features
+
+- openai: Introduces `model` tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as `openai.request.model`.
+
+### Bug Fixes
+
+- LLM Observability: Resolves an issue where LLM Observability spans were not being submitted in forked processes, such as when using `celery` or `gunicorn` workers. The LLM Observability writer thread now automatically restarts when a forked process is detected.
+- openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
+
+
+---
+
+## 2.11.1
+
+
+### Bug Fixes
+
+- tracing(django): This fix resolves a bug where ddtrace was exhausting a Django stream response before returning it to user.
+- Fixed an issue with some module imports with native specs that don't support attribute assignments, resulting in a `TypeError` exception at runtime.
+- internal: Fix `Already mutably borrowed` error by reverting back to pure-python rate limiter.
+- This fix resolves an issue where `ddtrace` package files were published with incorrect file attributes.
+- profiling: Fixes an issue where the profiler could erroneously try to load protobuf in autoinjected environments, where it is not available.
+- Fixes an issue where crashtracking environment variables for Python were inconsistent with those used by other runtimes.
+- profiling: Fixes endpoing profiling for stack v2, that is when `DD_PROFILING_STACK_V2_ENABLED` set.
+
+
+---
+
+## 2.11.0
+
+### New Features
+
+- ASM: This update introduces new Auto User Events support.
+
+  ASM’s \[Account TakeOver (ATO) detection\](<https://docs.datadoghq.com/security/account_takeover_protection>) is now automatically monitoring \[all compatible user authentication frameworks\](<https://docs.datadoghq.com/security/application_security/enabling/compatibility/>) to detect attempted or leaked user credentials during an ATO campaign.
+
+  To do so, the monitoring of the user activity is extended to now collect all forms of user IDs, including non-numerical forms such as usernames or emails. This is configurable with 3 different working modes: <span class="title-ref">identification</span> to send the user IDs in clear text; <span class="title-ref">anonymization</span> to send anonymized user IDs; or <span class="title-ref">disabled</span> to completely turn off any type of user ID collection (which leads to the disablement of the ATO detection).
+
+  The default collection mode being used is <span class="title-ref">identification</span> and this is configurable in your remote service configuration settings in the \[service catalog\]( <https://app.datadog.com/security/appsec/inventory/services?tab=capabilities>) (clicking on a service), or with the service environment variable <span class="title-ref">DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE</span>.
+
+  You can read more \[here\](<https://docs.datadoghq.com/security/account_takeover_protection>).
+
+  New local configuration environment variables include:
+
+  - \`DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED\`: Can be set to "true"/"1" (default if missing) or "false"/"0" (default if set to any other value). If set to false, the feature is completely disabled. If enabled, the feature is active.
+  - \`DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE\`: Can be set to "identification" (default if missing), "anonymization", or "disabled" (default if the environment variable is set to any other value). *The values can be modified via remote configuration if the feature is active*. If set to "disabled", user events are not collected. Otherwise, user events are collected, using either plain text user_id (in identification mode) or hashed user_id (in anonymization mode).
+
+  Additionally, an optional argument for the public API <span class="title-ref">track_user_login_success_event</span> and \`track_user_login_failure_event\`: <span class="title-ref">login_events_mode="auto"</span>. This allows manual instrumentation to follow remote configuration settings, enabling or disabling manual instrumentation with a single remote action on the Datadog UI.
+
+  Also prevents non numerical user ids to be reported by default without user instrumentation in Django.
+
+- Anthropic: Adds support for tracing message calls using tools.
+
+- LLM Observability: Adds support for tracing Anthropic messages using tool calls.
+
+- botocore: Adds support for overriding the default service name in botocore by either setting the environment variable `DD_BOTOCORE_SERVICE` or configuring it via <span class="title-ref">ddtrace.config.botocore\["service"\]</span>.
+
+- azure: Removes the restrictions on the tracer to only run the mini-agent on the consumption plan. The mini-agent now runs regardless of the hosting plan
+
+- ASM: Adds Threat Monitoring support for gRPC.
+
+- Code Security: add propagation for GRPC server sources.
+
+- LLM Observability: This introduces improved support for capturing tool call responses from the OpenAI and Anthropic integrations.
+
+- LLM Observability: This introduces the agentless mode configuration for LLM Observability. To enable agentless mode, set the environment variable `DD_LLMOBS_AGENTLESS_ENABLED=1`, or use the enable option `LLMObs.enable(agentless_enabled=True)`.
+
+- LLM Observability: Function decorators now support tracing asynchronous functions.
+
+- LLM Observability: This introduces automatic input/output annotation for task/tool/workflow/agent/retrieval spans traced by function decorators. Note that manual annotations for input/output values will override automatic annotations.
+
+- LLM Observability: The OpenAI integration now submits embedding spans to LLM Observability.
+
+- LLM Observability: All OpenAI model parameters specified in a completion/chat completion request are now captured.
+
+- LLM Observability: This changes OpenAI-generated LLM Observability span names from `openai.request` to `openai.createCompletion`, `openai.createChatCompletion`, and `openai.createEmbedding` for completions, chat completions, and embeddings spans, respectively.
+
+- LLM Observability: This introduces the agent proxy mode for LLM Observability. By default, LLM Observability spans will be sent to the Datadog agent and then forwarded to LLM Observability. To continue submitting data directly to LLM Observability without the Datadog agent, set `DD_LLMOBS_AGENTLESS_ENABLED=1` or set programmatically using `LLMObs.enable(agentless_enabled=True)`.
+
+- LLM Observability: The Langchain integration now submits embedding spans to LLM Observability.
+
+- LLM Observability: The `LLMObs.annotate()` method now replaces non-JSON serializable values with a placeholder string `[Unserializable object: <string representation of object>]` instead of rejecting the annotation entirely.
+
+- pylibmc: adds traces for memcached add command
+
+- ASM: This introduces fingerprinting with libddwaf 1.19.1
+
+- Database Monitoring: Adds Database Monitoring (DBM) trace propagation for postgres databases used through Django.
+
+- langchain: Tags tool calls on chat completions.
+
+- LLM Observability: Adds retry logic to the agentless span writer to mitigate potential networking issues, like timeouts or dropped connections.
+
+- ASM: This introduces Command Injection support for Exploit Prevention on os.system only.
+
+- ASM: This introduces suspicious attacker blocking with libddwaf 1.19.1
+### Upgrade Notes
+
+- ASM: This upgrade prevents the WAF from being invoked for exploit prevention if the corresponding rules are not enabled via remote configuration.
+### Deprecation Notes
+
+- ASM: The environment variable DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING is deprecated and will be removed in the next major release. Instead of DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING, you should use DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE. The "safe" and "extended" modes are deprecated and have been replaced by "anonymization" and "identification", respectively.
+- botocore: All methods in botocore/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- consul: All methods in consul/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- psycopg: All methods in psycopg/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- pylibmc: All methods in pylibmc/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- pymemcache: All methods in pymemcache/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- pymongo: All methods in pymongo/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- pymysql: All methods in pymysql/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- pynamodb: All methods in pynamodb/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- pyodbc: All methods in pyodbc/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- pyramid: All methods in pyramid/patch.py except `patch()` and `unpatch()` are deprecated and will be removed in version 3.0.0.
+- exception replay: The `DD_EXCEPTION_DEBUGGING_ENABLED` environment variable has been deprecated in favor of `DD_EXCEPTION_REPLAY_ENABLED`. The old environment variable will be removed in a future major release.
+- ASM: This removes the partial auto instrumentation of flask login. It was giving only partial and possibly confusing picture of the login activity. We recommend customers to switch to \[manual instrumentation\](<https://docs.datadoghq.com/security/application_security/threats/add-user-info/?tab=loginsuccess&code-lang=python#adding-business-logic-information-login-success-login-failure-any-business-logic-to-traces>).
+### Bug Fixes
+
+- LLM Observability: Fixes an issue in the OpenAI integration where integration metrics would still be submitted even if `LLMObs.enable(agentless_enabled=True)` was set.
+- Code Security: add null pointer checks when creating new objects ids.
+
+- Code Security: add encodings.idna to the IAST patching denylist to avoid problems with gevent.
+- Code Security: add the boto package to the IAST patching denylist.
+- Code Security: fix two small memory leaks with Python 3.11 and 3.12.
+- CI Visibility: Fixes an issue where the pytest plugin would crash if the git binary was absent
+- CI Visibility: fixes incorrect URL for telemetry intake in EU that was causing missing telemetry data and SSL error log messages.
+- celery: changes `error.message` span tag to no longer include the traceback that is already included in the `error.stack` span tag.
+- CI Visibility: fixes source file information that would be incorrect in certain decorated / wrapped scenarios and forces paths to be relative to the repository root, if present.
+- futures: Fixes inconsistent behavior with `concurrent.futures.ThreadPoolExecutor` context propagation by passing the current trace context instead of the currently active span to tasks. This prevents edge cases of disconnected spans when the task executes after the parent span has finished.
+- kafka: Fixes `ArgumentError` raised when injecting span context into non-existent Kafka message headers.
+- botocore: Fixes Botocore Kinesis span parenting to use active trace context if a propagated child context is not found instead of empty context.
+- langchain: This fix resolves an issue where the wrong langchain class name was being used to check for Pinecone vectorstore instances.
+- LLM Observability: This resolves a typing hint error in the `ddtrace.llmobs.utils.Documents` helper class constructor where type hints did not accept input dictionaries with integer or float values.
+- LLM Observability: This fix resolves an issue where the OpenAI, Anthropic, and AWS Bedrock integrations were always setting `temperature` and `max_tokens` parameters to LLM invocations. The OpenAI integration in particular was setting the wrong `temperature` default values. These parameters are now only set if provided in the request.
+- opentelemetry: Resolves circular imports raised by the OpenTelemetry API when the `ddcontextvars_context` entrypoint is loaded. This resolves an incompatibility introduced in `opentelemetry-api==1.25.0`.
+- opentelemetry: Resolves an issue where the `get_tracer` function would raise a `TypeError` when called with the `attribute` argument. This resolves an incompatibility introduced in `opentelemetry-api==1.26.0`.
+- psycopg: Ensures traced async cursors return an asynchronous iterator object.
+- redis: This fix resolves an issue in the redis exception handling where an UnboundLocalError was raised instead of the expected BaseException.
+- ASM: This fix resolves an issue where the <span class="title-ref">requests</span> integration would not propagate when apm is opted out (i.e. in ASM Standalone).
+- profiling: Fixes an issue where task information coming from echion was encoded improperly, which could segfault the application.
+- tracing: fixes a potential crash where using partial flushes and `tracer.configure()` could result in an IndexError
+- tracer: This fix resolves an issue where the tracer was not starting properly on a read-only file system.
+- internal: fixes an issue where some pathlib functions return OSError on Windows.
+- ASM: This fix resolves an issue where the WAF could be disabled if the ASM_DD rule file was not found in Remote Config.
+- flask: Fix scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
+- Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.
+- Code Security: fix potential infinite loop with path traversal when the analyze quota has been exceeded.
+- wsgi: Ensures the status of wsgi Spans are not set to error when a `StopIteration` exception is raised marked the span as an error. With this change, `StopIteration` exceptions in this context will be ignored.
+- langchain: tag non-dict inputs to LCEL chains appropriately. Non-dict inputs are stringified, and dict inputs are tagged by key-value pairs.
+- tracing: Updates `DD_HEADER_TAGS` and `DD_TAGS` to support the following formats: `key1,key2,key3`, `key1:val,key2:val,key3:val3`, `key1:val key2:val key3:val3`, and `key1 key2 key3`. Key value pairs that do not match an expected format will be logged and ignored by the tracer.
+- loguru: This fix avoids copying attributes from a log record's "extras" field to the record's top level if those attributes were not added by the Datadog integration.
+- opentelemetry: Resolves an edge case where distributed tracing headers could be generated before a sampling decision is made, resulting in dropped spans in downstream services.
+- profiling: captures lock usages with `with` context managers, e.g. `with lock:`
+- profiling: propagates `runtime_id` tag to libdatadog exporter. It is a unique string identifier for the profiled process. For example, Thread Timeline visualization uses it to distinguish different processes.
+- profiling: show lock init location in Lock Name and hide profiler internal frames from Stack Frame in Timeline Details tab.
+- ASM: This fix resolves an issue where ASM one click feature could fail to deactivate ASM.
+- redis: This fix resolves an issue in redis utils where a variable may not be declared within a try/catch
+### Other Changes
+
+- LLM Observability: the SDK allowed users to submit an unsupported <span class="title-ref">numerical</span> evaluation metric type. All evaluation metric types submitted with <span class="title-ref">numerical</span> type will now be automatically converted to a <span class="title-ref">score</span> type. As an alternative to using the <span class="title-ref">numerical type, use \`score</span> instead.
+- LLM Observability: `LLMObs.submit_evaluation()` requires a Datadog API key to send custom evaluations to LLM Observability. If an API key is not set using either `DD_API_KEY` or `LLMObs.enable(api_key="<api-key>")`, this method will log a warning and return `None`.
+
+
+---
+
 ## 2.10.6
 
 

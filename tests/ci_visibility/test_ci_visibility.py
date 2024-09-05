@@ -207,6 +207,25 @@ def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_fea
         CIVisibility.disable()
 
 
+@mock.patch(
+    "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    return_value=_CIVisibilitySettings(True, True, False, True),
+)
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=ValueError)
+def test_ci_visibility_service_skippable_other_error(_do_request, _check_enabled_features):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), _dummy_noop_git_client():
+        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._test_suites_to_skip == []
+        CIVisibility.disable()
+
+
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
     with override_env(
@@ -505,6 +524,7 @@ def test_civisibilitywriter_coverage_agentless_url():
         assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
         with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            _get_connection.return_value.getresponse.return_value.status = 200
             dummy_writer._put("", {}, cov_client, no_trace=True)
             _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
@@ -524,6 +544,7 @@ def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
         assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
         with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            _get_connection.return_value.getresponse.return_value.status = 200
             dummy_writer._put("", {}, cov_client, no_trace=True)
             _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
@@ -542,6 +563,7 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
         assert cov_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcov"
 
         with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            _get_connection.return_value.getresponse.return_value.status = 200
             dummy_writer._put("", {}, cov_client, no_trace=True)
             _get_connection.assert_called_once_with("http://localhost:9126", 2.0)
 
@@ -625,6 +647,7 @@ class TestCheckEnabledFeatures:
         },
         REQUESTS_MODE.EVP_PROXY_EVENTS: {
             "X-Datadog-EVP-Subdomain": "api",
+            "Content-Type": "application/json",
         },
     }
 
@@ -1637,11 +1660,8 @@ class TestIsITRSkippable:
         "no_module_suite_1.py",
     ]
 
-    # Consistent IDs for all tests
-    session_id = api.CISessionId()
-
     # Module 1
-    m1 = api.CIModuleId(session_id, "module_1")
+    m1 = api.CIModuleId("module_1")
     # Module 1 Suite 1
     m1_s1 = api.CISuiteId(m1, "module_1_suite_1.py")
     m1_s1_t1 = api.CITestId(m1_s1, "test_1")
@@ -1663,7 +1683,7 @@ class TestIsITRSkippable:
     m1_s2_t7 = api.CITestId(m1_s2, "test_6[param3]")
 
     # Module 2
-    m2 = api.CIModuleId(session_id, "module_2")
+    m2 = api.CIModuleId("module_2")
 
     # Module 2 Suite 1
     m2_s1 = api.CISuiteId(m2, "module_2_suite_1.py")
@@ -1686,7 +1706,7 @@ class TestIsITRSkippable:
     m2_s2_t7 = api.CITestId(m2_s2, "test_6[param3]")
 
     # Module 3
-    m3 = api.CIModuleId(session_id, "")
+    m3 = api.CIModuleId("")
     m3_s1 = api.CISuiteId(m3, "no_module_suite_1.py")
     m3_s1_t1 = api.CITestId(m3_s1, "test_1")
     m3_s1_t2 = api.CITestId(m3_s1, "test_2")
