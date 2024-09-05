@@ -309,16 +309,25 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_meta_tags_from_tool(
         self,
         span: Span,
-        tool_input: Union[str, Dict[str, object], object],
+        tool_inputs: Union[str, Dict[str, object], object],
         tool_output: object,
         error: bool,
     ) -> None:
+        metadata = span.get_tag(METADATA) or {}
+
         span.set_tag_str(SPAN_KIND, "tool")
-        if tool_input is not None:
+        if tool_inputs is not None:
+            tool_input = tool_inputs.get("input")
+            if tool_inputs.get("config"):
+                metadata["tool_config"] = tool_inputs.get("config")
+            if tool_inputs.get("info"):
+                metadata["tool_info"] = tool_inputs.get("info")
+            if metadata:
+                span.set_tag_str(METADATA, json.dumps(metadata))
             try:
-                formatted_inputs = self.format_io(tool_input)
-                if isinstance(formatted_inputs, str):
-                    span.set_tag_str(INPUT_VALUE, formatted_inputs)
+                formatted_input = self.format_io(tool_input)
+                if isinstance(formatted_input, str):
+                    span.set_tag_str(INPUT_VALUE, formatted_input)
                 else:
                     span.set_tag_str(INPUT_VALUE, json.dumps(self.format_io(tool_input)))
             except TypeError:

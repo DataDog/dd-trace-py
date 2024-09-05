@@ -985,12 +985,15 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         pin,
         "%s" % func.__self__.name,
         interface_type="tool",
+        submit_to_llmobs=True,
     )
 
     tool_output = None
+    tool_info = {}
     try:
         for attribute in ("name", "description", "metadata", "tags"):
             value = getattr(instance, attribute, None)
+            tool_info[attribute] = value
             if isinstance(value, dict):
                 for key, meta_value in value.items():
                     span.set_tag_str("langchain.request.tool.%s.%s" % (attribute, key), str(value))
@@ -1013,6 +1016,18 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "tool",
+                span,
+                {
+                    "input": tool_input,
+                    "config": config if config else {},
+                    "info": tool_info if tool_info else {},
+                },
+                tool_output,
+                error=bool(span.error),
+            )
         span.finish()
     return tool_output
 
@@ -1027,12 +1042,15 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         pin,
         "%s" % func.__self__.name,
         interface_type="tool",
+        submit_to_llmobs=True,
     )
 
     tool_output = None
+    tool_info = {}
     try:
         for attribute in ("name", "description", "metadata", "tags"):
             value = getattr(instance, attribute, None)
+            tool_info[attribute] = value
             if isinstance(value, dict):
                 for key, meta_value in value.items():
                     span.set_tag_str("langchain.request.tool.%s.%s" % (attribute, key), str(value))
@@ -1056,6 +1074,18 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "tool",
+                span,
+                {
+                    "input": tool_input,
+                    "config": config if config else {},
+                    "info": tool_info if tool_info else {},
+                },
+                tool_output,
+                error=bool(span.error),
+            )
         span.finish()
     return tool_output
 
