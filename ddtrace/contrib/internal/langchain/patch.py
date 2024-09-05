@@ -983,16 +983,13 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
 
     span = integration.trace(
         pin,
-        "%s.%s.%s.%s" % (func.__module__, func.__class__.__name__, func.__name__, func.__self__.name),
+        "%s" % func.__self__.name,
         interface_type="tool",
-        submit_to_llmobs=True,
     )
 
     tool_output = None
     try:
-        tool_attributes = ["name", "description", "metadata", "tags"]
-
-        for attribute in tool_attributes:
+        for attribute in ("name", "description", "metadata", "tags"):
             value = getattr(instance, attribute, None)
             if isinstance(value, dict):
                 for key, meta_value in value.items():
@@ -1006,24 +1003,16 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             if tool_input:
                 span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
-            if config:
-                span.set_tag_str("langchain.request.config", json.dumps(config))
+        if config:
+            span.set_tag_str("langchain.request.config", json.dumps(config))
+
         tool_output = func(*args, **kwargs)
-        if tool_output is not None:
-            if integration.is_pc_sampled_span(span):
-                span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+        if tool_output is not None and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "tool",
-                span,
-                tool_input,
-                tool_output,
-                error=bool(span.error),
-            )
         span.finish()
     return tool_output
 
@@ -1032,20 +1021,17 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
 async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
-    tool_config = get_argument_value(args, kwargs, 1, "config", optional=True)
+    config = get_argument_value(args, kwargs, 1, "config", optional=True)
 
     span = integration.trace(
         pin,
         "%s" % func.__self__.name,
         interface_type="tool",
-        submit_to_llmobs=True,
     )
 
     tool_output = None
     try:
-        tool_attributes = ["name", "description", "metadata", "tags"]
-
-        for attribute in tool_attributes:
+        for attribute in ("name", "description", "metadata", "tags"):
             value = getattr(instance, attribute, None)
             if isinstance(value, dict):
                 for key, meta_value in value.items():
@@ -1059,8 +1045,9 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         if integration.is_pc_sampled_span(span):
             if tool_input:
                 span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
-            if tool_config:
-                span.set_tag_str("langchain.request.config", json.dumps(tool_config))
+        if config:
+            span.set_tag_str("langchain.request.config", json.dumps(config))
+
         tool_output = await func(*args, **kwargs)
         if tool_output is not None:
             if integration.is_pc_sampled_span(span):
@@ -1069,14 +1056,6 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "tool",
-                span,
-                tool_input,
-                tool_output,
-                error=bool(span.error),
-            )
         span.finish()
     return tool_output
 
@@ -1187,6 +1166,7 @@ def patch():
         wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
     else:
         from langchain.chains.base import Chain  # noqa:F401
+        from langchain_core.tools import BaseTool  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
@@ -1258,8 +1238,8 @@ def unpatch():
         unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
         unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
         unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
-        unwrap(langchain_core.tools.BaseTool.invoke, "invoke")
-        unwrap(langchain_core.tools.BaseTool.ainvoke, "ainvoke")
+        unwrap(langchain_core.tools.BaseTool, "invoke")
+        unwrap(langchain_core.tools.BaseTool, "ainvoke")
         if langchain_openai:
             unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
         if langchain_pinecone:
