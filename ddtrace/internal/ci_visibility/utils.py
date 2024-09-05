@@ -6,7 +6,7 @@ import typing
 
 import ddtrace
 from ddtrace import config as ddconfig
-from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
+from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
 from ddtrace.internal.logger import get_logger
