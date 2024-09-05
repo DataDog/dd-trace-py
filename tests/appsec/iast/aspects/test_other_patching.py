@@ -1,3 +1,7 @@
+import sys
+
+import pytest
+
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -62,3 +66,58 @@ def test_preprocess_lexer_input():
     assert get_tainted_ranges(result) == [
         TaintRange(0, 22, Source("first_element", "print('Hello, world!')", OriginType.PARAMETER))
     ]
+
+
+def test_index_lower_add():
+    text = "http://localhost:8000/api/articles?param1=value1"
+    string_input = taint_pyobject(
+        pyobject=text, source_name="first_element", source_value=text, source_origin=OriginType.PARAMETER
+    )
+    result_scheme, result_url = mod.index_lower_add(string_input)
+    assert result_url == "//localhost:8000/api/articles?param1=value1"
+    assert result_scheme == "http"
+
+    assert get_tainted_ranges(result_scheme) == [TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER))]
+    assert get_tainted_ranges(result_url) == [
+        TaintRange(0, 43, Source("first_element", "print('Hello, world!')", OriginType.PARAMETER))
+    ]
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11),
+    reason="Python 3.11 and 3.12 raise TypeError: don't know how to" "disassemble _lru_cache_wrapper objects",
+)
+def test_urlib_parse_patching():
+    _iast_patched_module("urllib.parse")
+
+    import dis
+    import urllib.parse
+
+    bytecode = dis.Bytecode(urllib.parse.urlsplit)
+    assert "add_aspect" in bytecode.codeobj.co_names
+    if sys.version_info > (3, 9):
+        assert "replace_aspect" in bytecode.codeobj.co_names
+    assert "slice_aspect" in bytecode.codeobj.co_names
+    assert "lower_aspect" in bytecode.codeobj.co_names
+
+
+def test_urlib_parse_propagation():
+    _iast_patched_module("urllib.parse")
+    mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
+
+    text = "http://localhost:8000/api/articles?param1=value1"
+    string_input = taint_pyobject(
+        pyobject=text, source_name="first_element", source_value=text, source_origin=OriginType.PARAMETER
+    )
+
+    result = mod.urlib_urlsplit(string_input)
+    assert result.path == "/api/articles"
+    assert result.scheme == "http"
+    assert result.netloc == "localhost:8000"
+
+    assert get_tainted_ranges(result.path) == [TaintRange(0, 13, Source("first_element", text, OriginType.PARAMETER))]
+    if sys.version_info > (3, 9):
+        assert get_tainted_ranges(result.scheme) == [
+            TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER))
+        ]
+    assert get_tainted_ranges(result.netloc) == [TaintRange(0, 14, Source("first_element", text, OriginType.PARAMETER))]
