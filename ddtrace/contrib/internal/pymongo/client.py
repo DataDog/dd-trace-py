@@ -70,7 +70,7 @@ def trace_mongo_client_init(func, args, kwargs):
     ddtrace.Pin(service=_DEFAULT_SERVICE).onto(client)
 
 
-# TODO: Remove TracedMongoClient when ddtrace.contrib.pymongo.client is removed from the public API.
+# TODO(<owner>): Remove TracedMongoClient when ddtrace.contrib.pymongo.client is removed from the public API.
 class TracedMongoClient(ObjectProxy):
     def __init__(self, client=None, *args, **kwargs):
         # To support the former trace_mongo_client interface, we have to keep this old interface
@@ -115,7 +115,7 @@ class TracedMongoClient(ObjectProxy):
 @contextlib.contextmanager
 def wrapped_validate_session(wrapped, instance, args, kwargs):
     # The function is exposed in the public API, but it is not used in the codebase.
-    # TODO: Remove this function when ddtrace.contrib.pymongo.client is removed.
+    # TODO(<owner>): Remove this function when ddtrace.contrib.pymongo.client is removed.
 
     # We do this to handle a validation `A is B` in pymongo that
     # relies on IDs being equal. Since we are proxying objects, we need
