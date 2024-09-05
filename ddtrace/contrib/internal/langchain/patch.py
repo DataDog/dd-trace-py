@@ -974,6 +974,69 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     return documents
 
 
+@with_traced_module
+def traced_similarity_search_by_vector_with_score(langchain, pin, func, instance, args, kwargs):
+    integration = langchain._datadog_integration
+    vector = get_argument_value(args, kwargs, 0, "vector")
+    k = kwargs.get("k", args[1] if len(args) >= 2 else None)
+    provider = instance.__class__.__name__.lower()
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="retrieval",
+        provider=provider,
+        api_key=_extract_api_key(instance),
+    )
+    documents = []
+    try:
+        if integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.vector", integration.trunc(str(vector)))
+        if k is not None:
+            span.set_tag_str("langchain.request.k", str(k))
+        for kwarg_key, v in kwargs.items():
+            span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
+        if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
+            span.set_tag_str(
+                "langchain.request.pinecone.environment",
+                instance._index.configuration.server_variables.get("environment", ""),
+            )
+            span.set_tag_str(
+                "langchain.request.pinecone.index_name",
+                instance._index.configuration.server_variables.get("index_name", ""),
+            )
+            span.set_tag_str(
+                "langchain.request.pinecone.project_name",
+                instance._index.configuration.server_variables.get("project_name", ""),
+            )
+            api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
+            span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
+        documents = func(*args, **kwargs)
+        span.set_metric("langchain.response.document_count", len(documents))
+        for idx, document in enumerate(documents):
+            span.set_tag_str(
+                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
+            )
+            for kwarg_key, v in document.metadata.items():
+                span.set_tag_str(
+                    "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
+                )
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "retrieval",
+                span,
+                vector,
+                documents,
+                error=bool(span.error),
+            )
+        span.finish()
+    return documents
+
+
 def _patch_embeddings_and_vectorstores():
     """
     Text embedding models override two abstract base methods instead of super calls,
@@ -1020,6 +1083,17 @@ def _patch_embeddings_and_vectorstores():
                     "vectorstores.%s.similarity_search" % vectorstore,
                     traced_similarity_search(langchain),
                 )
+            if not isinstance(
+                deep_getattr(
+                    base_langchain_module.vectorstores, "%s.similarity_search_by_vector_with_score" % vectorstore
+                ),
+                wrapt.ObjectProxy,
+            ):
+                wrap(
+                    base_langchain_module.__name__,
+                    "vectorstores.%s.similarity_search_by_vector_with_score" % vectorstore,
+                    traced_similarity_search_by_vector_with_score(langchain),
+                )
 
 
 def _unpatch_embeddings_and_vectorstores():
@@ -1049,6 +1123,15 @@ def _unpatch_embeddings_and_vectorstores():
                 wrapt.ObjectProxy,
             ):
                 unwrap(getattr(base_langchain_module.vectorstores, vectorstore), "similarity_search")
+            if isinstance(
+                deep_getattr(
+                    base_langchain_module.vectorstores, "%s.similarity_search_by_vector_with_score" % vectorstore
+                ),
+                wrapt.ObjectProxy,
+            ):
+                unwrap(
+                    getattr(base_langchain_module.vectorstores, vectorstore), "similarity_search_by_vector_with_score"
+                )
 
 
 def patch():
@@ -1105,6 +1188,11 @@ def patch():
             wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         if langchain_pinecone:
             wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
+            wrap(
+                "langchain_pinecone",
+                "PineconeVectorStore.similarity_search_by_vector_with_score",
+                traced_similarity_search_by_vector_with_score(langchain),
+            )
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _patch_embeddings_and_vectorstores()
@@ -1153,6 +1241,7 @@ def unpatch():
             unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
         if langchain_pinecone:
             unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
+            unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search_by_vector_with_score")
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _unpatch_embeddings_and_vectorstores()
