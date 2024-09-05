@@ -533,3 +533,65 @@ def test_module_import_side_effect():
     # Test that we can import a module that raises an exception during specific
     # attribute lookups.
     import tests.internal.side_effect_module  # noqa:F401
+
+
+def test_deprecated_modules_in_ddtrace_contrib():
+    # Test that all files in the ddtrace/contrib directory except a few exceptions (ex: ddtrace/contrib/redis_utils.py)
+    # have the deprecation template below.
+    deprecation_template = """from ddtrace.contrib.internal.{} import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
+"""
+
+    contrib_dir = Path(ROOT_PROJECT_DIR) / "ddtrace" / "contrib"
+
+    missing_deprecations = set()
+    for directory, _, file_names in os.walk(contrib_dir):
+        if directory.startswith(str(contrib_dir / "internal")):
+            # Files in ddtrace/contrib/internal/... are not part of the public API, they should not be deprecated
+            continue
+        # Open files in ddtrace/contrib/ and check if the content matches the template
+        for file_name in file_names:
+            # Skip internal and __init__ modules, as they are not supposed to have the deprecation template
+            if file_name.endswith(".py") and not (file_name.startswith("_") or file_name == "__init__.py"):
+                # Get the relative path of the file from ddtrace/contrib to the deprecated file (ex: pymongo/patch)
+                relative_path = Path(directory).relative_to(contrib_dir) / file_name[:-3]  # Remove the .py extension
+                # Convert the relative path to python module format (ex: [pymongo, patch] -> pymongo.patch)
+                sub_modules = ".".join(relative_path.parts)
+                with open(os.path.join(directory, file_name), "r") as f:
+                    content = f.read()
+                    if deprecation_template.format(sub_modules) != content:
+                        missing_deprecations.add(f"ddtrace.contrib.{sub_modules}")
+
+    assert missing_deprecations == set(
+        [
+            # Note: The following ddtrace.contrib modules are expected to be part of the public API
+            # TODO: Revist whether integration utils should be part of the public API
+            "ddtrace.contrib.redis_utils",
+            "ddtrace.contrib.trace_utils",
+            "ddtrace.contrib.trace_utils_async",
+            "ddtrace.contrib.trace_utils_redis",
+            # TODO: The following contrib modules are part of the public API (unlike most integrations).
+            # We should consider privatizing the internals of these integrations.
+            "ddtrace.contrib.unittest.patch",
+            "ddtrace.contrib.unittest.constants",
+            "ddtrace.contrib.pytest.constants",
+            "ddtrace.contrib.pytest.newhooks",
+            "ddtrace.contrib.pytest.plugin",
+            "ddtrace.contrib.pytest_benchmark.constants",
+            "ddtrace.contrib.pytest_benchmark.plugin",
+            "ddtrace.contrib.pytest_bdd.constants",
+            "ddtrace.contrib.pytest_bdd.plugin",
+        ]
+    )

@@ -2,7 +2,7 @@
 This integration provides context management for tracing the execution flow
 of concurrent execution of ``asyncio.Task``.
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["asyncio"]
@@ -20,11 +20,11 @@ with require_modules(required_modules) as missing_modules:
         with _w.catch_warnings():
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
-        from ..internal.asyncio.helpers import ensure_future
-        from ..internal.asyncio.helpers import run_in_executor
-        from ..internal.asyncio.helpers import set_call_context
-        from ..internal.asyncio.patch import get_version
-        from ..internal.asyncio.patch import patch
-        from ..internal.asyncio.patch import unpatch  # noqa: F401
+        from ddtrace.contrib.internal.asyncio.helpers import ensure_future
+        from ddtrace.contrib.internal.asyncio.helpers import run_in_executor
+        from ddtrace.contrib.internal.asyncio.helpers import set_call_context
+        from ddtrace.contrib.internal.asyncio.patch import get_version
+        from ddtrace.contrib.internal.asyncio.patch import patch
+        from ddtrace.contrib.internal.asyncio.patch import unpatch  # noqa: F401
 
         __all__ = ["context_provider", "set_call_context", "ensure_future", "run_in_executor", "patch", "get_version"]

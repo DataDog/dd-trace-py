@@ -61,7 +61,7 @@ For more information, please see the attached guide on common timestamp issues:
 https://docs.datadoghq.com/logs/guide/logs-not-showing-expected-timestamp/
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["logging"]
@@ -76,8 +76,8 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.logging.patch import get_version
-        from ..internal.logging.patch import patch
-        from ..internal.logging.patch import unpatch
+        from ddtrace.contrib.internal.logging.patch import get_version
+        from ddtrace.contrib.internal.logging.patch import patch
+        from ddtrace.contrib.internal.logging.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

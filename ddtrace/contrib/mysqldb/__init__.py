@@ -75,7 +75,7 @@ Help on mysqlclient can be found on:
 https://mysqlclient.readthedocs.io/
 
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["MySQLdb"]
@@ -89,7 +89,7 @@ with require_modules(required_modules) as missing_modules:
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
         # Expose public methods
-        from ..internal.mysqldb.patch import get_version
-        from ..internal.mysqldb.patch import patch
+        from ddtrace.contrib.internal.mysqldb.patch import get_version
+        from ddtrace.contrib.internal.mysqldb.patch import patch
 
         __all__ = ["patch", "get_version"]
