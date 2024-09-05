@@ -10,7 +10,6 @@ on:
     - cron: '00 04 * * 2-6'
   merge_group:
     # Trigger jobs when PR is added to merge queue
-    branches: ['main']
     types: [checks_requested]
 
 jobs:
