@@ -31,10 +31,10 @@ SNAPSHOT_IGNORES = [
 SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
 
 SNAPSHOT_IGNORES_GITLAB = [
-    "meta._dd.ci.env_vars", 
-    "meta.ci.job.name", 
-    "meta.ci.job.url", 
-    "meta.ci.node.labels", 
+    "meta._dd.ci.env_vars",
+    "meta.ci.job.name",
+    "meta.ci.job.url",
+    "meta.ci.node.labels",
     "meta.ci.node.name",
     "meta.ci.pipeline.id",
     "meta.ci.pipeline.name",
@@ -50,7 +50,8 @@ SNAPSHOT_IGNORES_GITLAB = [
     "meta.git.commit.message",
     "meta.git.commit.sha",
     "meta.git.repository_url",
-    ]
+]
+
 
 class UnittestSnapshotTestCase(TracerTestCase):
     @pytest.fixture(autouse=True)
