@@ -29,35 +29,23 @@ class ContextVarManager:
 
     def __init__(self, name: str):
         # Initialize to None, don't create the ContextVar until the first operation
-        self._context_var = None
-
-    class ContextWrapper:
-        """A wrapper to hold and manipulate the context or span."""
-
-        def __init__(self, context: Optional[Union[Context, Span]] = None):
-            self.context = context
-
-        def set_context(self, context: Optional[Union[Context, Span]]):
-            self.context = context
-
-        def get_context(self) -> Optional[Union[Context, Span]]:
-            return self.context
+        self._name = name
+        self._context_var = contextvars.ContextVar[Optional[Union[Context, Span]]](name, default=None)
 
     def get(self) -> Optional[Union[Context, Span]]:
         """Retrieve the current context or span from the wrapper."""
-        wrapper = self._context_var
-        if wrapper is None:
+        if self._context_var is None:
             return None
-        return wrapper.get_context()
+        return self._context_var.get()
 
     def set(self, value: Optional[Union[Context, Span]]) -> None:
-        """Set the context variable, ensuring the value is wrapped appropriately."""
-        # If the current wrapper exists, update its context; otherwise, set a new wrapper
-        wrapper = self._context_var.get()
-        if wrapper is None:
-            wrapper = self.ContextWrapper(value)
-            self._context_var.set(wrapper)
-        wrapper.set_context(value)
+        """
+        Set the context variable, ensuring the value is wrapped appropriately.
+        """
+        if self._context_var.get() is None:
+            self._context_var = contextvars.ContextVar[Optional[Union[Context, Span]]](self._name, default=value)
+        else:
+            self._context_var.set(value)
 
 
 # Initialize the context manager
