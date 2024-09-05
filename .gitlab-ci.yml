@@ -20,7 +20,7 @@ variables:
 .testrunner:
   image: $TESTRUNNER_IMAGE
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   timeout: 20m
   before_script:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
