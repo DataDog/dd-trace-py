@@ -5,12 +5,12 @@ import typing as t
 import pytest
 
 from ddtrace import config as dd_config
-from ddtrace.contrib.coverage import patch as patch_coverage
-from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
-from ddtrace.contrib.coverage.data import _coverage_data
-from ddtrace.contrib.coverage.patch import run_coverage_report
-from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
-from ddtrace.contrib.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.internal.coverage import patch as patch_coverage
+from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+from ddtrace.contrib.internal.coverage.data import _coverage_data
+from ddtrace.contrib.internal.coverage.patch import run_coverage_report
+from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
+from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._utils import _get_module_path_from_item

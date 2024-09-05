@@ -593,9 +593,5 @@ def __getattr__(name):
             "ddtrace.contrib.pytest_benchmark.plugin",
             "ddtrace.contrib.pytest_bdd.constants",
             "ddtrace.contrib.pytest_bdd.plugin",
-            # TODO: ddtrace/contrib/coverage/constants.py and coverage/patch.py are deprecated/privatized but
-            # coverage/utils.py and coverage/data.py are not. We should make this integration consistent.
-            "ddtrace.contrib.coverage.utils",
-            "ddtrace.contrib.coverage.data",
         ]
     )

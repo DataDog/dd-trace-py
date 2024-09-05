@@ -25,7 +25,7 @@ log = get_logger(__name__)
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.coverage.patch` directly
+        # Required to allow users to import from `ddtrace.contrib.internal.coverage.patch` directly
         import warnings as _w
 
         with _w.catch_warnings():
