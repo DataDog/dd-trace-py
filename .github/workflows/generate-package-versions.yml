@@ -9,6 +9,8 @@ jobs:
   generate-package-versions:
     name: Generate package versions
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
