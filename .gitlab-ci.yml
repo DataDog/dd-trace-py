@@ -11,7 +11,7 @@ stages:
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   TESTRUNNER_IMAGE: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:ecc5741ff3e7c8a30363fcd9cca79a371dcea5b4
-  CI_DEBUG_SERVICES: "true"
+  # CI_DEBUG_SERVICES: "true"
 
 .testrunner:
   image: $TESTRUNNER_IMAGE
