@@ -653,13 +653,13 @@ def patch_urllib3():
         unpatch()
 
 
-@snapshot(ignore=["meta.out.host"])
+@snapshot(ignores=["meta.out.host"])
 def test_urllib3_poolmanager_snapshot(patch_urllib3):
     pool = urllib3.PoolManager()
     pool.request("GET", URL_200)
 
 
-@snapshot(ignore=["meta.out.host"])
+@snapshot(ignores=["meta.out.host"])
 def test_urllib3_connectionpool_snapshot(patch_urllib3):
     pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
     pool.request("GET", "/status/200")
