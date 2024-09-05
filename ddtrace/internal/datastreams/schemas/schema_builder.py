@@ -98,4 +98,3 @@ def convert_key(key: str) -> str:
     elif key == "_id":
         return "id"
     return key
-
