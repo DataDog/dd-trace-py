@@ -46,6 +46,7 @@ SNAPSHOT_IGNORES_GITLAB = [
     "meta.git.branch",
     "meta.git.commit.author.date",
     "meta.git.commit.author.email",
+    "meta.git.commit.author.name",
     "meta.git.commit.message",
     "meta.git.commit.sha",
     "meta.git.repository_url",
