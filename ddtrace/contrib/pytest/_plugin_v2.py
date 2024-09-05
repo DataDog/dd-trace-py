@@ -5,7 +5,7 @@ import typing as t
 import pytest
 
 from ddtrace import config as dd_config
-from ddtrace.contrib.internal.coverage import patch as patch_coverage
+from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
