@@ -723,9 +723,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         if langchain_core is None:
             pytest.skip("langchain-core not installed which is required for this test.")
 
-        if langchain_core is None:
-            pytest.skip("langchain-core not installed which is required for this test.")
-
         from math import pi
 
         from langchain_core.tools import StructuredTool
