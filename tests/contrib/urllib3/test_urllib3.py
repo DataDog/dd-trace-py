@@ -55,7 +55,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_200
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
 
         # Test an absolute URL
         r = pool.request("GET", URL_200)
@@ -73,7 +73,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == "http://" + SOCKET + "/"
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
 
     def test_resource_path(self):
         """Tests that a successful request tags a single span with the URL"""
@@ -85,7 +85,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("http.url") == URL_200
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
 
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
@@ -128,7 +128,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             assert s.get_tag("http.request.headers.accept") == "*"
             assert s.get_tag("component") == "urllib3"
             assert s.get_tag("span.kind") == "client"
-            assert s.get_tag("out.host") == "localhost"
+            assert s.get_tag("out.host") == HOST
 
     def test_untraced_request(self):
         """Disabling tracing with unpatch should submit no spans"""
@@ -163,7 +163,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
         assert s.error == 0
         assert s.span_type == "http"
         assert http.QUERY_STRING not in s.get_tags()
@@ -184,7 +184,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_200_QS
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
@@ -201,14 +201,14 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_500
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
         assert s.error == 1
 
     def test_connection_retries(self):
         """Tests a connection error results in error spans with proper exc info"""
         retries = 3
         try:
-            self.http.request("GET", "http://localhost:9999", retries=retries)
+            self.http.request("GET", f"http://{HOST}:9999", retries=retries)
         except Exception:
             pass
         else:
@@ -653,13 +653,13 @@ def patch_urllib3():
         unpatch()
 
 
-@snapshot()
+@snapshot(ignore=["meta.out.host"])
 def test_urllib3_poolmanager_snapshot(patch_urllib3):
     pool = urllib3.PoolManager()
     pool.request("GET", URL_200)
 
 
-@snapshot()
+@snapshot(ignore=["meta.out.host"])
 def test_urllib3_connectionpool_snapshot(patch_urllib3):
     pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
     pool.request("GET", "/status/200")
