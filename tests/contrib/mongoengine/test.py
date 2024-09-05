@@ -7,7 +7,6 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mongoengine.patch import patch
 from ddtrace.contrib.mongoengine.patch import unpatch
-from ddtrace.contrib.pymongo.client import TracedMongoClient
 from ddtrace.contrib.pymongo.client import TracedTopology
 from ddtrace.ext import mongo as mongox
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -155,7 +154,10 @@ class MongoEngineCore(object):
 
         # confirm the parenting
         assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
+        # dd_span is a child of the pymongo.checkout span, this span is created by the global tracer
+        # and is not captured by the DummyTracer. dd_span._parent.parent_id is equal to ot_span.span_id
+        # TODO: Ensure the Pin used to trace pymongo clients and servers pin onto a common object.
+        # assert dd_span.parent_id == ot_span.span_id
 
         assert ot_span.name == "ot_span"
         assert ot_span.service == "my_svc"
@@ -419,15 +421,11 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         Regression test for https://github.com/DataDog/dd-trace-py/issues/2474
         """
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        assert isinstance(client, TracedMongoClient)
-        assert not isinstance(client.__wrapped__, TracedMongoClient)
         assert isinstance(client._topology, TracedTopology)
         assert not isinstance(client._topology.__wrapped__, TracedTopology)
         client.close()
 
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        assert isinstance(client, TracedMongoClient)
-        assert not isinstance(client.__wrapped__, TracedMongoClient)
         assert isinstance(client._topology, TracedTopology)
         assert not isinstance(client._topology.__wrapped__, TracedTopology)
         client.close()
