@@ -140,6 +140,11 @@ molten:
   variables:
     SUITE_NAME: "molten"
 
+pymongo:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "pymongo"
+
 pynamodb:
   extends: .test_base_riot_snapshot
   variables:
