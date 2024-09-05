@@ -3,6 +3,7 @@ import time
 
 # 3p
 import pymongo
+import pytest
 
 # project
 from ddtrace import Pin
@@ -843,3 +844,19 @@ class TestPymongoSocketTracing(TracerTestCase):
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])
         assert spans[1].name == "pymongo.cmd"
+
+
+@pytest.mark.snapshot(variants={"pre_45": pymongo.version_tuple < (4, 5), "post_45": pymongo.version_tuple >= (4, 5)})
+def test_patch_pymongo_client_after_import():
+    # Ensure that we can patch a pymongo client after it has been imported
+    assert not getattr(pymongo, "_datadog_patch", False)
+    from pymongo import MongoClient
+
+    try:
+        patch()  # Patch the pymongo client
+        assert pymongo._datadog_patch
+
+        client = MongoClient(port=MONGO_CONFIG["port"])
+        client.server_info()
+    finally:
+        unpatch()
