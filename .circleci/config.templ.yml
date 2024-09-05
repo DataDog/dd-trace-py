@@ -934,14 +934,6 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
-  aredis:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'redis'
-          pattern: 'aredis$'
-          snapshot: true
-
   avro:
     <<: *contrib_job_small
     docker:
@@ -950,41 +942,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'avro'
-
-
-  yaaredis:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'redis'
-          pattern: 'yaaredis$'
-          snapshot: true
-
-  redis:
-    <<: *machine_executor
-    parallelism: 5
-    steps:
-      - run_test:
-          docker_services: 'redis rediscluster'
-          pattern: 'redis$'
-          snapshot: true
-
-  rediscluster:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'rediscluster'
-          docker_services: 'rediscluster'
-          snapshot: true
-
-  rq:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "rq"
-          snapshot: true
-          docker_services: "redis"
 
   urllib3:
     <<: *machine_executor
