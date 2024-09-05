@@ -54,6 +54,50 @@ kafka:
     TEST_KAFKA_HOST: "kafka"
     TEST_KAFKA_PORT: "29092"
 
+aredis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "aredis$"
+
+yaaredis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "yaaredis$"
+
+redis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+    - !reference [.services, rediscluster]
+  parallel: 5
+  variables:
+    SUITE_NAME: "^redis$"
+
+rediscluster:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+    - !reference [.services, rediscluster]
+  variables:
+    SUITE_NAME: "rediscluster"
+
+rq:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "rq"
+  parallel: 2
+
 gevent:
   extends: .test_base_riot_snapshot
   variables:

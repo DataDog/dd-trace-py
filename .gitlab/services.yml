@@ -45,3 +45,6 @@
     alias: httpbin-local
     variables:
       PORT: 8001
+  rediscluster:
+    name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
+    alias: rediscluster
