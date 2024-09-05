@@ -556,6 +556,20 @@ jobs:
           env: 'dd_coverage'
           snapshot: true
 
+  sourcecode:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "sourcecode"
+
+  opentelemetry:
+    parallelism: 4
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'opentelemetry'
+          snapshot: true
+
   botocore:
     <<: *machine_executor
     parallelism: 6
@@ -742,6 +756,21 @@ jobs:
     steps:
       - run_test:
           pattern: 'pylibmc'
+
+  pytest:
+    <<: *machine_executor
+    parallelism: 10
+    steps:
+      - run_test:
+          pattern: 'pytest'
+          snapshot: true
+
+  unittest:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'unittest'
+          snapshot: true
 
   pymemcache:
     <<: *contrib_job

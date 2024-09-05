@@ -217,22 +217,11 @@ asynctest:
   variables:
     SUITE_NAME: 'asynctest$'
 
-pytest:
-  extends: .test_base_riot_snapshot
-  parallel: 10
-  variables:
-    SUITE_NAME: 'pytest'
-
 pytest_v2:
   extends: .test_base_riot_snapshot
   parallel: 10
   variables:
     SUITE_NAME: 'pytest_plugin_v2'
-
-unittest:
-  extends: .test_base_riot_snapshot
-  variables:
-    SUITE_NAME: 'unittest'
 
 django_hosts:
   extends: .test_base_riot_snapshot
@@ -258,11 +247,6 @@ subprocess:
   extends: .test_base_riot
   variables:
     SUITE_NAME: "subprocess"
-
-sourcecode:
-  extends: .test_base_riot
-  variables:
-    SUITE_NAME: "sourcecode"
 
 openai:
   extends: .test_base_riot_snapshot
