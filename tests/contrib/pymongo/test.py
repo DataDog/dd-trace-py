@@ -741,7 +741,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         # and choose from to perform classic operations. For the sake of our tests,
         # let's limit this number to 1
         self.client = pymongo.MongoClient(port=MONGO_CONFIG["port"], maxPoolSize=1)
-        # Override TracedMongoClient's pin's tracer with our dummy tracer
+        # Override MongoClient's pin's tracer with our dummy tracer
         Pin.override(self.client, tracer=self.tracer, service="testdb")
 
     def tearDown(self):

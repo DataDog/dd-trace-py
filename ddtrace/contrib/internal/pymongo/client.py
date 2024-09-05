@@ -1,5 +1,6 @@
 # stdlib
 import contextlib
+import functools
 import json
 from typing import Iterable
 
@@ -45,6 +46,31 @@ log = get_logger(__name__)
 _DEFAULT_SERVICE = schematize_service_name("pymongo")
 
 
+def trace_mongo_client_init(func, args, kwargs):
+    # Call MongoClient.__init__
+    func(*args, **kwargs)
+    client = get_argument_value(args, kwargs, 0, "self")
+    # The MongoClient attempts to trace all of the network
+    # calls in the trace library. This is good because it measures the
+    # actual network time. It's bad because it uses a private API which
+    # could change. We'll see how this goes.
+    if not isinstance(client._topology, TracedTopology):
+        client._topology = TracedTopology(client._topology)
+
+    def __setddpin__(client, pin):
+        pin.onto(client._topology)
+
+    def __getddpin__(client):
+        return ddtrace.Pin.get_from(client._topology)
+
+    client.__setddpin__ = functools.partial(__setddpin__, client)
+    client.__getddpin__ = functools.partial(__getddpin__, client)
+
+    # Default Pin
+    ddtrace.Pin(service=_DEFAULT_SERVICE).onto(client)
+
+
+# TODO: Remove TracedMongoClient when ddtrace.contrib.pymongo.client is removed from the public API.
 class TracedMongoClient(ObjectProxy):
     def __init__(self, client=None, *args, **kwargs):
         # To support the former trace_mongo_client interface, we have to keep this old interface
@@ -88,6 +114,9 @@ class TracedMongoClient(ObjectProxy):
 
 @contextlib.contextmanager
 def wrapped_validate_session(wrapped, instance, args, kwargs):
+    # The function is exposed in the public API, but it is not used in the codebase.
+    # TODO: Remove this function when ddtrace.contrib.pymongo.client is removed.
+
     # We do this to handle a validation `A is B` in pymongo that
     # relies on IDs being equal. Since we are proxying objects, we need
     # to ensure we're compare proxy with proxy or wrapped with wrapped
