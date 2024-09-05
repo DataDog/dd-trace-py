@@ -36,7 +36,7 @@ Example of the context propagation::
             with tracer.trace("greenlet.child_call") as child:
                 ...
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["gevent"]
@@ -50,10 +50,11 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
+        from ddtrace.contrib.internal.gevent.patch import get_version
+        from ddtrace.contrib.internal.gevent.patch import patch
+        from ddtrace.contrib.internal.gevent.patch import unpatch
+
         from ...provider import DefaultContextProvider as _DefaultContextProvider
-        from ..internal.gevent.patch import get_version
-        from ..internal.gevent.patch import patch
-        from ..internal.gevent.patch import unpatch
 
         context_provider = _DefaultContextProvider()
 
