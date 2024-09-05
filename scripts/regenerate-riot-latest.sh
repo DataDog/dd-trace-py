@@ -24,11 +24,6 @@ for pkg in ${pkgs[*]}; do
             rm ".riot/requirements/${h}.txt"
         done
         scripts/compile-and-prune-test-requirements
-        if git diff --quiet .riot/requirements/; then
-            echo "Changes detected in lockfiles"
-            break
-        else
-            echo "No changes detected in lockfiles"
-        fi
+        break
     fi
 done
