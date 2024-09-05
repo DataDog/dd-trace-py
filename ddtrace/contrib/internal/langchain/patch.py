@@ -1000,14 +1000,13 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
             elif value is not None:
                 span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
 
-        if integration.is_pc_sampled_span(span):
-            if tool_input:
-                span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
+        if tool_input and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
         if config:
             span.set_tag_str("langchain.request.config", json.dumps(config))
 
         tool_output = func(*args, **kwargs)
-        if tool_output is not None and integration.is_pc_sampled_span(span):
+        if tool_output and integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -1042,16 +1041,14 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
             elif value is not None:
                 span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
 
-        if integration.is_pc_sampled_span(span):
-            if tool_input:
-                span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
+        if tool_input and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
         if config:
             span.set_tag_str("langchain.request.config", json.dumps(config))
 
         tool_output = await func(*args, **kwargs)
-        if tool_output is not None:
-            if integration.is_pc_sampled_span(span):
-                span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+        if tool_output and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
