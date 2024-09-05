@@ -6,7 +6,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import unwrap as _u
@@ -167,7 +167,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
         )
 
         # set analytics sample rate
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.httplib.get_analytics_sample_rate())
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.httplib.get_analytics_sample_rate())
     except Exception:
         log.debug("error applying request tags", exc_info=True)
 

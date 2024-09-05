@@ -5,7 +5,7 @@ from ddtrace.internal.constants import COMPONENT
 
 from ...appsec._constants import IAST_SPAN_TAGS
 from ...appsec._iast._metrics import increment_iast_span_metric
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
@@ -90,7 +90,7 @@ class TracedAsyncCursor(TracedCursor):
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedAsyncCursor):
-                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
+                s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             # dispatch DBM
             if dbm_propagator:

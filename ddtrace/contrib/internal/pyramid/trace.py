@@ -6,7 +6,7 @@ import wrapt
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -89,7 +89,7 @@ def trace_tween_factory(handler, registry):
                 analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)
 
                 if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-                    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True))
+                    span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True))
 
                 setattr(request, DD_TRACER, tracer)  # used to find the tracer in templates
                 response = None

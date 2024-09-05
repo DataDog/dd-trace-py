@@ -13,7 +13,7 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
 from ddtrace._trace.utils import set_botocore_response_metadata_tags
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -475,7 +475,7 @@ def _on_request_span_modifier(
     # set analytics sample rate with global config enabled
     sample_rate = flask_config.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     span.set_tag_str(flask_version, flask_version_str)
 
