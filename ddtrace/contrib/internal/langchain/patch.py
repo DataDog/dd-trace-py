@@ -983,7 +983,6 @@ def traced_similarity_search_by_vector_with_score(langchain, pin, func, instance
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
         interface_type="retrieval",
         provider=provider,
         api_key=_extract_api_key(instance),
@@ -1025,14 +1024,6 @@ def traced_similarity_search_by_vector_with_score(langchain, pin, func, instance
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "retrieval",
-                span,
-                vector,
-                documents,
-                error=bool(span.error),
-            )
         span.finish()
     return documents
 
