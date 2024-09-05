@@ -563,8 +563,8 @@ def __getattr__(name):
             continue
         # Open files in ddtrace/contrib/ and check if the content matches the template
         for file_name in file_names:
-            # Skip files with the name __init__.py, as they are not supposed to have the deprecation template
-            if file_name.endswith(".py") and file_name != "__init__.py":
+            # Skip internal and __init__ modules, as they are not supposed to have the deprecation template
+            if file_name.endswith(".py") and not (file_name.startswith("_") or file_name == "__init__.py"):
                 # Get the relative path of the file from ddtrace/contrib to the deprecated file (ex: pymongo/patch)
                 relative_path = Path(directory).relative_to(contrib_dir) / file_name[:-3]  # Remove the .py extension
                 # Convert the relative path to python module format (ex: [pymongo, patch] -> pymongo.patch)
@@ -587,15 +587,10 @@ def __getattr__(name):
             "ddtrace.contrib.unittest.patch",
             "ddtrace.contrib.unittest.constants",
             "ddtrace.contrib.pytest.constants",
-            "ddtrace.contrib.pytest._plugin_v2",
             "ddtrace.contrib.pytest.newhooks",
-            "ddtrace.contrib.pytest._plugin_v1",
             "ddtrace.contrib.pytest.plugin",
-            "ddtrace.contrib.pytest._utils",
-            "ddtrace.contrib.pytest_benchmark._plugin",
             "ddtrace.contrib.pytest_benchmark.constants",
             "ddtrace.contrib.pytest_benchmark.plugin",
-            "ddtrace.contrib.pytest_bdd._plugin",
             "ddtrace.contrib.pytest_bdd.constants",
             "ddtrace.contrib.pytest_bdd.plugin",
             # TODO: ddtrace/contrib/coverage/constants.py and coverage/patch.py are deprecated/privatized but
