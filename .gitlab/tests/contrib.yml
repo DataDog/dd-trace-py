@@ -264,11 +264,6 @@ sourcecode:
   variables:
     SUITE_NAME: "sourcecode"
 
-debugger:
-  extends: .test_base_riot
-  variables:
-    SUITE_NAME: "debugger"
-
 openai:
   extends: .test_base_riot_snapshot
   parallel: 10
@@ -280,8 +275,3 @@ opentracer:
   variables:
     SUITE_NAME: "opentracer"
 
-opentelemetry:
-  extends: .test_base_riot_snapshot
-  parallel: 4
-  variables:
-    SUITE_NAME: "opentelemetry"
