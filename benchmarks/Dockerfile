@@ -5,7 +5,7 @@ ARG PYENV_VERSION=2.4.1
 RUN apt-get update && apt-get install --no-install-recommends -y \
     make build-essential libssl-dev zlib1g-dev \
     libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
-    libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev \
+    libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev libicu-dev liblzma-dev \
     git ca-certificates
 ENV PYENV_ROOT "/pyenv"
 WORKDIR "$PYENV_ROOT"

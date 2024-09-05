@@ -37,6 +37,7 @@ RUN \
       libbz2-dev \
       libenchant-dev \
       libffi-dev \
+      libicu-dev \
       liblzma-dev \
       libmemcached-dev \
       libmemcached-dev \
