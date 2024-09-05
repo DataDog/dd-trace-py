@@ -25,10 +25,10 @@ for pkg in ${pkgs[*]}; do
         done
         scripts/compile-and-prune-test-requirements
         if git diff --quiet .riot/requirements/; then
-            echo "No changes detected in lockfiles"
-        else
             echo "Changes detected in lockfiles"
             break
+        else
+            echo "No changes detected in lockfiles"
         fi
     fi
 done
