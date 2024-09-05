@@ -1,12 +1,12 @@
-import atexit
 from typing import Dict
 from typing import List
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.llmobs.utils import EvaluationMetric
-from ddtrace.llmobs.utils import LLMObsSpanContext
+
+from ..utils import EvaluationMetric
+from ..utils import LLMObsSpanContext
 
 
 logger = get_logger(__name__)
@@ -15,8 +15,10 @@ logger = get_logger(__name__)
 class LLMObsEvaluationRunner(PeriodicService):
     """Base class for evaluating LLM Observability span events"""
 
-    def __init__(self, interval: float, writer=None):
+    def __init__(self, interval: float, writer=None, llmobs_instance=None, sample_rate=1.0):
         super(LLMObsEvaluationRunner, self).__init__(interval=interval)
+        self.name = "default-evaluation-runner"
+        self.llmobs_instance = llmobs_instance
         self._lock = forksafe.RLock()
         self._buffer = []  # type: List[LLMObsSpanContext]
         self._buffer_limit = 1000
@@ -27,10 +29,6 @@ class LLMObsEvaluationRunner(PeriodicService):
     def start(self, *args, **kwargs):
         super(LLMObsEvaluationRunner, self).start()
         logger.debug("started %r", self.__class__.__name__)
-        atexit.register(self.on_shutdown)
-
-    def on_shutdown(self):
-        self.periodic()
 
     def enqueue(self, raw_span_event: Dict) -> None:
         with self._lock:
@@ -53,9 +51,10 @@ class LLMObsEvaluationRunner(PeriodicService):
                 return
             events = self._buffer
             self._buffer = []
-        evaluation_metrics = self.run(events)
-        for metric in evaluation_metrics:
-            try:
+
+        try:
+            evaluation_metrics = self.run(events)
+            for metric in evaluation_metrics:
                 self._llmobs_eval_metric_writer.enqueue(metric.model_dump())
-            except ValueError:
-                logger.error("Failed to dump model")
+        except RuntimeError as e:
+            logger.debug("failed to run evaluation: %s", e)

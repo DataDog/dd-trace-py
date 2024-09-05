@@ -3,7 +3,6 @@ import os
 import time
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -52,7 +51,7 @@ from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
 
-from .evaluations._ragas import RagasRunner
+from .evaluations.ragas.faithfulness._runner import RagasFaithfulnessRunner
 
 
 log = get_logger(__name__)
@@ -65,7 +64,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "langchain": "langchain",
 }
 
-SUPPORTED_LLMOBS_EVALUATIONS = {"ragas": RagasRunner}
+SUPPORTED_LLMOBS_EVALUATIONS = {"ragas.faithfulness": RagasFaithfulnessRunner}
 
 
 class LLMObs(Service):
@@ -97,7 +96,9 @@ class LLMObs(Service):
                     continue
                 else:
                     self._evaluation_callbacks.append(
-                        SUPPORTED_LLMOBS_EVALUATIONS[evaluation_name](writer=self._llmobs_eval_metric_writer)
+                        SUPPORTED_LLMOBS_EVALUATIONS[evaluation_name](
+                            writer=self._llmobs_eval_metric_writer, llmobs_instance=self
+                        )
                     )
 
         self._trace_processor = LLMObsTraceProcessor(
@@ -152,7 +153,6 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        evaluations_enabled: Optional[List[str]] = None,
         _tracer: Optional[ddtrace.Tracer] = None,
     ) -> None:
         """
@@ -216,6 +216,10 @@ class LLMObs(Service):
         if integrations_enabled:
             cls._patch_integrations()
 
+        evaluations_enabled = []
+        if asbool(os.getenv("DD_LLMOBS_RAGAS_FAITHFULNESS", True)):
+            evaluations_enabled = ["ragas.faithfulness"]
+
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=_tracer, evaluation_callbacks=evaluations_enabled)
         cls.enabled = True
@@ -223,9 +227,6 @@ class LLMObs(Service):
 
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
-
-    def _register_evaluation(cls, integration):
-        pass
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
