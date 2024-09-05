@@ -157,7 +157,7 @@ class _TelemetryClient:
         resp = None
         conn = None
         try:
-            rb_json = self._encoder.encode(request)
+            rb_json, _ = self._encoder.encode(request)
             headers = self.get_headers(request)
             with StopWatch() as sw:
                 conn = get_connection(self._telemetry_url)
