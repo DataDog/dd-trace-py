@@ -11,7 +11,9 @@ from .schema_iterator import SchemaExtractor
 
 config._add(
     "protobuf",
-    dict(),
+    dict(
+       { "_WRAPPED_MESSAGE_CLASSES": []} # fix this 
+    ),
 )
 
 
@@ -25,21 +27,43 @@ def patch():
     if getattr(protobuf, "_datadog_patch", False):
         return
     protobuf._datadog_patch = True
-    breakpoint()
+
     _w = wrapt.wrap_function_wrapper
 
     _w("google.protobuf.internal", "builder.BuildTopDescriptorsAndMessages", _traced_build)
-    # _w("avro.io", "DatumWriter.write", _traced_serialize)
-    # Pin(service=None).onto(avro.io.DatumReader)
-    # Pin(service=None).onto(avro.io.DatumWriter)
+    Pin().onto(builder)
 
 
 def unpatch():
-    if getattr(avro, "_datadog_patch", False):
-        avro._datadog_patch = False
+    if getattr(protobuf, "_datadog_patch", False):
+        protobuf._datadog_patch = False
 
-        unwrap(avro.io.DatumReader, "read")
-        unwrap(avro.io.DatumWriter, "write")
+        unwrap(protobuf.internal.builder, "BuildTopDescriptorsAndMessages")
+
+        for wrapped_message_class in config.protobuf["_WRAPPED_MESSAGE_CLASSES"]:
+            _unwrap_message(wrapped_message_class)
+
+        config.protobuf["_WRAPPED_MESSAGE_CLASSES"] = []
+
+
+def _unwrap_message(message_class):
+    unwrap(message_class, "SerializeToString")
+    unwrap(message_class, "ParseFromString")
+
+
+def _wrap_message(message_descriptor, message_class):
+    def serialize_wrapper(wrapped, instance, args, kwargs):
+        return _traced_serialize_message(wrapped, instance, args, kwargs, msg_descriptor=message_descriptor)
+
+    def deserialize_wrapper(wrapped, instance, args, kwargs):
+        return _traced_deserialize_message(wrapped, instance, args, kwargs, msg_descriptor=message_descriptor)
+
+    _w = wrapt.wrap_function_wrapper
+    _w(message_class, "SerializeToString", serialize_wrapper)
+    _w(message_class, "ParseFromString", deserialize_wrapper)
+
+    config.protobuf["_WRAPPED_MESSAGE_CLASSES"].append(message_class)
+    Pin().onto(message_class)
 
 
 #
@@ -48,20 +72,9 @@ def unpatch():
 def _traced_build(func, instance, args, kwargs):
     file_des = args[0]
 
-    def wrap_message(message_descriptor, message_class):
-        def wrapper(wrapped, instance, args, kwargs):
-            return _traced_serialize_message(wrapped, instance, args, kwargs, msg_descriptor=message_descriptor)
-
-        _w = wrapt.wrap_function_wrapper
-        _w(message_class, "SerializeToString", wrapper)
-        # Assuming Pin is defined elsewhere in your code
-        Pin(service=None).onto(message_class)
-
-    # pin = Pin.get_from(instance)
-    # if not pin or not pin.enabled():
-    #     return func(*args, **kwargs)
-
-    # active = pin.tracer.current_span()
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        func(*args, **kwargs)
 
     try:
         func(*args, **kwargs)
@@ -72,16 +85,16 @@ def _traced_build(func, instance, args, kwargs):
             message_class_name = message_descriptors[message_idx][0]
             message_descriptor = message_descriptors[message_idx][1]
             message_class = generated_message_classes[message_class_name]
-            wrap_message(message_descriptor=message_descriptor, message_class=message_class)
+            _wrap_message(message_descriptor=message_descriptor, message_class=message_class)
         if config._data_streams_enabled:
             pass
             # SchemaExtractor.attach_schema_on_span(instance.writers_schema, active, SchemaExtractor.SERIALIZATION)
 
 
-def _traced_deserialize(func, instance, args, kwargs):
+def _traced_deserialize_message(func, instance, args, kwargs, msg_descriptor):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        return func(*args, **kwargs)
+        func(*args, **kwargs)
 
     active = pin.tracer.current_span()
 
@@ -89,13 +102,10 @@ def _traced_deserialize(func, instance, args, kwargs):
         func(*args, **kwargs)
     finally:
         if config._data_streams_enabled and active:
-            reader = instance
-            if reader:
-                SchemaExtractor.attach_schema_on_span(reader.writers_schema, active, SchemaExtractor.DESERIALIZATION)
+            SchemaExtractor.attach_schema_on_span(msg_descriptor, active, SchemaExtractor.DESERIALIZATION)
 
 
 def _traced_serialize_message(func, instance, args, kwargs, msg_descriptor):
-    breakpoint()
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled() or not msg_descriptor:
         return func(*args, **kwargs)
@@ -103,7 +113,7 @@ def _traced_serialize_message(func, instance, args, kwargs, msg_descriptor):
     active = pin.tracer.current_span()
 
     try:
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     finally:
-        # if config._data_streams_enabled and active:
-        SchemaExtractor.attach_schema_on_span(msg_descriptor, active, SchemaExtractor.SERIALIZATION)
+        if config._data_streams_enabled and active:
+            SchemaExtractor.attach_schema_on_span(msg_descriptor, active, SchemaExtractor.SERIALIZATION)

@@ -27,5 +27,5 @@ def protobuf(ddtrace_global_config):
         from google import protobuf
 
         yield protobuf
-        # unpatch()
+        unpatch()
         SchemaSampler.SAMPLE_INTERVAL_MILLIS = 30000

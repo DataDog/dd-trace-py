@@ -23,80 +23,63 @@ OPENAPI_ADVANCED_USER_SCHEMA_DEF = (
 MESSAGE_SCHEMA_DEF = '{"openapi": "3.0.0", "components": {"schemas": {"MyMessage": {"type": "object", "properties": {"id": {"type": "string"}, "value": {"type": "string"}, "other_message": {"$ref": "#/components/schemas/OtherMessage"}}}, "OtherMessage": {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "integer", "format": "int32"}}}}}}'
 MESSAGE_SCHEMA_ID = "4297837876786368340"
 
-
-# def test_patching(protobuf):
-#     """
-#     When patching avro library
-#         We wrap the correct methods
-#     When unpatching avro library
-#         We unwrap the correct methods
-#     """
-#     patch()
-#     assert isinstance(protobuf.io.DatumReader.read, ObjectProxy)
-#     assert isinstance(protobuf.io.DatumWriter.write, ObjectProxy)
-
-#     unpatch()
-
-#     assert not isinstance(protobuf.io.DatumReader.read, ObjectProxy)
-#     assert not isinstance(protobuf.io.DatumWriter.write, ObjectProxy)
+OTHER_MESSAGE_SCHEMA_DEF = '{"openapi": "3.0.0", "components": {"schemas": {"OtherMessage": {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "integer", "format": "int32"}}}}}}'
+OTHER_MESSAGE_SCHEMA_ID = "2475724054364642627"
 
 
-def test_extract_protobuf_schema_on_serialize(protobuf, tracer, test_spans):
-    from tests.contrib.protobuf.schemas.message_pb2 import MyMessage
+def test_patching(protobuf):
+    """
+    When patching protobuf library
+        We wrap the correct methods
+    When unpatching protobuf library
+        We unwrap the correct methods
+    """
+    patch()
+    assert isinstance(protobuf.internal.builder.BuildTopDescriptorsAndMessages, ObjectProxy)
+
+    unpatch()
+    assert not isinstance(protobuf.internal.builder.BuildTopDescriptorsAndMessages, ObjectProxy)
+
+
+def test_basic_schema_serialize(protobuf, tracer, test_spans):
     from tests.contrib.protobuf.schemas.other_message_pb2 import OtherMessage
 
-    my_message = OtherMessage()
-
-    # Set the id and value fields
-    my_message.id = "123"
-    my_message.value = "example_value"
-
-    # Create instances of OtherMessage
-    other_message1 = OtherMessage()
-    other_message1.name.append("Alice")
-    other_message1.age = 30
-
-    other_message2 = OtherMessage()
-    other_message2.name.append("Bob")
-    other_message2.age = 25
-
-    # Add OtherMessage instances to the other_message field of MyMessage
-    my_message.other_message.append(other_message1)
-    my_message.other_message.append(other_message2)
+    other_message = OtherMessage()
+    other_message.name.append("Alice")
+    other_message.age = 30
 
     # Serialize
-    with tracer.trace("message_pb2.serialize"):
+    with tracer.trace("other_message.serialize"):
         breakpoint()
-        bytes_data = my_message.SerializeToString()
+        bytes_data = other_message.SerializeToString()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
-    breakpoint()
     span = test_spans.spans[0]
 
     # Perform the assertions
-    assert span.name == "message_pb2.serialize"
+    assert span.name == "other_message.serialize"
     assert span.error == 0
 
     tags = span.get_tags()
     metrics = span.get_metrics()
-    assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == MESSAGE_SCHEMA_DEF
+    assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OTHER_MESSAGE_SCHEMA_DEF
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "protobuf"
-    assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "MyMessage"
+    assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "OtherMessage"
     assert tags[SCHEMA_TAGS.SCHEMA_OPERATION] == "serialization"
-    assert tags[SCHEMA_TAGS.SCHEMA_ID] == MESSAGE_SCHEMA_ID
+    assert tags[SCHEMA_TAGS.SCHEMA_ID] == OTHER_MESSAGE_SCHEMA_ID
     assert metrics[SCHEMA_TAGS.SCHEMA_WEIGHT] == 1
 
 
-def test_error_when_de_serializing(self):
-    with tracer.trace("parent_deserialize") as span:
-        span.set_tag("manual.keep", True)
-        try:
-            MyMessage.ParseFromString(b'\x01\x02\x03\x04\x05')
-        except DecodeError as e:
-            span.set_tag("error.msg", str(e))
-            span.set_tag("error.type", type(e).__name__)
-            span.set_tag("error.stack", e.__traceback__)
-            span.error = 1
+# def test_error_when_de_serializing(self):
+#     with tracer.trace("parent_deserialize") as span:
+#         span.set_tag("manual.keep", True)
+#         try:
+#             MyMessage.ParseFromString(b'\x01\x02\x03\x04\x05')
+#         except DecodeError as e:
+#             span.set_tag("error.msg", str(e))
+#             span.set_tag("error.type", type(e).__name__)
+#             span.set_tag("error.stack", e.__traceback__)
+#             span.error = 1
 
 
 def test_complex_schema_serialize(protobuf, tracer, test_spans):
@@ -124,11 +107,9 @@ def test_complex_schema_serialize(protobuf, tracer, test_spans):
 
     # Serialize
     with tracer.trace("message_pb2.serialize"):
-        breakpoint()
         bytes_data = my_message.SerializeToString()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
-    breakpoint()
     span = test_spans.spans[0]
 
     # Perform the assertions
@@ -141,5 +122,88 @@ def test_complex_schema_serialize(protobuf, tracer, test_spans):
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "protobuf"
     assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "MyMessage"
     assert tags[SCHEMA_TAGS.SCHEMA_OPERATION] == "serialization"
+    assert tags[SCHEMA_TAGS.SCHEMA_ID] == MESSAGE_SCHEMA_ID
+    assert metrics[SCHEMA_TAGS.SCHEMA_WEIGHT] == 1
+
+
+def test_basic_schema_deserialize(protobuf, tracer, test_spans):
+    from tests.contrib.protobuf.schemas.other_message_pb2 import OtherMessage
+
+    other_message = OtherMessage()
+    other_message.name.append("Alice")
+    other_message.age = 30
+
+    # Serialize
+    bytes_data = other_message.SerializeToString()
+
+    # Deserialize
+    with tracer.trace("other_message.deserialize"):
+        other_message.ParseFromString(bytes_data)
+
+    assert len(test_spans.spans) == 1, "There should be exactly one span"
+
+    span = test_spans.spans[0]
+
+    # Perform the assertions
+    assert span.name == "other_message.deserialize"
+    assert span.error == 0
+
+    tags = span.get_tags()
+    metrics = span.get_metrics()
+    assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OTHER_MESSAGE_SCHEMA_DEF
+    assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "protobuf"
+    assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "OtherMessage"
+    assert tags[SCHEMA_TAGS.SCHEMA_OPERATION] == "deserialization"
+    assert tags[SCHEMA_TAGS.SCHEMA_ID] == OTHER_MESSAGE_SCHEMA_ID
+    assert metrics[SCHEMA_TAGS.SCHEMA_WEIGHT] == 1
+
+
+def test_advanced_schema_deserialize(protobuf, tracer, test_spans):
+    from tests.contrib.protobuf.schemas.message_pb2 import MyMessage
+    from tests.contrib.protobuf.schemas.other_message_pb2 import OtherMessage
+
+    my_message = MyMessage()
+
+    # Set the id and value fields
+    my_message.id = "123"
+    my_message.value = "example_value"
+
+    # Create instances of OtherMessage
+    other_message1 = OtherMessage()
+    other_message1.name.append("Alice")
+    other_message1.age = 30
+
+    other_message2 = OtherMessage()
+    other_message2.name.append("Bob")
+    other_message2.age = 25
+
+    # Add OtherMessage instances to the other_message field of MyMessage
+    my_message.other_message.append(other_message1)
+    my_message.other_message.append(other_message2)
+
+    # Serialize
+    bytes_data = my_message.SerializeToString()
+
+    # Deserialize
+    with tracer.trace("my_message.deserialize"):
+        my_message.ParseFromString(bytes_data)
+
+    assert len(test_spans.spans) == 1, "There should be exactly one span"
+
+    assert len(test_spans.spans) == 1, "There should be exactly one span"
+
+    # Get the first (and only) span
+    span = test_spans.spans[0]
+
+    # Perform the assertions
+    assert span.name == "my_message.deserialize"
+    assert span.error == 0
+
+    tags = span.get_tags()
+    metrics = span.get_metrics()
+    assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == MESSAGE_SCHEMA_DEF
+    assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "protobuf"
+    assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "MyMessage"
+    assert tags[SCHEMA_TAGS.SCHEMA_OPERATION] == "deserialization"
     assert tags[SCHEMA_TAGS.SCHEMA_ID] == MESSAGE_SCHEMA_ID
     assert metrics[SCHEMA_TAGS.SCHEMA_WEIGHT] == 1
