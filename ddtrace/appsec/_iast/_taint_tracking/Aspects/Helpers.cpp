@@ -41,24 +41,6 @@ api_common_replace(const py::str& string_method,
 }
 
 string
-substrCodePoints(const string& str, const long start, const long length = -1)
-{
-    icu::UnicodeString uStr = icu::UnicodeString::fromUTF8(str);
-
-    // Convert start and length from code point units to UTF-16 code units
-    const long utf16Start = uStr.moveIndex32(0, start); // Move from 0 to the start code point index
-    const long utf16Length = (length == -1) ? uStr.countChar32() - start : length;
-    const long utf16End = uStr.moveIndex32(utf16Start, utf16Length); // Get the UTF-16 index at the end of the substring
-
-    // Extract the substring in UTF-16 space and convert it back to UTF-8
-    const icu::UnicodeString uSubStr = uStr.tempSubStringBetween(utf16Start, utf16End);
-
-    string result;
-    uSubStr.toUTF8String(result);
-    return result;
-}
-
-string
 as_formatted_evidence(const string& text,
                       TaintRangeRefs& text_ranges,
                       const optional<TagMappingMode>& tag_mapping_mode,
@@ -71,6 +53,8 @@ as_formatted_evidence(const string& text,
     long index = 0;
 
     sort(text_ranges.begin(), text_ranges.end(), &range_sort);
+    auto pystr = py::str(text);
+
     for (const auto& taint_range : text_ranges) {
         string content;
         if (!tag_mapping_mode) {
@@ -91,16 +75,16 @@ as_formatted_evidence(const string& text,
 
         const auto range_end = taint_range->start + taint_range->length;
 
-        res_vector.push_back(substrCodePoints(text, index, taint_range->start - index));
+        res_vector.push_back(slice_pystr_to_string(pystr, index, taint_range->start));
         res_vector.emplace_back(EVIDENCE_MARKS::START_EVIDENCE);
         res_vector.push_back(tag);
-        res_vector.push_back(substrCodePoints(text, taint_range->start, range_end - taint_range->start));
+        res_vector.push_back(slice_pystr_to_string(pystr, taint_range->start, range_end));
         res_vector.push_back(tag);
         res_vector.emplace_back(EVIDENCE_MARKS::END_EVIDENCE);
 
         index = range_end;
     }
-    res_vector.push_back(substrCodePoints(text, index, -1));
+    res_vector.push_back(slice_pystr_to_string(pystr, index, py::len(pystr)));
     ostringstream oss;
     for (const auto& str : res_vector) {
         oss << str;
