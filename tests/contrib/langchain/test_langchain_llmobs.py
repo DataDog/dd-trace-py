@@ -754,6 +754,14 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 span_kind="tool",
                 input_value="2",
                 output_value="12.566370614359172",
+                metadata={
+                    "tool_info": {
+                        "name": "Circumference calculator",
+                        "description": mock.ANY,
+                        "metadata": None,
+                        "tags": None,
+                    }
+                },
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )
