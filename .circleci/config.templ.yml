@@ -976,12 +976,6 @@ jobs:
           snapshot: true
           docker_services: "redis"
 
-  wsgi:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "wsgi"
-
   kombu:
     <<: *contrib_job
     docker:
