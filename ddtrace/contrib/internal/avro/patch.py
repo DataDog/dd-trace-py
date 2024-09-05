@@ -48,7 +48,7 @@ def _traced_serialize(func, instance, args, kwargs):
     # this is a dsm only integration at the moment
     if not config._data_streams_enabled:
         return func(*args, **kwargs)
-    
+
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
