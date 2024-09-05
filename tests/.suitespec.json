@@ -442,7 +442,7 @@
         ],
         "openai": [
             "ddtrace/contrib/openai/*",
-            "ddtrace/contrib/internal/openai/*" 
+            "ddtrace/contrib/internal/openai/*"
         ],
         "falcon": [
             "ddtrace/contrib/falcon/*",
@@ -779,6 +779,12 @@
             "@profiling",
             "tests/profiling/*"
         ],
+        "profile-v2": [
+            "@bootstrap",
+            "@core",
+            "@profiling",
+            "tests/profiling-v2/*"
+        ]
         "vendor": [
             "@vendor",
             "tests/vendor/*"
