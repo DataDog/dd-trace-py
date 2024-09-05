@@ -358,22 +358,6 @@ def test_service_override_config(producer, consumer, kafka_topic):
         consumer.poll()
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_analytics_with_rate(producer, consumer, kafka_topic):
-    with override_config(
-        "kafka", dict(analytics_enabled=True, analytics_sample_rate=0.5, trace_empty_poll_enabled=False)
-    ):
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
-        producer.flush()
-
-
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_analytics_without_rate(producer, consumer, kafka_topic):
-    with override_config("kafka", dict(analytics_enabled=True, trace_empty_poll_enabled=False)):
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
-        producer.flush()
-
-
 def retry_until_not_none(factory):
     for _ in range(10):
         x = factory()

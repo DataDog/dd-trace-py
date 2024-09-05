@@ -6,7 +6,6 @@ import pymongo
 
 # project
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.internal.pymongo.client import normalize_filter
 from ddtrace.contrib.internal.pymongo.patch import _CHECKOUT_FN_NAME
 from ddtrace.contrib.pymongo.patch import patch
@@ -336,35 +335,6 @@ class PymongoCore(object):
         )
 
         assert expected_resources == {s.resource for s in spans[1:]}
-
-    def test_analytics_default(self):
-        tracer, client = self.get_tracer_and_client()
-        db = client["testdb"]
-        db.drop_collection("songs")
-
-        spans = tracer.pop()
-        assert len(spans) == 1
-        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-    def test_analytics_with_rate(self):
-        with TracerTestCase.override_config("pymongo", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            tracer, client = self.get_tracer_and_client()
-            db = client["testdb"]
-            db.drop_collection("songs")
-
-            spans = tracer.pop()
-            assert len(spans) == 1
-            assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
-
-    def test_analytics_without_rate(self):
-        with TracerTestCase.override_config("pymongo", dict(analytics_enabled=True)):
-            tracer, client = self.get_tracer_and_client()
-            db = client["testdb"]
-            db.drop_collection("songs")
-
-            spans = tracer.pop()
-            assert len(spans) == 1
-            assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
     def test_rowcount(self):
         tracer, client = self.get_tracer_and_client()

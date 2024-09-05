@@ -10,7 +10,6 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace._trace.context import Context
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
@@ -513,78 +512,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
             assert run_span.service == "task-queue"
 
-    def test_worker_analytics_default(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure worker analytics sample rate is disabled by default
-        t = fn_task.apply()
-        self.assertTrue(t.successful())
-        self.assertEqual(42, t.result)
-
-        traces = self.pop_traces()
-        self.assertEqual(1, len(traces))
-        self.assertEqual(1, len(traces[0]))
-        span = traces[0][0]
-        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_worker_analytics_with_rate(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure worker analytics sample rate can be changed via
-        # configuration object
-        with self.override_config("celery", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            t = fn_task.apply()
-            self.assertTrue(t.successful())
-            self.assertEqual(42, t.result)
-
-            traces = self.pop_traces()
-            self.assertEqual(1, len(traces))
-            self.assertEqual(1, len(traces[0]))
-            span = traces[0][0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_worker_analytics_without_rate(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure worker analytics is 1.0 by default when enabled
-        # configuration object
-        with self.override_config("celery", dict(analytics_enabled=True)):
-            t = fn_task.apply()
-            self.assertTrue(t.successful())
-            self.assertEqual(42, t.result)
-
-            traces = self.pop_traces()
-            self.assertEqual(1, len(traces))
-            self.assertEqual(1, len(traces[0]))
-            span = traces[0][0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
-
-    def test_producer_analytics_default(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure producer analytics sample rate is disabled by default
-        t = fn_task.delay()
-        assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-
-        traces = self.pop_traces()
-
-        if self.ASYNC_USE_CELERY_FIXTURES:
-            self.assertEqual(2, len(traces))
-        else:
-            self.assertEqual(1, len(traces))
-
-        for trace in traces:
-            self.assertEqual(1, len(trace))
-            self.assertIsNone(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
     def test_trace_in_task(self):
         @self.app.task
         def fn_task():
@@ -610,50 +537,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_trace[0].name == "celery.run"
         assert run_trace[1].name == "test"
         assert run_trace[1].parent_id == run_trace[0].span_id
-
-    def test_producer_analytics_with_rate(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure producer analytics sample rate can be changed via
-        # configuration object
-        with self.override_config("celery", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            t = fn_task.delay()
-            assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-
-            traces = self.pop_traces()
-
-            if self.ASYNC_USE_CELERY_FIXTURES:
-                self.assertEqual(2, len(traces))
-            else:
-                self.assertEqual(1, len(traces))
-
-            for trace in traces:
-                self.assertEqual(1, len(trace))
-                self.assertEqual(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_producer_analytics_without_rate(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure producer analytics is 1.0 by default when enabled
-        # configuration object
-        with self.override_config("celery", dict(analytics_enabled=True)):
-            t = fn_task.delay()
-            assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-
-            traces = self.pop_traces()
-
-            if self.ASYNC_USE_CELERY_FIXTURES:
-                self.assertEqual(2, len(traces))
-            else:
-                self.assertEqual(1, len(traces))
-
-            for trace in traces:
-                self.assertEqual(1, len(trace))
-                self.assertEqual(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_fn_task_apply_async_ot(self):
         """OpenTracing version of test_fn_task_apply_async."""

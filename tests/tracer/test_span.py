@@ -10,7 +10,6 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import Span
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -293,31 +292,31 @@ class SpanTestCase(TracerTestCase):
     @mock.patch("ddtrace._trace.span.log")
     def test_numeric_tags_none(self, span_log):
         s = Span(name="test.span")
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
+        s.set_tag("noneval", None)
         assert len(s.get_metrics()) == 0
 
         # Ensure we log a debug message
         span_log.debug.assert_called_once_with(
             "ignoring not number metric %s:%s",
-            ANALYTICS_SAMPLE_RATE_KEY,
+            "noneval",
             None,
         )
 
     def test_numeric_tags_true(self):
         s = Span(name="test.span")
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, True)
-        expected = {ANALYTICS_SAMPLE_RATE_KEY: 1.0}
+        s.set_tag("gonnabetrue", True)
+        expected = {"gonnabetrue": 1.0}
         assert s.get_metrics() == expected
 
     def test_numeric_tags_value(self):
         s = Span(name="test.span")
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, 0.5)
-        expected = {ANALYTICS_SAMPLE_RATE_KEY: 0.5}
+        s.set_tag("point5", 0.5)
+        expected = {"point5": 0.5}
         assert s.get_metrics() == expected
 
     def test_numeric_tags_bad_value(self):
         s = Span(name="test.span")
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, "Hello")
+        s.set_tag("somestring", "Hello")
         assert len(s.get_metrics()) == 0
 
     def test_set_tag_none(self):

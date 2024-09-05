@@ -7,7 +7,6 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -265,41 +264,6 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_client_span(spans[0], "grpc1", "SayHello", "unary")
         self._check_server_span(spans[3], "grpc-server", "SayHello", "unary")
         self._check_client_span(spans[2], "grpc2", "SayHello", "unary")
-
-    def test_analytics_default(self):
-        with grpc.secure_channel("localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
-            stub = HelloStub(channel)
-            stub.SayHello(HelloRequest(name="test"))
-
-        spans = self.get_spans_with_sync_and_assert(size=2)
-        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-        assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-    def test_analytics_with_rate(self):
-        with self.override_config("grpc_server", dict(analytics_enabled=True, analytics_sample_rate=0.75)):
-            with self.override_config("grpc", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                with grpc.secure_channel(
-                    "localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)
-                ) as channel:
-                    stub = HelloStub(channel)
-                    stub.SayHello(HelloRequest(name="test"))
-
-        spans = self.get_spans_with_sync_and_assert(size=2)
-        assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.75
-        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
-
-    def test_analytics_without_rate(self):
-        with self.override_config("grpc_server", dict(analytics_enabled=True)):
-            with self.override_config("grpc", dict(analytics_enabled=True)):
-                with grpc.secure_channel(
-                    "localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)
-                ) as channel:
-                    stub = HelloStub(channel)
-                    stub.SayHello(HelloRequest(name="test"))
-
-        spans = self.get_spans_with_sync_and_assert(size=2)
-        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
-        assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
     def test_server_stream(self):
         # use an event to signal when the callbacks have been called from the response
