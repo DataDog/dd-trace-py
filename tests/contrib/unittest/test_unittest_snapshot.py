@@ -42,7 +42,7 @@ SNAPSHOT_IGNORES_GITLAB = [
     "meta.ci.pipeline.url",
     "meta.ci.provider.name",
     "meta.ci.stage.name",
-    "meta.ci.workspace.path",
+    "meta.ci.workspace_path",
     "meta.git.branch",
     "meta.git.commit.author.date",
     "meta.git.commit.author.email",
