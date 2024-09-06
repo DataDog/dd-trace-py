@@ -83,7 +83,8 @@ def _is_libdd_required(config):
     # v2 requires libdd because it communicates over a pure-native channel
     # libdd... requires libdd
     # injected environments _cannot_ deploy protobuf, so they must use libdd
-    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected
+    # timeline requires libdd
+    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected or config.timeline_enabled
 
 
 # This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
