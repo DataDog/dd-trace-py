@@ -57,15 +57,17 @@ def trace_mongo_client_init(func, args, kwargs):
         client._topology = TracedTopology(client._topology)
 
     def __setddpin__(client, pin):
-        pin.onto(client._topology)
+        pin.onto(client._topology.__wrapped__)
 
     def __getddpin__(client):
-        return ddtrace.Pin.get_from(client._topology)
+        return ddtrace.Pin.get_from(client._topology.__wrapped__)
 
+    # Set a pin on the mongoclient pin on the topology object
+    # This allows us to pass the same pin to the server objects
     client.__setddpin__ = functools.partial(__setddpin__, client)
     client.__getddpin__ = functools.partial(__getddpin__, client)
 
-    # Default Pin
+    # Set a pin on the traced mongo client
     ddtrace.Pin(service=_DEFAULT_SERVICE).onto(client)
 
 
@@ -101,14 +103,13 @@ class TracedMongoClient(ObjectProxy):
         if not isinstance(client._topology, TracedTopology):
             client._topology = TracedTopology(client._topology)
 
-        # Default Pin
-        ddtrace.Pin(service=_DEFAULT_SERVICE).onto(self)
+        ddtrace.Pin(service=_DEFAULT_SERVICE).onto(self.__wrapped__)
 
     def __setddpin__(self, pin):
-        pin.onto(self._topology)
+        pin.onto(self._topology.__wrapped__)
 
     def __getddpin__(self):
-        return ddtrace.Pin.get_from(self._topology)
+        return ddtrace.Pin.get_from(self._topology.__wrapped__)
 
 
 @contextlib.contextmanager
@@ -141,8 +142,9 @@ class TracedTopology(ObjectProxy):
         s = self.__wrapped__.select_server(*args, **kwargs)
         if not isinstance(s, TracedServer):
             s = TracedServer(s)
-        # Reattach the pin every time in case it changed since the initial patching
-        ddtrace.Pin.get_from(self).onto(s)
+        # Ensure the pin used on the traced mongo client is passed down to the topology instance
+        # This allows us to pass the same pin in traced server objects.
+        ddtrace.Pin.get_from(self.__wrapped__).onto(s.__wrapped__)
         return s
 
 
@@ -159,7 +161,8 @@ class TracedServer(ObjectProxy):
             except Exception:
                 log.exception("error parsing query")
 
-        pin = ddtrace.Pin.get_from(self)
+        # Gets the pin from the mogno client (through the topology object)
+        pin = ddtrace.Pin.get_from(self.__wrapped__)
         # if we couldn't parse or shouldn't trace the message, just go.
         if not cmd or not pin or not pin.enabled():
             return None
@@ -197,7 +200,9 @@ class TracedServer(ObjectProxy):
             with self.__wrapped__.checkout(*args, **kwargs) as s:
                 if not isinstance(s, TracedSocket):
                     s = TracedSocket(s)
-                ddtrace.Pin.get_from(self).onto(s)
+                # Ensure the pin used on the traced mongo client is passed down to the socket instance
+                # (via the server instance)
+                ddtrace.Pin.get_from(self.__wrapped__).onto(s.__wrapped__)
                 yield s
 
     else:
@@ -207,7 +212,9 @@ class TracedServer(ObjectProxy):
             with self.__wrapped__.get_socket(*args, **kwargs) as s:
                 if not isinstance(s, TracedSocket):
                     s = TracedSocket(s)
-                ddtrace.Pin.get_from(self).onto(s)
+                # Ensure the pin used on the traced mongo client is passed down to the socket instance
+                # (via the server instance)
+                ddtrace.Pin.get_from(self.__wrapped__).onto(s.__wrapped__)
                 yield s
 
     if VERSION >= (3, 12, 0):
@@ -281,7 +288,7 @@ class TracedSocket(ObjectProxy):
         except Exception:
             log.exception("error parsing spec. skipping trace")
 
-        pin = ddtrace.Pin.get_from(self)
+        pin = ddtrace.Pin.get_from(self.__wrapped__)
         # skip tracing if we don't have a piece of data we need
         if not dbname or not cmd or not pin or not pin.enabled():
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
@@ -298,7 +305,7 @@ class TracedSocket(ObjectProxy):
         except Exception:
             log.exception("error parsing msg")
 
-        pin = ddtrace.Pin.get_from(self)
+        pin = ddtrace.Pin.get_from(self.__wrapped__)
         # if we couldn't parse it, don't try to trace it.
         if not cmd or not pin or not pin.enabled():
             return self.__wrapped__.write_command(*args, **kwargs)
@@ -310,7 +317,7 @@ class TracedSocket(ObjectProxy):
             return result
 
     def __trace(self, cmd):
-        pin = ddtrace.Pin.get_from(self)
+        pin = ddtrace.Pin.get_from(self.__wrapped__)
         s = pin.tracer.trace(
             schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
             span_type=SpanTypes.MONGODB,

@@ -54,8 +54,6 @@ def unpatch():
 
 
 def patch_pymongo_module():
-    Pin().onto(pymongo.server.Server)
-
     # Whenever a pymongo command is invoked, the lib either:
     # - Creates a new socket & performs a TCP handshake
     # - Grabs a socket already initialized before
@@ -71,7 +69,7 @@ def unpatch_pymongo_module():
 @contextlib.contextmanager
 def traced_get_socket(func, args, kwargs):
     instance = get_argument_value(args, kwargs, 0, "self")
-    pin = Pin._find(func, instance)
+    pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         with func(*args, **kwargs) as sock_info:
             yield sock_info
