@@ -11,7 +11,6 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import threading as collector_threading
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
-from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
 
@@ -676,15 +675,7 @@ class TestThreadingLockCollector:
 
     def test_global_locks(self):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
-            from importlib import reload
-
             from tests.profiling.collector import global_locks
-
-            # Force reload global_locks to ensure that the locks are patched
-            # with the collector with export_libdd_enabled. This is special
-            # for this test case because the global_locks module is also
-            # imported in a test case that doesn't have export_libdd_enabled.
-            global_locks = reload(global_locks)
 
             global_locks.foo()
             global_locks.bar_instance.bar()

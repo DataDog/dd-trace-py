@@ -576,7 +576,6 @@ def test_anonymous_lock():
 )
 def test_wrapt_disable_extensions():
     import os
-    import sys
     import threading
 
     from ddtrace.profiling import recorder
