@@ -210,9 +210,8 @@ class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):
 
     def get_tracer_and_connect(self):
         tracer = DummyTracer()
-        Pin.get_from(mongoengine.connect).clone(tracer=tracer).onto(mongoengine.connect)
-        mongoengine.connect(port=MONGO_CONFIG["port"])
-
+        client = mongoengine.connect(port=MONGO_CONFIG["port"])
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
         return tracer
 
 
