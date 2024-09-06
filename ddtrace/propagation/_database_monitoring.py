@@ -77,7 +77,7 @@ class _DBM_Propagator(object):
         # run sampling before injection to propagate correct sampling priority
         if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
             if dbspan.context.sampling_priority is None:
-                ddtrace.tracer.sample(dbspan._local_root)
+                ddtrace.tracer.sample(dbspan.local_root)
         else:
             log.error("ddtrace.tracer.sample is not available, unable to sample span.")
 

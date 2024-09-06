@@ -80,7 +80,7 @@ class SetHttpMeta(Scenario):
             data["request_headers"][self.ip_header] = "8.8.8.8"
 
         span = utils.gen_span(str("test"))
-        span._local_root = utils.gen_span(str("root"))
+        span.local_root = utils.gen_span(str("root"))
 
         def bm(loops):
             with utils.override_env(

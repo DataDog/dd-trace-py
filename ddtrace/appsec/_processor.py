@@ -120,7 +120,7 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
             value = value.decode()
         if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            (span._local_root or span).set_tag(_normalize_tag_name(kind, key), value)
+            (span.local_root or span).set_tag(_normalize_tag_name(kind, key), value)
 
 
 def _get_rate_limiter() -> RateLimiter:
@@ -253,7 +253,7 @@ class AppSecSpanProcessor(SpanProcessor):
         span.set_tag_str(RUNTIME_FAMILY, "python")
 
         def waf_callable(custom_data=None, **kwargs):
-            return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
+            return self._waf_action(span.local_root or span, ctx, custom_data, **kwargs)
 
         _asm_request_context.set_waf_callback(waf_callable)
         _asm_request_context.add_context_callback(_set_waf_request_metrics)
@@ -352,7 +352,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # FingerPrinting
         for key, value in waf_results.derivatives.items():
             if key.startswith(FINGERPRINTING.PREFIX):
-                (span._local_root or span).set_tag_str(key, value)
+                (span.local_root or span).set_tag_str(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)

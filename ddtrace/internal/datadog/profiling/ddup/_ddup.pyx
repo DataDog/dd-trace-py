@@ -59,7 +59,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_task_id(Sample *sample, int64_t task_id)
     void ddup_push_task_name(Sample *sample, string_view task_name)
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
-    void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
+    void ddup_pushlocal_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
     void ddup_push_trace_resource_container(Sample *sample, string_view trace_resource_container)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
@@ -276,15 +276,15 @@ cdef class SampleHandle:
             return
         if span.span_id:
             ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span.span_id))
-        if not span._local_root:
+        if not span.local_root:
             return
-        if span._local_root.span_id:
-            ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
-        if span._local_root.span_type:
-            span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
+        if span.local_root.span_id:
+            ddup_pushlocal_root_span_id(self.ptr, clamp_to_uint64_unsigned(span.local_root.span_id))
+        if span.local_root.span_type:
+            span_type_bytes = ensure_binary_or_empty(span.local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
         if endpoint_collection_enabled:
-            root_resource_bytes = ensure_binary_or_empty(span._local_root.resource)
+            root_resource_bytes = ensure_binary_or_empty(span.local_root.resource)
             ddup_push_trace_resource_container(
                     self.ptr,
                     string_view(<const char*>root_resource_bytes, len(root_resource_bytes))

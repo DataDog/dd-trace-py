@@ -260,7 +260,7 @@ class LangChainIntegration(BaseLLMIntegration):
             except (TypeError, IndexError):
                 log.warning("Failed to write output vectors", output_embedding)
 
-    def _set_base_span_tags(  # type: ignore[override]
+    def _set_BaseSpan_tags(  # type: ignore[override]
         self,
         span: Span,
         interface_type: str = "",

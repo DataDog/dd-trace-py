@@ -25,6 +25,8 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.span import BaseSpan
+from ddtrace._trace.span import NonRecordingSpan
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import ENV_KEY
@@ -413,7 +415,7 @@ class Tracer(object):
             # instead of returning None, we are now returning a new Context
             return Context()
 
-    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
+    def get_log_correlation_context(self, active: Optional[Union[Context, BaseSpan]] = None) -> Dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.
         Generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
@@ -731,13 +733,13 @@ class Tracer(object):
     def _start_span_after_shutdown(
         self,
         name: str,
-        child_of: Optional[Union[Span, Context]] = None,
+        child_of: Optional[Union[BaseSpan, Context]] = None,
         service: Optional[str] = None,
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
         activate: bool = False,
         span_api: str = SPAN_API_DATADOG,
-    ) -> Span:
+    ) -> BaseSpan:
         log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
         return self._start_span(name, child_of, service, resource, span_type, activate, span_api)
 
@@ -856,10 +858,10 @@ class Tracer(object):
             # Extra attributes when from a local parent
             if parent:
                 span._parent = parent
-                span._local_root = parent._local_root
+                span.local_root = parent.local_root
 
-            if span._local_root is None:
-                span._local_root = span
+            if span.local_root is None:
+                span.local_root = span
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
@@ -876,7 +878,7 @@ class Tracer(object):
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
             )
-            span._local_root = span
+            span.local_root = span
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
 
@@ -920,7 +922,7 @@ class Tracer(object):
 
     start_span = _start_span
 
-    def _on_span_finish(self, span: Span) -> None:
+    def _on_span_finish(self, span: BaseSpan) -> None:
         active = self.current_span()
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
@@ -1005,7 +1007,7 @@ class Tracer(object):
             span_api=span_api,
         )
 
-    def current_root_span(self) -> Optional[Span]:
+    def current_root_span(self) -> Optional[BaseSpan]:
         """Returns the root span of the current execution.
 
         This is useful for attaching information related to the trace as a
@@ -1021,18 +1023,34 @@ class Tracer(object):
         """
         span = self.current_span()
         if span is None:
-            return None
-        return span._local_root
+            log.error("No active span found. Returning a NonRecordingSpan to avoid potential crash.")
+            return NonRecordingSpan()
+        return span.local_root
 
-    def current_span(self) -> Optional[Span]:
+    def current_span(self) -> BaseSpan:
         """Return the active span in the current execution context.
 
         Note that there may be an active span represented by a context object
         (like from a distributed trace) which will not be returned by this
         method.
         """
+
+        deprecate(
+            "tracer.current_span() is deprecated and will be removed.",
+            message="""tracer.current_span() is deprecated and will be removed.
+            Please use tracer.get_current_span() instead.""",
+            category=DDTraceDeprecationWarning,
+        )
+
         active = self.context_provider.active()
-        return active if isinstance(active, Span) else None
+        return active if isinstance(active, Span) else NonRecordingSpan()
+
+    def get_current_span(self) -> BaseSpan:
+        """This is the new method (Otel) that will replace the current_span method.
+        Return the active span in the current execution context.
+        """
+        active = self.context_provider.active()
+        return active if isinstance(active, Span) else NonRecordingSpan()
 
     @property
     def agent_trace_url(self) -> Optional[str]:

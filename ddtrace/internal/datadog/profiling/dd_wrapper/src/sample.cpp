@@ -276,7 +276,7 @@ Datadog::Sample::push_span_id(uint64_t span_id)
 }
 
 bool
-Datadog::Sample::push_local_root_span_id(uint64_t local_root_span_id)
+Datadog::Sample::pushlocal_root_span_id(uint64_t local_root_span_id)
 {
     const int64_t recoded_id =
       reinterpret_cast<int64_t&>(local_root_span_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)

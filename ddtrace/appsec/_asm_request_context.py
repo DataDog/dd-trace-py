@@ -123,7 +123,7 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 def flush_waf_triggers(env: ASM_Environment) -> None:
     if not env.span:
         return
-    root_span = env.span._local_root or env.span
+    root_span = env.span.local_root or env.span
     if env.waf_triggers:
         report_list = get_triggers(root_span)
         if report_list is not None:
@@ -523,7 +523,7 @@ def _on_set_request_tags(request, span, flask_config):
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
 
-        if not AppSecIastSpanProcessor.is_span_analyzed(span._local_root or span):
+        if not AppSecIastSpanProcessor.is_span_analyzed(span.local_root or span):
             return
 
         request.cookies = taint_structure(

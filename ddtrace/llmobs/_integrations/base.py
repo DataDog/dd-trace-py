@@ -106,7 +106,7 @@ class BaseLLMIntegration:
         self._log_writer.start()
 
     @abc.abstractmethod
-    def _set_base_span_tags(self, span: Span, **kwargs) -> None:
+    def _set_BaseSpan_tags(self, span: Span, **kwargs) -> None:
         """Set default LLM span attributes when possible."""
         pass
 
@@ -123,7 +123,7 @@ class BaseLLMIntegration:
         )
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
-        self._set_base_span_tags(span, **kwargs)
+        self._set_BaseSpan_tags(span, **kwargs)
         if submit_to_llmobs and self.llmobs_enabled:
             span.span_type = SpanTypes.LLM
             if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:

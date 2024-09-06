@@ -77,7 +77,7 @@ def _expected_llmobs_llm_span_event(
     error_message: error message
     error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(
+    span_event = _llmobs_BaseSpan_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
     )
     meta_dict = {"input": {}, "output": {}}
@@ -138,7 +138,7 @@ def _expected_llmobs_non_llm_span_event(
     error_message: error message
     error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(
+    span_event = _llmobs_BaseSpan_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
     )
     meta_dict = {"input": {}, "output": {}}
@@ -160,7 +160,7 @@ def _expected_llmobs_non_llm_span_event(
     return span_event
 
 
-def _llmobs_base_span_event(
+def _llmobs_BaseSpan_event(
     span,
     span_kind,
     tags=None,

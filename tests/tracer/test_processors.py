@@ -598,9 +598,9 @@ def switch_out_trace_sampling_processor(tracer, sampling_processor):
 def test_endpoint_call_counter_processor():
     """ProfilingSpanProcessor collects information about endpoints for profiling"""
     spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
-    spanA._local_root = spanA
+    spanA.local_root = spanA
     spanB = Span("spanB", resource="b", span_type=SpanTypes.WEB)
-    spanB._local_root = spanB
+    spanB.local_root = spanB
     spanNonWeb = Span("spanNonWeb", resource="c", span_type=SpanTypes.WORKER)
     spanNonLocalRoot = Span("spanNonLocalRoot", resource="d")
 
@@ -621,7 +621,7 @@ def test_endpoint_call_counter_processor():
 def test_endpoint_call_counter_processor_disabled():
     """ProfilingSpanProcessor is disabled by default"""
     spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
-    spanA._local_root = spanA
+    spanA.local_root = spanA
 
     processor = EndpointCallCounterProcessor()
 

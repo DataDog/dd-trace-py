@@ -32,7 +32,7 @@ class EndpointCallCounterProcessor(SpanProcessor):
         # type: (Span) -> None
         if not self._enabled:
             return
-        if span._local_root == span and span.span_type == SpanTypes.WEB:
+        if span.local_root == span and span.span_type == SpanTypes.WEB:
             resource = ensure_text(span.resource, errors="backslashreplace")
             with self._endpoint_counts_lock:
                 self.endpoint_counts[resource] = self.endpoint_counts.get(resource, 0) + 1

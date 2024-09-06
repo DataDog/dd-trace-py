@@ -482,7 +482,7 @@ def test_exception_collection_trace(
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
-    assert e.local_root_span_id == span._local_root.span_id
+    assert e.local_root_span_id == span.local_root.span_id
 
 
 @pytest.fixture
@@ -575,7 +575,7 @@ def test_collect_span_id(tracer_and_collector):
     assert span.span_id == event.span_id
     assert event.trace_resource_container[0] == resource
     assert event.trace_type == span_type
-    assert event.local_root_span_id == span._local_root.span_id
+    assert event.local_root_span_id == span.local_root.span_id
 
 
 def test_collect_span_resource_after_finish(tracer_and_collector):

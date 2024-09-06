@@ -292,8 +292,8 @@ def context_with_data(identifier, parent=None, **kwargs):
 def get_item(data_key, span=None):
     # type: (str, Optional[Span]) -> Optional[Any]
     _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        return span._local_root._get_ctx_item(data_key)
+    if span is not None and span.local_root is not None:
+        return span.local_root.get_ctx_item(data_key)
     else:
         return _CURRENT_CONTEXT.get().get_item(data_key)  # type: ignore
 
@@ -301,8 +301,8 @@ def get_item(data_key, span=None):
 def get_items(data_keys, span=None):
     # type: (List[str], Optional[Span]) -> Optional[Any]
     _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        return [span._local_root._get_ctx_item(key) for key in data_keys]
+    if span is not None and span.local_root is not None:
+        return [span.local_root.get_ctx_item(key) for key in data_keys]
     else:
         return _CURRENT_CONTEXT.get().get_items(data_keys)  # type: ignore
 
@@ -316,8 +316,8 @@ def set_safe(data_key, data_value):
 def set_item(data_key, data_value, span=None):
     # type: (str, Optional[Any], Optional[Span]) -> None
     _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        span._local_root._set_ctx_item(data_key, data_value)
+    if span is not None and span.local_root is not None:
+        span.local_root.set_ctx_item(data_key, data_value)
     else:
         _CURRENT_CONTEXT.get().set_item(data_key, data_value)  # type: ignore
 
@@ -325,7 +325,7 @@ def set_item(data_key, data_value, span=None):
 def set_items(keys_values, span=None):
     # type: (Dict[str, Optional[Any]], Optional[Span]) -> None
     _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        span._local_root._set_ctx_items(keys_values)
+    if span is not None and span.local_root is not None:
+        span.local_root.set_ctx_items(keys_values)
     else:
         _CURRENT_CONTEXT.get().set_items(keys_values)  # type: ignore

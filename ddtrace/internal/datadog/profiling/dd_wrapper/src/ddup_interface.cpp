@@ -224,9 +224,9 @@ ddup_push_span_id(Datadog::Sample* sample, int64_t span_id) // cppcheck-suppress
 }
 
 void
-ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id) // cppcheck-suppress unusedFunction
+ddup_pushlocal_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id) // cppcheck-suppress unusedFunction
 {
-    sample->push_local_root_span_id(local_root_span_id);
+    sample->pushlocal_root_span_id(local_root_span_id);
 }
 
 void

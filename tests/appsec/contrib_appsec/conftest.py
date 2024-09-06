@@ -30,8 +30,8 @@ def root_span(test_spans):
                 return _build_tree(test_spans.spans, span)
         # In case root span is not found, try to find a span with a local root
         for span in test_spans.spans:
-            if span._local_root is not None:
-                return _build_tree(test_spans.spans, span._local_root)
+            if span.local_root is not None:
+                return _build_tree(test_spans.spans, span.local_root)
 
     yield get_root_span
 

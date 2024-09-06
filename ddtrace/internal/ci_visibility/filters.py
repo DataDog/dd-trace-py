@@ -26,7 +26,7 @@ class TraceCiVisibilityFilter(TraceFilter):
         if not trace:
             return trace
 
-        local_root = trace[0]._local_root
+        local_root = trace[0].local_root
         if not local_root or local_root.span_type != SpanTypes.TEST:
             return None
 

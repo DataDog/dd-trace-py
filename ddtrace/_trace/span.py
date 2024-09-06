@@ -1,3 +1,4 @@
+import abc
 import math
 import pprint
 import sys
@@ -90,7 +91,219 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     return "{:032x}".format(large_int)[:16]
 
 
-class Span(object):
+class BaseSpan:
+    """
+    Abstract span that defines the interface for a span.
+    """
+
+    @property
+    @abc.abstractmethod
+    def service(self) -> Optional[str]:
+        """The service name for the span."""
+
+    @service.setter
+    @abc.abstractmethod
+    def service(self, value: Optional[str]) -> None:
+        """Set the service name for the span."""
+
+    @abc.abstractmethod
+    def get_ctx_item(self, key: str) -> Optional[Any]:
+        """Return the given context item or None if it doesn't exist."""
+
+    @abc.abstractmethod
+    def set_ctx_item(self, key: str, value: Any) -> None:
+        """Set a context item on the span."""
+
+    @abc.abstractmethod
+    def set_ctx_items(self, items: Dict[str, Any]) -> None:
+        """Set a dictionary of context items on the span."""
+
+    @property
+    @abc.abstractmethod
+    def resource(self) -> str:
+        """The resource name for the span."""
+
+    @resource.setter
+    @abc.abstractmethod
+    def resource(self, value: str) -> None:
+        """Set the resource name for the span."""
+
+    @property
+    @abc.abstractmethod
+    def local_root(self) -> Optional["BaseSpan"]:
+        """Return the local root span of this span."""
+
+    @local_root.setter
+    @abc.abstractmethod
+    def local_root(self, value: Optional["BaseSpan"]) -> None:
+        """Set the local root span of this span."""
+
+    @property
+    @abc.abstractmethod
+    def metrics(self) -> Dict[str, Any]:
+        """Return all metrics."""
+
+    @metrics.setter
+    @abc.abstractmethod
+    def metrics(self, value: Dict[str, Any]) -> None:
+        """Set a dictionary of metrics on the given span."""
+
+    @property
+    @abc.abstractmethod
+    def start(self) -> float:
+        """The start timestamp in Unix epoch seconds."""
+
+    @start.setter
+    @abc.abstractmethod
+    def start(self, value: Union[int, float]) -> None:
+        """Set the start timestamp in Unix epoch seconds."""
+
+    @property
+    @abc.abstractmethod
+    def finished(self) -> bool:
+        """Check if the span is finished."""
+
+    @finished.setter
+    @abc.abstractmethod
+    def finished(self, value: bool) -> None:
+        """Finishes the span if set to a truthy value.
+
+        If the span is already finished and a truthy value is provided
+        no action will occur.
+        """
+
+    @property
+    @abc.abstractmethod
+    def duration(self) -> float:
+        """The span duration in seconds."""
+
+    @duration.setter
+    @abc.abstractmethod
+    def duration(self, value: float) -> None:
+        """Set the span duration in seconds."""
+
+    @property
+    @abc.abstractmethod
+    def sampled(self) -> Optional[bool]:
+        """Check if the span is sampled."""
+
+    @sampled.setter
+    @abc.abstractmethod
+    def sampled(self, value: bool) -> None:
+        """Set the span sampled status."""
+
+    @abc.abstractmethod
+    def finish(self, finish_time: Optional[float] = None) -> None:
+        """Mark the end time of the span and submit it to the tracer.
+        If the span has already been finished don't do anything.
+
+        :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
+        """
+
+    @abc.abstractmethod
+    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
+        """Set a tag key/value pair on the span.
+
+        Keys must be strings, values must be ``str``-able.
+
+        :param key: Key to use for the tag
+        :type key: str
+        :param value: Value to assign for the tag
+        :type value: ``str``-able value
+        """
+
+    @abc.abstractmethod
+    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+        """
+        Set a tag key/value pair on the span meta_struct
+        Currently it will only be exported with V3/V4 encoding
+        """
+
+    @abc.abstractmethod
+    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+        """Return the given struct or None if it doesn't exist."""
+
+    @abc.abstractmethod
+    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+        """Set a value for a tag. Values are coerced to unicode in Python 2 and
+        str in Python 3, with decoding errors in conversion being replaced with
+        U+FFFD.
+        """
+
+    @abc.abstractmethod
+    def get_tag(self, key: _TagNameType) -> Optional[Text]:
+        """Return the given tag or None if it doesn't exist."""
+
+    @abc.abstractmethod
+    def get_tags(self) -> _MetaDictType:
+        """Return all tags."""
+
+    @abc.abstractmethod
+    def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
+        """Set a dictionary of tags on the given span. Keys and values
+        must be strings (or stringable)
+        """
+
+    @abc.abstractmethod
+    def set_metric(self, key: _TagNameType, value: NumericType) -> None:
+        """This method sets a numeric tag value for the given key."""
+
+    @abc.abstractmethod
+    def set_metrics(self, metrics: _MetricDictType) -> None:
+        """Set a dictionary of metrics on the given span. Keys must be
+        must be strings (or stringable). Values must be numeric.
+        """
+
+    @abc.abstractmethod
+    def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
+        """Return the given metric or None if it doesn't exist."""
+
+    @abc.abstractmethod
+    def get_metrics(self) -> _MetricDictType:
+        """Return all metrics."""
+
+    @abc.abstractmethod
+    def set_traceback(self, limit: Optional[int] = None):
+        """If the current stack has an exception, tag the span with the
+        relevant error info. If not, tag it with the current python stack.
+        """
+
+    @abc.abstractmethod
+    def set_exc_info(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
+    ) -> None:
+        """Tag the span with an error tuple as from `sys.exc_info()`."""
+
+    @property
+    @abc.abstractmethod
+    def context(self) -> Context:
+        """Return the trace context for this span."""
+
+    @abc.abstractmethod
+    def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
+        """Defines a causal relationship between two spans"""
+
+    @abc.abstractmethod
+    def set_link(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Defines a causal relationship between two spans"""
+
+    @abc.abstractmethod
+    def finish_with_ancestors(self) -> None:
+        """Finish this span along with all (accessible) ancestors of this span.
+
+        This method is useful if a sudden program shutdown is required and finishing
+        the trace is desired.
+        """
+
+
+class Span(BaseSpan):
     __slots__ = [
         # Public span attributes
         "service",
@@ -110,7 +323,7 @@ class Span(object):
         "_duration_ns",
         # Internal attributes
         "_context",
-        "_local_root",
+        "local_root",
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
@@ -130,7 +343,7 @@ class Span(object):
         parent_id: Optional[int] = None,
         start: Optional[int] = None,
         context: Optional[Context] = None,
-        on_finish: Optional[List[Callable[["Span"], None]]] = None,
+        on_finish: Optional[List[Callable[["BaseSpan"], None]]] = None,
         span_api: str = SPAN_API_DATADOG,
         links: Optional[List[SpanLink]] = None,
     ) -> None:
@@ -169,7 +382,7 @@ class Span(object):
             return
 
         self.name = name
-        self.service = service
+        self._service = service
         self._resource = [resource or name]
         self.span_type = span_type
         self._span_api = span_api
@@ -199,10 +412,36 @@ class Span(object):
         if links:
             self._links = {link.span_id: link for link in links}
         self._events: List[SpanEvent] = []
-        self._parent: Optional["Span"] = None
+        self._parent: Optional["BaseSpan"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
-        self._local_root: Optional["Span"] = None
+        self._local_root: Optional["BaseSpan"] = None
         self._store: Optional[Dict[str, Any]] = None
+
+    @property
+    def service(self) -> Optional[str]:
+        """The service name for the span."""
+        return self._service
+
+    @service.setter
+    def service(self, value: Optional[str]) -> None:
+        """Set the service name for the span."""
+        self._service = value
+
+    @property
+    def local_root(self) -> Optional["BaseSpan"]:
+        return self._local_root
+
+    @local_root.setter
+    def local_root(self, value: Optional["BaseSpan"]) -> None:
+        self._local_root = value
+
+    @property
+    def metrics(self) -> Dict[str, Any]:
+        return self._metrics
+
+    @metrics.setter
+    def metrics(self, value: Dict[str, Any]) -> None:
+        self._metrics = value
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -224,6 +463,10 @@ class Span(object):
         if not self._store:
             return None
         return self._store.get(key)
+
+    get_ctx_item = _get_ctx_item
+    set_ctx_item = _set_ctx_item
+    set_ctx_items = _set_ctx_items
 
     @property
     def _trace_id_64bits(self) -> int:
@@ -347,10 +590,10 @@ class Span(object):
     def _override_sampling_decision(self, decision: Optional[NumericType]):
         self.context.sampling_priority = decision
         set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
-        if self._local_root:
+        if self.local_root:
             for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
-                if key in self._local_root._metrics:
-                    del self._local_root._metrics[key]
+                if key in self.local_root.metrics:
+                    del self.local_root.metrics[key]
 
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
@@ -674,7 +917,7 @@ class Span(object):
         This method is useful if a sudden program shutdown is required and finishing
         the trace is desired.
         """
-        span: Optional["Span"] = self
+        span: Optional["BaseSpan"] = self
         while span is not None:
             span.finish()
             span = span._parent
@@ -705,32 +948,83 @@ def _is_top_level(span: Span) -> bool:
     Top level meaning the root of the trace or a child span
     whose service is different from its parent.
     """
-    return (span._local_root is span) or (
+    return (span.local_root is span) or (
         span._parent is not None and span._parent.service != span.service and span.service is not None
     )
 
 
-class NonRecordingSpan(object):
+class NonRecordingSpan(BaseSpan):
     def __init__(self, *args, **kwargs):
         self.context = kwargs.pop("context", None)
 
     @property
-    def resource(self) -> None:
+    def local_root(self) -> Optional["BaseSpan"]:
+        return NonRecordingSpan()
+
+    @local_root.setter
+    def local_root(self, value: Optional["BaseSpan"]) -> None:
         pass
+
+    @property
+    def metrics(self) -> Dict[str, Any]:
+        return {}
+
+    @metrics.setter
+    def metrics(self, value: Dict[str, Any]) -> None:
+        pass
+
+    def get_ctx_item(self, key: str) -> Optional[Any]:
+        return None
+
+    @property
+    def service(self) -> Optional[str]:
+        pass
+
+    @service.setter
+    def service(self, value: Optional[str]) -> None:
+        pass
+
+    @property
+    def resource(self) -> str:
+        return ""
 
     @resource.setter
     def resource(self, value: str) -> None:
         pass
 
     @property
-    def finished(self) -> None:
+    def start(self) -> float:
+        return 0.0
+
+    @start.setter
+    def start(self, value: Union[int, float]) -> None:
         pass
+
+    @property
+    def finished(self) -> bool:
+        return False
 
     @finished.setter
     def finished(self, value: bool) -> None:
         pass
 
+    @property
+    def duration(self) -> float:
+        return 0.0
+
+    @duration.setter
+    def duration(self, value: float) -> None:
+        pass
+
     def finish(self, finish_time: Optional[float] = None) -> None:
+        pass
+
+    @property
+    def sampled(self) -> Optional[bool]:
+        pass
+
+    @sampled.setter
+    def sampled(self, value: bool) -> None:
         pass
 
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
@@ -793,6 +1087,12 @@ class NonRecordingSpan(object):
         pass
 
     def finish_with_ancestors(self) -> None:
+        pass
+
+    def set_ctx_item(self, key: str, val: Any) -> None:
+        pass
+
+    def set_ctx_items(self, items: Dict[str, Any]) -> None:
         pass
 
     def __repr__(self) -> str:

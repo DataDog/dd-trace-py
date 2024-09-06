@@ -143,7 +143,7 @@ class Span(OtelSpan):
             # decision is made. Since the default sampling decision is to unsample spans this can result
             # in missing spans. To resolve this issue, a sampling decision must be made the first time
             # the span context is accessed.
-            ddtracer.sample(self._ddspan._local_root or self._ddspan)
+            ddtracer.sample(self._ddspan.local_root or self._ddspan)
 
         if self._ddspan.context.sampling_priority is None:
             tf = TraceFlags.DEFAULT

@@ -120,7 +120,7 @@ def can_capture(span: Span) -> bool:
     # root as "info captured" and return True. If we don't have budget, we mark
     # the root as "info not captured" and return False. If the root is already
     # marked, we return the mark.
-    root = span._local_root
+    root = span.local_root
     if root is None:
         return False
 

@@ -62,7 +62,7 @@ def _dummy_noop_git_client():
 def test_filters_test_spans():
     trace_filter = TraceCiVisibilityFilter(tags={"hello": "world"}, service="test-service")
     root_test_span = Span(name="span1", span_type="test")
-    root_test_span._local_root = root_test_span
+    root_test_span.local_root = root_test_span
     # Root span in trace is a test
     trace = [root_test_span]
     assert trace_filter.process_trace(trace) == trace
@@ -75,7 +75,7 @@ def test_filters_test_spans():
 def test_filters_non_test_spans():
     trace_filter = TraceCiVisibilityFilter(tags={"hello": "world"}, service="test-service")
     root_span = Span(name="span1")
-    root_span._local_root = root_span
+    root_span.local_root = root_span
     # Root span in trace is not a test
     trace = [root_span]
     assert trace_filter.process_trace(trace) is None

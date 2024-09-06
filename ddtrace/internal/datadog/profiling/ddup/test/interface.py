@@ -31,12 +31,12 @@ class Span(object):
         span_id=None,  # type: Optional[int]
         service=None,  # type: Union[None, str, bytes]
         span_type=None,  # type: Union[None, str, bytes]
-        _local_root=None,  # type: Optional[Span]
+        local_root=None,  # type: Optional[Span]
     ):
         self.span_id = span_id
         self.service = service
         self.span_type = span_type
-        self._local_root = _local_root
+        self.local_root = local_root
 
 
 sys.modules["ddtrace._trace.span"].Span = Span
@@ -148,14 +148,14 @@ def SampleTest(value, name, exc_type, lineno, span, endpoint):
     return test
 
 
-def MakeSpan(span_id, service, span_type, add_local_root):
-    return Span(span_id, service, span_type, Span(span_id, service, span_type) if add_local_root else None)
+def MakeSpan(span_id, service, span_type, addlocal_root):
+    return Span(span_id, service, span_type, Span(span_id, service, span_type) if addlocal_root else None)
 
 
 # 13 * 3 * 3 * 5 * 2 * 3 = 7020 tests
 SampleTypeTests = [
-    SampleTest(value, exc_type, name, lineno, MakeSpan(value, name, name, add_local_root), endpoint)
-    for value, exc_type, name, lineno, add_local_root, endpoint in product(
+    SampleTest(value, exc_type, name, lineno, MakeSpan(value, name, name, addlocal_root), endpoint)
+    for value, exc_type, name, lineno, addlocal_root, endpoint in product(
         [
             0,
             -1,
@@ -175,7 +175,7 @@ SampleTypeTests = [
         [None, Exception, ValueError],  # exc_type
         [None, b"name", "name"],  # names
         [-1, 0, 1, 256, 1000],  # lineno
-        [False, True],  # add_local_root
+        [False, True],  # addlocal_root
         [None, False, True],  # endpoint
     )
 ]

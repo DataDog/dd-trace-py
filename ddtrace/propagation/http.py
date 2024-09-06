@@ -989,7 +989,7 @@ class HTTPPropagator(object):
 
         if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
             if non_active_span is not None:
-                root_span = non_active_span._local_root
+                root_span = non_active_span.local_root
             else:
                 root_span = ddtrace.tracer.current_root_span()
 

@@ -31,7 +31,7 @@ MODEL = "anthropic.request.model"
 class AnthropicIntegration(BaseLLMIntegration):
     _integration_name = "anthropic"
 
-    def _set_base_span_tags(
+    def _set_BaseSpan_tags(
         self,
         span: Span,
         model: Optional[str] = None,
