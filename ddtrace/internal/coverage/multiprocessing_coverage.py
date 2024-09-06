@@ -19,8 +19,8 @@ import pickle  # nosec: B403  -- pickle is only used to serialize coverage data 
 import typing as t
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)
