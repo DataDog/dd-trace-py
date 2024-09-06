@@ -17,12 +17,12 @@ from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
-from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISourceFileInfo
-from ddtrace.ext.ci_visibility.api import CISuiteId
-from ddtrace.ext.ci_visibility.api import CITestId
-from ddtrace.ext.ci_visibility.api import CITestStatus
-from ddtrace.internal.ci_visibility.api.ci_coverage_data import CICoverageData
+from ddtrace.ext.test_visibility._item_ids import TestId
+from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
@@ -33,15 +33,15 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
-class CIVisibilitySessionSettings:
+class TestVisibilitySessionSettings:
     tracer: Tracer
     test_service: str
     test_command: str
@@ -76,8 +76,8 @@ class SPECIAL_STATUS(Enum):
     UNFINISHED = 1
 
 
-CIDT = TypeVar("CIDT", CIModuleId, CISuiteId, CITestId)  # Child item ID types
-ITEMT = TypeVar("ITEMT", bound="CIVisibilityItemBase")  # All item types
+CIDT = TypeVar("CIDT", TestModuleId, TestSuiteId, TestId)  # Child item ID types
+ITEMT = TypeVar("ITEMT", bound="TestVisibilityItemBase")  # All item types
 
 
 def _require_not_finished(func):
@@ -102,23 +102,23 @@ def _require_span(func):
     return wrapper
 
 
-class CIVisibilityItemBase(abc.ABC):
+class TestVisibilityItemBase(abc.ABC):
     _event_type = "unset_event_type"
     _event_type_metric_name = EVENT_TYPES.UNSET
 
     def __init__(
         self,
         name: str,
-        session_settings: CIVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         operation_name: str,
         initial_tags: Optional[Dict[str, Any]] = None,
-        parent: Optional["CIVisibilityParentItem"] = None,
+        parent: Optional["TestVisibilityParentItem"] = None,
         resource: Optional[str] = None,
     ) -> None:
         self.name: str = name
-        self.parent: Optional["CIVisibilityParentItem"] = parent
-        self._status: CITestStatus = CITestStatus.FAIL
-        self._session_settings: CIVisibilitySessionSettings = session_settings
+        self.parent: Optional["TestVisibilityParentItem"] = parent
+        self._status: TestStatus = TestStatus.FAIL
+        self._session_settings: TestVisibilitySessionSettings = session_settings
         self._tracer: Tracer = session_settings.tracer
         self._service: str = session_settings.test_service
         self._operation_name: str = operation_name
@@ -138,8 +138,8 @@ class CIVisibilityItemBase(abc.ABC):
 
         # General purpose attributes not used by all item types
         self._codeowners: Optional[List[str]] = []
-        self._source_file_info: Optional[CISourceFileInfo] = None
-        self._coverage_data: Optional[CICoverageData] = None
+        self._source_file_info: Optional[TestSourceFileInfo] = None
+        self._coverage_data: Optional[TestVisibilityCoverageData] = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"
@@ -162,7 +162,7 @@ class CIVisibilityItemBase(abc.ABC):
 
     def _start_span(self) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
-        parent_span = self.get_parent_span() if isinstance(self, CIVisibilityParentItem) else None
+        parent_span = self.get_parent_span() if isinstance(self, TestVisibilityParentItem) else None
 
         self._span = self._tracer._start_span(
             self._operation_name,
@@ -235,7 +235,7 @@ class CIVisibilityItemBase(abc.ABC):
 
         if self._is_itr_skipped:
             self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
-        self.set_tag(test.ITR_SKIPPED, True)
+        self.set_tag(test.ITR_SKIPPED, self._is_itr_skipped)
 
         self.set_tag(test.ITR_UNSKIPPABLE, self._is_itr_unskippable)
         self.set_tag(test.ITR_FORCED_RUN, self._is_itr_forced_run)
@@ -251,11 +251,11 @@ class CIVisibilityItemBase(abc.ABC):
         pass
 
     @property
-    def _source_file_info(self) -> Optional[CISourceFileInfo]:
+    def _source_file_info(self) -> Optional[TestSourceFileInfo]:
         return self.__source_file_info
 
     @_source_file_info.setter
-    def _source_file_info(self, source_file_info_value: Optional[CISourceFileInfo] = None):
+    def _source_file_info(self, source_file_info_value: Optional[TestSourceFileInfo] = None):
         """This checks that filepaths are absolute when setting source file info"""
         self.__source_file_info = None  # Default value until source_file_info is validated
 
@@ -264,11 +264,11 @@ class CIVisibilityItemBase(abc.ABC):
         if source_file_info_value.path is None:
             # Source file info is invalid if path is None
             return
-        if not isinstance(source_file_info_value, CISourceFileInfo):
-            log.warning("Source file info must be of type CISourceFileInfo")
+        if not isinstance(source_file_info_value, TestSourceFileInfo):
+            log.warning("Source file info must be of type TestSourceFileInfo")
             return
         if not source_file_info_value.path.is_absolute():
-            # Note: this should effectively be unreachable code because the CISourceFileInfoBase class enforces
+            # Note: this should effectively be unreachable code because the TestSourceFileInfoBase class enforces
             # that paths be absolute at creation time
             log.warning("Source file path must be absolute, removing source file info")
             return
@@ -276,13 +276,13 @@ class CIVisibilityItemBase(abc.ABC):
         self.__source_file_info = source_file_info_value
 
     @property
-    def _session_settings(self) -> CIVisibilitySessionSettings:
+    def _session_settings(self) -> TestVisibilitySessionSettings:
         return self.__session_settings
 
     @_session_settings.setter
-    def _session_settings(self, session_settings_value: CIVisibilitySessionSettings) -> None:
-        if not isinstance(session_settings_value, CIVisibilitySessionSettings):
-            raise TypeError("Session settings must be of type CIVisibilitySessionSettings")
+    def _session_settings(self, session_settings_value: TestVisibilitySessionSettings) -> None:
+        if not isinstance(session_settings_value, TestVisibilitySessionSettings):
+            raise TypeError("Session settings must be of type TestVisibilitySessionSettings")
         self.__session_settings = session_settings_value
 
     @abc.abstractmethod
@@ -313,7 +313,7 @@ class CIVisibilityItemBase(abc.ABC):
         raise NotImplementedError("This method must be implemented by the subclass")
 
     def start(self) -> None:
-        log.debug("CI Visibility: starting %s", self)
+        log.debug("Test Visibility: starting %s", self)
 
         if self.is_started():
             if self._session_settings.reject_duplicates:
@@ -332,7 +332,7 @@ class CIVisibilityItemBase(abc.ABC):
 
         Nothing should be called after this method is called.
         """
-        log.debug("CI Visibility: finishing %s", self)
+        log.debug("Test Visibility: finishing %s", self)
 
         self._telemetry_record_event_finished()
         self._finish_span()
@@ -345,15 +345,15 @@ class CIVisibilityItemBase(abc.ABC):
             return None
         return self._span.span_id
 
-    def get_status(self) -> Union[CITestStatus, SPECIAL_STATUS]:
+    def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.is_finished():
             return self._status
         return SPECIAL_STATUS.UNFINISHED
 
-    def get_raw_status(self) -> CITestStatus:
+    def get_raw_status(self) -> TestStatus:
         return self._status
 
-    def set_status(self, status: CITestStatus) -> None:
+    def set_status(self, status: TestStatus) -> None:
         if self.is_finished():
             error_msg = f"Status already set for item {self}"
             log.warning(error_msg)
@@ -449,25 +449,25 @@ class CIVisibilityItemBase(abc.ABC):
         return self._coverage_data.get_data()
 
 
-class CIVisibilityChildItem(CIVisibilityItemBase, Generic[CIDT]):
+class TestVisibilityChildItem(TestVisibilityItemBase, Generic[CIDT]):
     pass
 
 
-CITEMT = TypeVar("CITEMT", bound="CIVisibilityChildItem")
+CITEMT = TypeVar("CITEMT", bound="TestVisibilityChildItem")
 
 
-class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIDT, CITEMT]):
+class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
     def __init__(
         self,
         name: str,
-        session_settings: CIVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         operation_name: str,
         initial_tags: Optional[Dict[str, Any]],
     ) -> None:
         super().__init__(name, session_settings, operation_name, initial_tags)
         self._children: Dict[CIDT, CITEMT] = {}
 
-    def get_status(self) -> Union[CITestStatus, SPECIAL_STATUS]:
+    def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         """Recursively computes status based on all children's status
 
         - FAIL: if any children have a status of FAIL
@@ -482,9 +482,9 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         # We use values because enum entries do not hash stably
         children_status_counts = {
-            CITestStatus.FAIL.value: 0,
-            CITestStatus.SKIP.value: 0,
-            CITestStatus.PASS.value: 0,
+            TestStatus.FAIL.value: 0,
+            TestStatus.SKIP.value: 0,
+            TestStatus.PASS.value: 0,
         }
 
         for child in self._children.values():
@@ -497,18 +497,18 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         log.debug("Children status counts for %s: %s", self, children_status_counts)
 
-        if children_status_counts[CITestStatus.FAIL.value] > 0:
-            return CITestStatus.FAIL
-        if children_status_counts[CITestStatus.SKIP.value] == len(self._children):
-            return CITestStatus.SKIP
+        if children_status_counts[TestStatus.FAIL.value] > 0:
+            return TestStatus.FAIL
+        if children_status_counts[TestStatus.SKIP.value] == len(self._children):
+            return TestStatus.SKIP
         # We can assume the current item passes if not all children are skipped, and there were no failures
-        if children_status_counts[CITestStatus.FAIL.value] == 0:
-            return CITestStatus.PASS
+        if children_status_counts[TestStatus.FAIL.value] == 0:
+            return TestStatus.PASS
 
         # If we somehow got here, something odd happened and we set the status as FAIL out of caution
-        return CITestStatus.FAIL
+        return TestStatus.FAIL
 
-    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None) -> None:
+    def finish(self, force: bool = False, override_status: Optional[TestStatus] = None) -> None:
         """Recursively finish all children and then finish self
 
         An unfinished status is not considered an error condition (eg: some order-randomization plugins may cause
