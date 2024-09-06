@@ -936,10 +936,13 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document in enumerate(documents):
+            if not isinstance(document, tuple):
+                # if not with score add None to tuple
+                document = (document, None)
             span.set_tag_str(
-                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
+                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document[0].page_content))
             )
-            for kwarg_key, v in document.metadata.items():
+            for kwarg_key, v in document[0].metadata.items():
                 span.set_tag_str(
                     "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
                 )
@@ -953,7 +956,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                 "retrieval",
                 span,
                 query,
-                documents,
+                documents,  # can be a list of documents or a list of (document,score) tuples
                 error=bool(span.error),
             )
         span.finish()
@@ -1016,10 +1019,13 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document in enumerate(documents):
+            if not isinstance(document, tuple):
+                # if not with score add None to tuple
+                document = (document, None)
             span.set_tag_str(
-                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
+                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document[0].page_content))
             )
-            for kwarg_key, v in document.metadata.items():
+            for kwarg_key, v in document[0].metadata.items():
                 span.set_tag_str(
                     "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
                 )
@@ -1046,57 +1052,37 @@ def _patch_embeddings_and_vectorstores():
         return
     for text_embedding_model in text_embedding_models:
         if hasattr(base_langchain_module.embeddings, text_embedding_model):
-            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
-            if not isinstance(
-                deep_getattr(base_langchain_module.embeddings, "%s.embed_query" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    base_langchain_module.__name__,
-                    "embeddings.%s.embed_query" % text_embedding_model,
-                    traced_embedding(langchain),
-                )
-            if not isinstance(
-                deep_getattr(base_langchain_module.embeddings, "%s.embed_documents" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    base_langchain_module.__name__,
-                    "embeddings.%s.embed_documents" % text_embedding_model,
-                    traced_embedding(langchain),
-                )
+            embedding_module = getattr(base_langchain_module.embeddings, text_embedding_model)
+            safe_wrap(embedding_module, "embed_query", traced_embedding, langchain)
+            safe_wrap(embedding_module, "embed_documents", traced_embedding, langchain)
+
     for vectorstore in vectorstore_classes:
         if hasattr(base_langchain_module.vectorstores, vectorstore):
-            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
-            if not isinstance(
-                deep_getattr(base_langchain_module.vectorstores, "%s.similarity_search" % vectorstore),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    base_langchain_module.__name__,
-                    "vectorstores.%s.similarity_search" % vectorstore,
-                    traced_similarity_search(langchain),
-                )
-            if not isinstance(
-                deep_getattr(
-                    base_langchain_module.vectorstores, "%s.similarity_search_by_vector_with_score" % vectorstore
-                ),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    base_langchain_module.__name__,
-                    "vectorstores.%s.similarity_search_by_vector_with_score" % vectorstore,
-                    traced_similarity_search_by_vector(langchain),
-                )
-            if not isinstance(
-                deep_getattr(base_langchain_module.vectorstores, "%s.similarity_search_by_vector" % vectorstore),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    base_langchain_module.__name__,
-                    "vectorstores.%s.similarity_search_by_vector" % vectorstore,
-                    traced_similarity_search_by_vector(langchain),
-                )
+            vectorstore_module = getattr(base_langchain_module.vectorstores, vectorstore)
+            safe_wrap(
+                vectorstore_module,
+                "similarity_search",
+                traced_similarity_search,
+                langchain,
+            )
+            safe_wrap(
+                vectorstore_module,
+                "similarity_search_with_score",
+                traced_similarity_search,
+                langchain,
+            )
+            safe_wrap(
+                vectorstore_module,
+                "similarity_search_by_vector_with_score",
+                traced_similarity_search_by_vector,
+                langchain,
+            )
+            safe_wrap(
+                vectorstore_module,
+                "similarity_search_by_vector",
+                traced_similarity_search_by_vector,
+                langchain,
+            )
 
 
 def _unpatch_embeddings_and_vectorstores():
@@ -1109,40 +1095,17 @@ def _unpatch_embeddings_and_vectorstores():
         return
     for text_embedding_model in text_embedding_models:
         if hasattr(base_langchain_module.embeddings, text_embedding_model):
-            if isinstance(
-                deep_getattr(base_langchain_module.embeddings, "%s.embed_query" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_query")
-            if isinstance(
-                deep_getattr(base_langchain_module.embeddings, "%s.embed_documents" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_documents")
+            embedding_module = getattr(base_langchain_module.embeddings, text_embedding_model)
+            safe_unwrap(embedding_module, "embed_query")
+            safe_unwrap(embedding_module, "embed_documents")
+
     for vectorstore in vectorstore_classes:
         if hasattr(base_langchain_module.vectorstores, vectorstore):
-            if isinstance(
-                deep_getattr(base_langchain_module.vectorstores, "%s.similarity_search" % vectorstore),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(getattr(base_langchain_module.vectorstores, vectorstore), "similarity_search")
-            if isinstance(
-                deep_getattr(
-                    base_langchain_module.vectorstores, "%s.similarity_search_by_vector_with_score" % vectorstore
-                ),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(
-                    getattr(base_langchain_module.vectorstores, vectorstore), "similarity_search_by_vector_with_score"
-                )
-            if isinstance(
-                deep_getattr(base_langchain_module.vectorstores, "%s.similarity_search_by_vector" % vectorstore),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(
-                    getattr(base_langchain_module.vectorstores, vectorstore),
-                    "%s.similarity_search_by_vector" % vectorstore,
-                )
+            vectorstore_module = getattr(base_langchain_module.vectorstores, vectorstore)
+            safe_unwrap(vectorstore_module, "similarity_search")
+            safe_unwrap(vectorstore_module, "similarity_search_with_score")
+            safe_unwrap(vectorstore_module, "similarity_search_by_vector")
+            safe_unwrap(vectorstore_module, "similarity_search_by_vector_with_score")
 
 
 def patch():
@@ -1330,3 +1293,21 @@ def with_agent_output_parser(f):
             for name, value in current.items():
                 if hasattr(module, name):
                     queue.append((getattr(module, name), value))
+
+
+def safe_wrap(module_object, func_name, traced_func, fixture):
+    # Ensure that method is implemented and not double patched.
+    attr = deep_getattr(module_object, func_name, None)
+    if attr and not isinstance(attr, wrapt.ObjectProxy):
+        wrap(module_object, func_name, traced_func(fixture))
+    elif attr is None:
+        log.debug("Method %s not found in %s", func_name, module_object.__module__)
+
+
+def safe_unwrap(module_object, func_name):
+    # Ensure that method is implemented and already patched.
+    attr = deep_getattr(module_object, func_name, None)
+    if attr and isinstance(attr, wrapt.ObjectProxy):
+        unwrap(module_object, func_name)
+    elif attr is None:
+        log.debug("Method %s not found in %s", func_name, module_object.__module__)
