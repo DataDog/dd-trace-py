@@ -3,6 +3,14 @@ algoliasearch:
   variables:
     SUITE_NAME: "algoliasearch"
 
+aredis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "aredis$"
+
 asgi:
   extends: .test_base_riot_snapshot
   variables:
@@ -77,6 +85,17 @@ jinja2:
   variables:
     SUITE_NAME: "jinja2"
 
+kafka:
+  extends: .test_base_riot_snapshot
+  parallel: 4
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, kafka]
+  variables:
+    SUITE_NAME: "kafka"
+    TEST_KAFKA_HOST: "kafka"
+    TEST_KAFKA_PORT: "29092"
+
 mako:
   extends: .test_base_riot_snapshot
   variables:
@@ -107,6 +126,34 @@ pyramid:
     # in the lockfile it gets replaced with the absolute path of /root/project/tests/.../pserve_app
     - ln -s "${CI_PROJECT_DIR}" "/root/project"
 
+redis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+    - !reference [.services, rediscluster]
+  parallel: 5
+  variables:
+    SUITE_NAME: "^redis$"
+
+rediscluster:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+    - !reference [.services, rediscluster]
+  variables:
+    SUITE_NAME: "rediscluster"
+
+rq:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "rq"
+  parallel: 2
+
 sanic:
   extends: .test_base_riot_snapshot
   variables:
@@ -132,7 +179,25 @@ tornado:
   variables:
     SUITE_NAME: "tornado"
 
+urllib3:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+  variables:
+    SUITE_NAME: "urllib3"
+    TEST_HTTPBIN_HOST: "httpbin-local"
+    TEST_HTTPBIN_PORT: "8001"
+
 wsgi:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "wsgi"
+
+yaaredis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "yaaredis$"
