@@ -25,6 +25,7 @@ def test_setting_origin_environment(test_agent_session, run_python_code_in_subpr
             "DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
             "DD_TAGS": "team:apm,component:web",
             "DD_TRACE_ENABLED": "true",
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
     out, err, status, _ = run_python_code_in_subprocess(
@@ -88,7 +89,7 @@ config._tracing_enabled = False
 
 from ddtrace.internal.telemetry import telemetry_writer
 # simulate app start event, this occurs when the first span is sent to the datadog agent
-telemetry_writer.app_started()
+telemetry_writer._app_started()
         """,
         env=env,
     )
@@ -133,6 +134,12 @@ telemetry_writer.app_started()
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_remoteconfig_sampling_rate_default(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
+        }
+    )
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -161,7 +168,8 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": None}))
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote config trace sample rate"
-        """
+        """,
+        env=env,
     )
     assert status == 0, err
 
@@ -172,6 +180,12 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
+        }
+    )
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -182,6 +196,7 @@ with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.5
         """,
+        env=env,
     )
     assert status == 0, err
 
@@ -192,6 +207,12 @@ assert span.get_metric("_dd.rule_psr") == 0.5
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_remoteconfig_header_tags_telemetry(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
+        }
+    )
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -211,7 +232,8 @@ with tracer.trace("test") as span:
 assert span.get_tag("header_tag_69") == "foobarbanana"
 assert span.get_tag("header_tag_70") is None
 assert span.get_tag("http.request.headers.used-with-default") == "defaultname"
-        """
+        """,
+        env=env,
     )
     assert status == 0, err
 

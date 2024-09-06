@@ -19,7 +19,7 @@ using the patch method that **must be called before** importing sqlalchemy::
     # Use a PIN to specify metadata related to this engine
     Pin.override(engine, service='replica-db')
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["sqlalchemy", "sqlalchemy.event"]
@@ -34,9 +34,9 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.sqlalchemy.engine import trace_engine
-        from ..internal.sqlalchemy.patch import get_version
-        from ..internal.sqlalchemy.patch import patch
-        from ..internal.sqlalchemy.patch import unpatch
+        from ddtrace.contrib.internal.sqlalchemy.engine import trace_engine
+        from ddtrace.contrib.internal.sqlalchemy.patch import get_version
+        from ddtrace.contrib.internal.sqlalchemy.patch import patch
+        from ddtrace.contrib.internal.sqlalchemy.patch import unpatch
 
         __all__ = ["trace_engine", "patch", "unpatch", "get_version"]
