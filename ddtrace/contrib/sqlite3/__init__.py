@@ -53,7 +53,7 @@ To configure the integration on an per-connection basis use the
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["sqlite3"]
@@ -68,7 +68,7 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.sqlite3.patch import get_version
-        from ..internal.sqlite3.patch import patch
+        from ddtrace.contrib.internal.sqlite3.patch import get_version
+        from ddtrace.contrib.internal.sqlite3.patch import patch
 
         __all__ = ["patch", "get_version"]

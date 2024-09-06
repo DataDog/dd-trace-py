@@ -175,7 +175,8 @@
         ],
         "datastreams": [
             "ddtrace/internal/datastreams/*",
-            "ddtrace/data_streams.py"
+            "ddtrace/data_streams.py",
+            "ddtrace/ext/schema.py"
         ],
         "debugging": [
             "ddtrace/debugging/*",
@@ -441,7 +442,7 @@
         ],
         "openai": [
             "ddtrace/contrib/openai/*",
-            "ddtrace/contrib/internal/openai/*" 
+            "ddtrace/contrib/internal/openai/*"
         ],
         "falcon": [
             "ddtrace/contrib/falcon/*",
@@ -777,6 +778,12 @@
             "@core",
             "@profiling",
             "tests/profiling/*"
+        ],
+        "profile-v2": [
+            "@bootstrap",
+            "@core",
+            "@profiling",
+            "tests/profiling-v2/*"
         ],
         "vendor": [
             "@vendor",

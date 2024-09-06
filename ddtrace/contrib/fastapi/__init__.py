@@ -50,7 +50,7 @@ Example::
     config.fastapi['request_span_name'] = 'custom-request-span-name'
 
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["fastapi"]
@@ -65,8 +65,8 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.fastapi.patch import get_version
-        from ..internal.fastapi.patch import patch
-        from ..internal.fastapi.patch import unpatch
+        from ddtrace.contrib.internal.fastapi.patch import get_version
+        from ddtrace.contrib.internal.fastapi.patch import patch
+        from ddtrace.contrib.internal.fastapi.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]
