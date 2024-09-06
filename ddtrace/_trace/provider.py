@@ -27,14 +27,21 @@ class ContextVarManager:
     the target value within that object.
     """
 
-    def __init__(self, name: str):
-        self._context_var = contextvars.ContextVar[Optional[Union[Context, Span]]](name, default=None)
+    def __init__(self, name: str) -> None:
+        self._context_var = contextvars.ContextVar(name, default=ContextVarWrapper())
 
     def get(self) -> Optional[Union[Context, Span]]:
-        return self._context_var.get()
+        wrapper = self._context_var.get()
+        return wrapper.value
 
     def set(self, value: Optional[Union[Context, Span]]) -> None:
-        self._context_var.set(value)
+        wrapper = self._context_var.get()
+        wrapper.value = value
+
+
+class ContextVarWrapper:
+    def __init__(self) -> None:
+        self.value: Optional[Union[Context, Span]] = None
 
 
 # Initialize the context manager
