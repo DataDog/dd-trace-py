@@ -898,6 +898,9 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
 
 @with_traced_module
 def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
+    """
+    Traces similarity_search and similarity_search_with_score
+    """
     integration = langchain._datadog_integration
     query = get_argument_value(args, kwargs, 0, "query")
     k = kwargs.get("k", args[1] if len(args) >= 2 else None)
