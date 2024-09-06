@@ -36,8 +36,8 @@ Global Configuration
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
-from ..internal.wsgi.wsgi import DDWSGIMiddleware
-from ..internal.wsgi.wsgi import get_version
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+from ddtrace.contrib.internal.wsgi.wsgi import get_version
 
 
 __all__ = ["DDWSGIMiddleware", "get_version"]

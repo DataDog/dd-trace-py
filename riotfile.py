@@ -2719,7 +2719,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} tests/contrib/kafka",
+                    command="pytest {cmdargs} -vv tests/contrib/kafka",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.10"),
@@ -2788,6 +2788,151 @@ venv = Venv(
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
             },
+            pkgs={
+                "gunicorn": latest,
+                #
+                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
+                # See https://github.com/workhorsy/py-cpuinfo/issues/177
+                "pytest-benchmark": latest,
+                "py-cpuinfo": "~=8.0.0",
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                # Python 3.7
+                Venv(
+                    pys="3.7",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==3.8.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                            },
+                        ),
+                    ],
+                ),
+                # Python 3.8 + 3.9
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==3.19.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                            },
+                        ),
+                    ],
+                ),
+                # Python 3.10
+                Venv(
+                    pys="3.10",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==3.19.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                            },
+                            venvs=[
+                                Venv(
+                                    pkgs={
+                                        "gevent": "==21.8.0",
+                                        "greenlet": "==1.1.0",
+                                    }
+                                ),
+                                Venv(
+                                    pkgs={"gevent": latest},
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+                # Python 3.11
+                Venv(
+                    pys="3.11",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==4.22.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                            },
+                            venvs=[
+                                Venv(
+                                    pkgs={"gevent": ["==22.10.2", latest]},
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+                # Python 3.12
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==4.22.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                            },
+                            venvs=[
+                                Venv(
+                                    pkgs={"gevent": ["==23.9.0"]},
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="profile-v2",
+            # NB riot commands that use this Venv must include --pass-env to work properly
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling-v2",  # noqa: E501
+            env={"DD_PROFILING_ENABLE_ASSERTS": "1", "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1"},
             pkgs={
                 "gunicorn": latest,
                 #
