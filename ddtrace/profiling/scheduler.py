@@ -10,7 +10,6 @@ from typing import Sequence  # noqa F401
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
@@ -53,8 +52,6 @@ class Scheduler(periodic.PeriodicService):
         # type: (...) -> None
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
-        # Enable telemetry before the first profile is sent
-        telemetry_writer.app_started()
         if self._export_libdd_enabled:
             ddup.upload()
 
