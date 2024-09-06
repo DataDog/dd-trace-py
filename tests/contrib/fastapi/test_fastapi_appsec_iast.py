@@ -287,6 +287,43 @@ def test_path_param_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.path.parameter"
 
 
+def test_path_source(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/path_source/")
+    async def test_route(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        path = request.url.path
+        ranges_result = get_tainted_ranges(path)
+
+        return JSONResponse(
+            {
+                "result": path,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    # test if asgi middleware is ok without any callback registered
+    core.reset_listeners(event_id="asgi.request.parse.body")
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/path_source/",
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "/path_source/"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 13
+        assert result["ranges_origin"] == "http.request.path"
+
+
 def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html/{param_str}")
     async def test_route(param_str):

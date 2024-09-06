@@ -62,7 +62,7 @@ provided by _mysql_connector, is not supported.
 Help on mysql.connector can be found on:
 https://dev.mysql.com/doc/connector-python/en/
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 # check `mysql-connector` availability
@@ -78,7 +78,7 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.mysql.patch import get_version
-        from ..internal.mysql.patch import patch
+        from ddtrace.contrib.internal.mysql.patch import get_version
+        from ddtrace.contrib.internal.mysql.patch import patch
 
         __all__ = ["patch", "get_version"]

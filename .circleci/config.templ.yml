@@ -934,56 +934,6 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
-  aredis:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'redis'
-          pattern: 'aredis$'
-          snapshot: true
-
-  yaaredis:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'redis'
-          pattern: 'yaaredis$'
-          snapshot: true
-
-  redis:
-    <<: *machine_executor
-    parallelism: 5
-    steps:
-      - run_test:
-          docker_services: 'redis rediscluster'
-          pattern: 'redis$'
-          snapshot: true
-
-  rediscluster:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'rediscluster'
-          docker_services: 'rediscluster'
-          snapshot: true
-
-  rq:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "rq"
-          snapshot: true
-          docker_services: "redis"
-
-  urllib3:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'urllib3'
-          snapshot: true
-          docker_services: "httpbin_local"
-
   aiokafka:
     <<: *machine_executor
     parallelism: 6
@@ -992,16 +942,6 @@ jobs:
           pattern: 'aiokafka$'
           snapshot: true
           docker_services: 'kafka'
-
-  kafka:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: 'kafka'
-          snapshot: true
-          docker_services: 'kafka'
-
   kombu:
     <<: *contrib_job
     docker:
