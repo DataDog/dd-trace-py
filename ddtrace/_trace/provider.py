@@ -25,18 +25,15 @@ class ContextVarManager:
 
     Accordingly, we try to prevent reassoc events when possible by storing a long-lived wrapper object and only setting
     the target value within that object.
+
+    tl;dr: Don't call `set()` on a context var a second time.
     """
 
-    def __init__(self, name: str) -> None:
-        self._context_var = contextvars.ContextVar(name, default=ContextVarWrapper())
-
     def get(self) -> Optional[Union[Context, Span]]:
-        wrapper = self._context_var.get()
-        return wrapper.value
+        return _DD_ACTUAL_CONTEXTVAR.get().value
 
     def set(self, value: Optional[Union[Context, Span]]) -> None:
-        wrapper = self._context_var.get()
-        wrapper.value = value
+        _DD_ACTUAL_CONTEXTVAR.get().value = value
 
 
 class ContextVarWrapper:
@@ -45,7 +42,8 @@ class ContextVarWrapper:
 
 
 # Initialize the context manager
-_DD_CONTEXTVAR = ContextVarManager("datadog_contextvar")
+_DD_ACTUAL_CONTEXTVAR = contextvars.ContextVar[ContextVarWrapper]("datadog_contextvar", default=ContextVarWrapper())
+_DD_CONTEXTVAR = ContextVarManager()
 
 
 class BaseContextProvider(metaclass=abc.ABCMeta):
