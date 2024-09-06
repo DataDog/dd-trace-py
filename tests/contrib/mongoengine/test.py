@@ -156,7 +156,7 @@ class MongoEngineCore(object):
         assert ot_span.parent_id is None
         # dd_span is a child of the pymongo.checkout span, this span is created by the global tracer
         # and is not captured by the DummyTracer. dd_span._parent.parent_id is equal to ot_span.span_id
-        # TODO: Ensure the Pin used to trace pymongo clients and servers pin onto a common object.
+        # TODO(mabdinur): Ensure the Pin used to trace pymongo clients and servers pin onto a common object.
         # assert dd_span.parent_id == ot_span.span_id
 
         assert ot_span.name == "ot_span"
