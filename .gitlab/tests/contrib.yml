@@ -41,14 +41,12 @@ elasticsearch:
   variables:
     SUITE_NAME: "elasticsearch"
     TEST_ELASTICSEARCH_HOST: "elasticsearch"
-    TEST_ELASTICSEARCH_PORT: 9200
     TEST_OPENSEARCH_HOST: "opensearch"
-    TEST_OPENSEARCH_PORT: 9200
   script:
-    - echo "http://${TEST_ELASTICSEARCH_HOST}:${TEST_ELASTICSEARCH_PORT}/"
-    - curl "http://${TEST_ELASTICSEARCH_HOST}:${TEST_ELASTICSEARCH_PORT}/" || true
-    - echo "http://${TEST_OPENSEARCH_HOST}:${TEST_OPENSEARCH_PORT}/"
-    - curl "http://${TEST_OPENSEARCH_HOST}:${TEST_OPENSEARCH_PORT}/" || true
+    - echo "http://${TEST_ELASTICSEARCH_HOST}:9200/"
+    - curl "http://${TEST_ELASTICSEARCH_HOST}:9200/" || true
+    - echo "http://${TEST_OPENSEARCH_HOST}:9201/"
+    - curl "http://${TEST_OPENSEARCH_HOST}:9201/" || true
     - !reference [.test_base_riot_snapshot, script]
 
 falcon:

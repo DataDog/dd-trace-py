@@ -43,6 +43,7 @@
     variables:
       DISABLE_SECURITY_PLUGIN: true
       discovery.type: single-node
+      http.port: 9201
   redis:
     name: registry.ddbuild.io/redis:7.0.7
     alias: redis
