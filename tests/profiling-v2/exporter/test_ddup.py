@@ -1,11 +1,40 @@
+import sys
+
 import pytest
+
+from ddtrace.internal.datadog.profiling import ddup
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_libdd_available():
+    """
+    Tests that the libdd module can be loaded
+    """
+
+    assert ddup.is_available
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_ddup_start():
+    """
+    Tests that the the libdatadog exporter can be enabled
+    """
+
+    try:
+        ddup.config(
+            env="my_env",
+            service="my_service",
+            version="my_version",
+            tags={},
+            url="http://localhost:8126",
+        )
+        ddup.start()
+    except Exception as e:
+        pytest.fail(str(e))
 
 
 @pytest.mark.subprocess(
     env=dict(
-        DD_PROFILING_EXPORT_LIBDD_ENABLED="true",
-        # this is necessary to force enable libdd exporter
-        DD_PROFILING__FORCE_LEGACY_EXPORTER="false",
         DD_TAGS="hello:world",
         DD_PROFILING_TAGS="foo:bar,hello:python",
     )

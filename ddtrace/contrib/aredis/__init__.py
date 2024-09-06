@@ -66,7 +66,7 @@ To configure particular aredis instances use the :class:`Pin <ddtrace.Pin>` API:
         await client.get("my-key")
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["aredis", "aredis.client"]
@@ -80,7 +80,7 @@ with require_modules(required_modules) as missing_modules:
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
 
-        from ..internal.aredis.patch import get_version
-        from ..internal.aredis.patch import patch
+        from ddtrace.contrib.internal.aredis.patch import get_version
+        from ddtrace.contrib.internal.aredis.patch import patch
 
         __all__ = ["patch", "get_version"]

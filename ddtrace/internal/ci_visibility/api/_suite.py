@@ -4,51 +4,51 @@ from typing import List
 from typing import Optional
 
 from ddtrace.ext import test
-from ddtrace.ext.ci_visibility.api import CISourceFileInfo
-from ddtrace.ext.ci_visibility.api import CISuiteId
-from ddtrace.ext.ci_visibility.api import CITestId
-from ddtrace.ext.ci_visibility.api import CITestStatus
-from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
-from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
-from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.ci_coverage_data import CICoverageData
-from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
+from ddtrace.ext.test_visibility._item_ids import TestId
+from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
+from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
+from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
-from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)
 
 
-class CIVisibilitySuite(CIVisibilityParentItem[CITestId, CIVisibilityTest], CIVisibilityChildItem[CISuiteId]):
+class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], TestVisibilityChildItem[TestSuiteId]):
     _event_type = SUITE_TYPE
     _event_type_metric_name = EVENT_TYPES.SUITE
 
     def __init__(
         self,
         name: str,
-        session_settings: CIVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         codeowners: Optional[List[str]] = None,
-        source_file_info: Optional[CISourceFileInfo] = None,
+        source_file_info: Optional[TestSourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
         super().__init__(name, session_settings, session_settings.suite_operation_name, initial_tags)
         self._codeowner = codeowners
         self._source_file_info = source_file_info
 
-        self._coverage_data: CICoverageData = CICoverageData()
+        self._coverage_data: TestVisibilityCoverageData = TestVisibilityCoverageData()
 
     def __repr__(self) -> str:
         module_name = self.parent.name if self.parent is not None else "none"
         return f"{self.__class__.__name__}(name={self.name}, module={module_name})"
 
-    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None) -> None:
+    def finish(self, force: bool = False, override_status: Optional[TestStatus] = None) -> None:
         super().finish(force=force, override_status=override_status)
 
     def finish_itr_skipped(self) -> None:
