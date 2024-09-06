@@ -33,6 +33,27 @@ fastapi:
   variables:
     SUITE_NAME: "fastapi"
 
+urllib3:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+  variables:
+    SUITE_NAME: "urllib3"
+    TEST_HTTPBIN_HOST: "httpbin-local"
+    TEST_HTTPBIN_PORT: "8001"
+
+kafka:
+  extends: .test_base_riot_snapshot
+  parallel: 4
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, kafka]
+  variables:
+    SUITE_NAME: "kafka"
+    TEST_KAFKA_HOST: "kafka"
+    TEST_KAFKA_PORT: "29092"
+
 aredis:
   extends: .test_base_riot_snapshot
   services:
