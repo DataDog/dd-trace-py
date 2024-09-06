@@ -2,8 +2,8 @@
 import time
 
 # 3p
+import sys
 import pymongo
-import pytest
 
 # project
 from ddtrace import Pin
@@ -412,6 +412,27 @@ class PymongoCore(object):
         assert one_row_span.name == "pymongo.cmd"
         assert one_row_span.get_metric("db.row_count") == 1
         assert two_row_span.get_metric("db.row_count") == 2
+    
+
+    def test_patch_pymongo_client_after_import(self):
+        """Ensure that the pymongo integration can be enabled after MongoClient has been imported"""
+        # Ensure that the pymongo integration is not enabled
+        unpatch()
+        assert not getattr(pymongo, "_datadog_patch", False)
+        # Patch the pymongo client after it has been imported
+        from pymongo import MongoClient
+        patch() 
+        assert pymongo._datadog_patch
+        # Use a dummy tracer to verify that the client is traced
+        tracer = DummyTracer()
+        client = MongoClient(port=MONGO_CONFIG["port"])
+        # Ensure the dummy tracer is used to create span in the pymongo integration
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        # Ensure that the client is traced
+        client.server_info()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].name == "pymongo.cmd"
 
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
@@ -844,19 +865,3 @@ class TestPymongoSocketTracing(TracerTestCase):
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])
         assert spans[1].name == "pymongo.cmd"
-
-
-@pytest.mark.snapshot(variants={"pre_45": pymongo.version_tuple < (4, 5), "post_45": pymongo.version_tuple >= (4, 5)})
-def test_patch_pymongo_client_after_import():
-    # Ensure that we can patch a pymongo client after it has been imported
-    assert not getattr(pymongo, "_datadog_patch", False)
-    from pymongo import MongoClient
-
-    try:
-        patch()  # Patch the pymongo client
-        assert pymongo._datadog_patch
-
-        client = MongoClient(port=MONGO_CONFIG["port"])
-        client.server_info()
-    finally:
-        unpatch()

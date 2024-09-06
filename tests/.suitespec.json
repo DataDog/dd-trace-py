@@ -1205,8 +1205,7 @@
             "@tracing",
             "@contrib",
             "@mongo",
-            "tests/contrib/pymongo/*",
-            "tests/snapshots/tests.contrib.pymongo.*"
+            "tests/contrib/pymongo/*"
         ],
         "pynamodb": [
             "@bootstrap",
