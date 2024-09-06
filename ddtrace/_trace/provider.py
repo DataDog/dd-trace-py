@@ -41,7 +41,7 @@ class ContextVarManager:
         """
         Set the context variable, ensuring the value is wrapped appropriately.
         """
-        if self._context_var.get() is None:
+        if self._context_var is None:
             self._context_var = contextvars.ContextVar[Optional[Union[Context, Span]]](self._name, default=value)
         else:
             self._context_var.set(value)
