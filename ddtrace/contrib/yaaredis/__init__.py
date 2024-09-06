@@ -66,7 +66,7 @@ To configure particular yaaredis instances use the :class:`Pin <ddtrace.Pin>` AP
         await client.get("my-key")
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["yaaredis", "yaaredis.client"]
@@ -81,7 +81,7 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.yaaredis.patch import get_version
-        from ..internal.yaaredis.patch import patch
+        from ddtrace.contrib.internal.yaaredis.patch import get_version
+        from ddtrace.contrib.internal.yaaredis.patch import patch
 
         __all__ = ["patch", "get_version"]
