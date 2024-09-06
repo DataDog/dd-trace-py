@@ -42,12 +42,6 @@ elasticsearch:
     SUITE_NAME: "elasticsearch"
     TEST_ELASTICSEARCH_HOST: "elasticsearch"
     TEST_OPENSEARCH_HOST: "opensearch"
-  script:
-    - echo "http://${TEST_ELASTICSEARCH_HOST}:9200/"
-    - curl "http://${TEST_ELASTICSEARCH_HOST}:9200/" || true
-    - echo "http://${TEST_OPENSEARCH_HOST}:9201/"
-    - curl "http://${TEST_OPENSEARCH_HOST}:9201/" || true
-    - !reference [.test_base_riot_snapshot, script]
 
 falcon:
   extends: .test_base_riot_snapshot

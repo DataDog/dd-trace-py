@@ -5,6 +5,8 @@ import sys
 from tests.utils import snapshot
 
 
+SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host"]
+
 code = """
 import datetime
 import os
@@ -50,11 +52,11 @@ def do_test(tmpdir, es_version):
     assert p.returncode == 0
 
 
-@snapshot(async_mode=False)
+@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
 def test_elasticsearch(tmpdir):
     do_test(tmpdir, "elasticsearch")
 
 
-@snapshot(async_mode=False)
+@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
 def test_elasticsearch7(tmpdir):
     do_test(tmpdir, "elasticsearch7")

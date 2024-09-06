@@ -5,6 +5,9 @@ import sys
 from tests.utils import snapshot
 
 
+SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host"]
+
+
 code = """
 import asyncio
 import datetime
@@ -62,16 +65,16 @@ def do_test(tmpdir, es_module, async_class):
     assert p.returncode == 0
 
 
-@snapshot(async_mode=False)
+@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
 def test_elasticsearch(tmpdir):
     do_test(tmpdir, "elasticsearch", "AsyncElasticsearch")
 
 
-@snapshot(async_mode=False)
+@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
 def test_elasticsearch7(tmpdir):
     do_test(tmpdir, "elasticsearch7", "AsyncElasticsearch")
 
 
-@snapshot(async_mode=False)
+@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
 def test_opensearch(tmpdir):
     do_test(tmpdir, "opensearchpy", "AsyncOpenSearch")
