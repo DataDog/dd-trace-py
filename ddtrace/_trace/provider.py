@@ -29,11 +29,21 @@ class ContextVarManager:
     tl;dr: Don't call `set()` on a context var a second time.
     """
 
+    def __init__(self) -> None:
+        pass
+
     def get(self) -> Optional[Union[Context, Span]]:
-        return _DD_ACTUAL_CONTEXTVAR.get().value
+        wrapper = _DD_ACTUAL_CONTEXTVAR.get()
+        if wrapper is None:
+            return None
+        return wrapper.value
 
     def set(self, value: Optional[Union[Context, Span]]) -> None:
-        _DD_ACTUAL_CONTEXTVAR.get().value = value
+        wrapper = _DD_ACTUAL_CONTEXTVAR.get()
+        if wrapper is None:
+            wrapper = ContextVarWrapper()
+            _DD_ACTUAL_CONTEXTVAR.set(wrapper)
+        wrapper.value = value
 
 
 class ContextVarWrapper:
@@ -42,7 +52,7 @@ class ContextVarWrapper:
 
 
 # Initialize the context manager
-_DD_ACTUAL_CONTEXTVAR = contextvars.ContextVar[ContextVarWrapper]("datadog_contextvar", default=ContextVarWrapper())
+_DD_ACTUAL_CONTEXTVAR = contextvars.ContextVar[Optional[ContextVarWrapper]]("datadog_contextvar", default=None)
 _DD_CONTEXTVAR = ContextVarManager()
 
 
