@@ -37,7 +37,7 @@ class Prompt(BaseModel):
 class MetaIO(BaseModel):
     prompt: Optional[Prompt] = None
     value: Optional[str] = None
-    # (TODO): lievan, let Messages and Documents inherit from BaseModel
+    # (TODO(<owner>)): lievan, let Messages and Documents inherit from BaseModel
     documents: Optional[List[DocumentType]] = None
     messages: Optional[List[Dict[str, str]]] = None
 
@@ -60,7 +60,7 @@ class Meta(BaseModel):
     input: MetaIO = MetaIO()
     output: MetaIO = MetaIO()
     metadata: Dict = {}
-    # (TODO) lievan: validate model_* fields are only present on certain span types
+    # (TODO(<owner>)) lievan: validate model_* fields are only present on certain span types
     model_name: str = ""
     model_provider: str = ""
 
