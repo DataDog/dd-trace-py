@@ -975,7 +975,10 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_similarity_search_by_vector_with_score(langchain, pin, func, instance, args, kwargs):
+def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwargs):
+    """
+    Traces similarity_search_by_vector, similarity_search_by_vector_with_score
+    """
     integration = langchain._datadog_integration
     vector = get_argument_value(args, kwargs, 0, "vector")
     k = kwargs.get("k", args[1] if len(args) >= 2 else None)
@@ -1083,7 +1086,16 @@ def _patch_embeddings_and_vectorstores():
                 wrap(
                     base_langchain_module.__name__,
                     "vectorstores.%s.similarity_search_by_vector_with_score" % vectorstore,
-                    traced_similarity_search_by_vector_with_score(langchain),
+                    traced_similarity_search_by_vector(langchain),
+                )
+            if not isinstance(
+                deep_getattr(base_langchain_module.vectorstores, "%s.similarity_search_by_vector" % vectorstore),
+                wrapt.ObjectProxy,
+            ):
+                wrap(
+                    base_langchain_module.__name__,
+                    "vectorstores.%s.similarity_search_by_vector" % vectorstore,
+                    traced_similarity_search_by_vector(langchain),
                 )
 
 
@@ -1122,6 +1134,14 @@ def _unpatch_embeddings_and_vectorstores():
             ):
                 unwrap(
                     getattr(base_langchain_module.vectorstores, vectorstore), "similarity_search_by_vector_with_score"
+                )
+            if isinstance(
+                deep_getattr(base_langchain_module.vectorstores, "%s.similarity_search_by_vector" % vectorstore),
+                wrapt.ObjectProxy,
+            ):
+                unwrap(
+                    getattr(base_langchain_module.vectorstores, vectorstore),
+                    "%s.similarity_search_by_vector" % vectorstore,
                 )
 
 
@@ -1182,7 +1202,12 @@ def patch():
             wrap(
                 "langchain_pinecone",
                 "PineconeVectorStore.similarity_search_by_vector_with_score",
-                traced_similarity_search_by_vector_with_score(langchain),
+                traced_similarity_search_by_vector(langchain),
+            )
+            wrap(
+                "langchain_pinecone",
+                "PineconeVectorStore.similarity_search_by_vector",
+                traced_similarity_search_by_vector(langchain),
             )
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
@@ -1233,6 +1258,7 @@ def unpatch():
         if langchain_pinecone:
             unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
             unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search_by_vector_with_score")
+            unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search_by_vector")
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _unpatch_embeddings_and_vectorstores()
