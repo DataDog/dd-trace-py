@@ -482,7 +482,6 @@ class LLMObs(Service):
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
-        prompt: Optional[Dict] = None,
         tags: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
@@ -524,8 +523,6 @@ class LLMObs(Service):
             log.warning("Cannot annotate a finished span.")
             return
         span_kind = span.get_tag(SPAN_KIND)
-        if prompt:
-            span.set_tag_str("_ml_obs.meta.input.prompt", json.dumps(prompt))
         if not span_kind:
             log.warning("LLMObs span must have a span kind specified.")
             return
