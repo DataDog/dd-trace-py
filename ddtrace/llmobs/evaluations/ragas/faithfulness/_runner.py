@@ -24,7 +24,6 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
 
     def __init__(self, interval: float, writer=None, llmobs_instance=None):
         super(RagasFaithfulnessEvaluationRunner, self).__init__(interval=interval)
-        self.name = "default-evaluation-runner"
         self.llmobs_instance = llmobs_instance
         self._lock = forksafe.RLock()
         self._buffer = []  # type: List[LLMObsSpanContext]
