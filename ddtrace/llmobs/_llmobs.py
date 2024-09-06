@@ -13,7 +13,6 @@ from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
-from ddtrace.internal import telemetry
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -90,7 +89,10 @@ class LLMObs(Service):
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
-        self.tracer.configure(settings={"FILTERS": [self._trace_processor]})
+        tracer_filters = self.tracer._filters
+        if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
+            tracer_filters += [self._trace_processor]
+        self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
         except ServiceStatusError:
@@ -181,10 +183,6 @@ class LLMObs(Service):
                     "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                     "Ensure this configuration is set before running your application."
                 )
-            if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
-                config._telemetry_enabled = False
-                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
-                telemetry.telemetry_writer.disable()
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
