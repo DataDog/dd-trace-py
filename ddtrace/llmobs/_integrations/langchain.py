@@ -309,7 +309,7 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_meta_tags_from_tool(
         self,
         span: Span,
-        tool_inputs: Union[str, Dict[str, object], object],
+        tool_inputs: Dict[str, Any],
         tool_output: object,
         error: bool,
     ) -> None:
