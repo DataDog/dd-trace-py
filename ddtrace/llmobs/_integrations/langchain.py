@@ -21,6 +21,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from .._utils import _unserializable_default_repr
 
 from ..utils import Document
 from .base import BaseLLMIntegration
@@ -323,13 +324,15 @@ class LangChainIntegration(BaseLLMIntegration):
             if tool_inputs.get("info"):
                 metadata["tool_info"] = tool_inputs.get("info")
             if metadata:
-                span.set_tag_str(METADATA, json.dumps(metadata))
+                span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
             try:
                 formatted_input = self.format_io(tool_input)
                 if isinstance(formatted_input, str):
                     span.set_tag_str(INPUT_VALUE, formatted_input)
                 else:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(self.format_io(tool_input)))
+                    span.set_tag_str(
+                        INPUT_VALUE, json.dumps(self.format_io(tool_input), default=_unserializable_default_repr)
+                    )
             except TypeError:
                 log.warning("Failed to serialize tool input data to JSON")
         if error:
@@ -340,7 +343,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 if isinstance(formatted_outputs, str):
                     span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
                 else:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(self.format_io(tool_output)))
+                    span.set_tag_str(
+                        OUTPUT_VALUE, json.dumps(self.format_io(tool_output), default=_unserializable_default_repr)
+                    )
             except TypeError:
                 log.warning("Failed to serialize tool output data to JSON")
 
