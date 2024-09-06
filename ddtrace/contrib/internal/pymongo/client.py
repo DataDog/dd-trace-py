@@ -47,7 +47,6 @@ _DEFAULT_SERVICE = schematize_service_name("pymongo")
 
 
 def trace_mongo_client_init(func, args, kwargs):
-    # Call MongoClient.__init__
     func(*args, **kwargs)
     client = get_argument_value(args, kwargs, 0, "self")
     # The MongoClient attempts to trace all of the network
