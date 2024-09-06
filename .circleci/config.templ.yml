@@ -934,23 +934,6 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
-  urllib3:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'urllib3'
-          snapshot: true
-          docker_services: "httpbin_local"
-
-  kafka:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: 'kafka'
-          snapshot: true
-          docker_services: 'kafka'
-
   kombu:
     <<: *contrib_job
     docker:
