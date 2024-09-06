@@ -90,6 +90,7 @@ def test_patch():
 def test_user_threads_have_native_id():
     from os import getpid
     from threading import Thread
+    from threading import _MainThread
     from threading import current_thread
     from time import sleep
 
