@@ -281,9 +281,9 @@ class LLMObs(Service):
             span.set_tag_str(MODEL_NAME, model_name)
         if model_provider is not None:
             span.set_tag_str(MODEL_PROVIDER, model_provider)
-        if session_id is None:
-            session_id = _get_session_id(span)
-        span.set_tag_str(SESSION_ID, session_id)
+        session_id = session_id if session_id is not None else _get_session_id(span)
+        if session_id is not None:
+            span.set_tag_str(SESSION_ID, session_id)
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
