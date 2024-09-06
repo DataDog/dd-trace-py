@@ -989,16 +989,15 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
 
     tool_output = None
     try:
-        for attribute in ("name", "description", "metadata", "tags"):
+        for attribute in ("name", "description"):
             value = getattr(instance, attribute, None)
-            if isinstance(value, dict):
-                for key, meta_value in value.items():
-                    span.set_tag_str("langchain.request.tool.%s.%s" % (attribute, key), str(value))
-            elif isinstance(value, list):
-                for idx, tag in enumerate(value):
-                    span.set_tag_str("langchain.request.tool.%s.%d" % (attribute, idx), str(value))
-            elif value is not None:
+            if value is not None:
                 span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
+
+        for key, meta_value in getattr(instance, "metadata", {}).items():
+            span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
+        for idx, tag in getattr(instance, "tags", []):
+            span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
 
         if tool_input and integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
@@ -1030,16 +1029,15 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
 
     tool_output = None
     try:
-        for attribute in ("name", "description", "metadata", "tags"):
+        for attribute in ("name", "description"):
             value = getattr(instance, attribute, None)
-            if isinstance(value, dict):
-                for key, meta_value in value.items():
-                    span.set_tag_str("langchain.request.tool.%s.%s" % (attribute, key), str(value))
-            elif isinstance(value, list):
-                for idx, tag in enumerate(value):
-                    span.set_tag_str("langchain.request.tool.%s.%d" % (attribute, idx), str(value))
-            elif value is not None:
+            if value is not None:
                 span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
+
+        for key, meta_value in getattr(instance, "metadata", {}).items():
+            span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
+        for idx, tag in getattr(instance, "tags", []):
+            span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
 
         if tool_input and integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
