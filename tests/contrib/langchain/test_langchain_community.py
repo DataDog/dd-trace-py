@@ -1277,6 +1277,7 @@ def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, requ
 
 
 @pytest.mark.snapshot(
+    # tool description is generated differently is some langchain_core versions
     ignores=["meta.langchain.request.tool.description"],
     token="tests.contrib.langchain.test_langchain_community.test_base_tool_invoke",
 )
@@ -1308,6 +1309,7 @@ def test_base_tool_invoke(langchain_core, request_vcr):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
+    # tool description is generated differently is some langchain_core versions
     ignores=["meta.langchain.request.tool.description"],
     token="tests.contrib.langchain.test_langchain_community.test_base_tool_ainvoke",
 )
