@@ -23,7 +23,7 @@ class ContextVarManager:
     ContextVar storage from a strong to a weak reference. When such objects are de-referenced--as they would be when
     a reassoc from this code forces a clone--it could cause heap corruption or a segmentation fault.
 
-    Accordingly, we try to prevent reassoc events when possible by storing a long-lived wrapper object and ony setting
+    Accordingly, we try to prevent reassoc events when possible by storing a long-lived wrapper object and only setting
     the target value within that object.
     """
 
