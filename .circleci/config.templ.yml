@@ -765,13 +765,6 @@ jobs:
           pattern: 'pytest'
           snapshot: true
 
-  unittest:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'unittest'
-          snapshot: true
-
   pymemcache:
     <<: *contrib_job
     docker:
