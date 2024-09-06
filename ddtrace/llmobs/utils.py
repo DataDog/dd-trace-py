@@ -37,7 +37,7 @@ class Prompt(BaseModel):
 class MetaIO(BaseModel):
     prompt: Optional[Prompt] = None
     value: Optional[str] = None
-    # (TODO): lievan, let Messages and Documents inherit from BaseModel
+    # (TODO(<owner>)): lievan, let Messages and Documents inherit from BaseModel
     documents: Optional[List[DocumentType]] = None
     messages: Optional[List[Dict[str, str]]] = None
 
