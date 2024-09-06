@@ -16,15 +16,15 @@ log = get_logger(__name__)
 
 class ContextVarManager:
     """
-    The underlying implementation for ContextVar involves an immutable data structure (HAMT), the maintenance of which
-    may require de-referecing pointers to Python objects interned in the Context().  Sometimes the lifetimes of those
-    objects are mismanaged, causing them to be GC'd even though the Context() is supposed to hold a strong reference.
+    In the implementation of ContextVar, when a key is re-associated with a new value the underlying HAMT must clone
+    a level of the tree in order to maintain immutability. This operation requires de-referencing pointers to Python
+    objects stored in the Context, which typically includes objects not created or managed by this library. It's
+    possible for such objects to have mis-managed reference counts (speculatively:  in order to convert their
+    ContextVar storage from a strong to a weak reference. When such objects are de-referenced--as they would be when
+    a reassoc from this code forces a clone--it could cause heap corruption or a segmentation fault.
 
-    That situation can cause segmentation faults to originate from this code (even though it's not our fault). In
-    order to get around this, we create a wrapper object that holds a strong reference to the object we want to,
-    which allows us to `set()` the contextvar only once.  Since the issue mainly arises during re-allocation (i.e.,
-    when a key is associated to a new value), this technique should minimize the clone operations arising from
-    this code.
+    Accordingly, we try to prevent reassoc events when possible by storing a long-lived wrapper object and ony setting
+    the target value within that object.
     """
 
     def __init__(self, name: str):
