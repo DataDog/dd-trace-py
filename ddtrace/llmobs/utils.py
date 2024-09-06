@@ -60,7 +60,7 @@ class Meta(BaseModel):
     input: MetaIO = MetaIO()
     output: MetaIO = MetaIO()
     metadata: Dict = {}
-    # (TODO) lievan: validate model_* fields are only present on certain span types
+    # (TODO(<owner>)) lievan: validate model_* fields are only present on certain span types
     model_name: str = ""
     model_provider: str = ""
 
