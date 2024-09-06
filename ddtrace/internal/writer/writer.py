@@ -19,7 +19,6 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -307,8 +306,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
-        # Queues an app-started event before the first ci-visibility/llmobs/trace payload is sent
-        telemetry_writer.app_started()
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:

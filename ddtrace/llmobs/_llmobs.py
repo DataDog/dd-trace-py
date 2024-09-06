@@ -13,7 +13,6 @@ from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
-from ddtrace.internal import telemetry
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -184,10 +183,6 @@ class LLMObs(Service):
                     "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                     "Ensure this configuration is set before running your application."
                 )
-            if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
-                config._telemetry_enabled = False
-                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
-                telemetry.telemetry_writer.disable()
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
@@ -282,9 +277,9 @@ class LLMObs(Service):
             span.set_tag_str(MODEL_NAME, model_name)
         if model_provider is not None:
             span.set_tag_str(MODEL_PROVIDER, model_provider)
-        if session_id is None:
-            session_id = _get_session_id(span)
-        span.set_tag_str(SESSION_ID, session_id)
+        session_id = session_id if session_id is not None else _get_session_id(span)
+        if session_id is not None:
+            span.set_tag_str(SESSION_ID, session_id)
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
