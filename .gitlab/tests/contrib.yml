@@ -140,6 +140,14 @@ molten:
   variables:
     SUITE_NAME: "molten"
 
+pymongo:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, mongo]
+  variables:
+    SUITE_NAME: "pymongo"
+
 pynamodb:
   extends: .test_base_riot_snapshot
   variables:
