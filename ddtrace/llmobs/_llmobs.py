@@ -71,7 +71,7 @@ class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
 
-    def __init__(self, tracer=None, evaluations_enabled=None):
+    def __init__(self, tracer=None, _ragas_faithfulness_enabled=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_span_writer = None
@@ -89,23 +89,17 @@ class LLMObs(Service):
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
 
-        self._evaluations_enabled = []
-        if evaluations_enabled:
-            for evaluation_name in evaluations_enabled:
-                if evaluation_name not in SUPPORTED_LLMOBS_EVALUATIONS:
-                    log.warning("unsupported evaluation runner")
-                    continue
-                else:
-                    self._evaluations_enabled.append(
-                        SUPPORTED_LLMOBS_EVALUATIONS[evaluation_name](
-                            writer=self._llmobs_eval_metric_writer,
-                            llmobs_instance=self,
-                            interval=os.getenv("_DD_LLMOBS_EVALUATION_INTERVAL", 1.0),
-                        )
-                    )
+        if _ragas_faithfulness_enabled:
+            self._ragas_faithfulness_runner = RagasFaithfulnessEvaluationRunner(
+                interval=os.getenv("_DD_LLMOBS_EVALUATION_INTERVAL", 1.0),
+                writer=self._llmobs_eval_metric_writer,
+                llmobs_instance=self,
+            )
+        else:
+            self._ragas_faithfulness_runner = None
 
         self._trace_processor = LLMObsTraceProcessor(
-            self._llmobs_span_writer, evaluations_enabled=self._evaluations_enabled
+            self._llmobs_span_writer, ragas_faithfulness_runner=self._ragas_faithfulness_runner
         )
         forksafe.register(self._child_after_fork)
 
@@ -126,8 +120,8 @@ class LLMObs(Service):
         try:
             self._llmobs_span_writer.start()
             self._llmobs_eval_metric_writer.start()
-            for callback in self._evaluations_enabled:
-                callback.start()
+            if self._ragas_faithfulness_runner:
+                self._ragas_faithfulness_runner.start()
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
@@ -135,8 +129,8 @@ class LLMObs(Service):
         try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
-            for runner in self._evaluations_enabled:
-                runner.stop()
+            if self._ragas_faithfulness_runner:
+                self._ragas_faithfulness_runner.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
@@ -219,12 +213,10 @@ class LLMObs(Service):
         if integrations_enabled:
             cls._patch_integrations()
 
-        evaluations_enabled = []
-        if asbool(os.getenv("DD_LLMOBS_RAGAS_FAITHFULNESS", True)):
-            evaluations_enabled = ["ragas.faithfulness"]
-
         # override the default _instance with a new tracer
-        cls._instance = cls(tracer=_tracer, evaluations_enabled=evaluations_enabled)
+        cls._instance = cls(
+            tracer=_tracer, _ragas_faithfulness_enabled=asbool(os.getenv("DD_LLMOBS_RAGAS_FAITHFULNESS_ENABLED", False))
+        )
         cls.enabled = True
         cls._instance.start()
 

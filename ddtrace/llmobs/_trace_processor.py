@@ -43,9 +43,9 @@ class LLMObsTraceProcessor(TraceProcessor):
     Processor that extracts LLM-type spans in a trace to submit as separate LLMObs span events to LLM Observability.
     """
 
-    def __init__(self, llmobs_span_writer, evaluations_enabled=None):
+    def __init__(self, llmobs_span_writer, ragas_faithfulness_runner=None):
         self._span_writer = llmobs_span_writer
-        self._evaluations_enabled = evaluations_enabled
+        self._ragas_faithfulness_runner = ragas_faithfulness_runner
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -63,9 +63,8 @@ class LLMObsTraceProcessor(TraceProcessor):
             self._span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
-        if span_event is not None:
-            for callback in self._evaluations_enabled:
-                callback.enqueue(span_event)
+        if span_event is not None and self._ragas_faithfulness_runner:
+            self._ragas_faithfulness_runner.enqueue(span_event)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
