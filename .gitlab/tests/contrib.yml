@@ -3,14 +3,6 @@ algoliasearch:
   variables:
     SUITE_NAME: "algoliasearch"
 
-aredis:
-  extends: .test_base_riot_snapshot
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, redis]
-  variables:
-    SUITE_NAME: "aredis$"
-
 asgi:
   extends: .test_base_riot_snapshot
   variables:
@@ -53,6 +45,71 @@ fastapi:
   variables:
     SUITE_NAME: "fastapi"
 
+urllib3:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+  variables:
+    SUITE_NAME: "urllib3"
+    TEST_HTTPBIN_HOST: "httpbin-local"
+    TEST_HTTPBIN_PORT: "8001"
+
+kafka:
+  extends: .test_base_riot_snapshot
+  parallel: 4
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, kafka]
+  variables:
+    SUITE_NAME: "kafka"
+    TEST_KAFKA_HOST: "kafka"
+    TEST_KAFKA_PORT: "29092"
+
+aredis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "aredis$"
+
+yaaredis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "yaaredis$"
+
+redis:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+    - !reference [.services, rediscluster]
+  parallel: 5
+  variables:
+    SUITE_NAME: "^redis$"
+
+rediscluster:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+    - !reference [.services, rediscluster]
+  variables:
+    SUITE_NAME: "rediscluster"
+
+rq:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "rq"
+  parallel: 2
+
 gevent:
   extends: .test_base_riot_snapshot
   variables:
@@ -85,17 +142,6 @@ jinja2:
   variables:
     SUITE_NAME: "jinja2"
 
-kafka:
-  extends: .test_base_riot_snapshot
-  parallel: 4
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, kafka]
-  variables:
-    SUITE_NAME: "kafka"
-    TEST_KAFKA_HOST: "kafka"
-    TEST_KAFKA_PORT: "29092"
-
 mako:
   extends: .test_base_riot_snapshot
   variables:
@@ -126,34 +172,6 @@ pyramid:
     # in the lockfile it gets replaced with the absolute path of /root/project/tests/.../pserve_app
     - ln -s "${CI_PROJECT_DIR}" "/root/project"
 
-redis:
-  extends: .test_base_riot_snapshot
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, redis]
-    - !reference [.services, rediscluster]
-  parallel: 5
-  variables:
-    SUITE_NAME: "^redis$"
-
-rediscluster:
-  extends: .test_base_riot_snapshot
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, redis]
-    - !reference [.services, rediscluster]
-  variables:
-    SUITE_NAME: "rediscluster"
-
-rq:
-  extends: .test_base_riot_snapshot
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, redis]
-  variables:
-    SUITE_NAME: "rq"
-  parallel: 2
-
 sanic:
   extends: .test_base_riot_snapshot
   variables:
@@ -181,28 +199,79 @@ tornado:
 
 unittest:
   extends: .test_base_riot_snapshot
-  variables: 
-    SUITE_NAME: "unittest"
-
-urllib3:
-  extends: .test_base_riot_snapshot
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, httpbin_local]
   variables:
-    SUITE_NAME: "urllib3"
-    TEST_HTTPBIN_HOST: "httpbin-local"
-    TEST_HTTPBIN_PORT: "8001"
+    SUITE_NAME: "unittest"
 
 wsgi:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "wsgi"
 
-yaaredis:
+langchain:
   extends: .test_base_riot_snapshot
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, redis]
+  parallel: 6
   variables:
-    SUITE_NAME: "yaaredis$"
+    SUITE_NAME: "langchain"
+
+anthropic:
+  extends: .test_base_riot_snapshot
+  parallel: 3
+  variables:
+    SUITE_NAME: "anthropic"
+
+loguru:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "loguru"
+
+logbook:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "logbook"
+
+asynctest:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: 'asynctest$'
+
+pytest_v2:
+  extends: .test_base_riot_snapshot
+  parallel: 10
+  variables:
+    SUITE_NAME: 'pytest_plugin_v2'
+
+django_hosts:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: 'django_hosts$'
+
+test_logging:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: 'test_logging'
+
+stdlib:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
+
+llmobs:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "llmobs"
+
+subprocess:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "subprocess"
+
+openai:
+  extends: .test_base_riot_snapshot
+  parallel: 10
+  variables:
+    SUITE_NAME: "openai"
+
+opentracer:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "opentracer"

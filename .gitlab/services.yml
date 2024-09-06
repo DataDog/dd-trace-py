@@ -11,17 +11,20 @@
       DD_REMOTE_CONFIGURATION_KEY: invalid_but_this_is_fine
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
-  elasticsearch:
-    name: registry.ddbuild.io/images/mirror/library/elasticsearch:7.17.23
-    alias: elasticsearch
+  testagent:
+    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.17.0
+    alias: testagent
     variables:
-      discovery.type: single-node
-      xpack.security.enabled: false
-  httpbin_local:
-    name: registry.ddbuild.io/images/mirror/mccutchen/go-httpbin:v2.14.1
-    alias: httpbin-local
-    variables:
-      PORT: 8001
+      LOG_LEVEL: INFO
+      SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
+      SNAPSHOT_CI: 1
+      PORT: 9126
+      DD_POOL_TRACE_CHECK_FAILURES: true
+      DD_DISABLE_ERROR_RESPONSES: true
+      ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
+  redis:
+    name: registry.ddbuild.io/redis:7.0.7
+    alias: redis
   kafka:
     name: registry.ddbuild.io/images/mirror/bitnami/kafka:3.4.1
     alias: kafka
@@ -37,6 +40,20 @@
       KAFKA_CFG_PROCESS_ROLES: controller,broker
       KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+  httpbin_local:
+    name: registry.ddbuild.io/images/mirror/mccutchen/go-httpbin:v2.14.1
+    alias: httpbin-local
+    variables:
+      PORT: 8001
+  rediscluster:
+    name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
+    alias: rediscluster
+  elasticsearch:
+    name: registry.ddbuild.io/images/mirror/library/elasticsearch:7.17.23
+    alias: elasticsearch
+    variables:
+      discovery.type: single-node
+      xpack.security.enabled: false
   opensearch:
     name: registry.ddbuild.io/images/mirror/opensearchproject/opensearch:1.3.13
     alias: opensearch
@@ -44,20 +61,3 @@
       DISABLE_SECURITY_PLUGIN: true
       discovery.type: single-node
       http.port: 9201
-  redis:
-    name: registry.ddbuild.io/redis:7.0.7
-    alias: redis
-  rediscluster:
-    name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
-    alias: rediscluster
-  testagent:
-    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.17.0
-    alias: testagent
-    variables:
-      LOG_LEVEL: INFO
-      SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
-      SNAPSHOT_CI: 1
-      PORT: 9126
-      DD_POOL_TRACE_CHECK_FAILURES: true
-      DD_DISABLE_ERROR_RESPONSES: true
-      ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
