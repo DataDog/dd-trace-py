@@ -73,8 +73,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             with StopWatch() as sw:
                 payload = self._build_payload(self.buffer)
             record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
+            buffer_size = len(self.buffer)
             self._init_buffer()
-            return payload
+            return payload, buffer_size
 
     def _build_payload(self, traces):
         normalized_spans = [self._convert_span(span, trace[0].context.dd_origin) for trace in traces for span in trace]
