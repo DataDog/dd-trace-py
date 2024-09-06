@@ -21,10 +21,10 @@ variables:
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
-# no installer tests for python
 onboarding_tests_installer:
-  rules:
-    - when: never
+  parallel:
+    matrix:
+      - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine-libgcc]
 
 onboarding_tests_k8s_injection:
   parallel:
