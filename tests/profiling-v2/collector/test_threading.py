@@ -83,6 +83,7 @@ def test_patch():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(
     ddtrace_run=True,
+    env=dict(DD_PROFILING_ENABLED="true"),
     err=None,
 )
 def test_user_threads_have_native_id():
