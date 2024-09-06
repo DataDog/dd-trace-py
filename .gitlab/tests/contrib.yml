@@ -179,6 +179,11 @@ tornado:
   variables:
     SUITE_NAME: "tornado"
 
+unittest:
+  extends: .test_base_riot_snapshot
+  variables: 
+    SUITE_NAME: "unittest"
+
 urllib3:
   extends: .test_base_riot_snapshot
   services:

@@ -821,13 +821,6 @@ jobs:
           env: 'pytest_plugin_v2'
           snapshot: true
 
-  unittest:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'unittest'
-          snapshot: true
-
   asynctest:
     executor: ddtrace_dev
     steps:
