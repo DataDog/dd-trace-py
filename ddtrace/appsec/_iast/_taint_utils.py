@@ -539,8 +539,8 @@ def check_tainted_dbapi_args(args, kwargs, tracer, integration_name, method):
 if asm_config._iast_lazy_taint:
     # redefining taint_structure to use lazy object if required
 
-    def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):  # noqa: F811
+    def taint_structure(main_obj, origin_key, origin_value, override_pyobject_tainted=False):  # noqa: F811
         if isinstance(main_obj, abc.Mapping):
-            return LazyTaintDict(main_obj, source_key, source_value, override_pyobject_tainted)
+            return LazyTaintDict(main_obj, (origin_key, origin_value), override_pyobject_tainted)
         elif isinstance(main_obj, abc.Sequence):
-            return LazyTaintList(main_obj, source_key, source_value, override_pyobject_tainted)
+            return LazyTaintList(main_obj, (origin_key, origin_value), override_pyobject_tainted)

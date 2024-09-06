@@ -1,0 +1,6 @@
+profiling:
+  extends: .test_base_riot
+  parallel: 20
+  variables:
+    DD_TRACE_AGENT_URL: ""
+    SUITE_NAME: "profile$|profile-v2"

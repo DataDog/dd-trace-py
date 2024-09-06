@@ -9,6 +9,8 @@ jobs:
   generate-package-versions:
     name: Generate package versions
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -71,10 +73,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install packaging
+          pip install requests
           pip install riot==0.19.1
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
+
+      - name: Get latest version
+        id: new-latest
+        run: |
+          NEW_LATEST=$(python scripts/get_latest_version.py ${{ env.VENV_NAME }})
+          echo "NEW_LATEST=$NEW_LATEST" >> $GITHUB_ENV
 
       - name: Create Pull Request
         id: pr
@@ -82,9 +91,9 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: "upgrade-latest-${{ env.VENV_NAME }}-version"
-          commit-message: "Test Package Versions update"
+          commit-message: "Update package version"
           delete-branch: true
           base: main
-          title: "chore: update ${{ env.VENV_NAME }} latest version"
+          title: "chore: update ${{ env.VENV_NAME }} latest version to ${{ env.NEW_LATEST }}"
           labels: changelog/no-changelog
           body-path: .github/PULL_REQUEST_TEMPLATE.md

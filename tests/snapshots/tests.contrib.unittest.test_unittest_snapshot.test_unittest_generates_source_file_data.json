@@ -1,7 +1,7 @@
 [[
   {
     "name": "unittest.test_session",
-    "service": "unittest",
+    "service": "dd-trace-py",
     "resource": "python -m unittest",
     "trace_id": 0,
     "span_id": 1,
@@ -45,7 +45,7 @@
   },
      {
        "name": "unittest.test_module",
-       "service": "unittest",
+       "service": "dd-trace-py",
        "resource": "test_source_file",
        "trace_id": 0,
        "span_id": 2,
@@ -89,7 +89,7 @@
      },
         {
           "name": "unittest.test_suite",
-          "service": "unittest",
+          "service": "dd-trace-py",
           "resource": "CoverageTestCase",
           "trace_id": 0,
           "span_id": 3,
@@ -133,7 +133,7 @@
         },
            {
              "name": "unittest.test",
-             "service": "unittest",
+             "service": "dd-trace-py",
              "resource": "CoverageTestCase.test_first",
              "trace_id": 0,
              "span_id": 4,
@@ -182,7 +182,7 @@
            },
            {
              "name": "unittest.test",
-             "service": "unittest",
+             "service": "dd-trace-py",
              "resource": "CoverageTestCase.test_second",
              "trace_id": 0,
              "span_id": 5,
@@ -231,7 +231,7 @@
            },
            {
              "name": "unittest.test",
-             "service": "unittest",
+             "service": "dd-trace-py",
              "resource": "CoverageTestCase.test_third",
              "trace_id": 0,
              "span_id": 6,

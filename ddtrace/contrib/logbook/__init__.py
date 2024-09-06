@@ -48,7 +48,7 @@ For more information, please see the attached guide for the Datadog Logging Prod
 https://docs.datadoghq.com/logs/log_collection/python/
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["logbook"]
@@ -56,11 +56,15 @@ required_modules = ["logbook"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.logbook.patch` directly
-        from . import patch as _  # noqa: F401, I001
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.logbook.patch import get_version
-        from ..internal.logbook.patch import patch
-        from ..internal.logbook.patch import unpatch
+        from ddtrace.contrib.internal.logbook.patch import get_version
+        from ddtrace.contrib.internal.logbook.patch import patch
+        from ddtrace.contrib.internal.logbook.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

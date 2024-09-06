@@ -53,6 +53,7 @@ MARIADB_CONFIG = {
 }
 
 REDIS_CONFIG = {
+    "host": os.getenv("TEST_REDIS_HOST", "localhost"),
     "port": int(os.getenv("TEST_REDIS_PORT", 6379)),
 }
 
@@ -86,10 +87,11 @@ RABBITMQ_CONFIG = {
 }
 
 HTTPBIN_CONFIG = {
-    "host": "localhost",
-    "port": 8001,
+    "host": os.getenv("TEST_HTTPBIN_HOST", "localhost"),
+    "port": int(os.getenv("TEST_HTTPBIN_PORT", "8001")),
 }
 
 KAFKA_CONFIG = {
+    "host": os.getenv("TEST_KAFKA_HOST", "127.0.0.1"),
     "port": int(os.getenv("TEST_KAFKA_PORT", 29092)),
 }
