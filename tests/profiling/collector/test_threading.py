@@ -653,11 +653,7 @@ def test_wrapt_disable_extensions():
 def test_global_locks():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        from importlib import reload
-
         from tests.profiling.collector import global_locks
-
-        global_locks = reload(global_locks)
 
         global_locks.foo()
         global_locks.bar_instance.bar()
