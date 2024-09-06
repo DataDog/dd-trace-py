@@ -79,12 +79,17 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     auto get_result = [&]() -> PyObject* {
         PyObject* res = do_modulo(candidate_text, candidate_tuple);
         if (res == nullptr) {
-            py::object res_py = py_candidate_text.attr("__mod__")(py_candidate_tuple);
-            PyObject* res_pyo = res_py.ptr();
-            if (res_pyo != nullptr) {
-                Py_INCREF(res_pyo);
+            try {
+                py::object res_py = py_candidate_text.attr("__mod__")(py_candidate_tuple);
+                PyObject* res_pyo = res_py.ptr();
+                if (res_pyo != nullptr) {
+                    Py_INCREF(res_pyo);
+                }
+                return res_pyo;
+            } catch (py::error_already_set& e) {
+                e.restore();
+                return nullptr;
             }
-            return res_pyo;
         }
         return res;
     };
