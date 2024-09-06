@@ -122,7 +122,6 @@ def test_user_threads_have_native_id():
 )
 def test_wrapt_disable_extensions():
     import os
-    import sys
     import threading
 
     from ddtrace.internal.datadog.profiling import ddup
@@ -158,8 +157,7 @@ def test_wrapt_disable_extensions():
 
     expected_filename = "test_threading.py"
 
-    linenos = get_lock_linenos("test_wrapt_disable_extensions")
-    linenos = linenos._replace(release=linenos.release + (0 if sys.version_info >= (3, 10) else 1))
+    linenos = get_lock_linenos("test_wrapt_disable_extensions", with_stmt=True)
 
     profile = pprof_utils.parse_profile(output_filename)
     pprof_utils.assert_lock_events(
@@ -193,7 +191,6 @@ class TestThreadingLockCollector:
         # The counter number is incremented for each test case, as the tests are
         # all run in a single process and share the same exporter.
         self.output_filename = self.pprof_prefix + "." + str(os.getpid())
-        self.lock_linenos = get_lock_linenos(self.test_name)
 
         # ddup is available when the native module is compiled
         assert ddup.is_available, "ddup is not available"
@@ -223,13 +220,14 @@ class TestThreadingLockCollector:
         ddup.upload()
 
         profile = pprof_utils.parse_profile(self.output_filename)
+        linenos = get_lock_linenos("test_lock_events")
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
                     caller_name=self.test_name,
                     filename=os.path.basename(__file__),
-                    linenos=self.lock_linenos,
+                    linenos=linenos,
                     lock_name="lock",
                 ),
             ],
@@ -237,7 +235,7 @@ class TestThreadingLockCollector:
                 pprof_utils.LockReleaseEvent(
                     caller_name=self.test_name,
                     filename=os.path.basename(__file__),
-                    linenos=self.lock_linenos,
+                    linenos=linenos,
                     lock_name="lock",
                 ),
             ],
@@ -255,6 +253,8 @@ class TestThreadingLockCollector:
 
         ddup.upload()
 
+        linenos = get_lock_linenos("test_lock_acquire_events_class")
+
         profile = pprof_utils.parse_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
@@ -262,7 +262,7 @@ class TestThreadingLockCollector:
                 pprof_utils.LockAcquireEvent(
                     caller_name="lockfunc",
                     filename=os.path.basename(__file__),
-                    linenos=self.lock_linenos,
+                    linenos=linenos,
                     lock_name="lock",
                 ),
             ],
@@ -466,6 +466,8 @@ class TestThreadingLockCollector:
 
         ddup.upload()
 
+        linenos = get_lock_linenos("test_lock_gevent_tasks")
+
         profile = pprof_utils.parse_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
@@ -473,7 +475,7 @@ class TestThreadingLockCollector:
                 pprof_utils.LockAcquireEvent(
                     caller_name="play_with_lock",
                     filename=os.path.basename(__file__),
-                    linenos=self.lock_linenos,
+                    linenos=linenos,
                     lock_name="lock",
                     task_id=t.ident,
                     task_name="foobar",
@@ -483,7 +485,7 @@ class TestThreadingLockCollector:
                 pprof_utils.LockReleaseEvent(
                     caller_name="play_with_lock",
                     filename=os.path.basename(__file__),
-                    linenos=self.lock_linenos,
+                    linenos=linenos,
                     lock_name="lock",
                     task_id=t.ident,
                     task_name="foobar",
@@ -500,9 +502,7 @@ class TestThreadingLockCollector:
         ddup.upload()
 
         # for enter/exits, we need to update the lock_linenos for versions >= 3.10
-        self.lock_linenos = self.lock_linenos._replace(
-            release=self.lock_linenos.release + (0 if sys.version_info >= (3, 10) else 1)
-        )
+        linenos = get_lock_linenos("test_lock_enter_exit_events", with_stmt=True)
 
         profile = pprof_utils.parse_profile(self.output_filename)
         pprof_utils.assert_lock_events(
@@ -511,7 +511,7 @@ class TestThreadingLockCollector:
                 pprof_utils.LockAcquireEvent(
                     caller_name=self.test_name,
                     filename=os.path.basename(__file__),
-                    linenos=self.lock_linenos,
+                    linenos=linenos,
                     lock_name="th_lock",
                 ),
             ],
@@ -519,7 +519,7 @@ class TestThreadingLockCollector:
                 pprof_utils.LockReleaseEvent(
                     caller_name=self.test_name,
                     filename=os.path.basename(__file__),
-                    linenos=self.lock_linenos,
+                    linenos=linenos,
                     lock_name="th_lock",
                 ),
             ],
@@ -541,8 +541,7 @@ class TestThreadingLockCollector:
 
             ddup.upload()
 
-            linenos = get_lock_linenos("foolock")
-            linenos = linenos._replace(release=linenos.release + (0 if sys.version_info >= (3, 10) else 1))
+            linenos = get_lock_linenos("foolock", with_stmt=True)
             profile = pprof_utils.parse_profile(self.output_filename)
             acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
             assert len(acquire_samples) >= 2, "Expected at least 2 lock-acquire samples"
@@ -584,8 +583,7 @@ class TestThreadingLockCollector:
 
         ddup.upload()
 
-        linenos = get_lock_linenos("test_private_lock")
-        linenos = linenos._replace(release=linenos.release + (0 if sys.version_info >= (3, 10) else 1))
+        linenos = get_lock_linenos("test_private_lock", with_stmt=True)
 
         profile = pprof_utils.parse_profile(self.output_filename)
 
@@ -625,10 +623,9 @@ class TestThreadingLockCollector:
         ddup.upload()
 
         linenos_foo = get_lock_linenos("foolock")
-        linenos_bar = get_lock_linenos("test_inner_lock")
+        linenos_bar = get_lock_linenos("test_inner_lock", with_stmt=True)
         linenos_bar = linenos_bar._replace(
             create=linenos_foo.create,
-            release=linenos_bar.release + (0 if sys.version_info >= (3, 10) else 1),
         )
 
         profile = pprof_utils.parse_profile(self.output_filename)
@@ -656,8 +653,7 @@ class TestThreadingLockCollector:
                 pass
         ddup.upload()
 
-        linenos = get_lock_linenos("test_anonymous_lock")
-        linenos = linenos._replace(release=linenos.release + (0 if sys.version_info >= (3, 10) else 1))
+        linenos = get_lock_linenos("test_anonymous_lock", with_stmt=True)
 
         profile = pprof_utils.parse_profile(self.output_filename)
         pprof_utils.assert_lock_events(
@@ -696,16 +692,8 @@ class TestThreadingLockCollector:
         ddup.upload()
 
         profile = pprof_utils.parse_profile(self.output_filename)
-        linenos_foo = LineNo(
-            create=4,
-            acquire=9,
-            release=9 if sys.version_info >= (3, 10) else 10,
-        )
-        linenos_bar = LineNo(
-            create=15,
-            acquire=18,
-            release=18 if sys.version_info >= (3, 10) else 19,
-        )
+        linenos_foo = get_lock_linenos("global_lock", with_stmt=True)
+        linenos_bar = get_lock_linenos("bar_lock", with_stmt=True)
 
         pprof_utils.assert_lock_events(
             profile,
