@@ -192,7 +192,7 @@ def test_lock_events_tracer_late_finish(tracer):
             assert event.trace_type is None
 
 
-def test_resource_not_collected(monkeypatch, tracer):
+def test_resource_not_collected(tracer):
     resource = str(uuid.uuid4())
     span_type = str(uuid.uuid4())
     r = recorder.Recorder()
