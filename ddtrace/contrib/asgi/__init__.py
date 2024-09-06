@@ -55,7 +55,7 @@ Configuration
 .. __: https://asgi.readthedocs.io/
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = []
@@ -65,8 +65,8 @@ with require_modules(required_modules) as missing_modules:
         # Required to allow users to import from `ddtrace.contrib.asgi.patch` directly
         from . import middleware as _  # noqa: F401, I001
 
-        from ..internal.asgi.middleware import TraceMiddleware
-        from ..internal.asgi.middleware import get_version
-        from ..internal.asgi.middleware import span_from_scope
+        from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+        from ddtrace.contrib.internal.asgi.middleware import get_version
+        from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
         __all__ = ["TraceMiddleware", "span_from_scope", "get_version"]

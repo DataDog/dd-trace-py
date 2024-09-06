@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from unittest import mock
 
 import ddtrace
-from ddtrace.internal.ci_visibility import DEFAULT_CI_VISIBILITY_SERVICE
+import ddtrace.ext.test_visibility  # noqa: F401
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
@@ -20,15 +20,26 @@ def _patch_dummy_writer():
     ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
-def _get_default_civisibility_ddconfig():
+def _get_default_civisibility_ddconfig(itr_skipping_level: str = "tests"):
     new_ddconfig = ddtrace.settings.Config()
     new_ddconfig._add(
-        "ci_visibility",
+        "test_visibility",
         {
-            "_default_service": DEFAULT_CI_VISIBILITY_SERVICE,
+            "_default_service": "default_test_visibility_service",
+            "itr_skipping_level": itr_skipping_level,
         },
     )
     return new_ddconfig
+
+
+@contextmanager
+def _mock_ddconfig_test_visibility(itr_skipping_level: str = "tests"):
+    mock_test_visibility_config = mock.Mock()
+    mock_test_visibility_config._default_service = "default_test_visibility_service"
+    mock_test_visibility_config.itr_skipping_level = itr_skipping_level
+
+    with mock.patch("ddtrace.config.test_visibility", mock_test_visibility_config):
+        yield
 
 
 @contextmanager
@@ -80,6 +91,9 @@ def set_up_mock_civisibility(
         env_overrides.update({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "true"})
 
     with override_env(env_overrides), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig",
+        _get_default_civisibility_ddconfig("suite" if suite_skipping_mode else "test"),
+    ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
         return_value=_CIVisibilitySettings(
             coverage_enabled=coverage_enabled,
