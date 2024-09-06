@@ -582,7 +582,7 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
 
     telemetry_writer._app_started()
 
-    # Assert that there's only an app_started event (since product activation happened before
+    # Assert that there's only an app_started event (since product activation happened before the app started)
     events = test_agent_session.get_events("app-product-change")
     telemetry_writer.periodic(force_flush=True)
     assert not len(events)
@@ -593,7 +593,7 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
     events = test_agent_session.get_events("app-product-change")
     assert not len(events)
 
-    # Assert that a a single event is generated
+    # Assert that a single event is generated
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
     telemetry_writer.periodic(force_flush=True)
