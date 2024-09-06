@@ -10,10 +10,12 @@ import os
 # simply write down a function that parses the .env file
 
 ELASTICSEARCH_CONFIG = {
+    "host": int(os.getenv("TEST_ELASTICSEARCH_HOST", "127.0.0.1")),
     "port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200)),
 }
 
 OPENSEARCH_CONFIG = {
+    "host": int(os.getenv("TEST_OPENSEARCH_HOST", "127.0.0.1")),
     "port": int(os.getenv("TEST_OPENSEARCH_PORT", 9201)),
 }
 
@@ -87,10 +89,11 @@ RABBITMQ_CONFIG = {
 }
 
 HTTPBIN_CONFIG = {
-    "host": "localhost",
-    "port": 8001,
+    "host": os.getenv("TEST_HTTPBIN_HOST", "localhost"),
+    "port": int(os.getenv("TEST_HTTPBIN_PORT", "8001")),
 }
 
 KAFKA_CONFIG = {
+    "host": os.getenv("TEST_KAFKA_HOST", "127.0.0.1"),
     "port": int(os.getenv("TEST_KAFKA_PORT", 29092)),
 }

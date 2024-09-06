@@ -333,7 +333,9 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
 
     def _get_es(self):
-        es = elasticsearch.Elasticsearch(hosts=["http://localhost:%d" % ELASTICSEARCH_CONFIG["port"]])
+        es = elasticsearch.Elasticsearch(
+            hosts=["http://%s:%d" % (ELASTICSEARCH_CONFIG["host"], ELASTICSEARCH_CONFIG["port"])]
+        )
         if elasticsearch.__version__ < (5, 0, 0):
             es.transport.get_connection().headers["content-type"] = "application/json"
         return es

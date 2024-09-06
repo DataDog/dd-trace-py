@@ -13,11 +13,15 @@ import os
 import %(module)s as elasticsearch
 from %(module)s import %(class)s as AsyncClient
 
-ELASTICSEARCH_CONFIG = {"port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200))}
+ELASTICSEARCH_CONFIG = {
+  "host": os.getenv("TEST_ELASTICSEARCH_HOST", "127.0.0.1"),
+  "port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200)),
+}
 ES_INDEX = "ddtrace_index"
+ES_URL = "http://%%s:%%d" %% (ELASTICSEARCH_CONFIG["host"], ELASTICSEARCH_CONFIG["port"])
 
 async def main():
-    es = AsyncClient(hosts=["http://localhost:%%d" %% ELASTICSEARCH_CONFIG["port"]])
+    es = AsyncClient(hosts=[ES_URL])
     if elasticsearch.__version__ >= (8, 0, 0):
         await es.options(ignore_status=400).indices.create(index=ES_INDEX)
         await es.options(ignore_status=[400, 404]).indices.delete(index=ES_INDEX)

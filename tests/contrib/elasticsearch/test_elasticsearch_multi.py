@@ -11,9 +11,13 @@ import os
 
 import %s as elasticsearch
 
-ELASTICSEARCH_CONFIG = {"port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200))}
+ELASTICSEARCH_CONFIG = {
+  "host": os.getenv("TEST_ELASTICSEARCH_HOST", "127.0.0.1"),
+  "port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200)),
+}
 ES_INDEX = "ddtrace_index"
-es = elasticsearch.Elasticsearch(hosts=["http://localhost:%%d" %% ELASTICSEARCH_CONFIG["port"]])
+ES_URL = "http://%%s:%%d" %% (ELASTICSEARCH_CONFIG["host"], ELASTICSEARCH_CONFIG["port"])
+es = elasticsearch.Elasticsearch(hosts=[ES_URL])
 if elasticsearch.__version__ >= (8, 0, 0):
     es.options(ignore_status=400).indices.create(index=ES_INDEX)
     es.options(ignore_status=[400, 404]).indices.delete(index=ES_INDEX)

@@ -2719,7 +2719,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} tests/contrib/kafka",
+                    command="pytest {cmdargs} -vv tests/contrib/kafka",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.10"),
@@ -2799,13 +2799,6 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                Venv(
-                    name="profile-wrapt-disabled",
-                    pys=select_pys(),
-                    env={
-                        "WRAPT_DISABLE_EXTENSIONS": "1",
-                    },
-                ),
                 # Python 3.7
                 Venv(
                     pys="3.7",
