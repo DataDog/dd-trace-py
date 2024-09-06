@@ -44,6 +44,7 @@ from .constants import TELEMETRY_AGENT_HOST
 from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
+from .constants import TELEMETRY_APM_PRODUCT
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_CRASHTRACKING_ALT_STACK
 from .constants import TELEMETRY_CRASHTRACKING_AVAILABLE
@@ -231,6 +232,8 @@ class TelemetryWriter(PeriodicService):
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, str] = dict()
+        self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
+        self._send_product_change_updates = False
 
         self.started = False
 
@@ -516,12 +519,18 @@ class TelemetryWriter(PeriodicService):
         if config._config["_sca_enabled"].value() is None:
             self.remove_configuration("DD_APPSEC_SCA_ENABLED")
 
+        products = {
+            product: {"version": _pep440_to_semver(), "enabled": status}
+            for product, status in self._product_enablement.items()
+        }
+
         payload = {
             "configuration": self._flush_configuration_queue(),
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
             },
+            "products": products,
         }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
         # Add time to value telemetry metrics for single step instrumentation
         if config._telemetry_install_id or config._telemetry_install_type or config._telemetry_install_time:
@@ -605,6 +614,35 @@ class TelemetryWriter(PeriodicService):
         if packages:
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
+
+    def _app_product_change(self):
+        # type: () -> None
+        """Adds a Telemetry event which reports the enablement of an APM product"""
+
+        if not self._send_product_change_updates:
+            return
+
+        payload = {
+            "products": {
+                product: {"version": _pep440_to_semver(), "enabled": status}
+                for product, status in self._product_enablement.items()
+            }
+        }
+        self.add_event(payload, "app-product-change")
+        self._send_product_change_updates = False
+
+    def product_activated(self, product, enabled):
+        # type: (TELEMETRY_APM_PRODUCT, bool) -> None
+        """Updates the product enablement dict"""
+
+        if self._product_enablement[product.value] == enabled:
+            return
+
+        self._product_enablement[product.value] = enabled
+
+        # If the app hasn't started, the product status will be included in the app_started event's payload
+        if self.started:
+            self._send_product_change_updates = True
 
     def remove_configuration(self, configuration_name):
         with self._lock:
@@ -742,6 +780,7 @@ class TelemetryWriter(PeriodicService):
     def periodic(self, force_flush=False, shutting_down=False):
         # ensure app_started is called at least once in case traces weren't flushed
         self._app_started()
+        self._app_product_change()
 
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:

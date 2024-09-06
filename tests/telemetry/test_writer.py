@@ -11,6 +11,7 @@ import pytest
 
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry import modules
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import get_runtime_id
@@ -564,6 +565,51 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
     assert len(events) > 0
+
+
+def test_app_product_change_event(mock_time, telemetry_writer, test_agent_session):
+    # type: (mock.Mock, Any, Any) -> None
+    """asserts that enabling or disabling an APM Product triggers a valid telemetry request"""
+
+    # Assert that the default product status is disabled
+    assert any(telemetry_writer._product_enablement.values()) is False
+
+    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
+    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
+    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
+    assert all(telemetry_writer._product_enablement.values())
+
+    telemetry_writer._app_started()
+
+    # Assert that there's only an app_started event (since product activation happened before
+    events = test_agent_session.get_events("app-product-change")
+    telemetry_writer.periodic(force_flush=True)
+    assert not len(events)
+
+    # Assert that unchanged status doesn't generate the event
+    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+    telemetry_writer.periodic(force_flush=True)
+    events = test_agent_session.get_events("app-product-change")
+    assert not len(events)
+
+    # Assert that a a single event is generated
+    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
+    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
+    telemetry_writer.periodic(force_flush=True)
+    events = test_agent_session.get_events("app-product-change")
+    assert len(events) == 1
+
+    # Assert that payload is as expected
+    assert events[0]["request_type"] == "app-product-change"
+    products = events[0]["payload"]["products"]
+    version = _pep440_to_semver()
+    assert products == {
+        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version},
+        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version},
+        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version},
+        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version},
+    }
 
 
 def _get_request_body(payload, payload_type, seq_id=1):
