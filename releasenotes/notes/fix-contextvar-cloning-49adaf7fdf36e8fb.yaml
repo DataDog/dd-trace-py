@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes an issue where normal tracer operation could cause items stored by other libraries to be dereferenced by the
+    runtime, which could cause crashes if those elements had been garbage collected.
