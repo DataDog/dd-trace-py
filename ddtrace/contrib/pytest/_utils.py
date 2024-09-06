@@ -8,14 +8,14 @@ import typing as t
 import pytest
 
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
-from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISourceFileInfo
-from ddtrace.ext.ci_visibility.api import CISuiteId
-from ddtrace.ext.ci_visibility.api import CITest
-from ddtrace.ext.ci_visibility.api import CITestId
+from ddtrace.ext.test_visibility.api import TestModuleId
+from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility.api import InternalTest
+from ddtrace.internal.test_visibility.api import InternalTestId
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
@@ -57,7 +57,7 @@ def _get_names_from_item(item: pytest.Item) -> TestNames:
 
 
 @cached()
-def _get_test_id_from_item(item: pytest.Item) -> CITestId:
+def _get_test_id_from_item(item: pytest.Item) -> InternalTestId:
     """Converts an item to a CITestId, which recursively includes the parent IDs
 
     NOTE: it is mandatory that the session, module, suite, and test IDs for a given test and parameters combination
@@ -68,8 +68,8 @@ def _get_test_id_from_item(item: pytest.Item) -> CITestId:
     suite_name = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
     test_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
 
-    module_id = CIModuleId(module_name)
-    suite_id = CISuiteId(module_id, suite_name)
+    module_id = TestModuleId(module_name)
+    suite_id = TestSuiteId(module_id, suite_name)
 
     # Test parameters are part of the test ID
     parameters_json: t.Optional[str] = None
@@ -84,7 +84,7 @@ def _get_test_id_from_item(item: pytest.Item) -> CITestId:
 
         parameters_json = json.dumps(parameters)
 
-    test_id = CITestId(suite_id, test_name, parameters_json)
+    test_id = InternalTestId(suite_id, test_name, parameters_json)
 
     return test_id
 
@@ -103,15 +103,15 @@ def _get_session_command(session: pytest.Session):
     return command
 
 
-def _get_source_file_info(item, item_path) -> t.Optional[CISourceFileInfo]:
+def _get_source_file_info(item, item_path) -> t.Optional[TestSourceFileInfo]:
     try:
         # TODO: don't depend on internal for source file info
         if hasattr(item, "_obj"):
             test_method_object = undecorated(item._obj, item.name, item_path)
             source_lines = get_source_lines_for_test_method(test_method_object)
-            source_file_info = CISourceFileInfo(item_path, source_lines[0], source_lines[1])
+            source_file_info = TestSourceFileInfo(item_path, source_lines[0], source_lines[1])
         else:
-            source_file_info = CISourceFileInfo(item_path, item.reportinfo()[1])
+            source_file_info = TestSourceFileInfo(item_path, item.reportinfo()[1])
         return source_file_info
     except Exception:
         log.debug("Unable to get source file info for item %s (path %s)", item, item_path, exc_info=True)
@@ -152,7 +152,7 @@ def _extract_span(item):
     """Extract span from `pytest.Item` instance."""
     if _USE_PLUGIN_V2:
         test_id = _get_test_id_from_item(item)
-        return CITest.get_span(test_id)
+        return InternalTest.get_span(test_id)
 
     return getattr(item, "_datadog_span", None)
 

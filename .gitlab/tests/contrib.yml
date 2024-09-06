@@ -185,6 +185,11 @@ tornado:
   variables:
     SUITE_NAME: "tornado"
 
+unittest:
+  extends: .test_base_riot_snapshot
+  variables: 
+    SUITE_NAME: "unittest"
+
 wsgi:
   extends: .test_base_riot_snapshot
   variables:
