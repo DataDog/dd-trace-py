@@ -23,10 +23,10 @@ init_linenos(__file__)
 # Helper classes for testing lock collector
 class Foo:
     def __init__(self):
-        self.foo_lock = threading.Lock()  # !CREATE! foolock_v2
+        self.foo_lock = threading.Lock()  # !CREATE! foolock
 
     def foo(self):
-        with self.foo_lock:  # !RELEASE! !ACQUIRE! foolock_v2
+        with self.foo_lock:  # !RELEASE! !ACQUIRE! foolock
             pass
 
 
@@ -67,13 +67,13 @@ class TestThreadingLockCollector:
         pass
 
     # Tests
-    def test_lock_events_v2(self):
+    def test_lock_events(self):
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
-            lock = threading.Lock()  # !CREATE! test_lock_events_v2
-            lock.acquire()  # !ACQUIRE! test_lock_events_v2
-            lock.release()  # !RELEASE! test_lock_events_v2
+            lock = threading.Lock()  # !CREATE! test_lock_events
+            lock.acquire()  # !ACQUIRE! test_lock_events
+            lock.release()  # !RELEASE! test_lock_events
         # Calling upload will trigger the exporter to write to a file
         ddup.upload()
 
@@ -98,13 +98,13 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_acquire_events_class_v2(self):
+    def test_lock_acquire_events_class(self):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
 
             class Foobar(object):
                 def lockfunc(self):
-                    lock = threading.Lock()  # !CREATE! test_lock_acquire_events_class_v2
-                    lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class_v2
+                    lock = threading.Lock()  # !CREATE! test_lock_acquire_events_class
+                    lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class
 
             Foobar().lockfunc()
 
@@ -123,7 +123,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_events_tracer_v2(self, tracer):
+    def test_lock_events_tracer(self, tracer):
         resource = str(uuid.uuid4())
         span_type = str(uuid.uuid4())
         with collector_threading.ThreadingLockCollector(
@@ -132,19 +132,19 @@ class TestThreadingLockCollector:
             capture_pct=100,
             export_libdd_enabled=True,
         ):
-            lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_v2_1
-            lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_v2_1
+            lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_1
+            lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_1
             with tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_v2_2
-                lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_v2_2
-                lock1.release()  # !RELEASE! test_lock_events_tracer_v2_1
+                lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_2
+                lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_2
+                lock1.release()  # !RELEASE! test_lock_events_tracer_1
                 span_id = t.span_id
 
-            lock2.release()  # !RELEASE! test_lock_events_tracer_v2_2
+            lock2.release()  # !RELEASE! test_lock_events_tracer_2
         ddup.upload()
 
-        linenos1 = get_lock_linenos("test_lock_events_tracer_v2_1")
-        linenos2 = get_lock_linenos("test_lock_events_tracer_v2_2")
+        linenos1 = get_lock_linenos("test_lock_events_tracer_1")
+        linenos2 = get_lock_linenos("test_lock_events_tracer_2")
 
         profile = pprof_utils.parse_profile(self.output_filename)
         pprof_utils.assert_lock_events(
@@ -185,7 +185,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_events_tracer_late_finish_v2(self, tracer):
+    def test_lock_events_tracer_late_finish(self, tracer):
         resource = str(uuid.uuid4())
         span_type = str(uuid.uuid4())
         with collector_threading.ThreadingLockCollector(
@@ -194,19 +194,19 @@ class TestThreadingLockCollector:
             capture_pct=100,
             export_libdd_enabled=True,
         ):
-            lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_late_finish_v2_1
-            lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_v2_1
+            lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_late_finish_1
+            lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_1
             span = tracer.start_span("test", span_type=span_type)
-            lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_late_finish_v2_2
-            lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_v2_2
-            lock1.release()  # !RELEASE! test_lock_events_tracer_late_finish_v2_1
-            lock2.release()  # !RELEASE! test_lock_events_tracer_late_finish_v2_2
+            lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_late_finish_2
+            lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_2
+            lock1.release()  # !RELEASE! test_lock_events_tracer_late_finish_1
+            lock2.release()  # !RELEASE! test_lock_events_tracer_late_finish_2
         span.resource = resource
         span.finish()
         ddup.upload()
 
-        linenos1 = get_lock_linenos("test_lock_events_tracer_late_finish_v2_1")
-        linenos2 = get_lock_linenos("test_lock_events_tracer_late_finish_v2_2")
+        linenos1 = get_lock_linenos("test_lock_events_tracer_late_finish_1")
+        linenos2 = get_lock_linenos("test_lock_events_tracer_late_finish_2")
 
         profile = pprof_utils.parse_profile(self.output_filename)
         pprof_utils.assert_lock_events(
@@ -241,7 +241,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_resource_not_collected_v2(self, tracer):
+    def test_resource_not_collected(self, tracer):
         resource = str(uuid.uuid4())
         span_type = str(uuid.uuid4())
         with collector_threading.ThreadingLockCollector(
@@ -251,18 +251,18 @@ class TestThreadingLockCollector:
             export_libdd_enabled=True,
             endpoint_collection_enabled=False,
         ):
-            lock1 = threading.Lock()  # !CREATE! test_resource_not_collected_v2_1
-            lock1.acquire()  # !ACQUIRE! test_resource_not_collected_v2_1
+            lock1 = threading.Lock()  # !CREATE! test_resource_not_collected_1
+            lock1.acquire()  # !ACQUIRE! test_resource_not_collected_1
             with tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2 = threading.Lock()  # !CREATE! test_resource_not_collected_v2_2
-                lock2.acquire()  # !ACQUIRE! test_resource_not_collected_v2_2
-                lock1.release()  # !RELEASE! test_resource_not_collected_v2_1
+                lock2 = threading.Lock()  # !CREATE! test_resource_not_collected_2
+                lock2.acquire()  # !ACQUIRE! test_resource_not_collected_2
+                lock1.release()  # !RELEASE! test_resource_not_collected_1
                 span_id = t.span_id
-            lock2.release()  # !RELEASE! test_resource_not_collected_v2_2
+            lock2.release()  # !RELEASE! test_resource_not_collected_2
         ddup.upload()
 
-        linenos1 = get_lock_linenos("test_resource_not_collected_v2_1")
-        linenos2 = get_lock_linenos("test_resource_not_collected_v2_2")
+        linenos1 = get_lock_linenos("test_resource_not_collected_1")
+        linenos2 = get_lock_linenos("test_resource_not_collected_2")
 
         profile = pprof_utils.parse_profile(self.output_filename)
         pprof_utils.assert_lock_events(
@@ -304,15 +304,15 @@ class TestThreadingLockCollector:
         )
 
     @pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
-    def test_lock_gevent_tasks_v2(self):
+    def test_lock_gevent_tasks(self):
         from gevent import monkey
 
         monkey.patch_all()
 
         def play_with_lock():
-            lock = threading.Lock()  # !CREATE! test_lock_gevent_tasks_v2
-            lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks_v2
-            lock.release()  # !RELEASE! test_lock_gevent_tasks_v2
+            lock = threading.Lock()  # !CREATE! test_lock_gevent_tasks
+            lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks
+            lock.release()  # !RELEASE! test_lock_gevent_tasks
 
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
             t = threading.Thread(name="foobar", target=play_with_lock)
@@ -346,10 +346,10 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_enter_exit_events_v2(self):
+    def test_lock_enter_exit_events(self):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
-            th_lock = threading.Lock()  # !CREATE! test_lock_enter_exit_events_v2
-            with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events_v2
+            th_lock = threading.Lock()  # !CREATE! test_lock_enter_exit_events
+            with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
                 pass
 
         ddup.upload()
@@ -384,7 +384,7 @@ class TestThreadingLockCollector:
         "inspect_dir_enabled",
         [True, False],
     )
-    def test_class_member_lock_v2(self, inspect_dir_enabled):
+    def test_class_member_lock(self, inspect_dir_enabled):
         with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
             expected_lock_name = "foo_lock" if inspect_dir_enabled else None
 
@@ -396,7 +396,7 @@ class TestThreadingLockCollector:
 
             ddup.upload()
 
-            linenos = get_lock_linenos("foolock_v2")
+            linenos = get_lock_linenos("foolock")
             linenos = linenos._replace(release=linenos.release + (0 if sys.version_info >= (3, 10) else 1))
             profile = pprof_utils.parse_profile(self.output_filename)
             acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
@@ -424,13 +424,13 @@ class TestThreadingLockCollector:
                 ],
             )
 
-    def test_private_lock_v2(self):
+    def test_private_lock(self):
         class Foo:
             def __init__(self):
-                self.__lock = threading.Lock()  # !CREATE! test_private_lock_v2
+                self.__lock = threading.Lock()  # !CREATE! test_private_lock
 
             def foo(self):
-                with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock_v2
+                with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
                     pass
 
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
@@ -439,7 +439,7 @@ class TestThreadingLockCollector:
 
         ddup.upload()
 
-        linenos = get_lock_linenos("test_private_lock_v2")
+        linenos = get_lock_linenos("test_private_lock")
         linenos = linenos._replace(release=linenos.release + (0 if sys.version_info >= (3, 10) else 1))
 
         profile = pprof_utils.parse_profile(self.output_filename)
@@ -464,13 +464,13 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_inner_lock_v2(self):
+    def test_inner_lock(self):
         class Bar:
             def __init__(self):
                 self.foo = Foo()
 
             def bar(self):
-                with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock_v2
+                with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
                     pass
 
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
@@ -479,8 +479,8 @@ class TestThreadingLockCollector:
 
         ddup.upload()
 
-        linenos_foo = get_lock_linenos("foolock_v2")
-        linenos_bar = get_lock_linenos("test_inner_lock_v2")
+        linenos_foo = get_lock_linenos("foolock")
+        linenos_bar = get_lock_linenos("test_inner_lock")
         linenos_bar = linenos_bar._replace(
             create=linenos_foo.create,
             release=linenos_bar.release + (0 if sys.version_info >= (3, 10) else 1),
@@ -505,13 +505,13 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_anonymous_lock_v2(self):
+    def test_anonymous_lock(self):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
-            with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock_v2
+            with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
                 pass
         ddup.upload()
 
-        linenos = get_lock_linenos("test_anonymous_lock_v2")
+        linenos = get_lock_linenos("test_anonymous_lock")
         linenos = linenos._replace(release=linenos.release + (0 if sys.version_info >= (3, 10) else 1))
 
         profile = pprof_utils.parse_profile(self.output_filename)
@@ -533,7 +533,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_global_locks_v2(self):
+    def test_global_locks(self):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
             from importlib import reload
 
