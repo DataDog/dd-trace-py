@@ -27,35 +27,41 @@ faithfulness_output_parser = RagasoutputParser(pydantic_object=StatementFaithful
 sentence_segmenter = get_segmenter(language=faithfulness.nli_statements_message.language, clean=False)
 
 
-def create_statements_prompt(answer, question):
-    sentences = sentence_segmenter.segment(answer)
-    sentences = [sentence for sentence in sentences if sentence.strip().endswith(".")]
-    sentences = "\n".join([f"{i}:{x}" for i, x in enumerate(sentences)])
-    return statement_prompt.format(question=question, answer=answer, sentences=sentences)
+def create_statements_prompt(answer, question, llmobs_instance):
+    with llmobs_instance.task("create_statements_prompt") as task:
+        task.service = "ragas"
+        sentences = sentence_segmenter.segment(answer)
+        sentences = [sentence for sentence in sentences if sentence.strip().endswith(".")]
+        sentences = "\n".join([f"{i}:{x}" for i, x in enumerate(sentences)])
+        return statement_prompt.format(question=question, answer=answer, sentences=sentences)
 
 
-def create_nli_prompt(statements, context_str):
-    statements_str: str = json.dumps(statements)
-    prompt_value = faithfulness.nli_statements_message.format(context=context_str, statements=statements_str)
-    return prompt_value
+def create_nli_prompt(statements, context_str, llmobs_instance):
+    with llmobs_instance.task("create_nli_prompt") as task:
+        task.service = "ragas"
+        statements_str: str = json.dumps(statements)
+        prompt_value = faithfulness.nli_statements_message.format(context=context_str, statements=statements_str)
+        return prompt_value
 
 
-def compute_score(answers):
-    faithful_statements = sum(1 if answer.verdict else 0 for answer in answers.__root__)
-    num_statements = len(answers.__root__)
-    if num_statements:
-        score = faithful_statements / num_statements
-    else:
-        # logger.warning("No statements were generated from the answer.")
-        score = np.nan
-    return score
+def compute_score(answers, llmobs_instance):
+    with llmobs_instance.task("compute_score") as task:
+        task.service = "ragas"
+        faithful_statements = sum(1 if answer.verdict else 0 for answer in answers.__root__)
+        num_statements = len(answers.__root__)
+        if num_statements:
+            score = faithful_statements / num_statements
+        else:
+            # logger.warning("No statements were generated from the answer.")
+            score = np.nan
+        return score
 
 
 async def score_faithfulness(answer, question, context_str, llmobs_instance):
-    with llmobs_instance.workflow("ragas.faithfulness") as workflow:
+    with llmobs_instance.workflow("faithfulness") as workflow:
         workflow.service = "ragas"
 
-        statements_prompt = create_statements_prompt(answer, question)
+        statements_prompt = create_statements_prompt(answer, question, llmobs_instance=llmobs_instance)
         statements = await faithfulness.llm.generate(statements_prompt)
         statements = await statements_output_parser.aparse(
             statements.generations[0][0].text,
@@ -70,7 +76,7 @@ async def score_faithfulness(answer, question, context_str, llmobs_instance):
 
         assert isinstance(statements, typing.List), "statements must be a list"
 
-        p_value = create_nli_prompt(statements, context_str)
+        p_value = create_nli_prompt(statements, context_str, llmobs_instance=llmobs_instance)
 
         nli_result = await faithfulness.llm.generate(p_value)
 
@@ -92,4 +98,13 @@ async def score_faithfulness(answer, question, context_str, llmobs_instance):
         else:
             return np.nan
 
-        return compute_score(faithfulness_list)
+        score = compute_score(faithfulness_list, llmobs_instance=llmobs_instance)
+        llmobs_instance.annotate(
+            input_data={
+                "answer": answer,
+                "question": question,
+                "context_str": context_str,
+            },
+            output_data=score,
+        )
+        return score
