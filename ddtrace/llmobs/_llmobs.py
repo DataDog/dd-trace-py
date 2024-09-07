@@ -18,6 +18,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -196,6 +198,8 @@ class LLMObs(Service):
         cls._instance.start()
 
         atexit.register(cls.disable)
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
+
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
@@ -214,6 +218,7 @@ class LLMObs(Service):
 
         cls.enabled = False
         cls._instance.stop()
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
 
