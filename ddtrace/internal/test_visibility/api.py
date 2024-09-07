@@ -185,6 +185,16 @@ class InternalTestSession(ext_api.TestSession):
 
         return _is_test_skipping_enabled
 
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_path_codeowners(path: Path) -> t.Optional[t.List[str]]:
+        log.debug("Getting codeowners object for path %s", path)
+
+        path_codeowners: t.Optional[t.List[str]] = core.dispatch_with_results(
+            "test_visibility.session.get_path_codeowners", (path,)
+        ).path_codeowners.value
+        return path_codeowners
+
 
 class InternalTestModule(ext_api.TestModule, InternalTestBase):
     pass
