@@ -984,6 +984,12 @@ def _on_session_get_codeowners() -> Optional[Codeowners]:
     return CIVisibility.get_codeowners()
 
 
+@_requires_civisibility_enabled
+def _on_session_set_covered_lines_pct(coverage_pct) -> None:
+    log.debug("Setting coverage percentage for session to %s", coverage_pct)
+    CIVisibility.get_session().set_covered_lines_pct(coverage_pct)
+
+
 def _register_session_handlers():
     log.debug("Registering session handlers")
     core.on("test_visibility.session.discover", _on_discover_session)
@@ -1001,6 +1007,7 @@ def _register_session_handlers():
         _on_session_is_test_skipping_enabled,
         "is_test_skipping_enabled",
     )
+    core.on("test_visibility.session.set_covered_lines_pct", _on_session_set_covered_lines_pct)
 
 
 @_requires_civisibility_enabled

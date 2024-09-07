@@ -406,7 +406,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
-    # TODO: make coverage officially part of test session object so we don't use set_tag() directly.
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
     if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
@@ -417,7 +416,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if not isinstance(lines_pct_value, float):
             log.warning("Tried to add total covered percentage to session span but the format was unexpected")
             return
-        InternalTestSession.set_tag(test.TEST_LINES_PCT, lines_pct_value)
+        InternalTestSession.set_covered_lines_pct(lines_pct_value)
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()

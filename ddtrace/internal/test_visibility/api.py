@@ -185,6 +185,13 @@ class InternalTestSession(ext_api.TestSession):
 
         return _is_test_skipping_enabled
 
+    @staticmethod
+    @_catch_and_log_exceptions
+    def set_covered_lines_pct(coverage_pct: float):
+        log.debug("Setting covered lines percentage for session to %s", coverage_pct)
+
+        core.dispatch("test_visibility.session.set_covered_lines_pct", (coverage_pct,))
+
 
 class InternalTestModule(ext_api.TestModule, InternalTestBase):
     pass
