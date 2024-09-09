@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    pymongo: Ensures instances of the ``pymongo.MongoClient`` can be patch after pymongo is imported.
+    pymongo: Ensures instances of the ``pymongo.MongoClient`` can be patched after pymongo is imported.
