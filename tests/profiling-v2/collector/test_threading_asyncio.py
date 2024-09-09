@@ -73,6 +73,7 @@ def test_lock_acquire_events():
                 filename=os.path.basename(__file__),
                 linenos=linenos_2,
                 lock_name="lock",
+                thread_name="foobar",
             ),
             pprof_utils.LockReleaseEvent(
                 caller_name="_lock",
