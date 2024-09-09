@@ -42,7 +42,7 @@ jobs:
             repository: 'DataDog/system-tests'
 
       - name: Install runner
-        uses: ./.github/actions/install_runner 
+        uses: ./.github/actions/install_runner
 
       - name: Run K8s Lib Injection Tests
         run: ./run.sh K8S_LIB_INJECTION_BASIC
@@ -70,7 +70,7 @@ jobs:
           'dd-lib-python-init-test-django-uvicorn',
           'dd-lib-python-init-test-django-no-perms',
           'dd-lib-python-init-test-django-pre-installed',
-          'dd-lib-python-init-test-django-unsupported-python',
+          'dd-lib-python-init-test-django-unsupported-package-force',
         ]
       fail-fast: false
     steps:
@@ -116,3 +116,52 @@ jobs:
         if: success() || failure()
         run: |
           docker compose logs
+
+  test_unit_no_instrumentation:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [
+          'dd-lib-python-init-test-django-unsupported-python',
+          'dd-lib-python-init-test-django-unsupported-package',
+        ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run the app
+        run: |
+          SRC="$(pwd)"
+          cd lib-injection
+          export DDTRACE_PYTHON_VERSION="v2.6.3"
+          export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
+          export TEMP_DIR="${SRC}/tmp/ddtrace"
+          mkdir -p "${TEMP_DIR}"
+          # Give the temp dir permissions, by default the docker user doesn't have permissions
+          # to write to the filesystem.
+          chmod 777 $TEMP_DIR
+          # Start the lib_inject to get the files copied. This avoids a race condition with the startup of the
+          # application.
+          docker compose up --build lib_inject
+          docker compose up --build -d
+          # Wait for the app to start
+          sleep 60
+          docker compose logs
+      - name: Check Permissions on ddtrace pkgs
+        run: |
+           cd lib-injection
+           # Ensure /datadog-lib/ddtrace_pkgs is a valid directory that is not empty
+           docker compose run lib_inject find /datadog-init/ddtrace_pkgs -maxdepth 0 -empty | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+           # Ensure files are not world writeable
+           docker compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm /o+w | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+           # Ensure all users have read and execute permissions to files stored in /datadog-lib/ddtrace_pkgs
+           docker compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm u=rwx,o=rx | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+      - name: Test the app
+        run: |
+          curl http://localhost:18080
+          sleep 1  # wait for traces to be sent
+      - name: Print traces
+        run: curl http://localhost:8126/test/traces
+      - name: Check test agent received no trace
+        run: |
+          N=$(curl http://localhost:8126/test/traces | jq -r -e 'length')
+          [[ $N == "0" ]]

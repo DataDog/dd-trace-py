@@ -41,6 +41,7 @@ fi
 echo -n $PYTHON_PACKAGE_VERSION > auto_inject-python.version
 cp ../lib-injection/sitecustomize.py $BUILD_DIR/
 cp auto_inject-python.version $BUILD_DIR/version
+cp ../min_compatible_versions.csv $BUILD_DIR/
 chmod -R +r $BUILD_DIR
 chmod -R o-w $BUILD_DIR
 chmod -R g-w $BUILD_DIR
