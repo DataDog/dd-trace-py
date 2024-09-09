@@ -187,6 +187,13 @@ class InternalTestSession(ext_api.TestSession):
 
     @staticmethod
     @_catch_and_log_exceptions
+    def set_covered_lines_pct(coverage_pct: float):
+        log.debug("Setting covered lines percentage for session to %s", coverage_pct)
+
+        core.dispatch("test_visibility.session.set_covered_lines_pct", (coverage_pct,))
+
+    @staticmethod
+    @_catch_and_log_exceptions
     def get_path_codeowners(path: Path) -> t.Optional[t.List[str]]:
         log.debug("Getting codeowners object for path %s", path)
 

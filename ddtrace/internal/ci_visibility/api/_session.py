@@ -75,4 +75,7 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         )
 
     def add_coverage_data(self, *args, **kwargs):
-        raise NotImplementedError("Coverage data cannot be added to modules.")
+        raise NotImplementedError("Coverage data cannot be added to session.")
+
+    def set_covered_lines_pct(self, coverage_pct: float):
+        self.set_tag(test.TEST_LINES_PCT, coverage_pct)
