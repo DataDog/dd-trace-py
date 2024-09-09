@@ -7,6 +7,7 @@ import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Union  # noqa:F401
@@ -83,7 +84,6 @@ from .writer import CIVisibilityWriter
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import DefaultDict  # noqa:F401
-    from typing import List  # noqa:F401
     from typing import Tuple  # noqa:F401
 
     from ddtrace.settings import IntegrationConfig  # noqa:F401
@@ -990,12 +990,22 @@ def _on_session_set_covered_lines_pct(coverage_pct) -> None:
     CIVisibility.get_session().set_covered_lines_pct(coverage_pct)
 
 
+@_requires_civisibility_enabled
+def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
+    log.debug("Getting codeowners for path %s", path)
+    codeowners = CIVisibility.get_codeowners()
+    if codeowners is None:
+        return None
+    return codeowners.of(str(path.absolute()))
+
+
 def _register_session_handlers():
     log.debug("Registering session handlers")
     core.on("test_visibility.session.discover", _on_discover_session)
     core.on("test_visibility.session.start", _on_start_session)
     core.on("test_visibility.session.finish", _on_finish_session)
     core.on("test_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
+    core.on("test_visibility.session.get_path_codeowners", _on_session_get_path_codeowners, "path_codeowners")
     core.on("test_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
     core.on(
         "test_visibility.session.should_collect_coverage",
