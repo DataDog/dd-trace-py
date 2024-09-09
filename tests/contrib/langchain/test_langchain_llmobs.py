@@ -173,14 +173,10 @@ class BaseTestLLMObsLangchain:
         return mock_tracer.pop_traces()[0]
 
     @classmethod
-    def _invoke_tool(cls, tool, tool_input, mock_tracer, cassette_name):
+    def _invoke_tool(cls, tool, tool_input, mock_tracer):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
         if LANGCHAIN_VERSION > (0, 1):
-            if cassette_name is not None:
-                with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
-                    tool.invoke(tool_input)
-            else:
-                tool.invoke(tool_input)
+            tool.invoke(tool_input)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
@@ -742,7 +738,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             tool=calculator,
             tool_input="2",
             mock_tracer=mock_tracer,
-            cassette_name=None,
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         mock_llmobs_span_writer.enqueue.assert_called_with(
