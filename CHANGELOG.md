@@ -40,7 +40,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Code Security: Adds null pointer checks when creating new objects ids.
 - profiling: Fixes an issue where the profiler could erroneously try to load protobuf in autoinjected environments, where it is not available.
 - crashtracking: Fixes an issue where crashtracking environment variables for Python were inconsistent with those used by other runtimes.
-- profiling: Fixes endpoint profiling for stack v2 when `DD_PROFILING_STACK_V2_ENABLED` set.
+- profiling: Fixes endpoint profiling for stack v2 when `DD_PROFILING_STACK_V2_ENABLED` is set.
 - profiling: Turns on the new native exporter when `DD_PROFILING_TIMELINE_ENABLED=True` is set.
 
 
