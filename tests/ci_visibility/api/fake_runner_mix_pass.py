@@ -51,11 +51,14 @@ def main():
     module_2_id = api.TestModuleId("module_2")
     suite_2_id = api.TestSuiteId(module_2_id, "suite_2")
     suite_2_test_1_id = api.TestId(suite_2_id, "test_1")
-    suite_2_test_2_parametrized_1_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value1"}))
-    suite_2_test_2_parametrized_2_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value2"}))
-    suite_2_test_2_parametrized_3_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value3"}))
-    suite_2_test_2_parametrized_4_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value4"}))
-    suite_2_test_2_parametrized_5_id = api.TestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value5"}))
+
+    # This test sets parameters after the test ID is created, but since the parameters are not used in the ID, the test
+    # names need to be unique
+    suite_2_test_2_parametrized_1_id = api.TestId(suite_2_id, "test_2_1")
+    suite_2_test_2_parametrized_2_id = api.TestId(suite_2_id, "test_2_2")
+    suite_2_test_2_parametrized_3_id = api.TestId(suite_2_id, "test_2_3")
+    suite_2_test_2_parametrized_4_id = api.TestId(suite_2_id, "test_2_4")
+    suite_2_test_2_parametrized_5_id = api.TestId(suite_2_id, "test_2_5")
     suite_2_test_2_source_file_info = api.TestSourceFileInfo(Path("my_file_2.py"), 8, 9)
     suite_2_test_3_id = api.TestId(suite_2_id, "test_3")
 
@@ -63,10 +66,15 @@ def main():
     api.TestSuite.discover(suite_2_id)
     api.Test.discover(suite_2_test_1_id, source_file_info=api.TestSourceFileInfo(Path("my_file_1.py"), 1, 2))
     api.Test.discover(suite_2_test_2_parametrized_1_id, source_file_info=suite_2_test_2_source_file_info)
+    api.Test.set_parameters(suite_2_test_2_parametrized_1_id, json.dumps({"param1": "value1"}))
     api.Test.discover(suite_2_test_2_parametrized_2_id, source_file_info=suite_2_test_2_source_file_info)
+    api.Test.set_parameters(suite_2_test_2_parametrized_2_id, json.dumps({"param1": "value2"}))
     api.Test.discover(suite_2_test_2_parametrized_3_id, source_file_info=suite_2_test_2_source_file_info)
+    api.Test.set_parameters(suite_2_test_2_parametrized_3_id, json.dumps({"param1": "value3"}))
     api.Test.discover(suite_2_test_2_parametrized_4_id, source_file_info=suite_2_test_2_source_file_info)
+    api.Test.set_parameters(suite_2_test_2_parametrized_4_id, json.dumps({"param1": "value4"}))
     api.Test.discover(suite_2_test_2_parametrized_5_id, source_file_info=suite_2_test_2_source_file_info)
+    api.Test.set_parameters(suite_2_test_2_parametrized_5_id, json.dumps({"param1": "value5"}))
 
     api.Test.discover(
         suite_2_test_3_id,

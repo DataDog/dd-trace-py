@@ -448,6 +448,8 @@ def main():
 
     api.InternalTestModule.finish(module_4_id)
 
+    api.InternalTestSession.set_covered_lines_pct(79.79)
+
     api.InternalTestSession.finish()
 
     # FINISH TESTS

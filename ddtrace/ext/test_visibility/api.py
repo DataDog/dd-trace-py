@@ -367,6 +367,12 @@ class Test(TestBase):
 
     @staticmethod
     @_catch_and_log_exceptions
+    def set_parameters(item_id: TestId, params: str):
+        log.debug("Setting test %s parameters to %s", item_id, params)
+        core.dispatch("test_visibility.test.set_parameters", (item_id, params))
+
+    @staticmethod
+    @_catch_and_log_exceptions
     def mark_pass(item_id: TestId):
         log.debug("Marking test %s as passed", item_id)
         Test.finish(item_id, TestStatus.PASS)
