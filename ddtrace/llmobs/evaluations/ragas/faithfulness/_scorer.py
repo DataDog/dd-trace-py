@@ -28,7 +28,7 @@ sentence_segmenter = get_segmenter(language=faithfulness.nli_statements_message.
 
 
 def create_statements_prompt(answer, question, llmobs_instance):
-    with llmobs_instance.task("create_statements_prompt") as task:
+    with llmobs_instance.task("ragas.create_statements_prompt") as task:
         task.service = "ragas"
         sentences = sentence_segmenter.segment(answer)
         sentences = [sentence for sentence in sentences if sentence.strip().endswith(".")]
@@ -37,7 +37,7 @@ def create_statements_prompt(answer, question, llmobs_instance):
 
 
 def create_nli_prompt(statements, context_str, llmobs_instance):
-    with llmobs_instance.task("create_nli_prompt") as task:
+    with llmobs_instance.task("ragas.create_nli_prompt") as task:
         task.service = "ragas"
         statements_str: str = json.dumps(statements)
         prompt_value = faithfulness.nli_statements_message.format(context=context_str, statements=statements_str)
@@ -45,7 +45,7 @@ def create_nli_prompt(statements, context_str, llmobs_instance):
 
 
 def compute_score(answers, llmobs_instance):
-    with llmobs_instance.task("compute_score") as task:
+    with llmobs_instance.task("ragas.compute_score") as task:
         task.service = "ragas"
         faithful_statements = sum(1 if answer.verdict else 0 for answer in answers.__root__)
         num_statements = len(answers.__root__)
@@ -58,8 +58,8 @@ def compute_score(answers, llmobs_instance):
 
 
 async def score_faithfulness(answer, question, context_str, llmobs_instance):
-    with llmobs_instance.workflow("faithfulness") as workflow:
-        workflow.service = "ragas"
+    with llmobs_instance.workflow("_ragas.faithfulness") as workflow:
+        workflow.service = "_ragas"
 
         statements_prompt = create_statements_prompt(answer, question, llmobs_instance=llmobs_instance)
         statements = await faithfulness.llm.generate(statements_prompt)
@@ -107,4 +107,4 @@ async def score_faithfulness(answer, question, context_str, llmobs_instance):
             },
             output_data=score,
         )
-        return score
+        return score, llmobs_instance.export_span()

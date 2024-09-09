@@ -64,7 +64,8 @@ class LLMObsTraceProcessor(TraceProcessor):
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
         if span_event is not None and self._ragas_faithfulness_runner:
-            self._ragas_faithfulness_runner.enqueue(span_event)
+            if span.service != "_ragas":
+                self._ragas_faithfulness_runner.enqueue(span_event)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""

@@ -107,6 +107,8 @@ class LLMObs(Service):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
         self.tracer.configure(settings={"FILTERS": [self._trace_processor]})
+        if self._ragas_faithfulness_runner:
+            self._ragas_faithfulness_runner = self._ragas_faithfulness_runner.recreate()
         try:
             self._llmobs_span_writer.start()
         except ServiceStatusError:

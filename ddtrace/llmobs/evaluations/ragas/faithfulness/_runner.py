@@ -1,5 +1,5 @@
-import asyncio
 import atexit
+from concurrent import futures
 import math
 import time
 from typing import Dict
@@ -34,6 +34,7 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
 
         self.enabled = False
         self.name = "ragas.faithfulness"
+        self.executor = futures.ThreadPoolExecutor()
         try:
             import asyncio  # noqa: F401
 
@@ -47,6 +48,15 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
         super(RagasFaithfulnessEvaluationRunner, self).start()
         logger.debug("started %r to %r", self.__class__.__name__)
         atexit.register(self.on_shutdown)
+
+    def on_shutdown(self):
+        # make sure to cancel all eval jobs at exit
+        self.executor.shutdown(cancel_futures=True)
+
+    def recreate(self):
+        return self.__class__(
+            interval=self._interval, writer=self._llmobs_eval_metric_writer, llmobs_instance=self.llmobs_instance
+        )
 
     def enqueue(self, raw_span_event: Dict) -> None:
         with self._lock:
@@ -73,6 +83,13 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
                 self._llmobs_eval_metric_writer.enqueue(metric.model_dump())
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)
+
+    def translate_span_dummy(self, span: LLMObsSpanContext) -> Optional[dict]:
+        return {
+            "question": "What is the capital of France?",
+            "answer": "Paris is the capital of France.",
+            "context_str": "France is a country in Europe.",
+        }
 
     def translate_span(self, span: LLMObsSpanContext) -> Optional[dict]:
         if span.meta.input.prompt is None:
@@ -103,12 +120,13 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
         if not self.enabled:
             logger.warning("RagasFaithfulnessRunner is not enabled")
             return []
+        import asyncio
 
         async def score_and_return_evaluation(span):
-            inps = self.translate_span(span)
+            inps = self.translate_span_dummy(span)
             if inps is None:
                 return None
-            score = await score_faithfulness(**inps, llmobs_instance=self.llmobs_instance)
+            score, exported_ragas_span = await score_faithfulness(**inps, llmobs_instance=self.llmobs_instance)
             if math.isnan(score):
                 return None
 
@@ -120,19 +138,23 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
                 ml_app=config._llmobs_ml_app,
                 timestamp_ms=math.floor(time.time() * 1000),
                 metric_type="score",
-                # tags .. todo
+                tags=[
+                    "trace_id:{}".format(
+                        exported_ragas_span.get("trace_id") if exported_ragas_span.get("trace_id") else ""
+                    ),
+                    "span_id:{}".format(
+                        exported_ragas_span.get("span_id") if exported_ragas_span.get("span_id") else ""
+                    ),
+                ],
             )
 
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
+        def sync_score_and_return_evaluation(span):
+            try:
+                return asyncio.run(score_and_return_evaluation(span))
+            except RuntimeError as e:
+                logger.error("Failed to run evaluation: %s", e)
+                return None
 
-        asyncio.set_event_loop(loop)
-
-        async def score_spans():
-            return await asyncio.gather(*[score_and_return_evaluation(span) for span in spans])
-
-        results = loop.run_until_complete(score_spans())
-
-        return [result for result in results if result is not None]
+        with self.executor as executor:
+            results = list(executor.map(sync_score_and_return_evaluation, spans))
+            return results
