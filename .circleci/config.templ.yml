@@ -556,43 +556,11 @@ jobs:
           env: 'dd_coverage'
           snapshot: true
 
-  llmobs:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: "llmobs"
-
-  subprocess:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "subprocess"
-
   sourcecode:
     <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "sourcecode"
-
-  debugger:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: "debugger"
-
-  openai:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          pattern: 'openai'
-          snapshot: true
-
-  opentracer:
-    <<: *contrib_job_large
-    steps:
-      - run_test:
-          pattern: 'opentracer'
 
   opentelemetry:
     parallelism: 4
@@ -610,24 +578,6 @@ jobs:
           pattern: 'botocore'
           snapshot: true
           docker_services: "localstack"
-
-  test_logging:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'test_logging'
-
-  stdlib:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
 
   asyncpg:
     <<: *machine_executor
@@ -691,15 +641,6 @@ jobs:
       - run_test:
           pattern: 'consul'
 
-  elasticsearch:
-    <<: *machine_executor
-    parallelism: 17
-    steps:
-      - run_test:
-          pattern: 'elasticsearch'
-          snapshot: true
-          docker_services: 'elasticsearch opensearch'
-
   django:
     <<: *machine_executor
     parallelism: 4
@@ -708,13 +649,6 @@ jobs:
           pattern: 'django($|_celery)'
           snapshot: true
           docker_services: "memcached redis postgres"
-
-  django_hosts:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'django_hosts$'
-          snapshot: true
 
   djangorestframework:
     <<: *machine_executor
@@ -822,27 +756,6 @@ jobs:
           pattern: 'pytest'
           snapshot: true
 
-  pytest_v2:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-     - run_hatch_env_test:
-          env: 'pytest_plugin_v2'
-          snapshot: true
-
-  unittest:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'unittest'
-          snapshot: true
-
-  asynctest:
-    executor: ddtrace_dev
-    steps:
-      - run_test:
-          pattern: 'asynctest$'
-
   pymemcache:
     <<: *contrib_job
     docker:
@@ -860,16 +773,6 @@ jobs:
           pattern: 'mongoengine'
           snapshot: true
           docker_services: 'mongo'
-
-  pymongo:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *mongo_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pymongo"
 
   requests:
     <<: *contrib_job
@@ -934,65 +837,6 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
-  aredis:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'redis'
-          pattern: 'aredis$'
-          snapshot: true
-
-  yaaredis:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'redis'
-          pattern: 'yaaredis$'
-          snapshot: true
-
-  redis:
-    <<: *machine_executor
-    parallelism: 5
-    steps:
-      - run_test:
-          docker_services: 'redis rediscluster'
-          pattern: 'redis$'
-          snapshot: true
-
-  rediscluster:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'rediscluster'
-          docker_services: 'rediscluster'
-          snapshot: true
-
-  rq:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "rq"
-          snapshot: true
-          docker_services: "redis"
-
-  urllib3:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'urllib3'
-          snapshot: true
-          docker_services: "httpbin_local"
-
-  kafka:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: 'kafka'
-          snapshot: true
-          docker_services: 'kafka'
-
   kombu:
     <<: *contrib_job
     docker:
@@ -1003,36 +847,6 @@ jobs:
       - run_test:
           wait: rabbitmq
           pattern: 'kombu'
-
-  langchain:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: "langchain"
-          snapshot: true
-
-  anthropic:
-    <<: *machine_executor
-    parallelism: 3
-    steps:
-      - run_test:
-          pattern: "anthropic"
-          snapshot: true
-
-  logbook:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'logbook'
-          snapshot: true
-
-  loguru:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'loguru'
-          snapshot: true
 
   build_docs:
     # build documentation and store as an artifact

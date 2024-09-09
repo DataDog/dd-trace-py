@@ -3,10 +3,10 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace.ext import test
-from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
-from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
+from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
+from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
@@ -18,8 +18,8 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilitySession(CIVisibilityParentItem[CIModuleId, CIVisibilityModule]):
-    """This class represents a CI session and is the top level in the hierarchy of CI visibility items.
+class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilityModule]):
+    """This class represents a Test session and is the top level in the hierarchy of Test visibility items.
 
     It does not access its skip-level descendents directly as they are expected to be managed through their own parent
     instances.
@@ -30,12 +30,12 @@ class CIVisibilitySession(CIVisibilityParentItem[CIModuleId, CIVisibilityModule]
 
     def __init__(
         self,
-        session_settings: CIVisibilitySessionSettings,
+        session_settings: TestVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
-        log.debug("Initializing CI Visibility session")
+        log.debug("Initializing Test Visibility session")
         super().__init__(
-            "ci_visibility_session", session_settings, session_settings.session_operation_name, initial_tags
+            "test_visibility_session", session_settings, session_settings.session_operation_name, initial_tags
         )
         self._test_command = self._session_settings.test_command
 
@@ -46,7 +46,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CIModuleId, CIVisibilityModule]
             SESSION_ID: str(self.get_span_id()),
         }
 
-    def get_session_settings(self) -> CIVisibilitySessionSettings:
+    def get_session_settings(self) -> TestVisibilitySessionSettings:
         return self._session_settings
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
@@ -75,4 +75,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CIModuleId, CIVisibilityModule]
         )
 
     def add_coverage_data(self, *args, **kwargs):
-        raise NotImplementedError("Coverage data cannot be added to modules.")
+        raise NotImplementedError("Coverage data cannot be added to session.")
+
+    def set_covered_lines_pct(self, coverage_pct: float):
+        self.set_tag(test.TEST_LINES_PCT, coverage_pct)
