@@ -800,6 +800,8 @@ venv = Venv(
                 "python-memcached": latest,
                 "pytest-randomly": latest,
                 "django-q": latest,
+                "spyne": latest,
+                "zeep": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -2677,6 +2679,9 @@ venv = Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+            env={
+                "DD_PROFILING_ENABLE_ASSERTS": "1",
+            },
             pkgs={
                 "gunicorn": latest,
                 #

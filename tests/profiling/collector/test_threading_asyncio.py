@@ -32,10 +32,10 @@ def test_lock_acquire_events():
 
     lock_found = 0
     for event in events[collector_threading.ThreadingLockAcquireEvent]:
-        if event.lock_name == "test_threading_asyncio.py:16":
+        if event.lock_name == "test_threading_asyncio.py:16:lock":
             assert event.task_name.startswith("Task-")
             lock_found += 1
-        elif event.lock_name == "test_threading_asyncio.py:20":
+        elif event.lock_name == "test_threading_asyncio.py:20:lock":
             assert event.task_name is None
             assert event.thread_name == "foobar"
             lock_found += 1

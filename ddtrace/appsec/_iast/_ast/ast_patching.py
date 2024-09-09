@@ -39,6 +39,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "ddsketch",
     "ddtrace",
     "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "encodings.idna",
     "envier",
     "exceptiongroup",
     "freezegun",  # Testing utilities for time manipulation

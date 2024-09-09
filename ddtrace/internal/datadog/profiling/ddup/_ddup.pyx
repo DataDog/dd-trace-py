@@ -280,10 +280,10 @@ cdef class SampleHandle:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
         if endpoint_collection_enabled:
-            root_service_bytes = ensure_binary_or_empty(span._local_root.service)
+            root_resource_bytes = ensure_binary_or_empty(span._local_root.resource)
             ddup_push_trace_resource_container(
                     self.ptr,
-                    string_view(<const char*>root_service_bytes, len(root_service_bytes))
+                    string_view(<const char*>root_resource_bytes, len(root_resource_bytes))
             )
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
