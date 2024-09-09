@@ -23,6 +23,18 @@ dogpile_cache:
   variables:
     SUITE_NAME: "dogpile_cache"
 
+elasticsearch:
+  extends: .test_base_riot_snapshot
+  parallel: 17
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, elasticsearch]
+    - !reference [.services, opensearch]
+  variables:
+    SUITE_NAME: "elasticsearch"
+    TEST_ELASTICSEARCH_HOST: "elasticsearch"
+    TEST_OPENSEARCH_HOST: "opensearch"
+
 falcon:
   extends: .test_base_riot_snapshot
   variables:
@@ -248,4 +260,3 @@ opentracer:
   extends: .test_base_riot
   variables:
     SUITE_NAME: "opentracer"
-
