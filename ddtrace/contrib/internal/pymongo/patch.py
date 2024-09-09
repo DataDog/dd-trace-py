@@ -16,7 +16,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 
-# keep TracedMongoClient import to maintain bakcwards compatibility
+# keep TracedMongoClient import to maintain backwards compatibility
 from .client import TracedMongoClient  # noqa: F401
 from .client import _trace_mongo_client_init
 from .client import _trace_server_run_operation_and_with_response
