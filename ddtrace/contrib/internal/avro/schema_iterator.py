@@ -25,10 +25,11 @@ class SchemaExtractor(SchemaIterator):
         ref = None
         enum_values = None
         field_type = field.type
-        # if field_type.type == "array":
-        #     breakpoint()
-
-        if getattr(field_type, "type", "") == "union":
+        if field_type.type == "array":
+            # Array Type, get type of first item in array
+            array = True
+            format_ = field_type.props["items"].type
+        elif getattr(field_type, "type", "") == "union":
             # Union Type
             schemas = getattr(field_type, "schemas", [])
             if len(schemas) > 0:
