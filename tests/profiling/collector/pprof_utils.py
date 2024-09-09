@@ -1,6 +1,7 @@
 import ctypes
 from enum import Enum
 import glob
+import re
 import typing
 
 import lz4.frame
@@ -206,6 +207,7 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
 
     if expected_event.task_name is not None:
         task_name_label = get_label_with_key(profile.string_table, sample, "task name")
-        assert (
-            profile.string_table[task_name_label.str] == expected_event.task_name
+        assert re.fullmatch(
+            expected_event.task_name,
+            profile.string_table[task_name_label.str],
         ), "Expected task_name {} got {}".format(expected_event.task_name, profile.string_table[task_name_label.str])

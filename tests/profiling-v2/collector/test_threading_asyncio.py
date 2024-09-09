@@ -48,6 +48,8 @@ def test_lock_acquire_events():
 
     profile = pprof_utils.parse_profile(output_prefix + "." + str(os.getpid()))
 
+    task_name_regex = r"Task-\d+$"
+
     pprof_utils.assert_lock_events(
         profile,
         expected_acquire_events=[
@@ -62,6 +64,7 @@ def test_lock_acquire_events():
                 filename=os.path.basename(__file__),
                 linenos=linenos_1,
                 lock_name="lock",
+                task_name=task_name_regex,
             ),
         ],
         expected_release_events=[
@@ -76,6 +79,7 @@ def test_lock_acquire_events():
                 filename=os.path.basename(__file__),
                 linenos=linenos_1,
                 lock_name="lock",
+                task_name=task_name_regex,
             ),
         ],
     )
