@@ -1311,7 +1311,7 @@ def test_base_tool_invoke(langchain_core, request_vcr):
 @pytest.mark.snapshot(
     # tool description is generated differently is some langchain_core versions
     ignores=["meta.langchain.request.tool.description"],
-    token="tests.contrib.langchain.test_langchain_community.test_base_tool_ainvoke",
+    token="tests.contrib.langchain.test_langchain_community.test_base_tool_invoke",
 )
 async def test_base_tool_ainvoke(langchain_core, request_vcr):
     """
