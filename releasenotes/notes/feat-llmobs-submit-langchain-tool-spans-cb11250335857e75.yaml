@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: The LangChain integration now submits tool spans to LLM Observability.
