@@ -46,6 +46,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.11.3
+
+
+### Bug Fixes
+
+- ASM: Improves internal stability for the new fingerprinting feature.
+
+
+---
+
 ## 2.11.2
 
 
