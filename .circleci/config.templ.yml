@@ -540,22 +540,6 @@ jobs:
       - run_test:
           pattern: "datastreams"
 
-  ci_visibility:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "ci_visibility"
-          snapshot: true
-
-  dd_coverage:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_hatch_env_test:
-          env: 'dd_coverage'
-          snapshot: true
-
   sourcecode:
     <<: *contrib_job_small
     steps:
@@ -756,14 +740,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'pylibmc'
-
-  pytest:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          pattern: 'pytest'
-          snapshot: true
 
   pymemcache:
     <<: *contrib_job
