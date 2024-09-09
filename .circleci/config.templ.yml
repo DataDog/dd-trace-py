@@ -556,12 +556,6 @@ jobs:
           env: 'dd_coverage'
           snapshot: true
 
-  sourcecode:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "sourcecode"
-
   opentelemetry:
     parallelism: 4
     <<: *machine_executor
