@@ -8,104 +8,40 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### New Features
 
-- openai: This introduces 'model' tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as <span class="title-ref">openai.request.model</span>- database_clients: Adds `server.address` tag to all `<database>.query` spans (ex: postgres.query). This tag stores the name of the database host.
+- openai: Introduces the `model` tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as `openai.request.model`.
 - database_clients: Adds `server.address` tag to all `<database>.query` spans (ex: postgres.query). This tag stores the name of the database host.
-- LLM Observability: Flush the buffer of spans to be sent when the payload size would otherwise exceed the payload size limit for the event platform.
+- LLM Observability: Flushes the buffer of spans to be sent when the payload size would otherwise exceed the payload size limit for the event platform.
 - LLM Observability: Span events that exceed the event platform event size limit (1 MB) will now have their inputs and outputs dropped.
+
 ### Deprecation Notes
 
-- config: DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated. Trace id logging format is now configured automatically.
-- aioredis: Deprecates all modules in the `ddtrace.contrib.aioredis` package. Use attributes exposed in `ddtrace.contrib.aioredis.__all__` instead.
-- algoliasearch: Deprecates all modules in the `ddtrace.contrib.algoliasearch` package. Use attributes exposed in `ddtrace.contrib.algoliasearch.__all__` instead.
-- anthropic: Deprecates all modules in the `ddtrace.contrib.anthropic` package. Use attributes exposed in `ddtrace.contrib.anthropic.__all__` instead.
-- aredis: Deprecates all modules in the `ddtrace.contrib.aredis` package. Use attributes exposed in `ddtrace.contrib.aredis.__all__` instead.
-- asgi: Deprecates all modules in the `ddtrace.contrib.asgi` package. Use attributes exposed in `ddtrace.contrib.asgi.__all__` instead.
-- asyncpg: Deprecates all modules in the ddtrace.contrib.asyncpg package. Use attributes exposed in ddtrace.contrib.asyncpg.\_\_all\_\_ instead.
-- aws_lambda: Deprecates all modules in the ddtrace.contrib.aws_lambda package. Use attributes exposed in ddtrace.contrib.aws_lambda.\_\_all\_\_ instead.
-- boto: Deprecates all modules in the ddtrace.contrib.boto package. Use attributes exposed in ddtrace.contrib.boto.\_\_all\_\_ instead.
-- botocore: Deprecates all modules in the ddtrace.contrib.botocore package. Use attributes exposed in ddtrace.contrib.botocore.\_\_all\_\_ instead.
-- bottle: Deprecates all modules in the ddtrace.contrib.bottle package. Use attributes exposed in ddtrace.contrib.bottle.\_\_all\_\_ instead.
-- cassandra: Deprecates all modules in the `ddtrace.contrib.cassandra` package. Use attributes exposed in `ddtrace.contrib.cassandra.__all__` instead.
-- celery: Deprecates all modules in the `ddtrace.contrib.celery` package. Use attributes exposed in `ddtrace.contrib.celery.__all__` instead.
-- cherrypy: Deprecates all modules in the `ddtrace.contrib.cherrypy` package. Use attributes exposed in `ddtrace.contrib.cherrypy.__all__` instead.
-- consul: Deprecates all modules in the `ddtrace.contrib.consul` package. Use attributes exposed in `ddtrace.contrib.consul.__all__` instead.
-- coverage: Deprecates all modules in the `ddtrace.contrib.coverage` package. Use attributes exposed in `ddtrace.contrib.coverage.__all__` instead.
-- django: Deprecates all modules in the `ddtrace.contrib.django` package. Use attributes exposed in `ddtrace.contrib.django.__all__` instead.
-- dogpile_cache: Deprecates all modules in the `ddtrace.contrib.dogpile_cache` package. Use attributes exposed in `ddtrace.contrib.dogpile_cache.__all__` instead.
-- dramatiq: Deprecates all modules in the `ddtrace.contrib.dramatiq` package. Use attributes exposed in `ddtrace.contrib.dramatiq.__all__` instead.
-- elasticsearch: Deprecates all modules in the `ddtrace.contrib.elasticsearch` package. Use attributes exposed in `ddtrace.contrib.elasticsearch.__all__` instead.
-- falcon: Deprecates all modules in the `ddtrace.contrib.falcon` package. Use attributes exposed in `ddtrace.contrib.falcon.__all__` instead.
-- fastapi: Deprecates all modules in the `ddtrace.contrib.fastapi` package. Use attributes exposed in `ddtrace.contrib.fastapi.__all__` instead.
-- flask: Deprecates all modules in the `ddtrace.contrib.flask` package. Use attributes exposed in `ddtrace.contrib.flask.__all__` instead.
-- flask_cache: Deprecates all modules in the `ddtrace.contrib.flask_cache` package. Use attributes exposed in `ddtrace.contrib.flask_cache.__all__` instead.
-- futures: Deprecates all modules in the `ddtrace.contrib.futures` package. Use attributes exposed in `ddtrace.contrib.futures.__all__` instead.
-- gevent: Deprecates all modules in the `ddtrace.contrib.gevent` package. Use attributes exposed in `ddtrace.contrib.gevent.__all__` instead.
-- graphql Deprecates all modules in the `ddtrace.contrib.graphql` package. Use attributes exposed in `ddtrace.contrib.graphql.__all__` instead.
-- grpc: Deprecates all modules in the `ddtrace.contrib.grpc` package. Use attributes exposed in `ddtrace.contrib.grpc.__all__` instead.
-- httplib: Deprecates all modules in the `ddtrace.contrib.httplib` package. Use attributes exposed in `ddtrace.contrib.httplib.__all__` instead.
-- httpx: Deprecates all modules in the `ddtrace.contrib.httpx` package. Use attributes exposed in `ddtrace.contrib.httpx.__all__` instead.
-- jinja2: Deprecates all modules in the `ddtrace.contrib.jinja2` package. Use attributes exposed in `ddtrace.contrib.jinja2.__all__` instead.
-- kafka: Deprecates all modules in the `ddtrace.contrib.kafka` package. Use attributes exposed in `ddtrace.contrib.kafka.__all__` instead.
-- kombu: Deprecates all modules in the `ddtrace.contrib.kombu` package. Use attributes exposed in `ddtrace.contrib.kombu.__all__` instead.
-- langchain: Deprecates all modules in the `ddtrace.contrib.langchain` package. Use attributes exposed in `ddtrace.contrib.langchain.__all__` instead.
-- logbook: Deprecates the `ddtrace.contrib.logbook` module. Use `ddtrace.contrib.langchain.logbook` instead.
-- logging: Deprecates the `ddtrace.contrib.logging` module. Use `ddtrace.contrib.langchain.logging` instead.
-- loguru: Deprecates the `ddtrace.contrib.loguru` module. Use `ddtrace.contrib.langchain.loguru` instead.
-- mako: Deprecates all modules in the `ddtrace.contrib.mako` package. Use attributes exposed in `ddtrace.contrib.mako.__all__` instead.
-- mariadb: Deprecates all modules in the `ddtrace.contrib.mariadb` package. Use attributes exposed in `ddtrace.contrib.mariadb.__all__` instead.
-- molten: Deprecates all modules in the `ddtrace.contrib.molten` package. Use attributes exposed in `ddtrace.contrib.molten.__all__` instead.
-- mongoengine: Deprecates all modules in the `ddtrace.contrib.mongoengine` package. Use attributes exposed in `ddtrace.contrib.mongoengine.__all__` instead.
-- mysql: Deprecates all modules in the `ddtrace.contrib.mysql` package. Use attributes exposed in `ddtrace.contrib.mysql.__all__` instead.
-- mysqldb: Deprecates all modules in the `ddtrace.contrib.mysqldb` package. Use attributes exposed in `ddtrace.contrib.mysqldb.__all__` instead.
-- openai: Deprecates all modules in the `ddtrace.contrib.openai` package. Use attributes exposed in `ddtrace.contrib.openai.__all__` instead.
-- psycopg: Deprecates all modules in the `ddtrace.contrib.psycopg` package. Use attributes exposed in `ddtrace.contrib.psycopg.__all__` instead.
-- pylibmc: Deprecates all modules in the `ddtrace.contrib.pylibmc` package. Use attributes exposed in `ddtrace.contrib.pylibmc.__all__` instead.
-- pymemcache: Deprecates all modules in the `ddtrace.contrib.pymemcache` package. Use attributes exposed in `ddtrace.contrib.pymemcache.__all__` instead.
-- pymongo: Deprecates all modules in the `ddtrace.contrib.pymongo` package. Use attributes exposed in `ddtrace.contrib.pymongo.__all__` instead.
-- pymysql: Deprecates all modules in the `ddtrace.contrib.pymysql` package. Use attributes exposed in `ddtrace.contrib.pymysql.__all__` instead.
-- pynamodb: Deprecates all modules in the `ddtrace.contrib.pynamodb` package. Use attributes exposed in `ddtrace.contrib.pynamodb.__all__` instead.
-- pyodbc: Deprecates all modules in the `ddtrace.contrib.pyodbc` package. Use attributes exposed in `ddtrace.contrib.pyodbc.__all__` instead.
-- pyramid: Deprecates all modules in the `ddtrace.contrib.pyramid` package. Use attributes exposed in `ddtrace.contrib.pyramid.__all__` instead.
-- redis: Deprecates all modules in the `ddtrace.contrib.redis` package. Use attributes exposed in `ddtrace.contrib.redis.__all__` instead.
-- rediscluster: Deprecates all modules in the `ddtrace.contrib.rediscluster` package. Use attributes exposed in `ddtrace.contrib.rediscluster.__all__` instead.
-- requests: Deprecates all modules in the `ddtrace.contrib.requests` package. Use attributes exposed in `ddtrace.contrib.requests.__all__` instead.
-- sanic: Deprecates all modules in the `ddtrace.contrib.sanic` package. Use attributes exposed in `ddtrace.contrib.sanic.__all__` instead.
-- snowflake: Deprecates the `ddtrace.contrib.snowflake` module. Use attributes exposed in `ddtrace.contrib.snowflake.__all__` instead.
-- sqlalchemy: Deprecates the `ddtrace.contrib.sqlalchemy` module. Use attributes exposed in `ddtrace.contrib.sqlalchemy.__all__` instead.
-- sqlite3: Deprecates the `ddtrace.contrib.sqlite3` module. Use attributes exposed in `ddtrace.contrib.sqlite3.__all__` instead.
-- starlette: Deprecates the `ddtrace.contrib.starlette` module. Use attributes exposed in `ddtrace.contrib.starlette.__all__` instead.
-- structlog: Deprecates the `ddtrace.contrib.structlog` module. Use attributes exposed in `ddtrace.contrib.structlog.__all__` instead.
-- subprocess: Deprecates the `ddtrace.contrib.subprocess` module. Use attributes exposed in `ddtrace.contrib.subprocess.__all__` instead.
-- tornado: Deprecates all modules in the `ddtrace.contrib.tornado` package. Use attributes exposed in `ddtrace.contrib.tornado.__all__` instead.
-- urllib: Deprecates the `ddtrace.contrib.urllib` module. Use attributes exposed in `ddtrace.contrib.urllib.__all__` instead.
-- urllib3: Deprecates the `ddtrace.contrib.urllib3` module. Use attributes exposed in `ddtrace.contrib.urllib3.__all__` instead.
-- vertica: Deprecates the `ddtrace.contrib.vertica` module. Use attributes exposed in `ddtrace.contrib.vertica.__all__` instead.
-- webbrowser: Deprecates the `ddtrace.contrib.webbrowser` module. Use attributes exposed in `ddtrace.contrib.webbrowser.__all__` instead.
-- wsgi: Deprecates the `ddtrace.contrib.wsgi` module. Use attributes exposed in `ddtrace.contrib.wsgi.__all__` instead.
-- yaaredis: Deprecates all modules in the `ddtrace.contrib.yaaredis` package. Use attributes exposed in `ddtrace.contrib.yaaredis.__all__` instead.
+- config: `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED` is deprecated. Trace id logging format is now configured automatically.
+- tracing: Deprecates all modules in the `ddtrace.contrib.[integration_name]` package. Use attributes exposed in `ddtrace.contrib.[integration_name].__all__` instead. The following are impacted:
+  - `aioredis`, `algoliasearch`. `anthropic`, `aredis`, `asgi`, `asyncpg`, `aws_lambda`, `boto`, `botocore`, `bottle`, `cassandra`, `celery`, `cherrypy`, `consul`, `coverage`, `django`, `dogpile_cache`, `dramatiq`, `elasticsearch`, `falcon`, `fastapi`, `flask`, `flask_cache`, `futures`, `gevent`, `graphql`, `grpc`, `httplib`, `httpx`, `jinja2`, `kafka`, `kombu`, `langchain`, `logbook`, `logging`, `loguru`, `mako`, `mariadb`, `molten`, `mongoengine`, `mysql`, `mysqldb`, `openai`, `psycopg`, `pylibmc`, `pymemcache`, `pymongo`, `pymysql`, `pynamodb`, `pyodbc`, `pyramid`, `redis`, `rediscluster`, `requests`, `sanic`, `snowflake`, `sqlalchemy`, `sqlite3`, `starlette`, `structlog`, `subprocess`, `tornado`, `urllib`, `urllib3`, `vertica`, `webbrowser`, `wsgi`, `yaaredis`
 ### Bug Fixes
 
-- CI Visibility: This fix resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: Resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
 - CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
-- LLM Observability: This fix resolves an issue where custom trace filters were being overwritten in forked processes.
-- Fix for a side-effect issue with module import callbacks that could cause a runtime exception.
-- llmobs: This fix resolves an issue where session_id was being defaulted to trace_id which was causing unexpected UI behavior.- LLM Observability: This fix resolves an issue where LLM Observability spans were not being submitted in forked processes, such as when using `celery` or `gunicorn` workers. The LLM Observability writer thread now automatically restarts when a forked process is detected.
-- Fixed an issue with some module imports with native specs that don't support attribute assignments, resulting in a `TypeError` exception at runtime.
-- This fix resolves an issue where `ddtrace` package files were published with incorrect file attributes.
-- tracer: This fix resolves an issue where django db instrumentation could fail.
-- openai: Fixes a bug where \`asyncio.TimeoutError\`s were not being propagated correctly from canceled OpenAI API requests.
+- LLM Observability: Resolves an issue where custom trace filters were being overwritten in forked processes.
+- tracing: Fixes a side-effect issue with module import callbacks that could cause a runtime exception.
+- LLM Observability: Resolves an issue where `session_id` was being defaulted to `trace_id`, which was causing unexpected UI behavior.
+- LLM Observability: Resolves an issue where LLM Observability spans were not being submitted in forked processes, such as when using `celery` or `gunicorn` workers. The LLM Observability writer thread now automatically restarts when a forked process is detected.
+- tracing: Fixes an issue with some module imports with native specs that don't support attribute assignments, resulting in a `TypeError` exception at runtime.
+- tracing: Resolves an issue where `ddtrace` package files were published with incorrect file attributes.
+- tracing: Resolves an issue where django db instrumentation could fail.
+- openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
 
 - tracing: Adds `ddtrace.trace.Context` to the public api. This class can now be used to propagate context across execution boundaries (ex: threads).
-- aiobotocore: Fix an issue where the <span class="title-ref">\_make_api_call</span> arguments were not captured correctly when using keyword arguments.
-- tracing(django): This fix resolves a bug where ddtrace was exhausting a Django stream response before returning it to user.
+- aiobotocore: Fixes an issue where the `_make_api_call` arguments were not captured correctly when using keyword arguments.
+- tracing(django): Resolves a bug where ddtrace was exhausting a Django stream response before returning it to user.
 - LLM Observability: Fixes an issue in the OpenAI integration where integration metrics would still be submitted even if `LLMObs.enable(agentless_enabled=True)` was set.
-- internal: Fix for `Already mutably borrowed` error when rate limiter is accessed across threads.
-- internal: Fix `Already mutably borrowed` error by reverting back to pure-python rate limiter.
-- Code Security: add null pointer checks when creating new objects ids.
+- internal: Fixes the `Already mutably borrowed` error when rate limiter is accessed across threads.
+- internal: Fixes the `Already mutably borrowed` error by reverting back to pure-python rate limiter.
+- Code Security: Adds null pointer checks when creating new objects ids.
 - profiling: Fixes an issue where the profiler could erroneously try to load protobuf in autoinjected environments, where it is not available.
-- Fixes an issue where crashtracking environment variables for Python were inconsistent with those used by other runtimes.
-- profiling: Fixes endpoing profiling for stack v2, that is when `DD_PROFILING_STACK_V2_ENABLED` set.
-- profiling: Turns on the new native exporter when <span class="title-ref">DD_PROFILING_TIMELINE_ENABLED=True</span> is set.
+- crashtracking: Fixes an issue where crashtracking environment variables for Python were inconsistent with those used by other runtimes.
+- profiling: Fixes endpoint profiling for stack v2 when `DD_PROFILING_STACK_V2_ENABLED` set.
+- profiling: Turns on the new native exporter when `DD_PROFILING_TIMELINE_ENABLED=True` is set.
 
 
 ---
