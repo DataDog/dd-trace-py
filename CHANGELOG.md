@@ -4,6 +4,23 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.10.7
+
+
+### New Features
+
+- openai: This introduces 'model' tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as <span class="title-ref">openai.request.model</span>.
+
+### Bug Fixes
+
+- CI Visibility: This fix resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
+- openai: Fixes a bug where \`asyncio.TimeoutError\`s were not being propagated correctly from canceled OpenAI API requests.
+- profiling: Fixes endpoing profiling for stack v2, that is when `DD_PROFILING_STACK_V2_ENABLED` set.
+
+
+---
+
 ## 2.11.2
 
 
