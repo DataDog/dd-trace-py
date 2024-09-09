@@ -1,5 +1,4 @@
 # stdlib
-# 3p
 import time
 
 import pymongo
