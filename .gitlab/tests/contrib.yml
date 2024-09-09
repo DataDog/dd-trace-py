@@ -248,6 +248,7 @@ pytest_v2:
   extends: .test_base_hatch_snapshot
   parallel: 10
   variables:
+    DD_SERVICE: pytest
     SUITE_NAME: 'pytest_plugin_v2'
 
 django_hosts:

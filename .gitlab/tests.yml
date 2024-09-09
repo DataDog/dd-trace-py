@@ -8,10 +8,6 @@ variables:
   needs: []
   parallel: 4
   script:
-    - unset DD_SERVICE
-    - unset DD_ENV
-    - unset DD_TAGS
-    - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
     - |
       envs=( $(hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh) )
       if [[ ${#envs[@]} -eq 0 ]]; then
