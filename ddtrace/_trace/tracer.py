@@ -39,6 +39,7 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
@@ -57,7 +58,6 @@ from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_a
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
@@ -423,8 +423,11 @@ class Tracer(object):
         span_id = "0"
         trace_id = "0"
         if active:
-            span_id = str(active.span_id) if active.span_id else span_id
-            trace_id = format_trace_id(active.trace_id) if active.trace_id else trace_id
+            span_id = str(active.span_id if active.span_id else span_id)
+            trace_id = str(active.trace_id if active.trace_id else trace_id)
+            # check if we are using 128 bit ids, and switch trace id to hex since backend needs hex 128 bit ids
+            if active.trace_id and active.trace_id > MAX_UINT_64BITS:
+                trace_id = "{:032x}".format(active.trace_id)
 
         return {
             "trace_id": trace_id,

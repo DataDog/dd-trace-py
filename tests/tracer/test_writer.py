@@ -440,7 +440,7 @@ class CIVisibilityWriterTests(AgentWriterTests):
         writer = CIVisibilityWriter("http://localhost:9126")
         for client in writer._clients:
             client.encoder.put([Span("foobar")])
-            payload = client.encoder.encode()[0]
+            payload = client.encoder.encode()
             try:
                 unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
             except KeyError:

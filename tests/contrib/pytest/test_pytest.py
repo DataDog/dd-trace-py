@@ -21,7 +21,6 @@ from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
-from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
@@ -680,7 +679,7 @@ class PytestTestCase(TracerTestCase):
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
         encoder = self.tracer.encoder
         encoder.put(spans)
-        trace, _ = encoder.encode()
+        trace = encoder.encode()
         (decoded_trace,) = self.tracer.encoder._decode(trace)
         assert len(decoded_trace) == 7
         for span in decoded_trace:
@@ -688,7 +687,7 @@ class PytestTestCase(TracerTestCase):
 
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        event_payload = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         assert len(decoded_event_payload[b"events"]) == 7
         for event in decoded_event_payload[b"events"]:
@@ -1903,8 +1902,6 @@ class PytestTestCase(TracerTestCase):
                 "test_outer_package/test_outer_abc.py",
                 "test_outer_package/test_inner_package/test_inner_class_abc.py",
             ],
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
@@ -2184,8 +2181,6 @@ class PytestTestCase(TracerTestCase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=True
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_suite_itr_skippable", return_value=True
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
@@ -2256,8 +2251,6 @@ class PytestTestCase(TracerTestCase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=False
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
@@ -2643,8 +2636,6 @@ class PytestTestCase(TracerTestCase):
                 "test_outer_package/test_outer_abc.py",
                 "test_outer_package/test_inner_package/test_inner_abc.py",
             ],
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
@@ -3009,8 +3000,6 @@ class PytestTestCase(TracerTestCase):
                 "test_outer_package/test_outer_abc.py",
                 "test_outer_package/test_inner_package/test_inner_abc.py",
             ],
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
@@ -3141,8 +3130,6 @@ class PytestTestCase(TracerTestCase):
             [
                 "test_outer_package/test_inner_package/test_inner_abc.py",
             ],
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace", "-v")
 

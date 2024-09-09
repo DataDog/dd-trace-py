@@ -34,8 +34,6 @@ from ..writer import _human_size
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
 from .fnv import fnv1_64
-from .schemas.schema_builder import SchemaBuilder
-from .schemas.schema_sampler import SchemaSampler
 
 
 def gzip_compress(payload):
@@ -143,7 +141,6 @@ class DataStreamsProcessor(PeriodicService):
         self._lock = Lock()
         self._current_context = threading.local()
         self._enabled = True
-        self._schema_samplers: Dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
             attempts=retry_attempts,
@@ -385,21 +382,6 @@ class DataStreamsProcessor(PeriodicService):
             payload_size += len(ctx.encode_b64()) + len(PROPAGATION_KEY_BASE_64)
         ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
-
-    def try_sample_schema(self, topic):
-        now_ms = time.time() * 1000
-
-        sampler = self._schema_samplers.setdefault(topic, SchemaSampler())
-        return sampler.try_sample(now_ms)
-
-    def can_sample_schema(self, topic):
-        now_ms = time.time() * 1000
-
-        sampler = self._schema_samplers.setdefault(topic, SchemaSampler())
-        return sampler.can_sample(now_ms)
-
-    def get_schema(self, schema_name, iterator):
-        return SchemaBuilder.get_schema(schema_name, iterator)
 
 
 class DataStreamsCtx:

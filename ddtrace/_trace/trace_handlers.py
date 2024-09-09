@@ -756,24 +756,6 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
-def _on_test_visibility_enable(config) -> None:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    CIVisibility.enable(config=config)
-
-
-def _on_test_visibility_disable() -> None:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    CIVisibility.disable()
-
-
-def _on_test_visibility_is_enabled() -> bool:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    return CIVisibility.enabled
-
-
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -826,10 +808,6 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
-
-    core.on("test_visibility.enable", _on_test_visibility_enable)
-    core.on("test_visibility.disable", _on_test_visibility_disable)
-    core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
 
     for context_name in (
         "flask.call",

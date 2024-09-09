@@ -1283,7 +1283,7 @@ def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
     try:
-        encoded_traces, _ = client.encoder.encode()
+        encoded_traces = client.encoder.encode()
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)

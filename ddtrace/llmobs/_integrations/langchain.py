@@ -21,6 +21,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from .._utils import _unserializable_default_repr
 
 from ..utils import Document
 from .base import BaseLLMIntegration
@@ -45,7 +46,7 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
 
 
 class LangChainIntegration(BaseLLMIntegration):
@@ -53,7 +54,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def llmobs_set_tags(
         self,
-        operation: str,  # oneof "llm","chat","chain","embedding","retrieval"
+        operation: str,  # oneof "llm","chat","chain","embedding","retrieval","tool"
         span: Span,
         inputs: Any,
         response: Any = None,
@@ -92,6 +93,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_embedding(span, inputs, response, error, is_workflow=is_workflow)
         elif operation == "retrieval":
             self._llmobs_set_meta_tags_from_similarity_search(span, inputs, response, error, is_workflow=is_workflow)
+        elif operation == "tool":
+            self._llmobs_set_meta_tags_from_tool(span, inputs, response, error)
         span.set_tag_str(METRICS, json.dumps({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
@@ -169,33 +172,13 @@ class LangChainIntegration(BaseLLMIntegration):
                 for chat_completion in message_set:
                     chat_completion_msg = chat_completion.message
                     role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
-                    output_message = {
-                        "content": str(chat_completion.text),
-                        "role": role,
-                    }
-
-                    tool_calls_info = self._extract_tool_calls(chat_completion_msg)
-                    if tool_calls_info:
-                        output_message["tool_calls"] = tool_calls_info
-
-                    output_messages.append(output_message)
+                    output_messages.append(
+                        {
+                            "content": str(chat_completion.text),
+                            "role": role,
+                        }
+                    )
         span.set_tag_str(output_tag_key, json.dumps(output_messages))
-
-    def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
-        """Extracts tool calls from a langchain chat completion."""
-        tool_calls = getattr(chat_completion_msg, "tool_calls", None)
-        tool_calls_info = []
-        if tool_calls:
-            if not isinstance(tool_calls, list):
-                tool_calls = [tool_calls]
-            for tool_call in tool_calls:
-                tool_call_info = {
-                    "name": tool_call.get("name", ""),
-                    "arguments": tool_call.get("args", {}),  # this is already a dict
-                    "tool_id": tool_call.get("id", ""),
-                }
-                tool_calls_info.append(tool_call_info)
-        return tool_calls_info
 
     def _llmobs_set_meta_tags_from_chain(
         self,
@@ -323,6 +306,48 @@ class LangChainIntegration(BaseLLMIntegration):
                     span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
                 except TypeError:
                     log.warning("Failed to serialize similarity output documents to JSON")
+
+    def _llmobs_set_meta_tags_from_tool(
+        self,
+        span: Span,
+        tool_inputs: Dict[str, Any],
+        tool_output: object,
+        error: bool,
+    ) -> None:
+        metadata = span.get_tag(METADATA) or {}
+
+        span.set_tag_str(SPAN_KIND, "tool")
+        if tool_inputs is not None:
+            tool_input = tool_inputs.get("input")
+            if tool_inputs.get("config"):
+                metadata["tool_config"] = tool_inputs.get("config")
+            if tool_inputs.get("info"):
+                metadata["tool_info"] = tool_inputs.get("info")
+            if metadata:
+                span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
+            try:
+                formatted_input = self.format_io(tool_input)
+                if isinstance(formatted_input, str):
+                    span.set_tag_str(INPUT_VALUE, formatted_input)
+                else:
+                    span.set_tag_str(
+                        INPUT_VALUE, json.dumps(self.format_io(tool_input), default=_unserializable_default_repr)
+                    )
+            except TypeError:
+                log.warning("Failed to serialize tool input data to JSON")
+        if error:
+            span.set_tag_str(OUTPUT_VALUE, "")
+        elif tool_output is not None:
+            try:
+                formatted_outputs = self.format_io(tool_output)
+                if isinstance(formatted_outputs, str):
+                    span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
+                else:
+                    span.set_tag_str(
+                        OUTPUT_VALUE, json.dumps(self.format_io(tool_output), default=_unserializable_default_repr)
+                    )
+            except TypeError:
+                log.warning("Failed to serialize tool output data to JSON")
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

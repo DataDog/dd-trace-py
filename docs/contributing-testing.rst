@@ -69,7 +69,7 @@ How do I run only the tests I care about?
 2. Find the ``Venv`` in the `riotfile <https://github.com/DataDog/dd-trace-py/blob/32b88eadc00e05cd0bc2aec587f565cc89f71229/riotfile.py#L426>`_
    whose ``command`` contains the tests you're interested in. Note the ``Venv``'s ``name`` - this is the
    "suite name".
-3. Find the directive in the file `./circleci/config.templ.yml <https://github.com/DataDog/dd-trace-py/blob/733a80eeb08c631967d3b17502cf0d6a9239c5cb/.circleci/config.templ.yml#L799>`_
+3. Find the directive in the `CI config <https://github.com/DataDog/dd-trace-py/blob/32b88eadc00e05cd0bc2aec587f565cc89f71229/.circleci/config.yml#L664>`_
    whose ``pattern`` is equal to the suite name. Note the ``docker_services`` section of the directive, if present -
    these are the "suite services".
 4. Start the suite services, if applicable, with ``$ docker-compose up -d service1 service2``.

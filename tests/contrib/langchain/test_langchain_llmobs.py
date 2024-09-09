@@ -172,6 +172,14 @@ class BaseTestLLMObsLangchain:
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
 
+    @classmethod
+    def _invoke_tool(cls, tool, tool_input, mock_tracer):
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
+        if LANGCHAIN_VERSION > (0, 1):
+            tool.invoke(tool_input)
+        LLMObs.disable()
+        return mock_tracer.pop_traces()[0][0]
+
 
 @pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1), reason="These tests are for langchain < 0.1.0")
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
@@ -707,49 +715,43 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
 
-    def test_llmobs_chat_model_tool_calls(self, langchain_openai, mock_llmobs_span_writer, mock_tracer):
-        import langchain_core.tools
+    def test_llmobs_base_tool_invoke(self, langchain_core, mock_llmobs_span_writer, mock_tracer):
+        if langchain_core is None:
+            pytest.skip("langchain-core not installed which is required for this test.")
 
-        @langchain_core.tools.tool
-        def add(a: int, b: int) -> int:
-            """Adds a and b.
+        from math import pi
 
-            Args:
-                a: first int
-                b: second int
-            """
-            return a + b
+        from langchain_core.tools import StructuredTool
 
-        llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125")
-        llm_with_tools = llm.bind_tools([add])
-        span = self._invoke_chat(
-            chat_model=llm_with_tools,
-            prompt="What is the sum of 1 and 2?",
+        def circumference_tool(radius: float) -> float:
+            return float(radius) * 2.0 * pi
+
+        calculator = StructuredTool.from_function(
+            func=circumference_tool,
+            name="Circumference calculator",
+            description="Use this tool when you need to calculate a circumference using the radius of a circle",
+            return_direct=True,
+            response_format="content",
+        )
+
+        span = self._invoke_tool(
+            tool=calculator,
+            tool_input="2",
             mock_tracer=mock_tracer,
-            cassette_name="lcel_with_tools_openai.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
-        mock_llmobs_span_writer.enqueue.assert_any_call(
-            _expected_llmobs_llm_span_event(
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
                 span,
-                model_name=span.get_tag("langchain.request.model"),
-                model_provider=span.get_tag("langchain.request.provider"),
-                input_messages=[{"role": "user", "content": "What is the sum of 1 and 2?"}],
-                output_messages=[
-                    {
-                        "role": "assistant",
-                        "content": "",
-                        "tool_calls": [
-                            {
-                                "name": "add",
-                                "arguments": {"a": 1, "b": 2},
-                                "tool_id": mock.ANY,
-                            }
-                        ],
+                span_kind="tool",
+                input_value="2",
+                output_value="12.566370614359172",
+                metadata={
+                    "tool_info": {
+                        "name": "Circumference calculator",
+                        "description": mock.ANY,
                     }
-                ],
-                metadata={"temperature": 0.7},
-                token_metrics={},
+                },
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",
             )

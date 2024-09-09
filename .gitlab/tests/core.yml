@@ -1,5 +1,5 @@
 internal:
-  extends: .test_base_riot_snapshot
+  extends: .test_base_riot
   variables:
     SUITE_NAME: "internal"
 
@@ -28,22 +28,8 @@ ddtracerun:
   extends: .test_base_riot
   services:
     - !reference [.test_base_riot, services]
-    - !reference [.services, redis]
+    - name: registry.ddbuild.io/redis:7.0.7
+      alias: redis
   variables:
     SUITE_NAME: "ddtracerun"
     TEST_REDIS_HOST: "redis"
-
-slotscheck:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  script:
-    - hatch run slotscheck:_
-
-conftests:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  script:
-    - hatch run meta-testing:meta-testing
-
