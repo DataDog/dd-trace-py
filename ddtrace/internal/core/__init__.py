@@ -100,6 +100,7 @@ like this::
 
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
+
 from contextlib import contextmanager
 import logging
 import sys
@@ -115,7 +116,6 @@ from ddtrace.vendor.debtcollector import deprecate
 
 from ..utils.deprecations import DDTraceDeprecationWarning
 from . import event_hub  # noqa:F401
-from ._core import RateLimiter  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
 from .event_hub import dispatch_with_results  # noqa:F401

@@ -800,6 +800,8 @@ venv = Venv(
                 "python-memcached": latest,
                 "pytest-randomly": latest,
                 "django-q": latest,
+                "spyne": latest,
+                "zeep": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
