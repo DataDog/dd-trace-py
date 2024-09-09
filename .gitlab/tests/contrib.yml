@@ -50,6 +50,18 @@ fastapi:
   variables:
     SUITE_NAME: "fastapi"
 
+flask:
+  extends: .test_base_riot_snapshot
+  parallel: 14
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "flask"
+    TEST_MEMCACHED_HOST: "memcached"
+    TEST_REDIS_HOST: "redis"
+
 urllib3:
   extends: .test_base_riot_snapshot
   services:
