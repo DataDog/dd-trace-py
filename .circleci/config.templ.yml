@@ -641,15 +641,6 @@ jobs:
       - run_test:
           pattern: 'consul'
 
-  elasticsearch:
-    <<: *machine_executor
-    parallelism: 17
-    steps:
-      - run_test:
-          pattern: 'elasticsearch'
-          snapshot: true
-          docker_services: 'elasticsearch opensearch'
-
   django:
     <<: *machine_executor
     parallelism: 4
