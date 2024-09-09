@@ -292,6 +292,16 @@ def test_ci_visibility_service_disable():
         ("git+git://github.com/org/repo-name.git", "repo-name"),
         ("git+ssh://github.com/org/repo-name.git", "repo-name"),
         ("git+https://github.com/org/repo-name.git", "repo-name"),
+        ("https://github.com/fastapi/fastapi.git", "fastapi"),
+        ("git@github.com:fastapi/fastapi.git", "fastapi"),
+        ("git@github.com:fastapi/fastapi.gitttttt", "fastapi.gitttttt"),
+        ("git@github.com:fastapi/fastapiiiititititi.git", "fastapiiiititititi"),
+        ("https://github.com/fastapi/fastapitttttt.git", "fastapitttttt"),
+        ("this is definitely not a valid git repo URL", "this is definitely not a valid git repo URL"),
+        ("git@github.com:fastapi/FastAPI.GiT", "FastAPI"),
+        ("git+https://github.com/org/REPO-NAME.GIT", "REPO-NAME"),
+        ("https://github.com/DataDog/DD-TRACE-py", "DD-TRACE-py"),
+        ("https://github.com/DataDog/dd-trace-py.GIT", "dd-trace-py"),
     ],
 )
 def test_repository_name_extracted(repository_url, repository_name):
