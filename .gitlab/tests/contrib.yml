@@ -80,6 +80,7 @@ kafka:
 
 aredis:
   extends: .test_base_riot_snapshot
+  parallel: 3
   services:
     - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, redis]
@@ -239,11 +240,12 @@ logbook:
 
 asynctest:
   extends: .test_base_riot
+  parallel: 3
   variables:
     SUITE_NAME: 'asynctest$'
 
 pytest_v2:
-  extends: .test_base_riot_snapshot
+  extends: .test_base_hatch_snapshot
   parallel: 10
   variables:
     SUITE_NAME: 'pytest_plugin_v2'
