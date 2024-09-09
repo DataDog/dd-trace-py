@@ -9,5 +9,5 @@ def test_get_source_code_link():
 
     # can be github.com or gitlab.ddbuild.io
     assert reporsitory_url.startswith("https://git")
-    assert reporsitory_url.endswith("/DataDog/dd-trace-py")
+    assert reporsitory_url.endswith("/dd-trace-py")
     assert re.match(r"\b[a-f0-9]{5,40}\b", commit_hash) is not None
