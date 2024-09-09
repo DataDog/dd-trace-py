@@ -195,8 +195,6 @@ def _pytest_collection_finish(session) -> None:
     NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
     tests that pytest has selection for run (eg: with the use of -k as an argument).
     """
-    codeowners = InternalTestSession.get_codeowners()
-
     for item in session.items:
         test_id = _get_test_id_from_item(item)
         suite_id = test_id.parent_id
@@ -208,7 +206,7 @@ def _pytest_collection_finish(session) -> None:
 
         item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
 
-        item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
+        item_codeowners = InternalTestSession.get_path_codeowners(item_path)
 
         source_file_info = _get_source_file_info(item, item_path)
 
