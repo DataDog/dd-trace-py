@@ -18,6 +18,7 @@ from ddtrace.contrib.pytest._utils import _get_names_from_item
 from ddtrace.contrib.pytest._utils import _get_session_command
 from ddtrace.contrib.pytest._utils import _get_source_file_info
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
+from ddtrace.contrib.pytest._utils import _get_test_parameters_json
 from ddtrace.contrib.pytest._utils import _is_enabled_early
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
@@ -244,6 +245,11 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     InternalTestModule.start(module_id)
     InternalTestSuite.start(suite_id)
 
+    # DEV: pytest's fixtures resolution may change parameters between collection finish and test run
+    parameters = _get_test_parameters_json(item)
+    if parameters is not None:
+        InternalTest.set_parameters(test_id, parameters)
+
     InternalTest.start(test_id)
 
     _handle_itr_should_skip(item, test_id)
@@ -293,11 +299,6 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
     except:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
-        # yield and return because there's no point in attempting the post-yield part of pytest_runtest_protocol if
-        # the pre-yield part failed
-        _disable_ci_visibility()
-        yield
-        return
 
     # Yield control back to pytest to run the test
     yield

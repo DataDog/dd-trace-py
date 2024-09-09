@@ -1134,12 +1134,19 @@ def _on_finish_test(finish_args: Test.FinishArgs):
     )
 
 
+@_requires_civisibility_enabled
+def _on_set_test_paramaters(item_id: TestId, parameters: str):
+    log.debug("Handling set parameters for test id %s, parameters %s", item_id, parameters)
+    CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
+
+
 def _register_test_handlers():
     log.debug("Registering test handlers")
     core.on("test_visibility.test.discover", _on_discover_test)
     core.on("test_visibility.test.discover_early_flake_retry", _on_discover_test_early_flake_retry)
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
+    core.on("test_visibility.test.set_parameters", _on_set_test_paramaters)
 
 
 @_requires_civisibility_enabled
