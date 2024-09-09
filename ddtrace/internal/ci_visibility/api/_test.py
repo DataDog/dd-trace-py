@@ -149,3 +149,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
     def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
         self._coverage_data.add_covered_files(coverage_data)
+
+    def set_parameters(self, parameters: str) -> None:
+        self._parameters = parameters
+        self.set_tag(test.PARAMETERS, self._parameters)

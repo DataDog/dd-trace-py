@@ -3,10 +3,12 @@ from http.client import RemoteDisconnected
 import json
 import os
 from pathlib import Path
+import re
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Union  # noqa:F401
@@ -83,7 +85,6 @@ from .writer import CIVisibilityWriter
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import DefaultDict  # noqa:F401
-    from typing import List  # noqa:F401
     from typing import Tuple  # noqa:F401
 
     from ddtrace.settings import IntegrationConfig  # noqa:F401
@@ -103,12 +104,17 @@ class CIVisibilityAuthenticationException(Exception):
     pass
 
 
-def _extract_repository_name_from_url(repository_url):
-    # type: (str) -> str
+def _extract_repository_name_from_url(repository_url: str) -> str:
+    _REPO_NAME_REGEX = r".*/(?P<repo_name>.*?)(\.git)?$"
+
     try:
-        return parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
+        url_path = parse.urlparse(repository_url).path
+        matches = re.match(_REPO_NAME_REGEX, url_path, flags=re.IGNORECASE)
+        if matches:
+            return matches.group("repo_name")
+        log.warning("Cannot extract repository name from unexpected URL path: %s", url_path)
+        return repository_url
     except ValueError:
-        # In case of parsing error, default to repository url
         log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
         return repository_url
 
@@ -984,12 +990,28 @@ def _on_session_get_codeowners() -> Optional[Codeowners]:
     return CIVisibility.get_codeowners()
 
 
+@_requires_civisibility_enabled
+def _on_session_set_covered_lines_pct(coverage_pct) -> None:
+    log.debug("Setting coverage percentage for session to %s", coverage_pct)
+    CIVisibility.get_session().set_covered_lines_pct(coverage_pct)
+
+
+@_requires_civisibility_enabled
+def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
+    log.debug("Getting codeowners for path %s", path)
+    codeowners = CIVisibility.get_codeowners()
+    if codeowners is None:
+        return None
+    return codeowners.of(str(path.absolute()))
+
+
 def _register_session_handlers():
     log.debug("Registering session handlers")
     core.on("test_visibility.session.discover", _on_discover_session)
     core.on("test_visibility.session.start", _on_start_session)
     core.on("test_visibility.session.finish", _on_finish_session)
     core.on("test_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
+    core.on("test_visibility.session.get_path_codeowners", _on_session_get_path_codeowners, "path_codeowners")
     core.on("test_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
     core.on(
         "test_visibility.session.should_collect_coverage",
@@ -1001,6 +1023,7 @@ def _register_session_handlers():
         _on_session_is_test_skipping_enabled,
         "is_test_skipping_enabled",
     )
+    core.on("test_visibility.session.set_covered_lines_pct", _on_session_set_covered_lines_pct)
 
 
 @_requires_civisibility_enabled
@@ -1118,12 +1141,19 @@ def _on_finish_test(finish_args: Test.FinishArgs):
     )
 
 
+@_requires_civisibility_enabled
+def _on_set_test_paramaters(item_id: TestId, parameters: str):
+    log.debug("Handling set parameters for test id %s, parameters %s", item_id, parameters)
+    CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
+
+
 def _register_test_handlers():
     log.debug("Registering test handlers")
     core.on("test_visibility.test.discover", _on_discover_test)
     core.on("test_visibility.test.discover_early_flake_retry", _on_discover_test_early_flake_retry)
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
+    core.on("test_visibility.test.set_parameters", _on_set_test_paramaters)
 
 
 @_requires_civisibility_enabled
