@@ -1,0 +1,70 @@
+import os
+
+import pytest
+
+from ddtrace.pin import Pin
+from ddtrace.contrib.google_generativeai import patch
+from ddtrace.contrib.google_generativeai import unpatch
+from tests.contrib.google_generativeai.utils import MockGenerativeModelClient
+from tests.contrib.google_generativeai.utils import MockGenerativeModelAsyncClient
+from tests.utils import DummyTracer
+from tests.utils import DummyWriter
+from tests.utils import override_config
+from tests.utils import override_env
+from tests.utils import override_global_config
+
+
+def default_global_config():
+    return {"_dd_api_key": "<not-a-real-api_key>"}
+
+
+@pytest.fixture
+def ddtrace_global_config():
+    return {}
+
+
+@pytest.fixture
+def ddtrace_config_google_generativeai():
+    return {}
+
+
+@pytest.fixture
+def mock_tracer(ddtrace_global_config, genai):
+    try:
+        pin = Pin.get_from(genai)
+        mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
+        pin.override(genai, tracer=mock_tracer)
+        pin.tracer.configure()
+        yield mock_tracer
+    except Exception:
+        yield
+
+
+@pytest.fixture
+def mock_client():
+    yield MockGenerativeModelClient()
+
+
+@pytest.fixture
+def mock_client_async():
+    yield MockGenerativeModelAsyncClient()
+
+
+@pytest.fixture
+def genai(ddtrace_global_config, ddtrace_config_google_generativeai, mock_client, mock_client_async):
+    global_config = default_global_config()
+    global_config.update(ddtrace_global_config)
+    with override_global_config(global_config):
+        with override_config("google_generativeai", ddtrace_config_google_generativeai):
+            with override_env(
+                dict(GOOGLE_GENERATIVEAI_API_KEY=os.getenv("GOOGLE_GENERATIVEAI_API_KEY", "<not-a-real-key>"))
+            ):
+                patch()
+                from google.generativeai import client as client_lib
+                import google.generativeai as genai
+
+                client_lib._client_manager.clients["generative"] = mock_client
+                client_lib._client_manager.clients["generative_async"] = mock_client_async
+
+                yield genai
+                unpatch()

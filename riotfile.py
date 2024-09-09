@@ -2670,6 +2670,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_generativeai",
+            command="pytest {cmdargs} tests/contrib/google_generativeai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-generativeai": ["~=0.7.2"],
+                "pillow": latest,
+            }
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",

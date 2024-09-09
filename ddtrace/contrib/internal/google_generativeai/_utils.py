@@ -71,8 +71,13 @@ def _extract_api_key(instance):
 def _tag_request_content_part(span, integration, part, part_idx, content_idx):
     """Tag the generation span with request content parts."""
     text = getattr(part, "text", "")
-    span.set_tag_str("genai.request.contents.%d.parts.%d.text" % (content_idx, part_idx), integration.trunc(str(text)))
     function_call = getattr(part, "function_call", None)
+    function_response = getattr(part, "function_response", None)
+    if isinstance(part, dict):
+        text = part.get("text", "")
+        function_call = part.get("function_call", None)  # TODO: CHECK FOR DICT FUNCTION_CALL/FUNCTION_RESPONSE TYPE
+        function_response = part.get("function_response", None)
+    span.set_tag_str("genai.request.contents.%d.parts.%d.text" % (content_idx, part_idx), integration.trunc(str(text)))
     if function_call:
         function_call_dict = type(function_call).to_dict(function_call)
         span.set_tag_str(
@@ -83,7 +88,6 @@ def _tag_request_content_part(span, integration, part, part_idx, content_idx):
             "genai.request.contents.%d.parts.%d.function_call.args" % (content_idx, part_idx),
             integration.trunc(str(function_call_dict.get("args", {}))),
         )
-    function_response = getattr(part, "function_response", None)
     if function_response:
         function_response_dict = type(function_response).to_dict(function_response)
         span.set_tag_str(
@@ -105,14 +109,20 @@ def _tag_request_content(span, integration, content, content_idx):
         role = content.get("role", "")
         if role:
             span.set_tag_str("genai.request.contents.%d.role" % content_idx, str(content.get("role", "")))
-        span.set_tag_str(
-            "genai.request.contents.%d.parts" % content_idx, integration.trunc(str(content.get("parts", [])))
-        )
+        parts = content.get("parts", [])
+        for part_idx, part in enumerate(parts):
+            _tag_request_content_part(span, integration, part, part_idx, content_idx)
         return
     role = getattr(content, "role", "")
     if role:
         span.set_tag_str("genai.request.contents.%d.role" % content_idx, str(role))
     parts = getattr(content, "parts", [])
+    if not parts:
+        span.set_tag_str(
+            "genai.request.contents.%d.text" % content_idx,
+            integration.trunc("[Non-text content object: {}]".format(repr(content)))
+        )
+        return
     for part_idx, part in enumerate(parts):
         _tag_request_content_part(span, integration, part, part_idx, content_idx)
 
@@ -143,7 +153,8 @@ def tag_request(span, integration, instance, args, kwargs):
     """
     contents = get_argument_value(args, kwargs, 0, "contents")
     generation_config = kwargs.get("generation_config", {})
-    system_instruction = getattr(instance, "_system_instruction", "")
+    system_instruction = getattr(instance, "_system_instruction", None)
+    stream = kwargs.get("stream", None)
 
     generation_config_dict = None
     if isinstance(generation_config, dict):
@@ -154,12 +165,17 @@ def tag_request(span, integration, instance, args, kwargs):
         for k, v in generation_config_dict.items():
             span.set_tag_str("genai.request.generation_config.%s" % k, str(v))
 
+    if stream:
+        span.set_tag("genai.request.stream", True)
+
     span.set_tag_str("genai.request.model", str(_extract_model_name(instance)))
 
     if not integration.is_pc_sampled_span(span):
         return
 
-    span.set_tag("genai.request.system_instruction", integration.trunc(system_instruction))
+    if system_instruction:
+        for idx, part in enumerate(system_instruction.parts):
+            span.set_tag_str("genai.request.system_instruction.%d.text" % idx, integration.trunc(str(part.text)))
 
     if isinstance(contents, str):
         span.set_tag_str("genai.request.contents.0.text", integration.trunc(contents))

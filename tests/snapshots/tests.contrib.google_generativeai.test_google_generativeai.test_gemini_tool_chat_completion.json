@@ -1,0 +1,82 @@
+[[
+  {
+    "name": "gemini.request",
+    "service": "",
+    "resource": "GenerativeModel.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66db74d900000000",
+      "genai.request.api_key": "...key>",
+      "genai.request.contents.0.parts.0.text": "Dim the lights so the room feels cozy and warm.",
+      "genai.request.contents.0.role": "user",
+      "genai.request.model": "gemini-1.5-flash",
+      "genai.response.candidates.0.content.parts.0.function_call.args": "{'fields': [{'key': 'color_temp', 'value': 'warm'}, {'key': 'brightness', 'value': 50.0}]}",
+      "genai.response.candidates.0.content.parts.0.function_call.name": "set_light_values",
+      "genai.response.candidates.0.content.parts.0.text": "",
+      "genai.response.candidates.0.content.role": "model",
+      "genai.response.candidates.0.finish_reason": "2",
+      "language": "python",
+      "runtime-id": "22733330fbbe48118bd9b9d1d58d6ee4"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "genai.response.usage.completion_tokens": 25,
+      "genai.response.usage.prompt_tokens": 150,
+      "genai.response.usage.total_tokens": 175,
+      "process_id": 35758
+    },
+    "duration": 569000,
+    "start": 1725658329842913000
+  }],
+[
+  {
+    "name": "gemini.request",
+    "service": "",
+    "resource": "GenerativeModel.generate_content",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66db74d900000000",
+      "genai.request.api_key": "...key>",
+      "genai.request.contents.0.parts.0.text": "Dim the lights so the room feels cozy and warm.",
+      "genai.request.contents.0.role": "user",
+      "genai.request.contents.1.parts.0.function_call.args": "{'fields': [{'key': 'color_temp', 'value': 'warm'}, {'key': 'brightness', 'value': 50.0}]}",
+      "genai.request.contents.1.parts.0.function_call.name": "set_light_values",
+      "genai.request.contents.1.parts.0.text": "",
+      "genai.request.contents.1.role": "model",
+      "genai.request.contents.2.parts.0.function_response.name": "set_light_values",
+      "genai.request.contents.2.parts.0.function_response.response": "{'result': {'color_temperature': 'warm', 'brightness': 50.0}}",
+      "genai.request.contents.2.parts.0.text": "",
+      "genai.request.contents.2.role": "user",
+      "genai.request.model": "gemini-1.5-flash",
+      "genai.response.candidates.0.content.parts.0.text": "OK. I've dimmed the lights to 50% and set the color temperature to warm.  How's that? \\n",
+      "genai.response.candidates.0.content.role": "model",
+      "genai.response.candidates.0.finish_reason": "2",
+      "language": "python",
+      "runtime-id": "22733330fbbe48118bd9b9d1d58d6ee4"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "genai.response.usage.completion_tokens": 27,
+      "genai.response.usage.prompt_tokens": 206,
+      "genai.response.usage.total_tokens": 233,
+      "process_id": 35758
+    },
+    "duration": 397000,
+    "start": 1725658329845583000
+  }]]

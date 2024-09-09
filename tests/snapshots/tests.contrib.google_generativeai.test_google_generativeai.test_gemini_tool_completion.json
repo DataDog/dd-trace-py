@@ -1,0 +1,45 @@
+[[
+  {
+    "name": "gemini.request",
+    "service": "",
+    "resource": "GenerativeModel.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66db701d00000000",
+      "genai.request.api_key": "...key>",
+      "genai.request.contents.0.text": "Dim the lights so the room feels cozy and warm.",
+      "genai.request.generation_config.candidate_count": "None",
+      "genai.request.generation_config.max_output_tokens": "30",
+      "genai.request.generation_config.response_mime_type": "None",
+      "genai.request.generation_config.response_schema": "None",
+      "genai.request.generation_config.stop_sequences": "['x']",
+      "genai.request.generation_config.temperature": "1.0",
+      "genai.request.generation_config.top_k": "None",
+      "genai.request.generation_config.top_p": "None",
+      "genai.request.model": "gemini-1.5-flash",
+      "genai.response.candidates.0.content.parts.0.function_call.args": "{'fields': [{'key': 'color_temp', 'value': 'warm'}, {'key': 'brightness', 'value': 50.0}]}",
+      "genai.response.candidates.0.content.parts.0.function_call.name": "set_light_values",
+      "genai.response.candidates.0.content.parts.0.text": "",
+      "genai.response.candidates.0.content.role": "model",
+      "genai.response.candidates.0.finish_reason": "2",
+      "language": "python",
+      "runtime-id": "50c5d175cda64dabac9f8662880d7ca5"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "genai.response.usage.completion_tokens": 25,
+      "genai.response.usage.prompt_tokens": 150,
+      "genai.response.usage.total_tokens": 175,
+      "process_id": 31686
+    },
+    "duration": 627000,
+    "start": 1725657117233350000
+  }]]
