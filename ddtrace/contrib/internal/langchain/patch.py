@@ -998,13 +998,15 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
 
         metadata = getattr(instance, "metadata", {})
-        tool_info["metadata"] = metadata
-        for key, meta_value in metadata.items():
-            span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
+        if metadata:
+            tool_info["metadata"] = metadata
+            for key, meta_value in metadata.items():
+                span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
         tags = getattr(instance, "tags", [])
-        tool_info["tags"] = tags
-        for idx, tag in tags:
-            span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
+        if tags:
+            tool_info["tags"] = tags
+            for idx, tag in tags:
+                span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
 
         if tool_input and integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
