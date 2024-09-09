@@ -4,6 +4,8 @@
 #include "echion/tasks.h"
 #include "echion/threads.h"
 
+#include <pthread.h>
+
 using namespace Datadog;
 
 void
@@ -57,14 +59,71 @@ Sampler::get()
 }
 
 void
+_stack_v2_atfork_child()
+{
+    // The only thing we need to do at fork is to propagate the PID to echion
+    // so we don't even reveal this function to the user
+    _set_pid(getpid());
+}
+
+__attribute__((constructor)) void
+_stack_v2_init()
+{
+    _stack_v2_atfork_child();
+}
+
+void
 Sampler::one_time_setup()
 {
     _set_cpu(true);
     init_frame_cache(echion_frame_cache_size);
-    _set_pid(getpid());
+
+    // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
+    // Run the atfork handler to ensure that we're tracking the correct process
+    _stack_v2_atfork_child();
+    pthread_atfork(nullptr, nullptr, _stack_v2_atfork_child);
 
     // Register our rendering callbacks with echion's Renderer singleton
     Renderer::get().set_renderer(renderer_ptr);
+}
+
+void
+Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
+{
+    // Registering threads requires coordinating with one of echion's global locks, which we take here.
+    const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
+
+    static bool has_errored = false;
+    auto it = thread_info_map.find(id);
+    if (it == thread_info_map.end()) {
+        try {
+            thread_info_map.emplace(id, std::make_unique<ThreadInfo>(id, native_id, name));
+        } catch (const ThreadInfo::Error& e) {
+            if (!has_errored) {
+                has_errored = true;
+                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") "
+                          << name << std::endl;
+            }
+        }
+    } else {
+        try {
+            it->second = std::make_unique<ThreadInfo>(id, native_id, name);
+        } catch (const ThreadInfo::Error& e) {
+            if (!has_errored) {
+                has_errored = true;
+                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") "
+                          << name << std::endl;
+            }
+        }
+    }
+}
+
+void
+Sampler::unregister_thread(uintptr_t id)
+{
+    // unregistering threads requires coordinating with one of echion's global locks, which we take here.
+    const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
+    thread_info_map.erase(id);
 }
 
 void
