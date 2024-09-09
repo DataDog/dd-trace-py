@@ -1,3 +1,5 @@
+import os
+
 import grpc
 from wrapt import wrap_function_wrapper as _w
 
@@ -13,6 +15,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -66,6 +69,8 @@ config._add(
     dict(
         _default_service=schematize_service_name(constants.GRPC_SERVICE_CLIENT),
         distributed_tracing_enabled=True,
+        # TODO: Remove this configuration when grpc.aio support is fixed
+        _grpc_aio_enabled=asbool(os.getenv("_DD_TRACE_GRPC_AIO_ENABLED", False)),
     ),
 )
 
@@ -91,7 +96,7 @@ if HAS_GRPC_AIO:
 def patch():
     _patch_client()
     _patch_server()
-    if HAS_GRPC_AIO:
+    if HAS_GRPC_AIO and config.grpc._grpc_aio_enabled:
         log.debug("The ddtrace grpc aio patch is enabled. This is an experimental feature and may not be stable.")
         _patch_aio_client()
         _patch_aio_server()
@@ -101,7 +106,7 @@ def patch():
 def unpatch():
     _unpatch_client()
     _unpatch_server()
-    if HAS_GRPC_AIO:
+    if HAS_GRPC_AIO and config.grpc._grpc_aio_enabled:
         _unpatch_aio_client()
         _unpatch_aio_server()
     grpc._datadog_patch = False

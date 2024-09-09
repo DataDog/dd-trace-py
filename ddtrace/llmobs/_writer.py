@@ -193,7 +193,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
     def encode(self):
         with self._lock:
             if not self._buffer:
-                return None, 0
+                return
             events = self._buffer
             self._init_buffer()
         data = {"_dd.stage": "raw", "event_type": "span", "spans": events}
@@ -202,8 +202,8 @@ class LLMObsSpanEncoder(BufferedEncoder):
             logger.debug("encode %d LLMObs span events to be sent", len(events))
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
-            return None, 0
-        return enc_llm_events, len(events)
+            return
+        return enc_llm_events
 
 
 class LLMObsEventClient(WriterClientBase):

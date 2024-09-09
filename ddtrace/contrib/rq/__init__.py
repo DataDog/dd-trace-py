@@ -85,11 +85,11 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import asbool
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...internal.utils import get_argument_value
+from ...internal.utils.formats import asbool
 from ...propagation.http import HTTPPropagator
 from .. import trace_utils
 

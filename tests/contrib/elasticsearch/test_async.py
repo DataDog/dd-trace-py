@@ -5,9 +5,6 @@ import sys
 from tests.utils import snapshot
 
 
-SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host"]
-
-
 code = """
 import asyncio
 import datetime
@@ -16,15 +13,11 @@ import os
 import %(module)s as elasticsearch
 from %(module)s import %(class)s as AsyncClient
 
-ELASTICSEARCH_CONFIG = {
-  "host": os.getenv("TEST_ELASTICSEARCH_HOST", "127.0.0.1"),
-  "port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200)),
-}
+ELASTICSEARCH_CONFIG = {"port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200))}
 ES_INDEX = "ddtrace_index"
-ES_URL = "http://%%s:%%d" %% (ELASTICSEARCH_CONFIG["host"], ELASTICSEARCH_CONFIG["port"])
 
 async def main():
-    es = AsyncClient(hosts=[ES_URL])
+    es = AsyncClient(hosts=["http://localhost:%%d" %% ELASTICSEARCH_CONFIG["port"]])
     if elasticsearch.__version__ >= (8, 0, 0):
         await es.options(ignore_status=400).indices.create(index=ES_INDEX)
         await es.options(ignore_status=[400, 404]).indices.delete(index=ES_INDEX)
@@ -65,16 +58,16 @@ def do_test(tmpdir, es_module, async_class):
     assert p.returncode == 0
 
 
-@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
+@snapshot(async_mode=False)
 def test_elasticsearch(tmpdir):
     do_test(tmpdir, "elasticsearch", "AsyncElasticsearch")
 
 
-@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
+@snapshot(async_mode=False)
 def test_elasticsearch7(tmpdir):
     do_test(tmpdir, "elasticsearch7", "AsyncElasticsearch")
 
 
-@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
+@snapshot(async_mode=False)
 def test_opensearch(tmpdir):
     do_test(tmpdir, "opensearchpy", "AsyncOpenSearch")

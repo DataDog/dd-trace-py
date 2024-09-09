@@ -8,6 +8,7 @@ from ._utils import _is_iast_enabled
 
 log = get_logger(__name__)
 
+
 IS_IAST_ENABLED = _is_iast_enabled()
 
 

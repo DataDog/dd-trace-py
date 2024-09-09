@@ -21,7 +21,7 @@ class BadEncoder:
         pass
 
     def encode(self):
-        return b"bad_payload", 0
+        return b"bad_payload"
 
     def encode_traces(self, traces):
         return b"bad_payload"

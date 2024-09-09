@@ -8,6 +8,7 @@ import mock
 import pytest
 
 from ddtrace.profiling import recorder
+from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import threading as collector_threading
 
 from . import test_collector
@@ -591,78 +592,33 @@ def test_anonymous_lock():
     assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_anonymous_lock", "")
 
 
-@pytest.mark.subprocess(
-    env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__),
-)
-def test_wrapt_disable_extensions():
-    import os
-    import sys
-    import threading
-
-    from ddtrace.profiling import recorder
-    from ddtrace.profiling.collector import _lock
-    from ddtrace.profiling.collector import threading as collector_threading
-    from tests.profiling.collector.utils import get_lock_linenos
-    from tests.profiling.collector.utils import init_linenos
-
-    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
-
-    # WRAPT_DISABLE_EXTENSIONS is a flag that can be set to disable the C extension
-    # for wrapt. It's not set by default in dd-trace-py, but it can be set by
-    # users. This test checks that the collector works even if the flag is set.
-    assert os.environ.get("WRAPT_DISABLE_EXTENSIONS")
-    assert _lock.WRAPT_C_EXT is False
-
+def test_wrapt_c_ext_config():
+    if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
+        assert _lock.WRAPT_C_EXT is False
+    else:
+        try:
+            import wrapt._wrappers as _w
+        except ImportError:
+            assert _lock.WRAPT_C_EXT is False
+        else:
+            assert _lock.WRAPT_C_EXT is True
+            del _w
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        th_lock = threading.Lock()  # !CREATE! test_wrapt_disable_extensions
-        with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
+        th_lock = threading.Lock()  # !CREATE! test_wrapt_c_ext_config
+        with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_c_ext_config
             pass
 
-    linenos = get_lock_linenos("test_wrapt_disable_extensions")
+    linenos = get_lock_linenos("test_wrapt_c_ext_config")
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
     assert acquire_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
-
-    expected_filename = os.environ["DD_PROFILING_FILE_PATH"].replace(".pyc", ".py")
-
-    assert len(acquire_event.frames) > 0, "No frames found"
-    acquire_frame = acquire_event.frames[0]
-
-    # This test is run in a subprocess, and doesn't show details about why it
-    # failed, so we add more details to the assert message.
-    assert expected_filename.endswith(acquire_frame.file_name), "Expected filename {} to end with {}".format(
-        expected_filename, acquire_frame.file_name
-    )
-    assert acquire_frame.lineno == linenos.acquire, "Expected line number {}, got {}".format(
-        linenos.acquire, acquire_frame.lineno
-    )
-    # As this test runs in a subprocess, the body of this function is simply
-    # placed in a temporary file, and we don't have a function name and it
-    # defaults to <module>
-    assert acquire_frame.function_name == "<module>", "Expected function name <module>, got {}".format(
-        acquire_frame.function_name
-    )
-    assert acquire_frame.class_name == "", "Expected class name '', got {}".format(acquire_frame.class_name)
-
+    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos.acquire, "test_wrapt_c_ext_config", "")
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert release_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
     release_lineno = linenos.acquire + (0 if sys.version_info >= (3, 10) else 1)
-
-    assert len(release_event.frames) > 0, "No frames found"
-    release_frame = release_event.frames[0]
-
-    assert expected_filename.endswith(release_frame.file_name), "Expected filename {} to end with {}".format(
-        expected_filename, release_frame.file_name
-    )
-    assert release_frame.lineno == release_lineno, "Expected line number {}, got {}".format(
-        release_lineno, release_frame.lineno
-    )
-    assert release_frame.function_name == "<module>", "Expected function name <module>, got {}".format(
-        release_frame.function_name
-    )
-    assert release_frame.class_name == "", "Expected class name '', got {}".format(release_frame.class_name)
+    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_wrapt_c_ext_config", "")
 
 
 def test_global_locks():

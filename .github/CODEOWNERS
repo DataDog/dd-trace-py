@@ -59,10 +59,9 @@ tests/contrib/pytest                @DataDog/ci-app-libraries
 tests/contrib/pytest_bdd            @DataDog/ci-app-libraries
 tests/contrib/unittest_plugin       @DataDog/ci-app-libraries
 ddtrace/ext/ci.py                   @DataDog/ci-app-libraries
-ddtrace/ext/test_visibility         @DataDog/ci-app-libraries
+ddtrace/ext/ci_visibility           @DataDog/ci-app-libraries
 ddtrace/ext/test.py                 @DataDog/ci-app-libraries
 ddtrace/internal/ci_visibility      @DataDog/ci-app-libraries
-ddtrace/internal/test_visibility    @DataDog/ci-app-libraries
 ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
 ddtrace/internal/coverage           @DataDog/apm-core-python @datadog/ci-app-libraries
 tests/internal/test_codeowners.py   @datadog/ci-app-libraries
@@ -84,7 +83,6 @@ tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/apm-core-p
 tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/symbol_db/           @DataDog/debugger-python
-.gitlab/tests/debugging.yml         @DataDog/debugger-python
 
 # ASM
 .gitlab/tests/appsec.yml            @DataDog/asm-python
@@ -114,7 +112,6 @@ ddtrace/profiling                   @DataDog/profiling-python
 ddtrace/settings/profiling.py       @DataDog/profiling-python
 ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
-tests/profiling-v2                  @DataDog/profiling-python
 .gitlab/tests/profiling.yml         @DataDog/profiling-python
 
 # MLObs
@@ -134,7 +131,6 @@ tests/contrib/botocore/test_bedrock.py                  @DataDog/ml-observabilit
 tests/contrib/botocore/test_bedrock_llmobs.py           @DataDog/ml-observability
 tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observability
 tests/contrib/anthropic                                 @DataDog/ml-observability
-.gitlab/tests/llmobs.yml                                @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python

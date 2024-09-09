@@ -7,9 +7,6 @@ from ddtrace import config
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
 
 from ...appsec._constants import IAST_SPAN_TAGS
 from ...appsec._iast._metrics import increment_iast_span_metric
@@ -20,6 +17,9 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import sql
+from ...internal.logger import get_logger
+from ...internal.utils import ArgumentError
+from ...internal.utils import get_argument_value
 from ...pin import Pin
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped

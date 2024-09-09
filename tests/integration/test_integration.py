@@ -197,8 +197,7 @@ def test_resource_name_too_large():
         s.finish()
     except ValueError:
         pytest.fail()
-    encoded_spans, size = t._writer._encoder.encode()
-    assert size == 1
+    encoded_spans = t._writer._encoder.encode()
     assert b"<dropped string of length 410 because it's too long (max allowed length 409)>" in encoded_spans
 
 
@@ -551,7 +550,7 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
-            return "bad_payload", 1
+            return "bad_payload"
 
         def encode_traces(self, traces):
             return "bad_payload"

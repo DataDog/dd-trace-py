@@ -43,7 +43,7 @@ basis use the ``Pin`` API::
     conn = asyncpg.connect("postgres://localhost:5432")
     Pin.override(conn, service="custom-service")
 """
-from ddtrace.internal.utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["asyncpg"]
@@ -51,14 +51,10 @@ required_modules = ["asyncpg"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.asyncpg.patch` directly
-        import warnings as _w
+        from . import patch as _  # noqa: F401, I001
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
-
-        from ddtrace.contrib.internal.asyncpg.patch import get_version
-        from ddtrace.contrib.internal.asyncpg.patch import patch
-        from ddtrace.contrib.internal.asyncpg.patch import unpatch
+        from ..internal.asyncpg.patch import get_version
+        from ..internal.asyncpg.patch import patch
+        from ..internal.asyncpg.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

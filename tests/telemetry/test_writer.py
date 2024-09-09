@@ -11,7 +11,6 @@ import pytest
 
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry import modules
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import get_runtime_id
@@ -57,7 +56,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         # queue an app started event
-        telemetry_writer._app_started()
+        telemetry_writer.app_started()
         # force a flush
         telemetry_writer.periodic(force_flush=True)
 
@@ -91,6 +90,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
+                    {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
                     {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -165,10 +165,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         }
         requests[0]["body"]["payload"]["configuration"].sort(key=lambda c: c["name"])
         result = _get_request_body(payload, "app-started")
-        result["payload"]["configuration"] = [
-            a for a in result["payload"]["configuration"] if a["name"] != "DD_TRACE_AGENT_URL"
-        ]
-        assert payload == result["payload"]
+        result = {k: v for k, v in result.items() if k != "DD_TRACE_AGENT_URL"}
+        expected = {k: v for k, v in requests[0]["body"].items() if k != "DD_TRACE_AGENT_URL"}
+        assert expected == result
 
 
 @pytest.mark.parametrize(
@@ -182,7 +181,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         ("DD_APPSEC_SCA_ENABLED", "0", "false"),
     ],
 )
-@pytest.mark.skip(reason="FIXME: This test needs to be updated.")
 def test_app_started_event_configuration_override(
     test_agent_session, run_python_code_in_subprocess, tmpdir, env_var, value, expected_value
 ):
@@ -253,7 +251,6 @@ import ddtrace.auto
     env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
@@ -422,7 +419,7 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
     # app started event must be queued before any other telemetry event
-    telemetry_writer._app_started(register_app_shutdown=False)
+    telemetry_writer.app_started(register_app_shutdown=False)
     assert telemetry_writer.started
     # send app closed event
     telemetry_writer.app_shutdown()
@@ -469,12 +466,10 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
                 },
             ]
         }
-        assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change", seq_id=2)
+        assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change")
 
 
 def test_app_client_configuration_changed_event(telemetry_writer, test_agent_session, mock_time):
-    # force periodic call to flush the first app_started call
-    telemetry_writer.periodic(force_flush=True)
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         initial_event_count = len(test_agent_session.get_events("app-client-configuration-change"))
@@ -520,8 +515,6 @@ def test_send_failing_request(mock_status, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
 
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # force periodic call to flush the first app_started call
-        telemetry_writer.periodic(force_flush=True)
         with httpretty.enabled():
             httpretty.register_uri(httpretty.POST, telemetry_writer._client.url, status=mock_status)
             with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
@@ -567,51 +560,6 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     assert len(events) > 0
 
 
-def test_app_product_change_event(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, Any) -> None
-    """asserts that enabling or disabling an APM Product triggers a valid telemetry request"""
-
-    # Assert that the default product status is disabled
-    assert any(telemetry_writer._product_enablement.values()) is False
-
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
-    assert all(telemetry_writer._product_enablement.values())
-
-    telemetry_writer._app_started()
-
-    # Assert that there's only an app_started event (since product activation happened before the app started)
-    events = test_agent_session.get_events("app-product-change")
-    telemetry_writer.periodic(force_flush=True)
-    assert not len(events)
-
-    # Assert that unchanged status doesn't generate the event
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
-    telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-product-change")
-    assert not len(events)
-
-    # Assert that a single event is generated
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
-    telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-product-change")
-    assert len(events) == 1
-
-    # Assert that payload is as expected
-    assert events[0]["request_type"] == "app-product-change"
-    products = events[0]["payload"]["products"]
-    version = _pep440_to_semver()
-    assert products == {
-        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version},
-        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version},
-        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version},
-        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version},
-    }
-
-
 def _get_request_body(payload, payload_type, seq_id=1):
     # type: (Dict, str, int) -> Dict
     """used to test the body of requests received by the testagent"""
@@ -632,7 +580,7 @@ def test_telemetry_writer_agent_setup():
     with override_global_config(
         {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": False}
     ):
-        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=False)
+        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
         assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
         assert "http://" in new_telemetry_writer._client._telemetry_url
@@ -688,22 +636,4 @@ def test_telemetry_writer_agentless_disabled_without_api_key():
         assert not new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
         assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-        assert "dd-api-key" not in new_telemetry_writer._client._headers
-
-
-def test_telemetry_writer_is_using_agentless_by_default_if_api_key_is_available():
-    with override_global_config({"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey"}):
-        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._enabled
-        assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-        assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
-
-
-def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available():
-    with override_global_config({"_dd_api_key": None, "_ci_visibility_agentless_enabled": False}):
-        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._enabled
-        assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
         assert "dd-api-key" not in new_telemetry_writer._client._headers

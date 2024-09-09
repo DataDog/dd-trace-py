@@ -1,6 +1,7 @@
-from ddtrace.contrib.internal.pylibmc.addrs import *  # noqa: F403
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
+
+from ..internal.pylibmc.addrs import *  # noqa: F401,F403
 
 
 def __getattr__(name):

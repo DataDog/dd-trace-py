@@ -1,7 +1,7 @@
 [[
   {
     "name": "unittest.test_session",
-    "service": "dd-trace-py",
+    "service": "unittest",
     "resource": "python -m unittest",
     "trace_id": 0,
     "span_id": 1,
@@ -46,7 +46,7 @@
   },
      {
        "name": "unittest.test_module",
-       "service": "dd-trace-py",
+       "service": "unittest",
        "resource": "test_tools",
        "trace_id": 0,
        "span_id": 2,
@@ -90,7 +90,7 @@
      },
         {
           "name": "unittest.test_suite",
-          "service": "dd-trace-py",
+          "service": "unittest",
           "resource": "CodeCoverageTestCase",
           "trace_id": 0,
           "span_id": 3,
@@ -134,7 +134,7 @@
         },
            {
              "name": "unittest.test",
-             "service": "dd-trace-py",
+             "service": "unittest",
              "resource": "CodeCoverageTestCase.test_add_two_number_list",
              "trace_id": 0,
              "span_id": 4,

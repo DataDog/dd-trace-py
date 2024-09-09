@@ -1,5 +1,4 @@
 #pragma once
-#include <sstream>
 #include <utility>
 
 #include <pybind11/stl.h>
@@ -145,27 +144,6 @@ get_internal_hash(PyObject* obj);
 
 void
 set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_map);
-
-inline void
-copy_and_shift_ranges_from_strings(const py::handle& str_1,
-                                   const py::handle& str_2,
-                                   const int offset,
-                                   const int new_length,
-                                   const TaintRangeMapTypePtr& tx_map)
-{
-    if (!tx_map)
-        return;
-
-    auto [ranges, ranges_error] = get_ranges(str_1.ptr(), tx_map);
-    if (ranges_error) {
-        py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
-        return;
-    }
-    if (const bool result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
-        not result) {
-        py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
-    }
-}
 
 void
 pyexport_taintrange(py::module& m);

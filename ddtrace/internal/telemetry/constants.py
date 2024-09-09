@@ -16,13 +16,6 @@ class TELEMETRY_LOG_LEVEL(Enum):
     ERROR = "ERROR"
 
 
-class TELEMETRY_APM_PRODUCT(Enum):
-    LLMOBS = "mlobs"
-    DYNAMIC_INSTRUMENTATION = "dynamic_instrumentation"
-    PROFILER = "profiler"
-    APPSEC = "appsec"
-
-
 # Configuration names must map to values supported by backend services:
 # https://github.com/DataDog/dd-go/blob/f88e85d64b173e7733ac03e23576d1c9be37f32e/trace/apps/tracer-telemetry-intake/telemetry-payload/static/config_norm_rules.json
 TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"

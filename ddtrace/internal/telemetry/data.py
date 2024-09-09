@@ -13,6 +13,7 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
 
 from ...settings import _config as config  # noqa:F401
+from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
 
 
@@ -67,6 +68,7 @@ def _get_application(key):
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version),
+        "products": _get_products(),
     }
 
 
@@ -97,6 +99,13 @@ def get_application(service, version, env):
     # We cache the application dict to reduce overhead since service, version, or env configurations
     # can change during runtime
     return _get_application((service, version, env))
+
+
+def _get_products():
+    # type: () -> Dict
+    return {
+        "appsec": {"version": get_version(), "enabled": asm_config._asm_enabled},
+    }
 
 
 _host_info = None

@@ -13,11 +13,8 @@ class OpenSearchPatchTest(ElasticsearchPatchTest):
     Will merge when patching will be the default/only way.
     """
 
-    def _get_es_config(self):
-        return OPENSEARCH_CONFIG
-
     def _get_es(self):
-        return opensearchpy.OpenSearch(host=OPENSEARCH_CONFIG["host"], port=OPENSEARCH_CONFIG["port"])
+        return opensearchpy.OpenSearch(port=OPENSEARCH_CONFIG["port"])
 
     def _get_index_args(self):
         if opensearchpy.VERSION < (1, 1):

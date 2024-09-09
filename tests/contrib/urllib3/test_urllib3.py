@@ -13,15 +13,14 @@ from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
-from tests.contrib.config import HTTPBIN_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 
 # host:port of httpbin_local container
-HOST = HTTPBIN_CONFIG["host"]
-PORT = HTTPBIN_CONFIG["port"]
+HOST = "localhost"
+PORT = 8001
 SOCKET = "{}:{}".format(HOST, PORT)
 URL_200 = "http://{}/status/200".format(SOCKET)
 URL_500 = "http://{}/status/500".format(SOCKET)
@@ -55,7 +54,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_200
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s.get_tag("out.host") == "localhost"
 
         # Test an absolute URL
         r = pool.request("GET", URL_200)
@@ -73,7 +72,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == "http://" + SOCKET + "/"
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s.get_tag("out.host") == "localhost"
 
     def test_resource_path(self):
         """Tests that a successful request tags a single span with the URL"""
@@ -85,7 +84,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("http.url") == URL_200
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s.get_tag("out.host") == "localhost"
 
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
@@ -128,7 +127,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             assert s.get_tag("http.request.headers.accept") == "*"
             assert s.get_tag("component") == "urllib3"
             assert s.get_tag("span.kind") == "client"
-            assert s.get_tag("out.host") == HOST
+            assert s.get_tag("out.host") == "localhost"
 
     def test_untraced_request(self):
         """Disabling tracing with unpatch should submit no spans"""
@@ -163,7 +162,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s.get_tag("out.host") == "localhost"
         assert s.error == 0
         assert s.span_type == "http"
         assert http.QUERY_STRING not in s.get_tags()
@@ -184,7 +183,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_200_QS
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s.get_tag("out.host") == "localhost"
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
@@ -201,14 +200,14 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_500
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s.get_tag("out.host") == "localhost"
         assert s.error == 1
 
     def test_connection_retries(self):
         """Tests a connection error results in error spans with proper exc info"""
         retries = 3
         try:
-            self.http.request("GET", f"http://{HOST}:9999", retries=retries)
+            self.http.request("GET", "http://localhost:9999", retries=retries)
         except Exception:
             pass
         else:
@@ -653,13 +652,13 @@ def patch_urllib3():
         unpatch()
 
 
-@snapshot(ignores=["meta.out.host", "meta.http.url", "meta.server.address"])
+@snapshot()
 def test_urllib3_poolmanager_snapshot(patch_urllib3):
     pool = urllib3.PoolManager()
     pool.request("GET", URL_200)
 
 
-@snapshot(ignores=["meta.out.host", "meta.http.url", "meta.server.address"])
+@snapshot()
 def test_urllib3_connectionpool_snapshot(patch_urllib3):
     pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
     pool.request("GET", "/status/200")

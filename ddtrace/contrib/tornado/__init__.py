@@ -104,7 +104,7 @@ The available settings are:
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
 * ``settings`` (default: ``{}``): Tracer extra settings used to change, for instance, the filtering behavior.
 """
-from ddtrace.internal.utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["tornado"]
@@ -112,19 +112,17 @@ required_modules = ["tornado"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.tornado.patch` directly
-        import warnings as _w
-
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
+        from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ddtrace.contrib.internal.tornado.patch import get_version
-        from ddtrace.contrib.internal.tornado.patch import patch
-        from ddtrace.contrib.internal.tornado.patch import unpatch
-        from ddtrace.contrib.internal.tornado.stack_context import TracerStackContext
-        from ddtrace.contrib.internal.tornado.stack_context import context_provider
-        from ddtrace.contrib.internal.tornado.stack_context import run_with_trace_context
+        from ..internal.tornado.stack_context import TracerStackContext
+        from ..internal.tornado.stack_context import run_with_trace_context
+
+        from ..internal.tornado.stack_context import context_provider
+
+        from ..internal.tornado.patch import get_version
+        from ..internal.tornado.patch import patch
+        from ..internal.tornado.patch import unpatch
 
         __all__ = [
             "patch",

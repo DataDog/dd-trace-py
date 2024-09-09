@@ -136,6 +136,16 @@ def test_session_id_if_set_manually():
     assert _get_session_id(llm_span) == "test_different_session_id"
 
 
+def test_session_id_defaults_to_trace_id():
+    """Test that session_id defaults to the span's trace ID if not set nor found upstream."""
+    dummy_tracer = DummyTracer()
+    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM):
+        with dummy_tracer.trace("child_span"):
+            with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
+                pass
+    assert _get_session_id(llm_span) == "{:x}".format(llm_span.trace_id)
+
+
 def test_session_id_propagates_ignore_non_llmobs_spans():
     """
     Test that when session_id is not set, we propagate from nearest LLMObs ancestor

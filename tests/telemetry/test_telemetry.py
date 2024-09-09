@@ -32,9 +32,7 @@ from ddtrace import tracer
 span = tracer.trace("test-telemetry")
 span.finish()
     """
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
@@ -63,20 +61,19 @@ import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 
+telemetry_writer.app_started()
 
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
-    telemetry_writer._app_started()
-    telemetry_writer._app_started()
-    telemetry_writer._app_started()
+    telemetry_writer.app_started()
+    telemetry_writer.app_started()
+    telemetry_writer.app_started()
 else:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
     """
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -199,10 +196,6 @@ tracer.configure(
 
 # generate and encode span
 tracer.trace("hello").finish()
-
-# force app_started call instead of waiting for periodic()
-from ddtrace.internal.telemetry import telemetry_writer
-telemetry_writer._app_started()
 """
     _, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
@@ -278,9 +271,7 @@ patch(raise_errors=False, sqlite3=True)
 tracer.trace("hi").finish()
 """
 
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
 
     assert status == 0, stderr
     expected_stderr = b"failed to import"
@@ -369,7 +360,6 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
             "DD_INSTRUMENTATION_INSTALL_ID": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
             "DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
             "DD_INSTRUMENTATION_INSTALL_TIME": "1703188212",
-            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
     # Generate a trace to trigger app-started event

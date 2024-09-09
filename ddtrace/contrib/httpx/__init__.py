@@ -77,7 +77,7 @@ To configure particular ``httpx`` client instances use the :class:`Pin <ddtrace.
 
 .. __: https://www.python-httpx.org/
 """
-from ddtrace.internal.utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["httpx"]
@@ -85,15 +85,11 @@ required_modules = ["httpx"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.httpx.patch` directly
-        import warnings as _w
-
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
+        from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ddtrace.contrib.internal.httpx.patch import get_version
-        from ddtrace.contrib.internal.httpx.patch import patch
-        from ddtrace.contrib.internal.httpx.patch import unpatch
+        from ..internal.httpx.patch import get_version
+        from ..internal.httpx.patch import patch
+        from ..internal.httpx.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

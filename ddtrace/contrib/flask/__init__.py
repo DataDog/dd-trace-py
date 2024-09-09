@@ -96,7 +96,7 @@ Example::
 
 """
 
-from ddtrace.internal.utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["flask"]
@@ -104,13 +104,9 @@ required_modules = ["flask"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # DEV: We do this so we can `@mock.patch('ddtrace.contrib.flask._patch.<func>')` in tests
-        import warnings as _w
-
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
-        from ddtrace.contrib.internal.flask.patch import get_version
-        from ddtrace.contrib.internal.flask.patch import patch
-        from ddtrace.contrib.internal.flask.patch import unpatch
+        from . import patch as _  # noqa: F401, I001
+        from ..internal.flask.patch import patch
+        from ..internal.flask.patch import unpatch
+        from ..internal.flask.patch import get_version
 
         __all__ = ["patch", "unpatch", "get_version"]

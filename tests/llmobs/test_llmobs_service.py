@@ -8,7 +8,6 @@ import ddtrace
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
-from ddtrace.filters import TraceFilter
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -214,6 +213,7 @@ def test_llm_span(LLMObs, mock_llmobs_span_writer):
         assert span.get_tag(SPAN_KIND) == "llm"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
@@ -228,6 +228,7 @@ def test_llm_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
         assert span.get_tag(SPAN_KIND) == "llm"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
@@ -356,6 +357,7 @@ def test_embedding_span(LLMObs, mock_llmobs_span_writer):
         assert span.get_tag(SPAN_KIND) == "embedding"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
@@ -372,6 +374,7 @@ def test_embedding_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_wr
         assert span.get_tag(SPAN_KIND) == "embedding"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
@@ -1461,42 +1464,6 @@ def test_llmobs_fork_create_span(monkeypatch):
                 with llmobs_service.task():
                     pass
             assert len(llmobs_service._instance._llmobs_span_writer._encoder) == 2
-            llmobs_service.disable()
-            os._exit(12)
-
-        _, status = os.waitpid(pid, 0)
-        exit_code = os.WEXITSTATUS(status)
-        assert exit_code == 12
-        llmobs_service.disable()
-
-
-def test_llmobs_fork_custom_filter(monkeypatch):
-    """Test that forking a process correctly keeps any custom filters."""
-
-    class CustomFilter(TraceFilter):
-        def process_trace(self, trace):
-            return trace
-
-    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
-    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
-        tracer = DummyTracer()
-        custom_filter = CustomFilter()
-        tracer.configure(settings={"FILTERS": [custom_filter]})
-        llmobs_service.enable(_tracer=tracer, ml_app="test_app")
-        assert custom_filter in llmobs_service._instance.tracer._filters
-        pid = os.fork()
-        if pid:  # parent
-            assert custom_filter in llmobs_service._instance.tracer._filters
-            assert any(
-                isinstance(tracer_filter, LLMObsTraceProcessor)
-                for tracer_filter in llmobs_service._instance.tracer._filters
-            )
-        else:  # child
-            assert custom_filter in llmobs_service._instance.tracer._filters
-            assert any(
-                isinstance(tracer_filter, LLMObsTraceProcessor)
-                for tracer_filter in llmobs_service._instance.tracer._filters
-            )
             llmobs_service.disable()
             os._exit(12)
 
