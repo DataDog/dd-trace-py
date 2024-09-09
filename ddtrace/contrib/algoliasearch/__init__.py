@@ -22,7 +22,7 @@ Configuration
 .. __: https://www.algolia.com
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["algoliasearch", "algoliasearch.version"]
@@ -36,8 +36,8 @@ with require_modules(required_modules) as missing_modules:
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
 
-        from ..internal.algoliasearch.patch import get_version
-        from ..internal.algoliasearch.patch import patch
-        from ..internal.algoliasearch.patch import unpatch
+        from ddtrace.contrib.internal.algoliasearch.patch import get_version
+        from ddtrace.contrib.internal.algoliasearch.patch import patch
+        from ddtrace.contrib.internal.algoliasearch.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]
