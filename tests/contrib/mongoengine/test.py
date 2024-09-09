@@ -7,7 +7,6 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mongoengine.patch import patch
 from ddtrace.contrib.mongoengine.patch import unpatch
-from ddtrace.contrib.pymongo.client import TracedTopology
 from ddtrace.ext import mongo as mongox
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
@@ -433,7 +432,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         Regression test for https://github.com/DataDog/dd-trace-py/issues/2474
         """
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        assert Pin.get_from(client) is  Pin.get_from(client._topology)
+        assert Pin.get_from(client) is Pin.get_from(client._topology)
         client.close()
 
 
