@@ -3,4 +3,4 @@ profiling:
   parallel: 20
   variables:
     DD_TRACE_AGENT_URL: ""
-    SUITE_NAME: "profile$"
+    SUITE_NAME: "profile$|profile-v2"
