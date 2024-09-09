@@ -22,6 +22,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config
 
 
@@ -499,7 +500,10 @@ class StackCollector(collector.PeriodicCollector):
 
         # If stack v2 is enabled, then use the v2 sampler
         if self._stack_collector_v2_enabled:
-            LOG.debug("Starting the stack v2 sampler")
+            # stack v2 requires us to patch the Threading module.  It's possible to do this from the stack v2 code
+            # itself, but it's a little bit fiddly and it's easier to make it correct here.
+            # TODO take the `threading` import out of here and just handle it in v2 startup
+            threading.init_stack_v2()
             stack_v2.start()
 
 
