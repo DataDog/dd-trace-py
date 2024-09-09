@@ -55,7 +55,7 @@ MARIADB_CONFIG = {
 }
 
 REDIS_CONFIG = {
-    "host": os.getenv("TEST_REDIS_HOST", "127.0.0.1"),
+    "host": os.getenv("TEST_REDIS_HOST", "localhost"),
     "port": int(os.getenv("TEST_REDIS_PORT", 6379)),
 }
 
