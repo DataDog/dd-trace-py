@@ -381,7 +381,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - Code Security: Expands SSRF vulnerability support for Code Security and Exploit Prevention for the modules `urllib3`, `http.client`, `webbrowser` and `urllib.request`.
 
-- ASM: This introduces full support for exploit prevention in the python tracer.
+- ASM: This introduces full support for exploit prevention in the python tracer.  
   - LFI (via standard API open)
   - SSRF (via standard API urllib or third party requests)
 
@@ -389,7 +389,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - ASM: This introduces SQL injection support for exploit prevention.
 
-- anthropic: This introduces tracing support for anthropic chat messages.
+- anthropic: This introduces tracing support for anthropic chat messages.  
   See [the docs](https://ddtrace.readthedocs.io/en/stable/integrations.html#anthropic) for more information.
 
 - ASM: This introduces "Standalone ASM", a feature that disables APM in the tracer but keeps ASM enabled. In order to enable it, set the environment variables `DD_APPSEC_ENABLED=1` and `DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED=1`.
@@ -542,7 +542,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ### New Features
 
 - LLM Observability: This introduces the LLM Observability SDK, which enhances the observability of Python-based LLM applications. See the [LLM Observability Overview](https://docs.datadoghq.com/tracing/llm_observability/) or the [SDK documentation](https://docs.datadoghq.com/tracing/llm_observability/sdk) for more information about this feature.
-- ASM:  Application Security Management (ASM) introduces its new "Exploit Prevention" feature in public beta, a new type of in-app security monitoring that detects and blocks vulnerability exploits. This introduces full support for exploit prevention in the python tracer.
+- ASM:  Application Security Management (ASM) introduces its new "Exploit Prevention" feature in public beta, a new type of in-app security monitoring that detects and blocks vulnerability exploits. This introduces full support for exploit prevention in the python tracer.  
   - LFI (via standard API open)
   - SSRF (via standard API urllib or third party requests)
 
@@ -606,7 +606,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - CI Visibility: Fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should
 - Code Security: Solves an issue with fstrings where formatting was not applied to int parameters
 - tracing: Resolves an issue where sampling rules were not matching correctly on float values that had a 0 decimal value. Sampling rules now evaluate such values as integers.
-- langchain: Resolves an issue where the LangChain integration always attempted to patch LangChain partner
+- langchain: Resolves an issue where the LangChain integration always attempted to patch LangChain partner  
   libraries, even if they were not available.
 - langchain: Resolves an issue where tracing `Chain.invoke()` instead of `Chain.__call__()` resulted in the an `ArgumentError` due to an argument name change for inputs between the two methods.
 - langchain: Adds error handling for checking if a traced LLM or chat model is an OpenAI instance, as the `langchain_community` package does not allow automatic submodule importing.
@@ -619,7 +619,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - kafka: Resolves an issue where an empty message list returned from consume calls could cause crashes in the Kafka integration. Empty lists from consume can occur when the call times out.
 - logging: Resolves an issue where `tracer.get_log_correlation_context()` incorrectly returned a 128-bit trace_id even with `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED` set to `False` (the default), breaking log correlation. It now returns a 64-bit trace_id.
 - profiling: Fixes a defect where the deprecated path to the Datadog span type was used by the profiler.
-- Profiling: Resolves an issue where the profiler was forcing `protobuf` to load in injected environments,
+- Profiling: Resolves an issue where the profiler was forcing `protobuf` to load in injected environments,  
   causing crashes in configurations which relied on older `protobuf` versions. The profiler will now detect when injection is used and try loading with the native exporter. If that fails, it will self-disable rather than loading protobuf.
 - pymongo: Resolves an issue where the library raised an error in `pymongo.pool.validate_session`
 - ASM: Resolves an issue where lfi attack on request path was not always detected with `flask` and `uwsgi`.
@@ -694,7 +694,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - tracing: This fix resolves an issue where sampling rules were not matching correctly on float values that had a 0 decimal value. Sampling rules now evaluate such values as integers.
 
-- langchain: This fix resolves an issue where the LangChain integration always attempted to patch LangChain partner
+- langchain: This fix resolves an issue where the LangChain integration always attempted to patch LangChain partner  
   libraries, even if they were not available.
 
 - langchain: This fix resolves an issue where tracing `Chain.invoke()` instead of `Chain.__call__()` resulted in the an `ArgumentError` due to an argument name change for inputs between the two methods.
