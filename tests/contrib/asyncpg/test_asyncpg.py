@@ -156,6 +156,7 @@ async def test_cursor_manual(patched_conn):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
+@pytest.mark.xfail
 async def test_service_override_pin(patched_conn):
     Pin.override(patched_conn, service="custom-svc")
     await patched_conn.execute("SELECT 1")

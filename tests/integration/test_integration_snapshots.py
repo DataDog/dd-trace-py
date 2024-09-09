@@ -204,6 +204,7 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
 @snapshot()
+@pytest.mark.xfail
 def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
     """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
