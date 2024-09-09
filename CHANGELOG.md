@@ -12,6 +12,8 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - database_clients: Adds `server.address` tag to all `<database>.query` spans (ex: postgres.query). This tag stores the name of the database host.
 - LLM Observability: Flushes the buffer of spans to be sent when the payload size would otherwise exceed the payload size limit for the event platform.
 - LLM Observability: Span events that exceed the event platform event size limit (1 MB) will now have their inputs and outputs dropped.
+- tracing: Adds `ddtrace.trace.Context` to the public api. This class can now be used to propagate context across execution boundaries (ex: threads).
+
 
 ### Deprecation Notes
 
@@ -31,7 +33,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - tracing: Resolves an issue where django db instrumentation could fail.
 - openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
 
-- tracing: Adds `ddtrace.trace.Context` to the public api. This class can now be used to propagate context across execution boundaries (ex: threads).
 - aiobotocore: Fixes an issue where the `_make_api_call` arguments were not captured correctly when using keyword arguments.
 - tracing(django): Resolves a bug where ddtrace was exhausting a Django stream response before returning it to user.
 - LLM Observability: Fixes an issue in the OpenAI integration where integration metrics would still be submitted even if `LLMObs.enable(agentless_enabled=True)` was set.
