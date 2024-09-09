@@ -8,6 +8,11 @@ asgi:
   variables:
     SUITE_NAME: "asgi$"
 
+avro:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "avro"
+
 bottle:
   extends: .test_base_riot_snapshot
   variables:

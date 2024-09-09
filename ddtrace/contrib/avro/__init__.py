@@ -22,9 +22,6 @@ required_modules = ["avro"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.avro.patch` directly
-        from . import patch as _  # noqa: F401, I001
-
         # Expose public methods
         from ..internal.avro.patch import get_version
         from ..internal.avro.patch import patch

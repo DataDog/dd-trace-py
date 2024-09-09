@@ -29,8 +29,8 @@ def patch():
 
     _w("avro.io", "DatumReader.read", _traced_deserialize)
     _w("avro.io", "DatumWriter.write", _traced_serialize)
-    Pin(service=None).onto(avro.io.DatumReader)
-    Pin(service=None).onto(avro.io.DatumWriter)
+    Pin().onto(avro.io.DatumReader)
+    Pin().onto(avro.io.DatumWriter)
 
 
 def unpatch():

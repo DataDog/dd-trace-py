@@ -934,15 +934,6 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
-  avro:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'avro'
-
   urllib3:
     <<: *machine_executor
     steps:
