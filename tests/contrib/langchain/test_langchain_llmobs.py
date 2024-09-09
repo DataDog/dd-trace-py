@@ -715,6 +715,54 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
 
+    def test_llmobs_chat_model_tool_calls(self, langchain_openai, mock_llmobs_span_writer, mock_tracer):
+        import langchain_core.tools
+
+        @langchain_core.tools.tool
+        def add(a: int, b: int) -> int:
+            """Adds a and b.
+
+            Args:
+                a: first int
+                b: second int
+            """
+            return a + b
+
+        llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125")
+        llm_with_tools = llm.bind_tools([add])
+        span = self._invoke_chat(
+            chat_model=llm_with_tools,
+            prompt="What is the sum of 1 and 2?",
+            mock_tracer=mock_tracer,
+            cassette_name="lcel_with_tools_openai.yaml",
+        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.enqueue.assert_any_call(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=span.get_tag("langchain.request.model"),
+                model_provider=span.get_tag("langchain.request.provider"),
+                input_messages=[{"role": "user", "content": "What is the sum of 1 and 2?"}],
+                output_messages=[
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "name": "add",
+                                "arguments": {"a": 1, "b": 2},
+                                "tool_id": mock.ANY,
+                            }
+                        ],
+                    }
+                ],
+                metadata={"temperature": 0.7},
+                token_metrics={},
+                tags={"ml_app": "langchain_test"},
+                integration="langchain",
+            )
+        )
+
     def test_llmobs_base_tool_invoke(self, langchain_core, mock_llmobs_span_writer, mock_tracer):
         if langchain_core is None:
             pytest.skip("langchain-core not installed which is required for this test.")
