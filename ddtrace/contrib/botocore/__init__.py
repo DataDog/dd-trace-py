@@ -111,7 +111,7 @@ Configuration
 """
 
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["botocore.client"]
@@ -119,10 +119,14 @@ required_modules = ["botocore.client"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.botocore.patch` directly
-        from . import patch as _  # noqa: F401, I001
+        import warnings as _w
 
-        from ..internal.botocore.patch import get_version
-        from ..internal.botocore.patch import patch
-        from ..internal.botocore.patch import patch_submodules
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
+
+        from ddtrace.contrib.internal.botocore.patch import get_version
+        from ddtrace.contrib.internal.botocore.patch import patch
+        from ddtrace.contrib.internal.botocore.patch import patch_submodules
 
         __all__ = ["patch", "patch_submodules", "get_version"]

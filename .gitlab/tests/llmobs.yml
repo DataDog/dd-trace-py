@@ -1,0 +1,24 @@
+
+llmobs:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "llmobs"
+
+openai:
+  extends: .test_base_riot_snapshot
+  parallel: 10
+  variables:
+    SUITE_NAME: "openai"
+
+langchain:
+  extends: .test_base_riot_snapshot
+  parallel: 6
+  variables:
+    SUITE_NAME: "langchain"
+
+anthropic:
+  extends: .test_base_riot_snapshot
+  parallel: 3
+  variables:
+    SUITE_NAME: "anthropic"
+

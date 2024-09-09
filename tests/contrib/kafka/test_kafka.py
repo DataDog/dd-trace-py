@@ -30,10 +30,16 @@ from tests.utils import override_config
 
 
 GROUP_ID = "test_group"
-BOOTSTRAP_SERVERS = "localhost:{}".format(KAFKA_CONFIG["port"])
+BOOTSTRAP_SERVERS = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
 KEY = "test_key"
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 DSM_TEST_PATH_HEADER_SIZE = 28
+SNAPSHOT_IGNORES = [
+    "metrics.kafka.message_offset",
+    "meta.error.stack",
+    "meta.messaging.kafka.bootstrap.servers",
+    "meta.peer.service",
+]
 
 
 class KafkaConsumerPollFilter(TraceFilter):
@@ -275,7 +281,7 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_message(producer, consumer, tombstone, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         if tombstone:
@@ -285,7 +291,7 @@ def test_message(producer, consumer, tombstone, kafka_topic):
         producer.flush()
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -294,7 +300,7 @@ def test_commit(producer, consumer, kafka_topic):
         consumer.commit(message)
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit_with_consume_single_message(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -305,7 +311,7 @@ def test_commit_with_consume_single_message(producer, consumer, kafka_topic):
         consumer.commit(messages[0])
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -316,7 +322,7 @@ def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_to
         assert len(messages) == 2
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.error.stack"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
 def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -330,7 +336,7 @@ def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
             consumer.consume(num_messages=1, invalid_args="invalid_args")
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit_with_offset(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -339,7 +345,7 @@ def test_commit_with_offset(producer, consumer, kafka_topic):
         consumer.commit(offsets=[TopicPartition(kafka_topic)])
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -348,9 +354,7 @@ def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
         consumer.commit(asynchronous=False)
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
-)
+@pytest.mark.snapshot(token="tests.contrib.kafka.test_kafka.test_service_override", ignores=SNAPSHOT_IGNORES)
 def test_service_override_config(producer, consumer, kafka_topic):
     with override_config("kafka", dict(service="my-custom-service-name", trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -358,7 +362,7 @@ def test_service_override_config(producer, consumer, kafka_topic):
         consumer.poll()
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_analytics_with_rate(producer, consumer, kafka_topic):
     with override_config(
         "kafka", dict(analytics_enabled=True, analytics_sample_rate=0.5, trace_empty_poll_enabled=False)
@@ -367,7 +371,7 @@ def test_analytics_with_rate(producer, consumer, kafka_topic):
         producer.flush()
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_analytics_without_rate(producer, consumer, kafka_topic):
     with override_config("kafka", dict(analytics_enabled=True, trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -510,9 +514,7 @@ def _generate_in_subprocess(random_topic):
     consumer.close()
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=["metrics.kafka.message_offset"]
-)
+@pytest.mark.snapshot(token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=SNAPSHOT_IGNORES)
 def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
 import sys
@@ -537,7 +539,7 @@ if __name__ == "__main__":
     assert err == b"", err.decode()
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
 def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema, kafka_topic):
