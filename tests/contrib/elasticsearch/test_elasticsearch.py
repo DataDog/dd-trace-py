@@ -106,8 +106,8 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("component") == "elasticsearch"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
-        assert span.get_tag("out.host") == "localhost"
-        assert span.get_tag("server.address") == "localhost"
+        assert span.get_tag("out.host") == self._get_es_config()["host"]
+        assert span.get_tag("server.address") == self._get_es_config()["host"]
         assert span.get_tag("custom_tag") == "bar"
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
@@ -332,8 +332,12 @@ class ElasticsearchPatchTest(TracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
 
+    def _get_es_config(self):
+        return ELASTICSEARCH_CONFIG
+
     def _get_es(self):
-        es = elasticsearch.Elasticsearch(hosts=["http://localhost:%d" % ELASTICSEARCH_CONFIG["port"]])
+        config = self._get_es_config()
+        es = elasticsearch.Elasticsearch(hosts=["http://%s:%d" % (config["host"], config["port"])])
         if elasticsearch.__version__ < (5, 0, 0):
             es.transport.get_connection().headers["content-type"] = "application/json"
         return es
