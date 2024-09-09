@@ -2060,3 +2060,36 @@ def test_asm_standalone_configuration():
     assert tracer._compute_stats is False
     # reset tracer values
     tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+def test_gc_not_used_on_root_spans():
+    tracer = ddtrace.Tracer()
+    gc.freeze()
+
+    with tracer.trace("test-event"):
+        pass
+
+    objects = gc.get_objects()
+    assert len(objects) == 2
+    # It probably doesn't make sense to check the exact nature of the objects, but importantly, everything should get
+    # cleaned up (the root span, trace, context, etc.). If this is not the case, you can uncomment the following code
+    # to inspect the objects that are not being cleaned up.
+
+    # for i, obj in enumerate(objects):
+    #     print("--------------------")
+    #     print(f"object {i}:", obj)
+    #     print("referrers:", [f"object {objects.index(r)}" for r in gc.get_referrers(obj)[:-2]])
+    #     print("referents:", [f"object {objects.index(r)}" if r in objects else r for r in gc.get_referents(obj)])
+    #     print("--------------------")
+
+    # Expected output:
+    # --------------------
+    # object 0: <hamt_bitmap_node object at 0x7fa749e1db70>
+    # referrers: ['object 1']
+    # referents: [<sentry_sdk.hub.Hub object at 0x7fa745211450>, <ContextVar name='sentry_current_hub' at 0x7fa74516e660>, None, <ContextVar name='datadog_contextvar' default=None at 0x7fa7490064d0>]
+    # --------------------
+    # --------------------
+    # object 1: <hamt object at 0x7fa745239000>
+    # referrers: []
+    # referents: ['object 0']
+    # --------------------
