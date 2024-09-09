@@ -18,6 +18,8 @@ from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter  # noqa:F401
 from ddtrace.profiling import recorder
@@ -66,6 +68,8 @@ class Profiler(object):
         if profile_children:
             forksafe.register(self._restart_on_fork)
 
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+
     def stop(self, flush=True):
         """Stop the profiler.
 
@@ -74,6 +78,7 @@ class Profiler(object):
         atexit.unregister(self.stop)
         try:
             self._profiler.stop(flush)
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass

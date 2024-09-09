@@ -67,6 +67,8 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.wrapping.context import WrappingContext
 
 
@@ -305,6 +307,7 @@ class Debugger(Service):
 
         atexit.register(cls.disable)
         register_post_run_module_hook(cls._on_run_module)
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
 
         log.debug("%s enabled", cls.__name__)
 
@@ -334,6 +337,7 @@ class Debugger(Service):
             metrics.disable()
 
         di_config.enabled = False
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
 
         log.debug("%s disabled", cls.__name__)
 
