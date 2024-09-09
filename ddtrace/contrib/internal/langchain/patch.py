@@ -985,6 +985,90 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         pin,
         "%s" % func.__self__.name,
         interface_type="tool",
+    )
+
+    tool_output = None
+    try:
+        for attribute in ("name", "description"):
+            value = getattr(instance, attribute, None)
+            if value is not None:
+                span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
+
+        if getattr(instance, "metadata", {}):
+            for key, meta_value in getattr(instance, "metadata", {}).items():
+                span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
+        if getattr(instance, "tags", []):
+            for idx, tag in getattr(instance, "tags", []):
+                span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
+
+        if tool_input and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
+        if config:
+            span.set_tag_str("langchain.request.config", json.dumps(config))
+
+        tool_output = func(*args, **kwargs)
+        if tool_output and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
+    return tool_output
+
+
+@with_traced_module
+async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs):
+    integration = langchain._datadog_integration
+    tool_input = get_argument_value(args, kwargs, 0, "input")
+    config = get_argument_value(args, kwargs, 1, "config", optional=True)
+
+    span = integration.trace(
+        pin,
+        "%s" % func.__self__.name,
+        interface_type="tool",
+    )
+
+    tool_output = None
+    try:
+        for attribute in ("name", "description"):
+            value = getattr(instance, attribute, None)
+            if value is not None:
+                span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
+
+        if getattr(instance, "metadata", {}):
+            for key, meta_value in getattr(instance, "metadata", {}).items():
+                span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
+        if getattr(instance, "tags", []):
+            for idx, tag in getattr(instance, "tags", []):
+                span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
+
+        if tool_input and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
+        if config:
+            span.set_tag_str("langchain.request.config", json.dumps(config))
+
+        tool_output = await func(*args, **kwargs)
+        if tool_output and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
+    return tool_output
+
+
+@with_traced_module
+def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
+    integration = langchain._datadog_integration
+    tool_input = get_argument_value(args, kwargs, 0, "input")
+    config = get_argument_value(args, kwargs, 1, "config", optional=True)
+
+    span = integration.trace(
+        pin,
+        "%s" % func.__self__.name,
+        interface_type="tool",
         submit_to_llmobs=True,
     )
 
