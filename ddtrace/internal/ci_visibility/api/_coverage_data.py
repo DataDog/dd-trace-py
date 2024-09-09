@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict
 from typing import List
 
-from ddtrace.internal.coverage.lines import CoverageLines
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 try:
@@ -18,7 +18,7 @@ class CoverageFilePayload(TypedDict):
     bitmap: bytes
 
 
-class CICoverageData:
+class TestVisibilityCoverageData:
     """Container for coverage data for an item (suite or test)"""
 
     def __init__(self) -> None:
@@ -36,10 +36,7 @@ class CICoverageData:
             self._coverage_data[file_path.absolute()].update(covered_lines)
 
     def _build_payload(self, root_dir: Path) -> List[CoverageFilePayload]:
-        """Generate a CI Visibility coverage payload
-
-        Tuples are used here since JSON serializes tuples as lists.
-        """
+        """Generate a Test Visibility coverage payload"""
         coverage_data = []
         for file_path, covered_lines in self._coverage_data.items():
             try:
@@ -54,5 +51,4 @@ class CICoverageData:
         return coverage_data
 
     def build_payload(self, root_dir: Path) -> Dict[str, List[CoverageFilePayload]]:
-        """Generate a CI Visibility coverage payload in JSON format"""
         return {"files": self._build_payload(root_dir)}
