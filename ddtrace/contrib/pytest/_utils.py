@@ -71,22 +71,31 @@ def _get_test_id_from_item(item: pytest.Item) -> InternalTestId:
     module_id = TestModuleId(module_name)
     suite_id = TestSuiteId(module_id, suite_name)
 
-    # Test parameters are part of the test ID
-    parameters_json: t.Optional[str] = None
-    if getattr(item, "callspec", None):
-        parameters: t.Dict[str, t.Dict[str, str]] = {"arguments": {}, "metadata": {}}
-        for param_name, param_val in item.callspec.params.items():
-            try:
-                parameters["arguments"][param_name] = _encode_test_parameter(param_val)
-            except Exception:
-                parameters["arguments"][param_name] = "Could not encode"
-                log.warning("Failed to encode %r", param_name, exc_info=True)
-
-        parameters_json = json.dumps(parameters)
-
-    test_id = InternalTestId(suite_id, test_name, parameters_json)
+    test_id = InternalTestId(suite_id, test_name)
 
     return test_id
+
+
+def _get_test_parameters_json(item) -> t.Optional[str]:
+    # Test parameters are part of the test ID
+    callspec: pytest.python.CallSpec2 = getattr(item, "callspec", None)
+
+    if callspec is None:
+        return None
+
+    parameters: t.Dict[str, t.Dict[str, str]] = {"arguments": {}, "metadata": {}}
+    for param_name, param_val in item.callspec.params.items():
+        try:
+            parameters["arguments"][param_name] = _encode_test_parameter(param_val)
+        except Exception:  # noqa: E722
+            parameters["arguments"][param_name] = "Could not encode"
+            log.warning("Failed to encode %r", param_name, exc_info=True)
+
+    try:
+        return json.dumps(parameters, sort_keys=True)
+    except TypeError:
+        log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
+        return None
 
 
 def _get_module_path_from_item(item: pytest.Item) -> Path:

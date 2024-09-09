@@ -140,6 +140,14 @@ molten:
   variables:
     SUITE_NAME: "molten"
 
+pymongo:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, mongo]
+  variables:
+    SUITE_NAME: "pymongo"
+
 pynamodb:
   extends: .test_base_riot_snapshot
   variables:
@@ -187,25 +195,13 @@ tornado:
 
 unittest:
   extends: .test_base_riot_snapshot
-  variables: 
+  variables:
     SUITE_NAME: "unittest"
 
 wsgi:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "wsgi"
-
-langchain:
-  extends: .test_base_riot_snapshot
-  parallel: 6
-  variables:
-    SUITE_NAME: "langchain"
-
-anthropic:
-  extends: .test_base_riot_snapshot
-  parallel: 3
-  variables:
-    SUITE_NAME: "anthropic"
 
 loguru:
   extends: .test_base_riot_snapshot
@@ -243,21 +239,10 @@ stdlib:
   variables:
     SUITE_NAME: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
 
-llmobs:
-  extends: .test_base_riot
-  variables:
-    SUITE_NAME: "llmobs"
-
 subprocess:
   extends: .test_base_riot
   variables:
     SUITE_NAME: "subprocess"
-
-openai:
-  extends: .test_base_riot_snapshot
-  parallel: 10
-  variables:
-    SUITE_NAME: "openai"
 
 opentracer:
   extends: .test_base_riot

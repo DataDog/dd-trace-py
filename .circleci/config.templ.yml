@@ -783,16 +783,6 @@ jobs:
           snapshot: true
           docker_services: 'mongo'
 
-  pymongo:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *mongo_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pymongo"
-
   requests:
     <<: *contrib_job
     docker:
