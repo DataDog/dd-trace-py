@@ -15,3 +15,9 @@ pytest:
   parallel: 12
   variables:
     SUITE_NAME: "pytest"
+
+pytest_v2:
+  extends: .test_base_hatch_snapshot
+  parallel: 10
+  variables:
+    SUITE_NAME: "pytest"
