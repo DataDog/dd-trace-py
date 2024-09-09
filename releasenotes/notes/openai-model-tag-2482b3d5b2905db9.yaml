@@ -1,4 +1,0 @@
----
-features:
-  - |
-    openai: This introduces 'model' tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as `openai.request.model`.
