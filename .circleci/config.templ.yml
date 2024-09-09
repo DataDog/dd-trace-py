@@ -641,15 +641,6 @@ jobs:
       - run_test:
           pattern: 'consul'
 
-  elasticsearch:
-    <<: *machine_executor
-    parallelism: 17
-    steps:
-      - run_test:
-          pattern: 'elasticsearch'
-          snapshot: true
-          docker_services: 'elasticsearch opensearch'
-
   django:
     <<: *machine_executor
     parallelism: 4
@@ -782,16 +773,6 @@ jobs:
           pattern: 'mongoengine'
           snapshot: true
           docker_services: 'mongo'
-
-  pymongo:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *mongo_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pymongo"
 
   requests:
     <<: *contrib_job

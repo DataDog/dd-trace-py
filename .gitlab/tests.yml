@@ -54,5 +54,6 @@ include:
   - local: ".gitlab/tests/contrib.yml"
   - local: ".gitlab/tests/core.yml"
   - local: ".gitlab/tests/debugging.yml"
+  - local: ".gitlab/tests/llmobs.yml"
   - local: ".gitlab/tests/tracer.yml"
   - local: ".gitlab/tests/profiling.yml"

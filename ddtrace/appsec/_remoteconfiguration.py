@@ -16,6 +16,8 @@ from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMerge
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -73,12 +75,15 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
 
     forksafe.register(_forksafe_appsec_rc)
+    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
 
 
 def disable_appsec_rc():
     # only used to avoid data leaks between tests
     for product_name in APPSEC_PRODUCTS:
         remoteconfig_poller.unregister(product_name)
+
+    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
 
 
 def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, ruleset: Dict[str, Any]) -> None:

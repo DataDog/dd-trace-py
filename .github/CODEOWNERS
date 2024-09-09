@@ -84,6 +84,7 @@ tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/apm-core-p
 tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/symbol_db/           @DataDog/debugger-python
+.gitlab/tests/debugging.yml         @DataDog/debugger-python
 
 # ASM
 .gitlab/tests/appsec.yml            @DataDog/asm-python
@@ -133,6 +134,7 @@ tests/contrib/botocore/test_bedrock.py                  @DataDog/ml-observabilit
 tests/contrib/botocore/test_bedrock_llmobs.py           @DataDog/ml-observability
 tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observability
 tests/contrib/anthropic                                 @DataDog/ml-observability
+.gitlab/tests/llmobs.yml                                @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
