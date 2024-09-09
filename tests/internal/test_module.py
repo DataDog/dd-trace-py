@@ -538,3 +538,10 @@ def test_module_watchdog_reloads_dont_cause_errors():
     sys.setrecursionlimit(1000)
     for _ in range(sys.getrecursionlimit() * 2):
         reload(ns_module)
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_module_import_side_effect():
+    # Test that we can import a module that raises an exception during specific
+    # attribute lookups.
+    import tests.internal.side_effect_module  # noqa:F401
