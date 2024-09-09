@@ -95,6 +95,7 @@ def _get_test_parameters_json(item) -> t.Optional[str]:
         return json.dumps(parameters, sort_keys=True)
     except TypeError:
         log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
+        return None
 
 
 def _get_module_path_from_item(item: pytest.Item) -> Path:
