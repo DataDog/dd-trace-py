@@ -3,6 +3,7 @@ from http.client import RemoteDisconnected
 import json
 import os
 from pathlib import Path
+import re
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
@@ -101,12 +102,17 @@ class CIVisibilityAuthenticationException(Exception):
     pass
 
 
-def _extract_repository_name_from_url(repository_url):
-    # type: (str) -> str
+def _extract_repository_name_from_url(repository_url: str) -> str:
+    _REPO_NAME_REGEX = r".*/(?P<repo_name>.*?)(\.git)?$"
+
     try:
-        return parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
+        url_path = parse.urlparse(repository_url).path
+        matches = re.match(_REPO_NAME_REGEX, url_path, flags=re.IGNORECASE)
+        if matches:
+            return matches.group("repo_name")
+        log.warning("Cannot extract repository name from unexpected URL path: %s", url_path)
+        return repository_url
     except ValueError:
-        # In case of parsing error, default to repository url
         log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
         return repository_url
 
