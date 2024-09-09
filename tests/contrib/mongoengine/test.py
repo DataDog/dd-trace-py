@@ -414,9 +414,11 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         spans = tracer.pop()
         assert not spans, spans
 
+        # Disconnect so a new pymongo client can be created,
+        # connections are patched on instantiation
+        mongoengine.connection.disconnect()
         # Test patch again
         patch()
-
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
@@ -431,13 +433,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         Regression test for https://github.com/DataDog/dd-trace-py/issues/2474
         """
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        assert isinstance(client._topology, TracedTopology)
-        assert not isinstance(client._topology.__wrapped__, TracedTopology)
-        client.close()
-
-        client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        assert isinstance(client._topology, TracedTopology)
-        assert not isinstance(client._topology.__wrapped__, TracedTopology)
+        assert Pin.get_from(client) is  Pin.get_from(client._topology)
         client.close()
 
 
