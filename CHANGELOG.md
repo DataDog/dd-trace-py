@@ -9,10 +9,10 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-- CI Visibility: Resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: This fix resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
 - CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
-- openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
-- profiling: Fixes endpoing profiling for stack v2 when `DD_PROFILING_STACK_V2_ENABLED` is set.
+- openai: Fixes a bug where \`asyncio.TimeoutError\`s were not being propagated correctly from canceled OpenAI API requests.
+- profiling: Fixes endpoing profiling for stack v2, that is when `DD_PROFILING_STACK_V2_ENABLED` set.
 
 
 ---
@@ -4085,7 +4085,7 @@ Major changes to context management. See the upgrade section for the specifics. 
 
 - Support for MySQL-python has been removed.
 
-- Support for psycopg \< 2.7 has been removed.
+- Support for psycopg \< 2.7 has been removed.
 
 ### New Features
 
@@ -4523,7 +4523,7 @@ Add support for Python 3.9
 - pyodbc integration. This enables the [pyodbc](https://github.com/mkleehammer/pyodbc) library to trace queries.
 - starlette integration resource aggregation This aggregates endpoints to the starlette application resource that was accessed. It occurs by default but it is configurable through config.starlette\["aggregate_resources"\].
 - The profiler now captures the traces information with the lock profiling.
-- The Profiler instances now restart automatically in child process when the main program is forked. This only works for Python ≥ 3.7.
+- The Profiler instances now restart automatically in child process when the main program is forked. This only works for Python ≥ 3.7.
 
 ### Bug Fixes
 
@@ -5493,7 +5493,7 @@ This release introduces several core improvements and continues addressing pain 
 
 ### Tooling
 
-* Run flake8 with Python 3 (#957)
+* Run flake8 with Python 3 (#957)
 * tox: fix ignore path for integrations (#954)
 * Remove mention of -dev branch in CircleCI (#931)
 
@@ -5914,7 +5914,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.14.1
 ## 0.14.1 (25/09/2018)
 **Bug fixes**
 - [opentracer] Activate span context on extract (#606, #608)
-- [opentracer] Fix "does not provide the extra opentracing" (#611, #616)
+- [opentracer] Fix "does not provide the extra opentracing" (#611, #616)
 
 **Improvements**
 - [docs] Clarify debug mode (#610)
