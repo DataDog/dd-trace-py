@@ -9,11 +9,11 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-- CI Visibility: This fix resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: Resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
 - CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
-- LLM Observability: This fix resolves an issue where custom trace filters were being overwritten in forked processes.
-- Fix for a side-effect issue with module import callbacks that could cause a runtime exception.
-- llmobs: This fix resolves an issue where session_id was being defaulted to trace_id which was causing unexpected UI behavior.
+- LLM Observability: Resolves an issue where custom trace filters were being overwritten in forked processes.
+- tracing: Fixes a side-effect issue with module import callbacks that could cause a runtime exception.
+- LLM Observability: Resolves an issue where `session_id` was being defaulted to `trace_id` which was causing unexpected UI behavior.
 
 
 ---
