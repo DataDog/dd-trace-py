@@ -4,6 +4,22 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.12.1
+
+
+### New Features
+
+- openai: This introduces 'model' tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as <span class="title-ref">openai.request.model</span>.
+
+### Bug Fixes
+
+- CI Visibility: This fix resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- LLM Observability: This fix resolves an issue where custom trace filters were being overwritten in forked processes.
+- Fix for a side-effect issue with module import callbacks that could cause a runtime exception.
+
+
+---
+
 ## 2.11.2
 
 
