@@ -189,6 +189,13 @@ gevent
 .. automodule:: ddtrace.contrib.gevent
 
 
+.. _google_generativeai:
+
+google.generativeai
+^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.google_generativeai
+
+
 .. _graphql:
 
 graphql
