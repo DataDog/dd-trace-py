@@ -2,11 +2,11 @@ import os
 
 import pytest
 
-from ddtrace.pin import Pin
 from ddtrace.contrib.google_generativeai import patch
 from ddtrace.contrib.google_generativeai import unpatch
-from tests.contrib.google_generativeai.utils import MockGenerativeModelClient
+from ddtrace.pin import Pin
 from tests.contrib.google_generativeai.utils import MockGenerativeModelAsyncClient
+from tests.contrib.google_generativeai.utils import MockGenerativeModelClient
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -60,8 +60,8 @@ def genai(ddtrace_global_config, ddtrace_config_google_generativeai, mock_client
                 dict(GOOGLE_GENERATIVEAI_API_KEY=os.getenv("GOOGLE_GENERATIVEAI_API_KEY", "<not-a-real-key>"))
             ):
                 patch()
-                from google.generativeai import client as client_lib
                 import google.generativeai as genai
+                from google.generativeai import client as client_lib
 
                 client_lib._client_manager.clients["generative"] = mock_client
                 client_lib._client_manager.clients["generative_async"] = mock_client_async

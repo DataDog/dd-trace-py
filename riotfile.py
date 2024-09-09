@@ -2677,7 +2677,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "google-generativeai": ["~=0.7.2"],
                 "pillow": latest,
-            }
+            },
         ),
         Venv(
             name="logbook",

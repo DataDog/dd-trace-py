@@ -120,7 +120,7 @@ def _tag_request_content(span, integration, content, content_idx):
     if not parts:
         span.set_tag_str(
             "genai.request.contents.%d.text" % content_idx,
-            integration.trunc("[Non-text content object: {}]".format(repr(content)))
+            integration.trunc("[Non-text content object: {}]".format(repr(content))),
         )
         return
     for part_idx, part in enumerate(parts):
