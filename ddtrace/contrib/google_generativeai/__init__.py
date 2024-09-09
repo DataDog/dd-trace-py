@@ -85,8 +85,8 @@ required_modules = ["google.generativeai"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from ..internal.google_generativeai.patch import get_version
         from ..internal.google_generativeai.patch import patch
         from ..internal.google_generativeai.patch import unpatch
-        from ..internal.google_generativeai.patch import get_version
 
         __all__ = ["patch", "unpatch", "get_version"]

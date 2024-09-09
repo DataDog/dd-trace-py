@@ -75,7 +75,7 @@ def _tag_request_content_part(span, integration, part, part_idx, content_idx):
     function_response = getattr(part, "function_response", None)
     if isinstance(part, dict):
         text = part.get("text", "")
-        function_call = part.get("function_call", None)  # TODO: CHECK FOR DICT FUNCTION_CALL/FUNCTION_RESPONSE TYPE
+        function_call = part.get("function_call", None)
         function_response = part.get("function_response", None)
     span.set_tag_str("genai.request.contents.%d.parts.%d.text" % (content_idx, part_idx), integration.trunc(str(text)))
     if function_call:
