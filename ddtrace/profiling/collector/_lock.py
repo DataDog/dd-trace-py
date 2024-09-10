@@ -108,7 +108,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_name: typing.Optional[str] = None
 
     def __aenter__(self, *args, **kwargs):
-        print("capturing __aenter__")
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def __aexit__(self, *args, **kwargs):
