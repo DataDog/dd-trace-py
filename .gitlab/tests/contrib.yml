@@ -28,6 +28,15 @@ dogpile_cache:
   variables:
     SUITE_NAME: "dogpile_cache"
 
+dramatiq:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "dramatiq"
+    TEST_REDIS_HOST: "redis"
+
 elasticsearch:
   extends: .test_base_riot_snapshot
   parallel: 17

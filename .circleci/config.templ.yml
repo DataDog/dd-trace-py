@@ -667,15 +667,6 @@ jobs:
           snapshot: true
           docker_services: "memcached redis"
 
-  dramatiq:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "dramatiq"
-          snapshot: true
-          docker_services: "redis"
-
   httplib:
     <<: *machine_executor
     steps:
