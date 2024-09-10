@@ -24,42 +24,27 @@ class SchemaExtractor(SchemaIterator):
         description = None
         ref = None
         enum_values = None
-
         field_type = field.type
-
-        if isinstance(field_type, list):
-            # Union type
+        if field_type.type == "array":
+            # Array Type, get type of first item in array
             array = True
-            type_ = SchemaExtractor.get_type(field_type[0].type)
-            for sub_type in field_type:
-                if isinstance(sub_type, dict) and sub_type.get("type") == "array":
-                    type_ = "array"
-                    break
-        elif field_type.type == "union":
-            type_ = "union[" + SchemaExtractor.get_type(field_type.schemas[0])
-            for schema in field_type.schemas[1:]:
-                type_ += "," + SchemaExtractor.get_type(schema)
-            type_ += "]"
-
-        elif isinstance(field_type, dict):
-            # Complex type (record, enum, array, map, fixed)
-            type_name = field_type.get("type")
-            if type_name == "record":
-                type_ = "object"
-            elif type_name == "enum":
-                type_ = "string"
-                enum_values = field_type.get("symbols")
-            elif type_name == "array":
-                array = True
-                type_ = SchemaExtractor.get_type(field_type.get("items"))
-            elif type_name == "map":
-                type_ = "object"
-                description = "Map type"
-            elif type_name == "fixed":
-                type_ = "string"
-            else:
-                type_ = "string"
-                description = "Unknown complex type"
+            format_ = field_type.props["items"].type
+        elif getattr(field_type, "type", "") == "union":
+            # Union Type
+            schemas = getattr(field_type, "schemas", [])
+            if len(schemas) > 0:
+                for i in range(len(schemas)):
+                    if i == 0:
+                        type_ = "union[" + SchemaExtractor.get_type(schemas[0])
+                    else:
+                        type_ += "," + SchemaExtractor.get_type(schemas[i])
+                type_ += "]"
+        elif getattr(field_type, "type", "") == "record":
+            # Nested Record Type
+            type_ = "object"
+            ref = f"#/components/schemas/{field_type.name}"
+            if not SchemaExtractor.extract_schema(field_type, builder, depth + 1):
+                return False
         else:
             # Primitive type
             type_ = SchemaExtractor.get_type(field_type)
@@ -108,9 +93,9 @@ class SchemaExtractor(SchemaIterator):
         if not data_streams_processor().can_sample_schema(operation):
             return
 
-        # prio = span.context.sampling_priority
-        # if prio is None or prio <= 0:
-        #     return
+        prio = span.context.sampling_priority
+        if prio is None or prio <= 0:
+            return
 
         weight = data_streams_processor().try_sample_schema(operation)
         if weight == 0:

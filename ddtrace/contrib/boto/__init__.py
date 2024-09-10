@@ -28,7 +28,7 @@ Configuration
 
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["boto.connection"]
@@ -42,7 +42,7 @@ with require_modules(required_modules) as missing_modules:
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
 
-        from ..internal.boto.patch import get_version
-        from ..internal.boto.patch import patch
+        from ddtrace.contrib.internal.boto.patch import get_version
+        from ddtrace.contrib.internal.boto.patch import patch
 
         __all__ = ["patch", "get_version"]

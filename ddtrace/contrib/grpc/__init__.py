@@ -75,7 +75,7 @@ To configure the gRPC integration on the server use the ``Pin`` API::
 """
 
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["grpc"]
@@ -90,8 +90,8 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.grpc.patch import get_version
-        from ..internal.grpc.patch import patch
-        from ..internal.grpc.patch import unpatch
+        from ddtrace.contrib.internal.grpc.patch import get_version
+        from ddtrace.contrib.internal.grpc.patch import patch
+        from ddtrace.contrib.internal.grpc.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

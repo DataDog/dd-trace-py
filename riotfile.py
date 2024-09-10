@@ -2817,13 +2817,6 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                Venv(
-                    name="profile-wrapt-disabled",
-                    pys=select_pys(),
-                    env={
-                        "WRAPT_DISABLE_EXTENSIONS": "1",
-                    },
-                ),
                 # Python 3.7
                 Venv(
                     pys="3.7",

@@ -1,7 +1,7 @@
 import pytest
 
-from ddtrace.contrib.avro.patch import patch
-from ddtrace.contrib.avro.patch import unpatch
+from ddtrace.contrib.internal.avro.patch import patch
+from ddtrace.contrib.internal.avro.patch import unpatch
 from tests.utils import override_global_config
 
 
