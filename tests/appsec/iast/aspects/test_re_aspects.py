@@ -1,6 +1,8 @@
 import re
 import typing
 
+import pytest
+
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -18,6 +20,7 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_search_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
+from ddtrace.appsec._iast._taint_tracking.aspects import slice_aspect
 
 
 def test_re_findall_aspect_tainted_string():
@@ -491,3 +494,30 @@ def test_re_finditer_aspect_not_tainted():
     assert isinstance(res_iterator, typing.Iterator)
     for i in res_iterator:
         assert not is_pyobject_tainted(i)
+
+
+@pytest.mark.skip(reason="Not implemented: APPSEC-54846")
+def test_re_match_getitem_aspect_tainted_string_re_object():
+    tainted_isaac_newton = taint_pyobject(
+        pyobject="Isaac Newton, physicist",
+        source_name="test_re_match_groups_aspect_tainted_string",
+        source_value="Isaac Newton, physicist",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    re_obj = re.compile(r"(\w+) (\w+)")
+
+    re_match = re_match_aspect(None, 1, re_obj, tainted_isaac_newton)
+
+    isaac_newton = slice_aspect(re_match, 0, None)
+    assert isaac_newton == "Isaac Newton"
+
+    isaac = slice_aspect(re_match, 1, None)
+    assert isaac == "Isaac"
+
+    newton = slice_aspect(re_match, 2, None)
+    assert newton == "Newton"
+
+    assert is_pyobject_tainted(isaac_newton)
+    assert is_pyobject_tainted(isaac)
+    assert is_pyobject_tainted(newton)
