@@ -20,10 +20,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ## 2.9.6
 
 
-### New Features
-
-- SSI: Introduces generic safeguards for automatic instrumentation when using single step install in the form of early exit conditions. Early exit from instrumentation is triggered if a version of software in the environment is not explicitly supported by ddtrace. The Python runtime itself and many Python packages are checked for explicit support on the basis of their version.
-
 ### Bug Fixes
 
 - CI Visibility: This fix resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
