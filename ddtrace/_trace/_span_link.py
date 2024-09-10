@@ -27,6 +27,7 @@ SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
 import dataclasses
 from enum import Enum
 from typing import Any
+from typing import Dict
 from typing import Optional
 
 from ddtrace.internal.utils.formats import flatten_key_value
@@ -140,7 +141,7 @@ class _SpanPointer(SpanLink):
         pointer_kind: str,
         pointer_direction: _SpanPointerDirection,
         pointer_hash: str,
-        extra_attributes: Optional[dict[str, Any]] = None,
+        extra_attributes: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             trace_id=_SPAN_POINTER_SPAN_LINK_TRACE_ID,
