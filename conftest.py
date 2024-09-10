@@ -81,7 +81,6 @@ def pytest_collection_modifyitems(config, items):
 
     for item in items:
         if "serial" in item.keywords:
-            print(item.name)
             serial.append(item)
         else:
             parallel.append(item)
