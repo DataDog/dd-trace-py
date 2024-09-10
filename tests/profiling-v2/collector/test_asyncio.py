@@ -80,20 +80,67 @@ class TestAsyncioLockCollector:
             ],
         )
 
-    async def test_asyncio_lock_events_tracer(self):
+    async def test_asyncio_lock_events_tracer(self, tracer):
         resource = str(uuid.uuid4())
-        span_type = str(uuid.uuid64())
+        span_type = str(uuid.uuid4())
 
-        with collector_asyncio.AsyncioLockCollector(None, capture_pct=100, export_libdd_enabled=True):
-            lock = asyncio.Lock()
-            await lock.acquire()
-            with test_collector.tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2 = asyncio.Lock()
-                await lock2.acquire()
-                lock.release()
+        with collector_asyncio.AsyncioLockCollector(None, capture_pct=100, export_libdd_enabled=True, tracer=tracer):
+            lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_1
+            await lock.acquire()  # !ACQUIRE! test_asyncio_lock_events_tracer_1
+            with tracer.trace("test", resource=resource, span_type=span_type) as t:
+                lock2 = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_2
+                await lock2.acquire()  # !ACQUIRE! test_asyncio_lock_events_tracer_2
+                lock.release()  # !RELEASE! test_asyncio_lock_events_tracer_1
                 span_id = t.span_id
-            lock2.release()
+            lock2.release()  # !RELEASE! test_asyncio_lock_events_tracer_2
 
-            lock_ctx = asyncio.Lock()
-            async with lock_ctx:
+            # TODO(taegyunkim): Capture lock uses with async context manager.
+            # We currently simply call the inner __aenter__ and __aexit__ methods
+            # for the lock object.
+            lock_ctx = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_3
+            async with lock_ctx:  # !ACQUIRE! !RELEASE! test_asyncio_lock_events_tracer_3
                 pass
+        ddup.upload()
+
+        linenos_1 = get_lock_linenos("test_asyncio_lock_events_tracer_1")
+        linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")
+
+        profile = pprof_utils.parse_profile(self.output_filename)
+
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_1,
+                    lock_name="lock",
+                ),
+                pprof_utils.LockAcquireEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_2,
+                    lock_name="lock2",
+                    span_id=span_id,
+                    trace_resource=resource,
+                    trace_type=span_type,
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_1,
+                    lock_name="lock",
+                    span_id=span_id,
+                    trace_resource=resource,
+                    trace_type=span_type,
+                ),
+                pprof_utils.LockReleaseEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_2,
+                    lock_name="lock2",
+                ),
+            ],
+        )
