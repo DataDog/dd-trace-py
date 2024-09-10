@@ -338,7 +338,7 @@ def test_gemini_completion_image(genai, mock_client):
     mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_IMG_CALL))
     llm = genai.GenerativeModel("gemini-1.5-flash")
     llm.generate_content(
-        [img, "Return a bounding box for the piranha. \n [ymin, xmin, ymax, xmax"],
+        [img, "Return a bounding box for the apple. \n [ymin, xmin, ymax, xmax]"],
         generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=1.0),
     )
 
@@ -353,6 +353,6 @@ async def test_gemini_completion_image_async(genai, mock_client_async):
     mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_IMG_CALL))
     llm = genai.GenerativeModel("gemini-1.5-flash")
     await llm.generate_content_async(
-        [img, "Return a bounding box for the piranha. \n [ymin, xmin, ymax, xmax"],
+        [img, "Return a bounding box for the apple. \n [ymin, xmin, ymax, xmax]"],
         generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=1.0),
     )

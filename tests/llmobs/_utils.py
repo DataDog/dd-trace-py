@@ -1,21 +1,27 @@
 import os
 
 import mock
-import vcr
+try:
+    import vcr
+except ImportError:
+    vcr = None
 
 import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 
 
-logs_vcr = vcr.VCR(
-    cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
-    record_mode="once",
-    match_on=["path"],
-    filter_headers=[("DD-API-KEY", "XXXXXX")],
-    # Ignore requests to the agent
-    ignore_localhost=True,
-)
+if vcr:
+    logs_vcr = vcr.VCR(
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
+        record_mode="once",
+        match_on=["path"],
+        filter_headers=[("DD-API-KEY", "XXXXXX")],
+        # Ignore requests to the agent
+        ignore_localhost=True,
+    )
+else:
+    logs_vcr = None
 
 
 def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
@@ -180,7 +186,7 @@ def _llmobs_base_span_event(
     integration=None,
 ):
     span_name = span.name
-    if integration == "langchain":
+    if integration in ("langchain", "gemini"):
         span_name = span.resource
     elif integration == "openai":
         span_name = "openai.{}".format(span.resource)
