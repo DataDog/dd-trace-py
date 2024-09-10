@@ -85,10 +85,7 @@ async def test_lock_events_tracer(tracer):
     lines_with_trace = [linenos_1.acquire, linenos_2.release, linenos_3.acquire, linenos_3.release]
     lines_without_trace = [linenos_2.acquire, linenos_1.release]
     for event_type in (collector_asyncio.AsyncioLockAcquireEvent, collector_asyncio.AsyncioLockReleaseEvent):
-        if event_type == collector_asyncio.AsyncioLockAcquireEvent:
-            assert {lock1_name, lock2_name, lock3_name}.issubset({e.lock_name for e in events[event_type]})
-        elif event_type == collector_asyncio.AsyncioLockReleaseEvent:
-            assert {lock1_name, lock2_name, lock3_name}.issubset({e.lock_name for e in events[event_type]})
+        assert {lock1_name, lock2_name, lock3_name}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
             if event.name in [lock1_name, lock2_name, lock3_name]:
                 file_name, lineno, function_name, class_name = event.frames[0]
