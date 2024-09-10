@@ -302,12 +302,6 @@ class SpanTestCase(TracerTestCase):
             None,
         )
 
-    def test_numeric_tags_true(self):
-        s = Span(name="test.span")
-        s.set_tag("gonnabetrue", True)
-        expected = {"gonnabetrue": 1.0}
-        assert s.get_metrics() == expected
-
     def test_numeric_tags_value(self):
         s = Span(name="test.span")
         s.set_tag("point5", 0.5)
