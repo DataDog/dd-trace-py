@@ -1,8 +1,7 @@
 import atexit
 from concurrent import futures
-from concurrent.futures import as_completed
-from concurrent.futures import wait
 import math
+from threading import Event
 import time
 from typing import Dict
 from typing import List
@@ -16,12 +15,9 @@ from ddtrace.internal.periodic import PeriodicService
 from ....utils import EvaluationMetric
 from ....utils import LLMObsSpanContext
 from ._scorer import score_faithfulness
-from ._scorer import score_faithfulness_sync
 
 
 logger = get_logger(__name__)
-
-from threading import Event
 
 
 class RagasFaithfulnessEvaluationRunner(PeriodicService):
@@ -37,20 +33,10 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
         self._llmobs_eval_metric_writer = writer
         self.spans = []  # type: List[LLMObsSpanContext]
 
-        self.enabled = False
         self.name = "ragas.faithfulness"
-        self.executor = futures.ThreadPoolExecutor(max_workers=2)
 
         self.shutdown_event = Event()
-
-        try:
-            import asyncio  # noqa: F401
-
-            from ragas.metrics import faithfulness  # noqa: F401
-
-            self.enabled = True
-        except ImportError:
-            logger.warning("Failed to import ragas, skipping RAGAS evaluation runner")
+        self.executor = futures.ThreadPoolExecutor()
 
     def start(self, *args, **kwargs):
         super(RagasFaithfulnessEvaluationRunner, self).start()
@@ -58,7 +44,8 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
         atexit.register(self.on_shutdown)
 
     def on_shutdown(self):
-        self.executor.shutdown(wait=False, cancel_futures=True)
+        self.shutdown_event.set()
+        self.executor.shutdown(cancel_futures=True)
 
     def recreate(self):
         return self.__class__(
@@ -85,95 +72,22 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
             self._buffer = []
 
         try:
-            evaluation_metrics = self.run(events)
-            for metric in evaluation_metrics:
-                print(metric)
-                if metric is not None:
-                    print(metric)
-                    self._llmobs_eval_metric_writer.enqueue(metric.model_dump())
+            if not self.shutdown_event.is_set():
+                evaluation_metrics = self.run(events)
+                for metric in evaluation_metrics:
+                    if metric is not None:
+                        self._llmobs_eval_metric_writer.enqueue(metric.model_dump())
+            else:
+                logger.warning("app shutdown detected, not running evaluations")
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)
 
-    def translate_span_dummy(self, span: LLMObsSpanContext) -> Optional[dict]:
-        return {
-            "question": "What is the capital of France?",
-            "answer": "Paris is the capital of France.",
-            "context_str": "France is a country in Europe.",
-        }
-
-    def translate_span(self, span: LLMObsSpanContext) -> Optional[dict]:
-        if span.meta.input.prompt is None:
-            logger.debug("Skipping span %s, no prompt found", span.span_id)
-            return None
-
-        prompt = span.meta.input.prompt
-        question = prompt.variables.get("question")
-        context_str = prompt.variables.get("context")
-
-        if not context_str:
-            raise ValueError("no context found")
-        if not question:
-            if not question:
-                logger.warning("Skipping span %s, no question found", span.span_id)
-                return None
-        if span.meta.output.messages and len(span.meta.output.messages) > 0:
-            answer = span.meta.output.messages[-1]["content"]
-        else:
-            return None
-        return {
-            "question": question,
-            "answer": answer,
-            "context_str": context_str,
-        }
-
     def run(self, spans: List[LLMObsSpanContext]) -> List[EvaluationMetric]:
-        if not self.enabled:
-            logger.warning("RagasFaithfulnessRunner is not enabled")
-            return []
-        import asyncio
-
-        async def score_and_return_evaluation(span, event):
-            if event.is_set():
-                return None
-
-            score, exported_ragas_span = await score_faithfulness(
-                span, llmobs_instance=self.llmobs_instance, shutdown_event=event
-            )
-            if score is None or math.isnan(score):
-                return None
-
-            return EvaluationMetric(
-                label="ragas.faithfulness",
-                span_id=span.span_id,
-                trace_id=span.trace_id,
-                score_value=score,
-                ml_app=config._llmobs_ml_app,
-                timestamp_ms=math.floor(time.time() * 1000),
-                metric_type="score",
-                tags=[
-                    "trace_id:{}".format(
-                        exported_ragas_span.get("trace_id") if exported_ragas_span.get("trace_id") else ""
-                    ),
-                    "span_id:{}".format(
-                        exported_ragas_span.get("span_id") if exported_ragas_span.get("span_id") else ""
-                    ),
-                ],
-            )
-
-        def sync_score_and_return_evaluation(span_and_shutdown_event):
-            span, event = span_and_shutdown_event
-            if event.is_set():
-                return None
+        def score_and_return_evaluation(span) -> Optional[EvaluationMetric]:
             try:
-                # ..run creates anew event loop
-                return asyncio.get_event_loop().run_in_executor(self.executor, score_and_return_evaluation, span, event)
-            except RuntimeError as e:
-                logger.error("Failed to run evaluation: %s", e)
-                return None
-
-        def score_and_return(span):
-            try:
-                score, exported_ragas_span = score_faithfulness_sync(span, llmobs_instance=self.llmobs_instance)
+                score, exported_ragas_span = score_faithfulness(
+                    span, llmobs_instance=self.llmobs_instance, shutdown_event=self.shutdown_event
+                )
                 if math.isnan(score):
                     return None
                 return EvaluationMetric(
@@ -197,27 +111,5 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
                 logger.error("Failed to run evaluation: %s", e)
                 return None
 
-        results = self.executor.map(score_and_return, spans)
-
-        # eval_args = [(span, self.shutdown_event) for span in spans]
-        # results = []
-        # futures = [self.executor.submit(score_and_return, args) for args in eval_args]
-        # wait(futures)
-        # # wait for all tasks to complete by getting all results
-        # for future in as_completed(futures):
-        #     results.append(future.result())
-        # print("exited")
-        return results
-
-        # start the thread pool
-
-
-# with ThreadPoolExecutor(2) as executor:
-#     # submit tasks and collect futures
-#     futures = [executor.submit(task, i) for i in range(10)]
-#     # wait for all tasks to complete
-#     print('Waiting for tasks to complete...')
-#     wait(futures)
-#     print('All tasks are done!')
-
-#         return results
+        results = self.executor.map(score_and_return_evaluation, spans)
+        return [result for result in results if result is not None]

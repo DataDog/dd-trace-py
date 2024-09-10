@@ -90,11 +90,16 @@ class LLMObs(Service):
         )
 
         if _ragas_faithfulness_enabled:
-            self._ragas_faithfulness_runner = RagasFaithfulnessEvaluationRunner(
-                interval=os.getenv("_DD_LLMOBS_EVALUATION_INTERVAL", 1.0),
-                writer=self._llmobs_eval_metric_writer,
-                llmobs_instance=self,
-            )
+            try:
+                from ragas.metrics import faithfulness  # noqa: F401
+
+                self._ragas_faithfulness_runner = RagasFaithfulnessEvaluationRunner(
+                    interval=os.getenv("_DD_LLMOBS_EVALUATION_INTERVAL", 1.0),
+                    writer=self._llmobs_eval_metric_writer,
+                    llmobs_instance=self,
+                )
+            except ImportError:
+                log.warning("Failed to import ragas, skipping RAGAS evaluation runner")
         else:
             self._ragas_faithfulness_runner = None
 

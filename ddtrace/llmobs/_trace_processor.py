@@ -71,9 +71,6 @@ class LLMObsTraceProcessor(TraceProcessor):
         """Span event object structure."""
         span_kind = span._meta.pop(SPAN_KIND)
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
-        if span.get_tag("_ml_obs.meta.input.prompt") is not None:
-            prompt = span._meta.pop("_ml_obs.meta.input.prompt")
-            meta["input"]["prompt"] = json.loads(prompt)
         if span_kind in ("llm", "embedding") and span.get_tag(MODEL_NAME) is not None:
             meta["model_name"] = span._meta.pop(MODEL_NAME)
             meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom").lower()
@@ -108,23 +105,6 @@ class LLMObsTraceProcessor(TraceProcessor):
         span.set_tag_str(SESSION_ID, session_id)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
         span._meta.pop(PARENT_ID_KEY, None)
-        if _get_span_name(span) == "augmented_generation":
-            print(
-                {
-                    "trace_id": "{:x}".format(span.trace_id),
-                    "span_id": str(span.span_id),
-                    "parent_id": parent_id,
-                    "session_id": session_id,
-                    "ml_app": ml_app,
-                    "name": _get_span_name(span),
-                    "tags": self._llmobs_tags(span, ml_app=ml_app, session_id=session_id),
-                    "start_ns": span.start_ns,
-                    "duration": span.duration_ns,
-                    "status": "error" if span.error else "ok",
-                    "meta": meta,
-                    "metrics": metrics,
-                }
-            )
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),

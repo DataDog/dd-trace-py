@@ -90,7 +90,7 @@ class EvaluationMetric(BaseModel):
 
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
-Message = TypedDict("Message", {"content": str, "role": str, "prompt.template": str}, total=False)
+Message = TypedDict("Message", {"content": str, "role": str}, total=False)
 
 
 class Messages:
@@ -117,7 +117,6 @@ class Messages:
                 {
                     "content": content,
                     "role": role,
-                    "prompt.template": message.get("prompt.template"),
                 }
             )
 

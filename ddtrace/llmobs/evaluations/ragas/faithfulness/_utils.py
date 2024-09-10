@@ -39,7 +39,7 @@ class ExtractedContext(BaseModel):
 context_parser = RagasoutputParser(pydantic_object=ExtractedContext)
 
 
-context_extractor_prompt = Prompt(
+extract_inputs_from_messages_prompt = Prompt(
     name="extract_context",
     instruction="""You will be given a prompt to a large language model.
                     The prompt will contain a question and the reference information
@@ -52,24 +52,25 @@ context_extractor_prompt = Prompt(
                 {
                     "role": "user",
                     "content": """
-                Given the following question and reference context, answer the user's question
-                question: What are the effects of carbonated water on teeth?
-                context_str: Carbonated water has negative, destructive effects on teeth, and result in
-                decreasing microhardness and removal of the adhesive material on etched or sealed enamel.
-                Erosion occurred when the etched enamel of teeth was exposed to carbonated water,
-                  particularly in groups exposed to high-level carbonated water.
-                Alleviation of this destructive effect is observed in groups exposed to carbonated water with calcium ion.
-                Partial removal of the adhesive material on sealed enamel could be observed after exposure to carbonated water.
+Given the following question and reference context, answer the user's question
+question: What are the effects of carbonated water on teeth?
+context_str: Carbonated water has negative, destructive effects on teeth, and result in
+decreasing microhardness and removal of the adhesive material on etched or sealed enamel.
+Erosion occurred when the etched enamel of teeth was exposed to carbonated water,
+particularly in groups exposed to high-level carbonated water.
+Alleviation of this destructive effect is observed in groups exposed to carbonated water with calcium ion.
+Partial removal of the adhesive material on sealed enamel could be observed after exposure to carbonated water.
                 """,
                 },
             ],
             "output": {
                 "context": """
-                Carbonated water has negative, destructive effects on teeth, and result in
-                decreasing microhardness and removal of the adhesive material on etched or sealed enamel.
-                Erosion occurred when the etched enamel of teeth was exposed to carbonated water, particularly in groups exposed to high-level carbonated water.
-                Alleviation of this destructive effect is observed in groups exposed to carbonated water with calcium ion. Partial removal of the adhesive
-                material on sealed enamel could be observed after exposure to carbonated water.
+Carbonated water has negative, destructive effects on teeth, and result in
+decreasing microhardness and removal of the adhesive material on etched or sealed enamel.
+Erosion occurred when the etched enamel of teeth was exposed to carbonated water,
+particularly in groups exposed to high-level carbonated water.
+Alleviation of this destructive effect is observed in groups exposed to carbonated water with calcium ion.
+Partial removal of the adhesive material on sealed enamel could be observed after exposure to carbonated water.
                 """,
                 "question": "What are the effects of carbonated water on teeth?",
             },
