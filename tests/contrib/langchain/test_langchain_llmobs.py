@@ -173,10 +173,10 @@ class BaseTestLLMObsLangchain:
         return mock_tracer.pop_traces()[0]
 
     @classmethod
-    def _invoke_tool(cls, tool, tool_input, mock_tracer):
+    def _invoke_tool(cls, tool, tool_input, config, mock_tracer):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
         if LANGCHAIN_VERSION > (0, 1):
-            tool.invoke(tool_input)
+            tool.invoke(tool_input, config=config)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
@@ -785,6 +785,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         span = self._invoke_tool(
             tool=calculator,
             tool_input="2",
+            config={"test": "this is to test config"},
             mock_tracer=mock_tracer,
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
@@ -795,10 +796,11 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 input_value="2",
                 output_value="12.566370614359172",
                 metadata={
+                    "tool_config": {"test": "this is to test config"},
                     "tool_info": {
                         "name": "Circumference calculator",
                         "description": mock.ANY,
-                    }
+                    },
                 },
                 tags={"ml_app": "langchain_test"},
                 integration="langchain",

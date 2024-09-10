@@ -21,8 +21,8 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-from .._utils import _unserializable_default_repr
 
+from .._utils import _unserializable_default_repr
 from ..utils import Document
 from .base import BaseLLMIntegration
 
@@ -334,7 +334,10 @@ class LangChainIntegration(BaseLLMIntegration):
         tool_output: object,
         error: bool,
     ) -> None:
-        metadata = span.get_tag(METADATA) or {}
+        if span.get_tag(METADATA):
+            metadata = json.loads(str(span.get_tag(METADATA)))
+        else:
+            metadata = {}
 
         span.set_tag_str(SPAN_KIND, "tool")
         if tool_inputs is not None:
