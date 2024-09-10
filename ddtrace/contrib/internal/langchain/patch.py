@@ -985,20 +985,27 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         pin,
         "%s" % func.__self__.name,
         interface_type="tool",
+        submit_to_llmobs=True,
     )
 
     tool_output = None
+    tool_info = {}
     try:
         for attribute in ("name", "description"):
             value = getattr(instance, attribute, None)
+            tool_info[attribute] = value
             if value is not None:
                 span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
 
-        if getattr(instance, "metadata", {}):
-            for key, meta_value in getattr(instance, "metadata", {}).items():
+        metadata = getattr(instance, "metadata", {})
+        if metadata:
+            tool_info["metadata"] = metadata
+            for key, meta_value in metadata.items():
                 span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
-        if getattr(instance, "tags", []):
-            for idx, tag in getattr(instance, "tags", []):
+        tags = getattr(instance, "tags", [])
+        if tags:
+            tool_info["tags"] = tags
+            for idx, tag in tags:
                 span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
 
         if tool_input and integration.is_pc_sampled_span(span):
@@ -1013,6 +1020,18 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "tool",
+                span,
+                {
+                    "input": tool_input,
+                    "config": config if config else {},
+                    "info": tool_info if tool_info else {},
+                },
+                tool_output,
+                error=bool(span.error),
+            )
         span.finish()
     return tool_output
 
@@ -1027,20 +1046,27 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         pin,
         "%s" % func.__self__.name,
         interface_type="tool",
+        submit_to_llmobs=True,
     )
 
     tool_output = None
+    tool_info = {}
     try:
         for attribute in ("name", "description"):
             value = getattr(instance, attribute, None)
+            tool_info[attribute] = value
             if value is not None:
                 span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
 
-        if getattr(instance, "metadata", {}):
-            for key, meta_value in getattr(instance, "metadata", {}).items():
+        metadata = getattr(instance, "metadata", {})
+        if metadata:
+            tool_info["metadata"] = metadata
+            for key, meta_value in metadata.items():
                 span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
-        if getattr(instance, "tags", []):
-            for idx, tag in getattr(instance, "tags", []):
+        tags = getattr(instance, "tags", [])
+        if tags:
+            tool_info["tags"] = tags
+            for idx, tag in tags:
                 span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
 
         if tool_input and integration.is_pc_sampled_span(span):
@@ -1055,6 +1081,18 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "tool",
+                span,
+                {
+                    "input": tool_input,
+                    "config": config if config else {},
+                    "info": tool_info if tool_info else {},
+                },
+                tool_output,
+                error=bool(span.error),
+            )
         span.finish()
     return tool_output
 
