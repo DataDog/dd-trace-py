@@ -5,7 +5,6 @@ execution of our tests. Either by loading in fixtures, configuring directories t
 Local plugins: https://docs.pytest.org/en/3.10.1/writing_plugins.html#local-conftest-plugins
 Hook reference: https://docs.pytest.org/en/3.10.1/reference.html#hook-reference
 """
-
 import os
 import re
 import sys
@@ -73,24 +72,3 @@ def pytest_runtest_makereport(item, call):
     outcome = yield
     rep = outcome.get_result()
     setattr(item, "rep_" + rep.when, rep)
-
-
-def pytest_collection_modifyitems(config, items):
-    serial = []
-    parallel = []
-
-    for item in items:
-        if "serial" in item.keywords:
-            serial.append(item)
-        else:
-            parallel.append(item)
-
-    items[:] = serial + parallel
-
-
-def pytest_runtest_protocol(item, nextitem):
-    if "serial" in item.keywords:
-        # Run serial tests sequentially
-        if nextitem and "serial" in nextitem.keywords:
-            return False
-    return None
