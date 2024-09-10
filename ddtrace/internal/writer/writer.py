@@ -549,7 +549,9 @@ class AgentWriter(HTTPWriter):
                 "Calling endpoint '%s' but received %s; downgrading API. "
                 "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
                 "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
-                "endpoint available, or explicitly set the trace API version to, e.g., v0.4.", client.ENDPOINT, response.status
+                "endpoint available, or explicitly set the trace API version to, e.g., v0.4.",
+                client.ENDPOINT,
+                response.status,
             )
         else:
             log.error(

@@ -222,6 +222,7 @@ class TestEncoders(TestCase):
                 assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
+
 def test_encode_meta_struct():
     # test encoding for MsgPack format
     encoder = MSGPACK_ENCODERS["v0.4"](2 << 10, 2 << 10)
