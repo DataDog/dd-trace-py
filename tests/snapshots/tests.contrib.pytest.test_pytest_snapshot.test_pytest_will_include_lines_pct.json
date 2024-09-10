@@ -1,1091 +1,263 @@
 [[
   {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma journal_mode=off",
+    "name": "pytest.test_session",
+    "service": "test-test",
+    "resource": "pytest.test_session",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "sql",
+    "type": "test",
     "error": 0,
     "meta": {
       "_dd.base_service": "",
+      "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
+      "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557f00000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
+      "_dd.p.tid": "66e0641b00000000",
+      "ci.job.name": "test-job",
+      "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
+      "ci.node.labels": "[\"runner:test-test-test-test\"]",
+      "ci.node.name": "14727097",
+      "ci.pipeline.id": "43949931",
+      "ci.pipeline.name": "Test/test-test/test-project-path",
+      "ci.pipeline.number": "14726",
+      "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
+      "ci.provider.name": "gitlab",
+      "ci.stage.name": "test-stage",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-99/test_pytest_will_include_lines_pct0",
+      "component": "pytest",
+      "git.branch": "test.brancn/test_name",
+      "git.commit.author.date": "2024-09-10T10:11:13+01:00",
+      "git.commit.author.email": "First.Last@testtest.com",
+      "git.commit.author.name": "TestFirst TestLast",
+      "git.commit.message": "test commit message",
+      "git.commit.sha": "c165eb71ef833b752783b5268f21521fd16f812a",
+      "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
+      "git.tag": "v1.0.0",
       "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
+      "library_version": "2.13.0.dev177+g25e628f0e.d20240910",
+      "os.architecture": "aarch64",
+      "os.platform": "Linux",
+      "os.version": "6.6.12-linuxkit",
+      "runtime-id": "5032fef0aea04088945d1a6e6b7d5e95",
+      "runtime.name": "CPython",
+      "runtime.version": "3.11.9",
+      "span.kind": "test",
+      "test.code_coverage.enabled": "false",
+      "test.command": "pytest --ddtrace",
+      "test.framework": "pytest",
+      "test.framework_version": "6.2.5",
+      "test.itr.tests_skipping.enabled": "false",
+      "test.status": "pass",
+      "test_session_id": "883079173730364203",
+      "type": "test_session_end"
     },
     "metrics": {
-      "_dd.measured": 1,
+      "_dd.py.partial_flush": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
+      "process_id": 58162,
+      "test.code_coverage.lines_pct": 60.0
     },
-    "duration": 486042,
-    "start": 1725977983874575628
-  }],
+    "duration": 38484209,
+    "start": 1725981723438987220
+  },
+     {
+       "name": "pytest.test_module",
+       "service": "test-test",
+       "resource": "pytest.test_module",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "test",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
+         "_dd.origin": "ciapp-test",
+         "_dd.p.dm": "-0",
+         "_dd.p.tid": "66e0641b00000000",
+         "ci.job.name": "test-job",
+         "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
+         "ci.node.labels": "[\"runner:test-test-test-test\"]",
+         "ci.node.name": "14727097",
+         "ci.pipeline.id": "43949931",
+         "ci.pipeline.name": "Test/test-test/test-project-path",
+         "ci.pipeline.number": "14726",
+         "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
+         "ci.provider.name": "gitlab",
+         "ci.stage.name": "test-stage",
+         "ci.workspace_path": "/tmp/pytest-of-root/pytest-99/test_pytest_will_include_lines_pct0",
+         "component": "pytest",
+         "git.branch": "test.brancn/test_name",
+         "git.commit.author.date": "2024-09-10T10:11:13+01:00",
+         "git.commit.author.email": "First.Last@testtest.com",
+         "git.commit.author.name": "TestFirst TestLast",
+         "git.commit.message": "test commit message",
+         "git.commit.sha": "c165eb71ef833b752783b5268f21521fd16f812a",
+         "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
+         "git.tag": "v1.0.0",
+         "language": "python",
+         "library_version": "2.13.0.dev177+g25e628f0e.d20240910",
+         "os.architecture": "aarch64",
+         "os.platform": "Linux",
+         "os.version": "6.6.12-linuxkit",
+         "runtime.name": "CPython",
+         "runtime.version": "3.11.9",
+         "span.kind": "test",
+         "test.code_coverage.enabled": "false",
+         "test.command": "pytest --ddtrace",
+         "test.framework": "pytest",
+         "test.framework_version": "6.2.5",
+         "test.itr.tests_skipping.enabled": "false",
+         "test.module": "",
+         "test.module_path": "",
+         "test.status": "pass",
+         "test_module_id": "12086992499728816905",
+         "test_session_id": "883079173730364203",
+         "type": "test_module_end"
+       },
+       "metrics": {
+         "_dd.py.partial_flush": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1
+       },
+       "duration": 6130333,
+       "start": 1725981723467644137
+     },
+        {
+          "name": "pytest.test_suite",
+          "service": "test-test",
+          "resource": "pytest.test_suite",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "test",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
+            "_dd.origin": "ciapp-test",
+            "_dd.p.dm": "-0",
+            "_dd.p.tid": "66e0641b00000000",
+            "ci.job.name": "test-job",
+            "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
+            "ci.node.labels": "[\"runner:test-test-test-test\"]",
+            "ci.node.name": "14727097",
+            "ci.pipeline.id": "43949931",
+            "ci.pipeline.name": "Test/test-test/test-project-path",
+            "ci.pipeline.number": "14726",
+            "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
+            "ci.provider.name": "gitlab",
+            "ci.stage.name": "test-stage",
+            "ci.workspace_path": "/tmp/pytest-of-root/pytest-99/test_pytest_will_include_lines_pct0",
+            "component": "pytest",
+            "git.branch": "test.brancn/test_name",
+            "git.commit.author.date": "2024-09-10T10:11:13+01:00",
+            "git.commit.author.email": "First.Last@testtest.com",
+            "git.commit.author.name": "TestFirst TestLast",
+            "git.commit.message": "test commit message",
+            "git.commit.sha": "c165eb71ef833b752783b5268f21521fd16f812a",
+            "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
+            "git.tag": "v1.0.0",
+            "language": "python",
+            "library_version": "2.13.0.dev177+g25e628f0e.d20240910",
+            "os.architecture": "aarch64",
+            "os.platform": "Linux",
+            "os.version": "6.6.12-linuxkit",
+            "runtime.name": "CPython",
+            "runtime.version": "3.11.9",
+            "span.kind": "test",
+            "test.command": "pytest --ddtrace",
+            "test.framework": "pytest",
+            "test.framework_version": "6.2.5",
+            "test.module": "",
+            "test.module_path": "",
+            "test.status": "pass",
+            "test.suite": "test_tools.py",
+            "test_module_id": "12086992499728816905",
+            "test_session_id": "883079173730364203",
+            "test_suite_id": "6919240491246421119",
+            "type": "test_suite_end"
+          },
+          "metrics": {
+            "_dd.py.partial_flush": 1,
+            "_dd.tracer_kr": 1.0,
+            "_sampling_priority_v1": 1
+          },
+          "duration": 5526459,
+          "start": 1725981723467788345
+        }],
 [
   {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma synchronous=off",
+    "name": "pytest.test",
+    "service": "test-test",
+    "resource": "test_tools.py::test_add_two_number_list",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
-    "type": "sql",
+    "type": "test",
     "error": 0,
     "meta": {
       "_dd.base_service": "",
+      "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
+      "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557f00000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
+      "_dd.p.tid": "66e0641b00000000",
+      "ci.job.name": "test-job",
+      "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
+      "ci.node.labels": "[\"runner:test-test-test-test\"]",
+      "ci.node.name": "14727097",
+      "ci.pipeline.id": "43949931",
+      "ci.pipeline.name": "Test/test-test/test-project-path",
+      "ci.pipeline.number": "14726",
+      "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
+      "ci.provider.name": "gitlab",
+      "ci.stage.name": "test-stage",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-99/test_pytest_will_include_lines_pct0",
+      "component": "pytest",
+      "git.branch": "test.brancn/test_name",
+      "git.commit.author.date": "2024-09-10T10:11:13+01:00",
+      "git.commit.author.email": "First.Last@testtest.com",
+      "git.commit.author.name": "TestFirst TestLast",
+      "git.commit.message": "test commit message",
+      "git.commit.sha": "c165eb71ef833b752783b5268f21521fd16f812a",
+      "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
+      "git.tag": "v1.0.0",
       "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
+      "library_version": "2.13.0.dev177+g25e628f0e.d20240910",
+      "os.architecture": "aarch64",
+      "os.platform": "Linux",
+      "os.version": "6.6.12-linuxkit",
+      "runtime-id": "5032fef0aea04088945d1a6e6b7d5e95",
+      "runtime.name": "CPython",
+      "runtime.version": "3.11.9",
+      "span.kind": "test",
+      "test.command": "pytest --ddtrace",
+      "test.framework": "pytest",
+      "test.framework_version": "6.2.5",
+      "test.module": "",
+      "test.module_path": "",
+      "test.name": "test_add_two_number_list",
+      "test.source.file": "test_tools.py",
+      "test.status": "pass",
+      "test.suite": "test_tools.py",
+      "test.type": "test",
+      "test_module_id": "12086992499728816905",
+      "test_session_id": "883079173730364203",
+      "test_suite_id": "6919240491246421119",
+      "type": "test"
     },
     "metrics": {
-      "_dd.measured": 1,
+      "_dd.py.partial_flush": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 144041,
-    "start": 1725977983875531670
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select * from file limit 1",
-    "trace_id": 2,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557f00000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 152125,
-    "start": 1725977983876059878
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma journal_mode=off",
-    "trace_id": 3,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 546791,
-    "start": 1725977974272374263
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma synchronous=off",
-    "trace_id": 4,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 71250,
-    "start": 1725977974273404846
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select version from coverage_schema",
-    "trace_id": 5,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 1,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "error.message": "no such table: coverage_schema",
-      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 133, in _trace_method\n    return method(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nsqlite3.OperationalError: no such table: coverage_schema\n",
-      "error.type": "sqlite3.OperationalError",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 1197875,
-    "start": 1725977974273648679
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select version from coverage_schema",
-    "trace_id": 6,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 1,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "error.message": "no such table: coverage_schema",
-      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/.riot/venv_py3119_mock_pytest~60_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_msgpack_asynctest0130_more_itertools8110_httpx/lib/python3.11/site-packages/coverage/sqlitedb.py\", line 114, in _execute\n    return self.con.execute(sql, parameters)    # type: ignore[arg-type]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/ddtrace/contrib/internal/sqlite3/patch.py\", line 98, in execute\n    return self.cursor().execute(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/ddtrace/contrib/internal/sqlite3/patch.py\", line 80, in execute\n    super(TracedSQLiteCursor, self).execute(*args, **kwargs)\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 166, in execute\n    return self._trace_method(\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 133, in _trace_method\n    return method(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nsqlite3.OperationalError: no such table: coverage_schema\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 133, in _trace_method\n    return method(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nsqlite3.OperationalError: no such table: coverage_schema\n",
-      "error.type": "sqlite3.OperationalError",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 1149208,
-    "start": 1725977974275006721
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "insert into coverage_schema (version) values (?)",
-    "trace_id": 7,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "process_id": 39121
-    },
-    "duration": 66958,
-    "start": 1725977974277182221
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select value from meta where key = 'has_arcs'",
-    "trace_id": 8,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 42792,
-    "start": 1725977974277421054
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select id, path from file",
-    "trace_id": 9,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 31208,
-    "start": 1725977974277561388
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma journal_mode=off",
-    "trace_id": 10,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 132500,
-    "start": 1725977974277855013
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma synchronous=off",
-    "trace_id": 11,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 29583,
-    "start": 1725977974278090888
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "insert or ignore into meta (key, value) values (?, ?)",
-    "trace_id": 12,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "process_id": 39121
-    },
-    "duration": 56834,
-    "start": 1725977974278218179
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma journal_mode=off",
-    "trace_id": 13,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 83375,
-    "start": 1725977974278435263
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma synchronous=off",
-    "trace_id": 14,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 26583,
-    "start": 1725977974278607763
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select id from context where context = ?",
-    "trace_id": 15,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 44959,
-    "start": 1725977974278732054
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "insert into context (context) values (?)",
-    "trace_id": 16,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "process_id": 39121
-    },
-    "duration": 51959,
-    "start": 1725977974278872304
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "insert or replace into file (path) values (?)",
-    "trace_id": 17,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "process_id": 39121
-    },
-    "duration": 40500,
-    "start": 1725977974279063721
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select numbits from line_bits where file_id = ? and context_id = ?",
-    "trace_id": 18,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 44625,
-    "start": 1725977974279187179
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "insert or replace into line_bits  (file_id, context_id, numbits) values (?, ?, ?)",
-    "trace_id": 19,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "process_id": 39121
-    },
-    "duration": 54000,
-    "start": 1725977974279335179
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma journal_mode=off",
-    "trace_id": 20,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 92292,
-    "start": 1725977974279709554
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma synchronous=off",
-    "trace_id": 21,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 29250,
-    "start": 1725977974279913846
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select * from file limit 1",
-    "trace_id": 22,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 38250,
-    "start": 1725977974280020638
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma journal_mode=off",
-    "trace_id": 23,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 69166,
-    "start": 1725977974280339388
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma synchronous=off",
-    "trace_id": 24,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 24708,
-    "start": 1725977974280491013
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select * from file limit 1",
-    "trace_id": 25,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 47083,
-    "start": 1725977974280595513
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma journal_mode=off",
-    "trace_id": 26,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 72417,
-    "start": 1725977974280909429
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma synchronous=off",
-    "trace_id": 27,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 24333,
-    "start": 1725977974281065513
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select tracer from tracer where file_id = ?",
-    "trace_id": 28,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 41750,
-    "start": 1725977974281179179
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma journal_mode=off",
-    "trace_id": 29,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 138250,
-    "start": 1725977974281857304
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma synchronous=off",
-    "trace_id": 30,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 26708,
-    "start": 1725977974282090263
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select * from file limit 1",
-    "trace_id": 31,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 35875,
-    "start": 1725977974282194013
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma journal_mode=off",
-    "trace_id": 32,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 108625,
-    "start": 1725977974283510054
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "pragma synchronous=off",
-    "trace_id": 33,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 42458,
-    "start": 1725977974283744013
-  }],
-[
-  {
-    "name": "sqlite.query",
-    "service": "sqlite",
-    "resource": "select numbits from line_bits where file_id = ?",
-    "trace_id": 34,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "sql",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0557600000000",
-      "component": "sqlite",
-      "db.system": "sqlite",
-      "language": "python",
-      "runtime-id": "d81f961206ca4074bce86618ad20d403",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "process_id": 39121
-    },
-    "duration": 63708,
-    "start": 1725977974283911221
+      "process_id": 58162,
+      "test.source.end": 9,
+      "test.source.start": 3
+    },
+    "duration": 6017334,
+    "start": 1725981723467837345
   }]]
