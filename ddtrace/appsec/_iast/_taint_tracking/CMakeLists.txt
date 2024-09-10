@@ -3,6 +3,7 @@ include(FetchContent)
 
 set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
+option(NATIVE_TESTING "Load test subdirectories and targets" ON)
 
 project(${APP_NAME})
 
@@ -32,6 +33,12 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
 else ()
     message("Debug mode: not using abseil")
 endif ()
+
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/tags/release-1.12.1.zip
+)
+FetchContent_MakeAvailable(googletest)
 
 include_directories(".")
 
@@ -63,6 +70,9 @@ message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
 #message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
 
 add_subdirectory(_vendor/pybind11)
+if (NATIVE_TESTING)
+    add_subdirectory(tests EXCLUDE_FROM_ALL)
+endif()
 
 pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
