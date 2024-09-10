@@ -17,6 +17,7 @@ from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -44,7 +45,7 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval"]
 
 
 class LangChainIntegration(BaseLLMIntegration):
@@ -52,7 +53,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def llmobs_set_tags(
         self,
-        operation: str,  # oneof "llm","chat","chain","embedding"
+        operation: str,  # oneof "llm","chat","chain","embedding","retrieval"
         span: Span,
         inputs: Any,
         response: Any = None,
@@ -89,6 +90,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, inputs, response, error, is_workflow=is_workflow)
+        elif operation == "retrieval":
+            self._llmobs_set_meta_tags_from_similarity_search(span, inputs, response, error, is_workflow=is_workflow)
         span.set_tag_str(METRICS, json.dumps({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
@@ -166,13 +169,33 @@ class LangChainIntegration(BaseLLMIntegration):
                 for chat_completion in message_set:
                     chat_completion_msg = chat_completion.message
                     role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
-                    output_messages.append(
-                        {
-                            "content": str(chat_completion.text),
-                            "role": role,
-                        }
-                    )
+                    output_message = {
+                        "content": str(chat_completion.text),
+                        "role": role,
+                    }
+
+                    tool_calls_info = self._extract_tool_calls(chat_completion_msg)
+                    if tool_calls_info:
+                        output_message["tool_calls"] = tool_calls_info
+
+                    output_messages.append(output_message)
         span.set_tag_str(output_tag_key, json.dumps(output_messages))
+
+    def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
+        """Extracts tool calls from a langchain chat completion."""
+        tool_calls = getattr(chat_completion_msg, "tool_calls", None)
+        tool_calls_info = []
+        if tool_calls:
+            if not isinstance(tool_calls, list):
+                tool_calls = [tool_calls]
+            for tool_call in tool_calls:
+                tool_call_info = {
+                    "name": tool_call.get("name", ""),
+                    "arguments": tool_call.get("args", {}),  # this is already a dict
+                    "tool_id": tool_call.get("id", ""),
+                }
+                tool_calls_info.append(tool_call_info)
+        return tool_calls_info
 
     def _llmobs_set_meta_tags_from_chain(
         self,
@@ -259,6 +282,47 @@ class LangChainIntegration(BaseLLMIntegration):
                 )
             except (TypeError, IndexError):
                 log.warning("Failed to write output vectors", output_embedding)
+
+    def _llmobs_set_meta_tags_from_similarity_search(
+        self,
+        span: Span,
+        input_query: str,
+        output_documents: Union[List[Any], None],
+        error: bool = False,
+        is_workflow: bool = False,
+    ) -> None:
+        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "retrieval")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
+        if input_query is not None:
+            try:
+                formatted_inputs = self.format_io(input_query)
+                if isinstance(formatted_inputs, str):
+                    span.set_tag_str(INPUT_VALUE, formatted_inputs)
+                else:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(formatted_inputs))
+            except TypeError:
+                log.warning("Failed to serialize similarity search input to JSON")
+        if error:
+            span.set_tag_str(OUTPUT_VALUE, "")
+        elif isinstance(output_documents, list):
+            if is_workflow:
+                span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
+            else:
+                documents = []
+                for d in output_documents:
+                    doc = Document(text=d.page_content)
+                    doc["id"] = getattr(d, "id", "")
+                    metadata = getattr(d, "metadata", {})
+                    doc["name"] = metadata.get("name", doc["id"])
+                    documents.append(doc)
+                try:
+                    span.set_tag_str(OUTPUT_DOCUMENTS, json.dumps(self.format_io(documents)))
+                    # we set the value as well to ensure that the UI would display it in case the span was the root
+                    span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
+                except TypeError:
+                    log.warning("Failed to serialize similarity output documents to JSON")
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

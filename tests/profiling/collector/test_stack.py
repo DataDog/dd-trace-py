@@ -23,7 +23,10 @@ from . import test_collector
 
 
 # FIXME: remove version limitation when gevent segfaults are fixed on Python 3.12
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and sys.version_info < (3, 12)
+# Python 3.11.9 is not compatible with gevent, https://github.com/python/cpython/issues/117983
+# The fix was not backported to 3.11. 3.12 got the fix but was not released yet.
+# Revisit this when 3.12.5 is released to check whether tests can be enabled.
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and sys.version_info < (3, 11, 9)
 
 
 def func1():

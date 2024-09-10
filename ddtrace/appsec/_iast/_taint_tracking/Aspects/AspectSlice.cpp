@@ -1,5 +1,7 @@
 #include "AspectSlice.h"
 
+#include "Helpers.h"
+
 /**
  * This function reduces the taint ranges from the given index range map.
  *
@@ -104,7 +106,7 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
 PyObject*
 slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyObject* stop, PyObject* step)
 {
-    auto ctx_map = initializer->get_tainting_map();
+    auto ctx_map = Initializer::get_tainting_map();
 
     if (not ctx_map or ctx_map->empty()) {
         return result_o;
@@ -128,42 +130,33 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         return nullptr;
     }
 
-    try {
-        PyObject* candidate_text = args[0];
-        PyObject* start = args[1];
-        PyObject* stop = args[2];
-        PyObject* step = nullptr;
-        if (nargs == 4)
-            step = args[3];
+    PyObject* candidate_text = args[0];
+    PyObject* start = args[1];
+    PyObject* stop = args[2];
+    PyObject* step = nullptr;
+    if (nargs == 4)
+        step = args[3];
 
-        PyObject* slice = PySlice_New(start, stop, step);
-        if (slice == nullptr) {
-            PyErr_Print();
-            return nullptr;
-        }
+    PyObject* slice = PySlice_New(start, stop, step);
+    if (slice == nullptr) {
+        PyErr_Print();
+        return nullptr;
+    }
 
-        PyObject* result_o = PyObject_GetItem(candidate_text, slice);
+    PyObject* result_o = PyObject_GetItem(candidate_text, slice);
 
+    TRY_CATCH_ASPECT("slice_aspect", return result_o, Py_XDECREF(slice), {
         // If no result or the params are not None|Number or the result is the same as the candidate text, nothing
         // to taint
         if (result_o == nullptr or (!is_text(candidate_text)) or (start != Py_None and !PyLong_Check(start)) or
             (stop != Py_None and !PyLong_Check(stop)) or (step != Py_None and !PyLong_Check(step)) or
             (get_unique_id(result_o) == get_unique_id(candidate_text))) {
+            Py_XDECREF(slice);
             return result_o;
         }
 
         auto res = slice_aspect(result_o, candidate_text, start, stop, step);
         Py_XDECREF(slice);
         return res;
-    } catch (const std::exception& e) {
-        const std::string error_message = "IAST propagation error in slice_aspect. " + std::string(e.what());
-        iast_taint_log_error(error_message);
-        py::set_error(PyExc_TypeError, error_message.c_str());
-        return nullptr;
-    } catch (...) {
-        const std::string error_message = "Unkown IAST propagation error in slice_aspect. ";
-        iast_taint_log_error(error_message);
-        py::set_error(PyExc_TypeError, error_message.c_str());
-        return nullptr;
-    }
+    });
 }

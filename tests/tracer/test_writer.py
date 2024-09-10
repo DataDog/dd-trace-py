@@ -440,7 +440,7 @@ class CIVisibilityWriterTests(AgentWriterTests):
         writer = CIVisibilityWriter("http://localhost:9126")
         for client in writer._clients:
             client.encoder.put([Span("foobar")])
-            payload = client.encoder.encode()
+            payload = client.encoder.encode()[0]
             try:
                 unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
             except KeyError:
@@ -752,59 +752,65 @@ def test_writer_recreate_keeps_headers():
 
 
 @pytest.mark.parametrize(
-    "sys_platform, api_version, ddtrace_api_version, priority_sampling, raises_error, expected",
+    "sys_platform, api_version, ddtrace_api_version, raises_error, expected",
     [
         # -- win32
         # Defaults on windows
-        ("win32", None, None, False, False, "v0.4"),
+        ("win32", None, None, False, "v0.4"),
         # Default with priority sampler
-        ("win32", None, None, True, False, "v0.4"),
+        ("win32", None, None, False, "v0.4"),
         # Explicitly passed in API version is always used
-        ("win32", "v0.3", None, True, False, "v0.3"),
-        ("win32", "v0.3", "v0.4", False, False, "v0.3"),
-        ("win32", "v0.3", "v0.4", True, False, "v0.3"),
+        ("win32", "v0.3", None, False, "v0.3"),
+        ("win32", "v0.3", "v0.4", False, "v0.3"),
+        ("win32", "v0.3", "v0.4", False, "v0.3"),
         # Env variable is used if explicit value is not given
-        ("win32", None, "v0.4", False, False, "v0.4"),
-        ("win32", None, "v0.4", True, False, "v0.4"),
+        ("win32", None, "v0.4", False, "v0.4"),
+        ("win32", None, "v0.4", False, "v0.4"),
         # v0.5 is not supported on windows
-        ("win32", "v0.5", None, False, True, None),
-        ("win32", "v0.5", None, True, True, None),
-        ("win32", "v0.5", "v0.4", True, True, None),
-        ("win32", None, "v0.5", True, True, None),
+        ("win32", "v0.5", None, True, None),
+        ("win32", "v0.5", None, True, None),
+        ("win32", "v0.5", "v0.4", True, None),
+        ("win32", None, "v0.5", True, None),
         # -- cygwin
         # Defaults on windows
-        ("cygwin", None, None, False, False, "v0.4"),
+        ("cygwin", None, None, False, "v0.4"),
         # Default with priority sampler
-        ("cygwin", None, None, True, False, "v0.4"),
+        ("cygwin", None, None, False, "v0.4"),
         # Explicitly passed in API version is always used
-        ("cygwin", "v0.3", None, True, False, "v0.3"),
-        ("cygwin", "v0.3", "v0.4", False, False, "v0.3"),
-        ("cygwin", "v0.3", "v0.4", True, False, "v0.3"),
+        ("cygwin", "v0.3", None, False, "v0.3"),
+        ("cygwin", "v0.3", "v0.4", False, "v0.3"),
+        ("cygwin", "v0.3", "v0.4", False, "v0.3"),
         # Env variable is used if explicit value is not given
-        ("cygwin", None, "v0.4", False, False, "v0.4"),
-        ("cygwin", None, "v0.4", True, False, "v0.4"),
+        ("cygwin", None, "v0.4", False, "v0.4"),
+        ("cygwin", None, "v0.4", False, "v0.4"),
         # v0.5 is not supported on windows
-        ("cygwin", "v0.5", None, False, True, None),
-        ("cygwin", "v0.5", None, True, True, None),
-        ("cygwin", "v0.5", "v0.4", True, True, None),
-        ("cygwin", None, "v0.5", True, True, None),
+        ("cygwin", "v0.5", None, True, None),
+        ("cygwin", "v0.5", None, True, None),
+        ("cygwin", "v0.5", "v0.4", True, None),
+        ("cygwin", None, "v0.5", True, None),
         # -- Non-windows
         # defaults
-        ("darwin", None, None, None, False, "v0.5"),
+        ("darwin", None, None, False, "v0.5"),
         # Default with priority sample
-        ("darwin", None, None, True, False, "v0.5"),
+        ("darwin", None, None, False, "v0.5"),
         # Explicitly setting api version
-        ("darwin", "v0.4", None, True, False, "v0.4"),
+        ("darwin", "v0.4", None, False, "v0.4"),
         # Explicitly set version takes precedence
-        ("darwin", "v0.4", "v0.5", True, False, "v0.4"),
+        ("darwin", "v0.4", "v0.5", False, "v0.4"),
         # Via env variable
-        ("darwin", None, "v0.4", True, False, "v0.4"),
-        ("darwin", None, "v0.5", True, False, "v0.5"),
+        ("darwin", None, "v0.4", False, "v0.4"),
+        ("darwin", None, "v0.5", False, "v0.5"),
     ],
 )
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_writer_api_version_selection(
-    sys_platform, api_version, ddtrace_api_version, priority_sampling, raises_error, expected, monkeypatch, writer_class
+    sys_platform,
+    api_version,
+    ddtrace_api_version,
+    raises_error,
+    expected,
+    monkeypatch,
+    writer_class,
 ):
     """test to verify that we are unable to select v0.5 api version when on a windows machine.
 
@@ -819,11 +825,9 @@ def test_writer_api_version_selection(
             # Create a new writer
             if ddtrace_api_version is not None:
                 with override_global_config({"_trace_api": ddtrace_api_version}):
-                    writer = writer_class(
-                        "http://dne:1234", api_version=api_version, priority_sampling=priority_sampling
-                    )
+                    writer = writer_class("http://dne:1234", api_version=api_version)
             else:
-                writer = writer_class("http://dne:1234", api_version=api_version, priority_sampling=priority_sampling)
+                writer = writer_class("http://dne:1234", api_version=api_version)
             assert writer._api_version == expected
         except RuntimeError:
             # If we were not expecting a RuntimeError, then cause the test to fail

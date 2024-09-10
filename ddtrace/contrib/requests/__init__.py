@@ -72,7 +72,7 @@ use the config API::
     cfg['service_name'] = 'auth-api'
     cfg['distributed_tracing'] = False
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["requests"]
@@ -80,12 +80,16 @@ required_modules = ["requests"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.requests.patch` directly
-        from . import patch as _  # noqa: F401, I001
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.requests.patch import get_version
-        from ..internal.requests.patch import patch
-        from ..internal.requests.patch import unpatch
-        from ..internal.requests.session import TracedSession
+        from ddtrace.contrib.internal.requests.patch import get_version
+        from ddtrace.contrib.internal.requests.patch import patch
+        from ddtrace.contrib.internal.requests.patch import unpatch
+        from ddtrace.contrib.internal.requests.session import TracedSession
 
         __all__ = ["patch", "unpatch", "TracedSession", "get_version"]

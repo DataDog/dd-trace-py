@@ -7,6 +7,7 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal.injection import HookType
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
@@ -247,7 +248,7 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
 SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -257,7 +258,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     trap_index = len(new_consts)
     new_consts.append(trap_func)
 
-    seen_lines = set()
+    seen_lines = CoverageLines()
 
     exc_table = list(parse_exception_table(code))
     exc_table_offsets = {_ for e in exc_table for _ in (e.start, e.end, e.target)}

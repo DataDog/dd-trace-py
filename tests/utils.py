@@ -1102,7 +1102,7 @@ def snapshot_context(
         result = to_unicode(r.read())
         if r.status != 200:
             lowered = result.lower()
-            if "received unmatched traces" not in lowered and "did not receive expected traces" not in lowered:
+            if "received unmatched traces" not in lowered:
                 pytest.fail(result, pytrace=False)
             # we don't know why the test agent occasionally receives a different number of traces than it expects
             # during snapshot tests, but that does sometimes in an unpredictable manner
@@ -1283,7 +1283,7 @@ def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
     try:
-        encoded_traces = client.encoder.encode()
+        encoded_traces, _ = client.encoder.encode()
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)

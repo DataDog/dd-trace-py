@@ -28,7 +28,7 @@ def test_configure_keeps_api_hostname_and_port():
     assert tracer._writer.agent_url == "http://localhost:{}".format("9126" if AGENT_VERSION == "testagent" else "8126")
     tracer.configure(hostname="127.0.0.1", port=8127)
     assert tracer._writer.agent_url == "http://127.0.0.1:8127"
-    tracer.configure(priority_sampling=True)
+    tracer.configure(api_version="v0.5")
     assert (
         tracer._writer.agent_url == "http://127.0.0.1:8127"
     ), "Previous overrides of hostname and port are retained after a configure() call without those arguments"
@@ -197,7 +197,8 @@ def test_resource_name_too_large():
         s.finish()
     except ValueError:
         pytest.fail()
-    encoded_spans = t._writer._encoder.encode()
+    encoded_spans, size = t._writer._encoder.encode()
+    assert size == 1
     assert b"<dropped string of length 410 because it's too long (max allowed length 409)>" in encoded_spans
 
 
@@ -550,7 +551,7 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
-            return "bad_payload"
+            return "bad_payload", 1
 
         def encode_traces(self, traces):
             return "bad_payload"

@@ -175,7 +175,8 @@
         ],
         "datastreams": [
             "ddtrace/internal/datastreams/*",
-            "ddtrace/data_streams.py"
+            "ddtrace/data_streams.py",
+            "ddtrace/ext/schema.py"
         ],
         "debugging": [
             "ddtrace/debugging/*",
@@ -187,7 +188,7 @@
         ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
-            "ddtrace/ext/ci_visibility/*",
+            "ddtrace/ext/test_visibility/*",
             "ddtrace/ext/test.py"
         ],
         "coverage": [
@@ -441,7 +442,7 @@
         ],
         "openai": [
             "ddtrace/contrib/openai/*",
-            "ddtrace/contrib/internal/openai/*" 
+            "ddtrace/contrib/internal/openai/*"
         ],
         "falcon": [
             "ddtrace/contrib/falcon/*",
@@ -777,6 +778,12 @@
             "@core",
             "@profiling",
             "tests/profiling/*"
+        ],
+        "profile-v2": [
+            "@bootstrap",
+            "@core",
+            "@profiling",
+            "tests/profiling-v2/*"
         ],
         "vendor": [
             "@vendor",

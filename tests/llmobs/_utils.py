@@ -27,7 +27,6 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         "service:{}".format(tags.get("service", "")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
-        "session_id:{}".format(session_id or "{:x}".format(span.trace_id)),
         "ddtrace.version:{}".format(ddtrace.__version__),
     ]
     if error:
@@ -35,6 +34,8 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error_type:{}".format(error))
     else:
         expected_tags.append("error:0")
+    if session_id:
+        expected_tags.append("session_id:{}".format(session_id))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -63,7 +64,7 @@ def _expected_llmobs_llm_span_event(
 ):
     """
     Helper function to create an expected LLM span event.
-    span_kind: either "llm" or "agent"
+    span_kind: either "llm" or "agent" or "embedding"
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
     parameters: dict of input parameters
@@ -114,6 +115,7 @@ def _expected_llmobs_non_llm_span_event(
     span_kind,
     input_value=None,
     output_value=None,
+    output_documents=None,
     parameters=None,
     metadata=None,
     token_metrics=None,
@@ -125,8 +127,8 @@ def _expected_llmobs_non_llm_span_event(
     integration=None,
 ):
     """
-    Helper function to create an expected span event of type (workflow, task, tool).
-    span_kind: one of "workflow", "task", "tool"
+    Helper function to create an expected span event of type (workflow, task, tool, retrieval).
+    span_kind: one of "workflow", "task", "tool", "retrieval"
     input_value: input value string
     output_value: output value string
     parameters: dict of input parameters
@@ -142,6 +144,13 @@ def _expected_llmobs_non_llm_span_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
     )
     meta_dict = {"input": {}, "output": {}}
+    if span_kind == "retrieval":
+        if input_value is not None:
+            meta_dict["input"].update({"value": input_value})
+        if output_documents is not None:
+            meta_dict["output"].update({"documents": output_documents})
+        if output_value is not None:
+            meta_dict["output"].update({"value": output_value})
     if input_value is not None:
         meta_dict["input"].update({"value": input_value})
     if parameters is not None:
@@ -179,7 +188,6 @@ def _llmobs_base_span_event(
         "trace_id": "{:x}".format(span.trace_id),
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
-        "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span_name,
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
@@ -188,6 +196,8 @@ def _llmobs_base_span_event(
         "meta": {"span.kind": span_kind},
         "metrics": {},
     }
+    if session_id:
+        span_event["session_id"] = session_id
     if error:
         span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message
