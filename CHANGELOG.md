@@ -4,13 +4,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
-## 2.11.5
-
-
 ### Bug Fixes
+
+## 2.11.5
 
 - SSI: This fix ensures injection denylist is included in published OCI package.
 
+---
+
+## 2.10.7
+
+- CI Visibility: Resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
+- openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
+- profiling: Fixes endpoing profiling for stack v2 when `DD_PROFILING_STACK_V2_ENABLED` is set.
 
 ---
 

@@ -1,4 +1,5 @@
 from collections import namedtuple
+import sys
 
 
 LineNo = namedtuple("LineNo", ["create", "acquire", "release"])
@@ -22,11 +23,8 @@ def get_lock_locations(path: str):
 
     # Lock lookups need a level of indirection since we're processing this very same file for sentinel strings
     loc_types = ["!CREATE!", "!ACQUIRE!", "!RELEASE!"]
-    start_line = 50  # No clever tricks, just avoid processing this function
     with open(path) as f:
         for lineno, line in enumerate(f, 1):
-            if lineno < start_line:
-                continue
             for loc_type in loc_types:
                 if loc_type in line:
                     lock_name = line.split(" ")[-1].strip()
@@ -36,8 +34,11 @@ def get_lock_locations(path: str):
                     lock_locs[lock_name] = lock_locs[lock_name]._replace(**{field: lineno})
 
 
-def get_lock_linenos(name):
-    return lock_locs.get(name, LineNo(0, 0, 0))
+def get_lock_linenos(name, with_stmt=False):
+    linenos = lock_locs.get(name, LineNo(0, 0, 0))
+    if with_stmt and sys.version_info < (3, 10):
+        linenos = linenos._replace(release=linenos.release + 1)
+    return linenos
 
 
 def init_linenos(path):
