@@ -38,10 +38,10 @@ gevent:
   variables:
     SUITE_NAME: "gevent"
 
-google_genereativeai:
+google_generativeai:
   extends: .test_base_riot_snapshot
   variables:
-    SUITE_NAME: "google_genereativeai"
+    SUITE_NAME: "google_generativeai"
 
 graphene:
   extends: .test_base_riot_snapshot
