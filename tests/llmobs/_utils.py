@@ -27,7 +27,6 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         "service:{}".format(tags.get("service", "")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
-        "session_id:{}".format(session_id or "{:x}".format(span.trace_id)),
         "ddtrace.version:{}".format(ddtrace.__version__),
     ]
     if error:
@@ -35,6 +34,8 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error_type:{}".format(error))
     else:
         expected_tags.append("error:0")
+    if session_id:
+        expected_tags.append("session_id:{}".format(session_id))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -187,7 +188,6 @@ def _llmobs_base_span_event(
         "trace_id": "{:x}".format(span.trace_id),
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
-        "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span_name,
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
@@ -196,6 +196,8 @@ def _llmobs_base_span_event(
         "meta": {"span.kind": span_kind},
         "metrics": {},
     }
+    if session_id:
+        span_event["session_id"] = session_id
     if error:
         span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message
