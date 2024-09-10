@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.11.5
+
+
+### Bug Fixes
+
+- SSI: This fix ensures injection denylist is included in published OCI package.
+
+
+---
+
 ## 2.9.6
 
 
