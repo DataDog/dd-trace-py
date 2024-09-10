@@ -28,8 +28,7 @@ class TestLLMObsGemini:
         llm = genai.GenerativeModel("gemini-1.5-flash")
         llm.generate_content(
             "What is the argument for LeBron James being the GOAT?",
-            generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35,
-                                                           temperature=1.0),
+            generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=1.0),
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -42,9 +41,9 @@ class TestLLMObsGemini:
                 {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
             ],
             metadata={"temperature": 1.0, "max_output_tokens": 35},
-            token_metrics={"input_tokens":  12, "output_tokens": 30, "total_tokens": 42},
+            token_metrics={"input_tokens": 12, "output_tokens": 30, "total_tokens": 42},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -55,8 +54,7 @@ class TestLLMObsGemini:
         llm = genai.GenerativeModel("gemini-1.5-flash")
         await llm.generate_content_async(
             "What is the argument for LeBron James being the GOAT?",
-            generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35,
-                                                           temperature=1.0),
+            generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=1.0),
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -69,9 +67,9 @@ class TestLLMObsGemini:
                 {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"}
             ],
             metadata={"temperature": 1.0, "max_output_tokens": 35},
-            token_metrics={"input_tokens":  12, "output_tokens": 30, "total_tokens": 42},
+            token_metrics={"input_tokens": 12, "output_tokens": 30, "total_tokens": 42},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -82,8 +80,9 @@ class TestLLMObsGemini:
         with pytest.raises(InvalidArgument):
             llm.generate_content(
                 "What is the argument for LeBron James being the GOAT?",
-                generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35,
-                                                               temperature=1.0),
+                generation_config=genai.types.GenerationConfig(
+                    stop_sequences=["x"], max_output_tokens=35, temperature=1.0
+                ),
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -99,7 +98,7 @@ class TestLLMObsGemini:
                 error_stack=span.get_tag("error.stack"),
                 metadata={"temperature": 1.0, "max_output_tokens": 35},
                 tags={"ml_app": "<ml-app-name>"},
-                integration="gemini"
+                integration="gemini",
             )
         )
 
@@ -109,12 +108,14 @@ class TestLLMObsGemini:
         llm = genai.GenerativeModel("gemini-1.5-flash")
         llm._async_client = mock.Mock()
         llm._async_client.generate_content.side_effect = InvalidArgument(
-            "Invalid API key. Please pass a valid API key.")
+            "Invalid API key. Please pass a valid API key."
+        )
         with pytest.raises(InvalidArgument):
             await llm.generate_content_async(
                 "What is the argument for LeBron James being the GOAT?",
-                generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35,
-                                                               temperature=1.0),
+                generation_config=genai.types.GenerationConfig(
+                    stop_sequences=["x"], max_output_tokens=35, temperature=1.0
+                ),
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -130,11 +131,13 @@ class TestLLMObsGemini:
                 error_stack=span.get_tag("error.stack"),
                 metadata={"temperature": 1.0, "max_output_tokens": 35},
                 tags={"ml_app": "<ml-app-name>"},
-                integration="gemini"
+                integration="gemini",
             )
         )
 
-    def test_completion_multiple_messages(self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client, mock_tracer):
+    def test_completion_multiple_messages(
+        self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client, mock_tracer
+    ):
         mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
         llm = genai.GenerativeModel("gemini-1.5-flash")
         llm.generate_content(
@@ -162,7 +165,7 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 24, "output_tokens": 35, "total_tokens": 59},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -196,7 +199,7 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 24, "output_tokens": 35, "total_tokens": 59},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -230,11 +233,13 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 24, "output_tokens": 35, "total_tokens": 59},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
-    async def test_chat_completion_async(self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer):
+    async def test_chat_completion_async(
+        self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer
+    ):
         mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
         llm = genai.GenerativeModel("gemini-1.5-flash")
         chat = llm.start_chat(
@@ -264,7 +269,7 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 24, "output_tokens": 35, "total_tokens": 59},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -285,20 +290,28 @@ class TestLLMObsGemini:
             model_name="gemini-1.5-flash",
             model_provider="google",
             input_messages=[
-                {"content": "You are a die-hard Michael Jordan fan that always brings stats to the discussion.", "role": "system"},
+                {
+                    "content": "You are a die-hard Michael Jordan fan that always brings stats to the discussion.",
+                    "role": "system",
+                },
                 {"content": "What is the argument for LeBron James being the GOAT?", "role": "user"},
             ],
             output_messages=[
-                {"content": MOCK_COMPLETION_SIMPLE_SYSTEM["candidates"][0]["content"]["parts"][0]["text"], "role": "model"}
+                {
+                    "content": MOCK_COMPLETION_SIMPLE_SYSTEM["candidates"][0]["content"]["parts"][0]["text"],
+                    "role": "model",
+                }
             ],
             metadata={"temperature": 1.0, "max_output_tokens": 50},
             token_metrics={"input_tokens": 29, "output_tokens": 45, "total_tokens": 74},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
-    async def test_completion_system_prompt_async(self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer):
+    async def test_completion_system_prompt_async(
+        self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer
+    ):
         mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_SYSTEM))
         llm = genai.GenerativeModel(
             "gemini-1.5-flash",
@@ -315,16 +328,22 @@ class TestLLMObsGemini:
             model_name="gemini-1.5-flash",
             model_provider="google",
             input_messages=[
-                {"content": "You are a die-hard Michael Jordan fan that always brings stats to the discussion.", "role": "system"},
+                {
+                    "content": "You are a die-hard Michael Jordan fan that always brings stats to the discussion.",
+                    "role": "system",
+                },
                 {"content": "What is the argument for LeBron James being the GOAT?", "role": "user"},
             ],
             output_messages=[
-                {"content": MOCK_COMPLETION_SIMPLE_SYSTEM["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
+                {
+                    "content": MOCK_COMPLETION_SIMPLE_SYSTEM["candidates"][0]["content"]["parts"][0]["text"],
+                    "role": "model",
+                },
             ],
             metadata={"temperature": 1.0, "max_output_tokens": 50},
             token_metrics={"input_tokens": 29, "output_tokens": 45, "total_tokens": 74},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -353,14 +372,16 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 60},
             token_metrics={"input_tokens": 6, "output_tokens": 52, "total_tokens": 58},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
     async def test_completion_stream_async(
         self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer
     ):
-        mock_client_async.responses["stream_generate_content"] = [_async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)]
+        mock_client_async.responses["stream_generate_content"] = [
+            _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
+        ]
         llm = genai.GenerativeModel("gemini-1.5-flash")
         response = await llm.generate_content_async(
             "Can you recite the alphabet?",
@@ -382,7 +403,7 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 60},
             token_metrics={"input_tokens": 6, "output_tokens": 52, "total_tokens": 58},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -401,16 +422,29 @@ class TestLLMObsGemini:
             model_provider="google",
             input_messages=[{"content": "Dim the lights so the room feels cozy and warm.", "role": "user"}],
             output_messages=[
-                {"content": "", "role": "model", "tool_calls": [{"name": "set_light_values", "arguments": {"fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]}}]}
+                {
+                    "content": "",
+                    "role": "model",
+                    "tool_calls": [
+                        {
+                            "name": "set_light_values",
+                            "arguments": {
+                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]
+                            },
+                        }
+                    ],
+                }
             ],
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 150, "output_tokens": 25, "total_tokens": 175},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
-    async def test_completion_tool_call_async(self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer):
+    async def test_completion_tool_call_async(
+        self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer
+    ):
         mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL_CALL))
         llm = genai.GenerativeModel("gemini-1.5-flash", tools=[set_light_values])
         await llm.generate_content_async(
@@ -425,16 +459,29 @@ class TestLLMObsGemini:
             model_provider="google",
             input_messages=[{"content": "Dim the lights so the room feels cozy and warm.", "role": "user"}],
             output_messages=[
-                {"content": "", "role": "model", "tool_calls": [{"name": "set_light_values", "arguments": {"fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]}}]}
+                {
+                    "content": "",
+                    "role": "model",
+                    "tool_calls": [
+                        {
+                            "name": "set_light_values",
+                            "arguments": {
+                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]
+                            },
+                        }
+                    ],
+                }
             ],
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 150, "output_tokens": 25, "total_tokens": 175},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
-    def test_gemini_completion_tool_stream(self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client, mock_tracer):
+    def test_gemini_completion_tool_stream(
+        self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client, mock_tracer
+    ):
         mock_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
         ]
@@ -454,17 +501,29 @@ class TestLLMObsGemini:
             model_provider="google",
             input_messages=[{"content": "Dim the lights so the room feels cozy and warm.", "role": "user"}],
             output_messages=[
-                {"content": "", "role": "model", "tool_calls": [{"name": "set_light_values", "arguments": {
-                    "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]}}]}
+                {
+                    "content": "",
+                    "role": "model",
+                    "tool_calls": [
+                        {
+                            "name": "set_light_values",
+                            "arguments": {
+                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]
+                            },
+                        }
+                    ],
+                }
             ],
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 150, "output_tokens": 25, "total_tokens": 175},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
-    async def test_gemini_completion_tool_stream_async(self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer):
+    async def test_gemini_completion_tool_stream_async(
+        self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer
+    ):
         mock_client_async.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
         ]
@@ -484,13 +543,23 @@ class TestLLMObsGemini:
             model_provider="google",
             input_messages=[{"content": "Dim the lights so the room feels cozy and warm.", "role": "user"}],
             output_messages=[
-                {"content": "", "role": "model", "tool_calls": [{"name": "set_light_values", "arguments": {
-                    "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]}}]}
+                {
+                    "content": "",
+                    "role": "model",
+                    "tool_calls": [
+                        {
+                            "name": "set_light_values",
+                            "arguments": {
+                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]
+                            },
+                        }
+                    ],
+                }
             ],
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 150, "output_tokens": 25, "total_tokens": 175},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -517,11 +586,13 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 277, "output_tokens": 14, "total_tokens": 291},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
-    async def test_gemini_completion_image_async(self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer):
+    async def test_gemini_completion_image_async(
+        self, genai, ddtrace_global_config, mock_llmobs_writer, mock_client_async, mock_tracer
+    ):
         """Ensure passing images to generate_content() won't break patching."""
         img = Image.open(os.path.join(os.path.dirname(__file__), "test_data/apple.jpg"))
         mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_IMG_CALL))
@@ -544,6 +615,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 277, "output_tokens": 14, "total_tokens": 291},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini"
+            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)

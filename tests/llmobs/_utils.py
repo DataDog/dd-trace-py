@@ -1,6 +1,7 @@
 import os
 
 import mock
+
 try:
     import vcr
 except ImportError:
