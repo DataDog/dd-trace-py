@@ -136,8 +136,25 @@ mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>&
     if (!new_ranges_value.contains(o)) {
         return {};
     }
-    const TaintRangePtr new_range = py::cast<TaintRangePtr>(new_ranges_value[o]);
-    return to_string(new_range->get_hash());
+    const TaintRange new_range = py::cast<TaintRange>((*new_ranges)[o]);
+    return to_string(new_range.get_hash());
+}
+
+// FIXME: maybe using an "unsigned" -1 as flag is not the best idea...
+inline unsigned long int
+getNum(const std::string& s)
+{
+    unsigned long int n = -1;
+    try {
+        n = std::stoul(s, nullptr, 10);
+        if (errno != 0) {
+            PyErr_Print();
+        }
+    } catch (std::exception&) {
+        // throw std::invalid_argument("Value is too big");
+        PyErr_Print();
+    }
+    return n;
 }
 
 inline PyObject*

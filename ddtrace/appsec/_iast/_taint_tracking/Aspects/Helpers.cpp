@@ -200,22 +200,6 @@ api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
     }
 }
 
-unsigned long int
-getNum(const std::string& s)
-{
-    unsigned int n = -1;
-    try {
-        n = std::stoul(s, nullptr, 10);
-        if (errno != 0) {
-            PyErr_Print();
-        }
-    } catch (std::exception&) {
-        // throw std::invalid_argument("Value is too big");
-        PyErr_Print();
-    }
-    return n;
-}
-
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
 convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig)
