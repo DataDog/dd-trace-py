@@ -1,8 +1,5 @@
 from typing import Text
 
-from wrapt.importer import when_imported
-
-from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -36,26 +33,15 @@ def patch():
     if not set_and_check_module_is_patched("django", default_attr="_datadog_header_injection_patch"):
         return
 
-    @when_imported("wsgiref.headers")
-    def _(m):
-        try_wrap_function_wrapper(m, "Headers.add_header", _iast_h)
-        try_wrap_function_wrapper(m, "Headers.__setitem__", _iast_h)
+    try_wrap_function_wrapper("wsgiref.headers", "Headers.add_header", _iast_h)
+    try_wrap_function_wrapper("wsgiref.headers", "Headers.__setitem__", _iast_h)
 
-    @when_imported("werkzeug.datastructures")
-    def _(m):
-        try_wrap_function_wrapper(m, "Headers.add", _iast_h)
-        trace_utils.wrap(m, "Headers.set", _iast_h)
+    try_wrap_function_wrapper("werkzeug.datastructures", "Headers.add", _iast_h)
+    try_wrap_function_wrapper("werkzeug.datastructures", "Headers.set", _iast_h)
 
-    @when_imported("django.http.response")
-    def _(m):
-        try_wrap_function_wrapper(m, "HttpResponse.__setitem__", _iast_h)
-        try_wrap_function_wrapper(m, "HttpResponseBase.__setitem__", _iast_h)
-        try:
-            trace_utils.wrap(m, "ResponseHeaders.__setitem__", _iast_h)
-        except AttributeError:
-            # no ResponseHeaders in django<3
-            pass
-
+    try_wrap_function_wrapper("django.http.response", "HttpResponse.__setitem__", _iast_h)
+    try_wrap_function_wrapper("django.http.response", "HttpResponseBase.__setitem__", _iast_h)
+    try_wrap_function_wrapper("django.http.response", "ResponseHeaders.__setitem__", _iast_h)
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 
 
