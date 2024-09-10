@@ -145,7 +145,6 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WORKER,
         call_key="queue.enqueue_job",
-
     ) as ctx, ctx[ctx["call_key"]] as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
@@ -229,9 +228,9 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
     # Inherit the service name from whatever parent exists.
     # eg. in a worker, a perform_job parent span will exist with the worker
     #     service.
-    with core.context_with_data("rq.job.perform", span_name="rq.job.perform", resource=job.func_name, call_key="job.perform", pin=pin) as ctx, ctx[
-        ctx["call_key"]
-    ] as span:
+    with core.context_with_data(
+        "rq.job.perform", span_name="rq.job.perform", resource=job.func_name, call_key="job.perform", pin=pin
+    ) as ctx, ctx[ctx["call_key"]] as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
         span.set_tag("job.id", job.get_id())
