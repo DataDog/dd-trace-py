@@ -43,13 +43,13 @@ class Client(object):
     def request(self, method, path, *args, **kwargs):
         return self._session.request(method, self._url(path), *args, **kwargs)
 
-    def wait(self, path="/", max_tries=100, delay=0.1, initial_wait=0):
+    def wait(self, path="/", max_tries=100, delay=0.1, initial_wait=0, timeout=1):
         # type: (str, int, float) -> None
         """Wait for the server to start by repeatedly http `get`ting `path` until a 200 is received."""
 
         @retry(after=[delay] * (max_tries - 1), initial_wait=initial_wait)
         def ping():
-            r = self.get_ignored(path, timeout=1)
+            r = self.get_ignored(path, timeout=timeout)
             assert r.status_code == 200
 
         ping()

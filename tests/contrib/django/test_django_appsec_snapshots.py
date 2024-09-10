@@ -51,7 +51,7 @@ def daphne_client(django_asgi, additional_env=None):
     client = Client("http://localhost:%d" % SERVER_PORT)
 
     # Wait for the server to start up
-    client.wait(max_tries=120, delay=0.2, initial_wait=1.0)
+    client.wait(max_tries=120, delay=0.2, initial_wait=1.0, timeout=4)
 
     try:
         yield client
