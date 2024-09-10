@@ -124,6 +124,8 @@ ddtrace/contrib/internal/botocore/services/bedrock.py   @DataDog/ml-observabilit
 ddtrace/contrib/botocore/services/bedrock.py            @DataDog/ml-observability
 ddtrace/contrib/internal/anthropic                      @DataDog/ml-observability
 ddtrace/contrib/anthropic                               @DataDog/ml-observability
+ddtrace/contrib/internal/google_generativeai            @DataDog/ml-observability
+ddtrace/contrib/google_generativeai                     @DataDog/ml-observability
 tests/llmobs                                            @DataDog/ml-observability
 tests/contrib/openai                                    @DataDog/ml-observability
 tests/contrib/langchain                                 @DataDog/ml-observability
@@ -131,6 +133,8 @@ tests/contrib/botocore/test_bedrock.py                  @DataDog/ml-observabilit
 tests/contrib/botocore/test_bedrock_llmobs.py           @DataDog/ml-observability
 tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observability
 tests/contrib/anthropic                                 @DataDog/ml-observability
+tests/contrib/google_generativeai                       @DataDog/ml-observability
+
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
