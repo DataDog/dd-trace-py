@@ -22,7 +22,7 @@ variables:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
 
 include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include-wip/brettlangdon/oci.tar/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
