@@ -80,12 +80,15 @@ def build_min_pkgs():
 
 def build_denied_executables():
     denied_executables = set()
+    _log("Checking denied-executables list")
     if os.path.exists(EXECUTABLE_DENY_LOCATION):
         with open(EXECUTABLE_DENY_LOCATION, "r") as denyfile:
+            _log("Found deny-list file")
             for line in denyfile.readlines():
                 cleaned = line.strip("\n")
                 denied_executables.add(cleaned)
                 denied_executables.add(os.path.basename(cleaned))
+    _log(f"Built denied-executables list of {len(denied_executables)} entries")
     return denied_executables
 
 
@@ -173,10 +176,13 @@ def package_is_compatible(package_name, package_version):
 
 
 def get_first_incompatible_sysarg():
+    _log(f"Checking sysargs: len(argv): {len(sys.argv)}")
     if len(sys.argv) <= 1:
         return
     argument = sys.argv[0]
+    _log(f"Is argument {argument} in deny-list?")
     if argument in EXECUTABLES_DENY_LIST or os.path.basename(argument) in EXECUTABLES_DENY_LIST:
+        _log(f"argument {argument} is in deny-list")
         return argument
 
 
