@@ -556,11 +556,13 @@ jobs:
           env: 'dd_coverage'
           snapshot: true
 
-  sourcecode:
-    <<: *contrib_job_small
+  pytest_v2:
+    <<: *machine_executor
+    parallelism: 10
     steps:
-      - run_test:
-          pattern: "sourcecode"
+      - run_hatch_env_test:
+          env: 'pytest_plugin_v2'
+          snapshot: true
 
   opentelemetry:
     parallelism: 4
@@ -667,17 +669,6 @@ jobs:
           pattern: "dramatiq"
           snapshot: true
           docker_services: "redis"
-
-  flask:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          # Run both flask and flask_cache test suites
-          # TODO: Re-enable coverage for Flask tests
-          snapshot: true
-          pattern: "flask"
-          docker_services: "memcached redis"
 
   httplib:
     <<: *machine_executor

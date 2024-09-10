@@ -4,6 +4,87 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.9.6
+
+
+### Bug Fixes
+
+- CI Visibility: Resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
+- SSI: Fixes incorrect file permissions on lib-injection images.
+- Code Security: Adds null pointer checks when creating new objects ids.
+- profiling: Fixes endpoing profiling for stack v2 when `DD_PROFILING_STACK_V2_ENABLED` is set.
+
+
+---
+
+## 2.11.4
+
+
+### Bug Fixes
+
+- CI Visibility: Resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
+- LLM Observability: Resolves an issue where custom trace filters were being overwritten in forked processes.
+- tracing: Fixes a side-effect issue with module import callbacks that could cause a runtime exception.
+- LLM Observability: Resolves an issue where `session_id` was being defaulted to `trace_id` which was causing unexpected UI behavior.
+
+
+---
+
+## 2.12.0
+
+### New Features
+
+- openai: Introduces the `model` tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as `openai.request.model`.
+- database_clients: Adds `server.address` tag to all `<database>.query` spans (ex: postgres.query). This tag stores the name of the database host.
+- LLM Observability: Flushes the buffer of spans to be sent when the payload size would otherwise exceed the payload size limit for the event platform.
+- LLM Observability: Span events that exceed the event platform event size limit (1 MB) will now have their inputs and outputs dropped.
+- tracing: Adds `ddtrace.trace.Context` to the public api. This class can now be used to propagate context across execution boundaries (ex: threads).
+
+
+### Deprecation Notes
+
+- config: `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED` is deprecated. Trace id logging format is now configured automatically.
+- tracing: Deprecates all modules in the `ddtrace.contrib.[integration_name]` package. Use attributes exposed in `ddtrace.contrib.[integration_name].__all__` instead. The following are impacted:
+  - `aioredis`, `algoliasearch`. `anthropic`, `aredis`, `asgi`, `asyncpg`, `aws_lambda`, `boto`, `botocore`, `bottle`, `cassandra`, `celery`, `cherrypy`, `consul`, `coverage`, `django`, `dogpile_cache`, `dramatiq`, `elasticsearch`, `falcon`, `fastapi`, `flask`, `flask_cache`, `futures`, `gevent`, `graphql`, `grpc`, `httplib`, `httpx`, `jinja2`, `kafka`, `kombu`, `langchain`, `logbook`, `logging`, `loguru`, `mako`, `mariadb`, `molten`, `mongoengine`, `mysql`, `mysqldb`, `openai`, `psycopg`, `pylibmc`, `pymemcache`, `pymongo`, `pymysql`, `pynamodb`, `pyodbc`, `pyramid`, `redis`, `rediscluster`, `requests`, `sanic`, `snowflake`, `sqlalchemy`, `sqlite3`, `starlette`, `structlog`, `subprocess`, `tornado`, `urllib`, `urllib3`, `vertica`, `webbrowser`, `wsgi`, `yaaredis`
+### Bug Fixes
+
+- CI Visibility: Resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
+- LLM Observability: Resolves an issue where custom trace filters were being overwritten in forked processes.
+- tracing: Fixes a side-effect issue with module import callbacks that could cause a runtime exception.
+- LLM Observability: Resolves an issue where `session_id` was being defaulted to `trace_id`, which was causing unexpected UI behavior.
+- LLM Observability: Resolves an issue where LLM Observability spans were not being submitted in forked processes, such as when using `celery` or `gunicorn` workers. The LLM Observability writer thread now automatically restarts when a forked process is detected.
+- tracing: Fixes an issue with some module imports with native specs that don't support attribute assignments, resulting in a `TypeError` exception at runtime.
+- tracing: Resolves an issue where `ddtrace` package files were published with incorrect file attributes.
+- tracing: Resolves an issue where django db instrumentation could fail.
+- openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
+
+- aiobotocore: Fixes an issue where the `_make_api_call` arguments were not captured correctly when using keyword arguments.
+- tracing(django): Resolves a bug where ddtrace was exhausting a Django stream response before returning it to user.
+- LLM Observability: Fixes an issue in the OpenAI integration where integration metrics would still be submitted even if `LLMObs.enable(agentless_enabled=True)` was set.
+- internal: Fixes the `Already mutably borrowed` error when rate limiter is accessed across threads.
+- internal: Fixes the `Already mutably borrowed` error by reverting back to pure-python rate limiter.
+- Code Security: Adds null pointer checks when creating new objects ids.
+- profiling: Fixes an issue where the profiler could erroneously try to load protobuf in autoinjected environments, where it is not available.
+- crashtracking: Fixes an issue where crashtracking environment variables for Python were inconsistent with those used by other runtimes.
+- profiling: Fixes endpoint profiling for stack v2 when `DD_PROFILING_STACK_V2_ENABLED` is set.
+- profiling: Turns on the new native exporter when `DD_PROFILING_TIMELINE_ENABLED=True` is set.
+
+
+---
+
+## 2.11.3
+
+
+### Bug Fixes
+
+- ASM: Improves internal stability for the new fingerprinting feature.
+
+
+---
+
 ## 2.11.2
 
 

@@ -8,6 +8,11 @@ asgi:
   variables:
     SUITE_NAME: "asgi$"
 
+avro:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "avro"
+
 bottle:
   extends: .test_base_riot_snapshot
   variables:
@@ -45,6 +50,18 @@ fastapi:
   variables:
     SUITE_NAME: "fastapi"
 
+flask:
+  extends: .test_base_riot_snapshot
+  parallel: 14
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "flask"
+    TEST_MEMCACHED_HOST: "memcached"
+    TEST_REDIS_HOST: "redis"
+
 urllib3:
   extends: .test_base_riot_snapshot
   services:
@@ -68,6 +85,7 @@ kafka:
 
 aredis:
   extends: .test_base_riot_snapshot
+  parallel: 3
   services:
     - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, redis]
@@ -227,14 +245,9 @@ logbook:
 
 asynctest:
   extends: .test_base_riot
+  parallel: 3
   variables:
     SUITE_NAME: 'asynctest$'
-
-pytest_v2:
-  extends: .test_base_riot_snapshot
-  parallel: 10
-  variables:
-    SUITE_NAME: 'pytest_plugin_v2'
 
 django_hosts:
   extends: .test_base_riot_snapshot
@@ -260,3 +273,8 @@ opentracer:
   extends: .test_base_riot
   variables:
     SUITE_NAME: "opentracer"
+
+sourcecode:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "sourcecode"
