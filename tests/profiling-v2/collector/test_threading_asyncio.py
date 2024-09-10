@@ -10,7 +10,6 @@ import pytest
     err=None,
 )
 def test_lock_acquire_events():
-
     import os
     import threading
 
