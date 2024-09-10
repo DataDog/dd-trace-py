@@ -652,15 +652,6 @@ jobs:
           snapshot: true
           docker_services: "memcached redis postgres"
 
-  djangorestframework:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'djangorestframework'
-          snapshot: true
-          docker_services: "memcached redis"
-
   httplib:
     <<: *machine_executor
     steps:
