@@ -1,22 +1,22 @@
 import os
 
-from PIL import Image
 from google.api_core.exceptions import InvalidArgument
 import mock
+from PIL import Image
 import pytest
 
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.contrib.google_generativeai.utils import _mock_completion_response
-from tests.contrib.google_generativeai.utils import _mock_completion_stream_chunk
+from tests.contrib.google_generativeai.utils import MOCK_COMPLETION_IMG_CALL
 from tests.contrib.google_generativeai.utils import MOCK_COMPLETION_SIMPLE_1
 from tests.contrib.google_generativeai.utils import MOCK_COMPLETION_SIMPLE_2
 from tests.contrib.google_generativeai.utils import MOCK_COMPLETION_SIMPLE_SYSTEM
 from tests.contrib.google_generativeai.utils import MOCK_COMPLETION_STREAM_CHUNKS
-from tests.contrib.google_generativeai.utils import MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
 from tests.contrib.google_generativeai.utils import MOCK_COMPLETION_TOOL_CALL
-from tests.contrib.google_generativeai.utils import MOCK_COMPLETION_IMG_CALL
+from tests.contrib.google_generativeai.utils import MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
 from tests.contrib.google_generativeai.utils import _async_streamed_response
+from tests.contrib.google_generativeai.utils import _mock_completion_response
+from tests.contrib.google_generativeai.utils import _mock_completion_stream_chunk
 from tests.contrib.google_generativeai.utils import set_light_values
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
 @pytest.mark.parametrize(
