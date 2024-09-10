@@ -56,7 +56,7 @@ is_text(const PyObject* pyptr)
 inline bool
 is_tainteable(const PyObject* pyptr)
 {
-    return is_text(pyptr) || PyReMatch_Check(pyptr);
+    return pyptr != nullptr and (is_text(pyptr) or PyReMatch_Check(pyptr));
 }
 
 // Base function for the variadic template
@@ -104,7 +104,7 @@ StringToPyObject(const string& str, const PyTextType type)
         case PyTextType::BYTEARRAY:
             return py::bytearray(str);
         default:
-            return {};
+            return py::none();
     }
 }
 
@@ -117,6 +117,10 @@ StringToPyObject(const char* str, const PyTextType type)
 inline string
 PyObjectToString(PyObject* obj)
 {
+    if (obj == nullptr or !PyUnicode_Check(obj)) {
+        return "";
+    }
+
     const char* str = PyUnicode_AsUTF8(obj);
 
     if (str == nullptr) {
