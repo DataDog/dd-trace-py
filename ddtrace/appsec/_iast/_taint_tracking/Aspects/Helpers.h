@@ -93,11 +93,10 @@ inline string
 get_tag(const string& content)
 {
     if (content.empty()) {
-        return string(EVIDENCE_MARKS::BLANK);
+        return { EVIDENCE_MARKS::BLANK };
     }
 
-    auto result = string(EVIDENCE_MARKS::LESS) + content + string(EVIDENCE_MARKS::GREATER);
-    return result;
+    return string(EVIDENCE_MARKS::LESS) + content + string(EVIDENCE_MARKS::GREATER);
 }
 
 inline string
@@ -112,19 +111,33 @@ get_default_content(const TaintRangePtr& taint_range)
 
 // TODO OPTIMIZATION: check if we can use instead a struct object with range_guid_map, new_ranges and default members so
 // we dont have to get the keys by string
+/**
+ * @brief Replaces a taint range with a new range from the provided dictionary.
+ *
+ * This function takes a `TaintRangePtr` and an optional dictionary of new ranges.
+ * If the `taint_range` is found in the dictionary, it is replaced with the corresponding new range.
+ * If the `taint_range` is not found or if `new_ranges` is null, an empty string is returned.
+ *
+ * @param taint_range A shared pointer to the original taint range.
+ * @param new_ranges An optional dictionary containing new taint ranges.
+ * @return A string representation of the hash of the new taint range if replaced, otherwise an empty string.
+ */
 inline string
 mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>& new_ranges)
 {
-    if (!taint_range or !new_ranges) {
+
+    if (!taint_range or !new_ranges.has_value() or py::len(new_ranges.value()) == 0) {
         return {};
     }
+
+    const py::dict& new_ranges_value = new_ranges.value();
     py::object o = py::cast(taint_range);
 
-    if (!new_ranges->contains(o)) {
+    if (!new_ranges_value.contains(o)) {
         return {};
     }
-    const TaintRange new_range = py::cast<TaintRange>((*new_ranges)[o]);
-    return to_string(new_range.get_hash());
+    const TaintRangePtr new_range = py::cast<TaintRangePtr>(new_ranges_value[o]);
+    return to_string(new_range->get_hash());
 }
 
 inline PyObject*
