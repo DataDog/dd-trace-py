@@ -299,3 +299,8 @@ pymemcache:
     - !reference [.services, memcached]
   variables:
     SUITE_NAME: "pymemcache"
+
+sourcecode:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "sourcecode"
