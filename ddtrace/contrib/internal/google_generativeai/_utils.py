@@ -168,8 +168,6 @@ def tag_request(span, integration, instance, args, kwargs):
     if stream:
         span.set_tag("genai.request.stream", True)
 
-    span.set_tag_str("genai.request.model", str(_extract_model_name(instance)))
-
     if not integration.is_pc_sampled_span(span):
         return
 

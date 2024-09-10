@@ -13,7 +13,7 @@
       "_dd.p.tid": "66df5b6b00000000",
       "genai.request.api_key": "...key>",
       "genai.request.contents.0.text": "[Non-text content object: <PIL.JpegImagePlugin.JpegImageFile image mode=RGB size=612x581 at 0x13603D7E0>]",
-      "genai.request.contents.1.text": "Return a bounding box for the piranha. \\n [ymin, xmin, ymax, xmax",
+      "genai.request.contents.1.text": "Return a bounding box for the apple. \\n [ymin, xmin, ymax, xmax]",
       "genai.request.generation_config.candidate_count": "None",
       "genai.request.generation_config.max_output_tokens": "30",
       "genai.request.generation_config.response_mime_type": "None",
