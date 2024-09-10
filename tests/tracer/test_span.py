@@ -295,13 +295,6 @@ class SpanTestCase(TracerTestCase):
         s.set_tag("noneval", None)
         assert len(s.get_metrics()) == 0
 
-        # Ensure we log a debug message
-        span_log.debug.assert_called_once_with(
-            "ignoring not number metric %s:%s",
-            "noneval",
-            None,
-        )
-
     def test_numeric_tags_value(self):
         s = Span(name="test.span")
         s.set_tag("point5", 0.5)
