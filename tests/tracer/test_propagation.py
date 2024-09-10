@@ -2495,14 +2495,14 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_t
 
     spans = fastapi_test_spans.pop_traces()
     assert spans[0][0].name == "fastapi.request"
-    assert spans[0][0]._links.get(67667974448284343) == SpanLink(
+    assert [link for link in spans[0][0]._links if link.span_id == 67667974448284343] == [SpanLink(
         trace_id=171395628812617415352188477958425669623,
         span_id=67667974448284343,
         tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
         flags=1,
         attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
-    )
-    assert spans[0][1]._links == {}
+    )]
+    assert spans[0][1]._links == []
     assert spans[0][1].context._span_links == []
 
 

@@ -92,7 +92,8 @@ def test_otel_start_span_with_span_links(oteltracer):
     # assert that span3 has the expected links
     ddspan3 = span3._ddspan
     for span_context, attributes in ((span1_context, attributes1), (span2_context, attributes2)):
-        link = ddspan3._links.get(span_context.span_id)
+        [link, *others] = [link for link in ddspan3._links if link.span_id == span_context.span_id]
+        assert not others
         assert link.trace_id == span_context.trace_id
         assert link.span_id == span_context.span_id
         assert link.tracestate == span_context.trace_state.to_header()
