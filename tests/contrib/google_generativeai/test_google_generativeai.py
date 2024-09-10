@@ -185,7 +185,7 @@ def test_gemini_completion_system_prompt(genai, mock_client):
     )
     llm.generate_content(
         "What is the argument for LeBron James being the GOAT?",
-        generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=1.0),
+        generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=50, temperature=1.0),
     )
 
 
@@ -201,7 +201,7 @@ async def test_gemini_completion_system_prompt_async(genai, mock_client_async):
     )
     await llm.generate_content_async(
         "What is the argument for LeBron James being the GOAT?",
-        generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=1.0),
+        generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=50, temperature=1.0),
     )
 
 
@@ -213,7 +213,7 @@ def test_gemini_completion_stream(genai, mock_client):
     llm = genai.GenerativeModel("gemini-1.5-flash")
     response = llm.generate_content(
         "Can you recite the alphabet?",
-        generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=1.0),
+        generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=60, temperature=1.0),
         stream=True,
     )
     for _ in response:
@@ -229,7 +229,7 @@ async def test_gemini_completion_stream_async(genai, mock_client_async):
     llm = genai.GenerativeModel("gemini-1.5-flash")
     response = await llm.generate_content_async(
         "Can you recite the alphabet?",
-        generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=1.0),
+        generation_config=genai.types.GenerationConfig(stop_sequences=["x"], max_output_tokens=60, temperature=1.0),
         stream=True,
     )
     async for _ in response:
