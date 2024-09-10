@@ -5,7 +5,7 @@ import pytest
 
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
-from tests.contrib.pytest._utils import _get_pytest_snapshot_gitlab_ci_env_vars
+from tests.ci_visibility.util import _get_pytest_snapshot_gitlab_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import snapshot
@@ -135,6 +135,9 @@ class PytestSnapshotTestCase(TracerTestCase):
     def test_pytest_with_ddtrace_patch_all(self):
         call_httpx = """
                 import httpx
+
+                import os
+                print(os.environ)
 
                 def call_httpx():
                     return httpx.get("http://localhost:9126/bad_path.cgi")

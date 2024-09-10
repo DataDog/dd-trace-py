@@ -11,11 +11,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0546200000000",
+      "_dd.p.tid": "66e0559800000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -24,10 +24,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 2871958,
-    "start": 1725977698715815385
+    "duration": 1822833,
+    "start": 1725978008563888917
   }],
 [
   {
@@ -42,11 +42,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0546200000000",
+      "_dd.p.tid": "66e0559800000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -55,10 +55,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 133584,
-    "start": 1725977698719652343
+    "duration": 134667,
+    "start": 1725978008567139917
   }],
 [
   {
@@ -73,11 +73,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0546200000000",
+      "_dd.p.tid": "66e0559800000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -86,10 +86,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 1219375,
-    "start": 1725977698720007635
+    "duration": 206791,
+    "start": 1725978008567709584
   }],
 [
   {
@@ -104,11 +104,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -117,10 +117,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 192500,
-    "start": 1725977693163969632
+    "duration": 200833,
+    "start": 1725977998707652927
   }],
 [
   {
@@ -135,11 +135,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -148,10 +148,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 31917,
-    "start": 1725977693164418924
+    "duration": 34791,
+    "start": 1725977998708117177
   }],
 [
   {
@@ -166,14 +166,14 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "error.message": "no such table: coverage_schema",
       "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 133, in _trace_method\n    return method(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nsqlite3.OperationalError: no such table: coverage_schema\n",
       "error.type": "sqlite3.OperationalError",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -182,10 +182,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 778208,
-    "start": 1725977693164543424
+    "duration": 733709,
+    "start": 1725977998708251218
   }],
 [
   {
@@ -200,14 +200,14 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "error.message": "no such table: coverage_schema",
       "error.stack": "Traceback (most recent call last):\n  File \"/root/project/.riot/venv_py3119_mock_pytest~60_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_msgpack_asynctest0130_more_itertools8110_httpx/lib/python3.11/site-packages/coverage/sqlitedb.py\", line 114, in _execute\n    return self.con.execute(sql, parameters)    # type: ignore[arg-type]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/ddtrace/contrib/internal/sqlite3/patch.py\", line 98, in execute\n    return self.cursor().execute(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/ddtrace/contrib/internal/sqlite3/patch.py\", line 80, in execute\n    super(TracedSQLiteCursor, self).execute(*args, **kwargs)\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 166, in execute\n    return self._trace_method(\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 133, in _trace_method\n    return method(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nsqlite3.OperationalError: no such table: coverage_schema\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 133, in _trace_method\n    return method(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nsqlite3.OperationalError: no such table: coverage_schema\n",
       "error.type": "sqlite3.OperationalError",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -216,10 +216,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 1091750,
-    "start": 1725977693165484841
+    "duration": 1042458,
+    "start": 1725977998709086552
   }],
 [
   {
@@ -234,11 +234,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -247,10 +247,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 57834,
-    "start": 1725977693167243132
+    "duration": 50375,
+    "start": 1725977998710734260
   }],
 [
   {
@@ -265,11 +265,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -278,10 +278,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 37291,
-    "start": 1725977693167437216
+    "duration": 36750,
+    "start": 1725977998710911093
   }],
 [
   {
@@ -296,11 +296,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -309,10 +309,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 31750,
-    "start": 1725977693167570591
+    "duration": 30625,
+    "start": 1725977998711039302
   }],
 [
   {
@@ -327,11 +327,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -340,10 +340,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 132958,
-    "start": 1725977693167856299
+    "duration": 106292,
+    "start": 1725977998711267343
   }],
 [
   {
@@ -358,11 +358,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -371,10 +371,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 30417,
-    "start": 1725977693168094299
+    "duration": 25375,
+    "start": 1725977998711456927
   }],
 [
   {
@@ -389,11 +389,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -402,10 +402,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 45500,
-    "start": 1725977693168208216
+    "duration": 40166,
+    "start": 1725977998711559677
   }],
 [
   {
@@ -420,11 +420,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -433,10 +433,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 75917,
-    "start": 1725977693168477382
+    "duration": 68875,
+    "start": 1725977998711802677
   }],
 [
   {
@@ -451,11 +451,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -464,10 +464,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 24709,
-    "start": 1725977693168633632
+    "duration": 22625,
+    "start": 1725977998711946177
   }],
 [
   {
@@ -482,11 +482,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -495,10 +495,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 50208,
-    "start": 1725977693168732966
+    "duration": 35208,
+    "start": 1725977998712040260
   }],
 [
   {
@@ -513,11 +513,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -526,10 +526,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 70708,
-    "start": 1725977693169017174
+    "duration": 83833,
+    "start": 1725977998712297635
   }],
 [
   {
@@ -544,11 +544,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -557,10 +557,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 24500,
-    "start": 1725977693169162091
+    "duration": 23459,
+    "start": 1725977998712458218
   }],
 [
   {
@@ -575,11 +575,11 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66e0545d00000000",
+      "_dd.p.tid": "66e0558e00000000",
       "component": "sqlite",
       "db.system": "sqlite",
       "language": "python",
-      "runtime-id": "3e41c79eb63e4194be3863cb31564f51",
+      "runtime-id": "2205de0bdb2e4b44954a2cad062e4547",
       "span.kind": "client"
     },
     "metrics": {
@@ -588,8 +588,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": -1,
-      "process_id": 38178
+      "process_id": 39296
     },
-    "duration": 33708,
-    "start": 1725977693169256424
+    "duration": 34875,
+    "start": 1725977998712554343
   }]]

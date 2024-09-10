@@ -21,3 +21,8 @@ pytest_v2:
   parallel: 10
   variables:
     SUITE_NAME: "pytest"
+
+unittest:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "unittest"

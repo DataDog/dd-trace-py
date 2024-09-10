@@ -5,7 +5,7 @@ import pytest
 
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
-from tests.contrib.pytest._utils import _get_pytest_snapshot_gitlab_ci_env_vars
+from tests.ci_visibility.util import _get_pytest_snapshot_gitlab_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import snapshot
