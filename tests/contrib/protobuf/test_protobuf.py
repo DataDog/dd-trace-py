@@ -2,6 +2,7 @@ import importlib
 
 from wrapt import ObjectProxy
 
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.internal.protobuf.patch import patch
 from ddtrace.contrib.internal.protobuf.patch import unpatch
 from ddtrace.ext import schema as SCHEMA_TAGS
@@ -11,11 +12,12 @@ from tests.contrib.protobuf.schemas import other_message_pb2
 
 MESSAGE_SCHEMA_DEF = (
     '{"openapi": "3.0.0", "components": {"schemas": {"MyMessage": {"type": "object", "properties": {"id": {"type": '
-    '"string"}, "value": {"type": "string"}, "other_message": {"$ref": "#/components/schemas/OtherMessage"}}}, '
+    '"string"}, "value": {"type": "string"}, "other_message": {"$ref": "#/components/schemas/OtherMessage"}, '
+    '"status": {"type": "string", "format": "enum", "enum": ["UNKNOWN", "ACTIVE", "INACTIVE", "DELETED"]}}}, '
     '"OtherMessage": {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "integer", '
     '"format": "int32"}}}}}}'
 )
-MESSAGE_SCHEMA_ID = "4297837876786368340"
+MESSAGE_SCHEMA_ID = "6833269440911322626"
 
 OTHER_MESSAGE_SCHEMA_DEF = (
     '{"openapi": "3.0.0", "components": {"schemas": {"OtherMessage": {"type": "object", "properties": {"name": '
@@ -47,7 +49,8 @@ def test_basic_schema_serialize(protobuf, tracer, test_spans):
     other_message.age = 30
 
     # Serialize
-    with tracer.trace("other_message.serialize"):
+    with tracer.trace("other_message.serialize") as span:
+        span.context.sampling_priority = AUTO_KEEP
         other_message.SerializeToString()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
@@ -72,12 +75,14 @@ def test_complex_schema_serialize(protobuf, tracer, test_spans):
     importlib.reload(message_pb2)
     OtherMessage = other_message_pb2.OtherMessage
     MyMessage = message_pb2.MyMessage
+    Status = message_pb2.Status
 
     my_message = MyMessage()
 
     # Set the id and value fields
     my_message.id = "123"
     my_message.value = "example_value"
+    my_message.status = Status.ACTIVE
 
     # Create instances of OtherMessage
     other_message1 = OtherMessage()
@@ -93,7 +98,8 @@ def test_complex_schema_serialize(protobuf, tracer, test_spans):
     my_message.other_message.append(other_message2)
 
     # Serialize
-    with tracer.trace("message_pb2.serialize"):
+    with tracer.trace("message_pb2.serialize") as span:
+        span.context.sampling_priority = AUTO_KEEP
         my_message.SerializeToString()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
@@ -125,7 +131,8 @@ def test_basic_schema_deserialize(protobuf, tracer, test_spans):
     bytes_data = other_message.SerializeToString()
 
     # Deserialize
-    with tracer.trace("other_message.deserialize"):
+    with tracer.trace("other_message.deserialize") as span:
+        span.context.sampling_priority = AUTO_KEEP
         other_message.ParseFromString(bytes_data)
 
     assert len(test_spans.spans) == 1, "There should be exactly one span"
@@ -151,12 +158,14 @@ def test_advanced_schema_deserialize(protobuf, tracer, test_spans):
     importlib.reload(message_pb2)
     OtherMessage = other_message_pb2.OtherMessage
     MyMessage = message_pb2.MyMessage
+    Status = message_pb2.Status
 
     my_message = MyMessage()
 
     # Set the id and value fields
     my_message.id = "123"
     my_message.value = "example_value"
+    my_message.status = Status.ACTIVE
 
     # Create instances of OtherMessage
     other_message1 = OtherMessage()
@@ -175,7 +184,8 @@ def test_advanced_schema_deserialize(protobuf, tracer, test_spans):
     bytes_data = my_message.SerializeToString()
 
     # Deserialize
-    with tracer.trace("my_message.deserialize"):
+    with tracer.trace("my_message.deserialize") as span:
+        span.context.sampling_priority = AUTO_KEEP
         my_message.ParseFromString(bytes_data)
 
     assert len(test_spans.spans) == 1, "There should be exactly one span"

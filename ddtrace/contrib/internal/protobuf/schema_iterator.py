@@ -73,9 +73,9 @@ class SchemaExtractor(SchemaIterator):
         if not data_streams_processor().can_sample_schema(operation):
             return
 
-        # prio = span.context.sampling_priority
-        # if prio is None or prio <= 0:
-        #     return
+        prio = span.context.sampling_priority
+        if prio is None or prio <= 0:
+            return
 
         weight = data_streams_processor().try_sample_schema(operation)
         if weight == 0:
