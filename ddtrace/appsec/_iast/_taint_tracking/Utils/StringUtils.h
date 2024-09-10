@@ -10,6 +10,14 @@ using namespace pybind11::literals;
 
 namespace py = pybind11;
 
+#define GET_HASH_KEY(hash) (hash & 0xFFFFFF)
+
+typedef struct _PyASCIIObject_State_Hidden
+{
+    unsigned int : 8;
+    unsigned int hidden : 24;
+} PyASCIIObject_State_Hidden;
+
 enum class PyTextType
 {
     UNICODE = 0,

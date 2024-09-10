@@ -11,10 +11,14 @@ include_directories(${PYTHON_INCLUDE_DIRS})
 include_directories(${PYBIND11_INCLUDE_DIRS})
 
 file(GLOB TEST_SOURCES "*.cpp")
-add_executable(native_tests ${TEST_SOURCES})
+add_executable(native_tests ${TEST_SOURCES} ${SOURCE_FILES} ${HEADER_FILES})
 
-# Link test executable against gtest & gtest_main
-target_link_libraries(native_tests gtest gtest_main ${PYTHON_LIBRARIES} pybind11::module)
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_link_libraries(native_tests gtest gtest_main ${PYTHON_LIBRARIES} pybind11::module absl::node_hash_map)
+else()
+    target_link_libraries(native_tests gtest gtest_main ${PYTHON_LIBRARIES} pybind11::module)
+endif ()
+
 
 # Discover tests
 include(GoogleTest)
