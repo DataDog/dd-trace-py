@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: This fixes a bug in the IAST patching process where ``AttributeError`` exceptions were being caught, interfering with the proper application cycle.
