@@ -1,11 +1,8 @@
 import functools
 import sys
-from typing import Callable
 from typing import Text
 
-from wrapt import FunctionWrapper
-
-from ddtrace.appsec._common_module_patches import wrap_object
+from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.internal.logger import get_logger
 
 from ._metrics import _set_metric_iast_instrumented_source
@@ -35,13 +32,6 @@ def set_module_unpatched(module_str: Text, default_attr: Text = "_datadog_patch"
         setattr(module, default_attr, False)
     except ImportError:
         pass
-
-
-def try_wrap_function_wrapper(module: Text, name: Text, wrapper: Callable):
-    try:
-        wrap_object(module, name, FunctionWrapper, (wrapper,))
-    except (ImportError, AttributeError):
-        log.debug("IAST patching. Module %s.%s not exists", module, name)
 
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):

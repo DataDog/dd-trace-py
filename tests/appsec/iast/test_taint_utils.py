@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -239,7 +240,6 @@ def test_checked_tainted_args():
 def lazy_taint_json_patch():
     from ddtrace.appsec._iast._patches.json_tainting import patched_json_encoder_default
     from ddtrace.appsec._iast._patches.json_tainting import try_unwrap
-    from ddtrace.appsec._iast._patches.json_tainting import try_wrap_function_wrapper
 
     try_wrap_function_wrapper("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
     try_wrap_function_wrapper("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)

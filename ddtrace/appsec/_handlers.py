@@ -7,6 +7,7 @@ from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 import xmltodict
 
+from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
@@ -221,7 +222,6 @@ def _on_flask_patch(flask_version):
     if _is_iast_enabled():
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._patch import _patched_dictionary
-        from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
         from ddtrace.appsec._iast._taint_tracking import OriginType
 
         try_wrap_function_wrapper(

@@ -7,6 +7,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ..._common_module_patches import try_unwrap
+from ..._common_module_patches import try_wrap_function_wrapper
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_instrumented_sink
@@ -37,18 +38,18 @@ def patch():
 
     @when_imported("wsgiref.headers")
     def _(m):
-        trace_utils.wrap(m, "Headers.add_header", _iast_h)
-        trace_utils.wrap(m, "Headers.__setitem__", _iast_h)
+        try_wrap_function_wrapper(m, "Headers.add_header", _iast_h)
+        try_wrap_function_wrapper(m, "Headers.__setitem__", _iast_h)
 
     @when_imported("werkzeug.datastructures")
     def _(m):
-        trace_utils.wrap(m, "Headers.add", _iast_h)
+        try_wrap_function_wrapper(m, "Headers.add", _iast_h)
         trace_utils.wrap(m, "Headers.set", _iast_h)
 
     @when_imported("django.http.response")
     def _(m):
-        trace_utils.wrap(m, "HttpResponse.__setitem__", _iast_h)
-        trace_utils.wrap(m, "HttpResponseBase.__setitem__", _iast_h)
+        try_wrap_function_wrapper(m, "HttpResponse.__setitem__", _iast_h)
+        try_wrap_function_wrapper(m, "HttpResponseBase.__setitem__", _iast_h)
         try:
             trace_utils.wrap(m, "ResponseHeaders.__setitem__", _iast_h)
         except AttributeError:

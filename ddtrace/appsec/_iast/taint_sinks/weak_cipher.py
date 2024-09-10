@@ -5,6 +5,7 @@ from typing import Set
 from typing import Text
 
 from ddtrace.appsec._common_module_patches import try_unwrap
+from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast.constants import BLOWFISH_DEF
 from ddtrace.appsec._iast.constants import DEFAULT_WEAK_CIPHER_ALGORITHMS
@@ -20,7 +21,6 @@ from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
-from .._patch import try_wrap_function_wrapper
 from ._base import VulnerabilityBase
 
 
