@@ -52,6 +52,7 @@ from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
+
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
 
 
