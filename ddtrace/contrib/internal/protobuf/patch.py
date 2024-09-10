@@ -11,9 +11,7 @@ from .schema_iterator import SchemaExtractor
 
 config._add(
     "protobuf",
-    dict(
-       { "_WRAPPED_MESSAGE_CLASSES": []} # fix this 
-    ),
+    dict({"_WRAPPED_MESSAGE_CLASSES": []}),  # fix this
 )
 
 

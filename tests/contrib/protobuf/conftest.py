@@ -1,7 +1,7 @@
 import pytest
 
-from ddtrace.contrib.protobuf.patch import patch
-from ddtrace.contrib.protobuf.patch import unpatch
+from ddtrace.contrib.internal.protobuf.patch import patch
+from ddtrace.contrib.internal.protobuf.patch import unpatch
 from tests.utils import override_global_config
 
 

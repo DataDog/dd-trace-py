@@ -1,4 +1,3 @@
-from google import protobuf
 from google.protobuf.descriptor import FieldDescriptor
 
 # from google._upb._message import Descriptor
@@ -18,7 +17,9 @@ class SchemaExtractor(SchemaIterator):
         self.schema = schema
 
     @staticmethod
-    def extract_property(field: FieldDescriptor, schema_name: str, field_name: str, builder: SchemaBuilder, depth: int) -> int:
+    def extract_property(
+        field: FieldDescriptor, schema_name: str, field_name: str, builder: SchemaBuilder, depth: int
+    ) -> int:
         array = False
         type_ = None
         format_ = None
@@ -35,8 +36,8 @@ class SchemaExtractor(SchemaIterator):
             ref = "#/components/schemas/" + field.message_type.name
             if not SchemaExtractor.extract_schema(field.message_type, builder, depth):
                 return False
-        elif format_ == "":
-            pass # add enum stuff here
+        elif format_ == "enum":
+            enum_values = [value.name for value in field.enum_type.values]
         return builder.add_property(schema_name, field_name, array, type_, description, ref, format_, enum_values)
 
     @staticmethod
@@ -108,6 +109,6 @@ class SchemaExtractor(SchemaIterator):
             17: ("integer", "int32"),
             18: ("integer", "int64"),
         }
-        
+
         # Default values for unknown types
         return type_format_mapping.get(type_, ("string", None))

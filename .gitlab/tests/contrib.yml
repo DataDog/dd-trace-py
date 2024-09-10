@@ -124,6 +124,11 @@ molten:
   variables:
     SUITE_NAME: "molten"
 
+protobuf:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "protobuf"
+
 pynamodb:
   extends: .test_base_riot_snapshot
   variables:

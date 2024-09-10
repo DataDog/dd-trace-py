@@ -1,29 +1,26 @@
-from google.protobuf.message import DecodeError
+import importlib
+
 from wrapt import ObjectProxy
 
-from ddtrace import Pin
-from ddtrace.contrib.protobuf.patch import patch
-from ddtrace.contrib.protobuf.patch import unpatch
+from ddtrace.contrib.internal.protobuf.patch import patch
+from ddtrace.contrib.internal.protobuf.patch import unpatch
 from ddtrace.ext import schema as SCHEMA_TAGS
+from tests.contrib.protobuf.schemas import message_pb2
+from tests.contrib.protobuf.schemas import other_message_pb2
 
 
-OPENAPI_USER_SCHEMA_DEF = (
-    '{"openapi": "3.0.0", "components": {"schemas": {"example.avro.User": {"type": "object", "properties": '
-    '{"name": {"type": "string"}, "favorite_number": {"type": "union[integer,null]"}, "favorite_color": '
-    '{"type": "union[string,null]"}}}}}}'
+MESSAGE_SCHEMA_DEF = (
+    '{"openapi": "3.0.0", "components": {"schemas": {"MyMessage": {"type": "object", "properties": {"id": {"type": '
+    '"string"}, "value": {"type": "string"}, "other_message": {"$ref": "#/components/schemas/OtherMessage"}}}, '
+    '"OtherMessage": {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "integer", '
+    '"format": "int32"}}}}}}'
 )
-
-OPENAPI_ADVANCED_USER_SCHEMA_DEF = (
-    '{"openapi": "3.0.0", "components": {"schemas": {"example.avro.AdvancedUser": {"type": "object", "properties": '
-    '{"name": {"type": "string"}, "age": {"type": "integer"}, "email": {"type": "union[null,string]"}, "height": '
-    '{"type": "number"}, "preferences": {"type": "object"}, "tags": {"type": "array"}, "status": {"type": "string"}, '
-    '"profile_picture": {"type": "string"}, "metadata": {"type": "string"}, "address": {"type": "object"}}}}}}'
-)
-
-MESSAGE_SCHEMA_DEF = '{"openapi": "3.0.0", "components": {"schemas": {"MyMessage": {"type": "object", "properties": {"id": {"type": "string"}, "value": {"type": "string"}, "other_message": {"$ref": "#/components/schemas/OtherMessage"}}}, "OtherMessage": {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "integer", "format": "int32"}}}}}}'
 MESSAGE_SCHEMA_ID = "4297837876786368340"
 
-OTHER_MESSAGE_SCHEMA_DEF = '{"openapi": "3.0.0", "components": {"schemas": {"OtherMessage": {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "integer", "format": "int32"}}}}}}'
+OTHER_MESSAGE_SCHEMA_DEF = (
+    '{"openapi": "3.0.0", "components": {"schemas": {"OtherMessage": {"type": "object", "properties": {"name": '
+    '{"type": "string"}, "age": {"type": "integer", "format": "int32"}}}}}}'
+)
 OTHER_MESSAGE_SCHEMA_ID = "2475724054364642627"
 
 
@@ -42,7 +39,8 @@ def test_patching(protobuf):
 
 
 def test_basic_schema_serialize(protobuf, tracer, test_spans):
-    from tests.contrib.protobuf.schemas.other_message_pb2 import OtherMessage
+    importlib.reload(other_message_pb2)
+    OtherMessage = other_message_pb2.OtherMessage
 
     other_message = OtherMessage()
     other_message.name.append("Alice")
@@ -50,8 +48,7 @@ def test_basic_schema_serialize(protobuf, tracer, test_spans):
 
     # Serialize
     with tracer.trace("other_message.serialize"):
-        breakpoint()
-        bytes_data = other_message.SerializeToString()
+        other_message.SerializeToString()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
     span = test_spans.spans[0]
@@ -70,21 +67,11 @@ def test_basic_schema_serialize(protobuf, tracer, test_spans):
     assert metrics[SCHEMA_TAGS.SCHEMA_WEIGHT] == 1
 
 
-# def test_error_when_de_serializing(self):
-#     with tracer.trace("parent_deserialize") as span:
-#         span.set_tag("manual.keep", True)
-#         try:
-#             MyMessage.ParseFromString(b'\x01\x02\x03\x04\x05')
-#         except DecodeError as e:
-#             span.set_tag("error.msg", str(e))
-#             span.set_tag("error.type", type(e).__name__)
-#             span.set_tag("error.stack", e.__traceback__)
-#             span.error = 1
-
-
 def test_complex_schema_serialize(protobuf, tracer, test_spans):
-    from tests.contrib.protobuf.schemas.message_pb2 import MyMessage
-    from tests.contrib.protobuf.schemas.other_message_pb2 import OtherMessage
+    importlib.reload(other_message_pb2)
+    importlib.reload(message_pb2)
+    OtherMessage = other_message_pb2.OtherMessage
+    MyMessage = message_pb2.MyMessage
 
     my_message = MyMessage()
 
@@ -107,7 +94,7 @@ def test_complex_schema_serialize(protobuf, tracer, test_spans):
 
     # Serialize
     with tracer.trace("message_pb2.serialize"):
-        bytes_data = my_message.SerializeToString()
+        my_message.SerializeToString()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
     span = test_spans.spans[0]
@@ -127,7 +114,8 @@ def test_complex_schema_serialize(protobuf, tracer, test_spans):
 
 
 def test_basic_schema_deserialize(protobuf, tracer, test_spans):
-    from tests.contrib.protobuf.schemas.other_message_pb2 import OtherMessage
+    importlib.reload(other_message_pb2)
+    OtherMessage = other_message_pb2.OtherMessage
 
     other_message = OtherMessage()
     other_message.name.append("Alice")
@@ -159,8 +147,10 @@ def test_basic_schema_deserialize(protobuf, tracer, test_spans):
 
 
 def test_advanced_schema_deserialize(protobuf, tracer, test_spans):
-    from tests.contrib.protobuf.schemas.message_pb2 import MyMessage
-    from tests.contrib.protobuf.schemas.other_message_pb2 import OtherMessage
+    importlib.reload(other_message_pb2)
+    importlib.reload(message_pb2)
+    OtherMessage = other_message_pb2.OtherMessage
+    MyMessage = message_pb2.MyMessage
 
     my_message = MyMessage()
 

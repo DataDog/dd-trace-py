@@ -29,7 +29,6 @@ DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
 )
 
 _globals = globals()
-breakpoint()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, "tests.contrib.protobuf.schemas.message_pb2", _globals)
 if not _descriptor._USE_C_DESCRIPTORS:

@@ -1,42 +1,30 @@
 """
-The Avro integration will trace all Avro read / write calls made with the ``avro``
+The Protobuf integration will trace all Protobuf read / write calls made with the ``google.protobuf``
 library. This integration is enabled by default.
 
 Enabling
 ~~~~~~~~
 
-The avro integration is enabled by default. Use
+The protobuf integration is enabled by default. Use
 :func:`patch()<ddtrace.patch>` to enable the integration::
 
     from ddtrace import patch
-    patch(aiobotocore=True)
+    patch(protobuf=True)
 
 Configuration
 ~~~~~~~~~~~~~
-
-.. py:data:: ddtrace.config.aiobotocore['tag_no_params']
-
-    This opts out of the default behavior of adding span tags for a narrow set of API parameters.
-
-    To not collect any API parameters, ``ddtrace.config.aiobotocore.tag_no_params = True`` or by setting the environment
-    variable ``DD_AWS_TAG_NO_PARAMS=true``.
-
-
-    Default: ``False``
 
 """
 from ...internal.utils.importlib import require_modules
 
 
-required_modules = ["avro"]
+required_modules = ["protobuf"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.aiohttp.patch` directly
-        from . import patch as _  # noqa: F401, I001
-
         # Expose public methods
-        from ..internal.avro.patch import get_version
-        from ..internal.avro.patch import patch
+        from ..internal.protobuf.patch import get_version
+        from ..internal.protobuf.patch import patch
+        from ..internal.protobuf.patch import unpatch
 
-        __all__ = ["patch", "get_version"]
+        __all__ = ["patch", "unpatch", "get_version"]
