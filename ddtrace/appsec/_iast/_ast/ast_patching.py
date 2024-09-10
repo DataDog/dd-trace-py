@@ -129,8 +129,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "coreapi",
     "coreschema",
     "crispy_forms",
-    "cv",
-    "cv2",
     "dateutil",
     "dateutil._version",
     "dateutil.tz",
@@ -176,24 +174,24 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "django.contrib.admindocs",
     "django.contrib.admindocs.utils",
     "django.contrib.admindocs.views",
-    "django.contrib.auth",  # todo: testing
-    "django.contrib.auth.admin",  # todo: testing
-    "django.contrib.auth.apps",  # todo: testing
-    "django.contrib.auth.backends",  # todo: testing
+    "django.contrib.auth",
+    "django.contrib.auth.admin",
+    "django.contrib.auth.apps",
+    "django.contrib.auth.backends",
     "django.contrib.auth.base_user",
     "django.contrib.auth.checks",
     "django.contrib.auth.context_processors",
     "django.contrib.auth.decorators",
-    "django.contrib.auth.forms",  # todo: testing
+    "django.contrib.auth.forms",
     "django.contrib.auth.hashers",
     "django.contrib.auth.image_formats",
-    "django.contrib.auth.management",  # todo: testing
-    "django.contrib.auth.middleware",  # todo: testing
+    "django.contrib.auth.management",
+    "django.contrib.auth.middleware",
     "django.contrib.auth.models",
     "django.contrib.auth.password_validation",
     "django.contrib.auth.signals",
     "django.contrib.auth.templatetags",
-    "django.contrib.auth.tokens",  # todo: testing
+    "django.contrib.auth.tokens",
     "django.contrib.auth.validators",
     "django.contrib.auth.views",
     "django.contrib.auth.wagtail_hooks",
@@ -277,8 +275,8 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "django.core",
     "django.core.cache",
     "django.core.cache.backends",
-    "django.core.cache.backends.base",  # todo: testing
-    "django.core.cache.backends.db",  # todo: testing
+    "django.core.cache.backends.base",
+    "django.core.cache.backends.db",
     "django.core.cache.backends.filebased",
     "django.core.cache.backends.locmem",
     "django.core.cache.utils",
@@ -311,9 +309,9 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "django.core.files.uploadhandler",
     "django.core.files.utils",
     "django.core.handlers",
-    "django.core.handlers.asgi",  # todo: testing
-    "django.core.handlers.base",  # todo: testing
-    "django.core.handlers.exception",  # todo: testing
+    "django.core.handlers.asgi",
+    "django.core.handlers.base",
+    "django.core.handlers.exception",
     "django.core.mail",
     "django.core.mail.message",
     "django.core.mail.utils",
@@ -433,10 +431,10 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "django.middleware",
     "django.middleware.cache",
     "django.middleware.clickjacking",
-    "django.middleware.common",  # todo: testing
-    "django.middleware.csrf",  # todo: testing
-    "django.middleware.http",  # todo: testing
-    "django.middleware.security",  # todo: testing
+    "django.middleware.common",
+    "django.middleware.csrf",
+    "django.middleware.http",
+    "django.middleware.security",
     "django.shortcuts",
     "django.template",
     "django.template.autoreload",
@@ -554,17 +552,14 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "django_filters.rest_framework.filterset",
     "django_filters.utils",
     "django_filters.widgets",
-    "flask",
-    "werkzeug",
     "crypto",  # This module is patched by the IAST patch methods, propagation is not needed
     "deprecated",
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "api_pb2_grpc",  # ditto
+    "api_pb2_grpc",  # Patching crashes with these auto-generated modules, propagation is not needed
     "asyncpg.pgproto",
     "blinker",
     "bytecode",
     "cattrs",
-    "click",
     "ddsketch",
     "ddtrace",
     "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
@@ -572,7 +567,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "envier",
     "exceptiongroup",
     "freezegun",  # Testing utilities for time manipulation
-    "hypothesis",
+    "hypothesis",  # Testing utilities
     "importlib_metadata",
     "inspect",  # this package is used to get the stack frames, propagation is not needed
     "itsdangerous",
@@ -598,7 +593,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
     "wrapt",
     "zipp",
-    ## This is a workaround for Sanic failures:
+    # This is a workaround for Sanic failures:
     "websocket",
     "h11",
     "aioquic",
