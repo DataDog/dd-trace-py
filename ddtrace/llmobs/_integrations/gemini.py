@@ -1,6 +1,7 @@
 import json
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace import Span
@@ -17,22 +18,22 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _unserializable_default_repr
-from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace import Span
 
 
 class GeminiIntegration(BaseLLMIntegration):
     _integration_name = "gemini"
 
     def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
+        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, object]
     ) -> None:
         if provider:
             span.set_tag_str("genai.request.model", model)
         if model:
             span.set_tag_str("genai.request.provider", provider)
 
-    def llmobs_set_tags(self, span: Span, args: Any, kwargs: Any, instance: Any, generations: Any = None) -> None:
+    def llmobs_set_tags(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], instance: Any, generations: Any = None
+    ) -> None:
         if not self.llmobs_enabled:
             return
 
@@ -72,10 +73,29 @@ class GeminiIntegration(BaseLLMIntegration):
         return metadata
 
     @staticmethod
-    def _extract_input_message(contents, system_instruction=None):
+    def _extract_message_from_part(part, role):
+        text = _get_attr(part, "text", "")
+        function_call = _get_attr(part, "function_call", None)
+        function_response = _get_attr(part, "function_response", None)
+        message = {"content": text, "role": role}
+        if function_call:
+            function_call_dict = function_call
+            if not isinstance(function_call, dict):
+                function_call_dict = type(function_call).to_dict(function_call)
+            message["tool_calls"] = [
+                {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
+            ]
+        if function_response:
+            function_response_dict = function_response
+            if not isinstance(function_response, dict):
+                function_response_dict = type(function_response).to_dict(function_response)
+            message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+        return message
+
+    def _extract_input_message(self, contents, system_instruction=None):
         messages = []
         if system_instruction:
-            for idx, part in enumerate(system_instruction.parts):
+            for part in system_instruction.parts:
                 messages.append({"content": part.text or "", "role": "system"})
         if isinstance(contents, str):
             messages.append({"content": contents, "role": "user"})
@@ -84,50 +104,31 @@ class GeminiIntegration(BaseLLMIntegration):
             messages.append({"content": contents.get("text", ""), "role": contents.get("role", "user")})
             return messages
         elif not isinstance(contents, list):
+            messages.append({"content": "[Non-text content object: {}]".format(repr(contents)), "role": "user"})
             return messages
-        for content_idx, content in enumerate(contents):
+        for content in contents:
             if isinstance(content, str):
                 messages.append({"content": content, "role": "user"})
                 continue
             role = _get_attr(content, "role", "user")
             parts = _get_attr(content, "parts", [])
-            if not parts:
+            if not isinstance(parts, list):
                 messages.append({"content": "[Non-text content object: {}]".format(repr(content)), "role": role})
             for part in parts:
-                text = _get_attr(part, "text", "")
-                function_call = _get_attr(part, "function_call", None)
-                function_response = _get_attr(part, "function_response", None)
-                message = {"content": text, "role": role}
-                if function_call:
-                    function_call_dict = type(function_call).to_dict(function_call)
-                    message["tool_calls"] = [
-                        {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
-                    ]
-                if function_response:
-                    function_response_dict = type(function_response).to_dict(function_response)
-                    message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+                message = self._extract_message_from_part(part, role)
                 messages.append(message)
         return messages
 
-    @staticmethod
-    def _extract_output_message(generations):
+    def _extract_output_message(self, generations):
         output_messages = []
         generations_dict = generations.to_dict()
-        for idx, candidate in enumerate(generations_dict.get("candidates", [])):
+        for candidate in generations_dict.get("candidates", []):
             content = candidate.get("content", {})
             role = content.get("role", "model")
             parts = content.get("parts", [])
-            for part_idx, part in enumerate(parts):
-                text = part.get("text", "")
-                function_call = part.get("function_call", None)
-                if not function_call:
-                    output_messages.append({"content": text, "role": role})
-                    continue
-                function_name = function_call.get("name", "")
-                function_args = function_call.get("args", {})
-                output_messages.append(
-                    {"content": text, "role": role, "tool_calls": [{"name": function_name, "arguments": function_args}]}
-                )
+            for part in parts:
+                message = self._extract_message_from_part(part, role)
+                output_messages.append(message)
         return output_messages
 
     @staticmethod
@@ -146,9 +147,8 @@ class GeminiIntegration(BaseLLMIntegration):
         return usage
 
 
-def _get_attr(o: Any, attr: str, default: Any):
+def _get_attr(o: object, attr: str, default: object):
     # Convenience method to get an attribute from an object or dict
     if isinstance(o, dict):
         return o.get(attr, default)
-    else:
-        return getattr(o, attr, default)
+    return getattr(o, attr, default)
