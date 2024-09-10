@@ -60,6 +60,7 @@ class TestAsyncioLockCollector:
 
         linenos = get_lock_linenos("test_asyncio_lock_events")
         profile = pprof_utils.parse_profile(self.output_filename)
+        expected_thread_id = _thread.get_ident()
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -68,6 +69,7 @@ class TestAsyncioLockCollector:
                     filename=os.path.basename(__file__),
                     linenos=linenos,
                     lock_name="lock",
+                    thread_id=expected_thread_id,
                 )
             ],
             expected_release_events=[
@@ -76,6 +78,7 @@ class TestAsyncioLockCollector:
                     filename=os.path.basename(__file__),
                     linenos=linenos,
                     lock_name="lock",
+                    thread_id=expected_thread_id,
                 )
             ],
         )
@@ -106,6 +109,7 @@ class TestAsyncioLockCollector:
         linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")
 
         profile = pprof_utils.parse_profile(self.output_filename)
+        expected_thread_id = _thread.get_ident()
 
         pprof_utils.assert_lock_events(
             profile,
@@ -115,6 +119,7 @@ class TestAsyncioLockCollector:
                     filename=os.path.basename(__file__),
                     linenos=linenos_1,
                     lock_name="lock",
+                    thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockAcquireEvent(
                     caller_name="test_asyncio_lock_events_tracer",
@@ -124,6 +129,7 @@ class TestAsyncioLockCollector:
                     span_id=span_id,
                     trace_resource=resource,
                     trace_type=span_type,
+                    thread_id=expected_thread_id,
                 ),
             ],
             expected_release_events=[
@@ -135,12 +141,14 @@ class TestAsyncioLockCollector:
                     span_id=span_id,
                     trace_resource=resource,
                     trace_type=span_type,
+                    thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockReleaseEvent(
                     caller_name="test_asyncio_lock_events_tracer",
                     filename=os.path.basename(__file__),
                     linenos=linenos_2,
                     lock_name="lock2",
+                    thread_id=expected_thread_id,
                 ),
             ],
         )
