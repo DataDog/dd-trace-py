@@ -1,6 +1,7 @@
 #include "Helpers.h"
 #include "Initializer/Initializer.h"
 #include <algorithm>
+#include <iostream>
 #include <regex>
 
 using namespace pybind11::literals;
@@ -37,25 +38,78 @@ api_common_replace(const py::str& string_method,
     return res;
 }
 
+string
+as_formatted_evidence(const string& text,
+                      TaintRangeRefs& text_ranges,
+                      const optional<TagMappingMode>& tag_mapping_mode,
+                      const optional<const py::dict>& new_ranges)
+{
+    if (text_ranges.empty()) {
+        return text;
+    }
+    vector<string> res_vector;
+    long index = 0;
+
+    sort(text_ranges.begin(), text_ranges.end(), &range_sort);
+    auto pystr = py::str(text);
+
+    for (const auto& taint_range : text_ranges) {
+        string content;
+        if (!tag_mapping_mode) {
+            content = get_default_content(taint_range);
+        } else
+            switch (*tag_mapping_mode) {
+                case TagMappingMode::Mapper:
+                    content = to_string(taint_range->get_hash());
+                    break;
+                case TagMappingMode::Mapper_Replace:
+                    content = mapper_replace(taint_range, new_ranges);
+                    break;
+                default: {
+                    // Nothing
+                }
+            }
+        const auto tag = get_tag(content);
+
+        const auto range_end = taint_range->start + taint_range->length;
+
+        res_vector.push_back(slice_pystr_to_string(pystr, index, taint_range->start));
+        res_vector.emplace_back(EVIDENCE_MARKS::START_EVIDENCE);
+        res_vector.push_back(tag);
+        res_vector.push_back(slice_pystr_to_string(pystr, taint_range->start, range_end));
+        res_vector.push_back(tag);
+        res_vector.emplace_back(EVIDENCE_MARKS::END_EVIDENCE);
+
+        index = range_end;
+    }
+    res_vector.push_back(slice_pystr_to_string(pystr, index, py::len(pystr)));
+    ostringstream oss;
+    for (const auto& str : res_vector) {
+        oss << str;
+    }
+
+    return oss.str();
+}
+
 template<class StrType>
 StrType
-all_as_formatted_evidence(StrType& text, TagMappingMode tag_mapping_mode)
+all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
 {
     TaintRangeRefs text_ranges = api_get_ranges(text);
-    return as_formatted_evidence<StrType>(text, text_ranges, tag_mapping_mode, nullopt);
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
 }
 
 template<class StrType>
 StrType
-int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode)
+int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode)
 {
-    return as_formatted_evidence<StrType>(text, text_ranges, tag_mapping_mode, nullopt);
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
 }
 
 template<class StrType>
 StrType
-api_as_formatted_evidence(StrType& text,
-                          optional<TaintRangeRefs>& text_ranges,
+api_as_formatted_evidence(const StrType& text,
+                          optional<const TaintRangeRefs>& text_ranges,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges)
 {
@@ -65,7 +119,7 @@ api_as_formatted_evidence(StrType& text,
     } else {
         _ranges = text_ranges.value();
     }
-    return as_formatted_evidence<StrType>(text, _ranges, tag_mapping_mode, new_ranges);
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), _ranges, tag_mapping_mode, new_ranges));
 }
 
 vector<string>
@@ -83,13 +137,14 @@ split_taints(const string& str_to_split)
 }
 
 py::bytearray
-api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
+
     const auto tx_map = Initializer::get_tainting_map();
 
     const py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
-    const std::tuple result = convert_escaped_text_to_taint_text<py::bytes>(bytes_text, std::move(ranges_orig));
+    const std::tuple result = convert_escaped_text_to_taint_text<py::bytes>(bytes_text, ranges_orig);
     PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
     set_ranges(new_result, get<1>(result), tx_map);
     return py::reinterpret_steal<py::bytearray>(new_result);
@@ -97,7 +152,7 @@ api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, 
 
 template<class StrType>
 StrType
-api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
     const auto tx_map = Initializer::get_tainting_map();
 
@@ -105,6 +160,44 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintR
     PyObject* new_result = new_pyobject_id(result_text.ptr());
     set_ranges(new_result, result_ranges, tx_map);
     return py::reinterpret_steal<StrType>(new_result);
+}
+
+PyObject*
+api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
+                                       const TaintRangeRefs& ranges_orig,
+                                       const PyTextType py_str_type)
+{
+    if (taint_escaped_text == nullptr or ranges_orig.empty()) {
+        return taint_escaped_text;
+    }
+
+    const auto text_pyobj_opt = PyObjectToPyText(taint_escaped_text);
+    if (!text_pyobj_opt.has_value()) {
+        return taint_escaped_text;
+    }
+
+    switch (py_str_type) {
+        case PyTextType::UNICODE: {
+            const auto text_str = py::reinterpret_borrow<py::str>(text_pyobj_opt.value());
+            auto obj = api_convert_escaped_text_to_taint_text<py::str>(text_str, ranges_orig);
+            Py_INCREF(obj.ptr());
+            return obj.ptr();
+        }
+        case PyTextType::BYTES: {
+            const auto text_bytes = py::reinterpret_borrow<py::bytes>(text_pyobj_opt.value());
+            auto obj = api_convert_escaped_text_to_taint_text<py::bytes>(text_bytes, ranges_orig);
+            Py_INCREF(obj.ptr());
+            return obj.ptr();
+        }
+        case PyTextType::BYTEARRAY: {
+            const auto text_bytearray = py::reinterpret_borrow<py::bytearray>(text_pyobj_opt.value());
+            auto obj = api_convert_escaped_text_to_taint_text<py::bytearray>(text_bytearray, ranges_orig);
+            Py_INCREF(obj.ptr());
+            return obj.ptr();
+        }
+        default:
+            return taint_escaped_text;
+    }
 }
 
 unsigned long int
@@ -116,7 +209,7 @@ getNum(const std::string& s)
         if (errno != 0) {
             PyErr_Print();
         }
-    } catch (std::exception& e) {
+    } catch (std::exception&) {
         // throw std::invalid_argument("Value is too big");
         PyErr_Print();
     }
@@ -125,7 +218,7 @@ getNum(const std::string& s)
 
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
-convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
+convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
     string result;
     string startswith_element{ ":" };
@@ -243,7 +336,7 @@ set_ranges_on_splitted(const py::object& source_str,
     }
 
     RANGE_START offset = 0;
-    std::string c_source_str = py::cast<std::string>(source_str);
+    auto c_source_str = py::cast<std::string>(source_str);
     const auto separator_increase = static_cast<int>(not include_separator);
 
     for (const auto& item : split_result) {
@@ -415,12 +508,12 @@ pyexport_aspect_helpers(py::module& m)
           "ranges_orig"_a,
           py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
-          &api_convert_escaped_text_to_taint_text<py::bytearray>,
+          &api_convert_escaped_text_to_taint_text<py::str>,
           "taint_escaped_text"_a,
           "ranges_orig"_a,
           py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
-          &api_convert_escaped_text_to_taint_text<py::str>,
+          &api_convert_escaped_text_to_taint_text<py::bytearray>,
           "taint_escaped_text"_a,
           "ranges_orig"_a,
           py::return_value_policy::move);
