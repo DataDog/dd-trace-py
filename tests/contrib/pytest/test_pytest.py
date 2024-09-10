@@ -22,6 +22,7 @@ from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
+from tests.ci_visibility.util import _get_pytest_snapshot_gitlab_ci_env_vars
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
@@ -81,7 +82,7 @@ class PytestTestCase(TracerTestCase):
         ):
             yield
 
-    def inline_run(self, *args):
+    def inline_run(self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None):
         """Execute test script with test tracer."""
 
         class CIVisibilityPlugin:
@@ -94,7 +95,17 @@ class PytestTestCase(TracerTestCase):
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
                         CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
 
-        with override_env(dict(DD_API_KEY="foobar.baz")):
+        if project_dir is None:
+            project_dir = str(self.testdir.tmpdir)
+
+        _test_env = (dict(DD_API_KEY="foobar.baz", CI_PROJECT_DIR=project_dir),)
+        if mock_ci_env:
+            _test_env = _get_pytest_snapshot_gitlab_ci_env_vars(_test_env)
+
+        if block_gitlab_env:
+            _test_env["GITLAB_CI"] = "0"
+
+        with override_env(_test_env):
             return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
     def subprocess_run(self, *args):
@@ -369,7 +380,7 @@ class PytestTestCase(TracerTestCase):
         assert test_spans[1].get_tag("component") == "pytest"
 
     def test_skip_module_with_xfail_cases(self):
-        """Test Xfail test cases for a module that is skipped entirely, which should be treated as skip tests."""
+        """Test Xfail test c    ases for a module that is skipped entirely, which should be treated as skip tests."""
         py_file = self.testdir.makepyfile(
             """
             import pytest
@@ -1809,7 +1820,7 @@ class PytestTestCase(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
             ggr.return_value = self.git_repo
-            self.inline_run("--ddtrace", file_name)
+            self.inline_run("--ddtrace", file_name, mock_ci_env=False, block_gitlab_env=True)
             spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -3872,7 +3883,7 @@ class PytestTestCase(TracerTestCase):
                 )
             )
 
-        self.inline_run("--ddtrace")
+        self.inline_run("--ddtrace", project_dir=str(self.git_repo))
 
         spans = self.pop_spans()
         assert len(spans) == 9
