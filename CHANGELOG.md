@@ -4,6 +4,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.9.6
+
+
+### Bug Fixes
+
+- CI Visibility: Resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
+- SSI: Fixes incorrect file permissions on lib-injection images.
+- Code Security: Adds null pointer checks when creating new objects ids.
+- profiling: Fixes endpoing profiling for stack v2 when `DD_PROFILING_STACK_V2_ENABLED` is set.
+
+
+---
+
 ## 2.11.4
 
 

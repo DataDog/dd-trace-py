@@ -190,6 +190,10 @@ class LLMObs(Service):
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 remoteconfig_poller.disable()
 
+            # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
+            # we need to force telemetry to use agentless configuration
+            telemetry_writer.enable_agentless_client(True)
+
         if integrations_enabled:
             cls._patch_integrations()
         # override the default _instance with a new tracer

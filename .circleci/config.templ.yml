@@ -556,6 +556,14 @@ jobs:
           env: 'dd_coverage'
           snapshot: true
 
+  pytest_v2:
+    <<: *machine_executor
+    parallelism: 10
+    steps:
+      - run_hatch_env_test:
+          env: 'pytest_plugin_v2'
+          snapshot: true
+
   opentelemetry:
     parallelism: 4
     <<: *machine_executor
