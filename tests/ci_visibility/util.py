@@ -1,6 +1,5 @@
 from collections import defaultdict
 from contextlib import contextmanager
-import os
 import typing as t
 from unittest import mock
 
@@ -148,7 +147,7 @@ _PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS = {
 
 
 def _get_pytest_snapshot_gitlab_ci_env_vars(new_vars: t.Dict[str, str]) -> t.Dict[str, str]:
-    _env = os.environ.copy()
+    _env = {}
     _env.update(_PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS)
     _env.update(new_vars)
     return _env
