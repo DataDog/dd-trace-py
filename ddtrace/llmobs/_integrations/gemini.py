@@ -4,26 +4,26 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace import Span
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._utils import _unserializable_default_repr
 
 
 class GeminiIntegration(BaseLLMIntegration):
     _integration_name = "gemini"
 
     def _set_base_span_tags(
-            self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
+        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if provider:
             span.set_tag_str("genai.request.model", model)
@@ -59,7 +59,6 @@ class GeminiIntegration(BaseLLMIntegration):
     @staticmethod
     def _llmobs_set_metadata(kwargs, instance):
         metadata = {}
-        breakpoint()
         model_config = instance._generation_config or {}
         request_config = kwargs.get("generation_config", {})
         parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
