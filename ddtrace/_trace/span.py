@@ -14,7 +14,10 @@ from typing import Union
 from typing import cast
 
 from ddtrace import config
+from ddtrace._trace._span_link import _SPAN_LINK_KIND_SPAN_POINTER
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_link import _SpanPointer
+from ddtrace._trace._span_link import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
@@ -631,11 +634,28 @@ class Span(object):
             )
         )
 
-    def _set_link_object(self, link: SpanLink) -> None:
-        # We will be changing this behavior to allow certain kinds of span
-        # links to coexist in the _links list even if they have the same
-        # span_id. For now, we are basically reimplementing the old
-        # dictionary-like behavior.
+    def _add_span_pointer(
+        self,
+        pointer_kind: str,
+        pointer_direction: _SpanPointerDirection,
+        pointer_hash: str,
+        extra_attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        # This is a Private API for now.
+
+        self._set_link_object(
+            _SpanPointer(
+                pointer_kind=pointer_kind,
+                pointer_direction=pointer_direction,
+                pointer_hash=pointer_hash,
+                extra_attributes=extra_attributes,
+            )
+        )
+
+    def _set_link_object(self, link: SpanLink | _SpanPointer) -> None:
+        if link.kind == _SPAN_LINK_KIND_SPAN_POINTER:
+            self._links.append(link)
+            return
 
         try:
             existing_link_idx_with_same_span_id = [link.span_id for link in self._links].index(link.span_id)
