@@ -250,7 +250,7 @@ cdef class SampleHandle:
     def push_exceptioninfo(self, exc_type: Union[None, bytes, str, type], count: int) -> None:
         if self.ptr is not NULL:
             exc_name = None
-            if exc_type is type:
+            if isinstance(exc_type, type):
                 exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
             else:
                 exc_name = ensure_binary_or_empty(exc_type)
@@ -280,10 +280,10 @@ cdef class SampleHandle:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
         if endpoint_collection_enabled:
-            root_service_bytes = ensure_binary_or_empty(span._local_root.service)
+            root_resource_bytes = ensure_binary_or_empty(span._local_root.resource)
             ddup_push_trace_resource_container(
                     self.ptr,
-                    string_view(<const char*>root_service_bytes, len(root_service_bytes))
+                    string_view(<const char*>root_resource_bytes, len(root_resource_bytes))
             )
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:

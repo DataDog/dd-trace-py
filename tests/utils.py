@@ -32,7 +32,10 @@ from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
+from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
+from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
@@ -220,6 +223,25 @@ def override_http_config(integration, values):
     finally:
         for key, value in original.items():
             setattr(options, key, value)
+
+
+@contextlib.contextmanager
+def override_dbm_config(values):
+    config_keys = ["propagation_mode"]
+    originals = dict((key, getattr(dbm_config, key)) for key in config_keys)
+
+    # Override from the passed in keys
+    for key, value in values.items():
+        if key in config_keys:
+            setattr(dbm_config, key, value)
+    try:
+        dbm_config_listen()
+        yield
+    finally:
+        # Reset all to their original values
+        for key, value in originals.items():
+            setattr(dbm_config, key, value)
+        dbm_config_unlisten()
 
 
 @contextlib.contextmanager

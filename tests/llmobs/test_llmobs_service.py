@@ -615,8 +615,8 @@ def test_annotate_output_llm_message_wrong_type(LLMObs, mock_logs):
 
 def test_annotate_metrics(LLMObs):
     with LLMObs.llm(model_name="test_model") as span:
-        LLMObs.annotate(span=span, metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30})
-        assert json.loads(span.get_tag(METRICS)) == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+        LLMObs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30})
+        assert json.loads(span.get_tag(METRICS)) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
 
 
 def test_annotate_metrics_wrong_type(LLMObs, mock_logs):
@@ -788,26 +788,44 @@ def test_submit_evaluation_incorrect_metric_type_raises_warning(LLMObs, mock_log
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
     )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
     mock_logs.reset_mock()
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
     )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
+
+
+def test_submit_evaluation_numerical_value_raises_unsupported_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value="high"
+    )
+    mock_logs.warning.assert_has_calls(
+        [
+            mock.call(
+                "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+                "Converting `numerical` metric to `score` type."
+            ),
+        ]
+    )
 
 
 def test_submit_evaluation_incorrect_numerical_value_type_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value="high"
     )
-    mock_logs.warning.assert_called_once_with("value must be an integer or float for a numerical/score metric.")
+    mock_logs.warning.assert_has_calls(
+        [
+            mock.call("value must be an integer or float for a score metric."),
+        ]
+    )
 
 
 def test_submit_evaluation_incorrect_score_value_type_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="score", value="high"
     )
-    mock_logs.warning.assert_called_once_with("value must be an integer or float for a numerical/score metric.")
+    mock_logs.warning.assert_called_once_with("value must be an integer or float for a score metric.")
 
 
 def test_submit_evaluation_invalid_tags_raises_warning(LLMObs, mock_logs):
@@ -923,13 +941,15 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(LLMObs, mock_llmobs
     )
 
 
-def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metric(
+    LLMObs, mock_llmobs_eval_metric_writer
+):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value=35
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
-            span_id="123", trace_id="456", label="token_count", metric_type="numerical", numerical_value=35
+            span_id="123", trace_id="456", label="token_count", metric_type="score", score_value=35
         )
     )
     mock_llmobs_eval_metric_writer.reset_mock()
@@ -942,8 +962,8 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
             span_id=str(span.span_id),
             trace_id="{:x}".format(span.trace_id),
             label="token_count",
-            metric_type="numerical",
-            numerical_value=35,
+            metric_type="score",
+            score_value=35,
         )
     )
 

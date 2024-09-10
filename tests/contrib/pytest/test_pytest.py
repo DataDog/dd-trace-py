@@ -67,7 +67,7 @@ class PytestTestCase(TracerTestCase):
 
     def test_and_emit_get_version(self):
         version = get_version()
-        assert type(version) == str
+        assert isinstance(version, str)
         assert version != ""
 
         emit_integration_and_version_to_test_agent("pytest", version)
@@ -3494,7 +3494,7 @@ class PytestTestCase(TracerTestCase):
         lines_pct_value = test_session_span.get_metric("test.code_coverage.lines_pct")
 
         assert lines_pct_value is not None
-        assert type(lines_pct_value) == float
+        assert isinstance(lines_pct_value, float)
         assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_span.get_metric("test.code_coverage.lines_pct") is None
@@ -3663,3 +3663,170 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+    def test_pytest_reports_correct_source_info(self):
+        """Tests that decorated functions are reported with correct source file information and with relative to
+        repo root
+        """
+        os.chdir(self.git_repo)
+        os.mkdir("nested_dir")
+        os.chdir("nested_dir")
+        with open("my_decorators.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def outer_decorator(func):
+                         def wrapper(*args, **kwargs):
+                            return func(*args, **kwargs)
+                         return wrapper
+
+                    @outer_decorator
+                    def inner_decorator(func):
+                         def wrapper(*args, **kwargs):
+                            return func(*args, **kwargs)
+                         return wrapper
+                    """
+                    )
+                )
+            )
+
+        with open("test_mydecorators.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    # this comment is line 2 and if you didn't know that it'd be easy to miscount below
+                    from my_decorators import outer_decorator, inner_decorator
+                    from unittest.mock import patch
+
+                    def local_decorator(func):
+                        def wrapper(*args, **kwargs):
+                            return func(*args, **kwargs)
+                        return wrapper
+
+                    def test_one_decorator():  # line 11
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 != str2
+
+                    @local_decorator  # line 16
+                    def test_local_decorated():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 == str2
+
+                    @patch("ddtrace.config._potato", "potato")  # line 22
+                    def test_patched_undecorated():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 != str2
+
+                    @patch("ddtrace.config._potato", "potato")  # line 28
+                    @inner_decorator
+                    def test_patched_single_decorated():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 == str2
+
+                    @patch("ddtrace.config._potato", "potato")  # line 35
+                    @outer_decorator
+                    def test_patched_double_decorated():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 != str2
+
+                    @outer_decorator  # line 42
+                    @patch("ddtrace.config._potato", "potato")
+                    @local_decorator
+                    def test_grand_slam():
+                        str1 = "string 1"
+                        str2 = "string 2"
+                        assert str1 == str2
+                    """
+                    )
+                )
+            )
+
+        self.inline_run("--ddtrace")
+
+        spans = self.pop_spans()
+        assert len(spans) == 9
+        test_names_to_source_info = {
+            span.get_tag("test.name"): (
+                span.get_tag("test.source.file"),
+                span.get_metric("test.source.start"),
+                span.get_metric("test.source.end"),
+            )
+            for span in spans
+            if span.get_tag("type") == "test"
+        }
+        assert len(test_names_to_source_info) == 6
+
+        expected_path = "nested_dir/test_mydecorators.py"
+        expected_source_info = {
+            "test_one_decorator": (expected_path, 11, 15),
+            "test_local_decorated": (expected_path, 16, 21),
+            "test_patched_undecorated": (expected_path, 22, 27),
+            "test_patched_single_decorated": (expected_path, 28, 34),
+            "test_patched_double_decorated": (expected_path, 35, 41),
+            "test_grand_slam": (expected_path, 42, 49),
+        }
+
+        assert expected_source_info == test_names_to_source_info
+
+    def test_pytest_without_git_does_not_crash(self):
+        with open("tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def add_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a + number_b)
+                        return output_list
+
+                    def multiply_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a * number_b)
+                        return output_list
+                    """
+                    )
+                )
+            )
+
+        with open("test_tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    from tools import add_two_number_list
+
+                    def test_add_two_number_list():
+                        a_list = [1,2,3,4,5,6,7,8]
+                        b_list = [2,3,4,5,6,7,8,9]
+                        actual_output = add_two_number_list(a_list, b_list)
+
+                        assert actual_output == [3,5,7,9,11,13,15,17]
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        with mock.patch("ddtrace.ext.git._get_executable_path", return_value=None):
+            self.inline_run("--ddtrace")
+
+            spans = self.pop_spans()
+            assert len(spans) == 4
+            test_span = spans[0]
+            test_session_span = spans[1]
+            test_module_span = spans[2]
+            test_suite_span = spans[3]
+
+            assert test_session_span.get_metric("test.code_coverage.lines_pct") is None
+            assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
+            assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
+            assert test_span.get_metric("test.code_coverage.lines_pct") is None

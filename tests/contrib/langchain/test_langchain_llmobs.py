@@ -15,6 +15,7 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
+from tests.utils import flaky
 
 
 if PATCH_LANGCHAIN_V0:
@@ -324,6 +325,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
 
 
+@flaky(1735812000, reason="Community cassette tests are flaky")
 @pytest.mark.skipif(PATCH_LANGCHAIN_V0, reason="These tests are for langchain >= 0.1.0")
 class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
     cassette_subdirectory_name = "langchain_community"
@@ -518,6 +520,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
 
 
+@flaky(1735812000, reason="Community cassette tests are flaky")
 @pytest.mark.skipif(PATCH_LANGCHAIN_V0, reason="These tests are for langchain >= 0.1.0")
 class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(

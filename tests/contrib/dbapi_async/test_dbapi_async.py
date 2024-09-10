@@ -96,6 +96,27 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor.fetchone.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
     @mark_asyncio
+    async def test_cursor_async_connection(self):
+        """Checks whether connection can execute operations with async iteration."""
+
+        def method():
+            pass
+
+        async with TracedAsyncCursor(self.cursor, Pin("dbapi_service", tracer=self.tracer), {}) as cursor:
+            await cursor.execute("""select 'one' as x""")
+            await cursor.execute("""select 'blah'""")
+
+            async for row in cursor:
+                spans = self.get_spans()
+                assert len(spans) == 2
+                assert spans[0].name == "postgres.query"
+                assert spans[0].resource == "select ?"
+                assert spans[0].service == "dbapi_service"
+                assert spans[1].name == "postgres.query"
+                assert spans[1].resource == "select ?"
+                assert spans[1].service == "dbapi_service"
+
+    @mark_asyncio
     async def test_fetchall_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0

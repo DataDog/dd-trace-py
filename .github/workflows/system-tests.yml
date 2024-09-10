@@ -46,11 +46,11 @@ jobs:
       DD_API_KEY: 1234567890abcdef1234567890abcdef
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     steps:
-      - name: Setup python 3.9
+      - name: Setup python 3.12
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.12'
 
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
@@ -108,11 +108,11 @@ jobs:
       DD_API_KEY: 1234567890abcdef1234567890abcdef
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     steps:
-      - name: Setup python 3.9
+      - name: Setup python 3.12
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.12'
 
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
@@ -258,7 +258,7 @@ jobs:
       - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
-          python-version: '3.9'
+          python-version: '3.12'
 
       - name: Build runner
         id: build_runner

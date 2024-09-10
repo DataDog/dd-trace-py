@@ -79,7 +79,7 @@ def test_enable_custom_rules():
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
-    assert processor.rules == rules.RULES_GOOD_PATH
+    assert processor.rule_filename == rules.RULES_GOOD_PATH
 
 
 def test_ddwaf_ctx(tracer_appsec):

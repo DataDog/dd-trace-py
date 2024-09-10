@@ -68,10 +68,11 @@ async def _run_redis_command_async(ctx: core.ExecutionContext, func, args, kwarg
     parsed_command = stringify_cache_args(args)
     redis_command = parsed_command.split(" ")[0]
     rowcount = None
+    result = None
     try:
         result = await func(*args, **kwargs)
         return result
-    except Exception:
+    except BaseException:
         rowcount = 0
         raise
     finally:

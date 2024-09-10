@@ -37,6 +37,9 @@ class TracedAsyncCursor(TracedCursor):
 
         return self
 
+    def __aiter__(self):
+        return self.__wrapped__.__aiter__()
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that error

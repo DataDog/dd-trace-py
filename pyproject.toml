@@ -53,7 +53,7 @@ openai = [
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
 
 [project.entry-points.opentelemetry_context]
-ddcontextvars_context = "ddtrace.opentelemetry._context:DDRuntimeContext"
+ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
 ddtrace = "ddtrace.contrib.pytest.plugin"
@@ -68,7 +68,7 @@ Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
 
 [tool.setuptools_scm]
-version_scheme = "release-branch-semver"  # Must be "release-branch-semver" for now in main, see https://github.com/DataDog/dd-trace-py/issues/8801
+version_scheme = "guess-next-dev"
 write_to = "ddtrace/_version.py"
 
 [tool.cython-lint]

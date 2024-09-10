@@ -56,6 +56,10 @@ def test_get_distributions():
             importlib_pkgs.add("importlib-metadata")
         elif pkg.name == "importlib-metadata" and "importlib_metadata" in pkg_resources_ws:
             importlib_pkgs.add("importlib_metadata")
+        elif pkg.name == "importlib-resources" and "importlib_resources" in pkg_resources_ws:
+            importlib_pkgs.add("importlib_resources")
+        elif pkg.name == "importlib_resources" and "importlib-resources" in pkg_resources_ws:
+            importlib_pkgs.add("importlib-resources")
         else:
             importlib_pkgs.add(pkg.name)
 
@@ -79,6 +83,11 @@ def test_filename_to_package(packages):
 
     package = packages.filename_to_package(gp.__file__)
     assert package.name == "protobuf"
+
+    try:
+        package = packages.filename_to_package("You may be wondering how I got here even though I am not a file.")
+    except Exception:
+        pytest.fail("filename_to_package should not raise an exception when given a non-file path")
 
 
 def test_third_party_packages():

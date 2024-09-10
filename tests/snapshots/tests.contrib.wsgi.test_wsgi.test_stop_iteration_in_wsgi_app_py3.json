@@ -1,0 +1,82 @@
+[[
+  {
+    "name": "wsgi.request",
+    "service": "wsgi",
+    "resource": "GET /stopIteration",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "669187f500000000",
+      "component": "wsgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://localhost:80/stopIteration",
+      "language": "python",
+      "runtime-id": "66ae49fcbdcd41f2806b895660ff137f",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 213
+    },
+    "duration": 3528433877,
+    "start": 1720813557991691963
+  },
+     {
+       "name": "wsgi.application",
+       "service": "wsgi",
+       "resource": "wsgi.application",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "component": "wsgi"
+       },
+       "duration": 2339998959,
+       "start": 1720813557991988422
+     },
+        {
+          "name": "wsgi.start_response",
+          "service": "wsgi",
+          "resource": "wsgi.start_response",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "component": "wsgi",
+            "span.kind": "server"
+          },
+          "duration": 39750,
+          "start": 1720813557992143630
+        },
+     {
+       "name": "wsgi.response",
+       "service": "wsgi",
+       "resource": "wsgi.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "component": "wsgi",
+         "result_class": "tuple"
+       },
+       "duration": 1188001334,
+       "start": 1720813560332044089
+     }]]

@@ -1,0 +1,29 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_core.runnables.base.RunnableSequence",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "668bfb9100000000",
+      "langchain.request.inputs.0": "1",
+      "langchain.request.type": "chain",
+      "langchain.response.outputs.0": "4",
+      "language": "python",
+      "runtime-id": "f7e2ec0951f9471e8fd2857fbeb4ee5f"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 59445
+    },
+    "duration": 6687000,
+    "start": 1720449937260976000
+  }]]

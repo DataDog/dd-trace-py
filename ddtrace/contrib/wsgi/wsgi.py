@@ -126,6 +126,7 @@ class _DDWSGIMiddlewareBase(object):
                 not_blocked = False
 
             core.dispatch("wsgi.block_decided", (blocked_view,))
+            stop_iteration_exception = None
 
             if not_blocked:
                 core.dispatch("wsgi.request.prepare", (ctx, start_response))
@@ -137,6 +138,17 @@ class _DDWSGIMiddlewareBase(object):
                     start_response(str(status), headers)
                     closing_iterable = [content]
                     core.dispatch("wsgi.app.exception", (ctx,))
+                except StopIteration as e:
+                    """
+                    WSGI frameworks emit `StopIteration` when closing connections
+                    with Gunicorn as part of their standard workflow.  We don't want to mark
+                    these as errors for the UI since they are standard and expected
+                    to be caught later.
+
+                    Here we catch the exception and close out the request/app spans through the non-error
+                    handling pathways.
+                    """
+                    stop_iteration_exception = e
                 except BaseException:
                     core.dispatch("wsgi.app.exception", (ctx,))
                     raise
@@ -151,6 +163,13 @@ class _DDWSGIMiddlewareBase(object):
             result = core.dispatch_with_results(
                 "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
             ).traced_iterable
+
+            if stop_iteration_exception:
+                if result.value:
+                    # Close the request and app spans
+                    result.value._finish_spans()
+                    core.dispatch("wsgi.app.success", (ctx, closing_iterable))
+                raise stop_iteration_exception
             return result.value if result else []
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):

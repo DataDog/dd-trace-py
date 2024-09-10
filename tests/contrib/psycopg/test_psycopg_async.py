@@ -355,3 +355,21 @@ class PsycopgCore(AsyncioTestCase):
         rows = await cur.fetchall()
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
+
+    async def test_cursor_async_connect_execute(self):
+        """Checks whether connection can execute operations with async iteration."""
+
+        async with psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""select 'one' as x""")
+                await cur.execute("""select 'blah'""")
+
+                async for row in cur:
+                    spans = self.get_spans()
+                    assert len(spans) == 2
+                    assert spans[0].name == "postgres.query"
+                    assert spans[0].resource == "select ?"
+                    assert spans[0].service == "postgres"
+                    assert spans[1].name == "postgres.query"
+                    assert spans[1].resource == "select ?"
+                    assert spans[1].service == "postgres"

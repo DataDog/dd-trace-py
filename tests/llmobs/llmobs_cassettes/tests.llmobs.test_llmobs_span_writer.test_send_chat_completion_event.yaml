@@ -11,8 +11,8 @@ interactions:
       256}}, "output": {"messages": [{"content": "Ah, a bold and foolish hobbit seeking
       to challenge my dominion in Mordor. Very well, little creature, I shall play
       along. But know that I am always watching, and your quest will not go unnoticed",
-      "role": "assistant"}]}}, "metrics": {"prompt_tokens": 64, "completion_tokens":
-      128, "total_tokens": 192}}]}}'
+      "role": "assistant"}]}}, "metrics": {"input_tokens": 64, "output_tokens":
+      128, "total_tokens": 192}}]}'
     headers:
       Content-Type:
       - application/json

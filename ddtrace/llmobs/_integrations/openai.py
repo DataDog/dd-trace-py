@@ -10,12 +10,15 @@ from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.pin import Pin
 
@@ -152,7 +155,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         if isinstance(prompt, str):
             prompt = [prompt]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
+        parameters = {}
+        if kwargs.get("temperature"):
+            parameters["temperature"] = kwargs.get("temperature")
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         span.set_tag_str(METADATA, json.dumps(parameters))
@@ -178,7 +183,9 @@ class OpenAIIntegration(BaseLLMIntegration):
                 continue
             input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
-        parameters = {"temperature": kwargs.get("temperature", 0)}
+        parameters = {}
+        if kwargs.get("temperature"):
+            parameters["temperature"] = kwargs.get("temperature")
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         span.set_tag_str(METADATA, json.dumps(parameters))
@@ -221,17 +228,17 @@ class OpenAIIntegration(BaseLLMIntegration):
             completion_tokens = span.get_metric("openai.response.usage.completion_tokens") or 0
             metrics.update(
                 {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens,
+                    INPUT_TOKENS_METRIC_KEY: prompt_tokens,
+                    OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
+                    TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
                 }
             )
         elif resp:
             metrics.update(
                 {
-                    "prompt_tokens": resp.usage.prompt_tokens,
-                    "completion_tokens": resp.usage.completion_tokens,
-                    "total_tokens": resp.usage.prompt_tokens + resp.usage.completion_tokens,
+                    INPUT_TOKENS_METRIC_KEY: resp.usage.prompt_tokens,
+                    OUTPUT_TOKENS_METRIC_KEY: resp.usage.completion_tokens,
+                    TOTAL_TOKENS_METRIC_KEY: resp.usage.prompt_tokens + resp.usage.completion_tokens,
                 }
             )
         return metrics

@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import get_rust_binary_path
 from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
@@ -10,7 +10,7 @@ from tests.utils import override_env
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.sys.platform", "linux")
 @mock.patch("ddtrace.internal.serverless.mini_agent.Popen")
-@mock.patch("ddtrace.internal.serverless.mini_agent.in_azure_function_consumption_plan", lambda: False)
+@mock.patch("ddtrace.internal.serverless.mini_agent.in_azure_function", lambda: False)
 @mock.patch("ddtrace.internal.serverless.mini_agent.in_gcp_function", lambda: False)
 def test_dont_spawn_mini_agent_if_not_cloud_or_azure_function(mock_popen):
     maybe_start_serverless_mini_agent()
@@ -27,7 +27,7 @@ def test_spawn_mini_agent_if_gcp_function(mock_popen):
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.sys.platform", "linux")
 @mock.patch("ddtrace.internal.serverless.mini_agent.Popen")
-@mock.patch("ddtrace.internal.serverless.mini_agent.in_azure_function_consumption_plan", lambda: True)
+@mock.patch("ddtrace.internal.serverless.mini_agent.in_azure_function", lambda: True)
 def test_spawn_mini_agent_if_azure_function(mock_popen):
     maybe_start_serverless_mini_agent()
     mock_popen.assert_called_once()
@@ -46,7 +46,7 @@ def test_spawn_mini_agent_gcp_function_correct_rust_binary_path():
 
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.sys.platform", "linux")
-@mock.patch("ddtrace.internal.serverless.mini_agent.in_azure_function_consumption_plan", lambda: True)
+@mock.patch("ddtrace.internal.serverless.mini_agent.in_azure_function", lambda: True)
 def test_spawn_mini_agent_azure_function_linux_correct_rust_binary_path():
     path = get_rust_binary_path()
     expected_path = (
@@ -70,23 +70,13 @@ def test_not_gcp_function():
     assert in_gcp_function() is False
 
 
-def test_is_azure_function_consumption_plan_with_sku():
-    with override_env(dict(FUNCTIONS_WORKER_RUNTIME="python", FUNCTIONS_EXTENSION_VERSION="2", WEBSITE_SKU="Dynamic")):
-        assert in_azure_function_consumption_plan() is True
-
-
-def test_is_azure_function_consumption_plan_no_sku():
+def test_is_azure_function_consumption_plan():
     with override_env(dict(FUNCTIONS_WORKER_RUNTIME="python", FUNCTIONS_EXTENSION_VERSION="2")):
-        assert in_azure_function_consumption_plan() is True
+        assert in_azure_function() is True
 
 
 def test_not_azure_function_consumption_plan():
-    assert in_azure_function_consumption_plan() is False
-
-
-def test_not_azure_function_consumption_plan_wrong_sku():
-    with override_env(dict(FUNCTIONS_WORKER_RUNTIME="python", FUNCTIONS_EXTENSION_VERSION="2", WEBSITE_SKU="Basic")):
-        assert in_azure_function_consumption_plan() is False
+    assert in_azure_function() is False
 
 
 # DEV: Run this test in a subprocess to avoid messing with global sys.modules state

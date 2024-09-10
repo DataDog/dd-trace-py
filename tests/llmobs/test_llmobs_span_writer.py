@@ -40,7 +40,7 @@ def _completion_event():
                 ]
             },
         },
-        "metrics": {"prompt_tokens": 64, "completion_tokens": 128, "total_tokens": 192},
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
 
 
@@ -78,7 +78,7 @@ def _chat_completion_event():
                 ]
             },
         },
-        "metrics": {"prompt_tokens": 64, "completion_tokens": 128, "total_tokens": 192},
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
 
 

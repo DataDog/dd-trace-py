@@ -4,6 +4,8 @@ from typing import Any
 from typing import Dict
 from typing import List
 
+from ddtrace import config
+from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -323,7 +325,9 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         "botocore.patched_bedrock_api_call",
         pin=pin,
         span_name=function_vars.get("trace_operation"),
-        service=schematize_service_name("{}.{}".format(pin.service, function_vars.get("endpoint_name"))),
+        service=schematize_service_name(
+            "{}.{}".format(ext_service(pin, int_config=config.botocore), function_vars.get("endpoint_name"))
+        ),
         resource=function_vars.get("operation"),
         span_type=SpanTypes.LLM if submit_to_llmobs else None,
         call_key="instrumented_bedrock_call",

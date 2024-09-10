@@ -210,7 +210,6 @@ venv = Venv(
                 "attrs": ">=20",
                 "typing_extensions": latest,
                 "xmltodict": ">=0.12",
-                "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
             },
@@ -801,6 +800,8 @@ venv = Venv(
                 "python-memcached": latest,
                 "pytest-randomly": latest,
                 "django-q": latest,
+                "spyne": latest,
+                "zeep": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -996,6 +997,7 @@ venv = Venv(
                 "urllib3": "~=1.0",
                 "pytest-randomly": latest,
                 "importlib_metadata": latest,
+                "flask-openapi3": latest,
             },
             venvs=[
                 # Flask 1.x.x
@@ -2273,14 +2275,13 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            # FIXME: this test suite breaks on 3.7
-            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pys=select_pys(min_version="3.8"),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
-                "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
-                "opentelemetry-instrumentation-flask": "<=0.37b0",
-                # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
+                # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
+                "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
+                "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,
                 "gevent": latest,
@@ -2519,6 +2520,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": "==5.4.0",
+                        "faiss-cpu": "==1.8.0",
                     }
                 ),
                 Venv(
@@ -2534,7 +2536,8 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                    }
+                        "anthropic": latest,
+                    },
                 ),
                 Venv(
                     pkgs={
@@ -2550,7 +2553,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "cohere": latest,
-                    }
+                    },
                 ),
             ],
         ),
@@ -2676,6 +2679,9 @@ venv = Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+            env={
+                "DD_PROFILING_ENABLE_ASSERTS": "1",
+            },
             pkgs={
                 "gunicorn": latest,
                 #

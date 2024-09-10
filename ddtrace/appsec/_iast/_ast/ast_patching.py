@@ -25,19 +25,63 @@ _VISITOR = AstVisitor()
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
 IAST_DENYLIST: Tuple[Text, ...] = (
-    "ddtrace",
-    "pkg_resources",
-    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
-    "inspect",  # this package is used to get the stack frames, propagation is not needed
-    "pycparser",  # this package is called when a module is imported, propagation is not needed
-    "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "flask",
+    "werkzeug",
+    "crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "deprecated",
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
-    "unittest.mock",
-    "pytest",  # Testing framework
+    "asyncpg.pgproto",
+    "blinker",
+    "bytecode",
+    "cattrs",
+    "click",
+    "ddsketch",
+    "ddtrace",
+    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "encodings.idna",
+    "envier",
+    "exceptiongroup",
     "freezegun",  # Testing utilities for time manipulation
+    "hypothesis",
+    "importlib_metadata",
+    "inspect",  # this package is used to get the stack frames, propagation is not needed
+    "itsdangerous",
+    "moto",  # used for mocking AWS, propagation is not needed
+    "moto[all]",
+    "moto[ec2",
+    "moto[s3]",
+    "opentelemetry-api",
+    "packaging",
+    "pip",
+    "pkg_resources",
+    "pluggy",
+    "protobuf",
+    "pycparser",  # this package is called when a module is imported, propagation is not needed
+    "pytest",  # Testing framework
+    "setuptools",
     "sklearn",  # Machine learning library
+    "tomli",
+    "typing_extensions",
+    "unittest.mock",
+    "uvloop",
     "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
+    "wrapt",
+    "zipp",
+    ## This is a workaround for Sanic failures:
+    "websocket",
+    "h11",
+    "aioquic",
+    "httptools",
+    "sniffio",
+    "py",
+    "sanic",
+    "rich",
+    "httpx",
+    "websockets",
+    "uvicorn",
+    "anyio",
+    "httpcore",
 )
 
 

@@ -9,6 +9,7 @@ import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.internal import core
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
@@ -137,7 +138,9 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             params=params,
             endpoint_name=endpoint_name,
             operation=operation,
-            service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+            service=schematize_service_name(
+                "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
+            ),
             call_trace=False,
             pin=pin,
             span_name=span_name,

@@ -42,7 +42,10 @@ from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from ...appsec._utils import _UserInfoRetriever
+from ...ext import db
+from ...ext import net
 from ...internal.utils import get_argument_value
+from ...propagation._database_monitoring import _DBM_Propagator
 from .. import trace_utils
 from ..trace_utils import _get_request_header_user_agent
 
@@ -79,6 +82,14 @@ _NotSet = object()
 psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
 
 
+DB_CONN_ATTR_BY_TAG = {
+    net.TARGET_HOST: "HOST",
+    net.TARGET_PORT: "PORT",
+    db.USER: "USER",
+    db.NAME: "NAME",
+}
+
+
 def get_version():
     # type: () -> str
     import django
@@ -104,6 +115,14 @@ def patch_conn(django, conn):
                 psycopg_cursor_cls = None
                 Psycopg2TracedCursor = None
 
+    tags = {}
+    settings_dict = getattr(conn, "settings_dict", {})
+    for tag, attr in DB_CONN_ATTR_BY_TAG.items():
+        if attr in settings_dict:
+            tags[tag] = trace_utils._convert_to_string(conn.settings_dict.get(attr))
+
+    conn._datadog_tags = tags
+
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
 
@@ -116,12 +135,14 @@ def patch_conn(django, conn):
 
         vendor = getattr(conn, "vendor", "db")
         prefix = sqlx.normalize_vendor(vendor)
-        tags = {
-            "django.db.vendor": vendor,
-            "django.db.alias": alias,
-        }
+
+        tags = {"django.db.vendor": vendor, "django.db.alias": alias}
+        tags.update(getattr(conn, "_datadog_tags", {}))
+
         pin = Pin(service, tags=tags, tracer=pin.tracer)
+
         cursor = func(*args, **kwargs)
+
         traced_cursor_cls = dbapi.TracedCursor
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg2."):
@@ -146,6 +167,7 @@ def patch_conn(django, conn):
             trace_fetch_methods=config.django.trace_fetch_methods,
             analytics_enabled=config.django.analytics_enabled,
             analytics_sample_rate=config.django.analytics_sample_rate,
+            _dbm_propagator=_DBM_Propagator(0, "query"),
         )
         return traced_cursor_cls(cursor, pin, cfg)
 
@@ -505,7 +527,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 except Exception:
                     path = None
 
-            core.dispatch("django.start_response", (ctx, request, utils._extract_body, query, uri, path))
+            core.dispatch(
+                "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri, path)
+            )
             core.dispatch("django.start_response.post", ("Django",))
 
             if core.get_item(HTTP_REQUEST_BLOCKED):

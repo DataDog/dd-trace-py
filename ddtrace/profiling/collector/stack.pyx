@@ -22,6 +22,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config
 
 
@@ -478,7 +479,7 @@ class StackCollector(collector.PeriodicCollector):
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
-    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2.enabled)
+    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -497,9 +498,12 @@ class StackCollector(collector.PeriodicCollector):
         if config.export.libdd_enabled:
             set_use_libdd(True)
 
-        # If at the end of things, stack v2 is still enabled, then start the native thread running the v2 sampler
+        # If stack v2 is enabled, then use the v2 sampler
         if self._stack_collector_v2_enabled:
-            LOG.debug("Starting the stack v2 sampler")
+            # stack v2 requires us to patch the Threading module.  It's possible to do this from the stack v2 code
+            # itself, but it's a little bit fiddly and it's easier to make it correct here.
+            # TODO take the `threading` import out of here and just handle it in v2 startup
+            threading.init_stack_v2()
             stack_v2.start()
 
 

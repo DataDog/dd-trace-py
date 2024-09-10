@@ -31,17 +31,11 @@ def get_request_vcr():
 
 tools = [
     {
-        "name": "calculator",
-        "description": "A simple calculator that performs basic arithmetic operations.",
+        "name": "get_weather",
+        "description": "Get the weather for a specific location",
         "input_schema": {
             "type": "object",
-            "properties": {
-                "expression": {
-                    "type": "string",
-                    "description": "The mathematical expression to evaluate (e.g., '2 + 3 * 4').",
-                }
-            },
-            "required": ["expression"],
+            "properties": {"location": {"type": "string"}},
         },
     }
 ]

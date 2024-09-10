@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: show lock init location in Lock Name and hide profiler internal
+    frames from Stack Frame in Timeline Details tab.

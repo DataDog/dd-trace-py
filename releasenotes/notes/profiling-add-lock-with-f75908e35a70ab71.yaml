@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: captures lock usages with ``with`` context managers, e.g. ``with lock:``

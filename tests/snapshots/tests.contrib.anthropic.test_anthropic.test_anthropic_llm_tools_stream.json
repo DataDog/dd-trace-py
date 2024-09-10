@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "anthropic.request",
+    "service": "",
+    "resource": "AsyncMessages.create",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6669bcc100000000",
+      "anthropic.request.api_key": "sk-...key>",
+      "anthropic.request.messages.0.content.0.text": "What is the weather in San Francisco, CA?",
+      "anthropic.request.messages.0.content.0.type": "text",
+      "anthropic.request.messages.0.role": "user",
+      "anthropic.request.model": "claude-3-opus-20240229",
+      "anthropic.request.parameters": "{\"max_tokens\": 200, \"tools\": [{\"name\": \"get_weather\", \"description\": \"Get the weather for a specific location\", \"input_schema\": {\"type\": \"object\", \"properties\": {\"location\": {\"type\": \"string\"}}}}], \"stream\": true}",
+      "anthropic.response.completions.content.0.text": "<thinking>\\nThe get_weather tool is relevant for answering this question as it provides weather information for a specified loca...",
+      "anthropic.response.completions.content.0.type": "text",
+      "anthropic.response.completions.content.1.tool_call.input": "{\"location\": \"San Francisco, CA\"}",
+      "anthropic.response.completions.content.1.tool_call.name": "get_weather",
+      "anthropic.response.completions.content.1.type": "tool_use",
+      "anthropic.response.completions.finish_reason": "tool_use",
+      "anthropic.response.completions.role": "assistant",
+      "language": "python",
+      "runtime-id": "3609d3a8291f46c0b6e248a7bdd3fc00"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 0.0,
+      "_sampling_priority_v1": 1,
+      "anthropic.response.usage.input_tokens": 599,
+      "anthropic.response.usage.output_tokens": 135,
+      "anthropic.response.usage.total_tokens": 734,
+      "process_id": 5891
+    },
+    "duration": 5066000,
+    "start": 1718205633873150000
+  }]]

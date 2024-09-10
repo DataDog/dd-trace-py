@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: This fix resolves an issue with docker layer caching and the final lib-injection image size.
