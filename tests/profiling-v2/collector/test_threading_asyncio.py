@@ -61,6 +61,7 @@ def test_lock_acquire_events():
                 filename=expected_filename,
                 linenos=linenos_2,
                 lock_name="lock",
+                thread_name="foobar",
             ),
             pprof_utils.LockAcquireEvent(
                 caller_name="_lock",
