@@ -77,7 +77,7 @@ class PytestSnapshotTestCase(TracerTestCase):
             _get_pytest_snapshot_gitlab_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
-                    DD_PATCH_MODULES="sqlite3:false",
+                    DD_CIVISIBILITY_ITR_ENABLED="false",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                 )
             )
@@ -119,7 +119,7 @@ class PytestSnapshotTestCase(TracerTestCase):
             _get_pytest_snapshot_gitlab_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
-                    DD_PATCH_MODULES="sqlite3:false",
+                    DD_CIVISIBILITY_ITR_ENABLED="false",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                 )
             )

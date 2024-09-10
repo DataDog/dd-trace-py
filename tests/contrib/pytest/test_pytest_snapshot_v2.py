@@ -150,10 +150,12 @@ class PytestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_call_httpx=test_call_httpx)
         self.testdir.chdir()
         with override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_CIVISIBILITY_ITR_ENABLED="false",
-                CI_PROJECT_DIR=str(self.testdir.tmpdir),
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="false",
+                    CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                )
             )
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
