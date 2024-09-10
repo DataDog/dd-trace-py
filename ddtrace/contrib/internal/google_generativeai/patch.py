@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.google_generativeai._utils import TracedAsyncGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import _extract_api_key
+from ddtrace.contrib.internal.google_generativeai._utils import _extract_model_name
 from ddtrace.contrib.internal.google_generativeai._utils import tag_request
 from ddtrace.contrib.internal.google_generativeai._utils import tag_response
 from ddtrace.contrib.trace_utils import unwrap
@@ -41,6 +42,8 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
+        model=_extract_model_name(instance),
+        submit_to_llmobs=True,
     )
     try:
         tag_request(span, integration, instance, args, kwargs)
@@ -57,6 +60,8 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
+            if integration.is_pc_sampled_llmobs(span):
+                integration.llmobs_set_tags(span, args, kwargs, instance, generations)
             span.finish()
     return generations
 
@@ -70,6 +75,8 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
+        model=_extract_model_name(instance),
+        submit_to_llmobs=True,
     )
     try:
         tag_request(span, integration, instance, args, kwargs)
@@ -83,6 +90,8 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
+            if integration.is_pc_sampled_llmobs(span):
+                integration.llmobs_set_tags(span, args, kwargs, instance, generations)
             span.finish()
     return generations
 
