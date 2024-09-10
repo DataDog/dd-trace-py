@@ -29,6 +29,7 @@ dogpile_cache:
     SUITE_NAME: "dogpile_cache"
 
 dramatiq:
+  parallel: 2
   extends: .test_base_riot_snapshot
   services:
     - !reference [.test_base_riot_snapshot, services]
