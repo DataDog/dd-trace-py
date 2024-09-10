@@ -67,7 +67,7 @@ async def test_gemini_completion_async(genai, mock_client_async):
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_gemini_completion_error(genai, mock_client):
     llm = genai.GenerativeModel("gemini-1.5-flash")
     llm._client = mock.Mock()

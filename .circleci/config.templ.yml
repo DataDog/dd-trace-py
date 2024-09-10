@@ -1020,14 +1020,6 @@ jobs:
           pattern: "anthropic"
           snapshot: true
 
-  google_generativeai:
-    <<: *machine_executor
-    parallelism: 3
-    steps:
-      - run_test:
-          pattern: "google_generativeai"
-          snapshot: true
-
   logbook:
     <<: *machine_executor
     steps:

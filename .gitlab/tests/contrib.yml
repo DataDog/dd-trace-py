@@ -38,6 +38,11 @@ gevent:
   variables:
     SUITE_NAME: "gevent"
 
+google_genereativeai:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "google_genereativeai"
+
 graphene:
   extends: .test_base_riot_snapshot
   variables:
