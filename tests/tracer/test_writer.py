@@ -757,7 +757,6 @@ def test_writer_recreate_keeps_headers():
         # Defaults on windows
         ("win32", None, None, False, "v0.4"),
         # Default with priority sampler
-        ("win32", None, None, "v0.4"),
         # Env variable is used if explicit value is not given
         ("win32", None, "v0.4", False, "v0.4"),
         ("win32", None, "v0.4", False, "v0.4"),
