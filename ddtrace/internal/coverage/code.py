@@ -8,7 +8,6 @@ import typing as t
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
-from ddtrace.internal.coverage.lines import CoverageLines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
@@ -18,6 +17,7 @@ from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.vendor.contextvars import ContextVar
 
 

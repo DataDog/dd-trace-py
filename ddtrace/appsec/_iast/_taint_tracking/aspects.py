@@ -20,7 +20,6 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
-from .._taint_tracking import _aspect_modulo
 from .._taint_tracking import _aspect_ospathbasename
 from .._taint_tracking import _aspect_ospathdirname
 from .._taint_tracking import _aspect_ospathjoin
@@ -59,6 +58,7 @@ _extend_aspect = aspects.extend_aspect
 index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
 slice_aspect = aspects.slice_aspect
+modulo_aspect = aspects.modulo_aspect
 split_aspect = _aspect_split
 rsplit_aspect = _aspect_rsplit
 splitlines_aspect = _aspect_splitlines
@@ -70,7 +70,6 @@ ospathsplitext_aspect = _aspect_ospathsplitext
 ospathsplitdrive_aspect = _aspect_ospathsplitdrive
 ospathsplitroot_aspect = _aspect_ospathsplitroot
 ospathnormcase_aspect = _aspect_ospathnormcase
-modulo_aspect = _aspect_modulo
 
 __all__ = [
     "add_aspect",

@@ -27,6 +27,7 @@ PATCH_MODULES = {
     "aiomysql": True,
     "aredis": True,
     "asyncio": True,
+    "avro": True,
     "boto": True,
     "botocore": True,
     "bottle": True,

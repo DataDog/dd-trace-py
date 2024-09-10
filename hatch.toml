@@ -185,6 +185,9 @@ dependencies = [
     "django{matrix:django}"
 ]
 
+[envs.appsec_threats_django.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
 [envs.appsec_threats_django.scripts]
 test = [
     "uname -a",
@@ -230,6 +233,9 @@ dependencies = [
     "flask{matrix:flask}"
 ]
 
+[envs.appsec_threats_flask.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
 [envs.appsec_threats_flask.scripts]
 test = [
     "uname -a",
@@ -271,6 +277,9 @@ dependencies = [
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
+
+[envs.appsec_threats_fastapi.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.appsec_threats_fastapi.scripts]
 test = [
