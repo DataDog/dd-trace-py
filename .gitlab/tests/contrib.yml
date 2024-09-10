@@ -308,3 +308,7 @@ httpx:
     - !reference [.services, httpbin_local]
   parallel: 2
 
+sourcecode:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "sourcecode"
