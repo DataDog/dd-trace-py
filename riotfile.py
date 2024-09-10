@@ -2124,22 +2124,11 @@ venv = Venv(
         Venv(
             name="protobuf",
             command="pytest {cmdargs} tests/contrib/protobuf",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
             pkgs={
+                "protobuf": latest,
                 "pytest-randomly": latest,
             },
-            venvs=[
-                Venv(
-                    # protobuf bug resulting in import error using protobuf >3.19 and py3.7
-                    pys=select_pys(min_version="3.7", max_version="3.7"),
-                    pkgs={
-                        "protobuf": "~=3.18",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
-                    pkgs={"protobuf": latest},
-                ),
-            ],
         ),
         Venv(
             name="yaaredis",
