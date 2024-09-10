@@ -413,7 +413,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         # ensure that auth details are stripped from URL
         cfg = config.get_from(self.session)
         cfg["split_by_domain"] = True
-        out = self.session.get("http://user:pass@httpbin.org")
+        out = self.session.get(f"http://user:pass@{HOST_AND_PORT}")
         assert out.status_code == 200
 
         spans = self.pop_spans()
@@ -427,7 +427,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         # ensure that port is included if present in URL
         cfg = config.get_from(self.session)
         cfg["split_by_domain"] = True
-        out = self.session.get("http://httpbin.org:80")
+        out = self.session.get(f"http://{HOST_AND_PORT}")
         assert out.status_code == 200
 
         spans = self.pop_spans()
@@ -441,7 +441,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         # ensure that port is included if present in URL but not path
         cfg = config.get_from(self.session)
         cfg["split_by_domain"] = True
-        out = self.session.get("http://httpbin.org:80/anything/v1/foo")
+        out = self.session.get(f"http://{HOST_AND_PORT}/anything/v1/foo")
         assert out.status_code == 200
 
         spans = self.pop_spans()
