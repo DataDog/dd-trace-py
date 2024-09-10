@@ -565,6 +565,7 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
+            DD_TRACE_AGENT_URL="http://localhost:9126",
         )
     ):
         dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
@@ -602,6 +603,7 @@ def test_civisibilitywriter_evp_proxy_url():
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
+            DD_TRACE_AGENT_URL="http://localhost:9126",
         )
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
@@ -618,6 +620,7 @@ def test_civisibilitywriter_only_traces():
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
+            DD_TRACE_AGENT_URL="http://localhost:9126",
         )
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
