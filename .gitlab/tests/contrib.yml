@@ -42,6 +42,16 @@ django_hosts:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: 'django_hosts$'
+    
+djangorestframework:
+  parallel: 2
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "djangorestframework"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+    - !reference [.services, redis]
 
 dogpile_cache:
   extends: .test_base_riot_snapshot
@@ -149,6 +159,22 @@ opentracer:
   extends: .test_base_riot
   variables:
     SUITE_NAME: "opentracer"
+    
+pylibmc:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+  variables:
+    SUITE_NAME: "pylibmc"
+
+pymemcache:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+  variables:
+    SUITE_NAME: "pymemcache"
 
 pymongo:
   extends: .test_base_riot_snapshot
@@ -235,6 +261,9 @@ structlog:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "structlog"
+    
+sourcecode:
+  extends: .test_base_riot
 
 subprocess:
   extends: .test_base_riot
