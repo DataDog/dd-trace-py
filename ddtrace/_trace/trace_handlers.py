@@ -848,6 +848,11 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "rq.queue.enqueue_job",
+        "rq.traced_queue_fetch_job",
+        "rq.worker.perform_job",
+        "rq.job.perform",
+        "rq.job.fetch_many",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

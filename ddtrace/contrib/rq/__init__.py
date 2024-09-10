@@ -81,6 +81,7 @@ import os
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -134,12 +135,17 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     else:
         resource = func_name
 
-    with pin.tracer.trace(
-        schematize_messaging_operation("rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND),
+    with core.context_with_data(
+        "rq.queue.enqueue_job",
+        span_name=schematize_messaging_operation(
+            "rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND
+        ),
+        pin=pin,
         service=trace_utils.int_service(pin, config.rq),
         resource=resource,
         span_type=SpanTypes.WORKER,
-    ) as span:
+        call_key="queue.enqueue_job",
+    ) as ctx, ctx[ctx["call_key"]] as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
         # set span.kind to the type of request being performed
@@ -157,10 +163,14 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
-    with pin.tracer.trace(
-        schematize_messaging_operation("rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESSING),
+    with core.context_with_data(
+        "rq.traced_queue_fetch_job",
+        span_name=schematize_messaging_operation(
+            "rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESSING
+        ),
         service=trace_utils.int_service(pin, config.rq),
-    ) as span:
+        call_key="traced_queue_fetch_job",
+    ) as ctx, ctx[ctx["call_key"]] as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
         job_id = get_argument_value(args, kwargs, 0, "job_id")
@@ -180,12 +190,13 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             pin.tracer.context_provider.activate(ctx)
 
     try:
-        with pin.tracer.trace(
+        with core.context_with_data(
             "rq.worker.perform_job",
             service=trace_utils.int_service(pin, config.rq_worker),
             span_type=SpanTypes.WORKER,
             resource=job.func_name,
-        ) as span:
+            call_key="worker.perform_job",
+        ) as ctx, ctx[ctx["call_key"]] as span:
             span.set_tag_str(COMPONENT, config.rq.integration_name)
 
             # set span.kind to the type of request being performed
@@ -213,7 +224,9 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
     # Inherit the service name from whatever parent exists.
     # eg. in a worker, a perform_job parent span will exist with the worker
     #     service.
-    with pin.tracer.trace("rq.job.perform", resource=job.func_name) as span:
+    with core.context_with_data("rq.job.perform", resource=job.func_name, call_key="job.perform") as ctx, ctx[
+        ctx["call_key"]
+    ] as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
         span.set_tag("job.id", job.get_id())
@@ -223,10 +236,14 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.fetch_many(...)"""
-    with pin.tracer.trace(
-        schematize_messaging_operation("rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING),
+    with core.context_with_data(
+        "rq.job.fetch_many",
+        span_name=schematize_messaging_operation(
+            "rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING
+        ),
         service=trace_utils.ext_service(pin, config.rq_worker),
-    ) as span:
+        call_key="job.fetch_many",
+    ) as ctx, ctx[ctx["call_key"]] as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
         job_ids = get_argument_value(args, kwargs, 0, "job_ids")
