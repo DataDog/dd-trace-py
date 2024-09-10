@@ -145,6 +145,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WORKER,
         call_key="queue.enqueue_job",
+
     ) as ctx, ctx[ctx["call_key"]] as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
@@ -168,6 +169,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
         span_name=schematize_messaging_operation(
             "rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESSING
         ),
+        pin=pin,
         service=trace_utils.int_service(pin, config.rq),
         call_key="traced_queue_fetch_job",
     ) as ctx, ctx[ctx["call_key"]] as span:
@@ -192,7 +194,9 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     try:
         with core.context_with_data(
             "rq.worker.perform_job",
+            span_name="rq.worker.perform_job",
             service=trace_utils.int_service(pin, config.rq_worker),
+            pin=pin,
             span_type=SpanTypes.WORKER,
             resource=job.func_name,
             call_key="worker.perform_job",
@@ -202,6 +206,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             # set span.kind to the type of request being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             span.set_tag_str("job.id", job.get_id())
+
             try:
                 return func(*args, **kwargs)
             finally:
@@ -224,7 +229,7 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
     # Inherit the service name from whatever parent exists.
     # eg. in a worker, a perform_job parent span will exist with the worker
     #     service.
-    with core.context_with_data("rq.job.perform", resource=job.func_name, call_key="job.perform") as ctx, ctx[
+    with core.context_with_data("rq.job.perform", span_name="rq.job.perform", resource=job.func_name, call_key="job.perform", pin=pin) as ctx, ctx[
         ctx["call_key"]
     ] as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
@@ -243,6 +248,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
         ),
         service=trace_utils.ext_service(pin, config.rq_worker),
         call_key="job.fetch_many",
+        pin=pin,
     ) as ctx, ctx[ctx["call_key"]] as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
