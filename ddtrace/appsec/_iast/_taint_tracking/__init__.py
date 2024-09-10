@@ -22,7 +22,6 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import common_replace
     from ._native.aspect_helpers import parse_params
     from ._native.aspect_helpers import set_ranges_on_splitted
-    from ._native.aspect_modulo import _aspect_modulo
     from ._native.aspect_split import _aspect_rsplit
     from ._native.aspect_split import _aspect_split
     from ._native.aspect_split import _aspect_splitlines
@@ -96,6 +95,7 @@ __all__ = [
     "initializer_size",
     "is_notinterned_notfasttainted_unicode",
     "is_pyobject_tainted",
+    "modulo_aspect",
     "new_pyobject_id",
     "num_objects_tainted",
     "origin_to_str",

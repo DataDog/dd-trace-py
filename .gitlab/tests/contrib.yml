@@ -8,6 +8,11 @@ asgi:
   variables:
     SUITE_NAME: "asgi$"
 
+avro:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "avro"
+
 bottle:
   extends: .test_base_riot_snapshot
   variables:
@@ -23,6 +28,18 @@ dogpile_cache:
   variables:
     SUITE_NAME: "dogpile_cache"
 
+elasticsearch:
+  extends: .test_base_riot_snapshot
+  parallel: 17
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, elasticsearch]
+    - !reference [.services, opensearch]
+  variables:
+    SUITE_NAME: "elasticsearch"
+    TEST_ELASTICSEARCH_HOST: "elasticsearch"
+    TEST_OPENSEARCH_HOST: "opensearch"
+
 falcon:
   extends: .test_base_riot_snapshot
   variables:
@@ -33,8 +50,42 @@ fastapi:
   variables:
     SUITE_NAME: "fastapi"
 
+flask:
+  extends: .test_base_riot_snapshot
+  parallel: 14
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "flask"
+    TEST_MEMCACHED_HOST: "memcached"
+    TEST_REDIS_HOST: "redis"
+
+urllib3:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+  variables:
+    SUITE_NAME: "urllib3"
+    TEST_HTTPBIN_HOST: "httpbin-local"
+    TEST_HTTPBIN_PORT: "8001"
+
+kafka:
+  extends: .test_base_riot_snapshot
+  parallel: 4
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, kafka]
+  variables:
+    SUITE_NAME: "kafka"
+    TEST_KAFKA_HOST: "kafka"
+    TEST_KAFKA_PORT: "29092"
+
 aredis:
   extends: .test_base_riot_snapshot
+  parallel: 3
   services:
     - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, redis]
@@ -119,6 +170,14 @@ molten:
   variables:
     SUITE_NAME: "molten"
 
+pymongo:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, mongo]
+  variables:
+    SUITE_NAME: "pymongo"
+
 pynamodb:
   extends: .test_base_riot_snapshot
   variables:
@@ -164,7 +223,84 @@ tornado:
   variables:
     SUITE_NAME: "tornado"
 
+unittest:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "unittest"
+
 wsgi:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "wsgi"
+
+loguru:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "loguru"
+
+logbook:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "logbook"
+
+asynctest:
+  extends: .test_base_riot
+  parallel: 3
+  variables:
+    SUITE_NAME: 'asynctest$'
+
+django_hosts:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: 'django_hosts$'
+
+test_logging:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: 'test_logging'
+
+stdlib:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
+
+subprocess:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "subprocess"
+
+opentracer:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "opentracer"
+
+djangorestframework:
+  parallel: 2
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "djangorestframework"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+    - !reference [.services, redis]
+
+pylibmc:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+  variables:
+    SUITE_NAME: "pylibmc"
+
+pymemcache:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+  variables:
+    SUITE_NAME: "pymemcache"
+
+sourcecode:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "sourcecode"

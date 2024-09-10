@@ -1,5 +1,6 @@
 # stdlib
 import contextlib
+import functools
 import json
 from typing import Iterable
 
@@ -45,47 +46,32 @@ log = get_logger(__name__)
 _DEFAULT_SERVICE = schematize_service_name("pymongo")
 
 
+# TODO(mabdinur): Remove TracedMongoClient when ddtrace.contrib.pymongo.client is removed from the public API.
 class TracedMongoClient(ObjectProxy):
-    def __init__(self, client=None, *args, **kwargs):
-        # To support the former trace_mongo_client interface, we have to keep this old interface
-        # TODO(Benjamin): drop it in a later version
-        if not isinstance(client, _MongoClient):
-            # Patched interface, instantiate the client
-
-            # client is just the first arg which could be the host if it is
-            # None, then it could be that the caller:
-
-            # if client is None then __init__ was:
-            #   1) invoked with host=None
-            #   2) not given a first argument (client defaults to None)
-            # we cannot tell which case it is, but it should not matter since
-            # the default value for host is None, in either case we can simply
-            # not provide it as an argument
-            if client is None:
-                client = _MongoClient(*args, **kwargs)
-            # else client is a value for host so just pass it along
-            else:
-                client = _MongoClient(client, *args, **kwargs)
-
-        super(TracedMongoClient, self).__init__(client)
-        client._datadog_proxy = self
-        # NOTE[matt] the TracedMongoClient attempts to trace all of the network
-        # calls in the trace library. This is good because it measures the
-        # actual network time. It's bad because it uses a private API which
-        # could change. We'll see how this goes.
-        if not isinstance(client._topology, TracedTopology):
-            client._topology = TracedTopology(client._topology)
-
-        # Default Pin
-        ddtrace.Pin(service=_DEFAULT_SERVICE).onto(self)
-
-    def __setddpin__(self, pin):
-        pin.onto(self._topology)
-
-    def __getddpin__(self):
-        return ddtrace.Pin.get_from(self._topology)
+    pass
 
 
+def _trace_mongo_client_init(func, args, kwargs):
+    func(*args, **kwargs)
+    client = get_argument_value(args, kwargs, 0, "self")
+
+    def __setddpin__(client, pin):
+        pin.onto(client._topology)
+
+    def __getddpin__(client):
+        return ddtrace.Pin.get_from(client._topology)
+
+    # Set a pin on the mongoclient pin on the topology object
+    # This allows us to pass the same pin to the server objects
+    client.__setddpin__ = functools.partial(__setddpin__, client)
+    client.__getddpin__ = functools.partial(__getddpin__, client)
+
+    # Set a pin on the traced mongo client
+    ddtrace.Pin(service=_DEFAULT_SERVICE).onto(client)
+
+
+# The function is exposed in the public API, but it is not used in the codebase.
+# TODO(mabdinur): Remove this function when ddtrace.contrib.pymongo.client is removed.
 @contextlib.contextmanager
 def wrapped_validate_session(wrapped, instance, args, kwargs):
     # We do this to handle a validation `A is B` in pymongo that
@@ -105,213 +91,192 @@ def wrapped_validate_session(wrapped, instance, args, kwargs):
     yield wrapped(client, session)
 
 
+# TODO(mabdinur): Remove TracedTopology when ddtrace.contrib.pymongo.client is removed from the public API.
 class TracedTopology(ObjectProxy):
-    def __init__(self, topology):
-        super(TracedTopology, self).__init__(topology)
-
-    def select_server(self, *args, **kwargs):
-        s = self.__wrapped__.select_server(*args, **kwargs)
-        if not isinstance(s, TracedServer):
-            s = TracedServer(s)
-        # Reattach the pin every time in case it changed since the initial patching
-        ddtrace.Pin.get_from(self).onto(s)
-        return s
+    pass
 
 
+def _trace_topology_select_server(func, args, kwargs):
+    server = func(*args, **kwargs)
+    # Ensure the pin used on the traced mongo client is passed down to the topology instance
+    # This allows us to pass the same pin in traced server objects.
+    topology_instance = get_argument_value(args, kwargs, 0, "self")
+    ddtrace.Pin.get_from(topology_instance).onto(server)
+    return server
+
+
+# TODO(mabdinur): Remove TracedServer when ddtrace.contrib.pymongo.client is removed from the public API.
 class TracedServer(ObjectProxy):
-    def __init__(self, server):
-        super(TracedServer, self).__init__(server)
-
-    def _datadog_trace_operation(self, operation):
-        cmd = None
-        # Only try to parse something we think is a query.
-        if self._is_query(operation):
-            try:
-                cmd = parse_query(operation)
-            except Exception:
-                log.exception("error parsing query")
-
-        pin = ddtrace.Pin.get_from(self)
-        # if we couldn't parse or shouldn't trace the message, just go.
-        if not cmd or not pin or not pin.enabled():
-            return None
-
-        span = pin.tracer.trace(
-            schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
-            span_type=SpanTypes.MONGODB,
-            service=pin.service,
-        )
-
-        span.set_tag_str(COMPONENT, config.pymongo.integration_name)
-
-        # set span.kind to the operation type being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
-        span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag_str(mongox.DB, cmd.db)
-        span.set_tag_str(mongox.COLLECTION, cmd.coll)
-        span.set_tag_str(db.SYSTEM, mongox.SERVICE)
-        span.set_tags(cmd.tags)
-
-        # set `mongodb.query` tag and resource for span
-        _set_query_metadata(span, cmd)
-
-        # set analytics sample rate
-        sample_rate = config.pymongo.get_analytics_sample_rate()
-        if sample_rate is not None:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
-        return span
-
-    if VERSION >= (4, 5, 0):
-
-        @contextlib.contextmanager
-        def checkout(self, *args, **kwargs):
-            with self.__wrapped__.checkout(*args, **kwargs) as s:
-                if not isinstance(s, TracedSocket):
-                    s = TracedSocket(s)
-                ddtrace.Pin.get_from(self).onto(s)
-                yield s
-
-    else:
-
-        @contextlib.contextmanager
-        def get_socket(self, *args, **kwargs):
-            with self.__wrapped__.get_socket(*args, **kwargs) as s:
-                if not isinstance(s, TracedSocket):
-                    s = TracedSocket(s)
-                ddtrace.Pin.get_from(self).onto(s)
-                yield s
-
-    if VERSION >= (3, 12, 0):
-
-        def run_operation(self, sock_info, operation, *args, **kwargs):
-            span = self._datadog_trace_operation(operation)
-            if span is None:
-                return self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
-            with span:
-                result = self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
-                if result:
-                    if hasattr(result, "address"):
-                        set_address_tags(span, result.address)
-                    if self._is_query(operation) and hasattr(result, "docs"):
-                        set_query_rowcount(docs=result.docs, span=span)
-                return result
-
-    elif (3, 9, 0) <= VERSION < (3, 12, 0):
-
-        def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
-            span = self._datadog_trace_operation(operation)
-            if span is None:
-                return self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
-            with span:
-                result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
-                if result:
-                    if hasattr(result, "address"):
-                        set_address_tags(span, result.address)
-                    if self._is_query(operation) and hasattr(result, "docs"):
-                        set_query_rowcount(docs=result.docs, span=span)
-                return result
-
-    else:
-
-        def send_message_with_response(self, operation, *args, **kwargs):
-            span = self._datadog_trace_operation(operation)
-            if span is None:
-                return self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
-            with span:
-                result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
-                if result:
-                    if hasattr(result, "address"):
-                        set_address_tags(span, result.address)
-                    if self._is_query(operation):
-                        if hasattr(result, "data"):
-                            if VERSION >= (3, 6, 0) and hasattr(result.data, "unpack_response"):
-                                set_query_rowcount(docs=result.data.unpack_response(), span=span)
-                            else:
-                                data = _unpack_response(response=result.data)
-                                if VERSION < (3, 2, 0) and data.get("number_returned", None):
-                                    span.set_metric(db.ROWCOUNT, data.get("number_returned"))
-                                elif (3, 2, 0) <= VERSION < (3, 6, 0):
-                                    docs = data.get("data", None)
-                                    set_query_rowcount(docs=docs, span=span)
-                return result
-
-    @staticmethod
-    def _is_query(op):
-        # NOTE: _Query should always have a spec field
-        return hasattr(op, "spec")
+    pass
 
 
+def _datadog_trace_operation(operation, wrapped):
+    cmd = None
+    # Only try to parse something we think is a query.
+    if _is_query(operation):
+        try:
+            cmd = parse_query(operation)
+        except Exception:
+            log.exception("error parsing query")
+
+    # Gets the pin from the mogno client (through the topology object)
+    pin = ddtrace.Pin.get_from(wrapped)
+    # if we couldn't parse or shouldn't trace the message, just go.
+    if not cmd or not pin or not pin.enabled():
+        return None
+
+    span = pin.tracer.trace(
+        schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
+        span_type=SpanTypes.MONGODB,
+        service=pin.service,
+    )
+
+    span.set_tag_str(COMPONENT, config.pymongo.integration_name)
+
+    # set span.kind to the operation type being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
+    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag_str(mongox.DB, cmd.db)
+    span.set_tag_str(mongox.COLLECTION, cmd.coll)
+    span.set_tag_str(db.SYSTEM, mongox.SERVICE)
+    span.set_tags(cmd.tags)
+
+    # set `mongodb.query` tag and resource for span
+    _set_query_metadata(span, cmd)
+
+    # set analytics sample rate
+    sample_rate = config.pymongo.get_analytics_sample_rate()
+    if sample_rate is not None:
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+    return span
+
+
+def _trace_server_run_operation_and_with_response(func, args, kwargs):
+    server_instance = get_argument_value(args, kwargs, 0, "self")
+    operation = get_argument_value(args, kwargs, 2, "operation")
+
+    span = _datadog_trace_operation(operation, server_instance)
+    if span is None:
+        return func(*args, **kwargs)
+    with span:
+        result = func(*args, **kwargs)
+        if result:
+            if hasattr(result, "address"):
+                set_address_tags(span, result.address)
+            if _is_query(operation) and hasattr(result, "docs"):
+                set_query_rowcount(docs=result.docs, span=span)
+        return result
+
+
+def _trace_server_send_message_with_response(func, args, kwargs):
+    server_instance = get_argument_value(args, kwargs, 0, "self")
+    operation = get_argument_value(args, kwargs, 1, "operation")
+
+    span = _datadog_trace_operation(operation, server_instance)
+    if span is None:
+        return func(*args, **kwargs)
+    with span:
+        result = func(*args, **kwargs)
+        if result:
+            if hasattr(result, "address"):
+                set_address_tags(span, result.address)
+            if _is_query(operation):
+                if hasattr(result, "data"):
+                    if VERSION >= (3, 6, 0) and hasattr(result.data, "unpack_response"):
+                        set_query_rowcount(docs=result.data.unpack_response(), span=span)
+                    else:
+                        data = _unpack_response(response=result.data)
+                        if VERSION < (3, 2, 0) and data.get("number_returned", None):
+                            span.set_metric(db.ROWCOUNT, data.get("number_returned"))
+                        elif (3, 2, 0) <= VERSION < (3, 6, 0):
+                            docs = data.get("data", None)
+                            set_query_rowcount(docs=docs, span=span)
+        return result
+
+
+def _is_query(op):
+    # NOTE: _Query should always have a spec field
+    return hasattr(op, "spec")
+
+
+# TODO(mabdinur): Remove TracedSocket when ddtrace.contrib.pymongo.client is removed from the public API.
 class TracedSocket(ObjectProxy):
-    def __init__(self, socket):
-        super(TracedSocket, self).__init__(socket)
+    pass
 
-    def command(self, dbname, spec, *args, **kwargs):
-        cmd = None
-        try:
-            cmd = parse_spec(spec, dbname)
-        except Exception:
-            log.exception("error parsing spec. skipping trace")
 
-        pin = ddtrace.Pin.get_from(self)
-        # skip tracing if we don't have a piece of data we need
-        if not dbname or not cmd or not pin or not pin.enabled():
-            return self.__wrapped__.command(dbname, spec, *args, **kwargs)
+def _trace_socket_command(func, args, kwargs):
+    socket_instance = get_argument_value(args, kwargs, 0, "self")
+    dbname = get_argument_value(args, kwargs, 1, "dbname")
+    spec = get_argument_value(args, kwargs, 2, "spec")
+    cmd = None
+    try:
+        cmd = parse_spec(spec, dbname)
+    except Exception:
+        log.exception("error parsing spec. skipping trace")
 
-        cmd.db = dbname
-        with self.__trace(cmd):
-            return self.__wrapped__.command(dbname, spec, *args, **kwargs)
+    pin = ddtrace.Pin.get_from(socket_instance)
+    # skip tracing if we don't have a piece of data we need
+    if not dbname or not cmd or not pin or not pin.enabled():
+        return func(*args, **kwargs)
 
-    def write_command(self, *args, **kwargs):
-        msg = get_argument_value(args, kwargs, 1, "msg")
-        cmd = None
-        try:
-            cmd = parse_msg(msg)
-        except Exception:
-            log.exception("error parsing msg")
+    cmd.db = dbname
+    with _trace_cmd(cmd, socket_instance, socket_instance.address):
+        return func(*args, **kwargs)
 
-        pin = ddtrace.Pin.get_from(self)
-        # if we couldn't parse it, don't try to trace it.
-        if not cmd or not pin or not pin.enabled():
-            return self.__wrapped__.write_command(*args, **kwargs)
 
-        with self.__trace(cmd) as s:
-            result = self.__wrapped__.write_command(*args, **kwargs)
-            if result:
-                s.set_metric(db.ROWCOUNT, result.get("n", -1))
-            return result
+def _trace_socket_write_command(func, args, kwargs):
+    socket_instance = get_argument_value(args, kwargs, 0, "self")
+    msg = get_argument_value(args, kwargs, 2, "msg")
+    cmd = None
+    try:
+        cmd = parse_msg(msg)
+    except Exception:
+        log.exception("error parsing msg")
 
-    def __trace(self, cmd):
-        pin = ddtrace.Pin.get_from(self)
-        s = pin.tracer.trace(
-            schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
-            span_type=SpanTypes.MONGODB,
-            service=pin.service,
-        )
+    pin = ddtrace.Pin.get_from(socket_instance)
+    # if we couldn't parse it, don't try to trace it.
+    if not cmd or not pin or not pin.enabled():
+        return func(*args, **kwargs)
 
-        s.set_tag_str(COMPONENT, config.pymongo.integration_name)
-        s.set_tag_str(db.SYSTEM, mongox.SERVICE)
+    with _trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+        result = func(*args, **kwargs)
+        if result:
+            s.set_metric(db.ROWCOUNT, result.get("n", -1))
+        return result
 
-        # set span.kind to the type of operation being performed
-        s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        s.set_tag(SPAN_MEASURED_KEY)
-        if cmd.db:
-            s.set_tag_str(mongox.DB, cmd.db)
-        if cmd:
-            s.set_tag(mongox.COLLECTION, cmd.coll)
-            s.set_tags(cmd.tags)
-            s.set_metrics(cmd.metrics)
+def _trace_cmd(cmd, socket_instance, address):
+    pin = ddtrace.Pin.get_from(socket_instance)
+    s = pin.tracer.trace(
+        schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
+        span_type=SpanTypes.MONGODB,
+        service=pin.service,
+    )
 
-        # set `mongodb.query` tag and resource for span
-        _set_query_metadata(s, cmd)
+    s.set_tag_str(COMPONENT, config.pymongo.integration_name)
+    s.set_tag_str(db.SYSTEM, mongox.SERVICE)
 
-        # set analytics sample rate
-        s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.pymongo.get_analytics_sample_rate())
+    # set span.kind to the type of operation being performed
+    s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        if self.address:
-            set_address_tags(s, self.address)
-        return s
+    s.set_tag(SPAN_MEASURED_KEY)
+    if cmd.db:
+        s.set_tag_str(mongox.DB, cmd.db)
+    if cmd:
+        s.set_tag(mongox.COLLECTION, cmd.coll)
+        s.set_tags(cmd.tags)
+        s.set_metrics(cmd.metrics)
+
+    # set `mongodb.query` tag and resource for span
+    _set_query_metadata(s, cmd)
+
+    # set analytics sample rate
+    s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.pymongo.get_analytics_sample_rate())
+
+    if address:
+        set_address_tags(s, address)
+    return s
 
 
 def normalize_filter(f=None):

@@ -135,6 +135,7 @@
             "ddtrace/ext/__init__.py",
             "ddtrace/ext/http.py",
             "ddtrace/ext/net.py",
+            "ddtrace/ext/schema.py",
             "ddtrace/ext/sql.py",
             "ddtrace/ext/test.py",
             "ddtrace/ext/user.py",
@@ -157,6 +158,10 @@
             "ddtrace/contrib/redis_utils.py",
             "ddtrace/contrib/trace_utils_redis.py",
             "ddtrace/ext/redis.py"
+        ],
+        "avro": [
+            "ddtrace/contrib/avro/*",
+            "ddtrace/contrib/internal/avro/*"
         ],
         "mongo": [
             "ddtrace/contrib/pymongo/*",
@@ -188,7 +193,7 @@
         ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
-            "ddtrace/ext/ci_visibility/*",
+            "ddtrace/ext/test_visibility/*",
             "ddtrace/ext/test.py"
         ],
         "coverage": [
@@ -442,7 +447,7 @@
         ],
         "openai": [
             "ddtrace/contrib/openai/*",
-            "ddtrace/contrib/internal/openai/*" 
+            "ddtrace/contrib/internal/openai/*"
         ],
         "falcon": [
             "ddtrace/contrib/falcon/*",
@@ -778,6 +783,12 @@
             "@core",
             "@profiling",
             "tests/profiling/*"
+        ],
+        "profile-v2": [
+            "@bootstrap",
+            "@core",
+            "@profiling",
+            "tests/profiling-v2/*"
         ],
         "vendor": [
             "@vendor",
@@ -1356,6 +1367,14 @@
             "@redis",
             "tests/contrib/aredis/*",
             "tests/snapshots/tests.contrib.{suite}.*"
+        ],
+        "avro": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@avro",
+            "tests/contrib/avro/*"
         ],
         "yaaredis": [
             "@core",
