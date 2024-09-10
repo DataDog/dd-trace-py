@@ -61,6 +61,8 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     categorical_value: str
     numerical_value: float
     score_value: float
+    ml_app: str
+    timestamp_ms: int
     tags: List[str]
 
 
@@ -147,7 +149,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
         self._event_type = "evaluation_metric"
         self._buffer = []
-        self._endpoint = "/api/unstable/llm-obs/v1/eval-metric"
+        self._endpoint = "/api/intake/llm-obs/v1/eval-metric"
         self._intake = "api.%s" % self._site  # type: str
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
@@ -191,7 +193,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
     def encode(self):
         with self._lock:
             if not self._buffer:
-                return
+                return None, 0
             events = self._buffer
             self._init_buffer()
         data = {"_dd.stage": "raw", "event_type": "span", "spans": events}
@@ -200,8 +202,8 @@ class LLMObsSpanEncoder(BufferedEncoder):
             logger.debug("encode %d LLMObs span events to be sent", len(events))
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
-            return
-        return enc_llm_events
+            return None, 0
+        return enc_llm_events, len(events)
 
 
 class LLMObsEventClient(WriterClientBase):
@@ -292,6 +294,7 @@ class LLMObsSpanWriter(HTTPWriter):
         return self.__class__(
             interval=self._interval,
             timeout=self._timeout,
+            is_agentless=config._llmobs_agentless_enabled,
         )
 
 

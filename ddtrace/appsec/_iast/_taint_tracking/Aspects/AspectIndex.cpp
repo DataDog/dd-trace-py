@@ -42,21 +42,30 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+        iast_taint_log_error(MSG_ERROR_N_PARAMS);
         return nullptr;
     }
-    auto ctx_map = initializer->get_tainting_map();
 
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
-
-    PyObject* result_o = PyObject_GetItem(candidate_text, idx);
-    if (has_pyerr()) {
-        return nullptr;
-    }
-
-    if (not ctx_map or ctx_map->empty()) {
+    auto result_o = PyObject_GetItem(candidate_text, idx);
+    if (!is_text(candidate_text) or !is_some_number(idx)) {
         return result_o;
     }
-    auto res = index_aspect(result_o, candidate_text, idx, ctx_map);
-    return res;
+    TRY_CATCH_ASPECT("index_aspect", return result_o, , {
+        const auto ctx_map = Initializer::get_tainting_map();
+        if (not ctx_map or ctx_map->empty()) {
+            return result_o;
+        }
+
+        auto error_str = has_pyerr_as_string();
+        if (!error_str.empty()) {
+            error_str += " (native index_aspect)";
+            iast_taint_log_error(error_str);
+            py::set_error(PyExc_IndexError, error_str.c_str());
+            return nullptr;
+        }
+
+        return index_aspect(result_o, candidate_text, idx, ctx_map);
+    });
 }

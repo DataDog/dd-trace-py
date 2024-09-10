@@ -8,15 +8,14 @@ import typing as t
 import pytest
 
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
-from ddtrace.ext.ci_visibility.api import CIModuleId
-from ddtrace.ext.ci_visibility.api import CISessionId
-from ddtrace.ext.ci_visibility.api import CISourceFileInfo
-from ddtrace.ext.ci_visibility.api import CISuiteId
-from ddtrace.ext.ci_visibility.api import CITest
-from ddtrace.ext.ci_visibility.api import CITestId
+from ddtrace.ext.test_visibility.api import TestModuleId
+from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility.api import InternalTest
+from ddtrace.internal.test_visibility.api import InternalTestId
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
@@ -43,11 +42,6 @@ def _encode_test_parameter(parameter: t.Any) -> str:
     return re.sub(r" at 0[xX][0-9a-fA-F]+", "", param_repr)
 
 
-def _get_session_id(session: pytest.Session):
-    """The session name is constant as multiple test sessions are not currently supported"""
-    return CISessionId("pytest_session")
-
-
 def _get_names_from_item(item: pytest.Item) -> TestNames:
     """Gets an item's module, suite, and test names by leveraging the plugin hooks"""
 
@@ -63,7 +57,7 @@ def _get_names_from_item(item: pytest.Item) -> TestNames:
 
 
 @cached()
-def _get_test_id_from_item(item: pytest.Item) -> CITestId:
+def _get_test_id_from_item(item: pytest.Item) -> InternalTestId:
     """Converts an item to a CITestId, which recursively includes the parent IDs
 
     NOTE: it is mandatory that the session, module, suite, and test IDs for a given test and parameters combination
@@ -74,26 +68,34 @@ def _get_test_id_from_item(item: pytest.Item) -> CITestId:
     suite_name = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
     test_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
 
-    session_id = _get_session_id(item.session)
-    module_id = CIModuleId(session_id, module_name)
-    suite_id = CISuiteId(module_id, suite_name)
+    module_id = TestModuleId(module_name)
+    suite_id = TestSuiteId(module_id, suite_name)
 
-    # Test parameters are part of the test ID
-    parameters_json: t.Optional[str] = None
-    if getattr(item, "callspec", None):
-        parameters: t.Dict[str, t.Dict[str, str]] = {"arguments": {}, "metadata": {}}
-        for param_name, param_val in item.callspec.params.items():
-            try:
-                parameters["arguments"][param_name] = _encode_test_parameter(param_val)
-            except Exception:
-                parameters["arguments"][param_name] = "Could not encode"
-                log.warning("Failed to encode %r", param_name, exc_info=True)
-
-        parameters_json = json.dumps(parameters)
-
-    test_id = CITestId(suite_id, test_name, parameters_json)
+    test_id = InternalTestId(suite_id, test_name)
 
     return test_id
+
+
+def _get_test_parameters_json(item) -> t.Optional[str]:
+    # Test parameters are part of the test ID
+    callspec: pytest.python.CallSpec2 = getattr(item, "callspec", None)
+
+    if callspec is None:
+        return None
+
+    parameters: t.Dict[str, t.Dict[str, str]] = {"arguments": {}, "metadata": {}}
+    for param_name, param_val in item.callspec.params.items():
+        try:
+            parameters["arguments"][param_name] = _encode_test_parameter(param_val)
+        except Exception:  # noqa: E722
+            parameters["arguments"][param_name] = "Could not encode"
+            log.warning("Failed to encode %r", param_name, exc_info=True)
+
+    try:
+        return json.dumps(parameters, sort_keys=True)
+    except TypeError:
+        log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
+        return None
 
 
 def _get_module_path_from_item(item: pytest.Item) -> Path:
@@ -110,15 +112,15 @@ def _get_session_command(session: pytest.Session):
     return command
 
 
-def _get_source_file_info(item, item_path) -> t.Optional[CISourceFileInfo]:
+def _get_source_file_info(item, item_path) -> t.Optional[TestSourceFileInfo]:
     try:
         # TODO: don't depend on internal for source file info
         if hasattr(item, "_obj"):
             test_method_object = undecorated(item._obj, item.name, item_path)
             source_lines = get_source_lines_for_test_method(test_method_object)
-            source_file_info = CISourceFileInfo(item_path, source_lines[0], source_lines[1])
+            source_file_info = TestSourceFileInfo(item_path, source_lines[0], source_lines[1])
         else:
-            source_file_info = CISourceFileInfo(item_path, item.reportinfo()[1])
+            source_file_info = TestSourceFileInfo(item_path, item.reportinfo()[1])
         return source_file_info
     except Exception:
         log.debug("Unable to get source file info for item %s (path %s)", item, item_path, exc_info=True)
@@ -159,6 +161,28 @@ def _extract_span(item):
     """Extract span from `pytest.Item` instance."""
     if _USE_PLUGIN_V2:
         test_id = _get_test_id_from_item(item)
-        return CITest.get_span(test_id)
+        return InternalTest.get_span(test_id)
 
     return getattr(item, "_datadog_span", None)
+
+
+def _is_enabled_early(early_config):
+    """Checks if the ddtrace plugin is enabled before the config is fully populated.
+
+    This is necessary because the module watchdog for coverage collection needs to be enabled as early as possible.
+
+    Note: since coverage is used for ITR purposes, we only check if the plugin is enabled if the pytest version supports
+    ITR
+    """
+    if not _pytest_version_supports_itr():
+        return False
+
+    if (
+        "--no-ddtrace" in early_config.invocation_params.args
+        or early_config.getini("no-ddtrace")
+        or "ddtrace" in early_config.inicfg
+        and early_config.getini("ddtrace") is False
+    ):
+        return False
+
+    return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")

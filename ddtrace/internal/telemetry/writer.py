@@ -3,7 +3,6 @@ import itertools
 import os
 import sys
 import time
-from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -17,8 +16,6 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
 from ...internal.core import crashtracking
-from ...internal.module import BaseModuleWatchdog
-from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
@@ -34,7 +31,6 @@ from ..compat import get_connection_response
 from ..compat import httplib
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
-from ..packages import Distribution
 from ..periodic import PeriodicService
 from ..runtime import container
 from ..runtime import get_runtime_id
@@ -42,11 +38,13 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
+from . import modules
 from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
 from .constants import TELEMETRY_AGENT_HOST
 from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
+from .constants import TELEMETRY_APM_PRODUCT
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_CRASHTRACKING_ALT_STACK
 from .constants import TELEMETRY_CRASHTRACKING_AVAILABLE
@@ -69,7 +67,6 @@ from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
-from .constants import TELEMETRY_PRIORITY_SAMPLING
 from .constants import TELEMETRY_PROFILING_CAPTURE_PCT
 from .constants import TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED
 from .constants import TELEMETRY_PROFILING_HEAP_ENABLED
@@ -142,6 +139,7 @@ class _TelemetryClient:
         self._telemetry_url = self.get_host(config._dd_site, agentless)
         self._endpoint = self.get_endpoint(agentless)
         self._encoder = JSONEncoderV2()
+        self._agentless = agentless
 
         self._headers = {
             "Content-Type": "application/json",
@@ -161,7 +159,7 @@ class _TelemetryClient:
         resp = None
         conn = None
         try:
-            rb_json = self._encoder.encode(request)
+            rb_json, _ = self._encoder.encode(request)
             headers = self.get_headers(request)
             with StopWatch() as sw:
                 conn = get_connection(self._telemetry_url)
@@ -201,35 +199,6 @@ class _TelemetryClient:
         return f"https://instrumentation-telemetry-intake.{site}/"
 
 
-class TelemetryWriterModuleWatchdog(BaseModuleWatchdog):
-    _initial = True
-    _new_imported: Set[str] = set()
-
-    def after_import(self, module: ModuleType) -> None:
-        module_path = origin(module)
-        self._new_imported.add(str(module_path))
-
-    @classmethod
-    def get_new_imports(cls):
-        if cls._initial:
-            try:
-                # On the first call, use sys.modules to cover all imports before we started. This is not
-                # done on __init__ because we want to do this slow operation on the writer's periodic call
-                # and not on instantiation.
-                new_imports = [str(origin(i)) for i in sys.modules.values()]
-            except RuntimeError:
-                new_imports = []
-            finally:
-                # If there is any problem with the above we don't want to repeat this slow process, instead we just
-                # switch to report new dependencies on further calls
-                cls._initial = False
-        else:
-            new_imports = list(cls._new_imported)
-
-        cls._new_imported.clear()
-        return new_imports
-
-
 class TelemetryWriter(PeriodicService):
     """
     Submits Instrumentation Telemetry events to the datadog agent.
@@ -262,7 +231,9 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
-        self._imported_dependencies: Dict[str, Distribution] = dict()
+        self._imported_dependencies: Dict[str, str] = dict()
+        self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
+        self._send_product_change_updates = False
 
         self.started = False
 
@@ -270,7 +241,10 @@ class TelemetryWriter(PeriodicService):
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
 
         self._enabled = config._telemetry_enabled
-        agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
+
+        if agentless is None:
+            agentless = config._ci_visibility_agentless_enabled or config._dd_api_key is not None
+
         if agentless and not config._dd_api_key:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
             self._enabled = False
@@ -288,6 +262,9 @@ class TelemetryWriter(PeriodicService):
             # Telemetry events will only be sent after the `app-started` is queued.
             # This will occur when the agent writer starts.
             self.enable()
+            # Force app started for unit tests
+            if asbool(os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false")):
+                self._app_started()
 
     def enable(self):
         # type: () -> bool
@@ -307,8 +284,7 @@ class TelemetryWriter(PeriodicService):
 
         self.status = ServiceStatus.RUNNING
         if config._telemetry_dependency_collection:
-            if not TelemetryWriterModuleWatchdog.is_installed():
-                TelemetryWriterModuleWatchdog.install()
+            modules.install_import_hook()
         return True
 
     def disable(self):
@@ -318,13 +294,20 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
-        if TelemetryWriterModuleWatchdog.is_installed():
-            TelemetryWriterModuleWatchdog.uninstall()
+        modules.uninstall_import_hook()
         self.reset_queues()
         if self._is_running():
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
+
+    def enable_agentless_client(self, enabled=True):
+        # type: (bool) -> None
+
+        if self._client._agentless == enabled:
+            return
+
+        self._client = _TelemetryClient(enabled)
 
     def _is_running(self):
         # type: () -> bool
@@ -337,7 +320,7 @@ class TelemetryWriter(PeriodicService):
         Adds a Telemetry event to the TelemetryWriter event buffer
 
         :param Dict payload: stores a formatted telemetry event
-        :param str payload_type: The payload_type denotes the type of telmetery request.
+        :param str payload_type: The payload_type denotes the type of telemetry request.
             Payload types accepted by telemetry/proxy v2: app-started, app-closing, app-integrations-change
         """
         if self.enable():
@@ -429,7 +412,7 @@ class TelemetryWriter(PeriodicService):
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
 
-    def app_started(self, register_app_shutdown=True):
+    def _app_started(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked or self.started:
@@ -476,9 +459,11 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
                 (
                     TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN,
-                    config._obfuscation_query_string_pattern.pattern.decode("ascii")
-                    if config._obfuscation_query_string_pattern
-                    else "",
+                    (
+                        config._obfuscation_query_string_pattern.pattern.decode("ascii")
+                        if config._obfuscation_query_string_pattern
+                        else ""
+                    ),
                     "unknown",
                 ),
                 (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),
@@ -489,7 +474,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
-                (TELEMETRY_PRIORITY_SAMPLING, config._priority_sampling, "unknown"),
                 (TELEMETRY_PARTIAL_FLUSH_ENABLED, config._partial_flush_enabled, "unknown"),
                 (TELEMETRY_PARTIAL_FLUSH_MIN_SPANS, config._partial_flush_min_spans, "unknown"),
                 (TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA, SCHEMA_VERSION, "unknown"),
@@ -535,12 +519,18 @@ class TelemetryWriter(PeriodicService):
         if config._config["_sca_enabled"].value() is None:
             self.remove_configuration("DD_APPSEC_SCA_ENABLED")
 
+        products = {
+            product: {"version": _pep440_to_semver(), "enabled": status}
+            for product, status in self._product_enablement.items()
+        }
+
         payload = {
             "configuration": self._flush_configuration_queue(),
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
             },
+            "products": products,
         }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
         # Add time to value telemetry metrics for single step instrumentation
         if config._telemetry_install_id or config._telemetry_install_type or config._telemetry_install_time:
@@ -591,9 +581,9 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = dict()
         return integrations
 
-    def _flush_new_imported_dependencies(self) -> List[str]:
+    def _flush_new_imported_dependencies(self) -> Set[str]:
         with self._lock:
-            new_deps = TelemetryWriterModuleWatchdog.get_new_imports()
+            new_deps = modules.get_newly_imported_modules()
         return new_deps
 
     def _flush_configuration_queue(self):
@@ -624,6 +614,35 @@ class TelemetryWriter(PeriodicService):
         if packages:
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
+
+    def _app_product_change(self):
+        # type: () -> None
+        """Adds a Telemetry event which reports the enablement of an APM product"""
+
+        if not self._send_product_change_updates:
+            return
+
+        payload = {
+            "products": {
+                product: {"version": _pep440_to_semver(), "enabled": status}
+                for product, status in self._product_enablement.items()
+            }
+        }
+        self.add_event(payload, "app-product-change")
+        self._send_product_change_updates = False
+
+    def product_activated(self, product, enabled):
+        # type: (TELEMETRY_APM_PRODUCT, bool) -> None
+        """Updates the product enablement dict"""
+
+        if self._product_enablement[product.value] == enabled:
+            return
+
+        self._product_enablement[product.value] = enabled
+
+        # If the app hasn't started, the product status will be included in the app_started event's payload
+        if self.started:
+            self._send_product_change_updates = True
 
     def remove_configuration(self, configuration_name):
         with self._lock:
@@ -759,6 +778,10 @@ class TelemetryWriter(PeriodicService):
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
     def periodic(self, force_flush=False, shutting_down=False):
+        # ensure app_started is called at least once in case traces weren't flushed
+        self._app_started()
+        self._app_product_change()
+
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
@@ -880,7 +903,7 @@ class TelemetryWriter(PeriodicService):
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             if self._enabled and not self.started:
-                self.app_started(False)
+                self._app_started(False)
 
             self.app_shutdown()
 

@@ -88,6 +88,7 @@
             "ddtrace/_logger.py",
             "ddtrace/_monkey.py",
             "ddtrace/_trace/*",
+            "ddtrace/trace/*",
             "ddtrace/constants.py",
             "ddtrace/context.py",
             "ddtrace/filters.py",
@@ -134,6 +135,7 @@
             "ddtrace/ext/__init__.py",
             "ddtrace/ext/http.py",
             "ddtrace/ext/net.py",
+            "ddtrace/ext/schema.py",
             "ddtrace/ext/sql.py",
             "ddtrace/ext/test.py",
             "ddtrace/ext/user.py",
@@ -151,10 +153,15 @@
             "ddtrace/contrib/aredis/*",
             "ddtrace/contrib/internal/aredis/*",
             "ddtrace/contrib/yaaredis/*",
+            "ddtrace/contrib/internal/yaaredis/*",
             "ddtrace/_trace/utils_redis.py",
             "ddtrace/contrib/redis_utils.py",
             "ddtrace/contrib/trace_utils_redis.py",
             "ddtrace/ext/redis.py"
+        ],
+        "avro": [
+            "ddtrace/contrib/avro/*",
+            "ddtrace/contrib/internal/avro/*"
         ],
         "mongo": [
             "ddtrace/contrib/pymongo/*",
@@ -173,7 +180,8 @@
         ],
         "datastreams": [
             "ddtrace/internal/datastreams/*",
-            "ddtrace/data_streams.py"
+            "ddtrace/data_streams.py",
+            "ddtrace/ext/schema.py"
         ],
         "debugging": [
             "ddtrace/debugging/*",
@@ -185,7 +193,7 @@
         ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
-            "ddtrace/ext/ci_visibility/*",
+            "ddtrace/ext/test_visibility/*",
             "ddtrace/ext/test.py"
         ],
         "coverage": [
@@ -211,7 +219,8 @@
             "ddtrace/opentracer/*"
         ],
         "tornado": [
-            "ddtrace/contrib/tornado/*"
+            "ddtrace/contrib/tornado/*",
+            "ddtrace/contrib/internal/tornado/*"
         ],
         "pynamodb": [
             "ddtrace/contrib/pynamodb/*",
@@ -240,10 +249,12 @@
             "ddtrace/ext/git.py"
         ],
         "starlette": [
-            "ddtrace/contrib/starlette/*"
+            "ddtrace/contrib/starlette/*",
+            "ddtrace/contrib/internal/starlette/*"
         ],
         "structlog": [
-            "ddtrace/contrib/structlog/*"
+            "ddtrace/contrib/structlog/*",
+            "ddtrace/contrib/internal/structlog/*"
         ],
         "asgi": [
             "ddtrace/contrib/asgi/*",
@@ -255,10 +266,12 @@
             "ddtrace/ext/memcached.py"
         ],
         "snowflake": [
-            "ddtrace/contrib/snowflake/*"
+            "ddtrace/contrib/snowflake/*",
+            "ddtrace/contrib/internal/snowflake/*"
         ],
         "sanic": [
-            "ddtrace/contrib/sanic/*"
+            "ddtrace/contrib/sanic/*",
+            "ddtrace/contrib/internal/sanic/*"
         ],
         "requests": [
             "ddtrace/contrib/requests/*",
@@ -277,10 +290,12 @@
             "ddtrace/contrib/internal/anthropic/*"
         ],
         "subprocess": [
-            "ddtrace/contrib/subprocess/*"
+            "ddtrace/contrib/subprocess/*",
+            "ddtrace/contrib/internal/subprocess/*"
         ],
         "sqlalchemy": [
-            "ddtrace/contrib/sqlalchemy/*"
+            "ddtrace/contrib/sqlalchemy/*",
+            "ddtrace/contrib/internal/sqlalchemy/*"
         ],
         "opentelemetry": [
             "ddtrace/opentelemetry/*",
@@ -296,13 +311,16 @@
             "ddtrace/vendor/*"
         ],
         "urllib3": [
-            "ddtrace/contrib/urllib3/*"
+            "ddtrace/contrib/urllib3/*",
+            "ddtrace/contrib/internal/urllib3/*"
         ],
         "webbrowser": [
-            "ddtrace/contrib/webbrowser/*"
+            "ddtrace/contrib/webbrowser/*",
+            "ddtrace/contrib/internal/webbrowser/*"
         ],
         "urllib": [
-            "ddtrace/contrib/urllib/*"
+            "ddtrace/contrib/urllib/*",
+            "ddtrace/contrib/internal/urllib/*"
         ],
         "rq": [
             "ddtrace/contrib/rq/*"
@@ -321,10 +339,12 @@
             "ddtrace/ext/kombu.py"
         ],
         "wsgi": [
-            "ddtrace/contrib/wsgi/*"
+            "ddtrace/contrib/wsgi/*",
+            "ddtrace/contrib/internal/wsgi/*"
         ],
         "vertica": [
-            "ddtrace/contrib/vertica/*"
+            "ddtrace/contrib/vertica/*",
+            "ddtrace/contrib/internal/vertica/*"
         ],
         "algoliasearch": [
             "ddtrace/contrib/algoliasearch/*",
@@ -399,7 +419,8 @@
             "ddtrace/contrib/internal/loguru/*"
         ],
         "sqlite3": [
-            "ddtrace/contrib/sqlite3/*"
+            "ddtrace/contrib/sqlite3/*",
+            "ddtrace/contrib/internal/sqlite3/*"
         ],
         "asyncio": [
             "ddtrace/contrib/asyncio/*"
@@ -426,7 +447,7 @@
         ],
         "openai": [
             "ddtrace/contrib/openai/*",
-            "ddtrace/contrib/internal/openai/*" 
+            "ddtrace/contrib/internal/openai/*"
         ],
         "falcon": [
             "ddtrace/contrib/falcon/*",
@@ -762,6 +783,12 @@
             "@core",
             "@profiling",
             "tests/profiling/*"
+        ],
+        "profile-v2": [
+            "@bootstrap",
+            "@core",
+            "@profiling",
+            "tests/profiling-v2/*"
         ],
         "vendor": [
             "@vendor",
@@ -1340,6 +1367,14 @@
             "@redis",
             "tests/contrib/aredis/*",
             "tests/snapshots/tests.contrib.{suite}.*"
+        ],
+        "avro": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@avro",
+            "tests/contrib/avro/*"
         ],
         "yaaredis": [
             "@core",

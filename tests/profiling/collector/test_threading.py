@@ -8,12 +8,11 @@ import mock
 import pytest
 
 from ddtrace.profiling import recorder
-from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import threading as collector_threading
 
 from . import test_collector
-from .utils import get_lock_linenos
-from .utils import init_linenos
+from .lock_utils import get_lock_linenos
+from .lock_utils import init_linenos
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
@@ -193,12 +192,13 @@ def test_lock_events_tracer_late_finish(tracer):
             assert event.trace_type is None
 
 
-def test_resource_not_collected(monkeypatch, tracer):
-    monkeypatch.setenv("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "false")
+def test_resource_not_collected(tracer):
     resource = str(uuid.uuid4())
     span_type = str(uuid.uuid4())
     r = recorder.Recorder()
-    with collector_threading.ThreadingLockCollector(r, tracer=tracer, capture_pct=100):
+    with collector_threading.ThreadingLockCollector(
+        r, tracer=tracer, capture_pct=100, endpoint_collection_enabled=False
+    ):
         lock1 = threading.Lock()  # !CREATE! test_resource_not_collected1
         lock1.acquire()  # !ACQUIRE! test_resource_not_collected1
         with tracer.trace("test", resource=resource, span_type=span_type) as t:
@@ -238,7 +238,7 @@ def test_resource_not_collected(monkeypatch, tracer):
                     hits += 1
                 elif lineno in lines_with_trace:
                     assert event.span_id == span_id
-                    assert event.trace_resource_container[0] == resource
+                    assert event.trace_resource_container is None
                     assert event.trace_type == span_type
                     hits += 1
         assert hits == 2
@@ -279,8 +279,8 @@ def test_lock_gevent_tasks():
 
     from ddtrace.profiling import recorder
     from ddtrace.profiling.collector import threading as collector_threading
-    from tests.profiling.collector.utils import get_lock_linenos
-    from tests.profiling.collector.utils import init_linenos
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -420,11 +420,11 @@ def test_user_threads_have_native_id():
 def test_lock_enter_exit_events():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        th_lock = threading.Lock()  # !CREATE! !RELEASE! test_lock_enter_exit_events
-        with th_lock:  # !ACQUIRE! test_lock_enter_exit_events
+        th_lock = threading.Lock()  # !CREATE! test_lock_enter_exit_events
+        with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
             pass
 
-    linenos = get_lock_linenos("test_lock_enter_exit_events")
+    linenos = get_lock_linenos("test_lock_enter_exit_events", with_stmt=True)
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
@@ -445,14 +445,12 @@ def test_lock_enter_exit_events():
     assert acquire_event.sampling_pct == 100
 
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-    assert release_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.release)
+    assert release_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
     assert release_event.thread_id == _thread.get_ident()
     assert release_event.locked_for_ns >= 0
-    release_lineno = 389 if sys.version_info >= (3, 10) else 390
-    release_lineno = linenos.acquire + (0 if sys.version_info >= (3, 10) else 1)
     assert release_event.frames[0] == (
         __file__.replace(".pyc", ".py"),
-        release_lineno,
+        linenos.release,
         "test_lock_enter_exit_events",
         "",
     )
@@ -476,45 +474,29 @@ class Bar:
         self.foo.foo()
 
 
-def test_class_member_lock():
-    r = recorder.Recorder()
-    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        foobar = Foo()
-        foobar.foo()
-        bar = Bar()
-        bar.bar()
-
-    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 2
-    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 2
-
-    linenos = get_lock_linenos("foolock")
-    expected_lock_name = "test_threading.py:{}:foo_lock".format(linenos.create)
-    for e in r.events[collector_threading.ThreadingLockAcquireEvent]:
-        assert e.lock_name == expected_lock_name
-        assert e.frames[0] == (__file__.replace(".pyc", ".py"), linenos.acquire, "foo", "Foo")
-    for e in r.events[collector_threading.ThreadingLockReleaseEvent]:
-        assert e.lock_name == expected_lock_name
-        release_lineno = linenos.release + (0 if sys.version_info >= (3, 10) else 1)
-        assert e.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "foo", "Foo")
-
-
-def test_class_member_lock_no_inspect_dir():
-    with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", False):
+@pytest.mark.parametrize("inspect_dir_enabled", [True, False])
+def test_class_member_lock(inspect_dir_enabled):
+    with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
         r = recorder.Recorder()
         with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+            foobar = Foo()
+            foobar.foo()
             bar = Bar()
             bar.bar()
-        linenos = get_lock_linenos("foolock")
-        assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
-        assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+
+        assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 2
+        assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 2
+
+        linenos = get_lock_linenos("foolock", with_stmt=True)
         expected_lock_name = "test_threading.py:{}".format(linenos.create)
-        acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-        assert acquire_event.lock_name == expected_lock_name
-        assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos.acquire, "foo", "Foo")
-        release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
-        assert release_event.lock_name == expected_lock_name
-        release_lineno = linenos.acquire + (0 if sys.version_info >= (3, 10) else 1)
-        assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "foo", "Foo")
+        if inspect_dir_enabled:
+            expected_lock_name += ":foo_lock"
+        for e in r.events[collector_threading.ThreadingLockAcquireEvent]:
+            assert e.lock_name == expected_lock_name
+            assert e.frames[0] == (__file__.replace(".pyc", ".py"), linenos.acquire, "foo", "Foo")
+        for e in r.events[collector_threading.ThreadingLockReleaseEvent]:
+            assert e.lock_name == expected_lock_name
+            assert e.frames[0] == (__file__.replace(".pyc", ".py"), linenos.release, "foo", "Foo")
 
 
 def test_private_lock():
@@ -531,7 +513,7 @@ def test_private_lock():
         foo = Foo()
         foo.foo()
 
-    linenos = get_lock_linenos("test_private_lock")
+    linenos = get_lock_linenos("test_private_lock", with_stmt=True)
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     expected_lock_name = "test_threading.py:{}:_Foo__lock".format(linenos.create)
@@ -540,8 +522,7 @@ def test_private_lock():
     assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos.acquire, "foo", "Foo")
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert release_event.lock_name == expected_lock_name
-    release_lineno = linenos.release + (0 if sys.version_info >= (3, 10) else 1)
-    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "foo", "Foo")
+    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos.release, "foo", "Foo")
 
 
 def test_inner_lock():
@@ -558,8 +539,8 @@ def test_inner_lock():
         bar = Bar()
         bar.bar()
 
-    linenos_foo = get_lock_linenos("foolock")
-    linenos_bar = get_lock_linenos("test_inner_lock")
+    linenos_foo = get_lock_linenos("foolock")  # to get the create line number
+    linenos_bar = get_lock_linenos("test_inner_lock", with_stmt=True)
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     expected_lock_name = "test_threading.py:{}".format(linenos_foo.create)
@@ -568,82 +549,129 @@ def test_inner_lock():
     assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos_bar.acquire, "bar", "Bar")
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert release_event.lock_name == expected_lock_name
-    release_lineno = linenos_bar.acquire + (0 if sys.version_info >= (3, 10) else 1)
-    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "bar", "Bar")
+    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos_bar.release, "bar", "Bar")
 
 
 def test_anonymous_lock():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        with threading.Lock():  # !CREATE! !ACQUIRE! test_anonymous_lock
+        with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
             pass
 
     # Now read this entire file and find the line number for the anonymous lock
-    linenos = get_lock_linenos("test_anonymous_lock")
+    linenos = get_lock_linenos("test_anonymous_lock", with_stmt=True)
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     expected_lock_name = "test_threading.py:{}".format(linenos.create)
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
     assert acquire_event.lock_name == expected_lock_name
-    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos.create, "test_anonymous_lock", "")
+    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos.acquire, "test_anonymous_lock", "")
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert release_event.lock_name == expected_lock_name
-    release_lineno = linenos.create + (0 if sys.version_info >= (3, 10) else 1)
-    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_anonymous_lock", "")
+    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos.release, "test_anonymous_lock", "")
 
 
-def test_wrapt_c_ext_config():
-    if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
-        assert _lock.WRAPT_C_EXT is False
-    else:
-        try:
-            import wrapt._wrappers as _w
-        except ImportError:
-            assert _lock.WRAPT_C_EXT is False
-        else:
-            assert _lock.WRAPT_C_EXT is True
-            del _w
+@pytest.mark.subprocess(
+    env=dict(WRAPT_DISABLE_EXTENSIONS="True", DD_PROFILING_FILE_PATH=__file__),
+)
+def test_wrapt_disable_extensions():
+    import os
+    import threading
+
+    from ddtrace.profiling import recorder
+    from ddtrace.profiling.collector import _lock
+    from ddtrace.profiling.collector import threading as collector_threading
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    # WRAPT_DISABLE_EXTENSIONS is a flag that can be set to disable the C extension
+    # for wrapt. It's not set by default in dd-trace-py, but it can be set by
+    # users. This test checks that the collector works even if the flag is set.
+    assert os.environ.get("WRAPT_DISABLE_EXTENSIONS")
+    assert _lock.WRAPT_C_EXT is False
+
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        th_lock = threading.Lock()  # !CREATE! test_wrapt_c_ext_config
-        with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_c_ext_config
+        th_lock = threading.Lock()  # !CREATE! test_wrapt_disable_extensions
+        with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
             pass
 
-    linenos = get_lock_linenos("test_wrapt_c_ext_config")
+    linenos = get_lock_linenos("test_wrapt_disable_extensions", with_stmt=True)
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
     assert acquire_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
-    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), linenos.acquire, "test_wrapt_c_ext_config", "")
+
+    expected_filename = os.environ["DD_PROFILING_FILE_PATH"].replace(".pyc", ".py")
+
+    assert len(acquire_event.frames) > 0, "No frames found"
+    acquire_frame = acquire_event.frames[0]
+
+    # This test is run in a subprocess, and doesn't show details about why it
+    # failed, so we add more details to the assert message.
+    assert expected_filename.endswith(acquire_frame.file_name), "Expected filename {} to end with {}".format(
+        expected_filename, acquire_frame.file_name
+    )
+    assert acquire_frame.lineno == linenos.acquire, "Expected line number {}, got {}".format(
+        linenos.acquire, acquire_frame.lineno
+    )
+    # As this test runs in a subprocess, the body of this function is simply
+    # placed in a temporary file, and we don't have a function name and it
+    # defaults to <module>
+    assert acquire_frame.function_name == "<module>", "Expected function name <module>, got {}".format(
+        acquire_frame.function_name
+    )
+    assert acquire_frame.class_name == "", "Expected class name '', got {}".format(acquire_frame.class_name)
+
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert release_event.lock_name == "test_threading.py:{}:th_lock".format(linenos.create)
-    release_lineno = linenos.acquire + (0 if sys.version_info >= (3, 10) else 1)
-    assert release_event.frames[0] == (__file__.replace(".pyc", ".py"), release_lineno, "test_wrapt_c_ext_config", "")
+
+    assert len(release_event.frames) > 0, "No frames found"
+    release_frame = release_event.frames[0]
+
+    assert expected_filename.endswith(release_frame.file_name), "Expected filename {} to end with {}".format(
+        expected_filename, release_frame.file_name
+    )
+    assert release_frame.lineno == linenos.release, "Expected line number {}, got {}".format(
+        linenos.release, release_frame.lineno
+    )
+    assert release_frame.function_name == "<module>", "Expected function name <module>, got {}".format(
+        release_frame.function_name
+    )
+    assert release_frame.class_name == "", "Expected class name '', got {}".format(release_frame.class_name)
 
 
 def test_global_locks():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        from . import global_locks
+        from tests.profiling.collector import global_locks
 
         global_locks.foo()
         global_locks.bar_instance.bar()
 
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 2
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 2
-    expected_lock_names = ["global_locks.py:4:global_lock", "global_locks.py:15:bar_lock"]
+
+    linenos_foo = get_lock_linenos("global_lock", with_stmt=True)
+    linenos_bar = get_lock_linenos("bar_lock", with_stmt=True)
+
+    expected_lock_names = [
+        "global_locks.py:{}:global_lock".format(linenos_foo.create),
+        "global_locks.py:{}:bar_lock".format(linenos_bar.create),
+    ]
     expected_filename = __file__.replace(".pyc", ".py").replace("test_threading", "global_locks")
+
     for e in r.events[collector_threading.ThreadingLockAcquireEvent]:
         assert e.lock_name in expected_lock_names
         if e.lock_name == expected_lock_names[0]:
-            assert e.frames[0] == (expected_filename, 9, "foo", "")
+            assert e.frames[0] == (expected_filename, linenos_foo.acquire, "foo", "")
         elif e.lock_name == expected_lock_names[1]:
-            assert e.frames[0] == (expected_filename, 18, "bar", "Bar")
+            assert e.frames[0] == (expected_filename, linenos_bar.acquire, "bar", "Bar")
     for e in r.events[collector_threading.ThreadingLockReleaseEvent]:
         assert e.lock_name in expected_lock_names
         if e.lock_name == expected_lock_names[0]:
-            release_lineno = 9 if sys.version_info >= (3, 10) else 10
-            assert e.frames[0] == (expected_filename, release_lineno, "foo", "")
+            assert e.frames[0] == (expected_filename, linenos_foo.release, "foo", "")
         elif e.lock_name == expected_lock_names[1]:
-            release_lineno = 18 if sys.version_info >= (3, 10) else 19
-            assert e.frames[0] == (expected_filename, release_lineno, "bar", "Bar")
+            assert e.frames[0] == (expected_filename, linenos_bar.release, "bar", "Bar")

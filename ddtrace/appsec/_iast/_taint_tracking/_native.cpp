@@ -11,6 +11,7 @@
 #include "Aspects/AspectExtend.h"
 #include "Aspects/AspectIndex.h"
 #include "Aspects/AspectJoin.h"
+#include "Aspects/AspectModulo.h"
 #include "Aspects/AspectOperatorAdd.h"
 #include "Aspects/AspectSlice.h"
 #include "Aspects/_aspects_exports.h"
@@ -28,10 +29,12 @@ namespace py = pybind11;
 
 static PyMethodDef AspectsMethods[] = {
     { "add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add" },
+    { "add_inplace_aspect", ((PyCFunction)api_add_inplace_aspect), METH_FASTCALL, "aspect add" },
     { "extend_aspect", ((PyCFunction)api_extend_aspect), METH_FASTCALL, "aspect extend" },
     { "index_aspect", ((PyCFunction)api_index_aspect), METH_FASTCALL, "aspect index" },
     { "join_aspect", ((PyCFunction)api_join_aspect), METH_FASTCALL, "aspect join" },
     { "slice_aspect", ((PyCFunction)api_slice_aspect), METH_FASTCALL, "aspect slice" },
+    { "modulo_aspect", ((PyCFunction)api_modulo_aspect), METH_FASTCALL, "aspect modulo" },
     { nullptr, nullptr, 0, nullptr }
 };
 

@@ -129,10 +129,15 @@ def _should_iast_patch(module_name: Text) -> bool:
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
     if module_name.lower().startswith(IAST_ALLOWLIST):
+        log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
         return True
     if module_name.lower().startswith(IAST_DENYLIST):
+        log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
         return False
-    return not _in_python_stdlib(module_name)
+    if _in_python_stdlib(module_name):
+        log.debug("IAST: denying %s. it's in the _in_python_stdlib", module_name)
+        return False
+    return True
 
 
 def visit_ast(

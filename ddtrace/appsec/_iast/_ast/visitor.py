@@ -62,10 +62,20 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "format_map": "ddtrace_aspects.format_map_aspect",
         "zfill": "ddtrace_aspects.zfill_aspect",
         "ljust": "ddtrace_aspects.ljust_aspect",
-        "split": "ddtrace_aspects.split_aspect",
+        "split": "ddtrace_aspects.split_aspect",  # Both regular split and re.split
         "rsplit": "ddtrace_aspects.rsplit_aspect",
         "splitlines": "ddtrace_aspects.splitlines_aspect",
+        # re module and re.Match methods
+        "findall": "ddtrace_aspects.re_findall_aspect",
+        "finditer": "ddtrace_aspects.re_finditer_aspect",
+        "fullmatch": "ddtrace_aspects.re_fullmatch_aspect",
+        "expand": "ddtrace_aspects.re_expand_aspect",
+        "group": "ddtrace_aspects.re_group_aspect",
+        "groups": "ddtrace_aspects.re_groups_aspect",
+        "match": "ddtrace_aspects.re_match_aspect",
+        "search": "ddtrace_aspects.re_search_aspect",
         "sub": "ddtrace_aspects.re_sub_aspect",
+        "subn": "ddtrace_aspects.re_subn_aspect",
     },
     # Replacement function for indexes and ranges
     "slices": {
@@ -85,6 +95,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
     },
     "operators": {
         ast.Add: "ddtrace_aspects.add_aspect",
+        "INPLACE_ADD": "ddtrace_aspects.add_inplace_aspect",
         "FORMAT_VALUE": "ddtrace_aspects.format_value_aspect",
         ast.Mod: "ddtrace_aspects.modulo_aspect",
         "BUILD_STRING": "ddtrace_aspects.build_string_aspect",
@@ -615,6 +626,51 @@ class AstVisitor(ast.NodeTransformer):
 
         return call_node
 
+    def visit_AugAssign(self, augassign_node: ast.AugAssign) -> Any:
+        """
+        Replace an inplace add or multiply (+= / *=)
+        """
+        if isinstance(augassign_node.target, ast.Subscript):
+            # Can't augassign to function call, ignore this node
+            augassign_node.target.avoid_convert = True  # type: ignore[attr-defined]
+            self.generic_visit(augassign_node)
+            return augassign_node
+
+        self.generic_visit(augassign_node)
+        if augassign_node.op.__class__ == ast.Add:
+            # Optimization: ignore augassigns where the right side term is an integer since
+            # they can't apply to strings
+            if self._is_numeric_node(augassign_node.value):
+                return augassign_node
+
+            replacement_func = self._aspect_operators["INPLACE_ADD"]
+        else:
+            return augassign_node
+
+        # We must change the ctx of the target and value to Load() for using
+        # them as function arguments while keeping it as Store() for the
+        # Assign.targets, thus the manual copy
+
+        func_arg1 = copy.deepcopy(augassign_node.target)
+        func_arg1.ctx = ast.Load()  # type: ignore[attr-defined]
+        func_arg2 = copy.deepcopy(augassign_node.value)
+        func_arg2.ctx = ast.Load()  # type: ignore[attr-defined]
+
+        call_node = self._call_node(
+            augassign_node,
+            func=self._attr_node(augassign_node, replacement_func),
+            args=[func_arg1, func_arg2],
+        )
+
+        self.ast_modified = True
+        return self._node(
+            ast.Assign,
+            augassign_node,
+            targets=[augassign_node.target],
+            value=call_node,
+            type_comment=None,
+        )
+
     def visit_FormattedValue(self, fmt_value_node: ast.FormattedValue) -> Any:
         """
         Visit a FormattedValue node which are the constituent atoms for the
@@ -675,17 +731,6 @@ class AstVisitor(ast.NodeTransformer):
         self.ast_modified = True
         _set_metric_iast_instrumented_propagation()
         return call_node
-
-    def visit_AugAssign(self, augassign_node: ast.AugAssign) -> Any:
-        """Replace an inplace add or multiply."""
-        if isinstance(augassign_node.target, ast.Subscript):
-            # Can't augassign to function call, ignore this node
-            augassign_node.target.avoid_convert = True  # type: ignore[attr-defined]
-            self.generic_visit(augassign_node)
-            return augassign_node
-
-        # TODO: Replace an inplace add or multiply (+= / *=)
-        return augassign_node
 
     def visit_Assign(self, assign_node: ast.Assign) -> Any:
         """

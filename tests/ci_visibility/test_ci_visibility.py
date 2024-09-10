@@ -7,6 +7,7 @@ import re
 import socket
 import textwrap
 import time
+from typing import DefaultDict
 from unittest.mock import Mock
 
 import mock
@@ -16,9 +17,9 @@ import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
-from ddtrace.ext.ci_visibility import api
 from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _GitSubprocessDetails
+import ddtrace.ext.test_visibility.api as ext_api
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SUITE
@@ -30,6 +31,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+import ddtrace.internal.test_visibility.api as api
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
@@ -207,6 +209,25 @@ def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_fea
         CIVisibility.disable()
 
 
+@mock.patch(
+    "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    return_value=_CIVisibilitySettings(True, True, False, True),
+)
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=ValueError)
+def test_ci_visibility_service_skippable_other_error(_do_request, _check_enabled_features):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), _dummy_noop_git_client():
+        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._test_suites_to_skip == []
+        CIVisibility.disable()
+
+
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
     with override_env(
@@ -292,6 +313,16 @@ def test_ci_visibility_service_disable():
         ("git+git://github.com/org/repo-name.git", "repo-name"),
         ("git+ssh://github.com/org/repo-name.git", "repo-name"),
         ("git+https://github.com/org/repo-name.git", "repo-name"),
+        ("https://github.com/fastapi/fastapi.git", "fastapi"),
+        ("git@github.com:fastapi/fastapi.git", "fastapi"),
+        ("git@github.com:fastapi/fastapi.gitttttt", "fastapi.gitttttt"),
+        ("git@github.com:fastapi/fastapiiiititititi.git", "fastapiiiititititi"),
+        ("https://github.com/fastapi/fastapitttttt.git", "fastapitttttt"),
+        ("this is definitely not a valid git repo URL", "this is definitely not a valid git repo URL"),
+        ("git@github.com:fastapi/FastAPI.GiT", "FastAPI"),
+        ("git+https://github.com/org/REPO-NAME.GIT", "REPO-NAME"),
+        ("https://github.com/DataDog/DD-TRACE-py", "DD-TRACE-py"),
+        ("https://github.com/DataDog/dd-trace-py.GIT", "dd-trace-py"),
     ],
 )
 def test_repository_name_extracted(repository_url, repository_name):
@@ -505,6 +536,7 @@ def test_civisibilitywriter_coverage_agentless_url():
         assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
         with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            _get_connection.return_value.getresponse.return_value.status = 200
             dummy_writer._put("", {}, cov_client, no_trace=True)
             _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
@@ -524,6 +556,7 @@ def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
         assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
         with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            _get_connection.return_value.getresponse.return_value.status = 200
             dummy_writer._put("", {}, cov_client, no_trace=True)
             _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
@@ -542,6 +575,7 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
         assert cov_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcov"
 
         with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            _get_connection.return_value.getresponse.return_value.status = 200
             dummy_writer._put("", {}, cov_client, no_trace=True)
             _get_connection.assert_called_once_with("http://localhost:9126", 2.0)
 
@@ -625,6 +659,7 @@ class TestCheckEnabledFeatures:
         },
         REQUESTS_MODE.EVP_PROXY_EVENTS: {
             "X-Datadog-EVP-Subdomain": "api",
+            "Content-Type": "application/json",
         },
     }
 
@@ -1619,7 +1654,7 @@ class TestIsITRSkippable:
     No tests should be skippable in suite-level skipping mode, and vice versa.
     """
 
-    test_level_tests_to_skip = defaultdict()
+    test_level_tests_to_skip: DefaultDict = defaultdict()
     test_level_tests_to_skip.update(
         {
             "module_1/module_1_suite_1.py": ["test_1", "test_2", "test_5[param2]"],
@@ -1637,73 +1672,70 @@ class TestIsITRSkippable:
         "no_module_suite_1.py",
     ]
 
-    # Consistent IDs for all tests
-    session_id = api.CISessionId()
-
     # Module 1
-    m1 = api.CIModuleId(session_id, "module_1")
+    m1 = ext_api.TestModuleId("module_1")
     # Module 1 Suite 1
-    m1_s1 = api.CISuiteId(m1, "module_1_suite_1.py")
-    m1_s1_t1 = api.CITestId(m1_s1, "test_1")
-    m1_s1_t2 = api.CITestId(m1_s1, "test_2")
-    m1_s1_t3 = api.CITestId(m1_s1, "test_3")
-    m1_s1_t4 = api.CITestId(m1_s1, "test_4[param1]")
-    m1_s1_t5 = api.CITestId(m1_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m1_s1_t6 = api.CITestId(m1_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m1_s1_t7 = api.CITestId(m1_s1, "test_6[param3]")
+    m1_s1 = ext_api.TestSuiteId(m1, "module_1_suite_1.py")
+    m1_s1_t1 = api.InternalTestId(m1_s1, "test_1")
+    m1_s1_t2 = api.InternalTestId(m1_s1, "test_2")
+    m1_s1_t3 = api.InternalTestId(m1_s1, "test_3")
+    m1_s1_t4 = api.InternalTestId(m1_s1, "test_4[param1]")
+    m1_s1_t5 = api.InternalTestId(m1_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m1_s1_t6 = api.InternalTestId(m1_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m1_s1_t7 = api.InternalTestId(m1_s1, "test_6[param3]")
 
     # Module 1 Suite 2
-    m1_s2 = api.CISuiteId(m1, "module_1_suite_2.py")
-    m1_s2_t1 = api.CITestId(m1_s2, "test_1")
-    m1_s2_t2 = api.CITestId(m1_s2, "test_2")
-    m1_s2_t3 = api.CITestId(m1_s2, "test_3")
-    m1_s2_t4 = api.CITestId(m1_s2, "test_4[param1]")
-    m1_s2_t5 = api.CITestId(m1_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m1_s2_t6 = api.CITestId(m1_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m1_s2_t7 = api.CITestId(m1_s2, "test_6[param3]")
+    m1_s2 = ext_api.TestSuiteId(m1, "module_1_suite_2.py")
+    m1_s2_t1 = api.InternalTestId(m1_s2, "test_1")
+    m1_s2_t2 = api.InternalTestId(m1_s2, "test_2")
+    m1_s2_t3 = api.InternalTestId(m1_s2, "test_3")
+    m1_s2_t4 = api.InternalTestId(m1_s2, "test_4[param1]")
+    m1_s2_t5 = api.InternalTestId(m1_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m1_s2_t6 = api.InternalTestId(m1_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m1_s2_t7 = api.InternalTestId(m1_s2, "test_6[param3]")
 
     # Module 2
-    m2 = api.CIModuleId(session_id, "module_2")
+    m2 = ext_api.TestModuleId("module_2")
 
     # Module 2 Suite 1
-    m2_s1 = api.CISuiteId(m2, "module_2_suite_1.py")
-    m2_s1_t1 = api.CITestId(m2_s1, "test_1")
-    m2_s1_t2 = api.CITestId(m2_s1, "test_2")
-    m2_s1_t3 = api.CITestId(m2_s1, "test_3")
-    m2_s1_t4 = api.CITestId(m2_s1, "test_4[param1]")
-    m2_s1_t5 = api.CITestId(m2_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m2_s1_t6 = api.CITestId(m2_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m2_s1_t7 = api.CITestId(m2_s1, "test_6[param3]")
+    m2_s1 = ext_api.TestSuiteId(m2, "module_2_suite_1.py")
+    m2_s1_t1 = api.InternalTestId(m2_s1, "test_1")
+    m2_s1_t2 = api.InternalTestId(m2_s1, "test_2")
+    m2_s1_t3 = api.InternalTestId(m2_s1, "test_3")
+    m2_s1_t4 = api.InternalTestId(m2_s1, "test_4[param1]")
+    m2_s1_t5 = api.InternalTestId(m2_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m2_s1_t6 = api.InternalTestId(m2_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m2_s1_t7 = api.InternalTestId(m2_s1, "test_6[param3]")
 
     # Module 2 Suite 2
-    m2_s2 = api.CISuiteId(m2, "module_2_suite_2.py")
-    m2_s2_t1 = api.CITestId(m2_s2, "test_1")
-    m2_s2_t2 = api.CITestId(m2_s2, "test_2")
-    m2_s2_t3 = api.CITestId(m2_s2, "test_3")
-    m2_s2_t4 = api.CITestId(m2_s2, "test_4[param1]")
-    m2_s2_t5 = api.CITestId(m2_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m2_s2_t6 = api.CITestId(m2_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m2_s2_t7 = api.CITestId(m2_s2, "test_6[param3]")
+    m2_s2 = ext_api.TestSuiteId(m2, "module_2_suite_2.py")
+    m2_s2_t1 = api.InternalTestId(m2_s2, "test_1")
+    m2_s2_t2 = api.InternalTestId(m2_s2, "test_2")
+    m2_s2_t3 = api.InternalTestId(m2_s2, "test_3")
+    m2_s2_t4 = api.InternalTestId(m2_s2, "test_4[param1]")
+    m2_s2_t5 = api.InternalTestId(m2_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m2_s2_t6 = api.InternalTestId(m2_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m2_s2_t7 = api.InternalTestId(m2_s2, "test_6[param3]")
 
     # Module 3
-    m3 = api.CIModuleId(session_id, "")
-    m3_s1 = api.CISuiteId(m3, "no_module_suite_1.py")
-    m3_s1_t1 = api.CITestId(m3_s1, "test_1")
-    m3_s1_t2 = api.CITestId(m3_s1, "test_2")
-    m3_s1_t3 = api.CITestId(m3_s1, "test_3")
-    m3_s1_t4 = api.CITestId(m3_s1, "test_4[param1]")
-    m3_s1_t5 = api.CITestId(m3_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m3_s1_t6 = api.CITestId(m3_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m3_s1_t7 = api.CITestId(m3_s1, "test_6[param3]")
+    m3 = ext_api.TestModuleId("")
+    m3_s1 = ext_api.TestSuiteId(m3, "no_module_suite_1.py")
+    m3_s1_t1 = api.InternalTestId(m3_s1, "test_1")
+    m3_s1_t2 = api.InternalTestId(m3_s1, "test_2")
+    m3_s1_t3 = api.InternalTestId(m3_s1, "test_3")
+    m3_s1_t4 = api.InternalTestId(m3_s1, "test_4[param1]")
+    m3_s1_t5 = api.InternalTestId(m3_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m3_s1_t6 = api.InternalTestId(m3_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m3_s1_t7 = api.InternalTestId(m3_s1, "test_6[param3]")
 
-    m3_s2 = api.CISuiteId(m3, "no_module_suite_2.py")
-    m3_s2_t1 = api.CITestId(m3_s2, "test_1")
-    m3_s2_t2 = api.CITestId(m3_s2, "test_2")
-    m3_s2_t3 = api.CITestId(m3_s2, "test_3")
-    m3_s2_t4 = api.CITestId(m3_s2, "test_4[param1]")
-    m3_s2_t5 = api.CITestId(m3_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m3_s2_t6 = api.CITestId(m3_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m3_s2_t7 = api.CITestId(m3_s2, "test_6[param3]")
+    m3_s2 = ext_api.TestSuiteId(m3, "no_module_suite_2.py")
+    m3_s2_t1 = api.InternalTestId(m3_s2, "test_1")
+    m3_s2_t2 = api.InternalTestId(m3_s2, "test_2")
+    m3_s2_t3 = api.InternalTestId(m3_s2, "test_3")
+    m3_s2_t4 = api.InternalTestId(m3_s2, "test_4[param1]")
+    m3_s2_t5 = api.InternalTestId(m3_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m3_s2_t6 = api.InternalTestId(m3_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m3_s2_t7 = api.InternalTestId(m3_s2, "test_6[param3]")
 
     def _get_all_suite_ids(self):
         return {getattr(self, suite_id) for suite_id in vars(self.__class__) if re.match(r"^m\d_s\d$", suite_id)}

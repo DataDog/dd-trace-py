@@ -147,11 +147,8 @@ def _parse_propagation_styles(name, default):
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
-            raise ValueError(
-                "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
-                    style, name, PROPAGATION_STYLE_ALL
-                )
-            )
+            log.warning("Unknown style {!r} provided for %r, allowed values are %r", style, name, PROPAGATION_STYLE_ALL)
+            continue
         styles.append(style)
     return styles
 
@@ -218,25 +215,21 @@ class _ConfigItem:
                 self._env_value = parser(os.environ[env_var])
                 break
 
-    def set_value_source(self, value, source):
-        # type: (Any, _ConfigSource) -> None
+    def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
         else:
-            raise ValueError("Invalid source: {}".format(source))
+            log.warning("Invalid source: %s", source)
 
-    def set_code(self, value):
-        # type: (_JSONType) -> None
+    def set_code(self, value: _JSONType) -> None:
         self._code_value = value
 
-    def unset_rc(self):
-        # type: () -> None
+    def unset_rc(self) -> None:
         self._rc_value = None
 
-    def value(self):
-        # type: () -> _JSONType
+    def value(self) -> _JSONType:
         if self._rc_value is not None:
             return self._rc_value
         if self._code_value is not None:
@@ -245,8 +238,7 @@ class _ConfigItem:
             return self._env_value
         return self._default_value
 
-    def source(self):
-        # type: () -> _ConfigSource
+    def source(self) -> _ConfigSource:
         if self._rc_value is not None:
             return "remote_config"
         if self._code_value is not None:
@@ -271,8 +263,7 @@ def _parse_global_tags(s):
     return gitmetadata.clean_tags(parse_tags_str(s))
 
 
-def _default_config():
-    # type: () -> Dict[str, _ConfigItem]
+def _default_config() -> Dict[str, _ConfigItem]:
     return {
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
@@ -388,7 +379,6 @@ class Config(object):
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
-        self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
@@ -512,12 +502,14 @@ class Config(object):
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
         if x_datadog_tags_max_length < 0:
-            raise ValueError(
+            log.warning(
                 (
-                    "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
+                    "Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
                     "only non-negative values allowed"
-                ).format(x_datadog_tags_max_length)
+                ),
+                x_datadog_tags_max_length,
             )
+            x_datadog_tags_max_length = 0
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 

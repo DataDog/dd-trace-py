@@ -4,6 +4,7 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal.injection import HookType
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
@@ -22,9 +23,11 @@ try:
 except ValueError:
     # TODO: Another coverage tool is already in use. Either warn the user
     # or free the tool and register ours.
-    def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
+    def instrument_all_lines(
+        code: CodeType, hook: HookType, path: str, package: str
+    ) -> t.Tuple[CodeType, CoverageLines]:
         # No-op
-        return code, set()
+        return code, CoverageLines()
 
 else:
     _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
@@ -39,14 +42,16 @@ else:
         sys.monitoring.COVERAGE_ID, sys.monitoring.events.LINE, _line_event_handler
     )  # noqa
 
-    def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
+    def instrument_all_lines(
+        code: CodeType, hook: HookType, path: str, package: str
+    ) -> t.Tuple[CodeType, CoverageLines]:
         # Enable local line events for the code object
         sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, sys.monitoring.events.LINE)  # noqa
 
         # Collect all the line numbers in the code object
         linestarts = dict(dis.findlinestarts(code))
 
-        lines = set()
+        lines = CoverageLines()
         import_names: t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str, ...]]]] = {}
 
         # The previous two arguments are kept in order to track the depth of the IMPORT_NAME

@@ -1,0 +1,69 @@
+.services:
+  ddagent:
+    name: registry.ddbuild.io/images/mirror/datadog/agent:7.40.1
+    alias: ddagent
+    variables:
+      DD_HOSTNAME: ddagent
+      LOG_LEVEL: ERROR
+      DD_REMOTE_CONFIGURATION_ENABLED: true
+      DD_SITE: datadoghq.com
+      DD_API_KEY: invalid_but_this_is_fine
+      DD_REMOTE_CONFIGURATION_KEY: invalid_but_this_is_fine
+      DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
+  testagent:
+    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.17.0
+    alias: testagent
+    variables:
+      LOG_LEVEL: INFO
+      SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
+      SNAPSHOT_CI: 1
+      PORT: 9126
+      DD_POOL_TRACE_CHECK_FAILURES: true
+      DD_DISABLE_ERROR_RESPONSES: true
+      ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
+  mongo:
+    name: registry.ddbuild.io/images/mirror/mongo:6.0.5
+    alias: mongo
+  redis:
+    name: registry.ddbuild.io/redis:7.0.7
+    alias: redis
+  kafka:
+    name: registry.ddbuild.io/images/mirror/bitnami/kafka:3.4.1
+    alias: kafka
+    variables:
+      ALLOW_PLAINTEXT_LISTENER: yes
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_BROKER_ID: 1
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFGOFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+  httpbin_local:
+    name: registry.ddbuild.io/images/mirror/mccutchen/go-httpbin:v2.14.1
+    alias: httpbin-local
+    variables:
+      PORT: 8001
+  memcached:
+    name: registry.ddbuild.io/images/mirror/library/memcached:1.5-alpine
+    alias: memcached
+  rediscluster:
+    name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
+    alias: rediscluster
+  elasticsearch:
+    name: registry.ddbuild.io/images/mirror/library/elasticsearch:7.17.23
+    alias: elasticsearch
+    variables:
+      discovery.type: single-node
+      xpack.security.enabled: false
+  opensearch:
+    name: registry.ddbuild.io/images/mirror/opensearchproject/opensearch:1.3.13
+    alias: opensearch
+    variables:
+      DISABLE_SECURITY_PLUGIN: true
+      discovery.type: single-node
+      http.port: 9201

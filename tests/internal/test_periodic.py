@@ -123,19 +123,24 @@ def test_awakeable_periodic_service():
 
 
 def test_forksafe_awakeable_periodic_service():
-    queue = []
+    queue = [None]
 
     class AwakeMe(periodic.ForksafeAwakeablePeriodicService):
+        def reset(self):
+            queue.clear()
+
         def periodic(self):
             queue.append(len(queue))
 
-    awake_me = AwakeMe(0.1)
+    awake_me = AwakeMe(1)
     awake_me.start()
+
+    assert queue
 
     pid = os.fork()
     if pid == 0:
-        # child: check that the thread has been restarted
-        queue.clear()
+        # child: check that the thread has been restarted and the state has been
+        # reset
         assert not queue
         awake_me.awake()
         assert queue

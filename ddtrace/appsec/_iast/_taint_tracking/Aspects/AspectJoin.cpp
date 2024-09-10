@@ -186,7 +186,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
 
-    const auto ctx_map = initializer->get_tainting_map();
+    const auto ctx_map = Initializer::get_tainting_map();
     if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
         // Empty result cannot have taint ranges
         if (decref_arg0) {

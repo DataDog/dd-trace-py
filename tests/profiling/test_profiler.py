@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import time
 
 import mock
@@ -43,13 +42,15 @@ def test_multiple_stop():
     p.stop(flush=False)
 
 
-@pytest.mark.parametrize(
-    "service_name_var",
-    ("DD_SERVICE",),
+@pytest.mark.subprocess(
+    env=dict(DD_API_KEY="foobar", DD_SERVICE="foobar"),
 )
-def test_default_from_env(service_name_var, monkeypatch):
-    monkeypatch.setenv("DD_API_KEY", "foobar")
-    monkeypatch.setenv(service_name_var, "foobar")
+def test_default_from_env():
+    import pytest
+
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.exporter import http
+
     prof = profiler.Profiler()
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
@@ -110,10 +111,15 @@ prof._recorder.push_event(stack_event.StackExceptionSampleEvent())
     assert err == b""
 
 
-def test_env_default(monkeypatch):
-    monkeypatch.setenv("DD_API_KEY", "foobar")
-    monkeypatch.setenv("DD_ENV", "staging")
-    monkeypatch.setenv("DD_VERSION", "123")
+@pytest.mark.subprocess(
+    env=dict(DD_API_KEY="foobar", DD_ENV="staging", DD_VERSION="123"),
+)
+def test_env_default():
+    import pytest
+
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.exporter import http
+
     prof = profiler.Profiler()
     assert prof.env == "staging"
     assert prof.version == "123"
@@ -295,9 +301,11 @@ def test_env_endpoint_url():
     _check_url(prof, "http://foobar:123", os.environ.get("DD_API_KEY"))
 
 
-def test_env_endpoint_url_no_agent(monkeypatch):
-    monkeypatch.setenv("DD_SITE", "datadoghq.eu")
-    monkeypatch.setenv("DD_API_KEY", "123")
+@pytest.mark.subprocess(env=dict(DD_SITE="datadoghq.eu", DD_API_KEY="123"))
+def test_env_endpoint_url_no_agent():
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
+
     prof = profiler.Profiler()
     _check_url(prof, "http://localhost:8126", "123")
 
@@ -435,37 +443,3 @@ def test_profiler_ddtrace_deprecation():
         from ddtrace.profiling.collector import memalloc  # noqa:F401
         from ddtrace.profiling.collector import stack  # noqa:F401
         from ddtrace.profiling.collector import stack_event  # noqa:F401
-
-
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"DD_PROFILING_EXPORT_LIBDD_ENABLED": "true"})
-def test_profiler_libdd_available():
-    """
-    Tests that the libdd module can be loaded
-    """
-    from ddtrace.internal.datadog.profiling import ddup
-
-    assert ddup.is_available
-
-
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"DD_PROFILING_EXPORT_LIBDD_ENABLED": "true"})
-def test_profiler_ddup_start():
-    """
-    Tests that the the libdatadog exporter can be enabled
-    """
-    import pytest
-
-    from ddtrace.internal.datadog.profiling import ddup
-
-    try:
-        ddup.config(
-            env="my_env",
-            service="my_service",
-            version="my_version",
-            tags={},
-            url="http://localhost:8126",
-        )
-        ddup.start()
-    except Exception as e:
-        pytest.fail(str(e))

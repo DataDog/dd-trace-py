@@ -293,7 +293,12 @@ def _patched_endpoint_async(openai, integration, patch_hook):
             raise
         finally:
             try:
-                g.send((resp, err))
+                if resp is not None:
+                    # openai responses cannot be None
+                    # if resp is None, it is likely because the context
+                    # of the request was cancelled, so we want that to propagate up properly
+                    # see: https://github.com/DataDog/dd-trace-py/issues/10191
+                    g.send((resp, err))
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
