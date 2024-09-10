@@ -26,6 +26,7 @@ def parse_version(version: str) -> Tuple:
     return Version(parsed_version, constraint)
 
 
+SCRIPT_DIR = os.path.dirname(__file__)
 RUNTIMES_ALLOW_LIST = {
     "cpython": {"min": parse_version("3.7"), "max": parse_version("3.13")},
 }
@@ -39,8 +40,11 @@ PYTHON_VERSION = None
 PYTHON_RUNTIME = None
 PKGS_ALLOW_LIST = None
 EXECUTABLES_DENY_LIST = None
-VERSION_COMPAT_FILE_LOCATIONS = ("../datadog-lib/min_compatible_versions.csv", "min_compatible_versions.csv")
-EXECUTABLE_DENY_LOCATION = "denied_executables.txt"
+VERSION_COMPAT_FILE_LOCATIONS = (
+    os.path.abspath(os.path.join(SCRIPT_DIR, "../datadog-lib/min_compatible_versions.csv")),
+    os.path.abspath(os.path.join(SCRIPT_DIR, "min_compatible_versions.csv")),
+)
+EXECUTABLE_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_executables.txt"))
 
 
 def build_installed_pkgs():
@@ -209,8 +213,7 @@ def _inject():
         current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_1"
         _log("detected platform %s" % current_platform, level="debug")
 
-        script_dir = os.path.dirname(__file__)
-        pkgs_path = os.path.join(script_dir, "ddtrace_pkgs")
+        pkgs_path = os.path.join(SCRIPT_DIR, "ddtrace_pkgs")
         _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
         _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
 
@@ -314,8 +317,8 @@ def _inject():
                 #   - Add the custom site-packages directory to PYTHONPATH to ensure the ddtrace package can be loaded
                 #   - Add the ddtrace bootstrap dir to the PYTHONPATH to achieve the same effect as ddtrace-run.
                 python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
-                if script_dir in python_path:
-                    python_path.remove(script_dir)
+                if SCRIPT_DIR in python_path:
+                    python_path.remove(SCRIPT_DIR)
                 python_path.insert(-1, site_pkgs_path)
                 bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
                 python_path.insert(0, bootstrap_dir)
