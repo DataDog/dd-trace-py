@@ -79,6 +79,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="false",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 )
             )
         ), mock.patch(
@@ -121,6 +122,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="false",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 )
             )
         ), mock.patch(
@@ -153,6 +155,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="false",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 )
             )
         ), mock.patch(
