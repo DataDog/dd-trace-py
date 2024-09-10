@@ -1,18 +1,21 @@
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/tags/release-1.11.0.zip
+)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+include_directories(${PYTHON_INCLUDE_DIRS})
+include_directories(${PYBIND11_INCLUDE_DIRS})
+
+file(GLOB TEST_SOURCES "*.cpp")
+add_executable(native_tests ${TEST_SOURCES})
+
+# Link test executable against gtest & gtest_main
+target_link_libraries(native_tests gtest gtest_main ${PYTHON_LIBRARIES} pybind11::module)
+
+# Discover tests
 include(GoogleTest)
-
-file(GLOB_RECURSE NATIVE_TEST_SOURCE *.cpp)
-add_executable(native_test ${NATIVE_TEST_SOURCE})
-
-set_target_properties(native_test PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO)
-
-target_include_directories(native_test PRIVATE ${NATIVE_PUBLIC_INCLUDES} ${NATIVE_PRIVATE_INCLUDES})
-
-# Link GoogleTest
-target_link_libraries(native_test gtest gtest_main)
-
-# Use gtest_discover_tests to automatically discover and run tests
-gtest_discover_tests(native_test)
-
+gtest_discover_tests(native_tests)
