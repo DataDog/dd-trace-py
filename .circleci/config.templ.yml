@@ -641,15 +641,6 @@ jobs:
       - run_test:
           pattern: 'consul'
 
-  elasticsearch:
-    <<: *machine_executor
-    parallelism: 17
-    steps:
-      - run_test:
-          pattern: 'elasticsearch'
-          snapshot: true
-          docker_services: 'elasticsearch opensearch'
-
   django:
     <<: *machine_executor
     parallelism: 4
@@ -676,17 +667,6 @@ jobs:
           pattern: "dramatiq"
           snapshot: true
           docker_services: "redis"
-
-  flask:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          # Run both flask and flask_cache test suites
-          # TODO: Re-enable coverage for Flask tests
-          snapshot: true
-          pattern: "flask"
-          docker_services: "memcached redis"
 
   httplib:
     <<: *machine_executor
