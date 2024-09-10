@@ -104,7 +104,7 @@ class TestAsyncioLockCollector:
 
         linenos_1 = get_lock_linenos("test_asyncio_lock_events_tracer_1")
         linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")
-        linenos_3 = get_lock_linenos("test_asyncio_lock_events_tracer_3")
+        linenos_3 = get_lock_linenos("test_asyncio_lock_events_tracer_3", with_stmt=True)
 
         profile = pprof_utils.parse_profile(self.output_filename)
         expected_thread_id = _thread.get_ident()
