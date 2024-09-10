@@ -62,7 +62,7 @@ split_text_common(const py::object& orig_function,
         return result_o;
     }
 
-    TRY_CATCH_ASPECT("split_aspect", , {
+    TRY_CATCH_ASPECT("split_aspect", return result_o, , {
         if (split_func == "split") {
             if (auto re_split_result = handle_potential_re_split(args_tuple, sliced_args, kwargs, tx_map);
                 re_split_result.has_value()) {
@@ -103,7 +103,7 @@ api_splitlines_text(const py::object& orig_function,
         return result_o;
     }
 
-    TRY_CATCH_ASPECT("split_aspect", , {
+    TRY_CATCH_ASPECT("split_aspect", return result_o, , {
         auto [ranges, ranges_error] = get_ranges(text.ptr(), tx_map);
         if (ranges_error || ranges.empty()) {
             return result_o;

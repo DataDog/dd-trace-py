@@ -18,38 +18,38 @@ log = get_logger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
-class _CISessionId:
+class TestSessionId:
     """Placeholder ID without attributes
 
-    Allows reusing the same _CIVisibilityAPIBase methods for sessions which do not have individual session IDs
+    Allows reusing the same _TestVisibilityIdBase methods for sessions which do not have individual session IDs
     """
 
 
 @dataclasses.dataclass(frozen=True)
-class _CIVisibilityRootItemIdBase:
+class _TestVisibilityRootItemIdBase:
     """This class exists for the ABC class below"""
 
     name: str
 
-    def get_parent_id(self) -> "_CIVisibilityRootItemIdBase":
+    def get_parent_id(self) -> "_TestVisibilityRootItemIdBase":
         return self
 
 
-RT = TypeVar("RT", bound="_CIVisibilityRootItemIdBase")
+RT = TypeVar("RT", bound="_TestVisibilityRootItemIdBase")
 
 
 @dataclasses.dataclass(frozen=True)
-class _CIVisibilityIdBase(abc.ABC):
+class _TestVisibilityIdBase(abc.ABC):
     @abc.abstractmethod
-    def get_parent_id(self) -> Union["_CIVisibilityIdBase", _CIVisibilityRootItemIdBase]:
+    def get_parent_id(self) -> Union["_TestVisibilityIdBase", _TestVisibilityRootItemIdBase]:
         raise NotImplementedError("This method must be implemented by the subclass")
 
 
-PT = TypeVar("PT", bound=Union[_CIVisibilityIdBase, _CIVisibilityRootItemIdBase])
+PT = TypeVar("PT", bound=Union[_TestVisibilityIdBase, _TestVisibilityRootItemIdBase])
 
 
 @dataclasses.dataclass(frozen=True)
-class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[PT]):
+class _TestVisibilityChildItemIdBase(_TestVisibilityIdBase, Generic[PT]):
     parent_id: PT
     name: str
 
@@ -57,29 +57,31 @@ class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[PT]):
         return self.parent_id
 
 
-CIItemId = TypeVar("CIItemId", bound=Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId])
+TestVisibilityItemId = TypeVar(
+    "TestVisibilityItemId", bound=Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
+)
 
 
-class _CIVisibilityAPIBase(abc.ABC):
+class _TestVisibilityAPIBase(abc.ABC):
     class GetTagArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
         name: str
 
     class SetTagArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
         name: str
         value: Any
 
     class DeleteTagArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
         name: str
 
     class SetTagsArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
         tags: Dict[str, Any]
 
     class DeleteTagsArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase, _CISessionId]
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
         names: List[str]
 
     def __init__(self):
@@ -87,18 +89,18 @@ class _CIVisibilityAPIBase(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def discover(item_id: CIItemId, *args, **kwargs):
+    def discover(item_id: TestVisibilityItemId, *args, **kwargs):
         pass
 
     @staticmethod
     @abc.abstractmethod
-    def start(item_id: CIItemId, *args, **kwargs):
+    def start(item_id: TestVisibilityItemId, *args, **kwargs):
         pass
 
     @staticmethod
     @abc.abstractmethod
     def finish(
-        item_id: _CIVisibilityRootItemIdBase,
+        item_id: _TestVisibilityRootItemIdBase,
         override_status: Optional[Enum],
         force_finish_children: bool = False,
         *args,
@@ -108,8 +110,8 @@ class _CIVisibilityAPIBase(abc.ABC):
 
 
 @dataclasses.dataclass(frozen=True)
-class CISourceFileInfoBase:
-    """This supplies the __post_init__ method for the CISourceFileInfo
+class TestSourceFileInfoBase:
+    """This supplies the __post_init__ method for the TestSourceFileInfo
 
     It is simply here for cosmetic reasons of keeping the original class definition short
     """
