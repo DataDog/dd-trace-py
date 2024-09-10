@@ -296,7 +296,7 @@ class Tracer(object):
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
     def _maybe_opt_out(self):
-        self._apm_opt_out = False and self._asm_enabled and self._appsec_standalone_enabled
+        self._apm_opt_out = self._asm_enabled and self._appsec_standalone_enabled
         if self._apm_opt_out:
             # If ASM is enabled but tracing is disabled,
             # we need to set the rate limiting to 1 trace per minute
