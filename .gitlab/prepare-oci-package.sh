@@ -27,6 +27,4 @@ echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
 cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 
-cp ../lib-injection/sitecustomize.py sources/
-cp ../min_compatible_versions.csv sources/
-cp ../lib-injection/telemetry-forwarder.sh sources/
+cp ../lib-injection/sources/* sources/
