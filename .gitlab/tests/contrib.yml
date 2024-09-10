@@ -273,3 +273,38 @@ opentracer:
   extends: .test_base_riot
   variables:
     SUITE_NAME: "opentracer"
+
+aiohttp:
+  extends: .test_base_riot_snapshot
+  parallel: 3
+  variables:
+    SUITE_NAME: "aiohttp"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+requests:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "requests"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+httplib:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httplib"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+httpx:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httpx"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+  parallel: 2
+
