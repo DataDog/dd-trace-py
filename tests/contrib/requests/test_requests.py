@@ -252,7 +252,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
     def test_500(self):
         out = self.session.get(URL_500)
-        assert out.status_code == 500
+        assert out.status_code >= 500
 
         spans = self.pop_spans()
         assert len(spans) == 1

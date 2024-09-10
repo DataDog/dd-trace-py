@@ -78,7 +78,7 @@ async def test_200_request_post(snapshot_context):
 
 @pytest.mark.asyncio
 async def test_500_request(snapshot_context):
-    with snapshot_context(ignores=["meta.http.status_message"]):
+    with snapshot_context(ignores=["meta.http.status_msg"]):
         async with aiohttp.ClientSession() as session:
             async with session.get(URL_500) as resp:
                 assert resp.status == 500
@@ -220,7 +220,7 @@ async def test_trace_query_string(snapshot_context):
         The query string is included as a tag on the span
     """
     with override_http_config("aiohttp_client", {"trace_query_string": True}):
-        with snapshot_context(ignores=["meta.http.status_message"]):
+        with snapshot_context(ignores=["meta.http.status_msg"]):
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     "%s/?k1=v1&k2=v2" % URL_200,
