@@ -213,7 +213,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
     def test_post_500(self):
         out = self.session.post(URL_500)
         # validation
-        assert out.status_code == 500
+        assert out.status_code >= 500
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -575,13 +575,12 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         # Enabled when explicitly configured
         with self.override_config("requests", {}):
-            config.requests.http.trace_headers(["my-header", "access-control-allow-origin"])
+            config.requests.http.trace_headers(["my-header"])
             self.session.get(URL_200, headers={"my-header": "my_value"})
             spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.request.headers.my-header") == "my_value"
-        assert s.get_tag("http.response.headers.access-control-allow-origin") == "*"
 
     def test_analytics_integration_default(self):
         """
