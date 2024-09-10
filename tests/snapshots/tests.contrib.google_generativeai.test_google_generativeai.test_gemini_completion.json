@@ -22,6 +22,7 @@
       "genai.request.generation_config.top_k": "None",
       "genai.request.generation_config.top_p": "None",
       "genai.request.model": "gemini-1.5-flash",
+      "genai.request.provider": "google",
       "genai.response.candidates.0.content.parts.0.text": "The argument for LeBron James being the 'Greatest of All Time' (GOAT) is multifaceted and involves a variety of factors. Here's ...",
       "genai.response.candidates.0.content.role": "model",
       "genai.response.candidates.0.finish_reason": "2",

@@ -24,6 +24,7 @@
       "genai.request.generation_config.top_k": "None",
       "genai.request.generation_config.top_p": "None",
       "genai.request.model": "gemini-1.5-flash",
+      "genai.request.provider": "google",
       "language": "python",
       "runtime-id": "c20f6ea1fd834b0094c087a8dd7550ec"
     },

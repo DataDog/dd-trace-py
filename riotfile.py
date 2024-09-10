@@ -2691,7 +2691,7 @@ venv = Venv(
             pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
-                "google-generativeai": ["~=0.7.2"],
+                "google-generativeai": [latest],
                 "pillow": latest,
             },
         ),

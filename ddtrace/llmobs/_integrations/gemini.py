@@ -17,6 +17,8 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace import Span
 
 
 class GeminiIntegration(BaseLLMIntegration):
