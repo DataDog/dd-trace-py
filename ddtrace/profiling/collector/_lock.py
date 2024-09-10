@@ -107,11 +107,12 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_init_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
         self._self_name: typing.Optional[str] = None
 
-    def __aenter__(self):
-        return self.__wrapped__.__aenter__()
+    def __aenter__(self, *args, **kwargs):
+        print("capturing __aenter__")
+        return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def __aexit__(self, *args, **kwargs):
-        return self.__wrapped__.__aexit__(*args, **kwargs)
+        return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
     def _acquire(self, inner_func, *args, **kwargs):
         if not self._self_capture_sampler.capture():
@@ -284,7 +285,14 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 if frame.f_code.co_name not in {"_acquire", "_release"}:
                     raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
                 frame = sys._getframe(2)
-                if frame.f_code.co_name not in {"acquire", "release", "__enter__", "__exit__"}:
+                if frame.f_code.co_name not in {
+                    "acquire",
+                    "release",
+                    "__enter__",
+                    "__exit__",
+                    "__aenter__",
+                    "__aexit__",
+                }:
                     raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
             frame = sys._getframe(3)
 
