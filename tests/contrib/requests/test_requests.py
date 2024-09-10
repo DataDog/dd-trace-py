@@ -26,11 +26,11 @@ from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_tracer
 
 
-# socket name comes from https://english.stackexchange.com/a/44048
-SOCKET = "httpbin-local:8001"
-URL_200 = "http://{}/status/200".format(SOCKET)
-URL_500 = "http://{}/status/500".format(SOCKET)
-URL_AUTH_200 = "http://user:pass@{}/status/200".format(SOCKET)
+HOST_AND_PORT = "httpbin-local:8001"
+SOCKET = HOST_AND_PORT.split(":")[0]
+URL_200 = "http://{}/status/200".format(HOST_AND_PORT)
+URL_500 = "http://{}/status/500".format(HOST_AND_PORT)
+URL_AUTH_200 = "http://user:pass@{}/status/200".format(HOST_AND_PORT)
 
 
 class BaseRequestTestCase(object):
