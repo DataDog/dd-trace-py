@@ -643,15 +643,6 @@ jobs:
           snapshot: true
           docker_services: "memcached redis postgres"
 
-  djangorestframework:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'djangorestframework'
-          snapshot: true
-          docker_services: "memcached redis"
-
   dramatiq:
     <<: *machine_executor
     parallelism: 2
@@ -703,16 +694,6 @@ jobs:
           wait: mysql
           pattern: 'pymysql$'
 
-  pylibmc:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'pylibmc'
-
   pytest:
     <<: *machine_executor
     parallelism: 10
@@ -720,16 +701,6 @@ jobs:
       - run_test:
           pattern: 'pytest'
           snapshot: true
-
-  pymemcache:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pymemcache"
 
   mongoengine:
     <<: *machine_executor
