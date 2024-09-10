@@ -652,7 +652,7 @@ class Span(object):
             )
         )
 
-    def _set_link_object(self, link: SpanLink | _SpanPointer) -> None:
+    def _set_link_object(self, link: Union[SpanLink, _SpanPointer]) -> None:
         if link.kind == _SPAN_LINK_KIND_SPAN_POINTER:
             self._links.append(link)
             return
