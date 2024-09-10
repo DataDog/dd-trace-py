@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from typing import Any
@@ -974,6 +975,90 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     return documents
 
 
+@with_traced_module
+def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
+    integration = langchain._datadog_integration
+    tool_input = get_argument_value(args, kwargs, 0, "input")
+    config = get_argument_value(args, kwargs, 1, "config", optional=True)
+
+    span = integration.trace(
+        pin,
+        "%s" % func.__self__.name,
+        interface_type="tool",
+    )
+
+    tool_output = None
+    try:
+        for attribute in ("name", "description"):
+            value = getattr(instance, attribute, None)
+            if value is not None:
+                span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
+
+        if getattr(instance, "metadata", {}):
+            for key, meta_value in getattr(instance, "metadata", {}).items():
+                span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
+        if getattr(instance, "tags", []):
+            for idx, tag in getattr(instance, "tags", []):
+                span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
+
+        if tool_input and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
+        if config:
+            span.set_tag_str("langchain.request.config", json.dumps(config))
+
+        tool_output = func(*args, **kwargs)
+        if tool_output and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
+    return tool_output
+
+
+@with_traced_module
+async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs):
+    integration = langchain._datadog_integration
+    tool_input = get_argument_value(args, kwargs, 0, "input")
+    config = get_argument_value(args, kwargs, 1, "config", optional=True)
+
+    span = integration.trace(
+        pin,
+        "%s" % func.__self__.name,
+        interface_type="tool",
+    )
+
+    tool_output = None
+    try:
+        for attribute in ("name", "description"):
+            value = getattr(instance, attribute, None)
+            if value is not None:
+                span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
+
+        if getattr(instance, "metadata", {}):
+            for key, meta_value in getattr(instance, "metadata", {}).items():
+                span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
+        if getattr(instance, "tags", []):
+            for idx, tag in getattr(instance, "tags", []):
+                span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
+
+        if tool_input and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
+        if config:
+            span.set_tag_str("langchain.request.config", json.dumps(config))
+
+        tool_output = await func(*args, **kwargs)
+        if tool_output and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
+    return tool_output
+
+
 def _patch_embeddings_and_vectorstores():
     """
     Text embedding models override two abstract base methods instead of super calls,
@@ -1080,6 +1165,7 @@ def patch():
         wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
     else:
         from langchain.chains.base import Chain  # noqa:F401
+        from langchain_core.tools import BaseTool  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
@@ -1101,6 +1187,8 @@ def patch():
         )
         wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
         wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
+        wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain))
+        wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
         if langchain_openai:
             wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         if langchain_pinecone:
@@ -1149,6 +1237,8 @@ def unpatch():
         unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
         unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
         unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
+        unwrap(langchain_core.tools.BaseTool, "invoke")
+        unwrap(langchain_core.tools.BaseTool, "ainvoke")
         if langchain_openai:
             unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
         if langchain_pinecone:
