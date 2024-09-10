@@ -160,135 +160,111 @@ jobs:
           docker load < images_artifacts/agent_${{ github.sha }}.tar.gz
 
       - name: Run DEFAULT
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
         run: ./run.sh DEFAULT
-        continue-on-error: true
 
       - name: Run SAMPLING
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
         run: ./run.sh SAMPLING
-        continue-on-error: true
 
       - name: Run INTEGRATIONS
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
         run: ./run.sh INTEGRATIONS
-        continue-on-error: true
 
       - name: Run CROSSED_TRACING_LIBRARIES
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
         run: ./run.sh CROSSED_TRACING_LIBRARIES
-        continue-on-error: true
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
-        continue-on-error: true
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
-        continue-on-error: true
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
-        continue-on-error: true
 
       - name: Run APPSEC_MISSING_RULES
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_MISSING_RULES
-        continue-on-error: true
 
       - name: Run APPSEC_CUSTOM_RULES
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_CUSTOM_RULES
-        continue-on-error: true
 
       - name: Run APPSEC_CORRUPTED_RULES
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_CORRUPTED_RULES
-        continue-on-error: true
 
       - name: Run APPSEC_RULES_MONITORING_WITH_ERRORS
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_RULES_MONITORING_WITH_ERRORS
-        continue-on-error: true
 
       - name: Run APPSEC_LOW_WAF_TIMEOUT
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_LOW_WAF_TIMEOUT
-        continue-on-error: true
 
       - name: Run APPSEC_CUSTOM_OBFUSCATION
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_CUSTOM_OBFUSCATION
-        continue-on-error: true
 
       - name: Run APPSEC_RATE_LIMITER
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_RATE_LIMITER
-        continue-on-error: true
 
       - name: Run APPSEC_STANDALONE
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE
 
       - name: Run APPSEC_RUNTIME_ACTIVATION
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RUNTIME_ACTIVATION
-        continue-on-error: true
 
       - name: Run APPSEC_WAF_TELEMETRY
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_WAF_TELEMETRY
-        continue-on-error: true
 
       - name: Run APPSEC_DISABLED
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_DISABLED
-        continue-on-error: true
 
       - name: Run APPSEC_BLOCKING
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_BLOCKING
-        continue-on-error: true
 
       - name: Run APPSEC_BLOCKING_FULL_DENYLIST
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
-        continue-on-error: true
 
       - name: Run APPSEC_REQUEST_BLOCKING
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_REQUEST_BLOCKING
-        continue-on-error: true
 
       - name: Run APPSEC_RASP
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RASP
-        continue-on-error: true
 
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule')
         id: compress-artifact
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
-        continue-on-error: true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        if: steps.compress-artifact.outcome == 'success' || github.event_name == 'schedule'
+        if: always() && (steps.compress-artifact.outcome == 'success' || github.event_name == 'schedule')
         with:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
           path: artifact.tar.gz
-        continue-on-error: true
 
       - name: Verify results
         if: ${{ failure() }}
         run: |
           echo "Some of the scenarios have failed"
           exit 1
-        continue-on-error: false
 
   parametric:
     runs-on:
@@ -315,17 +291,16 @@ jobs:
         uses: ./.github/actions/install_runner
 
       - name: Run
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule')
         run: ./run.sh PARAMETRIC
-        continue-on-error: true
 
       - name: Compress artifact
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule')
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        if: always() && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule')
         with:
           name: logs_parametric
           path: artifact.tar.gz
@@ -335,4 +310,3 @@ jobs:
         run: |
           echo "Some of the scenarios have failed"
           exit 1
-        continue-on-error: false
