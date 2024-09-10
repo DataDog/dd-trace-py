@@ -64,7 +64,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
         if span_event is not None and self._ragas_faithfulness_runner:
-            if span.service != "_ragas":
+            if span.service != "_ragas" and span_event["meta"]["span.kind"] == "llm":
                 self._ragas_faithfulness_runner.enqueue(span_event)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
@@ -108,6 +108,23 @@ class LLMObsTraceProcessor(TraceProcessor):
         span.set_tag_str(SESSION_ID, session_id)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
         span._meta.pop(PARENT_ID_KEY, None)
+        if _get_span_name(span) == "augmented_generation":
+            print(
+                {
+                    "trace_id": "{:x}".format(span.trace_id),
+                    "span_id": str(span.span_id),
+                    "parent_id": parent_id,
+                    "session_id": session_id,
+                    "ml_app": ml_app,
+                    "name": _get_span_name(span),
+                    "tags": self._llmobs_tags(span, ml_app=ml_app, session_id=session_id),
+                    "start_ns": span.start_ns,
+                    "duration": span.duration_ns,
+                    "status": "error" if span.error else "ok",
+                    "meta": meta,
+                    "metrics": metrics,
+                }
+            )
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),

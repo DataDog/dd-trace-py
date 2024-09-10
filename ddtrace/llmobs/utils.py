@@ -90,7 +90,7 @@ class EvaluationMetric(BaseModel):
 
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
-Message = TypedDict("Message", {"content": str, "role": str}, total=False)
+Message = TypedDict("Message", {"content": str, "role": str, "prompt.template": str}, total=False)
 
 
 class Messages:
@@ -113,7 +113,13 @@ class Messages:
                 continue
             if not isinstance(role, str):
                 raise TypeError("Message role must be a string, and one of .")
-            self.messages.append(Message(content=content, role=role))
+            self.messages.append(
+                {
+                    "content": content,
+                    "role": role,
+                    "prompt.template": message.get("prompt.template"),
+                }
+            )
 
 
 class Documents:

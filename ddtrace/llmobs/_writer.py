@@ -105,7 +105,8 @@ class BaseLLMObsWriter(PeriodicService):
                 return
             events = self._buffer
             self._buffer = []
-
+        print("writing events")
+        print(events)
         data = self._data(events)
         try:
             enc_llm_events = json.dumps(data)
