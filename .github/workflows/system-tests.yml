@@ -260,12 +260,6 @@ jobs:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
           path: artifact.tar.gz
 
-      - name: Verify results
-        if: ${{ failure() }}
-        run: |
-          echo "Some of the scenarios have failed"
-          exit 1
-
   parametric:
     runs-on:
       group: "APM Larger Runners"
@@ -304,9 +298,3 @@ jobs:
         with:
           name: logs_parametric
           path: artifact.tar.gz
-
-      - name: Verify results
-        if: ${{ failure() }}
-        run: |
-          echo "Some of the scenarios have failed"
-          exit 1
