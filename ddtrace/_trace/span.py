@@ -620,13 +620,15 @@ class Span(object):
         if attributes is None:
             attributes = dict()
 
-        self._set_link_object(SpanLink(
-            trace_id=trace_id,
-            span_id=span_id,
-            tracestate=tracestate,
-            flags=flags,
-            attributes=attributes,
-        ))
+        self._set_link_object(
+            SpanLink(
+                trace_id=trace_id,
+                span_id=span_id,
+                tracestate=tracestate,
+                flags=flags,
+                attributes=attributes,
+            )
+        )
 
     def _set_link_object(self, link: SpanLink) -> None:
         # We will be changing this behavior to allow certain kinds of span
