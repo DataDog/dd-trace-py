@@ -3,6 +3,7 @@ import textwrap
 
 import pytest
 
+from tests.ci_visibility.util import _get_pytest_snapshot_gitlab_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import snapshot
@@ -88,7 +89,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_source_file=test_source_file)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz")):
+        with override_env(
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="false")
+            )
+        ):
             subprocess.run(
                 ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
@@ -125,7 +130,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        with override_env(
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            )
+        ):
             subprocess.run(
                 ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
@@ -163,7 +174,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        with override_env(
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            )
+        ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
@@ -212,7 +229,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        with override_env(
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            )
+        ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
@@ -261,7 +284,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        with override_env(
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            )
+        ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
@@ -301,7 +330,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        with override_env(
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            )
+        ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
@@ -345,7 +380,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        with override_env(
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            )
+        ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
@@ -394,7 +435,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        with override_env(
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            )
+        ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
@@ -447,7 +494,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
             """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        with override_env(
+            _get_pytest_snapshot_gitlab_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            )
+        ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
@@ -491,6 +544,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
             dict(
                 DD_API_KEY="foobar.baz",
                 DD_CIVISIBILITY_ITR_ENABLED="1",
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 DD_TAGS="test.configuration.custom_key:some_value",
             )
         ):
@@ -530,6 +584,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
             dict(
                 DD_API_KEY="foobar.baz",
                 DD_PATCH_MODULES="sqlite3:false",
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
             )
         ):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
