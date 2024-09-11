@@ -85,7 +85,6 @@ class LLMObsTraceProcessor(TraceProcessor):
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
         if span_kind == "retrieval" and span.get_tag(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = json.loads(span._meta.pop(OUTPUT_DOCUMENTS))
-
         if span.error:
             meta[ERROR_MSG] = span.get_tag(ERROR_MSG)
             meta[ERROR_STACK] = span.get_tag(ERROR_STACK)
@@ -118,6 +117,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             llmobs_span_event["session_id"] = session_id
 
         llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id)
+
         return llmobs_span_event
 
     @staticmethod
