@@ -4,8 +4,8 @@ The Gemini integration instruments the Google Gemini Python API to traces for re
 All traces submitted from the Gemini integration are tagged by:
 
 - ``service``, ``env``, ``version``: see the `Unified Service Tagging docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
-- ``genai.request.model``: Google model used in the request.
-- ``genai.request.api_key``: Google Gemini API key used to make the request (obfuscated to match the Google AI Studio UI representation ``...XXXX`` where ``XXXX`` is the last 4 digits of the key).
+- ``google_generativeai.request.model``: Google model used in the request.
+- ``google_generativeai.request.api_key``: Google Gemini API key used to make the request (obfuscated to match the Google AI Studio UI representation ``...XXXX`` where ``XXXX`` is the last 4 digits of the key).
 
 
 (beta) Prompt and Completion Sampling
@@ -35,7 +35,7 @@ Global Configuration
 
    The service name reported by default for Gemini requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_ANTHROPIC_SERVICE`` environment
+   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_GOOGLE_GENERATIVEAI_SERVICE`` environment
    variables.
 
    Default: ``DD_SERVICE``

@@ -40,8 +40,8 @@ def test_global_tags(genai, mock_client, mock_tracer):
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
-    assert span.get_tag("genai.request.model") == "gemini-1.5-flash"
-    assert span.get_tag("genai.request.api_key") == "...key>"
+    assert span.get_tag("google_generativeai.request.model") == "gemini-1.5-flash"
+    assert span.get_tag("google_generativeai.request.api_key") == "...key>"
 
 
 @pytest.mark.snapshot
@@ -128,11 +128,11 @@ async def test_gemini_completion_multiple_messages_async(genai, mock_client_asyn
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion_multiple_messages",
     ignores=[  # send_message does not include all config options by default
-        "meta.genai.request.generation_config.candidate_count",
-        "meta.genai.request.generation_config.top_k",
-        "meta.genai.request.generation_config.top_p",
-        "meta.genai.request.generation_config.response_mime_type",
-        "meta.genai.request.generation_config.response_schema",
+        "meta.google_generativeai.request.generation_config.candidate_count",
+        "meta.google_generativeai.request.generation_config.top_k",
+        "meta.google_generativeai.request.generation_config.top_p",
+        "meta.google_generativeai.request.generation_config.response_mime_type",
+        "meta.google_generativeai.request.generation_config.response_schema",
     ],
 )
 def test_gemini_chat_completion(genai, mock_client):
@@ -154,11 +154,11 @@ def test_gemini_chat_completion(genai, mock_client):
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion_multiple_messages",
     ignores=[  # send_message does not include all config options by default
         "resource",
-        "meta.genai.request.generation_config.candidate_count",
-        "meta.genai.request.generation_config.top_k",
-        "meta.genai.request.generation_config.top_p",
-        "meta.genai.request.generation_config.response_mime_type",
-        "meta.genai.request.generation_config.response_schema",
+        "meta.google_generativeai.request.generation_config.candidate_count",
+        "meta.google_generativeai.request.generation_config.top_k",
+        "meta.google_generativeai.request.generation_config.top_p",
+        "meta.google_generativeai.request.generation_config.response_mime_type",
+        "meta.google_generativeai.request.generation_config.response_schema",
     ],
 )
 async def test_gemini_chat_completion_async(genai, mock_client_async):
@@ -331,7 +331,7 @@ async def test_gemini_completion_tool_stream_async(genai, mock_client_async):
         pass
 
 
-@pytest.mark.snapshot(ignores=["meta.genai.request.contents.0.text"])
+@pytest.mark.snapshot(ignores=["meta.google_generativeai.request.contents.0.text"])
 def test_gemini_completion_image(genai, mock_client):
     """Ensure passing images to generate_content() won't break patching."""
     img = Image.open(os.path.join(os.path.dirname(__file__), "test_data/apple.jpg"))
@@ -345,7 +345,7 @@ def test_gemini_completion_image(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion_image",
-    ignores=["resource", "meta.genai.request.contents.0.text"],
+    ignores=["resource", "meta.google_generativeai.request.contents.0.text"],
 )
 async def test_gemini_completion_image_async(genai, mock_client_async):
     """Ensure passing images to generate_content() won't break patching."""
