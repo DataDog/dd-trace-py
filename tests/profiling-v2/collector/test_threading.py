@@ -81,7 +81,6 @@ def test_patch():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
-@pytest.mark.skipif(sys.version_info[:2] == (3, 8) and TESTING_GEVENT, reason="see comment in body")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_ENABLED="true"),
