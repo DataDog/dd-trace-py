@@ -27,15 +27,15 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
                 break;
             }
         }
-    } else { // For other types, we just taint from beginning to end
-        try {
-            const size_t& len_result_o{ get_pyobject_size(result_o) };
-            const auto& current_range = ranges.at(0);
-            // ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, len_result_o, current_range->source));
-        } catch (const std::out_of_range& ex) {
-            // No ranges found, return original object
-            return result_o;
-        }
+    // } else { // For other types, we just taint from beginning to end
+    //     try {
+    //         const size_t& len_result_o{ get_pyobject_size(result_o) };
+    //         const auto& current_range = ranges.at(0);
+    //         ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, len_result_o, current_range->source));
+    //     } catch (const std::out_of_range& ex) {
+    //         // No ranges found, return original object
+    //         return result_o;
+    //     }
     }
 
     const auto& res_new_id = new_pyobject_id(result_o);
