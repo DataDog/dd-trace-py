@@ -38,20 +38,34 @@ cherrypy:
   variables:
     SUITE_NAME: "cherrypy"
 
+django:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+    - !reference [.services, redis]
+    - !reference [.services, postgres]
+  variables:
+    SUITE_NAME: "django($|_celery)"
+    TEST_POSTGRES_HOST: "postgres"
+    TEST_MEMCACHED_HOST: "memcached"
+    TEST_REDIS_HOST: "redis"
+
 django_hosts:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: 'django_hosts$'
     
 djangorestframework:
-  parallel: 2
   extends: .test_base_riot_snapshot
-  variables:
-    SUITE_NAME: "djangorestframework"
   services:
     - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, memcached]
     - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "djangorestframework"
+    TEST_MEMCACHED_HOST: "memcached"
+    TEST_REDIS_HOST: "redis"
 
 dogpile_cache:
   extends: .test_base_riot_snapshot
