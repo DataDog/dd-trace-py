@@ -1,9 +1,11 @@
 import os
 
+import mock
 import pytest
 
 from ddtrace.contrib.google_generativeai import patch
 from ddtrace.contrib.google_generativeai import unpatch
+from ddtrace.llmobs import LLMObs
 from ddtrace.pin import Pin
 from tests.contrib.google_generativeai.utils import MockGenerativeModelAsyncClient
 from tests.contrib.google_generativeai.utils import MockGenerativeModelClient
@@ -35,9 +37,25 @@ def mock_tracer(ddtrace_global_config, genai):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin.override(genai, tracer=mock_tracer)
         pin.tracer.configure()
+        if ddtrace_global_config.get("_llmobs_enabled", False):
+            # Have to disable and re-enable LLMObs to use to mock tracer.
+            LLMObs.disable()
+            LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
         yield mock_tracer
     except Exception:
         yield
+
+
+@pytest.fixture
+def mock_llmobs_writer():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+    try:
+        LLMObsSpanWriterMock = patcher.start()
+        m = mock.MagicMock()
+        LLMObsSpanWriterMock.return_value = m
+        yield m
+    finally:
+        patcher.stop()
 
 
 @pytest.fixture
