@@ -1,14 +1,13 @@
 import re
 import typing
 
-import pytest
-
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking.aspects import index_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_expand_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_findall_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_finditer_aspect
@@ -20,7 +19,6 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_search_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
-from ddtrace.appsec._iast._taint_tracking.aspects import slice_aspect
 
 
 def test_re_findall_aspect_tainted_string():
@@ -496,7 +494,6 @@ def test_re_finditer_aspect_not_tainted():
         assert not is_pyobject_tainted(i)
 
 
-@pytest.mark.skip(reason="Not implemented: APPSEC-54846")
 def test_re_match_getitem_aspect_tainted_string_re_object():
     tainted_isaac_newton = taint_pyobject(
         pyobject="Isaac Newton, physicist",
@@ -509,15 +506,36 @@ def test_re_match_getitem_aspect_tainted_string_re_object():
 
     re_match = re_match_aspect(None, 1, re_obj, tainted_isaac_newton)
 
-    isaac_newton = slice_aspect(re_match, 0, None)
+    isaac_newton = index_aspect(re_match, 0)
     assert isaac_newton == "Isaac Newton"
 
-    isaac = slice_aspect(re_match, 1, None)
+    isaac = index_aspect(re_match, 1)
     assert isaac == "Isaac"
 
-    newton = slice_aspect(re_match, 2, None)
+    newton = index_aspect(re_match, 2)
     assert newton == "Newton"
 
     assert is_pyobject_tainted(isaac_newton)
     assert is_pyobject_tainted(isaac)
     assert is_pyobject_tainted(newton)
+
+
+def test_re_match_getitem_aspect_not_tainted_string_re_object():
+    not_tainted_isaac_newton = "Isaac Newton, physicist"
+
+    re_obj = re.compile(r"(\w+) (\w+)")
+
+    re_match = re_match_aspect(None, 1, re_obj, not_tainted_isaac_newton)
+
+    isaac_newton = index_aspect(re_match, 0)
+    assert isaac_newton == "Isaac Newton"
+
+    isaac = index_aspect(re_match, 1)
+    assert isaac == "Isaac"
+
+    newton = index_aspect(re_match, 2)
+    assert newton == "Newton"
+
+    assert not is_pyobject_tainted(isaac_newton)
+    assert not is_pyobject_tainted(isaac)
+    assert not is_pyobject_tainted(newton)

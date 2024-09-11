@@ -19,11 +19,18 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
     if (ranges_error) {
         return result_o;
     }
-    for (const auto& current_range : ranges) {
-        if (current_range->start <= idx_long and idx_long < (current_range->start + current_range->length)) {
-            ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, 1l, current_range->source));
-            break;
+
+    if (is_text(candidate_text)) {
+        for (const auto& current_range : ranges) {
+            if (current_range->start <= idx_long and idx_long < (current_range->start + current_range->length)) {
+                ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, 1l, current_range->source));
+                break;
+            }
         }
+    } else {  // For other types, we just taint from beginning to end
+        const size_t len_result_o{ get_pyobject_size(result_o) };
+        const auto& current_range = ranges.front();
+        ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, len_result_o, current_range->source));
     }
 
     const auto& res_new_id = new_pyobject_id(result_o);
@@ -49,7 +56,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
     auto result_o = PyObject_GetItem(candidate_text, idx);
-    if (!is_text(candidate_text) or !is_some_number(idx)) {
+    if (!is_tainteable(candidate_text) or !is_some_number(idx)) {
         return result_o;
     }
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
