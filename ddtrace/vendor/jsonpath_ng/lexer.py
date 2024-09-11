@@ -1,9 +1,9 @@
 import sys
 import logging
 
-from ..ply import lex
+from ..ply.lex import lex
 
-from jsonpath_ng.exceptions import JsonPathLexerError
+from .exceptions import JsonPathLexerError
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 import logging
 from itertools import *  # noqa
-from jsonpath_ng.lexer import JsonPathLexer
+from .lexer import JsonPathLexer
 
 # Get logger name
 logger = logging.getLogger(__name__)

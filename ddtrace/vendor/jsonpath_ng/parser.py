@@ -2,11 +2,11 @@ import logging
 import sys
 import os.path
 
-from ..ply import yacc
+from ..ply.yacc import yacc
 
-from jsonpath_ng.exceptions import JsonPathParserError
-from jsonpath_ng.jsonpath import *
-from jsonpath_ng.lexer import JsonPathLexer
+from .exceptions import JsonPathParserError
+from .jsonpath import *
+from .lexer import JsonPathLexer
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class JsonPathParser:
         parsing_table_module = '_'.join([module_name, start_symbol, 'parsetab'])
 
         # Generate the parse table
-        self.parser = yacc.yacc(module=self,
+        self.parser = yacc(module=self,
                                     debug=self.debug,
                                     tabmodule = parsing_table_module,
                                     outputdir = output_directory,
