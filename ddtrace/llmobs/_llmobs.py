@@ -237,6 +237,9 @@ class LLMObs(Service):
         """
 
         def mini_annotate(span):
+            if span.span_type != SpanTypes.LLM:
+                return
+
             if tags:
                 cls._tag_span_tags(span, tags)
 
