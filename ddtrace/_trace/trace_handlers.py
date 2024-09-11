@@ -774,6 +774,15 @@ def _on_test_visibility_is_enabled() -> bool:
     return CIVisibility.enabled
 
 
+def _set_span_pointer(ctx, span_pointer_description) -> None:
+    ctx.get_item(ctx.get_item("call_key"))._add_span_pointer(
+        pointer_kind=span_pointer_description.pointer_kind,
+        pointer_direction=span_pointer_description.pointer_direction,
+        pointer_hash=span_pointer_description.pointer_hash,
+        extra_attributes=span_pointer_description.extra_attributes,
+    )
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -830,6 +839,8 @@ def listen():
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
     core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
+
+    core.on("datadog.span_pointer", _set_span_pointer)
 
     for context_name in (
         "flask.call",
