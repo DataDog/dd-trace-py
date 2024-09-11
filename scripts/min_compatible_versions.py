@@ -13,7 +13,7 @@ import riotfile  # noqa:E402
 
 
 OUT_FILENAME = "min_compatible_versions.csv"
-OUT_DIRECTORIES = (".", "lib-injection", "sources")
+OUT_DIRECTORIES = (".", "lib-injection/sources")
 IGNORED_PACKAGES = {"setuptools", "attrs"}
 
 
