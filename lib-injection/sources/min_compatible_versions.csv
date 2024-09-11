@@ -100,7 +100,7 @@ logbook,~=1.0.0
 loguru,~=0.4.0
 lz4,0
 mako,~=1.1.0
-mariadb,~=1.0.0
+mariadb,~=1.0
 markupsafe,<2.0
 mock,0
 molten,>=1.0
@@ -141,7 +141,6 @@ pyramid,~=1.10
 pysqlite3-binary,0
 pytest,~=4.0
 pytest-aiohttp,0
-pytest-asyncio,==0.21.1
 pytest-bdd,>=4.0
 pytest-benchmark,>=3.1.0
 pytest-cov,==2.9.0
