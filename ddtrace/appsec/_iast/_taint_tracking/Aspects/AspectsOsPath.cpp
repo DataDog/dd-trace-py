@@ -118,7 +118,7 @@ api_ospathbasename_aspect(const StrType& path)
 
         // Create a fake list to call set_ranges_on_splitted on it (we are
         // only interested on the last path, which is the basename result)
-        auto prev_path_len = py::len(path) - py::len(result_o);
+        auto prev_path_len = py::len(path) - py::len(result_o) - 1;
         std::string filler(prev_path_len, 'X');
         py::str filler_str(filler);
         py::list apply_list;

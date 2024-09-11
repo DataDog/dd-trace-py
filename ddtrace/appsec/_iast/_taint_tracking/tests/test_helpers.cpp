@@ -549,16 +549,16 @@ TEST_F(SetRangesOnSplittedCheck, SplitWithSeparatorIncluded)
     py::str source_str = "This|is|a|test|string.";
     py::list split_result;
     split_result.append(py::str("This"));
-    split_result.append(py::str("is"));
-    split_result.append(py::str("a"));
-    split_result.append(py::str("test"));
-    split_result.append(py::str("string."));
+    split_result.append(py::str("|is"));
+    split_result.append(py::str("|a"));
+    split_result.append(py::str("|test"));
+    split_result.append(py::str("|string."));
 
     Source source1("source1", "sample_value1", OriginType::BODY);
     Source source2("source2", "sample_value2", OriginType::BODY);
     TaintRangeRefs source_ranges = {
         std::make_shared<TaintRange>(0, 4, source1), // Taint "This"
-        std::make_shared<TaintRange>(7, 4, source2)  // Taint "test"
+        std::make_shared<TaintRange>(10, 4, source2) // Taint "test"
     };
     api_set_ranges(source_str, source_ranges);
     auto tx_map = Initializer::get_tainting_map();
@@ -577,7 +577,7 @@ TEST_F(SetRangesOnSplittedCheck, SplitWithSeparatorIncluded)
     auto test_part = split_result[3];
     auto test_ranges = get_ranges(test_part.ptr(), tx_map);
     EXPECT_EQ(test_ranges.first.size(), 1);
-    EXPECT_EQ(test_ranges.first[0]->start, 0); // Position within "test"
+    EXPECT_EQ(test_ranges.first[0]->start, 1); // Position within "test"
     EXPECT_EQ(test_ranges.first[0]->length, 4);
 
     // Check that other parts have no ranges

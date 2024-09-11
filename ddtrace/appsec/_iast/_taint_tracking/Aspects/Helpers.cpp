@@ -292,51 +292,50 @@ set_ranges_on_splitted(const py::object& source_str,
                        const TaintRangeMapTypePtr& tx_map,
                        bool include_separator)
 {
+    RANGE_START offset = 0;
     bool some_set = false;
 
-    // Some quick shortcuts
     if (source_ranges.empty() or py::len(split_result) == 0 or py::len(source_str) == 0 or not tx_map or
         tx_map->empty()) {
         return false;
     }
 
-    RANGE_START offset = 0;
-    auto c_source_str = py::cast<std::string>(source_str);
-    const auto separator_increase = static_cast<int>(not include_separator);
-    RANGE_START separator_count = 0;
-
     for (const auto& item : split_result) {
+        cerr << "JJ ITEM: ============================ " << item << endl;
         if (not is_text(item.ptr()) or py::len(item) == 0) {
             continue;
         }
-        auto c_item = py::cast<std::string>(item);
         TaintRangeRefs item_ranges;
+        RANGE_START part_len = py::len(item);
+        RANGE_START part_start = offset;
+        RANGE_START part_end = part_start + part_len;
 
-        // Find the item in the source_str.
-        auto start = static_cast<RANGE_START>(c_source_str.find(c_item, offset));
-        if (start == -1) {
-            continue;
-        }
-
-        auto end = static_cast<RANGE_START>(start + c_item.length());
-
-        // Find what source_ranges match these positions and create a new range with the start and len updated.
+        // bool first = true;
         for (const auto& range : source_ranges) {
-            const auto range_end_abs = range->start + range->length;
-            if (range->start + separator_count < end && range_end_abs > start) {
-                const auto new_range_start = std::max(range->start - offset, 0L);
-                const auto new_range_length = std::min(range->length, static_cast<long int>(py::len(item)));
-                item_ranges.emplace_back(
-                  initializer->allocate_taint_range(new_range_start, new_range_length, range->source));
+            RANGE_START range_start = range->start;
+            RANGE_START range_end = range->start + range->length;
+
+            // Check for overlap
+            if (range_start < part_end && range_end > part_start) {
+                RANGE_START new_start = std::max(range_start - part_start, 0L);
+                RANGE_START new_end = std::min(range_end - part_start, part_len);
+                RANGE_START new_length = std::min(new_end - new_start, part_len);
+
+                if (new_length > 0) {
+                    item_ranges.emplace_back(initializer->allocate_taint_range(new_start, new_length, range->source));
+                }
             }
         }
+
         if (not item_ranges.empty()) {
             set_ranges(item.ptr(), item_ranges, tx_map);
             some_set = true;
         }
+        offset += part_len;
 
-        offset += py::len(item) + separator_increase;
-        separator_count += 1;
+        if (!include_separator) {
+            offset += 1;
+        }
     }
 
     return some_set;
