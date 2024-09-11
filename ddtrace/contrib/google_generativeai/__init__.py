@@ -76,8 +76,7 @@ To configure the Gemini integration on a per-instance basis use the
     from ddtrace import Pin, config
 
     Pin.override(genai, service="my-gemini-service")
-"""
-
+"""  # noqa: E501
 from ...internal.utils.importlib import require_modules
 
 

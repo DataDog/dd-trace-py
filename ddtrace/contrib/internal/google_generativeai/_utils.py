@@ -1,8 +1,7 @@
 import sys
 
-import wrapt
-from google.generativeai.types import GenerationConfigType
 from google.generativeai.types.generation_types import to_generation_config_dict
+import wrapt
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._utils import _get_attr
