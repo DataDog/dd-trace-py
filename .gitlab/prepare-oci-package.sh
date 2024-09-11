@@ -28,7 +28,7 @@ echo "Cleaning up binaries for ${ARCH}"
 if [ "${ARCH}" == "arm64" ]; then
   echo "Removing x86_64 binaries"
   find ../pywheels-dep/ -type f -name '*x86_64-*.so*' -exec rm -f {} \;
-elif [ "${ARCH}" == "x86_64" ]; then
+elif [ "${ARCH}" == "amd64" ]; then
   echo "Removing aarch64 binaries"
   find ../pywheels-dep/ -type f -name '*aarch64-*.so*' -exec rm -f {} \;
 else
