@@ -47,6 +47,7 @@ from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs.utils import AnnotationContext
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
@@ -225,6 +226,21 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    def annotation_context(cls, tags: Optional[Dict[str, Any]] = None) -> AnnotationContext:
+        """
+        Sets tags on all spans created while the returned AnnotationContext is active.
+
+        :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
+                     regarding the span's context.
+        """
+
+        def mini_annotate(span):
+            if tags:
+                cls._tag_span_tags(span, tags)
+
+        return AnnotationContext(cls._instance.tracer, mini_annotate)
 
     @classmethod
     def flush(cls) -> None:

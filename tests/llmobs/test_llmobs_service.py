@@ -1504,3 +1504,23 @@ def test_llmobs_fork_custom_filter(monkeypatch):
         exit_code = os.WEXITSTATUS(status)
         assert exit_code == 12
         llmobs_service.disable()
+
+
+def test_annotation_context_modifies_span_tags(LLMObs):
+    with LLMObs.annotation_context(tags={"foo": "bar"}):
+        with LLMObs.agent(name="test_agent") as span:
+            assert json.loads(span.get_tag(TAGS)) == {"foo": "bar"}
+
+
+def test_annotation_context_finished_context_does_not_modify_spans(LLMObs):
+    with LLMObs.annotation_context(tags={"foo": "bar"}):
+        pass
+    with LLMObs.agent(name="test_agent") as span:
+        assert span.get_tag(TAGS) is None
+
+
+def test_annotation_context_nested(LLMObs):
+    with LLMObs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
+        with LLMObs.annotation_context(tags={"foo": "baz"}):
+            with LLMObs.agent(name="test_agent") as span:
+                assert json.loads(span.get_tag(TAGS)) == {"foo": "baz", "boo": "bar"}
