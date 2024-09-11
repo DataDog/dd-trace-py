@@ -14,7 +14,7 @@ import riotfile  # noqa:E402
 
 OUT_FILENAME = "min_compatible_versions.csv"
 OUT_DIRECTORIES = (".", "lib-injection")
-IGNORED_PACKAGES = {"setuptools"}
+IGNORED_PACKAGES = {"setuptools", "attrs"}
 
 
 def _format_version_specifiers(spec: Set[str]) -> Set[str]:
