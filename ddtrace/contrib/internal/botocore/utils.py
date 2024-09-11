@@ -29,7 +29,7 @@ def get_json_from_str(data_str: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     return None, data_obj
 
 
-def get_kinesis_data_object(data: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+def get_kinesis_data_object(data: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
     """
     :data: the data from a kinesis stream
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
