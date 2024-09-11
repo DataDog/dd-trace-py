@@ -564,12 +564,6 @@ jobs:
           env: 'pytest_plugin_v2'
           snapshot: true
 
-  sourcecode:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "sourcecode"
-
   opentelemetry:
     parallelism: 4
     <<: *machine_executor
@@ -658,24 +652,6 @@ jobs:
           snapshot: true
           docker_services: "memcached redis postgres"
 
-  djangorestframework:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'djangorestframework'
-          snapshot: true
-          docker_services: "memcached redis"
-
-  dramatiq:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "dramatiq"
-          snapshot: true
-          docker_services: "redis"
-
   httplib:
     <<: *machine_executor
     steps:
@@ -735,16 +711,6 @@ jobs:
           wait: mysql
           pattern: 'pymysql$'
 
-  pylibmc:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'pylibmc'
-
   pytest:
     <<: *machine_executor
     parallelism: 10
@@ -752,16 +718,6 @@ jobs:
       - run_test:
           pattern: 'pytest'
           snapshot: true
-
-  pymemcache:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pymemcache"
 
   mongoengine:
     <<: *machine_executor
