@@ -1,6 +1,4 @@
 ---
 features:
   - |
-    llmobs: This introduces the `LLMObs.annotation_context` method which enables users to modify certain attributes of integration generated spans.
-    `LLMObs.annotation_context` returns a context manager. While the context manager is active, all LLM Obs spans created will have the specified
-    data passed into `LLMObs.annotation_context`.
+     LLM Observability: Introduces the `LLMObs.annotation_context()` context manager method which allows modifying or overriding the tags of integration generated LLM Observability spans created while the conext manager is active.
