@@ -24,6 +24,8 @@ _VISITOR = AstVisitor()
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
 IAST_DENYLIST: Tuple[Text, ...] = (
+    "flask",
+    "werkzeug",
     "aiohttp._helpers",
     "aiohttp._http_parser",
     "aiohttp._http_writer",
