@@ -47,10 +47,7 @@ set_fast_tainted_if_notinterned_unicode(PyObject* objptr);
 inline bool
 is_text(const PyObject* pyptr)
 {
-    if (!pyptr)
-        return false;
-
-    return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr);
+    return (pyptr != nullptr) and (PyUnicode_Check(pyptr) or PyBytes_Check(pyptr) or PyByteArray_Check(pyptr));
 }
 
 inline bool

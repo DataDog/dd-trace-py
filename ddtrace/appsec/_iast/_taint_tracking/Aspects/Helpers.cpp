@@ -44,7 +44,11 @@ as_formatted_evidence(const string& text,
                       const optional<TagMappingMode>& tag_mapping_mode,
                       const optional<const py::dict>& new_ranges)
 {
-    if (text_ranges.empty()) {
+    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+        return text;
+    }
+
+    if (text_ranges.empty() or text.empty()) {
         return text;
     }
     vector<string> res_vector;
@@ -55,20 +59,23 @@ as_formatted_evidence(const string& text,
 
     for (const auto& taint_range : text_ranges) {
         string content;
-        if (!tag_mapping_mode) {
+        if (!tag_mapping_mode or tag_mapping_mode.value() == TagMappingMode::Normal) {
             content = get_default_content(taint_range);
         } else
             switch (*tag_mapping_mode) {
-                case TagMappingMode::Mapper:
+                case TagMappingMode::Mapper: {
                     content = to_string(taint_range->get_hash());
                     break;
-                case TagMappingMode::Mapper_Replace:
+                }
+                case TagMappingMode::Mapper_Replace: {
                     content = mapper_replace(taint_range, new_ranges);
                     break;
+                }
                 default: {
                     // Nothing
                 }
             }
+
         const auto tag = get_tag(content);
 
         const auto range_end = taint_range->start + taint_range->length;
@@ -93,26 +100,15 @@ as_formatted_evidence(const string& text,
 
 template<class StrType>
 StrType
-all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
-{
-    TaintRangeRefs text_ranges = api_get_ranges(text);
-    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
-}
-
-template<class StrType>
-StrType
-int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode)
-{
-    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
-}
-
-template<class StrType>
-StrType
 api_as_formatted_evidence(const StrType& text,
                           optional<const TaintRangeRefs>& text_ranges,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges)
 {
+    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+        return text;
+    }
+
     TaintRangeRefs _ranges;
     if (!text_ranges) {
         _ranges = api_get_ranges(text);
@@ -454,17 +450,6 @@ pyexport_aspect_helpers(py::module& m)
           "split_result"_a,
           // cppcheck-suppress assignBoolToPointer
           "include_separator"_a = false);
-    m.def("_all_as_formatted_evidence",
-          &all_as_formatted_evidence<py::str>,
-          "text"_a,
-          "tag_mapping_function"_a = nullopt,
-          py::return_value_policy::move);
-    m.def("_int_as_formatted_evidence",
-          &int_as_formatted_evidence<py::str>,
-          "text"_a,
-          "text_ranges"_a = nullopt,
-          "tag_mapping_function"_a = nullopt,
-          py::return_value_policy::move);
     m.def("as_formatted_evidence",
           &api_as_formatted_evidence<py::bytes>,
           "text"_a,

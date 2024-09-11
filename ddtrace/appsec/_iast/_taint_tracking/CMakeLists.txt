@@ -34,12 +34,6 @@ else ()
     message("Debug mode: not using abseil")
 endif ()
 
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/refs/tags/release-1.12.1.zip
-)
-FetchContent_MakeAvailable(googletest)
-
 include_directories(".")
 
 file(GLOB SOURCE_FILES "*.cpp"
@@ -72,7 +66,7 @@ message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
 add_subdirectory(_vendor/pybind11)
 if (NATIVE_TESTING)
     add_subdirectory(tests EXCLUDE_FROM_ALL)
-endif()
+endif ()
 
 pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)

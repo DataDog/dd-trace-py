@@ -3,6 +3,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "Initializer/Initializer.h"
 #include "TaintTracking/TaintRange.h"
 
 using namespace pybind11::literals;
@@ -20,11 +21,24 @@ api_common_replace(const py::str& string_method,
 
 template<class StrType>
 StrType
-all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode);
+all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
+{
+    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+        return text;
+    }
+    TaintRangeRefs text_ranges = api_get_ranges(text);
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
+}
 
 template<class StrType>
 StrType
-int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode);
+int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode)
+{
+    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+        return text;
+    }
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
+}
 
 string
 as_formatted_evidence(const string& text,

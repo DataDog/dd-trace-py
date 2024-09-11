@@ -293,20 +293,20 @@ using PyObjectToStringCheck = PyEnvCheck;
 
 TEST_F(PyObjectToStringCheck, NullptrReturnsEmptyString)
 {
-    EXPECT_EQ(PyObjectToString(nullptr), string(""));
+    EXPECT_STREQ(PyObjectToString(nullptr).c_str(), "");
 }
 
 TEST_F(PyObjectToStringCheck, UnicodeReturnsCorrectString)
 {
     PyObject* unicode_obj = PyUnicode_FromString("test");
-    EXPECT_EQ(PyObjectToString(unicode_obj), string("test"));
+    EXPECT_STREQ(PyObjectToString(unicode_obj).c_str(), "test");
     Py_DECREF(unicode_obj);
 }
 
 TEST_F(PyObjectToStringCheck, NonUnicodeReturnsEmptyString)
 {
     PyObject* non_unicode_obj = PyLong_FromLong(42);
-    EXPECT_EQ(PyObjectToString(non_unicode_obj), string(""));
+    EXPECT_STREQ(PyObjectToString(non_unicode_obj).c_str(), "");
     Py_DECREF(non_unicode_obj);
 }
 
@@ -317,7 +317,7 @@ TEST_F(StringToPyObjectCheck, ConvertsToUnicode)
     std::string test_str = "test";
     py::object py_obj = StringToPyObject(test_str, PyTextType::UNICODE);
     EXPECT_TRUE(PyUnicode_Check(py_obj.ptr()));
-    EXPECT_EQ(PyUnicode_AsUTF8(py_obj.ptr()), test_str);
+    EXPECT_STREQ(PyUnicode_AsUTF8(py_obj.ptr()), test_str.c_str());
 }
 
 TEST_F(StringToPyObjectCheck, ConvertsToBytes)
@@ -325,7 +325,7 @@ TEST_F(StringToPyObjectCheck, ConvertsToBytes)
     std::string test_str = "test";
     py::object py_obj = StringToPyObject(test_str, PyTextType::BYTES);
     EXPECT_TRUE(PyBytes_Check(py_obj.ptr()));
-    EXPECT_EQ(PyBytes_AsString(py_obj.ptr()), test_str);
+    EXPECT_STREQ(PyBytes_AsString(py_obj.ptr()), test_str.c_str());
 }
 
 TEST_F(StringToPyObjectCheck, ConvertsToByteArray)
@@ -333,7 +333,7 @@ TEST_F(StringToPyObjectCheck, ConvertsToByteArray)
     std::string test_str = "test";
     py::object py_obj = StringToPyObject(test_str, PyTextType::BYTEARRAY);
     EXPECT_TRUE(PyByteArray_Check(py_obj.ptr()));
-    EXPECT_EQ(PyByteArray_AsString(py_obj.ptr()), test_str);
+    EXPECT_STREQ(PyByteArray_AsString(py_obj.ptr()), test_str.c_str());
 }
 
 TEST_F(StringToPyObjectCheck, InvalidTypeReturnsNone)
@@ -348,25 +348,25 @@ using AnyTextObjectToStringCheck = PyEnvCheck;
 TEST_F(AnyTextObjectToStringCheck, UnicodeReturnsCorrectString)
 {
     auto unicode_obj = py::str("test");
-    EXPECT_EQ(AnyTextObjectToString(unicode_obj), string("test"));
+    EXPECT_STREQ(AnyTextObjectToString(unicode_obj).c_str(), "test");
 }
 
 TEST_F(AnyTextObjectToStringCheck, BytesReturnsCorrectString)
 {
     auto bytes_obj = py::bytes("test");
-    EXPECT_EQ(AnyTextObjectToString(bytes_obj), string("test"));
+    EXPECT_STREQ(AnyTextObjectToString(bytes_obj).c_str(), "test");
 }
 
 TEST_F(AnyTextObjectToStringCheck, ByteArrayReturnsCorrectString)
 {
     auto bytearray_obj = py::bytearray("test");
-    EXPECT_EQ(AnyTextObjectToString(bytearray_obj), string("test"));
+    EXPECT_STREQ(AnyTextObjectToString(bytearray_obj).c_str(), "test");
 }
 
 TEST_F(AnyTextObjectToStringCheck, NonTextReturnsEmptyString)
 {
     auto non_text_obj = py::int_(42);
-    EXPECT_EQ(AnyTextObjectToString(non_text_obj), string(""));
+    EXPECT_STREQ(AnyTextObjectToString(non_text_obj).c_str(), "");
 }
 
 using PyObjectToPyTextCheck = PyEnvCheck;
