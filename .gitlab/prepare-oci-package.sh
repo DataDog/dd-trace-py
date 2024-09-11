@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eo pipefail
 
 if [ -n "$CI_COMMIT_TAG" ] && [ -z "$PYTHON_PACKAGE_VERSION" ]; then
   PYTHON_PACKAGE_VERSION=${CI_COMMIT_TAG##v}
