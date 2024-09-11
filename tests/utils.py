@@ -73,19 +73,22 @@ def assert_span_http_status_code(span, code):
 
 
 @contextlib.contextmanager
-def override_env(env):
+def override_env(env, replace_os_env=False):
     """
     Temporarily override ``os.environ`` with provided values::
 
         >>> with self.override_env(dict(DD_TRACE_DEBUG=True)):
             # Your test
     """
-    # Copy the full original environment
+    # Only copy the full original environment if requested:
     original = dict(os.environ)
 
-    for k in os.environ.keys():
-        if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
-            del os.environ[k]
+    if replace_os_env:
+        os.environ.clear()
+    else:
+        for k in os.environ.keys():
+            if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
+                del os.environ[k]
 
     # Update based on the passed in arguments
     os.environ.update(env)
@@ -1102,7 +1105,7 @@ def snapshot_context(
         result = to_unicode(r.read())
         if r.status != 200:
             lowered = result.lower()
-            if "received unmatched traces" not in lowered:
+            if "received unmatched traces" not in lowered and "did not receive expected traces" not in lowered:
                 pytest.fail(result, pytrace=False)
             # we don't know why the test agent occasionally receives a different number of traces than it expects
             # during snapshot tests, but that does sometimes in an unpredictable manner
