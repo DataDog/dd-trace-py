@@ -2,7 +2,6 @@
 #include "Initializer/Initializer.h"
 #include <algorithm>
 #include <iostream>
-#include <regex>
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -116,20 +115,6 @@ api_as_formatted_evidence(const StrType& text,
         _ranges = text_ranges.value();
     }
     return StrType(as_formatted_evidence(AnyTextObjectToString(text), _ranges, tag_mapping_mode, new_ranges));
-}
-
-vector<string>
-split_taints(const string& str_to_split)
-{
-    const std::regex rgx(R"((:\+-(<[0-9.a-z\-]+>)?|(<[0-9.a-z\-]+>)?-\+:))");
-    std::sregex_token_iterator iter(str_to_split.begin(), str_to_split.end(), rgx, { -1, 0 });
-    vector<string> res;
-
-    for (const std::sregex_token_iterator end; iter != end; ++iter) {
-        res.push_back(*iter);
-    }
-
-    return res;
 }
 
 py::bytearray
@@ -367,22 +352,6 @@ api_set_ranges_on_splitted(const StrType& source_str,
         return false;
     }
     return set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map, include_separator);
-}
-
-py::object
-parse_params(size_t position,
-             const char* keyword_name,
-             const py::object& default_value,
-             const py::args& args,
-             const py::kwargs& kwargs)
-{
-    if (args.size() >= position + 1) {
-        return args[position];
-    }
-    if (kwargs && kwargs.contains(keyword_name)) {
-        return kwargs[keyword_name];
-    }
-    return default_value;
 }
 
 bool

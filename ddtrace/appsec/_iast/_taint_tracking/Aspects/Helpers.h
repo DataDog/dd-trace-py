@@ -2,6 +2,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <regex>
 
 #include "Initializer/Initializer.h"
 #include "TaintTracking/TaintRange.h"
@@ -204,6 +205,75 @@ process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyOb
     // Then you don't need to Py_INCREF the resulted value. But if it's used as a PyObject*, then you need
     // to do it.
     return args;
+}
+
+/**
+ * @brief Splits a string containing taint markers into its textual components and the markers.
+ *
+ * This function takes a string that contains special taint markers (e.g., `:+-<...>-+:`) and splits it
+ * into separate components: the plain text parts and the taint markers. The markers represent taint information
+ * surrounding sections of the string, and the result is a vector where both text and markers are included as separate
+ * elements.
+ *
+ * @param str_to_split The input string containing taint markers.
+ *
+ * @return A vector of strings where each element is either a part of the original text or a taint marker.
+ *
+ * @example
+ * std::string tainted_str = "This :+-<123>-+:is a :+-<456>-+:test.";
+ * std::vector<std::string> result = split_taints(tainted_str);
+ * // result will be: ["This ", ":+-<123>-+:", "is a ", ":+-<456>-+:", "test."]
+ */
+inline vector<string>
+split_taints(const string& str_to_split)
+{
+    const std::regex rgx(R"((:\+-(<[0-9.a-z\-]+>)?|(<[0-9.a-z\-]+>)?-\+:))");
+    std::sregex_token_iterator iter(str_to_split.begin(), str_to_split.end(), rgx, { -1, 0 });
+    vector<string> res;
+
+    for (const std::sregex_token_iterator end; iter != end; ++iter) {
+        res.push_back(*iter);
+    }
+
+    return res;
+}
+
+/**
+ * @brief Retrieves a parameter from either the positional arguments, keyword arguments, or returns a default value.
+ *
+ * This function checks if a value is provided in the positional arguments (`args`) at the specified position.
+ * If not found, it checks the keyword arguments (`kwargs`) for the specified key. If neither is found,
+ * it returns the default value provided.
+ *
+ * @param position The position in the positional arguments (`args`) to check.
+ * @param keyword_name The name of the keyword to search for in the keyword arguments (`kwargs`).
+ * @param default_value The default value to return if the argument is not found in either `args` or `kwargs`.
+ * @param args The list of positional arguments.
+ * @param kwargs The dictionary of keyword arguments.
+ *
+ * @return The parameter found in the positional arguments, keyword arguments, or the default value if none is found.
+ *
+ * @example
+ * py::args args = py::make_tuple(42);
+ * py::kwargs kwargs;
+ * py::object default_value = py::int_(0);
+ * py::object result = parse_params(0, "key", default_value, args, kwargs);
+ * // In this case, the result will be 42 (the positional argument).
+ */
+inline py::object
+parse_params(size_t position,
+             const char* keyword_name,
+             const py::object& default_value,
+             const py::args& args,
+             const py::kwargs& kwargs)
+{
+    if (args.size() >= position + 1) {
+        return args[position];
+    }
+    if (kwargs && kwargs.contains(keyword_name)) {
+        return kwargs[keyword_name];
+    }
+    return default_value;
 }
 
 void
