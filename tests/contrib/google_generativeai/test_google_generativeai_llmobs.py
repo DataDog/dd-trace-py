@@ -36,7 +36,7 @@ class TestLLMObsGemini:
             span,
             model_name="gemini-1.5-flash",
             model_provider="google",
-            input_messages=[{"content": "What is the argument for LeBron James being the GOAT?", "role": "user"}],
+            input_messages=[{"content": "What is the argument for LeBron James being the GOAT?"}],
             output_messages=[
                 {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
             ],
@@ -62,7 +62,7 @@ class TestLLMObsGemini:
             span,
             model_name="gemini-1.5-flash",
             model_provider="google",
-            input_messages=[{"content": "What is the argument for LeBron James being the GOAT?", "role": "user"}],
+            input_messages=[{"content": "What is the argument for LeBron James being the GOAT?"}],
             output_messages=[
                 {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"}
             ],
@@ -91,7 +91,7 @@ class TestLLMObsGemini:
                 span,
                 model_name="gemini-1.5-flash",
                 model_provider="google",
-                input_messages=[{"content": "What is the argument for LeBron James being the GOAT?", "role": "user"}],
+                input_messages=[{"content": "What is the argument for LeBron James being the GOAT?"}],
                 output_messages=[{"content": ""}],
                 error="google.api_core.exceptions.InvalidArgument",
                 error_message=span.get_tag("error.message"),
@@ -124,7 +124,7 @@ class TestLLMObsGemini:
                 span,
                 model_name="gemini-1.5-flash",
                 model_provider="google",
-                input_messages=[{"content": "What is the argument for LeBron James being the GOAT?", "role": "user"}],
+                input_messages=[{"content": "What is the argument for LeBron James being the GOAT?"}],
                 output_messages=[{"content": ""}],
                 error="google.api_core.exceptions.InvalidArgument",
                 error_message=span.get_tag("error.message"),
@@ -294,7 +294,7 @@ class TestLLMObsGemini:
                     "content": "You are a die-hard Michael Jordan fan that always brings stats to the discussion.",
                     "role": "system",
                 },
-                {"content": "What is the argument for LeBron James being the GOAT?", "role": "user"},
+                {"content": "What is the argument for LeBron James being the GOAT?"},
             ],
             output_messages=[
                 {
@@ -332,7 +332,7 @@ class TestLLMObsGemini:
                     "content": "You are a die-hard Michael Jordan fan that always brings stats to the discussion.",
                     "role": "system",
                 },
-                {"content": "What is the argument for LeBron James being the GOAT?", "role": "user"},
+                {"content": "What is the argument for LeBron James being the GOAT?"},
             ],
             output_messages=[
                 {
@@ -365,7 +365,7 @@ class TestLLMObsGemini:
             span,
             model_name="gemini-1.5-flash",
             model_provider="google",
-            input_messages=[{"content": "Can you recite the alphabet?", "role": "user"}],
+            input_messages=[{"content": "Can you recite the alphabet?"}],
             output_messages=[
                 {"content": "".join(chunk["text"] for chunk in MOCK_COMPLETION_STREAM_CHUNKS), "role": "model"}
             ],
@@ -396,7 +396,7 @@ class TestLLMObsGemini:
             span,
             model_name="gemini-1.5-flash",
             model_provider="google",
-            input_messages=[{"content": "Can you recite the alphabet?", "role": "user"}],
+            input_messages=[{"content": "Can you recite the alphabet?"}],
             output_messages=[
                 {"content": "".join(chunk["text"] for chunk in MOCK_COMPLETION_STREAM_CHUNKS), "role": "model"}
             ],
@@ -420,7 +420,7 @@ class TestLLMObsGemini:
             span,
             model_name="gemini-1.5-flash",
             model_provider="google",
-            input_messages=[{"content": "Dim the lights so the room feels cozy and warm.", "role": "user"}],
+            input_messages=[{"content": "Dim the lights so the room feels cozy and warm."}],
             output_messages=[
                 {
                     "content": "",
@@ -457,7 +457,7 @@ class TestLLMObsGemini:
             span,
             model_name="gemini-1.5-flash",
             model_provider="google",
-            input_messages=[{"content": "Dim the lights so the room feels cozy and warm.", "role": "user"}],
+            input_messages=[{"content": "Dim the lights so the room feels cozy and warm."}],
             output_messages=[
                 {
                     "content": "",
@@ -499,7 +499,7 @@ class TestLLMObsGemini:
             span,
             model_name="gemini-1.5-flash",
             model_provider="google",
-            input_messages=[{"content": "Dim the lights so the room feels cozy and warm.", "role": "user"}],
+            input_messages=[{"content": "Dim the lights so the room feels cozy and warm."}],
             output_messages=[
                 {
                     "content": "",
@@ -541,7 +541,7 @@ class TestLLMObsGemini:
             span,
             model_name="gemini-1.5-flash",
             model_provider="google",
-            input_messages=[{"content": "Dim the lights so the room feels cozy and warm.", "role": "user"}],
+            input_messages=[{"content": "Dim the lights so the room feels cozy and warm."}],
             output_messages=[
                 {
                     "content": "",
@@ -579,8 +579,8 @@ class TestLLMObsGemini:
             model_name="gemini-1.5-flash",
             model_provider="google",
             input_messages=[
-                {"content": "[Non-text content object: {}]".format(repr(img)), "role": "user"},
-                {"content": "Return a bounding box for the apple. \n [ymin, xmin, ymax, xmax]", "role": "user"},
+                {"content": "[Non-text content object: {}]".format(repr(img))},
+                {"content": "Return a bounding box for the apple. \n [ymin, xmin, ymax, xmax]"},
             ],
             output_messages=[{"content": "57 100 900 911", "role": "model"}],
             metadata={"temperature": 1.0, "max_output_tokens": 30},
@@ -608,8 +608,8 @@ class TestLLMObsGemini:
             model_name="gemini-1.5-flash",
             model_provider="google",
             input_messages=[
-                {"content": "[Non-text content object: {}]".format(repr(img)), "role": "user"},
-                {"content": "Return a bounding box for the apple. \n [ymin, xmin, ymax, xmax]", "role": "user"},
+                {"content": "[Non-text content object: {}]".format(repr(img))},
+                {"content": "Return a bounding box for the apple. \n [ymin, xmin, ymax, xmax]"},
             ],
             output_messages=[{"content": "57 100 900 911", "role": "model"}],
             metadata={"temperature": 1.0, "max_output_tokens": 30},

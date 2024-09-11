@@ -197,12 +197,12 @@ def _llmobs_base_span_event(
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
         "name": span_name,
-        "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",
         "meta": {"span.kind": span_kind},
         "metrics": {},
+        "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
     }
     if session_id:
         span_event["session_id"] = session_id

@@ -1,6 +1,7 @@
 import json
 from typing import Any
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
 
@@ -27,9 +28,9 @@ class GeminiIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, object]
     ) -> None:
         if provider is not None:
-            span.set_tag_str("genai.request.model", str(model))
+            span.set_tag_str("google_generativeai.request.model", str(model))
         if model is not None:
-            span.set_tag_str("genai.request.provider", str(provider))
+            span.set_tag_str("google_generativeai.request.provider", str(provider))
 
     def llmobs_set_tags(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], instance: Any, generations: Any = None
@@ -38,8 +39,8 @@ class GeminiIntegration(BaseLLMIntegration):
             return
 
         span.set_tag_str(SPAN_KIND, "llm")
-        span.set_tag_str(MODEL_NAME, span.get_tag("genai.request.model") or "")
-        span.set_tag_str(MODEL_PROVIDER, span.get_tag("genai.request.provider") or "")
+        span.set_tag_str(MODEL_NAME, span.get_tag("google_generativeai.request.model") or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag("google_generativeai.request.provider") or "")
 
         metadata = self._llmobs_set_metadata(kwargs, instance)
         span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
@@ -77,7 +78,9 @@ class GeminiIntegration(BaseLLMIntegration):
         text = _get_attr(part, "text", "")
         function_call = _get_attr(part, "function_call", None)
         function_response = _get_attr(part, "function_response", None)
-        message = {"content": text, "role": role}
+        message = {"content": text}
+        if role:
+            message["role"] = role
         if function_call:
             function_call_dict = function_call
             if not isinstance(function_call, dict):
@@ -98,22 +101,29 @@ class GeminiIntegration(BaseLLMIntegration):
             for part in system_instruction.parts:
                 messages.append({"content": part.text or "", "role": "system"})
         if isinstance(contents, str):
-            messages.append({"content": contents, "role": "user"})
+            messages.append({"content": contents})
             return messages
-        elif isinstance(contents, dict):
-            messages.append({"content": contents.get("text", ""), "role": contents.get("role", "user")})
+        if isinstance(contents, dict):
+            message = {"content": contents.get("text", "")}
+            if contents.get("role", None):
+                message["role"] = contents["role"]
+            messages.append(message)
             return messages
-        elif not isinstance(contents, list):
-            messages.append({"content": "[Non-text content object: {}]".format(repr(contents)), "role": "user"})
+        if not isinstance(contents, list):
+            messages.append({"content": "[Non-text content object: {}]".format(repr(contents))})
             return messages
         for content in contents:
             if isinstance(content, str):
-                messages.append({"content": content, "role": "user"})
+                messages.append({"content": content})
                 continue
-            role = _get_attr(content, "role", "user")
+            role = _get_attr(content, "role", None)
             parts = _get_attr(content, "parts", [])
-            if not isinstance(parts, list):
-                messages.append({"content": "[Non-text content object: {}]".format(repr(content)), "role": role})
+            if not parts or not isinstance(parts, Iterable):
+                message = {"content": "[Non-text content object: {}]".format(repr(content))}
+                if role:
+                    message["role"] = role
+                messages.append(message)
+                continue
             for part in parts:
                 message = self._extract_message_from_part(part, role)
                 messages.append(message)
@@ -134,9 +144,9 @@ class GeminiIntegration(BaseLLMIntegration):
     @staticmethod
     def _get_llmobs_metrics_tags(span):
         usage = {}
-        input_tokens = span.get_metric("genai.response.usage.prompt_tokens")
-        output_tokens = span.get_metric("genai.response.usage.completion_tokens")
-        total_tokens = span.get_metric("genai.response.usage.total_tokens")
+        input_tokens = span.get_metric("google_generativeai.response.usage.prompt_tokens")
+        output_tokens = span.get_metric("google_generativeai.response.usage.completion_tokens")
+        total_tokens = span.get_metric("google_generativeai.response.usage.total_tokens")
 
         if input_tokens is not None:
             usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
