@@ -81,17 +81,18 @@ def test_patch():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="true"),
-    err=None,
-)
+@pytest.mark.subprocess()
 def test_user_threads_have_native_id():
     from os import getpid
     from threading import Thread
     from threading import _MainThread
     from threading import current_thread
     from time import sleep
+
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
 
     curr_thread = current_thread()
     # DEV: The following assert holds for most cases, but not for the venv with
@@ -120,6 +121,8 @@ def test_user_threads_have_native_id():
         raise AssertionError("Thread.native_id not set")
 
     t.join()
+
+    p.stop()
 
 
 @pytest.mark.subprocess(
