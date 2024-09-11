@@ -184,8 +184,8 @@ class ddwaf_object(ctypes.Structure):
             return self.value.stringValue[: self.nbEntries].decode("UTF-8", errors="ignore")
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
             return {
-                self.value.array[i].parameterName.decode("UTF-8", errors="ignore"): self.value.array[i].struct
-                for i in range(self.nbEntries)
+                obj.parameterName[: obj.parameterNameLength].decode("UTF-8", errors="ignore"): obj.struct
+                for obj in self.value.array[: self.nbEntries]
             }
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY:
             return [self.value.array[i].struct for i in range(self.nbEntries)]
@@ -221,7 +221,7 @@ class ddwaf_value(ctypes.Union):
 
 
 ddwaf_object._fields_ = [
-    ("parameterName", ctypes.c_char_p),
+    ("parameterName", ctypes.POINTER(ctypes.c_char)),
     ("parameterNameLength", ctypes.c_uint64),
     ("value", ddwaf_value),
     ("nbEntries", ctypes.c_uint64),
