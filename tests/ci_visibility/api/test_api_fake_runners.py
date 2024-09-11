@@ -6,7 +6,7 @@ import pytest
 
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests import utils
-from tests.ci_visibility.util import _get_pytest_snapshot_gitlab_ci_env_vars
+from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import snapshot
@@ -51,7 +51,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir.chdir()
 
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
@@ -73,7 +73,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir.chdir()
 
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
@@ -96,7 +96,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir.chdir()
 
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
@@ -118,7 +118,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir.chdir()
 
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
@@ -140,7 +140,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir.chdir()
 
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
@@ -162,7 +162,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir.chdir()
 
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
@@ -184,7 +184,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir.chdir()
 
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
@@ -206,7 +206,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir.chdir()
 
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
@@ -228,7 +228,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir.chdir()
 
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),

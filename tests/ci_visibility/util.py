@@ -1,5 +1,6 @@
 from collections import defaultdict
 from contextlib import contextmanager
+import os
 import typing as t
 from unittest import mock
 
@@ -146,8 +147,29 @@ _PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS = {
 }
 
 
-def _get_pytest_snapshot_gitlab_ci_env_vars(new_vars: t.Dict[str, str]) -> t.Dict[str, str]:
-    _env = {}
-    _env.update(_PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS)
-    _env.update(new_vars)
+def _get_default_os_env_vars():
+    os_env = os.environ
+
+    os_env_keys = [
+        "PATH",
+        "PYTHONPATH",
+        "DD_TRACE_AGENT_URL",
+        "DD_AGENT_PORT",
+    ]
+
+    return {key: os_env.get(key, "") for key in os_env_keys if key in os_env}
+
+
+def _get_default_ci_env_vars(new_vars: t.Dict[str, str] = None, inherit_os=False, mock_ci_env=None) -> t.Dict[str, str]:
+    _env = _get_default_os_env_vars()
+
+    if inherit_os:
+        _env.update(os.environ)
+
+    if mock_ci_env:
+        _env.update(_PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS)
+
+    if new_vars:
+        _env.update(new_vars)
+
     return _env

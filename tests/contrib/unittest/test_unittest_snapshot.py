@@ -3,7 +3,7 @@ import textwrap
 
 import pytest
 
-from tests.ci_visibility.util import _get_pytest_snapshot_gitlab_ci_env_vars
+from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import snapshot
@@ -90,9 +90,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_source_file=test_source_file)
         self.testdir.chdir()
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
-                dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="false")
-            )
+            _get_default_ci_env_vars(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"))
         ):
             subprocess.run(
                 ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
@@ -131,7 +129,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
@@ -175,7 +173,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
@@ -230,7 +228,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
@@ -285,7 +283,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
@@ -331,7 +329,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
@@ -381,7 +379,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
@@ -436,7 +434,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
@@ -495,7 +493,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
         with override_env(
-            _get_pytest_snapshot_gitlab_ci_env_vars(
+            _get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
