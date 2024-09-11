@@ -160,11 +160,10 @@ def tag_request(span, integration, instance, args, kwargs):
     system_instruction = getattr(instance, "_system_instruction", None)
     stream = kwargs.get("stream", None)
 
-    generation_config_dict = None
     try:
         generation_config_dict = to_generation_config_dict(generation_config)
     except TypeError:
-        pass
+        generation_config_dict = None
     if generation_config_dict is not None:
         for k, v in generation_config_dict.items():
             span.set_tag_str("google_generativeai.request.generation_config.%s" % k, str(v))
