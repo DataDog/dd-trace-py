@@ -589,13 +589,13 @@ class Span(object):
         if self._context is None:
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
         return self._context
-    
+
     @property
     def _local_root(self) -> "Span":
         if self._local_root_value is None:
             return self
         return self._local_root_value
-    
+
     @_local_root.setter
     def _local_root(self, value: "Span") -> None:
         if value is not self:
