@@ -89,12 +89,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_source_file=test_source_file)
         self.testdir.chdir()
-        with override_env(
-            _get_default_ci_env_vars(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"))
-        ):
-            subprocess.run(
-                ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=_get_default_ci_env_vars(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="false")),
+        )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_generates_coverage_correctly(self):
@@ -128,16 +129,17 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(
-            _get_default_ci_env_vars(
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=_get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
-            )
-        ):
-            subprocess.run(
-                ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
+            ),
+        )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_generates_coverage_correctly_with_skipped(self):
@@ -177,7 +179,8 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
-            )
+            ),
+            replace_os_env=True,
         ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
@@ -227,14 +230,14 @@ class UnittestSnapshotTestCase(TracerTestCase):
         )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(
-            _get_default_ci_env_vars(
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
-            )
-        ):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+            ),
+        )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_report_coverage_by_test_with_itr_skipped_multiple(self):
@@ -282,14 +285,14 @@ class UnittestSnapshotTestCase(TracerTestCase):
         )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(
-            _get_default_ci_env_vars(
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
-            )
-        ):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+            ),
+        )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_force_run_unskippable_tests(self):
@@ -328,14 +331,14 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(
-            _get_default_ci_env_vars(
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
-            )
-        ):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+            ),
+        )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_force_run_multiple_unskippable_tests(self):
@@ -378,14 +381,14 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(
-            _get_default_ci_env_vars(
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
-            )
-        ):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+            ),
+        )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_skip_invalid_unskippable_tests(self):
@@ -433,14 +436,14 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(
-            _get_default_ci_env_vars(
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
-            )
-        ):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+            ),
+        )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_skip_unskippable_test_if_skip_decorator(self):
@@ -492,14 +495,14 @@ class UnittestSnapshotTestCase(TracerTestCase):
             """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(
-            _get_default_ci_env_vars(
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
                 dict(
                     DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
                 )
-            )
-        ):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+            ),
+        )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_include_custom_tests(self):
@@ -538,15 +541,17 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_CIVISIBILITY_ITR_ENABLED="1",
-                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                DD_TAGS="test.configuration.custom_key:some_value",
-            )
-        ):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    DD_TAGS="test.configuration.custom_key:some_value",
+                )
+            ),
+        )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_include_lines_pct(self):
@@ -578,11 +583,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
-        with override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_PATCH_MODULES="sqlite3:false",
-                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-            )
-        ):
-            subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    DD_PATCH_MODULES="sqlite3:false",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                )
+            ),
+        )

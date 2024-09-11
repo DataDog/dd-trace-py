@@ -150,12 +150,15 @@ _PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS = {
 def _get_default_os_env_vars():
     os_env = os.environ
 
-    os_env_keys = [
+    os_env_keys = {
         "PATH",
         "PYTHONPATH",
         "DD_TRACE_AGENT_URL",
         "DD_AGENT_PORT",
-    ]
+        "DD_TRACE_AGENT_PORT",
+        "DD_AGENT_HOST",
+        "DD_TRACE_AGENT_HOSTNAME",
+    }
 
     return {key: os_env.get(key, "") for key in os_env_keys if key in os_env}
 
@@ -171,5 +174,11 @@ def _get_default_ci_env_vars(new_vars: t.Dict[str, str] = None, inherit_os=False
 
     if new_vars:
         _env.update(new_vars)
+
+    if "DD_TRACE_AGENT_URL" in _env:
+        # We give the agent URL precedence over the host and port
+        for agent_key in {"DD_AGENT_PORT", "DD_TRACE_AGENT_PORT", "DD_AGENT_HOST", "DD_TRACE_AGENT_HOSTNAME"}:
+            if agent_key in _env:
+                del _env[agent_key]
 
     return _env

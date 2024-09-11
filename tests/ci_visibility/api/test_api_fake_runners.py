@@ -7,6 +7,7 @@ import pytest
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests import utils
 from tests.ci_visibility.util import _get_default_ci_env_vars
+from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import snapshot
@@ -56,11 +57,15 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
-                )
-            )
+                ),
+                mock_ci_env=True,
+            ),
+            replace_os_env=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
             return_value=_CIVisibilitySettings(False, False, False, False),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             subprocess.run(["python", "fake_runner_all_pass.py"])
 
@@ -79,12 +84,13 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 )
-            )
+            ),
+            replace_os_env=True,
         ):
             with mock.patch(
                 "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
                 return_value=_CIVisibilitySettings(False, False, False, False),
-            ):
+            ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
                 subprocess.run(["python", "fake_runner_all_fail.py"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
@@ -102,10 +108,13 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 )
-            )
+            ),
+            replace_os_env=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
             return_value=_CIVisibilitySettings(False, False, False, False),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             subprocess.run(["python", "fake_runner_all_skip.py"])
 
@@ -124,10 +133,13 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 )
-            )
+            ),
+            replace_os_env=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
             return_value=_CIVisibilitySettings(False, False, False, False),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             subprocess.run(["python", "fake_runner_all_itr_skip_test_level.py"])
 
@@ -146,10 +158,13 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 )
-            )
+            ),
+            replace_os_env=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
             return_value=_CIVisibilitySettings(False, False, False, False),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             subprocess.run(["python", "fake_runner_all_itr_skip_suite_level.py"])
 
@@ -168,10 +183,13 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 )
-            )
+            ),
+            replace_os_env=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
             return_value=_CIVisibilitySettings(False, False, False, False),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             subprocess.run(["python", "fake_runner_mix_pass.py"])
 
@@ -190,10 +208,13 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 )
-            )
+            ),
+            replace_os_env=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
             return_value=_CIVisibilitySettings(False, False, False, False),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             subprocess.run(["python", "fake_runner_mix_fail.py"])
 
@@ -211,11 +232,15 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                )
-            )
+                ),
+                mock_ci_env=True,
+            ),
+            replace_os_env=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
             return_value=_CIVisibilitySettings(False, False, False, False),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             subprocess.run(["python", "fake_runner_mix_fail_itr_test_level.py"])
 
@@ -233,10 +258,14 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     CI_PROJECT_DIR=str(self.testdir.tmpdir),
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                )
-            )
+                ),
+                mock_ci_env=True,
+            ),
+            replace_os_env=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
             return_value=_CIVisibilitySettings(False, False, False, False),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             subprocess.run(["python", "fake_runner_mix_fail_itr_suite_level.py"])
