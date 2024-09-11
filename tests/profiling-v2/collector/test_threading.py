@@ -91,6 +91,10 @@ def test_user_threads_have_native_id():
 
     from ddtrace.profiling import profiler
 
+    # DEV: We used to run this test with ddtrace_run=True passed into the
+    # subprocess decorator, but that caused this to be flaky for Python 3.8.x
+    # with gevent. When it failed for that specific venv, current_thread()
+    # returned a DummyThread instead of a _MainThread.
     p = profiler.Profiler()
     p.start()
 
