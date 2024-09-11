@@ -591,7 +591,8 @@ class Span(object):
         return self._context
 
     @property
-    def _local_root(self) -> "Span":
+    # This can't actually return None, but we say it can to satisfy type checking.
+    def _local_root(self) -> Optional["Span"]:
         if self._local_root_value is None:
             return self
         return self._local_root_value
