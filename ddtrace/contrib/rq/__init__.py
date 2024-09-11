@@ -185,10 +185,10 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = get_argument_value(args, kwargs, 0, "job")
 
-    if config.rq_worker.distributed_tracing_enabled:
-        ctx = HTTPPropagator.extract(job.meta)
-        if ctx.trace_id:
-            pin.tracer.context_provider.activate(ctx)
+    # if config.rq_worker.distributed_tracing_enabled:
+    #     ctx = HTTPPropagator.extract(job.meta)
+    #     if ctx.trace_id:
+    #         pin.tracer.context_provider.activate(ctx)
 
     try:
         with core.context_with_data(
@@ -199,6 +199,9 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             span_type=SpanTypes.WORKER,
             resource=job.func_name,
             call_key="worker.perform_job",
+            distributed_headers_config=str(config.rq_worker.distributed_tracing_enabled),
+            distributed_headers=job.meta,
+            # distributed_context=,
         ) as ctx, ctx[ctx["call_key"]] as span:
             span.set_tag_str(COMPONENT, config.rq.integration_name)
 
