@@ -78,7 +78,7 @@ class IntegrationConfig(AttrDict):
             deprecate(
                 "Datadog App Analytics is deprecated"
                 f"App Analytics can be enabled via {env} and {legacy_env} "
-                f"enviornment variables and the ddtrace.config.{self.integration_name}.analytics_enabled configuration."
+                f"environment variables and the ddtrace.config.{self.integration_name}.analytics_enabled configuration."
                 " This feature and its associated configuration will be removed in a future release.",
                 category=DDTraceDeprecationWarning,
             )

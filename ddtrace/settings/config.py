@@ -423,7 +423,7 @@ class Config(object):
             deprecate(
                 "Datadog App Analytics is deprecated and will be removed in a future version. "
                 "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
-                "enviornment variables and ddtrace.config.analytics_enabled configuration. "
+                "environment variables and ddtrace.config.analytics_enabled configuration. "
                 "These configurations will also be removed.",
                 category=DDTraceDeprecationWarning,
             )
