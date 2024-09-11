@@ -94,15 +94,10 @@ def test_user_threads_have_native_id():
     p = profiler.Profiler()
     p.start()
 
-    curr_thread = current_thread()
-    # DEV: The following assert holds for most cases, but not for the venv with
-    # Python 3.8.x and gevent. For that specific venv this test is flaky.
-    # When this test fails, there are two active threads one being the main
-    # thread and the other being a DummyThread. And, the curr_thread is
-    # DummyThread which have the same ID as the PID.
-    assert isinstance(curr_thread, _MainThread)
+    main = current_thread()
+    assert isinstance(main, _MainThread)
     # We expect the current thread to have the same ID as the PID
-    assert curr_thread.native_id == getpid(), (curr_thread.native_id, getpid())
+    assert main.native_id == getpid(), (main.native_id, getpid())
 
     t = Thread(target=lambda: None)
     t.start()
