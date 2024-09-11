@@ -67,6 +67,7 @@ def daphne_client(django_asgi, additional_env=None):
         "error",
         "type",
         "meta.error.stack",
+        "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
         "meta_struct",
@@ -91,6 +92,7 @@ def test_appsec_enabled():
         "error",
         "type",
         "meta.error.stack",
+        "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.response.headers.content-type",  # depends of the Django version
         "meta.http.useragent",
