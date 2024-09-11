@@ -2086,7 +2086,7 @@ def test_gc_not_used_on_root_spans():
     # --------------------
     # object 0: <hamt_bitmap_node object at 0x7fa749e1db70>
     # referrers: ['object 1']
-    # referents: [<sentry_sdk.hub.Hub object at 0x7fa745211450>, <ContextVar name='sentry_current_hub' at 
+    # referents: [<sentry_sdk.hub.Hub object at 0x7fa745211450>, <ContextVar name='sentry_current_hub' at
     #   0x7fa74516e660>, None, <ContextVar name='datadog_contextvar' default=None at 0x7fa7490064d0>]
     # --------------------
     # --------------------
