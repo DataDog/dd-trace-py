@@ -515,9 +515,9 @@ def test_re_match_getitem_aspect_tainted_string_re_object():
     newton = index_aspect(re_match, 2)
     assert newton == "Newton"
 
-    # assert is_pyobject_tainted(isaac_newton)
-    # assert is_pyobject_tainted(isaac)
-    # assert is_pyobject_tainted(newton)
+    assert is_pyobject_tainted(isaac_newton)
+    assert is_pyobject_tainted(isaac)
+    assert is_pyobject_tainted(newton)
 
 
 def test_re_match_getitem_aspect_not_tainted_string_re_object():
