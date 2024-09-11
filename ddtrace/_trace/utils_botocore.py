@@ -3,7 +3,6 @@ from typing import Callable
 from typing import Dict
 from typing import Optional
 import json
-from jsonpath_ng import parse
 import copy
 
 from decimal import Decimal
@@ -18,6 +17,7 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.jsonpath_ng import parse
 
 MAX_TAGS = 758 # RFC-defined maximum number of allowed tags
 INCOMPLETE_TAG = "_dd.payload_tags_incomplete" # Set to True if MAX_TAGS is reached
