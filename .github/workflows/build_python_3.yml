@@ -1,6 +1,9 @@
 name: Build Python 3
 
 on:
+  merge_group:
+    # Trigger jobs when PR is added to merge queue
+    types: [checks_requested]
   workflow_call:
     inputs:
       cibw_build:
