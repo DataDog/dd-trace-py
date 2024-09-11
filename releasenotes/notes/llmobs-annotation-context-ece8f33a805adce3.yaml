@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    llmobs: This introduces the `LLMObs.annotation_context` method which enables users to modify certain attributes of integration generated spans.
