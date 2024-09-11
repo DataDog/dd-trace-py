@@ -3,6 +3,7 @@ import subprocess  # nosec
 from typing import List
 from typing import Union
 
+from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 

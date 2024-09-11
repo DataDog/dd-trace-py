@@ -1,7 +1,3 @@
-from typing import Text
-
-from wrapt.importer import when_imported
-
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
