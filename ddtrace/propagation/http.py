@@ -895,28 +895,25 @@ class _BaggageHeader:
 
     @staticmethod
     def _encode_key(key):
-        encoded = urllib.parse.quote(key, safe=_BaggageHeader.safe_characters_key)
-        return encoded
+        return urllib.parse.quote(str(key).strip(), safe=_BaggageHeader.safe_characters_key)
 
     def _encode_value(value):
-        encoded = urllib.parse.quote(value, safe=_BaggageHeader.safe_characters_value)
-        return encoded
+        return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.safe_characters_value)
 
     @staticmethod
-    def _inject(span_context, headers):
+    def _inject(span_context, headers) -> None:
         baggage_items = span_context._baggage.items()
         if not baggage_items:
             return
 
         header_value = ",".join(
-            f"{_BaggageHeader._encode_key(str(key).strip())}={_BaggageHeader._encode_value(str(value).strip())}"
-            for key, value in baggage_items
+            f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}" for key, value in baggage_items
         )
 
         headers["baggage"] = header_value
 
     @staticmethod
-    def _extract(headers):
+    def _extract(headers) -> Optional[Context]:
         header_value = headers.get("baggage")
         if not header_value:
             return None
