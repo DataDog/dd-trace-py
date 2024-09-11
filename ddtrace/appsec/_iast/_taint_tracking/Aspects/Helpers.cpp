@@ -303,6 +303,7 @@ set_ranges_on_splitted(const py::object& source_str,
     RANGE_START offset = 0;
     auto c_source_str = py::cast<std::string>(source_str);
     const auto separator_increase = static_cast<int>(not include_separator);
+    RANGE_START separator_count = 0;
 
     for (const auto& item : split_result) {
         if (not is_text(item.ptr()) or py::len(item) == 0) {
@@ -312,19 +313,19 @@ set_ranges_on_splitted(const py::object& source_str,
         TaintRangeRefs item_ranges;
 
         // Find the item in the source_str.
-        const auto start = static_cast<RANGE_START>(c_source_str.find(c_item, offset));
+        auto start = static_cast<RANGE_START>(c_source_str.find(c_item, offset));
         if (start == -1) {
             continue;
         }
-        const auto end = static_cast<RANGE_START>(start + c_item.length());
+
+        auto end = static_cast<RANGE_START>(start + c_item.length());
 
         // Find what source_ranges match these positions and create a new range with the start and len updated.
         for (const auto& range : source_ranges) {
-            if (const auto range_end_abs = range->start + range->length; range->start < end && range_end_abs > start) {
-                // Create a new range with the updated start
+            const auto range_end_abs = range->start + range->length;
+            if (range->start + separator_count < end && range_end_abs > start) {
                 const auto new_range_start = std::max(range->start - offset, 0L);
-                const auto new_range_length =
-                  std::min(end - start, (range->length - std::max(0L, offset - range->start)));
+                const auto new_range_length = std::min(range->length, static_cast<long int>(py::len(item)));
                 item_ranges.emplace_back(
                   initializer->allocate_taint_range(new_range_start, new_range_length, range->source));
             }
@@ -335,6 +336,7 @@ set_ranges_on_splitted(const py::object& source_str,
         }
 
         offset += py::len(item) + separator_increase;
+        separator_count += 1;
     }
 
     return some_set;
