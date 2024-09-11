@@ -47,6 +47,7 @@ class LockEvent:
         trace_type=None,
         task_id: typing.Union[int, None] = None,
         task_name: typing.Union[str, None] = None,
+        thread_id: typing.Union[int, None] = None,
         thread_name: typing.Union[str, None] = None,
     ):
         self.event_type = event_type
@@ -59,6 +60,7 @@ class LockEvent:
         self.trace_type = trace_type
         self.task_id = task_id
         self.task_name = task_name
+        self.thread_id = thread_id
         self.thread_name = thread_name
 
 
@@ -213,6 +215,12 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
             expected_event.task_name,
             profile.string_table[task_name_label.str],
         ), "Expected task_name {} got {}".format(expected_event.task_name, profile.string_table[task_name_label.str])
+
+    if expected_event.thread_id:
+        thread_id_label = get_label_with_key(profile.string_table, sample, "thread id")
+        assert thread_id_label.num == expected_event.thread_id, "Expected thread_id {} got {}".format(
+            expected_event.thread_id, thread_id_label.num
+        )
 
     if expected_event.thread_name:
         thread_name_label = get_label_with_key(profile.string_table, sample, "thread name")
