@@ -8,6 +8,9 @@ on:
       - 'ddtrace/**'
       - 'scripts/profiles/django-simple/**'
       - '.github/workflows/django-overhead-profile.yml'
+  merge_group:
+    # Trigger jobs when PR is added to merge queue
+    types: [checks_requested]
 jobs:
   django-overhead-profile:
     runs-on: ubuntu-latest
