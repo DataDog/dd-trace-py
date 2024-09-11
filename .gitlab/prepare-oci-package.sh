@@ -36,10 +36,10 @@ else
 fi
 echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
-if ! type python3 &> /dev/null; then
-  clean-apt install python3
-fi
-echo "Deduplicating package files"
-python3 ../lib-injection/dedupe.py sources/ddtrace_pkgs/
 cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 cp ../lib-injection/sources/* sources/
+
+if ! type python3 &> /dev/null; then
+  clean-apt install python3
+echo "Deduplicating package files"
+python3 ../lib-injection/dedupe.py sources/ddtrace_pkgs/
