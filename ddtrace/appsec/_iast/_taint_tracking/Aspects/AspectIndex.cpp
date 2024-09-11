@@ -1,5 +1,6 @@
 #include "AspectIndex.h"
 #include "Helpers.h"
+#include "Utils/StringUtils.h"
 
 /**
  * @brief Index aspect
