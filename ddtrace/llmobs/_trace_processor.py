@@ -118,7 +118,6 @@ class LLMObsTraceProcessor(TraceProcessor):
             llmobs_span_event["session_id"] = session_id
 
         llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id)
-        print(llmobs_span_event)
         return llmobs_span_event
 
     @staticmethod
