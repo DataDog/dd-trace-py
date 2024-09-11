@@ -230,7 +230,7 @@ class LLMObs(Service):
     @classmethod
     def annotation_context(cls, tags: Optional[Dict[str, Any]] = None) -> AnnotationContext:
         """
-        Sets specified attributes on all spans created while the returned AnnotationContext is active.
+        Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
