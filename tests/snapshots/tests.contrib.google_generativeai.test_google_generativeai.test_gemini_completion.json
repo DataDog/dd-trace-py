@@ -10,35 +10,30 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66da21e900000000",
-      "genai.request.api_key": "...key>",
-      "genai.request.contents.0.text": "What is the argument for LeBron James being the GOAT?",
-      "genai.request.generation_config.candidate_count": "None",
-      "genai.request.generation_config.max_output_tokens": "35",
-      "genai.request.generation_config.response_mime_type": "None",
-      "genai.request.generation_config.response_schema": "None",
-      "genai.request.generation_config.stop_sequences": "['x']",
-      "genai.request.generation_config.temperature": "1.0",
-      "genai.request.generation_config.top_k": "None",
-      "genai.request.generation_config.top_p": "None",
-      "genai.request.model": "gemini-1.5-flash",
-      "genai.request.provider": "google",
-      "genai.response.candidates.0.content.parts.0.text": "The argument for LeBron James being the 'Greatest of All Time' (GOAT) is multifaceted and involves a variety of factors. Here's ...",
-      "genai.response.candidates.0.content.role": "model",
-      "genai.response.candidates.0.finish_reason": "2",
+      "_dd.p.tid": "66e1da0a00000000",
+      "google_generativeai.request.api_key": "...key>",
+      "google_generativeai.request.contents.0.text": "What is the argument for LeBron James being the GOAT?",
+      "google_generativeai.request.generation_config.max_output_tokens": "35",
+      "google_generativeai.request.generation_config.stop_sequences": "['x']",
+      "google_generativeai.request.generation_config.temperature": "1.0",
+      "google_generativeai.request.model": "gemini-1.5-flash",
+      "google_generativeai.request.provider": "google",
+      "google_generativeai.response.candidates.0.content.parts.0.text": "The argument for LeBron James being the 'Greatest of All Time' (GOAT) is multifaceted and involves a variety of factors. Here's ...",
+      "google_generativeai.response.candidates.0.content.role": "model",
+      "google_generativeai.response.candidates.0.finish_reason": "2",
       "language": "python",
-      "runtime-id": "f88d6bc3be7e40949d80435242c79aee"
+      "runtime-id": "bd8636b7d4bb4b3abc2d4bc7129ec109"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "genai.response.usage.completion_tokens": 30,
-      "genai.response.usage.prompt_tokens": 12,
-      "genai.response.usage.total_tokens": 42,
-      "process_id": 39040
+      "google_generativeai.response.usage.completion_tokens": 30,
+      "google_generativeai.response.usage.prompt_tokens": 12,
+      "google_generativeai.response.usage.total_tokens": 42,
+      "process_id": 7954
     },
-    "duration": 579239000,
-    "start": 1725571561366580000
+    "duration": 338000,
+    "start": 1726077450580144000
   }]]

@@ -21,9 +21,9 @@ config._add(
     "genai",
     {
         "span_prompt_completion_sample_rate": float(
-            os.getenv("DD_GOOGLE_GENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
+            os.getenv("DD_GOOGLE_GENERATIVEAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
         ),
-        "span_char_limit": int(os.getenv("DD_GOOGLE_GENAI_SPAN_CHAR_LIMIT", 128)),
+        "span_char_limit": int(os.getenv("DD_GOOGLE_GENERATIVEAI_SPAN_CHAR_LIMIT", 128)),
     },
 )
 
@@ -49,7 +49,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         generations = func(*args, **kwargs)
         api_key = _extract_api_key(instance)
         if api_key:
-            span.set_tag("genai.request.api_key", "...{}".format(api_key[-4:]))
+            span.set_tag("google_generativeai.request.api_key", "...{}".format(api_key[-4:]))
         if stream:
             return TracedGenerateContentResponse(generations, instance, integration, span, args, kwargs)
         tag_response(span, generations, integration, instance)

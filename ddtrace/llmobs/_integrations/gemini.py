@@ -13,6 +13,6 @@ class GeminiIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if provider:
-            span.set_tag_str("genai.request.model", model)
+            span.set_tag_str("google_generativeai.request.model", model)
         if model:
-            span.set_tag_str("genai.request.provider", provider)
+            span.set_tag_str("google_generativeai.request.provider", provider)

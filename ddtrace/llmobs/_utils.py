@@ -16,6 +16,13 @@ from ddtrace.llmobs._constants import SESSION_ID
 log = get_logger(__name__)
 
 
+def _get_attr(o: object, attr: str, default: object):
+    # Convenience method to get an attribute from an object or dict
+    if isinstance(o, dict):
+        return o.get(attr, default)
+    return getattr(o, attr, default)
+
+
 def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
     """Return the nearest LLMObs-type ancestor span of a given span."""
     parent = span._parent
