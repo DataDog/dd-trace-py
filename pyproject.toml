@@ -35,6 +35,7 @@ dependencies = [
     "typing_extensions",
     "xmltodict>=0.12",
     "wrapt>=1",
+    "jsonpath-ng",
 ]
 
 [project.optional-dependencies]
