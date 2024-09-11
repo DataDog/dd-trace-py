@@ -18,6 +18,7 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _getattr
 from ddtrace.llmobs._utils import _unserializable_default_repr
 
 
@@ -28,9 +29,9 @@ class GeminiIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, object]
     ) -> None:
         if provider is not None:
-            span.set_tag_str("google_generativeai.request.model", str(model))
-        if model is not None:
             span.set_tag_str("google_generativeai.request.provider", str(provider))
+        if model is not None:
+            span.set_tag_str("google_generativeai.request.model", str(model))
 
     def llmobs_set_tags(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], instance: Any, generations: Any = None
@@ -155,10 +156,3 @@ class GeminiIntegration(BaseLLMIntegration):
         if total_tokens is not None:
             usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
         return usage
-
-
-def _get_attr(o: object, attr: str, default: object):
-    # Convenience method to get an attribute from an object or dict
-    if isinstance(o, dict):
-        return o.get(attr, default)
-    return getattr(o, attr, default)
