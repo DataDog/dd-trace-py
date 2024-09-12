@@ -233,6 +233,7 @@ def test_ospathbasename_tainted_normal():
 
     res = ospathbasename_aspect(tainted_foobarbaz)
     assert res == "baz"
+    print(get_tainted_ranges(res))
     assert get_tainted_ranges(res) == [TaintRange(0, 3, Source("test_ospath", "/foo/bar/baz", OriginType.PARAMETER))]
 
 
