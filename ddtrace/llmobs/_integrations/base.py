@@ -21,6 +21,7 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._log_writer import V2LogWriter
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs.telemetry.metrics import record_span_created
 from ddtrace.sampler import RateSampler
 from ddtrace.settings import IntegrationConfig
 
@@ -132,6 +133,8 @@ class BaseLLMIntegration:
                 # in these cases to avoid conflicting with the later propagated tags.
                 parent_id = _get_llmobs_parent_id(span) or "undefined"
                 span.set_tag_str(PARENT_ID_KEY, str(parent_id))
+
+            record_span_created(span)
         return span
 
     @classmethod

@@ -18,7 +18,6 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs.telemetry.metrics import record_span_created
 
 from .base import BaseLLMIntegration
 
@@ -84,8 +83,6 @@ class AnthropicIntegration(BaseLLMIntegration):
         usage = self._get_llmobs_metrics_tags(span)
         if usage != {}:
             span.set_tag_str(METRICS, json.dumps(usage))
-
-        record_span_created(span)
 
     def _extract_input_message(self, messages, system_prompt=None):
         """Extract input messages from the stored prompt.

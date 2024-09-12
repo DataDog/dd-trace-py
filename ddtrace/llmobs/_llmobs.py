@@ -52,6 +52,7 @@ from ddtrace.llmobs.telemetry.metrics import record_annotation_usage
 from ddtrace.llmobs.telemetry.metrics import record_export_span_usage
 from ddtrace.llmobs.telemetry.metrics import record_init_time
 from ddtrace.llmobs.telemetry.metrics import record_inject_distributed_headers_usage
+from ddtrace.llmobs.telemetry.metrics import record_span_created
 from ddtrace.llmobs.telemetry.metrics import record_submit_evaluations_usage
 from ddtrace.llmobs.telemetry.metrics import record_user_flush_usage
 from ddtrace.llmobs.utils import Documents
@@ -314,6 +315,8 @@ class LLMObs(Service):
             # in these cases to avoid conflicting with the later propagated tags.
             parent_id = _get_llmobs_parent_id(span) or "undefined"
             span.set_tag_str(PARENT_ID_KEY, str(parent_id))
+
+        record_span_created(span)
         return span
 
     @classmethod

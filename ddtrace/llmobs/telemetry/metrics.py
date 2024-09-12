@@ -41,7 +41,8 @@ def record_init_time(ml_app: str, duration: float, agentless: bool, integrations
 
 
 def record_span_created(span: Span) -> None:
-    telemetry_writer.add_count_metric(_NAMESPACE, LLMOBS_TELEMETRY.SPANS_CREATED, 1.0, _get_span_tags(span))
+    tags = _get_span_tags(span, ["ml_app", "integration_name"])
+    telemetry_writer.add_count_metric(_NAMESPACE, LLMOBS_TELEMETRY.SPANS_CREATED, 1.0, tags)
 
 
 def record_span_finished(span: Span) -> None:

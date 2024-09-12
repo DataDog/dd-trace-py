@@ -21,7 +21,6 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs.telemetry.metrics import record_span_created
 
 from .._utils import _unserializable_default_repr
 from ..utils import Document
@@ -97,8 +96,6 @@ class LangChainIntegration(BaseLLMIntegration):
         elif operation == "tool":
             self._llmobs_set_meta_tags_from_tool(span, inputs, response, error)
         span.set_tag_str(METRICS, json.dumps({}))
-
-        record_span_created(span)
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
