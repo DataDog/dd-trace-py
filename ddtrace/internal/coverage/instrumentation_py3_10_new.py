@@ -58,7 +58,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
 
-    new_offsets = {} # [None] * len(old_code)
+    new_offsets = {} # [0] * len(old_code) # {}
     new_ends = {}
     old_targets = {} # [None] * len(old_code)
     line_starts = dict(dis.findlinestarts(code))
@@ -173,7 +173,16 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             new_ends[old_offset] = len(new_code)
 
         else:
-            append_instruction_ext(op, arg)
+            #append_instruction_ext(op, arg)
+            new_code.append(op)
+            new_code.append(arg & 0xFF)
+            ext_arg = arg >> 8
+            while ext_arg:
+                # insert extended args BEFORE op
+                new_code.insert(new_offset, EXTENDED_ARG)
+                new_code.insert(new_offset+1, ext_arg & 0xFF)
+                ext_arg >>= 8
+
 
             # Track imports names
             if op == IMPORT_NAME:
