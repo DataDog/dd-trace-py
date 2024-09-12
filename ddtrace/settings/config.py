@@ -390,8 +390,8 @@ class Config(object):
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
             deprecate(
-                "Using DD_TRACE_API_VERSION=v0.3 is deprecated. Use v0.4 instead.",
-                message="Traces will be submitted to the v0.4/traces agent endpoint.",
+                "DD_TRACE_API_VERSION=v0.3 is deprecated",
+                message="Traces will be submitted to the v0.4/traces agent endpoint instead.",
                 removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
