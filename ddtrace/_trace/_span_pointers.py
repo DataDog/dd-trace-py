@@ -73,6 +73,7 @@ def _standard_hashing_function(*elements: bytes) -> str:
     hex_digits = desired_bits // bits_per_hex_digit
 
     hex_digest = sha256(separator.join(elements)).hexdigest()
-    assert len(hex_digest) >= hex_digits
+    if len(hex_digest) < hex_digits:
+        raise Exception(f"the hash is smaller than required: {len(hex_digest)} < {hex_digits}")
 
     return hex_digest[:hex_digits]
