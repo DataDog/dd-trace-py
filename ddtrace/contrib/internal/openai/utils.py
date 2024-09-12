@@ -256,15 +256,25 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
             continue
         for tool_call in tool_calls:
             tool_call_idx = getattr(tool_call, "index", None)
+            tool_id = getattr(tool_call, "id", None)
+            tool_type = getattr(tool_call, "type", None)
             function_call = getattr(tool_call, "function", None)
             function_name = getattr(function_call, "name", "")
             # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
             list_idx = next(
                 (idx for idx, tool_call in enumerate(message["tool_calls"]) if tool_call["index"] == tool_call_idx),
-                None
+                None,
             )
             if list_idx is None:
-                message["tool_calls"].append({"name": function_name, "arguments": "", "index": tool_call_idx})
+                message["tool_calls"].append(
+                    {
+                        "name": function_name,
+                        "arguments": "",
+                        "index": tool_call_idx,
+                        "tool_id": tool_id,
+                        "type": tool_type,
+                    }
+                )
                 list_idx = -1
             message["tool_calls"][list_idx]["arguments"] += getattr(function_call, "arguments", "")
     if message["tool_calls"]:

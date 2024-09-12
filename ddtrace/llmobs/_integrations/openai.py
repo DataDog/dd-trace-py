@@ -205,8 +205,12 @@ class OpenAIIntegration(BaseLLMIntegration):
                 if tool_calls:
                     message["tool_calls"] = [
                         {
-                            "name": tool_call.get("name", ""), "arguments": json.loads(tool_call.get("arguments", "")),
-                        } for tool_call in tool_calls
+                            "name": tool_call.get("name", ""),
+                            "arguments": json.loads(tool_call.get("arguments", "")),
+                            "tool_id": tool_call.get("tool_id", ""),
+                            "type": tool_call.get("type", ""),
+                        }
+                        for tool_call in tool_calls
                     ]
                 messages.append(message)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(messages))
