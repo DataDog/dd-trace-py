@@ -237,7 +237,7 @@ ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type) // cp
 
 void
 ddup_push_trace_endpoint(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
-                                   std::string_view trace_endpoint)
+                         std::string_view trace_endpoint)
 {
     sample->push_trace_endpoint(trace_endpoint);
 }
