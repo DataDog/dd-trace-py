@@ -51,8 +51,8 @@ class LLMObsTraceProcessor(TraceProcessor):
         if not trace:
             return None
         for span in trace:
-            record_span_finished(span)
             if span.span_type == SpanTypes.LLM:
+                record_span_finished(span)
                 self.submit_llmobs_span(span)
         return None if config._llmobs_agentless_enabled else trace
 
