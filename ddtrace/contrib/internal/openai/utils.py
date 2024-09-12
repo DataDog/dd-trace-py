@@ -283,7 +283,9 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
             span.set_tag_str("openai.response.choices.%d.message.role" % idx, str(message_role))
         message_content = choice.get("content", "")
         if message_content:
-            span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(str(message_content)))
+            span.set_tag_str(
+                "openai.response.choices.%d.message.content" % idx, integration.trunc(str(message_content))
+            )
         finish_reason = choice.get("finish_reason", "")
         if finish_reason:
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
