@@ -170,7 +170,7 @@ BACKWARD_JUMPS = set(op for op in dis.hasjrel if "BACKWARD" in dis.opname[op])
 FORWARD_JUMPS = set(op for op in dis.hasjrel if "BACKWARD" not in dis.opname[op])
 
 
-def hack(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     extended_arg = 0
     old_code = code.co_code
     new_code = bytearray()
@@ -236,9 +236,9 @@ def hack(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[Cod
             if op in ABSOLUTE_JUMPS:
                 target = arg * 2
             elif op in FORWARD_JUMPS:
-                target = old_offset + (arg * 2) + 2
+                target = old_offset + 2 + (arg * 2)
             elif op in BACKWARD_JUMPS:
-                target = old_offset - (arg * 2) + 2
+                target = old_offset + 2 - (arg * 2)
             else:
                 raise NotImplementedError("oops")
 
@@ -273,9 +273,9 @@ def hack(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[Cod
         if op in ABSOLUTE_JUMPS:
             arg = new_target // 2
         elif op in FORWARD_JUMPS:
-            arg = (new_target - new_offset + 8) // 2
+            arg = (new_target - (new_offset + 8)) // 2
         elif op in BACKWARD_JUMPS:
-            arg = (new_offset - new_target + 8) // 2
+            arg = ((new_offset + 8) - new_target) // 2
         else:
             raise NotImplementedError("oops")
 
@@ -284,11 +284,14 @@ def hack(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[Cod
         new_code[new_offset + 5] = (arg >>  8) & 0xFF
         new_code[new_offset + 7] = arg         & 0xFF
 
+    seen_lines = CoverageLines() # TODO
+
     return code.replace(
         co_code=bytes(new_code),
+        #co_consts=tuple(new_consts),
         co_linetable=bytes(new_linetable),
         co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-    )
+    ), seen_lines
 
 
 
@@ -296,7 +299,7 @@ def hack(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[Cod
 
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_all_lines_OLD(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
