@@ -128,7 +128,7 @@ def update_location_data(
             offset += offset_delta
             if ext_arg_offset is not None and ext_arg_size is not None and offset > ext_arg_offset:
                 new_offset_delta = offset_delta + (ext_arg_size << 1)
-                new_data.append(new_offset_delta & 0xFF)
+                new_data.append(new_offset_delta & 0xFF)    ##### WRONG???
                 new_data.append(line_delta)
                 new_offset_delta >>= 8
                 while new_offset_delta:

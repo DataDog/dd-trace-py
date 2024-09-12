@@ -5,7 +5,8 @@ import sys
 from types import CodeType
 import typing as t
 
-from ddtrace.internal.coverage.lines import CoverageLines
+#from ddtrace.internal.coverage.lines import CoverageLines
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.injection import HookType
 
 
@@ -173,6 +174,10 @@ def hack(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[Cod
     extended_arg = 0
     old_code = code.co_code
     new_code = bytearray()
+    new_linetable = bytearray()
+
+    previous_line = code.co_firstlineno
+    previous_line_new_offset = 0
 
     new_offsets = {} # [None] * len(old_code)
     old_targets = {} # [None] * len(old_code)
@@ -189,6 +194,31 @@ def hack(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[Cod
 
         line = line_starts.get(old_offset)
         if line is not None:
+            offset_delta = new_offset - previous_line_new_offset
+            line_delta = line - previous_line
+
+            while offset_delta > 254:
+                new_linetable.append(254)  # 254 offsets with no line change
+                new_linetable.append(0)    #
+                offset_delta -= 254
+
+            new_linetable.append(offset_delta)
+
+            while line_delta > 127:
+                new_linetable.append(127) # line_delta
+                new_linetable.append(0)   # offset_delta
+                line_delta -= 127
+
+            while line_delta < -127:
+                new_linetable.append(0x81) # line_delta
+                new_linetable.append(0)    # offset_table
+                line_delta += 127
+
+            new_linetable.append(line_delta & 0xFF)
+
+            previous_line_new_offset = new_offset
+            previous_line = line
+
             # instructions.append((None, 'INSTRUMENT', line))
             pass
 
@@ -250,6 +280,7 @@ def hack(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[Cod
 
     return code.replace(
         co_code=bytes(new_code),
+        co_linetable=bytes(new_linetable),
         co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
     )
 
