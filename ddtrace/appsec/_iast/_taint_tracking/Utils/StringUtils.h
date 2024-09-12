@@ -27,6 +27,9 @@ get_unique_id(const PyObject* str)
 static bool
 PyReMatch_Check(const PyObject* obj)
 {
+    if (!obj)
+        return false;
+
     return py::isinstance((PyObject*)obj, py::module_::import("re").attr("Match"));
 }
 
