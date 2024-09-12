@@ -36,7 +36,6 @@ PyReMatch_Check(const PyObject* obj)
         err.clear();
         return false;
     }
-
 }
 
 bool
