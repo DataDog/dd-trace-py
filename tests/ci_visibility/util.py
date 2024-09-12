@@ -22,7 +22,7 @@ def _patch_dummy_writer():
     ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
-def _get_default_civisibility_ddconfig(itr_skipping_level: str = "tests"):
+def _get_default_civisibility_ddconfig(itr_skipping_level: str = "test"):
     new_ddconfig = ddtrace.settings.Config()
     new_ddconfig._add(
         "test_visibility",
@@ -175,7 +175,7 @@ def _get_default_ci_env_vars(new_vars: t.Dict[str, str] = None, inherit_os=False
     if new_vars:
         _env.update(new_vars)
 
-    if "DD_TRACE_AGENT_URL" in _env:
+    if "DD_TRACE_AGENT_URL" in new_vars:
         # We give the agent URL precedence over the host and port
         for agent_key in {"DD_AGENT_PORT", "DD_TRACE_AGENT_PORT", "DD_AGENT_HOST", "DD_TRACE_AGENT_HOSTNAME"}:
             if agent_key in _env:
