@@ -15,137 +15,9 @@ from ddtrace.internal.injection import HookType
 assert sys.version_info >= (3, 10) and sys.version_info < (3, 11)  # nosec
 
 
-class JumpDirection(int, Enum):
-    FORWARD = 1
-    BACKWARD = -1
-
-    @classmethod
-    def from_opcode(cls, opcode: int) -> "JumpDirection":
-        return cls.BACKWARD if "BACKWARD" in dis.opname[opcode] else cls.FORWARD
-
-
-class Jump(ABC):
-    def __init__(self, start: int, arg: int) -> None:
-        self.start = start
-        self.end: int
-        self.arg = arg
-
-
-class AJump(Jump):
-    __opcodes__ = set(dis.hasjabs)
-
-    def __init__(self, start: int, arg: int) -> None:
-        super().__init__(start, arg)
-        self.end = self.arg << 1
-
-
-class RJump(Jump):
-    __opcodes__ = set(dis.hasjrel)
-
-    def __init__(self, start: int, arg: int, direction: JumpDirection) -> None:
-        super().__init__(start, arg)
-        self.direction = direction
-        self.end = start + (self.arg << 1) * self.direction + 2
-
-
-class Instruction:
-    __slots__ = ("offset", "opcode", "arg", "targets")
-
-    def __init__(self, offset: int, opcode: int, arg: int) -> None:
-        self.offset = offset
-        self.opcode = opcode
-        self.arg = arg
-        self.targets: t.List["Branch"] = []
-
-
-class Branch(ABC):
-    def __init__(self, start: Instruction, end: Instruction) -> None:
-        self.start = start
-        self.end = end
-
-    @property
-    def arg(self) -> int:
-        raise NotImplementedError
-
-
-class RBranch(Branch):
-    @property
-    def arg(self) -> int:
-        return abs(self.end.offset - self.start.offset - 2) >> 1
-
-
-class ABranch(Branch):
-    @property
-    def arg(self) -> int:
-        return self.end.offset >> 1
-
 
 EXTENDED_ARG = dis.EXTENDED_ARG
 NO_OFFSET = -1
-
-
-def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
-    instructions = [Instruction(NO_OFFSET, opcode, arg & 0xFF)]
-    arg >>= 8
-    while arg:
-        instructions.insert(0, Instruction(NO_OFFSET, EXTENDED_ARG, arg & 0xFF))
-        arg >>= 8
-    return instructions
-
-
-def update_location_data(
-    code: CodeType, trap_map: t.Dict[int, int], ext_arg_offsets: t.List[t.Tuple[int, int]]
-) -> bytes:
-    # DEV: We expect the original offsets in the trap_map
-    new_data = bytearray()
-
-    data = code.co_linetable
-    data_iter = iter(data)
-    ext_arg_offset_iter = iter(sorted(ext_arg_offsets))
-    ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
-
-    original_offset = offset = 0
-    while True:
-        try:
-            if original_offset in trap_map:
-                # Give no line number to the trap instrumentation
-                trap_offset_delta = trap_map[original_offset] << 1
-                new_data.append(trap_offset_delta)
-                new_data.append(128)  # No line number
-                offset += trap_offset_delta
-
-            offset_delta = next(data_iter)
-            line_delta = next(data_iter)
-
-            # If the current offset delta is 0, it means we are only incrementing the amount of lines jumped by the
-            # next non-zero offset. See <https://github.com/python/cpython/blob/3.10/Objects/lnotab_notes.txt>.
-            while offset_delta == 0:
-                new_data.append(offset_delta)
-                new_data.append(line_delta)
-                offset_delta = next(data_iter)
-                line_delta = next(data_iter)
-
-            original_offset += offset_delta
-            offset += offset_delta
-            if ext_arg_offset is not None and ext_arg_size is not None and offset > ext_arg_offset:
-                new_offset_delta = offset_delta + (ext_arg_size << 1)
-                new_data.append(new_offset_delta & 0xFF)
-                new_data.append(line_delta)
-                new_offset_delta >>= 8
-                while new_offset_delta:
-                    new_data.append(new_offset_delta & 0xFF)
-                    new_data.append(0)
-                    new_offset_delta >>= 8
-                offset += ext_arg_size << 1
-
-                ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
-            else:
-                new_data.append(offset_delta)
-                new_data.append(line_delta)
-        except StopIteration:
-            break
-
-    return bytes(new_data)
 
 
 LOAD_CONST = dis.opmap["LOAD_CONST"]
@@ -155,13 +27,13 @@ IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 
 
-def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
-    return (
-        *instr_with_arg(LOAD_CONST, trap_index),
-        *instr_with_arg(LOAD_CONST, arg_index),
-        Instruction(NO_OFFSET, CALL, 1),
-        Instruction(NO_OFFSET, POP_TOP, 0),
-    )
+# def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
+#     return (
+#         *instr_with_arg(LOAD_CONST, trap_index),
+#         *instr_with_arg(LOAD_CONST, arg_index),
+#         Instruction(NO_OFFSET, CALL, 1),
+#         Instruction(NO_OFFSET, POP_TOP, 0),
+#     )
 
 JUMPS = set(dis.hasjabs + dis.hasjrel)
 
