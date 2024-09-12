@@ -16,8 +16,8 @@ from typing import cast
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
-from ddtrace._trace._span_link import _SpanPointer
-from ddtrace._trace._span_link import _SpanPointerDirection
+from ddtrace._trace._span_pointers import _SpanPointer
+from ddtrace._trace._span_pointers import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType

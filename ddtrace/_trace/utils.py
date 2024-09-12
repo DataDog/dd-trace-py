@@ -3,12 +3,12 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
-from typing import NamedTuple
 from typing import Optional
 
 from ddtrace import Span
 from ddtrace import config
-from ddtrace._trace._span_link import _SpanPointerDirection
+from ddtrace._trace._span_pointers import _SpanPointerDescription
+from ddtrace._trace._span_pointers import _SpanPointerDirection
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -86,19 +86,6 @@ def extract_DD_context_from_messages(messages, extract_from_message: Callable):
     return ctx
 
 
-class SpanPointerDescription(NamedTuple):
-    # Not to be confused with ddtrace._trace._span_link._SpanPointer. This
-    # object describes a span pointer without coupling the botocore code to the
-    # actual mechanics of tracing. We can crete events with these span pointer
-    # descriptions in botocore. Then our tracing code and pick up these events
-    # and create actual span pointers on the spans. Or presumably do other
-    # things, too.
-    pointer_kind: str
-    pointer_direction: _SpanPointerDirection
-    pointer_hash: str
-    extra_attributes: Dict[str, Any]
-
-
 # TODO: maybe move this and other botocore stuff to a botocore utils?
 
 
@@ -107,7 +94,7 @@ def extract_span_pointers_from_successful_botocore_response(
     operation_name: str,
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
-) -> List[SpanPointerDescription]:
+) -> List[_SpanPointerDescription]:
     if endpoint_name == "s3":
         return _extract_span_pointers_for_s3_response(operation_name, request_parameters, response)
 
@@ -118,7 +105,7 @@ def _extract_span_pointers_for_s3_response(
     operation_name: str,
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
-) -> List[SpanPointerDescription]:
+) -> List[_SpanPointerDescription]:
     if operation_name == "PutObject":
         return _extract_span_pointers_for_s3_put_object_response(request_parameters, response)
 
@@ -128,7 +115,7 @@ def _extract_span_pointers_for_s3_response(
 def _extract_span_pointers_for_s3_put_object_response(
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
-) -> List[SpanPointerDescription]:
+) -> List[_SpanPointerDescription]:
     # Endpoint Reference:
     # https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
 
@@ -156,8 +143,8 @@ def _aws_s3_object_span_pointer_description(
     bucket: str,
     key: str,
     etag: str,
-) -> SpanPointerDescription:
-    return SpanPointerDescription(
+) -> _SpanPointerDescription:
+    return _SpanPointerDescription(
         pointer_kind="aws.s3.object",
         pointer_direction=pointer_direction,
         pointer_hash=_aws_s3_object_span_pointer_hash(bucket, key, etag),

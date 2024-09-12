@@ -9,8 +9,8 @@ from typing import Optional
 
 import wrapt
 
+from ddtrace._trace._span_pointers import _SpanPointerDescription
 from ddtrace._trace.span import Span
-from ddtrace._trace.utils import SpanPointerDescription
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import extract_span_pointers_from_successful_botocore_response
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
@@ -786,7 +786,7 @@ def _on_test_visibility_is_enabled() -> bool:
     return CIVisibility.enabled
 
 
-def _set_span_pointer(span: Span, span_pointer_description: SpanPointerDescription) -> None:
+def _set_span_pointer(span: Span, span_pointer_description: _SpanPointerDescription) -> None:
     span._add_span_pointer(
         pointer_kind=span_pointer_description.pointer_kind,
         pointer_direction=span_pointer_description.pointer_direction,

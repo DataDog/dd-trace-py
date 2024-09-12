@@ -17,7 +17,7 @@ import msgpack
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace._span_link import _SpanPointerDirection
+from ddtrace._trace._span_pointers import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
