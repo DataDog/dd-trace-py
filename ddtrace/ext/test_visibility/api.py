@@ -54,6 +54,8 @@ class TestStatus(Enum):
     XPASS = _TestStatus.XPASS.value
 
 
+TestStatus.__test__ = False  # type: ignore[attr-defined]
+
 DEFAULT_SESSION_NAME = "test_visibility_session"
 
 
@@ -76,6 +78,9 @@ class TestExcInfo:
     exc_type: Type[BaseException]
     exc_value: BaseException
     exc_traceback: TracebackType
+
+
+TestExcInfo.__test__ = False  # type: ignore[attr-defined]
 
 
 @_catch_and_log_exceptions

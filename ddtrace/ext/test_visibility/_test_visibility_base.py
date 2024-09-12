@@ -25,6 +25,9 @@ class TestSessionId:
     """
 
 
+TestSessionId.__test__ = False  # type: ignore[attr-defined]
+
+
 @dataclasses.dataclass(frozen=True)
 class _TestVisibilityRootItemIdBase:
     """This class exists for the ABC class below"""
@@ -35,6 +38,8 @@ class _TestVisibilityRootItemIdBase:
         return self
 
 
+_TestVisibilityRootItemIdBase.__test__ = False  # type: ignore[attr-defined]
+
 RT = TypeVar("RT", bound="_TestVisibilityRootItemIdBase")
 
 
@@ -44,6 +49,8 @@ class _TestVisibilityIdBase(abc.ABC):
     def get_parent_id(self) -> Union["_TestVisibilityIdBase", _TestVisibilityRootItemIdBase]:
         raise NotImplementedError("This method must be implemented by the subclass")
 
+
+_TestVisibilityIdBase.__test__ = False  # type: ignore[attr-defined]
 
 PT = TypeVar("PT", bound=Union[_TestVisibilityIdBase, _TestVisibilityRootItemIdBase])
 
@@ -63,6 +70,8 @@ TestVisibilityItemId = TypeVar(
 
 
 class _TestVisibilityAPIBase(abc.ABC):
+    __test__ = False
+
     class GetTagArgs(NamedTuple):
         item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
         name: str
@@ -159,3 +168,6 @@ class TestSourceFileInfoBase:
 
         if line_number < 1:
             raise ValueError("%s must be a positive integer, but is %s", attr_name, line_number)
+
+
+TestSourceFileInfoBase.__test__ = False  # type: ignore[attr-defined]

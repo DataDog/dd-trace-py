@@ -72,6 +72,9 @@ class TestVisibilitySessionSettings:
             raise TypeError("test_framework_metric must be a TEST_FRAMEWORKS enum")
 
 
+TestVisibilitySessionSettings.__test__ = False  # type: ignore[attr-defined]
+
+
 class SPECIAL_STATUS(Enum):
     UNFINISHED = 1
 
@@ -103,6 +106,7 @@ def _require_span(func):
 
 
 class TestVisibilityItemBase(abc.ABC):
+    __test__ = False
     _event_type = "unset_event_type"
     _event_type_metric_name = EVENT_TYPES.UNSET
 

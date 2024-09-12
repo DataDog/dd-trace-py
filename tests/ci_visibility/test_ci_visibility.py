@@ -38,6 +38,7 @@ from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
 
@@ -520,73 +521,79 @@ def test_git_do_request_evp(git_repo):
             )
 
 
-def test_civisibilitywriter_agentless_url():
-    with _ci_override_env(dict(DD_API_KEY="foobar.baz")):
-        with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}), mock.patch(
-            "ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url", "https://foo.bar"
+class TestCIVisibilityWriter(TracerTestCase):
+    def tearDown(self):
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:
+            pass
+
+    def test_civisibilitywriter_agentless_url(self):
+        with _ci_override_env(dict(DD_API_KEY="foobar.baz")):
+            with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}), mock.patch(
+                "ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url", "https://foo.bar"
+            ):
+                dummy_writer = DummyCIVisibilityWriter()
+                assert dummy_writer.intake_url == "https://foo.bar"
+
+    def test_civisibilitywriter_coverage_agentless_url(self):
+        ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            )
         ):
-            dummy_writer = DummyCIVisibilityWriter()
-            assert dummy_writer.intake_url == "https://foo.bar"
+            dummy_writer = DummyCIVisibilityWriter(coverage_enabled=True)
+            assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
 
+            cov_client = dummy_writer._clients[1]
+            assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
-def test_civisibilitywriter_coverage_agentless_url():
-    ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
-    with _ci_override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-        )
-    ):
-        dummy_writer = DummyCIVisibilityWriter(coverage_enabled=True)
-        assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
+            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+                _get_connection.return_value.getresponse.return_value.status = 200
+                dummy_writer._put("", {}, cov_client, no_trace=True)
+                _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
-        cov_client = dummy_writer._clients[1]
-        assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
+    def test_civisibilitywriter_coverage_agentless_with_intake_url_param(self):
+        ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            )
+        ):
+            dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
+            assert dummy_writer.intake_url == "https://some-url.com"
 
-        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
-            _get_connection.return_value.getresponse.return_value.status = 200
-            dummy_writer._put("", {}, cov_client, no_trace=True)
-            _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+            cov_client = dummy_writer._clients[1]
+            assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
+            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+                _get_connection.return_value.getresponse.return_value.status = 200
+                dummy_writer._put("", {}, cov_client, no_trace=True)
+                _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
-def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
-    ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
-    with _ci_override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-        )
-    ):
-        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
-        assert dummy_writer.intake_url == "https://some-url.com"
+    def test_civisibilitywriter_coverage_evp_proxy_url(self):
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ), mock.patch(
+            "ddtrace.internal.agent.get_trace_url", return_value="http://arandomhost:9126"
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
+            dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
 
-        cov_client = dummy_writer._clients[1]
-        assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
+            test_client = dummy_writer._clients[0]
+            assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"
+            cov_client = dummy_writer._clients[1]
+            assert cov_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcov"
 
-        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
-            _get_connection.return_value.getresponse.return_value.status = 200
-            dummy_writer._put("", {}, cov_client, no_trace=True)
-            _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
-
-
-def test_civisibilitywriter_coverage_evp_proxy_url():
-    with _ci_override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_TRACE_AGENT_URL="http://localhost:9126",
-        )
-    ):
-        dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
-
-        test_client = dummy_writer._clients[0]
-        assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"
-        cov_client = dummy_writer._clients[1]
-        assert cov_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcov"
-
-        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
-            _get_connection.return_value.getresponse.return_value.status = 200
-            dummy_writer._put("", {}, cov_client, no_trace=True)
-            _get_connection.assert_called_once_with("http://localhost:9126", 2.0)
+            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+                _get_connection.return_value.getresponse.return_value.status = 200
+                dummy_writer._put("", {}, cov_client, no_trace=True)
+                _get_connection.assert_called_once_with("http://arandomhost:9126", 2.0)
 
 
 def test_civisibilitywriter_agentless_url_envvar():
@@ -608,43 +615,45 @@ def test_civisibilitywriter_agentless_url_envvar():
         assert CIVisibility._instance.tracer._writer.intake_url == "https://foo.bar"
         CIVisibility.disable()
 
+    def test_civisibilitywriter_evp_proxy_url(self):
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ), mock.patch(
+            "ddtrace.internal.agent.get_trace_url", return_value="http://evpproxy.bar:1234"
+        ), mock.patch("ddtrace.settings.config.Config", _get_default_civisibility_ddconfig()), mock.patch(
+            "ddtrace.tracer", ddtrace.Tracer()
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+        ), _dummy_noop_git_client(), mock.patch(
+            "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ):
+            CIVisibility.enable()
+            assert CIVisibility._instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
+            assert CIVisibility._instance.tracer._writer.intake_url == "http://evpproxy.bar:1234"
+            CIVisibility.disable()
 
-def test_civisibilitywriter_evp_proxy_url():
-    with _ci_override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_TRACE_AGENT_URL="http://localhost:9126",
-        )
-    ), mock.patch("ddtrace.tracer", ddtrace.Tracer()), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
-    ), _dummy_noop_git_client(), mock.patch(
-        "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-    ):
-        CIVisibility.enable()
-        assert CIVisibility._instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
-        assert CIVisibility._instance.tracer._writer.intake_url == "http://localhost:9126"
-        CIVisibility.disable()
-
-
-def test_civisibilitywriter_only_traces():
-    with _ci_override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_TRACE_AGENT_URL="http://localhost:9126",
-        )
-    ), mock.patch("ddtrace.tracer", ddtrace.Tracer()), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-    ):
-        CIVisibility.enable()
-        assert CIVisibility._instance._requests_mode == REQUESTS_MODE.TRACES
-        assert CIVisibility._instance.tracer._writer.intake_url == "http://localhost:9126"
-        CIVisibility.disable()
+    def test_civisibilitywriter_only_traces(self):
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ), mock.patch(
+            "ddtrace.internal.agent.get_trace_url", return_value="http://onlytraces:1234"
+        ), mock.patch("ddtrace.tracer", ddtrace.Tracer()), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ):
+            CIVisibility.enable()
+            assert CIVisibility._instance._requests_mode == REQUESTS_MODE.TRACES
+            assert CIVisibility._instance.tracer._writer.intake_url == "http://onlytraces:1234"
+            CIVisibility.disable()
 
 
 class TestCheckEnabledFeatures:

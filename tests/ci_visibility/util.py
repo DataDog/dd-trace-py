@@ -163,7 +163,9 @@ def _get_default_os_env_vars():
     return {key: os_env.get(key, "") for key in os_env_keys if key in os_env}
 
 
-def _get_default_ci_env_vars(new_vars: t.Dict[str, str] = None, inherit_os=False, mock_ci_env=None) -> t.Dict[str, str]:
+def _get_default_ci_env_vars(
+    new_vars: t.Optional[t.Dict[str, str]] = None, inherit_os=False, mock_ci_env=None
+) -> t.Dict[str, str]:
     _env = _get_default_os_env_vars()
 
     if inherit_os:
@@ -175,17 +177,19 @@ def _get_default_ci_env_vars(new_vars: t.Dict[str, str] = None, inherit_os=False
     if new_vars:
         _env.update(new_vars)
 
-    if "DD_TRACE_AGENT_URL" in new_vars:
-        # We give the agent URL precedence over the host and port
-        for agent_key in {"DD_AGENT_PORT", "DD_TRACE_AGENT_PORT", "DD_AGENT_HOST", "DD_TRACE_AGENT_HOSTNAME"}:
-            if agent_key in _env:
-                del _env[agent_key]
+        if "DD_TRACE_AGENT_URL" in new_vars:
+            # We give the agent URL precedence over the host and port
+            for agent_key in {"DD_AGENT_PORT", "DD_TRACE_AGENT_PORT", "DD_AGENT_HOST", "DD_TRACE_AGENT_HOSTNAME"}:
+                if agent_key in _env:
+                    del _env[agent_key]
 
     return _env
 
 
 @contextmanager
-def _ci_override_env(new_vars: t.Dict[str, str] = None, inherit_os=False, mock_ci_env=False, replace_os_env=True):
+def _ci_override_env(
+    new_vars: t.Optional[t.Dict[str, str]] = None, inherit_os=False, mock_ci_env=False, replace_os_env=True
+):
     env_vars = _get_default_ci_env_vars(new_vars, inherit_os, mock_ci_env)
-    with override_env(env_vars, replace_os_env=replace_os_env):
+    with override_env(env_vars, replace_os_env=replace_os_env), mock.patch("ddtrace.tracer", ddtrace.Tracer()):
         yield
