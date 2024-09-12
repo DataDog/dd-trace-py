@@ -38,10 +38,10 @@ class AnnotationContextAsync:
         self._tracer = _tracer
         self._annotate_prompt = _annotation_callback
 
-    def __aenter__(self):
+    async def __aenter__(self):
         self._tracer.on_start_span(self._annotate_prompt)
 
-    def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         self._tracer.deregister_on_start_span(self._annotate_prompt)
 
 
