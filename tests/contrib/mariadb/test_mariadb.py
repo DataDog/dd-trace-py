@@ -5,7 +5,6 @@ import mariadb
 import pytest
 
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mariadb import patch
 from ddtrace.contrib.mariadb import unpatch
 from tests.contrib.config import MARIADB_CONFIG
@@ -134,17 +133,6 @@ def test_rollback(connection, tracer):
     span = spans[0]
     assert span.service == "mariadb"
     assert span.name == "mariadb.connection.rollback"
-
-
-def test_analytics_default(connection, tracer):
-    cursor = connection.cursor()
-    cursor.execute("SELECT 1")
-    rows = cursor.fetchall()
-    assert len(rows) == 1
-    spans = tracer.pop()
-    assert len(spans) == 1
-    span = spans[0]
-    assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
 @pytest.mark.parametrize(
@@ -314,23 +302,3 @@ def test_query_proc_snapshot(tracer):
         proc = "sp_sum"
         data = (40, 2, None)
         cursor.callproc(proc, data)
-
-
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
-def test_analytics_with_rate_snapshot(tracer):
-    with override_config("mariadb", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        with get_connection(tracer) as connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT 1")
-            rows = cursor.fetchall()
-            assert len(rows) == 1
-
-
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
-def test_analytics_without_rate_snapshot(tracer):
-    with override_config("mariadb", dict(analytics_enabled=True)):
-        with get_connection(tracer) as connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT 1")
-            rows = cursor.fetchall()
-            assert len(rows) == 1

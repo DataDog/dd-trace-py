@@ -17,7 +17,7 @@ import wrapt
 from ddtrace import config
 
 # project
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
@@ -321,7 +321,7 @@ def _trace(func, p, method_name, *args, **kwargs):
 
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.pymemcache.get_analytics_sample_rate())
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.pymemcache.get_analytics_sample_rate())
 
         # try to set relevant tags, catch any exceptions so we don't mess
         # with the application

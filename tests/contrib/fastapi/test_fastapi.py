@@ -582,8 +582,10 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     background_span = spans[1][0]
     # background task should link to the request span
     assert background_span.parent_id is None
-    assert background_span._links[request_span.span_id].trace_id == request_span.trace_id
-    assert background_span._links[request_span.span_id].span_id == request_span.span_id
+    [link, *others] = [link for link in background_span._links if link.span_id == request_span.span_id]
+    assert not others
+    assert link.trace_id == request_span.trace_id
+    assert link.span_id == request_span.span_id
     assert background_span.name == "fastapi.background_task"
     assert background_span.resource == "custom_task"
 

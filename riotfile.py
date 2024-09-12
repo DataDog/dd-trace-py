@@ -2122,6 +2122,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="protobuf",
+            command="pytest {cmdargs} tests/contrib/protobuf",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pkgs={
+                "protobuf": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
