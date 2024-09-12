@@ -27,11 +27,16 @@ get_unique_id(const PyObject* str)
 static bool
 PyReMatch_Check(const PyObject* obj)
 {
+    try {
+        const py::module re = py::module::import("re");
+        const py::object re_match_type = re.attr("Match");
 
-    const py::module re = py::module::import("re");
-    const py::object re_match_type = re.attr("Match");
+        return py::isinstance((PyObject*)obj, re_match_type);
+    } catch (py::error_already_set & err) {
+        err.restore();
+        return false;
+    }
 
-    return py::isinstance((PyObject*)obj, re_match_type);
 }
 
 bool
