@@ -182,3 +182,10 @@ def _get_default_ci_env_vars(new_vars: t.Dict[str, str] = None, inherit_os=False
                 del _env[agent_key]
 
     return _env
+
+
+@contextmanager
+def _ci_override_env(new_vars: t.Dict[str, str] = None, inherit_os=False, mock_ci_env=False, replace_os_env=True):
+    env_vars = _get_default_ci_env_vars(new_vars, inherit_os, mock_ci_env)
+    with override_env(env_vars, replace_os_env=replace_os_env):
+        yield
