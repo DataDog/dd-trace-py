@@ -380,7 +380,7 @@ class PytestTestCase(TracerTestCase):
         assert test_spans[1].get_tag("component") == "pytest"
 
     def test_skip_module_with_xfail_cases(self):
-        """Test Xfail test c    ases for a module that is skipped entirely, which should be treated as skip tests."""
+        """Test Xfail test cases for a module that is skipped entirely, which should be treated as skip tests."""
         py_file = self.testdir.makepyfile(
             """
             import pytest
