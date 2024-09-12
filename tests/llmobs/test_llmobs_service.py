@@ -851,6 +851,16 @@ def test_annotate_prompt_wrong_type(LLMObs, mock_logs):
         mock_logs.reset_mock()
 
 
+def test_annotate_prompt_wrong_kind(LLMObs, mock_logs):
+    with LLMObs.task(name="dummy") as span:
+        LLMObs.annotate(
+            prompt={"variables": {"var1": "var1"}},
+        )
+        assert span.get_tag(INPUT_PROMPT) is None
+        mock_logs.warning.assert_called_once_with("Annotating prompts are only supported for LLM span kinds.")
+        mock_logs.reset_mock()
+
+
 def test_span_error_sets_error(LLMObs, mock_llmobs_span_writer):
     with pytest.raises(ValueError):
         with LLMObs.llm(model_name="test_model", model_provider="test_model_provider") as span:

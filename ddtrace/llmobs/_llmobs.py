@@ -528,7 +528,10 @@ class LLMObs(Service):
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
         if prompt is not None:
-            cls._tag_prompt(span, prompt)
+            if span_kind == "llm":
+                cls._tag_prompt(span, prompt)
+            else:
+                log.warning("Annotating prompts are only supported for LLM span kinds.")
         if metadata is not None:
             cls._tag_metadata(span, metadata)
         if metrics is not None:
