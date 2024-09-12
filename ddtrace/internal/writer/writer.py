@@ -539,7 +539,7 @@ class AgentWriter(HTTPWriter):
     def _agent_endpoint(self):
         return self._intake_endpoint(client=None)
 
-    def _downgrade(self, payload, response, client):
+    def _downgrade(self, response, client):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             # Since we have to change the encoding in this case, the payload
@@ -564,7 +564,7 @@ class AgentWriter(HTTPWriter):
     def _send_payload(self, payload, count, client) -> Response:
         response = super(AgentWriter, self)._send_payload(payload, count, client)
         if response.status in [404, 415]:
-            self._downgrade(payload, response, client)
+            self._downgrade(response, client)
         elif response.status < 400:
             if self._response_cb:
                 raw_resp = response.get_json()

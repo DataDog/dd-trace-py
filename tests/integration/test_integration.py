@@ -588,9 +588,10 @@ def test_api_version_downgrade_generates_no_warning_logs():
     import mock
 
     from ddtrace import tracer as t
+    from ddtrace.internal.utils.http import Response
 
     t._writer.api_version = "v0.5"
-    t._writer._downgrade(None, None, t._writer._clients[0])
+    t._writer._downgrade(Response(status=404), t._writer._clients[0])
     assert t._writer._endpoint == "v0.4/traces"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("operation", service="my-svc").finish()
