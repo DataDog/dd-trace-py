@@ -1105,7 +1105,7 @@ def snapshot_context(
         result = to_unicode(r.read())
         if r.status != 200:
             lowered = result.lower()
-            if "received unmatched traces" not in lowered and "did not receive expected traces" not in lowered:
+            if "received unmatched traces" not in lowered:
                 pytest.fail(result, pytrace=False)
             # we don't know why the test agent occasionally receives a different number of traces than it expects
             # during snapshot tests, but that does sometimes in an unpredictable manner
