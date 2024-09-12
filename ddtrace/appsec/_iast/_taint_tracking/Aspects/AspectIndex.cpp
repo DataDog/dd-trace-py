@@ -35,6 +35,9 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
             const auto& current_range = ranges.at(0);
             ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, len_result_o, current_range->source));
         } catch (const std::out_of_range& ex) {
+            if (nullptr == result_o) {
+                py::set_error(PyExc_IndexError, "Index out of range");
+            }
             // No ranges found, return original object
             return result_o;
         }
