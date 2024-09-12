@@ -274,9 +274,6 @@ dependencies = [
     "clang"
 ]
 
-[envs.appsec_iast_native.env-vars]
-CMAKE_BUILD_PARALELL_LEVEL = "12"
-
 [envs.appsec_iast_native.scripts]
 test = [
     "cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking",
