@@ -225,6 +225,33 @@ def _construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Di
     return completion
 
 
+def _construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_chunk=None, function_call_chunk=None):
+    """Builds a tool_call dictionary from streamed function_call/tool_call chunks."""
+    if function_call_chunk:
+        if not stored_tool_calls:
+            stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
+        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "")
+        return
+    if not tool_call_chunk:
+        return
+    tool_call_idx = getattr(tool_call_chunk, "index", None)
+    tool_id = getattr(tool_call_chunk, "id", None)
+    tool_type = getattr(tool_call_chunk, "type", None)
+    function_call = getattr(tool_call_chunk, "function", None)
+    function_name = getattr(function_call, "name", "")
+    # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
+    list_idx = next(
+        (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call["index"] == tool_call_idx),
+        None,
+    )
+    if list_idx is None:
+        stored_tool_calls.append(
+            {"name": function_name, "arguments": "", "index": tool_call_idx, "tool_id": tool_id, "type": tool_type}
+        )
+        list_idx = -1
+    stored_tool_calls[list_idx]["arguments"] += getattr(function_call, "arguments", "")
+
+
 def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
     """Constructs a chat completion message dictionary from streamed chunks.
     The resulting message dictionary is of form:
@@ -248,37 +275,14 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
             continue
         function_call = getattr(chunk.delta, "function_call", None)
         if function_call:
-            if not message["tool_calls"]:
-                message["tool_calls"].append({"name": getattr(function_call, "name", ""), "arguments": ""})
-            message["tool_calls"][0]["arguments"] += getattr(chunk.delta.function_call, "arguments", "")
+            _construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
         tool_calls = getattr(chunk.delta, "tool_calls", None)
         if not tool_calls:
             continue
         for tool_call in tool_calls:
-            tool_call_idx = getattr(tool_call, "index", None)
-            tool_id = getattr(tool_call, "id", None)
-            tool_type = getattr(tool_call, "type", None)
-            function_call = getattr(tool_call, "function", None)
-            function_name = getattr(function_call, "name", "")
-            # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
-            list_idx = next(
-                (idx for idx, tool_call in enumerate(message["tool_calls"]) if tool_call["index"] == tool_call_idx),
-                None,
-            )
-            if list_idx is None:
-                message["tool_calls"].append(
-                    {
-                        "name": function_name,
-                        "arguments": "",
-                        "index": tool_call_idx,
-                        "tool_id": tool_id,
-                        "type": tool_type,
-                    }
-                )
-                list_idx = -1
-            message["tool_calls"][list_idx]["arguments"] += getattr(function_call, "arguments", "")
+            _construct_tool_call_from_streamed_chunk(message["tool_calls"], tool_call_chunk=tool_call)
     if message["tool_calls"]:
-        message["tool_calls"].sort(key=lambda x: x["index"])
+        message["tool_calls"].sort(key=lambda x: x.get("index", 0))
     message["content"] = message["content"].strip()
     return message
 
@@ -314,11 +318,12 @@ def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
         usage = response[0].get("usage", {})
         prompt_tokens = getattr(usage, "prompt_tokens", 0)
         completion_tokens = getattr(usage, "completion_tokens", 0)
+        total_tokens = getattr(usage, "total_tokens", 0)
     else:
         model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
         estimated, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
         estimated, completion_tokens = _compute_completion_tokens(response, model_name)
-    total_tokens = prompt_tokens + completion_tokens
+        total_tokens = prompt_tokens + completion_tokens
     span.set_metric("openai.response.usage.prompt_tokens", prompt_tokens)
     span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
     span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
