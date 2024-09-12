@@ -97,9 +97,6 @@ class TestAsyncioLockCollector:
                 span_id = t.span_id
             lock2.release()  # !RELEASE! test_asyncio_lock_events_tracer_2
 
-            # TODO(taegyunkim): Capture lock uses with async context manager.
-            # We currently simply call the inner __aenter__ and __aexit__ methods
-            # for the lock object.
             lock_ctx = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_3
             async with lock_ctx:  # !ACQUIRE! !RELEASE! test_asyncio_lock_events_tracer_3
                 pass
@@ -107,6 +104,7 @@ class TestAsyncioLockCollector:
 
         linenos_1 = get_lock_linenos("test_asyncio_lock_events_tracer_1")
         linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")
+        linenos_3 = get_lock_linenos("test_asyncio_lock_events_tracer_3", with_stmt=True)
 
         profile = pprof_utils.parse_profile(self.output_filename)
         expected_thread_id = _thread.get_ident()
@@ -131,6 +129,13 @@ class TestAsyncioLockCollector:
                     trace_type=span_type,
                     thread_id=expected_thread_id,
                 ),
+                pprof_utils.LockAcquireEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_3,
+                    lock_name="lock_ctx",
+                    thread_id=expected_thread_id,
+                ),
             ],
             expected_release_events=[
                 pprof_utils.LockReleaseEvent(
@@ -148,6 +153,13 @@ class TestAsyncioLockCollector:
                     filename=os.path.basename(__file__),
                     linenos=linenos_2,
                     lock_name="lock2",
+                    thread_id=expected_thread_id,
+                ),
+                pprof_utils.LockReleaseEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_3,
+                    lock_name="lock_ctx",
                     thread_id=expected_thread_id,
                 ),
             ],
