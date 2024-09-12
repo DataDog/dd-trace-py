@@ -543,7 +543,6 @@ PACKAGES = [
         "",
         import_module_to_validate="tomli._parser",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "tomlkit",
