@@ -63,6 +63,7 @@ def __getattr__(name):
         _debtcollector.deprecate(
             ("%s.%s is deprecated" % (__name__, name)),
             category=_DDTraceDeprecationWarning,
+            removal_version="3.0.0",
         )
 
     if name in globals():
