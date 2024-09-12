@@ -199,16 +199,11 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         if streamed_messages:
             messages = []
-            for streamed_message in streamed_messages:
-                message = {"content": streamed_message["content"], "role": streamed_message["role"]}
-                tool_calls = streamed_message.get("tool_calls", [])
-                if tool_calls:
-                    message["tool_calls"] = [
-                        {
-                            "name": tool_call.get("name", ""), "arguments": json.loads(tool_call.get("arguments", "")),
-                        } for tool_call in tool_calls
-                    ]
-                messages.append(message)
+            for message in streamed_messages:
+                if "formatted_content" in message:
+                    messages.append({"content": message["formatted_content"], "role": message["role"]})
+                    continue
+                messages.append({"content": message["content"], "role": message["role"]})
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(messages))
             return
         output_messages = []

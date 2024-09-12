@@ -9,7 +9,6 @@ from typing import List
 import wrapt
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._utils import _get_attr
 
 
 try:
@@ -228,9 +227,11 @@ def _construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Di
 def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
     """Constructs a chat completion message dictionary from streamed chunks.
     The resulting message dictionary is of form:
-    {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
+    {"content": "...", "role": "...", "finish_reason": "..."}
     """
-    message = {"content": "", "tool_calls": []}
+    message = {"content": ""}
+    formatted_content = ""
+    idx = None
     for chunk in streamed_chunks:
         if getattr(chunk, "usage", None):
             message["usage"] = chunk.usage
@@ -248,28 +249,26 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
             continue
         function_call = getattr(chunk.delta, "function_call", None)
         if function_call:
-            if not message["tool_calls"]:
-                message["tool_calls"].append({"name": getattr(function_call, "name", ""), "arguments": ""})
-            message["tool_calls"][0]["arguments"] += getattr(chunk.delta.function_call, "arguments", "")
-        tool_calls = getattr(chunk.delta, "tool_calls", None)
+            if idx is None:
+                formatted_content += "\n\n[function: {}]\n\n".format(getattr(function_call, "name", ""))
+                idx = chunk.index
+            function_args = getattr(function_call, "arguments", "")
+            message["content"] += "{}".format(function_args)
+            formatted_content += "{}".format(function_args)
+        tool_calls = getattr(chunk.delta, "tool_calls", [])
         if not tool_calls:
             continue
         for tool_call in tool_calls:
-            tool_call_idx = getattr(tool_call, "index", None)
-            function_call = getattr(tool_call, "function", None)
-            function_name = getattr(function_call, "name", "")
-            # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
-            list_idx = next(
-                (idx for idx, tool_call in enumerate(message["tool_calls"]) if tool_call["index"] == tool_call_idx),
-                None
-            )
-            if list_idx is None:
-                message["tool_calls"].append({"name": function_name, "arguments": "", "index": tool_call_idx})
-                list_idx = -1
-            message["tool_calls"][list_idx]["arguments"] += getattr(function_call, "arguments", "")
-    if message["tool_calls"]:
-        message["tool_calls"].sort(key=lambda x: x["index"])
+            if tool_call.index != idx:
+                formatted_content += "\n\n[tool: {}]\n\n".format(getattr(tool_call.function, "name", ""))
+                idx = tool_call.index
+            function_args = getattr(tool_call.function, "arguments", "")
+            message["content"] += "{}".format(function_args)
+            formatted_content += "{}".format(function_args)
+
     message["content"] = message["content"].strip()
+    if formatted_content:
+        message["formatted_content"] = formatted_content.strip()
     return message
 
 
@@ -285,9 +284,6 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
         message_content = choice.get("content", "")
         if message_content:
             span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(str(message_content)))
-        tool_calls = choice.get("tool_calls", [])
-        if tool_calls:
-            _tag_tool_calls(integration, span, tool_calls, idx)
         finish_reason = choice.get("finish_reason", "")
         if finish_reason:
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
@@ -355,17 +351,15 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx):
     # type: (...) -> None
     """
     Tagging logic if function_call or tool_calls are provided in the chat response.
-    Notes:
+    Note:
         - since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
-        - streamed responses are processed and collected as dictionaries rather than objects,
-          so we need to handle both ways of accessing values.
     """
     for idy, tool_call in enumerate(tool_calls):
         if hasattr(tool_call, "function"):
             # tool_call is further nested in a "function" object
             tool_call = tool_call.function
-        function_arguments = _get_attr(tool_call, "arguments", "")
-        function_name = _get_attr(tool_call, "name", "")
+        function_arguments = tool_call.get("arguments", "")
+        function_name = tool_call.get("name", "")
         span.set_tag_str(
             "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
             integration.trunc(str(function_arguments)),
