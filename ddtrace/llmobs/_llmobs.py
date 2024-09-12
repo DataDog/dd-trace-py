@@ -6,6 +6,8 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
+from pydantic import ValidationError
+
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
@@ -24,6 +26,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -50,6 +53,7 @@ from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import Prompt
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -462,6 +466,7 @@ class LLMObs(Service):
         cls,
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
+        prompt: Optional[Prompt] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -522,12 +527,32 @@ class LLMObs(Service):
                 cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+        if prompt is not None:
+            cls._tag_prompt(span, prompt)
         if metadata is not None:
             cls._tag_metadata(span, metadata)
         if metrics is not None:
             cls._tag_metrics(span, metrics)
         if tags is not None:
             cls._tag_span_tags(span, tags)
+
+    @staticmethod
+    def _tag_prompt(span, prompt: Union[Prompt, dict]) -> None:
+        """Tags a given LLMObs span with a prompt object."""
+        serialized_prompt = None
+        if isinstance(prompt, Prompt):
+            serialized_prompt = prompt.model_dump_json()
+        elif isinstance(prompt, dict):
+            try:
+                serialized_prompt = Prompt(**prompt).model_dump_json()
+            except ValidationError as e:
+                log.warning("Failed to parse prompt dictionary with validation error: ", e)
+                return
+        else:
+            log.warning("Prompt must be a Prompt object or a dictionary.")
+
+        if serialized_prompt is not None:
+            span.set_tag_str(INPUT_PROMPT, serialized_prompt)
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:

@@ -2,6 +2,9 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+from pydantic import BaseModel
+from pydantic import Field
+
 
 # TypedDict was added to typing in python 3.8
 try:
@@ -19,6 +22,15 @@ DocumentType = Dict[str, Union[str, int, float]]
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
+
+
+class Prompt(BaseModel):
+    template: str = Field(default="", description="the raw template for the prompt")
+    variables: Dict[str, object] = Field(
+        default={}, description="the variables to be inserted into the prompt template"
+    )
+    id: str = Field(default="", description="a unique identifier for the prompt")
+    version: str = Field(default="", description="the version of the prompt")
 
 
 class Messages:
