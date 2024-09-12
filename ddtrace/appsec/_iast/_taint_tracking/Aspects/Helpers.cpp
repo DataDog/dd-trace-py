@@ -301,7 +301,6 @@ set_ranges_on_splitted(const py::object& source_str,
     }
 
     for (const auto& item : split_result) {
-        cerr << "JJ ITEM: ============================ " << item << endl;
         if (not is_text(item.ptr()) or py::len(item) == 0) {
             continue;
         }
