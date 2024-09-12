@@ -80,6 +80,7 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.trace_handlers import _start_span
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -88,7 +89,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace._trace.trace_handlers import _start_span
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
@@ -146,9 +146,14 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WORKER,
         call_key="queue.enqueue_job",
-        tags={ COMPONENT: config.rq.integration_name, SPAN_KIND:SpanKind.PRODUCER, "queue.name":instance.name, "job.id":job.get_id(), "job.func_name":job.func_name },
+        tags={
+            COMPONENT: config.rq.integration_name,
+            SPAN_KIND: SpanKind.PRODUCER,
+            "queue.name": instance.name,
+            "job.id": job.get_id(),
+            "job.func_name": job.func_name,
+        },
     ) as ctx, ctx[ctx["call_key"]] as span:
-    
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async and config.rq.distributed_tracing_enabled:
             HTTPPropagator.inject(span.context, job.meta)
@@ -166,7 +171,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
         pin=pin,
         service=trace_utils.int_service(pin, config.rq),
         call_key="traced_queue_fetch_job",
-        tags={COMPONENT:config.rq.integration_name,"job.id":job_id},
+        tags={COMPONENT: config.rq.integration_name, "job.id": job_id},
     ) as ctx, ctx[ctx["call_key"]] as span:
         return func(*args, **kwargs)
 
@@ -176,7 +181,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     """Trace rq.Worker.perform_job"""
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = get_argument_value(args, kwargs, 0, "job")
-   
+
     try:
         with core.context_with_data(
             "rq.worker.perform_job",
@@ -188,9 +193,8 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             call_key="worker.perform_job",
             distributed_headers_config=config.rq_worker,
             distributed_headers=job.meta,
-            tags={COMPONENT:config.rq.integration_name, SPAN_KIND:SpanKind.CONSUMER,"job.id":job.get_id()},
+            tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, "job.id": job.get_id()},
         ) as ctx, ctx[ctx["call_key"]] as span:
-
             try:
                 return func(*args, **kwargs)
             finally:
@@ -199,7 +203,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 span.set_tag_str("job.origin", job.origin)
                 if job.is_failed:
                     span.error = 1
-            
+
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
@@ -215,12 +219,12 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
     # eg. in a worker, a perform_job parent span will exist with the worker
     #     service.
     with core.context_with_data(
-        "rq.job.perform", 
-        span_name="rq.job.perform", 
-        resource=job.func_name, 
-        call_key="job.perform", 
+        "rq.job.perform",
+        span_name="rq.job.perform",
+        resource=job.func_name,
+        call_key="job.perform",
         pin=pin,
-        tags={COMPONENT:config.rq.integration_name,"job.id":job.get_id()},
+        tags={COMPONENT: config.rq.integration_name, "job.id": job.get_id()},
     ) as ctx, ctx[ctx["call_key"]] as span:
         return func(*args, **kwargs)
 
@@ -237,7 +241,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.rq_worker),
         call_key="job.fetch_many",
         pin=pin,
-        tags={COMPONENT:config.rq.integration_name,"job_ids":job_ids},
+        tags={COMPONENT: config.rq.integration_name, "job_ids": job_ids},
     ) as ctx, ctx[ctx["call_key"]] as span:
         return func(*args, **kwargs)
 
