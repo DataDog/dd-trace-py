@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: This introduces the ability to annotate prompt templates via `LLMObs.annotate`. Prompt templates
+    can be passed in to annotate via the `prompt` argument either as a `Prompt` object or a valid dictionary containing
+    prompt template data.
