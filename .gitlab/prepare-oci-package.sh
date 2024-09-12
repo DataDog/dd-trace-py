@@ -45,8 +45,8 @@ fi
 echo "Deduplicating package files"
 cd ./sources
 rdfind -makesymlinks true -makeresultsfile true -checksum sha256 -deterministic true -outputname deduped.txt .
-echo "Converting symlinks to relative paths"
+echo "Converting symlinks to relative hard links"
 find . -type l | while read -r l; do
   target="$(realpath "$l")"
-  ln -fs "$(realpath --relative-to="$(dirname "$(realpath -s "$l")")" "$target")" "$l"
+  ln -f "$(realpath --relative-to="$(dirname "$(realpath -s "$l")")" "$target")" "$l"
 done
