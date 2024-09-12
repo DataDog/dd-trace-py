@@ -54,7 +54,7 @@ appsec threats fastapi:
 
 appsec iast native:
   extends: .test_base_hatch
-  parallel: 6
+  parallel: 3
   variables:
     SUITE_NAME: "appsec_iast_native"
   retry: 2
