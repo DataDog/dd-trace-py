@@ -48,7 +48,8 @@ rdfind -makesymlinks true -makeresultsfile true -checksum sha256 -deterministic 
 echo "Converting symlinks to relative hard links"
 find . -type l | while read -r l; do
   target="$(realpath "$l")"
+  rel_target="$(realpath --relative-to="$(dirname "$(realpath -s "$l")")" "$target")"
   dest_base="$(basename "$l")"
   dest_dir="$(dirname "$l")"
-  (cd "${dest_dir}" && ln -f "$(realpath --relative-to="$(dirname "$(realpath -s "$l")")" "$target")" "${dest_base}")
+  (cd "${dest_dir}" && ln -f "${rel_target}" "${dest_base}")
 done
