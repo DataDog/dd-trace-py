@@ -21,6 +21,7 @@ from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
@@ -105,12 +106,15 @@ class PytestTestCase(TracerTestCase):
         if block_gitlab_env:
             _test_env["GITLAB_CI"] = "0"
 
-        with override_env(_test_env, replace_os_env=True):
+        with _ci_override_env(_test_env, replace_os_env=True):
             return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
-    def subprocess_run(self, *args):
+    def subprocess_run(self, *args, env: t.Optional[t.Dict[str, str]] = None):
         """Execute test script with test tracer."""
-        with override_env(dict(DD_API_KEY="foobar.baz")):
+        _base_env = dict(DD_API_KEY="foobar.baz")
+        if env is not None:
+            _base_env.update(env)
+        with _ci_override_env(_base_env):
             return self.testdir.runpytest_subprocess(*args)
 
     def test_and_emit_get_version(self):
@@ -603,14 +607,15 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        with override_env(
-            {
+        rec = self.subprocess_run(
+            "--ddtrace",
+            file_name,
+            env={
                 "APPVEYOR": "true",
                 "APPVEYOR_REPO_PROVIDER": "github",
                 "APPVEYOR_REPO_NAME": "test-repository-name",
-            }
-        ):
-            rec = self.subprocess_run("--ddtrace", file_name)
+            },
+        )
         rec.assert_outcomes(passed=1)
 
     def test_default_service_name(self):
@@ -645,8 +650,8 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        with override_env({"DD_SERVICE": "mysvc"}):
-            rec = self.subprocess_run("--ddtrace", file_name)
+
+        rec = self.subprocess_run("--ddtrace", file_name, env={"DD_SERVICE": "mysvc"})
         assert 0 == rec.ret
 
     def test_dd_pytest_service_name(self):
@@ -663,10 +668,11 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        with override_env(
-            {"DD_SERVICE": "mysvc", "DD_PYTEST_SERVICE": "pymysvc", "DD_PYTEST_OPERATION_NAME": "mytest"}
-        ):
-            rec = self.subprocess_run("--ddtrace", file_name)
+        rec = self.subprocess_run(
+            "--ddtrace",
+            file_name,
+            env={"DD_SERVICE": "mysvc", "DD_PYTEST_SERVICE": "pymysvc", "DD_PYTEST_OPERATION_NAME": "mytest"},
+        )
         assert 0 == rec.ret
 
     def test_dd_origin_tag_propagated_to_every_span(self):
