@@ -47,14 +47,13 @@ log = _get_logger(__name__)
 
 
 class TestStatus(Enum):
+    __test__ = False
     PASS = _TestStatus.PASS.value
     FAIL = _TestStatus.FAIL.value
     SKIP = _TestStatus.SKIP.value
     XFAIL = _TestStatus.XFAIL.value
     XPASS = _TestStatus.XPASS.value
 
-
-TestStatus.__test__ = False  # type: ignore[attr-defined]
 
 DEFAULT_SESSION_NAME = "test_visibility_session"
 
@@ -75,12 +74,10 @@ class TestSourceFileInfo(TestSourceFileInfoBase):
 
 @dataclasses.dataclass(frozen=True)
 class TestExcInfo:
+    __test__ = False
     exc_type: Type[BaseException]
     exc_value: BaseException
     exc_traceback: TracebackType
-
-
-TestExcInfo.__test__ = False  # type: ignore[attr-defined]
 
 
 @_catch_and_log_exceptions

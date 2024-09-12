@@ -42,6 +42,7 @@ log = get_logger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class TestVisibilitySessionSettings:
+    __test__ = False
     tracer: Tracer
     test_service: str
     test_command: str
@@ -70,9 +71,6 @@ class TestVisibilitySessionSettings:
             raise ValueError("root_dir must be an absolute pathlib.Path")
         if not isinstance(self.test_framework_metric_name, TEST_FRAMEWORKS):
             raise TypeError("test_framework_metric must be a TEST_FRAMEWORKS enum")
-
-
-TestVisibilitySessionSettings.__test__ = False  # type: ignore[attr-defined]
 
 
 class SPECIAL_STATUS(Enum):

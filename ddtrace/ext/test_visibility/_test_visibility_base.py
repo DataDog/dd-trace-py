@@ -19,38 +19,35 @@ log = get_logger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class TestSessionId:
+    __test__ = False
     """Placeholder ID without attributes
 
     Allows reusing the same _TestVisibilityIdBase methods for sessions which do not have individual session IDs
     """
 
 
-TestSessionId.__test__ = False  # type: ignore[attr-defined]
-
-
 @dataclasses.dataclass(frozen=True)
 class _TestVisibilityRootItemIdBase:
     """This class exists for the ABC class below"""
 
+    __test__ = False
     name: str
 
     def get_parent_id(self) -> "_TestVisibilityRootItemIdBase":
         return self
 
 
-_TestVisibilityRootItemIdBase.__test__ = False  # type: ignore[attr-defined]
-
 RT = TypeVar("RT", bound="_TestVisibilityRootItemIdBase")
 
 
 @dataclasses.dataclass(frozen=True)
 class _TestVisibilityIdBase(abc.ABC):
+    __test__ = False
+
     @abc.abstractmethod
     def get_parent_id(self) -> Union["_TestVisibilityIdBase", _TestVisibilityRootItemIdBase]:
         raise NotImplementedError("This method must be implemented by the subclass")
 
-
-_TestVisibilityIdBase.__test__ = False  # type: ignore[attr-defined]
 
 PT = TypeVar("PT", bound=Union[_TestVisibilityIdBase, _TestVisibilityRootItemIdBase])
 
@@ -125,6 +122,8 @@ class TestSourceFileInfoBase:
     It is simply here for cosmetic reasons of keeping the original class definition short
     """
 
+    __test__ = False
+
     path: Path
     start_line: Optional[int] = None
     end_line: Optional[int] = None
@@ -168,6 +167,3 @@ class TestSourceFileInfoBase:
 
         if line_number < 1:
             raise ValueError("%s must be a positive integer, but is %s", attr_name, line_number)
-
-
-TestSourceFileInfoBase.__test__ = False  # type: ignore[attr-defined]
