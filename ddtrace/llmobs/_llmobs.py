@@ -199,7 +199,7 @@ class LLMObs(Service):
                 remoteconfig_poller.disable()
 
             # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
-            # we need to reset telemetry to use agentless configuration
+            # we need to force telemetry to use agentless configuration
             telemetry_writer.enable_agentless_client(True)
 
         if integrations_enabled:

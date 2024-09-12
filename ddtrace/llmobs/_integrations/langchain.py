@@ -23,6 +23,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs.telemetry.metrics import record_span_created
 
+from .._utils import _unserializable_default_repr
 from ..utils import Document
 from .base import BaseLLMIntegration
 
@@ -46,7 +47,7 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
 
 
 class LangChainIntegration(BaseLLMIntegration):
@@ -54,7 +55,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def llmobs_set_tags(
         self,
-        operation: str,  # oneof "llm","chat","chain","embedding","retrieval"
+        operation: str,  # oneof "llm","chat","chain","embedding","retrieval","tool"
         span: Span,
         inputs: Any,
         response: Any = None,
@@ -93,6 +94,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_embedding(span, inputs, response, error, is_workflow=is_workflow)
         elif operation == "retrieval":
             self._llmobs_set_meta_tags_from_similarity_search(span, inputs, response, error, is_workflow=is_workflow)
+        elif operation == "tool":
+            self._llmobs_set_meta_tags_from_tool(span, inputs, response, error)
         span.set_tag_str(METRICS, json.dumps({}))
 
         record_span_created(span)
@@ -326,6 +329,51 @@ class LangChainIntegration(BaseLLMIntegration):
                     span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
                 except TypeError:
                     log.warning("Failed to serialize similarity output documents to JSON")
+
+    def _llmobs_set_meta_tags_from_tool(
+        self,
+        span: Span,
+        tool_inputs: Dict[str, Any],
+        tool_output: object,
+        error: bool,
+    ) -> None:
+        if span.get_tag(METADATA):
+            metadata = json.loads(str(span.get_tag(METADATA)))
+        else:
+            metadata = {}
+
+        span.set_tag_str(SPAN_KIND, "tool")
+        if tool_inputs is not None:
+            tool_input = tool_inputs.get("input")
+            if tool_inputs.get("config"):
+                metadata["tool_config"] = tool_inputs.get("config")
+            if tool_inputs.get("info"):
+                metadata["tool_info"] = tool_inputs.get("info")
+            if metadata:
+                span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
+            try:
+                formatted_input = self.format_io(tool_input)
+                if isinstance(formatted_input, str):
+                    span.set_tag_str(INPUT_VALUE, formatted_input)
+                else:
+                    span.set_tag_str(
+                        INPUT_VALUE, json.dumps(self.format_io(tool_input), default=_unserializable_default_repr)
+                    )
+            except TypeError:
+                log.warning("Failed to serialize tool input data to JSON")
+        if error:
+            span.set_tag_str(OUTPUT_VALUE, "")
+        elif tool_output is not None:
+            try:
+                formatted_outputs = self.format_io(tool_output)
+                if isinstance(formatted_outputs, str):
+                    span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
+                else:
+                    span.set_tag_str(
+                        OUTPUT_VALUE, json.dumps(self.format_io(tool_output), default=_unserializable_default_repr)
+                    )
+            except TypeError:
+                log.warning("Failed to serialize tool output data to JSON")
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

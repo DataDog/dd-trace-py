@@ -3,7 +3,9 @@
 import wrapt
 
 import ddtrace
-from ddtrace.contrib.internal.pymongo.client import TracedMongoClient
+
+# keep the TracedMongoClient import to avoid breaking the public api
+from ddtrace.contrib.internal.pymongo.client import TracedMongoClient  # noqa: F401
 from ddtrace.ext import mongo as mongox
 from ddtrace.internal.schema import schematize_service_name
 
@@ -13,6 +15,7 @@ from ddtrace.internal.schema import schematize_service_name
 _SERVICE = schematize_service_name(mongox.SERVICE)
 
 
+# TODO(mabdinur): Remove this class when ``ddtrace.contrib.mongoengine.trace`` is removed
 class WrappedConnect(wrapt.ObjectProxy):
     """WrappedConnect wraps mongoengines 'connect' function to ensure
     that all returned connections are wrapped for tracing.
@@ -26,10 +29,6 @@ class WrappedConnect(wrapt.ObjectProxy):
         client = self.__wrapped__(*args, **kwargs)
         pin = ddtrace.Pin.get_from(self)
         if pin:
-            # mongoengine uses pymongo internally, so we can just piggyback on the
-            # existing pymongo integration and make sure that the connections it
-            # uses internally are traced.
-            client = TracedMongoClient(client)
             ddtrace.Pin(service=pin.service, tracer=pin.tracer).onto(client)
 
         return client

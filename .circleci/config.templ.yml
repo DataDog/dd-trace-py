@@ -556,11 +556,13 @@ jobs:
           env: 'dd_coverage'
           snapshot: true
 
-  sourcecode:
-    <<: *contrib_job_small
+  pytest_v2:
+    <<: *machine_executor
+    parallelism: 10
     steps:
-      - run_test:
-          pattern: "sourcecode"
+      - run_hatch_env_test:
+          env: 'pytest_plugin_v2'
+          snapshot: true
 
   opentelemetry:
     parallelism: 4
@@ -586,15 +588,6 @@ jobs:
           pattern: 'asyncpg'
           snapshot: true
           docker_services: 'postgres'
-
-  aiohttp:
-    <<: *machine_executor
-    parallelism: 3
-    steps:
-      - run_test:
-          pattern: 'aiohttp'  # includes aiohttp_jinja2
-          snapshot: true
-          docker_services: 'httpbin_local'
 
   cassandra:
     <<: *contrib_job
@@ -641,15 +634,6 @@ jobs:
       - run_test:
           pattern: 'consul'
 
-  elasticsearch:
-    <<: *machine_executor
-    parallelism: 17
-    steps:
-      - run_test:
-          pattern: 'elasticsearch'
-          snapshot: true
-          docker_services: 'elasticsearch opensearch'
-
   django:
     <<: *machine_executor
     parallelism: 4
@@ -658,52 +642,6 @@ jobs:
           pattern: 'django($|_celery)'
           snapshot: true
           docker_services: "memcached redis postgres"
-
-  djangorestframework:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'djangorestframework'
-          snapshot: true
-          docker_services: "memcached redis"
-
-  dramatiq:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "dramatiq"
-          snapshot: true
-          docker_services: "redis"
-
-  flask:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          # Run both flask and flask_cache test suites
-          # TODO: Re-enable coverage for Flask tests
-          snapshot: true
-          pattern: "flask"
-          docker_services: "memcached redis"
-
-  httplib:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "httplib"
-          snapshot: true
-          docker_services: 'httpbin_local'
-
-  httpx:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'httpx'
-          snapshot: true
-          docker_services: 'httpbin_local'
 
   mariadb:
     <<: *machine_executor
@@ -747,16 +685,6 @@ jobs:
           wait: mysql
           pattern: 'pymysql$'
 
-  pylibmc:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'pylibmc'
-
   pytest:
     <<: *machine_executor
     parallelism: 10
@@ -765,16 +693,6 @@ jobs:
           pattern: 'pytest'
           snapshot: true
 
-  pymemcache:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pymemcache"
-
   mongoengine:
     <<: *machine_executor
     steps:
@@ -782,16 +700,6 @@ jobs:
           pattern: 'mongoengine'
           snapshot: true
           docker_services: 'mongo'
-
-  requests:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-      - *httpbin_local
-    steps:
-      - run_test:
-          pattern: "requests"
 
   sqlalchemy:
     <<: *contrib_job_small
