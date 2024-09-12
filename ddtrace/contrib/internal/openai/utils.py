@@ -9,6 +9,7 @@ from typing import List
 import wrapt
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._utils import _get_attr
 
 
 try:
@@ -22,33 +23,6 @@ except ModuleNotFoundError:
 log = get_logger(__name__)
 
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
-
-
-def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
-    completions, messages = None, None
-    prompts = kwargs.get("prompt", None)
-    messages = kwargs.get("messages", None)
-    try:
-        _set_metrics_on_request(integration, span, kwargs, prompts=prompts, messages=messages)
-        if is_completion:
-            completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
-            if integration.is_pc_sampled_span(span):
-                _tag_streamed_completion_response(integration, span, completions)
-        else:
-            messages = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
-            if integration.is_pc_sampled_span(span):
-                _tag_streamed_chat_completion_response(integration, span, messages)
-        _set_metrics_on_streamed_response(integration, span, completions=completions, messages=messages)
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "completion" if is_completion else "chat",
-                None,
-                span,
-                kwargs,
-                streamed_completions=completions if is_completion else messages,
-            )
-    except Exception:
-        log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
 
 class BaseTracedOpenAIStream(wrapt.ObjectProxy):
@@ -209,123 +183,6 @@ def _is_async_generator(resp):
     return False
 
 
-def _construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
-    """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
-    completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
-    if streamed_chunks[-1].finish_reason is not None:
-        completion["finish_reason"] = streamed_chunks[-1].finish_reason
-    return completion
-
-
-def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
-    """Constructs a chat completion message dictionary from streamed chunks.
-    The resulting message dictionary is of form {"content": "...", "role": "...", "finish_reason": "..."}
-    """
-    message = {}
-    content = ""
-    formatted_content = ""
-    idx = None
-    for chunk in streamed_chunks:
-        chunk_content = getattr(chunk.delta, "content", "")
-        if chunk_content:
-            content += chunk_content
-        elif getattr(chunk.delta, "function_call", None):
-            if idx is None:
-                formatted_content += "\n\n[function: {}]\n\n".format(getattr(chunk.delta.function_call, "name", ""))
-                idx = chunk.index
-            function_args = getattr(chunk.delta.function_call, "arguments", "")
-            content += "{}".format(function_args)
-            formatted_content += "{}".format(function_args)
-        elif getattr(chunk.delta, "tool_calls", None):
-            for tool_call in chunk.delta.tool_calls:
-                if tool_call.index != idx:
-                    formatted_content += "\n\n[tool: {}]\n\n".format(getattr(tool_call.function, "name", ""))
-                    idx = tool_call.index
-                function_args = getattr(tool_call.function, "arguments", "")
-                content += "{}".format(function_args)
-                formatted_content += "{}".format(function_args)
-
-    message["role"] = streamed_chunks[0].delta.role or "assistant"
-    if streamed_chunks[-1].finish_reason is not None:
-        message["finish_reason"] = streamed_chunks[-1].finish_reason
-    message["content"] = content.strip()
-    if formatted_content:
-        message["formatted_content"] = formatted_content.strip()
-    return message
-
-
-def _tag_streamed_completion_response(integration, span, completions):
-    """Tagging logic for streamed completions."""
-    if completions is None:
-        return
-    for idx, choice in enumerate(completions):
-        span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice["text"]))
-        if choice.get("finish_reason") is not None:
-            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice["finish_reason"])
-
-
-def _tag_streamed_chat_completion_response(integration, span, messages):
-    """Tagging logic for streamed chat completions."""
-    if messages is None:
-        return
-    for idx, message in enumerate(messages):
-        span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(message["content"]))
-        span.set_tag_str("openai.response.choices.%d.message.role" % idx, message["role"])
-        if message.get("finish_reason") is not None:
-            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, message["finish_reason"])
-
-
-def _set_metrics_on_request(integration, span, kwargs, prompts=None, messages=None):
-    """Set token span metrics on streamed chat/completion requests."""
-    num_prompt_tokens = 0
-    estimated = False
-    if messages is not None:
-        for m in messages:
-            estimated, prompt_tokens = _compute_token_count(m.get("content", ""), kwargs.get("model"))
-            num_prompt_tokens += prompt_tokens
-    elif prompts is not None:
-        if isinstance(prompts, str) or isinstance(prompts, list) and isinstance(prompts[0], int):
-            prompts = [prompts]
-        for prompt in prompts:
-            estimated, prompt_tokens = _compute_token_count(prompt, kwargs.get("model"))
-            num_prompt_tokens += prompt_tokens
-    span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
-    span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
-    if not estimated:
-        integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens)
-    else:
-        integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["openai.estimated:true"])
-
-
-def _set_metrics_on_streamed_response(integration, span, completions=None, messages=None):
-    """Set token span metrics on streamed chat/completion responses."""
-    num_completion_tokens = 0
-    estimated = False
-    if messages is not None:
-        for m in messages:
-            estimated, completion_tokens = _compute_token_count(
-                m.get("content", ""), span.get_tag("openai.response.model")
-            )
-            num_completion_tokens += completion_tokens
-    elif completions is not None:
-        for c in completions:
-            estimated, completion_tokens = _compute_token_count(
-                c.get("text", ""), span.get_tag("openai.response.model")
-            )
-            num_completion_tokens += completion_tokens
-    span.set_metric("openai.response.completion_tokens_estimated", int(estimated))
-    span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
-    num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
-    total_tokens = num_prompt_tokens + num_completion_tokens
-    span.set_metric("openai.response.usage.total_tokens", total_tokens)
-    if not estimated:
-        integration.metric(span, "dist", "tokens.completion", num_completion_tokens)
-        integration.metric(span, "dist", "tokens.total", total_tokens)
-    else:
-        integration.metric(span, "dist", "tokens.completion", num_completion_tokens, tags=["openai.estimated:true"])
-        integration.metric(span, "dist", "tokens.total", total_tokens, tags=["openai.estimated:true"])
-
-
 def _loop_handler(span, chunk, streamed_chunks):
     """Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
 
@@ -335,20 +192,184 @@ def _loop_handler(span, chunk, streamed_chunks):
         span.set_tag("openai.response.model", chunk.model)
     for choice in chunk.choices:
         streamed_chunks[choice.index].append(choice)
+    if getattr(chunk, "usage", None):
+        streamed_chunks[0].insert(0, chunk)
+
+
+def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
+    prompts = kwargs.get("prompt", None)
+    request_messages = kwargs.get("messages", None)
+    try:
+        if is_completion:
+            formatted_completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
+        else:
+            formatted_completions = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
+        if integration.is_pc_sampled_span(span):
+            _tag_streamed_response(integration, span, formatted_completions)
+        _set_token_metrics(span, integration, formatted_completions, prompts, request_messages, kwargs)
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "completion" if is_completion else "chat", None, span, kwargs, formatted_completions, None
+            )
+    except Exception:
+        log.warning("Error processing streamed completion/chat response.", exc_info=True)
+
+
+def _construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
+    """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
+    completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
+    if streamed_chunks[-1].finish_reason is not None:
+        completion["finish_reason"] = streamed_chunks[-1].finish_reason
+    if hasattr(streamed_chunks[0], "usage"):
+        completion["usage"] = streamed_chunks[0].usage
+    return completion
+
+
+def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
+    """Constructs a chat completion message dictionary from streamed chunks.
+    The resulting message dictionary is of form:
+    {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
+    """
+    message = {"content": "", "tool_calls": []}
+    for chunk in streamed_chunks:
+        if getattr(chunk, "usage", None):
+            message["usage"] = chunk.usage
+        if not hasattr(chunk, "delta"):
+            continue
+        if getattr(chunk, "index", None) and not message.get("index"):
+            message["index"] = chunk.index
+        if getattr(chunk.delta, "role") and not message.get("role"):
+            message["role"] = chunk.delta.role
+        if getattr(chunk, "finish_reason", None) and not message.get("finish_reason"):
+            message["finish_reason"] = chunk.finish_reason
+        chunk_content = getattr(chunk.delta, "content", "")
+        if chunk_content:
+            message["content"] += chunk_content
+            continue
+        function_call = getattr(chunk.delta, "function_call", None)
+        if function_call:
+            if not message["tool_calls"]:
+                message["tool_calls"].append({"name": getattr(function_call, "name", ""), "arguments": ""})
+            message["tool_calls"][0]["arguments"] += getattr(chunk.delta.function_call, "arguments", "")
+        tool_calls = getattr(chunk.delta, "tool_calls", None)
+        if not tool_calls:
+            continue
+        for tool_call in tool_calls:
+            tool_call_idx = getattr(tool_call, "index", None)
+            function_call = getattr(tool_call, "function", None)
+            function_name = getattr(function_call, "name", "")
+            # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
+            list_idx = next(
+                (idx for idx, tool_call in enumerate(message["tool_calls"]) if tool_call["index"] == tool_call_idx),
+                None
+            )
+            if list_idx is None:
+                message["tool_calls"].append({"name": function_name, "arguments": "", "index": tool_call_idx})
+                list_idx = -1
+            message["tool_calls"][list_idx]["arguments"] += getattr(function_call, "arguments", "")
+    if message["tool_calls"]:
+        message["tool_calls"].sort(key=lambda x: x["index"])
+    message["content"] = message["content"].strip()
+    return message
+
+
+def _tag_streamed_response(integration, span, completions_or_messages=None):
+    """Tagging logic for streamed completions and chat completions."""
+    for idx, choice in enumerate(completions_or_messages):
+        text = choice.get("text", "")
+        if text:
+            span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(str(text)))
+        message_role = choice.get("role", "")
+        if message_role:
+            span.set_tag_str("openai.response.choices.%d.message.role" % idx, str(message_role))
+        message_content = choice.get("content", "")
+        if message_content:
+            span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(str(message_content)))
+        tool_calls = choice.get("tool_calls", [])
+        if tool_calls:
+            _tag_tool_calls(integration, span, tool_calls, idx)
+        finish_reason = choice.get("finish_reason", "")
+        if finish_reason:
+            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
+
+
+def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
+    """Set token span metrics on streamed chat/completion responses, and submit them as integration metrics.
+    If token usage is not available in the response, compute/estimate the token counts.
+    """
+    estimated = False
+    if response and isinstance(response, list) and response[0].get("usage") is not None:
+        usage = response[0].get("usage", {})
+        prompt_tokens = getattr(usage, "prompt_tokens", 0)
+        completion_tokens = getattr(usage, "completion_tokens", 0)
+    else:
+        model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
+        estimated, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
+        estimated, completion_tokens = _compute_completion_tokens(response, model_name)
+    total_tokens = prompt_tokens + completion_tokens
+    span.set_metric("openai.response.usage.prompt_tokens", prompt_tokens)
+    span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
+    span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
+    span.set_metric("openai.response.completion_tokens_estimated", int(estimated))
+    span.set_metric("openai.response.usage.total_tokens", total_tokens)
+
+    tags = ["openai.estimated:true"] if estimated else None
+    integration.metric(span, "dist", "tokens.prompt", prompt_tokens, tags=tags)
+    integration.metric(span, "dist", "tokens.completion", completion_tokens, tags=tags)
+    integration.metric(span, "dist", "tokens.total", total_tokens, tags=tags)
+
+
+def _compute_prompt_tokens(model_name, prompts=None, messages=None):
+    """Compute token span metrics on streamed chat/completion requests.
+    Only required if token usage is not provided in the streamed response.
+    """
+    num_prompt_tokens = 0
+    estimated = False
+    if messages is not None:
+        for m in messages:
+            estimated, prompt_tokens = _compute_token_count(m.get("content", ""), model_name)
+            num_prompt_tokens += prompt_tokens
+    elif prompts is not None:
+        if isinstance(prompts, str) or isinstance(prompts, list) and isinstance(prompts[0], int):
+            prompts = [prompts]
+        for prompt in prompts:
+            estimated, prompt_tokens = _compute_token_count(prompt, model_name)
+            num_prompt_tokens += prompt_tokens
+    return estimated, num_prompt_tokens
+
+
+def _compute_completion_tokens(completions_or_messages, model_name):
+    """Compute/Estimate the completion token count from the streamed response."""
+    if not completions_or_messages:
+        return False, 0
+    estimated = False
+    num_completion_tokens = 0
+    for choice in completions_or_messages:
+        content = choice.get("content", "") or choice.get("text", "")
+        estimated, completion_tokens = _compute_token_count(content, model_name)
+        num_completion_tokens += completion_tokens
+    return estimated, num_completion_tokens
 
 
 def _tag_tool_calls(integration, span, tool_calls, choice_idx):
     # type: (...) -> None
     """
     Tagging logic if function_call or tool_calls are provided in the chat response.
-    Note: since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
+    Notes:
+        - since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
+        - streamed responses are processed and collected as dictionaries rather than objects,
+          so we need to handle both ways of accessing values.
     """
     for idy, tool_call in enumerate(tool_calls):
         if hasattr(tool_call, "function"):
             # tool_call is further nested in a "function" object
             tool_call = tool_call.function
-        span.set_tag(
+        function_arguments = _get_attr(tool_call, "arguments", "")
+        function_name = _get_attr(tool_call, "name", "")
+        span.set_tag_str(
             "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
-            integration.trunc(str(tool_call.arguments)),
+            integration.trunc(str(function_arguments)),
         )
-        span.set_tag("openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(tool_call.name))
+        span.set_tag_str(
+            "openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(function_name)
+        )
