@@ -12,9 +12,9 @@ import wrapt
 from ddtrace._trace._span_pointers import _SpanPointerDescription
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace._trace.utils import extract_span_pointers_from_successful_botocore_response
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
 from ddtrace._trace.utils import set_botocore_response_metadata_tags
+from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY

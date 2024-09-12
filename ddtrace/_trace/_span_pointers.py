@@ -1,6 +1,7 @@
 # A private API for now.
 
 from enum import Enum
+from hashlib import sha256
 from typing import Any
 from typing import Dict
 from typing import NamedTuple
@@ -63,3 +64,15 @@ class _SpanPointer(SpanLink):
     def __post_init__(self):
         # Do not want to do the trace_id and span_id checks that SpanLink does.
         pass
+
+
+def _standard_hashing_function(*elements: bytes) -> str:
+    separator = b"|"
+    bits_per_hex_digit = 4
+    desired_bits = 128
+    hex_digits = desired_bits // bits_per_hex_digit
+
+    hex_digest = sha256(separator.join(elements)).hexdigest()
+    assert len(hex_digest) >= hex_digits
+
+    return hex_digest[:hex_digits]
