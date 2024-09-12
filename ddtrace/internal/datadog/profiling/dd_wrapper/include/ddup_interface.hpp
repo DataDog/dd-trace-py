@@ -51,7 +51,7 @@ extern "C"
     void ddup_push_span_id(Datadog::Sample* sample, int64_t span_id);
     void ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id);
     void ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type);
-    void ddup_push_trace_resource_container(Datadog::Sample* sample, std::string_view trace_resource_container);
+    void ddup_push_trace_endpoint(Datadog::Sample* sample, std::string_view trace_endpoint);
     void ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count);
     void ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name);
     void ddup_push_frame(Datadog::Sample* sample,

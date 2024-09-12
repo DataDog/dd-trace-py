@@ -298,9 +298,9 @@ Datadog::Sample::push_trace_type(std::string_view trace_type)
 }
 
 bool
-Datadog::Sample::push_trace_resource_container(std::string_view trace_resource_container)
+Datadog::Sample::push_trace_endpoint(std::string_view trace_endpoint)
 {
-    if (!push_label(ExportLabelKey::trace_resource_container, trace_resource_container)) {
+    if (!push_label(ExportLabelKey::trace_endpoint, trace_endpoint)) {
         std::cout << "bad push" << std::endl;
         return false;
     }

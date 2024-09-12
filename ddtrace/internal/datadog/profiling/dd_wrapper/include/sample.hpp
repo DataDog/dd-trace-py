@@ -68,7 +68,7 @@ class Sample
     bool push_span_id(uint64_t span_id);
     bool push_local_root_span_id(uint64_t local_root_span_id);
     bool push_trace_type(std::string_view trace_type);
-    bool push_trace_resource_container(std::string_view trace_resource_container);
+    bool push_trace_endpoint(std::string_view trace_endpoint);
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
     bool push_class_name(std::string_view class_name);
     bool push_monotonic_ns(int64_t monotonic_ns);

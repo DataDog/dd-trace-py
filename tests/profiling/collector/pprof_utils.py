@@ -56,7 +56,7 @@ class LockEvent:
         self.linenos = linenos
         self.lock_name = lock_name
         self.span_id = reinterpret_int_as_int64(clamp_to_uint64(span_id)) if span_id else None
-        self.trace_resource = trace_resource
+        self.trace_endpoint = trace_resource
         self.trace_type = trace_type
         self.task_id = task_id
         self.task_name = task_name
@@ -195,12 +195,12 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
             profile.string_table[trace_type_label.str] == expected_event.trace_type
         ), "Expected trace_type {} got {}".format(expected_event.trace_type, profile.string_table[trace_type_label.str])
 
-    if expected_event.trace_resource is not None:
-        trace_resource_label = get_label_with_key(profile.string_table, sample, "trace resource container")
+    if expected_event.trace_endpoint is not None:
+        trace_endpoint_label = get_label_with_key(profile.string_table, sample, "trace endpoint")
         assert (
-            profile.string_table[trace_resource_label.str] == expected_event.trace_resource
-        ), "Expected trace_resource_container {} got {}".format(
-            expected_event.trace_resource, profile.string_table[trace_resource_label.str]
+            profile.string_table[trace_endpoint_label.str] == expected_event.trace_endpoint
+        ), "Expected trace endpoint {} got {}".format(
+            expected_event.trace_endpoint, profile.string_table[trace_endpoint_label.str]
         )
 
     if expected_event.task_id is not None:
