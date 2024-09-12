@@ -19,7 +19,7 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -53,7 +53,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 
-_NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
+_NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
 
 
 class SpanEvent:
