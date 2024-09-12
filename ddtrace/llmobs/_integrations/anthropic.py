@@ -17,6 +17,7 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._utils import _get_attr
 
 from .base import BaseLLMIntegration
 
@@ -205,11 +206,3 @@ class AnthropicIntegration(BaseLLMIntegration):
         if total_tokens is not None:
             usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
         return usage
-
-
-def _get_attr(o: Any, attr: str, default: Any):
-    # Since our response may be a dict or object, convenience method
-    if isinstance(o, dict):
-        return o.get(attr, default)
-    else:
-        return getattr(o, attr, default)

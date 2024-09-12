@@ -289,6 +289,10 @@
             "ddtrace/contrib/anthropic/*",
             "ddtrace/contrib/internal/anthropic/*"
         ],
+        "google_generativeai": [
+            "ddtrace/contrib/google_generativeai/*",
+            "ddtrace/contrib/internal/google_generativeai/*"
+        ],
         "subprocess": [
             "ddtrace/contrib/subprocess/*",
             "ddtrace/contrib/internal/subprocess/*"
@@ -1519,6 +1523,16 @@
             "@llmobs",
             "tests/contrib/anthropic/*",
             "tests/snapshots/tests.contrib.anthropic.*"
+        ],
+        "google_generativeai": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@google_generativeai",
+            "@llmobs",
+            "tests/contrib/google_generativeai/*",
+            "tests/snapshots/tests.contrib.google_generativeai.*"
         ],
         "runtime": [
             "@core",

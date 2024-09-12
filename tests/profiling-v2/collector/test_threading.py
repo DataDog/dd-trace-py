@@ -81,12 +81,7 @@ def test_patch():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
-@pytest.mark.skipif(sys.version_info[:2] == (3, 8) and TESTING_GEVENT, reason="see comment in body")
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="true"),
-    err=None,
-)
+@pytest.mark.subprocess()
 def test_user_threads_have_native_id():
     from os import getpid
     from threading import Thread
@@ -94,15 +89,19 @@ def test_user_threads_have_native_id():
     from threading import current_thread
     from time import sleep
 
-    curr_thread = current_thread()
-    # DEV: The following assert holds for most cases, but not for the venv with
-    # Python 3.8.x and gevent. For that specific venv this test is flaky.
-    # When this test fails, there are two active threads one being the main
-    # thread and the other being a DummyThread. And, the curr_thread is
-    # DummyThread which have the same ID as the PID.
-    assert isinstance(curr_thread, _MainThread)
+    from ddtrace.profiling import profiler
+
+    # DEV: We used to run this test with ddtrace_run=True passed into the
+    # subprocess decorator, but that caused this to be flaky for Python 3.8.x
+    # with gevent. When it failed for that specific venv, current_thread()
+    # returned a DummyThread instead of a _MainThread.
+    p = profiler.Profiler()
+    p.start()
+
+    main = current_thread()
+    assert isinstance(main, _MainThread)
     # We expect the current thread to have the same ID as the PID
-    assert curr_thread.native_id == getpid(), (curr_thread.native_id, getpid())
+    assert main.native_id == getpid(), (main.native_id, getpid())
 
     t = Thread(target=lambda: None)
     t.start()
@@ -121,6 +120,8 @@ def test_user_threads_have_native_id():
         raise AssertionError("Thread.native_id not set")
 
     t.join()
+
+    p.stop()
 
 
 @pytest.mark.subprocess(
