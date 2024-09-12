@@ -5,8 +5,8 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
-from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import function_call_expected_output
+from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
