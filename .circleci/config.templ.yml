@@ -540,12 +540,6 @@ jobs:
       - run_test:
           pattern: "datastreams"
 
-  sourcecode:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "sourcecode"
-
   opentelemetry:
     parallelism: 4
     <<: *machine_executor
@@ -666,26 +660,6 @@ jobs:
       - run_test:
           wait: mysql
           pattern: 'pymysql$'
-
-  pylibmc:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'pylibmc'
-
-  pymemcache:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pymemcache"
 
   mongoengine:
     <<: *machine_executor
