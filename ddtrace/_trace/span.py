@@ -414,7 +414,7 @@ class Span(object):
     def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct
-        Currently it will only be exported with V3/V4 encoding
+        Currently it will only be exported with V4 encoding
         """
         self._meta_struct[key] = value
 
