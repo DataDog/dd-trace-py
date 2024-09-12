@@ -148,8 +148,6 @@ _PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS = {
 
 
 def _get_default_os_env_vars():
-    os_env = os.environ
-
     os_env_keys = {
         "PATH",
         "PYTHONPATH",
@@ -160,7 +158,7 @@ def _get_default_os_env_vars():
         "DD_TRACE_AGENT_HOSTNAME",
     }
 
-    return {key: os_env.get(key, "") for key in os_env_keys if key in os_env}
+    return {key: os.environ[key] for key in os_env_keys if key in os.environ}
 
 
 def _get_default_ci_env_vars(
