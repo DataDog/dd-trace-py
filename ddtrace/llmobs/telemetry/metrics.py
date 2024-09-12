@@ -63,10 +63,7 @@ def record_export_span_usage(ml_app: str) -> None:
 
 
 def record_submit_evaluations_usage(ml_app: str, metric_type: str) -> None:
-    tags = (
-        ("ml_app", ml_app),
-        ("metric_type", metric_type),
-    )
+    tags = (("ml_app", ml_app), ("metric_type", metric_type))
     telemetry_writer.add_count_metric(_NAMESPACE, LLMOBS_TELEMETRY.SUBMIT_EVALUATIONS, 1.0, tags)
 
 
