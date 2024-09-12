@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs.telemetry.metrics import record_span_created
 
 
 log = get_logger(__name__)
@@ -58,6 +59,8 @@ class BedrockIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(formatted_response)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
         span.set_tag_str(METRICS, json.dumps(self._llmobs_metrics(span, formatted_response)))
+
+        record_span_created(span)
 
     @staticmethod
     def _llmobs_metrics(span: Span, formatted_response: Optional[Dict[str, Any]]) -> Dict[str, Any]:

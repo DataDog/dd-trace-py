@@ -47,6 +47,13 @@ from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs.telemetry.metrics import record_activate_distributed_headers_usage
+from ddtrace.llmobs.telemetry.metrics import record_annotation_usage
+from ddtrace.llmobs.telemetry.metrics import record_export_span_usage
+from ddtrace.llmobs.telemetry.metrics import record_init_time
+from ddtrace.llmobs.telemetry.metrics import record_inject_distributed_headers_usage
+from ddtrace.llmobs.telemetry.metrics import record_submit_evaluations_usage
+from ddtrace.llmobs.telemetry.metrics import record_user_flush_usage
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
@@ -147,6 +154,7 @@ class LLMObs(Service):
         :param str env: Your environment name.
         :param str service: Your service name.
         """
+        start_time = time.perf_counter()
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
             return
@@ -190,6 +198,10 @@ class LLMObs(Service):
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 remoteconfig_poller.disable()
 
+            # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
+            # we need to reset telemetry to use agentless configuration
+            telemetry_writer.enable_agentless_client(True)
+
         if integrations_enabled:
             cls._patch_integrations()
         # override the default _instance with a new tracer
@@ -199,6 +211,9 @@ class LLMObs(Service):
 
         atexit.register(cls.disable)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
+        record_init_time(
+            ml_app, (time.perf_counter() - start_time) * 1000, config._llmobs_agentless_enabled, integrations_enabled
+        )
 
         log.debug("%s enabled", cls.__name__)
 
@@ -233,6 +248,7 @@ class LLMObs(Service):
         try:
             cls._instance._llmobs_span_writer.periodic()
             cls._instance._llmobs_eval_metric_writer.periodic()
+            record_user_flush_usage(config._llmobs_ml_app)
         except Exception:
             log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
 
@@ -252,6 +268,8 @@ class LLMObs(Service):
                 if span.span_type != SpanTypes.LLM:
                     log.warning("Span must be an LLMObs-generated span.")
                     return None
+
+                record_export_span_usage(config._llmobs_ml_app)
                 return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
             except (TypeError, AttributeError):
                 log.warning("Failed to export span. Span must be a valid Span object.")
@@ -263,6 +281,8 @@ class LLMObs(Service):
         if span.span_type != SpanTypes.LLM:
             log.warning("Span must be an LLMObs-generated span.")
             return None
+
+        record_export_span_usage(config._llmobs_ml_app)
         return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
 
     def _start_span(
@@ -525,6 +545,8 @@ class LLMObs(Service):
         if tags is not None:
             cls._tag_span_tags(span, tags)
 
+        record_annotation_usage(span)
+
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
         """Tags input parameters for a given LLMObs span.
@@ -775,6 +797,7 @@ class LLMObs(Service):
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
         )
+        record_submit_evaluations_usage(ml_app, metric_type)
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
@@ -795,6 +818,7 @@ class LLMObs(Service):
             return request_headers
         _inject_llmobs_parent_id(span.context)
         HTTPPropagator.inject(span.context, request_headers)
+        record_inject_distributed_headers_usage(config._llmobs_ml_app)
         return request_headers
 
     @classmethod
@@ -817,6 +841,7 @@ class LLMObs(Service):
         if PROPAGATED_PARENT_ID_KEY not in context._meta:
             log.warning("Failed to extract LLMObs parent ID from request headers.")
         cls._instance.tracer.context_provider.activate(context)
+        record_activate_distributed_headers_usage(config._llmobs_ml_app)
 
 
 # initialize the default llmobs instance

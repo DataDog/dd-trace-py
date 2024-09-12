@@ -23,6 +23,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs.telemetry.metrics import record_span_created
 from ddtrace.llmobs.utils import Document
 from ddtrace.pin import Pin
 
@@ -154,6 +155,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(
             METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None))
         )
+
+        record_span_created(span)
 
     @staticmethod
     def _llmobs_set_meta_tags_from_completion(

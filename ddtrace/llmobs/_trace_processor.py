@@ -33,6 +33,7 @@ from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs.telemetry.metrics import record_span_finished
 
 
 log = get_logger(__name__)
@@ -50,6 +51,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         if not trace:
             return None
         for span in trace:
+            record_span_finished(span)
             if span.span_type == SpanTypes.LLM:
                 self.submit_llmobs_span(span)
         return None if config._llmobs_agentless_enabled else trace
