@@ -6,7 +6,6 @@ import redis
 
 import ddtrace
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -137,7 +136,6 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET"
-        assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     def test_connection_error(self):
         with mock.patch.object(
@@ -147,24 +145,6 @@ class TestRedisPatch(TracerTestCase):
         ):
             with pytest.raises(redis.exceptions.ConnectionError):
                 self.r.get("foo")
-
-    def test_analytics_without_rate(self):
-        with self.override_config("redis", dict(analytics_enabled=True)):
-            us = self.r.get("cheese")
-            assert us is None
-            spans = self.get_spans()
-            assert len(spans) == 1
-            span = spans[0]
-            assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
-
-    def test_analytics_with_rate(self):
-        with self.override_config("redis", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            us = self.r.get("cheese")
-            assert us is None
-            spans = self.get_spans()
-            assert len(spans) == 1
-            span = spans[0]
-            assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     def test_pipeline_traced(self):
         with self.r.pipeline(transaction=False) as p:
@@ -189,7 +169,6 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_tag("span.kind") == "client"
         assert span.get_metric("redis.pipeline_length") == 3
         assert span.get_metric("redis.pipeline_length") == 3
-        assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     def test_pipeline_immediate(self):
         with self.r.pipeline() as p:
@@ -501,18 +480,6 @@ class TestRedisPatchSnapshot(TracerTestCase):
     def test_unicode(self):
         us = self.r.get("😐")
         assert us is None
-
-    @snapshot()
-    def test_analytics_without_rate(self):
-        with self.override_config("redis", dict(analytics_enabled=True)):
-            us = self.r.get("cheese")
-            assert us is None
-
-    @snapshot()
-    def test_analytics_with_rate(self):
-        with self.override_config("redis", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            us = self.r.get("cheese")
-            assert us is None
 
     @snapshot()
     def test_pipeline_traced(self):
