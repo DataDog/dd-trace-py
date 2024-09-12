@@ -29,7 +29,7 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
             }
         }
 
-    } else if (PyReMatch_Check(candidate_text)){ // For re.Match objects, taint the whole output
+    } else if (PyReMatch_Check(candidate_text)) { // For re.Match objects, taint the whole output
         try {
             const size_t& len_result_o{ get_pyobject_size(result_o) };
             const auto& current_range = ranges.at(0);
