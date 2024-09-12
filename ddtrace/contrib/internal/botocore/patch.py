@@ -16,7 +16,6 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal.botocore.span_pointers import extract_span_pointers_from_successful_response
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
@@ -232,29 +231,4 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
             raise
         else:
             core.dispatch("botocore.patched_api_call.success", [ctx, result])
-            _prepare_span_pointers_from_successful_response(
-                ctx=ctx,
-                endpoint_name=endpoint_name,
-                operation_name=operation,
-                request_parameters=params,
-                response=result,
-            )
             return result
-
-
-def _prepare_span_pointers_from_successful_response(
-    ctx,
-    endpoint_name: str,
-    operation_name: str,
-    request_parameters: Dict[str, Any],
-    response: Dict[str, Any],
-) -> None:
-    span_pointer_descriptions = extract_span_pointers_from_successful_response(
-        endpoint_name=endpoint_name,
-        operation_name=operation_name,
-        request_parameters=request_parameters,
-        response=response,
-    )
-
-    for span_pointer_description in span_pointer_descriptions:
-        core.dispatch("datadog.span_pointer", [ctx, span_pointer_description])
