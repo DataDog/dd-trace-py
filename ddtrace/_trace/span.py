@@ -201,7 +201,7 @@ class Span(object):
         self._links: List[SpanLink] = []
         if links:
             for new_link in links:
-                self._set_link_object(new_link)
+                self._set_link_or_append_pointer(new_link)
 
         self._events: List[SpanEvent] = []
         self._parent: Optional["Span"] = None
@@ -624,7 +624,7 @@ class Span(object):
         if attributes is None:
             attributes = dict()
 
-        self._set_link_object(
+        self._set_link_or_append_pointer(
             SpanLink(
                 trace_id=trace_id,
                 span_id=span_id,
@@ -643,7 +643,7 @@ class Span(object):
     ) -> None:
         # This is a Private API for now.
 
-        self._set_link_object(
+        self._set_link_or_append_pointer(
             _SpanPointer(
                 pointer_kind=pointer_kind,
                 pointer_direction=pointer_direction,
@@ -652,7 +652,7 @@ class Span(object):
             )
         )
 
-    def _set_link_object(self, link: Union[SpanLink, _SpanPointer]) -> None:
+    def _set_link_or_append_pointer(self, link: Union[SpanLink, _SpanPointer]) -> None:
         if link.kind == _SPAN_LINK_KIND_SPAN_POINTER:
             self._links.append(link)
             return

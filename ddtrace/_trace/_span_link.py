@@ -30,7 +30,11 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
+
+
+log = get_logger(__name__)
 
 
 def _id_not_zero(self, attribute_name, value):
@@ -73,11 +77,11 @@ class SpanLink:
         self.attributes["link.name"] = value
 
     @property
-    def kind(self) -> Optional[Any]:
+    def kind(self) -> Optional[str]:
         return self.attributes.get("link.kind")
 
     @kind.setter
-    def kind(self, value):
+    def kind(self, value: str) -> None:
         self.attributes["link.kind"] = value
 
     def _drop_attribute(self, key):
@@ -158,7 +162,17 @@ class _SpanPointer(SpanLink):
 
     def __post_init__(self):
         if self.trace_id != _SPAN_POINTER_SPAN_LINK_TRACE_ID:
-            raise ValueError(f"span pointer trace_id must be {_SPAN_POINTER_SPAN_LINK_TRACE_ID}")
+            log.warning(
+                "span pointer trace_id must be %d, found %d",
+                _SPAN_POINTER_SPAN_LINK_TRACE_ID,
+                self.trace_id,
+            )
+            self.trace_id = _SPAN_POINTER_SPAN_LINK_TRACE_ID
 
         if self.span_id != _SPAN_POINTER_SPAN_LINK_SPAN_ID:
-            raise ValueError(f"span pointer span_id must be {_SPAN_POINTER_SPAN_LINK_SPAN_ID}")
+            log.warning(
+                "span pointer span_id must be %d, found %d",
+                _SPAN_POINTER_SPAN_LINK_SPAN_ID,
+                self.span_id,
+            )
+            self.span_id = _SPAN_POINTER_SPAN_LINK_SPAN_ID
