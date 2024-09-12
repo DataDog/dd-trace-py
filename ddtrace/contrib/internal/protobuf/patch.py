@@ -11,8 +11,11 @@ from .schema_iterator import SchemaExtractor
 
 config._add(
     "protobuf",
-    dict({"_WRAPPED_MESSAGE_CLASSES": []}),  # fix this
+    dict(),
 )
+
+
+_WRAPPED_MESSAGE_CLASSES = []
 
 
 def get_version():
@@ -38,10 +41,11 @@ def unpatch():
 
         unwrap(protobuf.internal.builder, "BuildTopDescriptorsAndMessages")
 
-        for wrapped_message_class in config.protobuf["_WRAPPED_MESSAGE_CLASSES"]:
+        global _WRAPPED_MESSAGE_CLASSES
+        for wrapped_message_class in _WRAPPED_MESSAGE_CLASSES:
             _unwrap_message(wrapped_message_class)
 
-        config.protobuf["_WRAPPED_MESSAGE_CLASSES"] = []
+        _WRAPPED_MESSAGE_CLASSES = []
 
 
 def _unwrap_message(message_class):
@@ -60,7 +64,8 @@ def _wrap_message(message_descriptor, message_class):
     _w(message_class, "SerializeToString", serialize_wrapper)
     _w(message_class, "ParseFromString", deserialize_wrapper)
 
-    config.protobuf["_WRAPPED_MESSAGE_CLASSES"].append(message_class)
+    global _WRAPPED_MESSAGE_CLASSES
+    _WRAPPED_MESSAGE_CLASSES.append(message_class)
     Pin().onto(message_class)
 
 
@@ -77,16 +82,14 @@ def _traced_build(func, instance, args, kwargs):
     try:
         func(*args, **kwargs)
     finally:
-        generated_message_classes = args[2]
-        message_descriptors = file_des.message_types_by_name.items()
-        for message_idx in range(len(message_descriptors)):
-            message_class_name = message_descriptors[message_idx][0]
-            message_descriptor = message_descriptors[message_idx][1]
-            message_class = generated_message_classes[message_class_name]
-            _wrap_message(message_descriptor=message_descriptor, message_class=message_class)
         if config._data_streams_enabled:
-            pass
-            # SchemaExtractor.attach_schema_on_span(instance.writers_schema, active, SchemaExtractor.SERIALIZATION)
+            generated_message_classes = args[2]
+            message_descriptors = file_des.message_types_by_name.items()
+            for message_idx in range(len(message_descriptors)):
+                message_class_name = message_descriptors[message_idx][0]
+                message_descriptor = message_descriptors[message_idx][1]
+                message_class = generated_message_classes[message_class_name]
+                _wrap_message(message_descriptor=message_descriptor, message_class=message_class)
 
 
 def _traced_deserialize_message(func, instance, args, kwargs, msg_descriptor):
