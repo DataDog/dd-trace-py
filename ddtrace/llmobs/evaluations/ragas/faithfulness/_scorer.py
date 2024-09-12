@@ -85,6 +85,8 @@ def extract_faithfulness_inputs(span, llmobs_instance):
 
 def score_faithfulness(span, llmobs_instance, shutdown_event):
     with llmobs_instance.workflow("_ragas.faithfulness") as workflow:
+        token_usage = {"input_tokens": 0, "output_tokens": 0}
+
         workflow.service = "_ragas"
 
         try:
@@ -102,6 +104,11 @@ def score_faithfulness(span, llmobs_instance, shutdown_event):
         if shutdown_event.is_set():
             return np.nan
 
+        usage = statements.llm_output.get("token_usage")
+        if usage:
+            token_usage["input_tokens"] += usage.get("prompt_tokens") if usage.get("prompt_tokens") else 0
+            token_usage["output_tokens"] += usage.get("completion_tokens") if usage.get("completion_tokens") else 0
+
         statements = statements_output_parser.parse(statements.generations[0][0].text)
 
         if statements is None:
@@ -114,6 +121,11 @@ def score_faithfulness(span, llmobs_instance, shutdown_event):
         p_value = create_nli_prompt(statements, context_str, llmobs_instance=llmobs_instance)
 
         nli_result = faithfulness.llm.generate_text(p_value)
+
+        usage = nli_result.llm_output.get("token_usage")
+        if usage:
+            token_usage["input_tokens"] += usage.get("prompt_tokens") if usage.get("completion_tokens") else 0
+            token_usage["output_tokens"] += usage.get("prompt_tokens") if usage.get("completion_tokens") else 0
 
         nli_result_text = [nli_result.generations[0][i].text for i in range(faithfulness._reproducibility)]
         faithfulness_list = [faithfulness_output_parser.parse(text) for text in nli_result_text]
@@ -138,5 +150,6 @@ def score_faithfulness(span, llmobs_instance, shutdown_event):
                 "context_str": context_str,
             },
             output_data=score,
+            metadata=token_usage,
         )
         return score, llmobs_instance.export_span()
