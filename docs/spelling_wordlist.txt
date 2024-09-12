@@ -96,6 +96,7 @@ exec
 fastapi
 formatter
 gRPC
+generativeai
 gevent
 graphql
 graphene
