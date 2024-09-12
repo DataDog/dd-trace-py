@@ -15,6 +15,9 @@ from ddtrace.llmobs.telemetry.constants import LLMOBS_TELEMETRY_METRIC_NAMESPACE
 
 
 def _get_span_tags(span: Span, selected_keys: Optional[List[str]] = None) -> Tuple[Tuple[str, str], ...]:
+    if span is None:
+        return ()
+
     all_tags = {
         "integration_name": lambda: span.get_tag("component"),
         "ml_app": lambda: _get_ml_app(span),
