@@ -3,8 +3,6 @@ Trace queries to aws api done via botocore client
 """
 import collections
 import os
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
