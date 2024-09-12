@@ -37,9 +37,8 @@ def get_kinesis_data_object(data: str) -> Tuple[Optional[str], Optional[Dict[str
     - json string
     - byte encoded json string
     - base64 encoded json string
-    If it's none of these, then we leave the message as it is.
+    If it's none of these, then we return None
     """
-
     # check if data is a json string
     try:
         return get_json_from_str(data)
