@@ -353,15 +353,14 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx):
     # type: (...) -> None
     """
     Tagging logic if function_call or tool_calls are provided in the chat response.
-    Note:
-        - since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
+    Note: since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
     """
     for idy, tool_call in enumerate(tool_calls):
         if hasattr(tool_call, "function"):
             # tool_call is further nested in a "function" object
             tool_call = tool_call.function
-        function_arguments = tool_call.get("arguments", "")
-        function_name = tool_call.get("name", "")
+        function_arguments = getattr(tool_call, "arguments", "")
+        function_name = getattr(tool_call, "name", "")
         span.set_tag_str(
             "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
             integration.trunc(str(function_arguments)),
