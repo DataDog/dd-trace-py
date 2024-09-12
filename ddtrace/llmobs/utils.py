@@ -4,6 +4,7 @@ from typing import Union
 
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic import RootModel
 
 
 # TypedDict was added to typing in python 3.8
@@ -24,11 +25,13 @@ Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": 
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
 
 
+class PromptVariables(RootModel):
+    root: Dict[str, Union[str, "PromptVariables"]]
+
+
 class Prompt(BaseModel):
     template: str = Field(default="", description="the raw template for the prompt")
-    variables: Dict[str, object] = Field(
-        default={}, description="the variables to be inserted into the prompt template"
-    )
+    variables: PromptVariables = Field(default={}, description="the variables to be inserted into the prompt template")
     id: str = Field(default="", description="a unique identifier for the prompt")
     version: str = Field(default="", description="the version of the prompt")
 

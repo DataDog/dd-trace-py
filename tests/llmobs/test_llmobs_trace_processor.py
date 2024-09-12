@@ -326,6 +326,10 @@ def test_output_value_is_set():
         assert tp._llmobs_span_event(llm_span)["meta"]["output"]["value"] == "value"
 
 
+def test_prompt_is_set():
+    """Test that prompt is set on the span event if they are present on the span."""
+
+
 def test_metadata_is_set():
     """Test that metadata is set on the span event if it is present on the span."""
     dummy_tracer = DummyTracer()
