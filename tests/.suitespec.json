@@ -629,6 +629,14 @@
             "@remoteconfig",
             "tests/appsec/iast/*"
         ],
+        "appsec_iast_native": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "@remoteconfig"
+        ],
         "appsec_iast_memcheck": [
             "@bootstrap",
             "@core",
