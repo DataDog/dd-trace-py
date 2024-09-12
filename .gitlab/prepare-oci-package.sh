@@ -39,7 +39,14 @@ echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 cp ../lib-injection/sources/* sources/
 
-if ! type python3 &> /dev/null; then
-  clean-apt install python3
+if ! type rdfind &> /dev/null; then
+  clean-apt install rdfind
+fi
 echo "Deduplicating package files"
-python3 ../lib-injection/dedupe.py sources/ddtrace_pkgs/
+cd ./sources
+rdfind -makesymlinks true -makeresultsfile true -checksum sha256 -deterministic true -outputname deduped.txt .
+echo "Converting symlinks to relative paths"
+find . -type l | while read -r l; do
+  target="$(realpath "$l")"
+  ln -fs "$(realpath --relative-to="$(dirname "$(realpath -s "$l")")" "$target")" "$l"
+done
