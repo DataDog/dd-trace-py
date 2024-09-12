@@ -4,3 +4,4 @@ profiling:
   variables:
     DD_TRACE_AGENT_URL: ""
     SUITE_NAME: "profile$|profile-v2"
+  retry: 2

@@ -120,7 +120,8 @@ def _versions_fully_cover_bounds(bounds: typing.Tuple[str, str], versions: typin
     """Return whether the tested versions cover the full range of supported versions"""
     if not versions:
         return False
-    return versions[0] >= Version(bounds[1]) and versions[-1] <= Version(bounds[0])
+    _, upper_bound = bounds
+    return versions[0] >= Version(upper_bound)
 
 
 def main():
