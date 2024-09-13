@@ -50,14 +50,14 @@ class TestAsyncioLockCollector:
             except Exception as e:
                 print("Error while deleting file: ", e)
 
-    async def test_asyncio_lock_events(self):
+    async def test_asyncio_lock_events(self, tracer):
         with collector_asyncio.AsyncioLockCollector(None, capture_pct=100, export_libdd_enabled=True):
             lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_events
             await lock.acquire()  # !ACQUIRE! test_asyncio_lock_events
             assert lock.locked()
             lock.release()  # !RELEASE! test_asyncio_lock_events
 
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos = get_lock_linenos("test_asyncio_lock_events")
         profile = pprof_utils.parse_profile(self.output_filename)
@@ -101,7 +101,7 @@ class TestAsyncioLockCollector:
             lock_ctx = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_3
             async with lock_ctx:  # !ACQUIRE! !RELEASE! test_asyncio_lock_events_tracer_3
                 pass
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos_1 = get_lock_linenos("test_asyncio_lock_events_tracer_1")
         linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")

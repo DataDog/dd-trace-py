@@ -12,6 +12,7 @@ from .._types import StringType
 from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 
@@ -62,7 +63,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
-    void ddup_push_trace_endpoint(Sample *sample, uint64_t local_root_span_id, string_view trace_endpoint)
+    void ddup_push_trace_endpoint(int64_t local_root_span_id, string_view trace_endpoint, int64_t count)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
@@ -169,9 +170,23 @@ def start() -> None:
     ddup_start()
 
 
-def upload() -> None:
+def upload(processsor: EndpointCallCounterProcessor) -> None:
     runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
+
+    counts, local_roots = processsor.reset()
+    if counts:
+        for resource, cnt in counts.items():
+            resource_bytes = ensure_binary_or_empty(resource)
+            local_root = local_roots.get(resource, None)
+            cnt = clamp_to_int64_unsigned(cnt)
+            if local_root:
+                ddup_push_trace_endpoint(
+                    clamp_to_uint64_unsigned(local_root),
+                    string_view(<const char*>resource_bytes, len(resource_bytes)),
+                    cnt
+                )
+
     with nogil:
         ddup_upload()
 
@@ -284,14 +299,7 @@ cdef class SampleHandle:
         if span._local_root.span_type:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
-        # Do not export resource for non Web spans for privacy concerns
-        if endpoint_collection_enabled and span._local_root.span_type == ext.SpanTypes.WEB and span._local_root.span_id and span._local_root.resource:
-            root_resource_bytes = ensure_binary_or_empty(span._local_root.resource)
-            ddup_push_trace_endpoint(
-                    self.ptr,
-                    clamp_to_uint64_unsigned(span._local_root.span_id),
-                    string_view(<const char*>root_resource_bytes, len(root_resource_bytes))
-            )
+
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:

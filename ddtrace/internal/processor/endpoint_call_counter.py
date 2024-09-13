@@ -18,6 +18,7 @@ class EndpointCallCounterProcessor(SpanProcessor):
     _endpoint_counts_lock: typing.ContextManager = field(
         default_factory=forksafe.Lock, init=False, repr=False, compare=False
     )
+    endpoint_to_local_root: typing.Dict[str, int] = field(default_factory=dict, init=False, repr=False, compare=False)
     _enabled: bool = field(default=False, repr=False, compare=False)
 
     def enable(self):
@@ -34,12 +35,16 @@ class EndpointCallCounterProcessor(SpanProcessor):
             return
         if span._local_root == span and span.span_type == SpanTypes.WEB:
             resource = ensure_text(span.resource, errors="backslashreplace")
+            local_root_span_id = span._local_root.span_id
             with self._endpoint_counts_lock:
                 self.endpoint_counts[resource] = self.endpoint_counts.get(resource, 0) + 1
+                self.endpoint_to_local_root[resource] = local_root_span_id
 
     def reset(self):
-        # type: () -> EndpointCountsType
+        # type: () -> typing.Tuple[EndpointCountsType, typing.Dict[str, int]]
         with self._endpoint_counts_lock:
             counts = self.endpoint_counts
             self.endpoint_counts = {}
-            return counts
+            local_roots = self.endpoint_to_local_root
+            self.endpoint_to_local_root = {}
+            return counts, local_roots
