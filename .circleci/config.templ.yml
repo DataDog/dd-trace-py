@@ -540,30 +540,6 @@ jobs:
       - run_test:
           pattern: "datastreams"
 
-  ci_visibility:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "ci_visibility"
-          snapshot: true
-
-  dd_coverage:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_hatch_env_test:
-          env: 'dd_coverage'
-          snapshot: true
-
-  pytest_v2:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_hatch_env_test:
-          env: 'pytest_plugin_v2'
-          snapshot: true
-
   opentelemetry:
     parallelism: 4
     <<: *machine_executor
@@ -684,14 +660,6 @@ jobs:
       - run_test:
           wait: mysql
           pattern: 'pymysql$'
-
-  pytest:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          pattern: 'pytest'
-          snapshot: true
 
   mongoengine:
     <<: *machine_executor

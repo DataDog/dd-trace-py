@@ -42,6 +42,7 @@ log = get_logger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class TestVisibilitySessionSettings:
+    __test__ = False
     tracer: Tracer
     test_service: str
     test_command: str
@@ -103,6 +104,7 @@ def _require_span(func):
 
 
 class TestVisibilityItemBase(abc.ABC):
+    __test__ = False
     _event_type = "unset_event_type"
     _event_type_metric_name = EVENT_TYPES.UNSET
 

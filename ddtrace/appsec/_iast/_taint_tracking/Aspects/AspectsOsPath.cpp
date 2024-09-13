@@ -125,7 +125,7 @@ api_ospathbasename_aspect(const StrType& path)
         apply_list.append(filler_str);
         apply_list.append(result_o);
 
-        set_ranges_on_splitted(path, ranges, apply_list, tx_map, false);
+        set_ranges_on_splitted(path, ranges, apply_list, tx_map, true);
         return apply_list[1];
     });
 }
