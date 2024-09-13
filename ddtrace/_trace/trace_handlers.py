@@ -691,7 +691,12 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
 
 
-def _after_perform_job(ctx, job):
+def _on_rq_queue_enqueue_job_is_async(ctx, job):
+    span = ctx[ctx["call_key"]]
+    HTTPPropagator.inject(span.context, job.meta)
+
+
+def _on_rq_after_perform_job(ctx, job):
     """sets job.status and job.origin span tags after job is performed"""
     # get_status() returns None when ttl=0
     span = ctx[ctx["call_key"]]
@@ -699,6 +704,13 @@ def _after_perform_job(ctx, job):
     span.set_tag_str("job.origin", job.origin)
     if job.is_failed:
         span.error = 1
+
+
+def _on_rq_end_of_traced_method_in_fork(ctx, job):
+    """Force flush to agent since the process `os.exit()`s
+    immediately after this method returnsf
+    """
+    ctx["pin"].tracer.flush()
 
 
 def _on_botocore_bedrock_process_response(
@@ -840,7 +852,9 @@ def listen():
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
     core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
-    core.on("rq.worker.perform_job", _after_perform_job)
+    core.on("rq.worker.perform_job", _on_rq_after_perform_job)
+    core.on("rq.worker.after.perform.job", _on_rq_end_of_traced_method_in_fork)
+    core.on("rq.queue.enqueue_job", _on_rq_queue_enqueue_job_is_async)
 
     for context_name in (
         "flask.call",

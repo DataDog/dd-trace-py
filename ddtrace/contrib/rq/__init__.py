@@ -156,7 +156,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     ) as ctx, ctx[ctx["call_key"]] as span:
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async and config.rq.distributed_tracing_enabled:
-            HTTPPropagator.inject(span.context, job.meta)
+            core.dispatch("rq.queue.enqueue_job", [ctx, job])
         return func(*args, **kwargs)
 
 
@@ -204,7 +204,9 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
-        ctx["pin"].tracer.flush()
+
+        core.context_with_data("rq.worker.after.perform.job")
+        core.dispatch("rq.worker.after.perform.job", [ctx, job])
 
 
 @trace_utils.with_traced_module
