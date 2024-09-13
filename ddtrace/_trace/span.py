@@ -14,8 +14,8 @@ from typing import Union
 from typing import cast
 
 from ddtrace import config
-from ddtrace._trace._span_link import _SPAN_LINK_KIND_SPAN_POINTER
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_link import _SpanPointer
 from ddtrace._trace._span_link import _SpanPointerDirection
 from ddtrace._trace.context import Context
@@ -653,7 +653,7 @@ class Span(object):
         )
 
     def _set_link_or_append_pointer(self, link: Union[SpanLink, _SpanPointer]) -> None:
-        if link.kind == _SPAN_LINK_KIND_SPAN_POINTER:
+        if link.kind == SpanLinkKind.SPAN_POINTER.value:
             self._links.append(link)
             return
 

@@ -37,6 +37,14 @@ from ddtrace.internal.utils.formats import flatten_key_value
 log = get_logger(__name__)
 
 
+class SpanLinkKind(Enum):
+    """
+    A collection of standard SpanLink kinds. It's possible to use others, but these should be used when possible.
+    """
+
+    SPAN_POINTER = "span-pointer"  # Should not be used on normal SpanLinks.
+
+
 def _id_not_zero(self, attribute_name, value):
     if not value > 0:
         raise ValueError(f"{attribute_name} must be > 0. Value is {value}")
@@ -129,7 +137,6 @@ class SpanLink:
 # Span Pointers are currently private, so let's put them here for now
 
 
-_SPAN_LINK_KIND_SPAN_POINTER = "span-pointer"
 _SPAN_POINTER_SPAN_LINK_TRACE_ID = 0
 _SPAN_POINTER_SPAN_LINK_SPAN_ID = 0
 
@@ -158,7 +165,7 @@ class _SpanPointer(SpanLink):
             },
         )
 
-        self.kind = _SPAN_LINK_KIND_SPAN_POINTER
+        self.kind = SpanLinkKind.SPAN_POINTER.value
 
     def __post_init__(self):
         # Do not want to do the trace_id and span_id checks that SpanLink does.
