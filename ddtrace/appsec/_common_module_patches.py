@@ -7,6 +7,7 @@ import os
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Iterable
 
 import ddtrace
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -38,6 +39,10 @@ def patch_common_modules():
 def unpatch_common_modules():
     try_unwrap("builtins", "open")
     try_unwrap("urllib.request", "OpenerDirector.open")
+
+
+def _must_block(actions: Iterable[str]) -> bool:
+    return any(action in (WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION) for action in actions)
 
 
 def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs):
@@ -75,7 +80,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
                 crop_trace="wrapped_open_CFDDB7ABBA9081B6",
                 rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
             )
-            if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+            if res and _must_block(res.actions):
                 raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "lfi", filename)
     try:
         return original_open_callable(*args, **kwargs)
@@ -119,7 +124,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                     crop_trace="wrapped_open_ED4CF71136E15EBF",
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
-                if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+                if res and _must_block(res.actions):
                     raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
     return original_open_callable(*args, **kwargs)
 
@@ -157,7 +162,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                     crop_trace="wrapped_request_D8CB81E472AF98A2",
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
-                if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+                if res and _must_block(res.actions):
                     raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
 
     return original_request_callable(*args, **kwargs)
@@ -193,7 +198,7 @@ def wrapped_system_5542593D237084A7(original_command_callable, instance, args, k
                     crop_trace="wrapped_system_5542593D237084A7",
                     rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
                 )
-                if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+                if res and _must_block(res.actions):
                     raise BlockingException(
                         core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "cmdi", command
                     )
@@ -249,7 +254,7 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
                     crop_trace="execute_4C9BAC8E228EB347",
                     rule_type=EXPLOIT_PREVENTION.TYPE.SQLI,
                 )
-                if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+                if res and _must_block(res.actions):
                     raise BlockingException(
                         core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "sqli", query
                     )
