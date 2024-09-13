@@ -180,9 +180,7 @@ def _get_default_ci_env_vars(new_vars: t.Optional[t.Dict[str, str]] = None, mock
 
 
 @contextmanager
-def _ci_override_env(
-    new_vars: t.Optional[t.Dict[str, str]] = None, inherit_os=False, mock_ci_env=False, replace_os_env=True
-):
-    env_vars = _get_default_ci_env_vars(new_vars, inherit_os, mock_ci_env)
+def _ci_override_env(new_vars: t.Optional[t.Dict[str, str]] = None, mock_ci_env=False, replace_os_env=True):
+    env_vars = _get_default_ci_env_vars(new_vars, mock_ci_env)
     with override_env(env_vars, replace_os_env=replace_os_env), mock.patch("ddtrace.tracer", ddtrace.Tracer()):
         yield
