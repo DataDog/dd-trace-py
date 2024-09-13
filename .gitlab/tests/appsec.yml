@@ -52,6 +52,14 @@ appsec threats fastapi:
     SUITE_NAME: "appsec_threats_fastapi"
   retry: 2
 
+appsec aggregated leak testing:
+  extends: .test_base_hatch
+  parallel: 6
+  variables:
+    SUITE_NAME: "appsec_aggregated_leak_testing"
+  retry: 2
+  timeout: 25m
+
 appsec iast native:
   extends: .test_base_hatch
   parallel: 6
