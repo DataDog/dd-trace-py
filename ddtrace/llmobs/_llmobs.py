@@ -56,6 +56,7 @@ from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
 
+
 SUPPORTED_LLMOBS_INTEGRATIONS = {
     "anthropic": "anthropic",
     "bedrock": "botocore",
