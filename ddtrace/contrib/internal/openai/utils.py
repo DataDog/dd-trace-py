@@ -283,6 +283,8 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
             _construct_tool_call_from_streamed_chunk(message["tool_calls"], tool_call_chunk=tool_call)
     if message["tool_calls"]:
         message["tool_calls"].sort(key=lambda x: x.get("index", 0))
+    else:
+        message.pop("tool_calls", None)
     message["content"] = message["content"].strip()
     return message
 
