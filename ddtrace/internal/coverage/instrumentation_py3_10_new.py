@@ -41,7 +41,6 @@ ABSOLUTE_JUMPS = set(dis.hasjabs)
 BACKWARD_JUMPS = set(op for op in dis.hasjrel if "BACKWARD" in dis.opname[op])
 FORWARD_JUMPS = set(op for op in dis.hasjrel if "BACKWARD" not in dis.opname[op])
 
-
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     extended_arg = 0
     old_code = code.co_code
@@ -110,8 +109,10 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     def trap_call():
         append_instruction_ext(LOAD_CONST, trap_index)
         append_instruction_ext(LOAD_CONST, len(new_consts))
-        append_instruction(CALL, 1)
-        append_instruction(POP_TOP, 0)
+        new_code.append(CALL)
+        new_code.append(1)
+        new_code.append(POP_TOP)
+        new_code.append(0)
 
 
     for old_offset in range(0, len(old_code), 2):
@@ -133,13 +134,23 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 
             seen_lines.add(line)
 
-            trap_call()
+            #trap_call()
+            append_instruction_ext(LOAD_CONST, trap_index)
+            append_instruction_ext(LOAD_CONST, len(new_consts))
+            new_code.append(CALL)
+            new_code.append(1)
+            new_code.append(POP_TOP)
+            new_code.append(0)
+
             # Make sure that the current module is marked as depending on its own package by instrumenting the
             # first executable line
             package_dep = None
             if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
                 package_dep = (package, ("",))
-            new_consts.append((line, path, package_dep))
+
+            new_consts.append(
+                (line, path, package_dep)
+            )
 
 
         if op == EXTENDED_ARG:

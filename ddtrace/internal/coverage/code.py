@@ -358,12 +358,12 @@ class ModuleCodeCollector(ModuleWatchdog):
 
     def instrument_code(self, code: CodeType, package) -> CodeType:
         # Avoid instrumenting the same code object multiple times
-        if (code, code.co_filename) in self.seen:
+        if (id(code), code.co_filename) in self.seen:
             return code
-        self.seen.add((code, code.co_filename))
+        self.seen.add((id(code), code.co_filename))
 
         new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, package)
-        self.seen.add((new_code, code.co_filename))
+        self.seen.add((id(new_code), code.co_filename))
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
         self.lines[code.co_filename].update(lines)
