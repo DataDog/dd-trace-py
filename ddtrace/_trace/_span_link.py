@@ -161,18 +161,5 @@ class _SpanPointer(SpanLink):
         self.kind = _SPAN_LINK_KIND_SPAN_POINTER
 
     def __post_init__(self):
-        if self.trace_id != _SPAN_POINTER_SPAN_LINK_TRACE_ID:
-            log.warning(
-                "span pointer trace_id must be %d, found %d",
-                _SPAN_POINTER_SPAN_LINK_TRACE_ID,
-                self.trace_id,
-            )
-            self.trace_id = _SPAN_POINTER_SPAN_LINK_TRACE_ID
-
-        if self.span_id != _SPAN_POINTER_SPAN_LINK_SPAN_ID:
-            log.warning(
-                "span pointer span_id must be %d, found %d",
-                _SPAN_POINTER_SPAN_LINK_SPAN_ID,
-                self.span_id,
-            )
-            self.span_id = _SPAN_POINTER_SPAN_LINK_SPAN_ID
+        # Do not want to do the trace_id and span_id checks that SpanLink does.
+        pass
