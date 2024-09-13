@@ -48,7 +48,6 @@ from ddtrace.llmobs._utils import _unserializable_default_repr
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import AnnotationContext
-from ddtrace.llmobs.utils import AnnotationContextAsync
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
@@ -239,18 +238,6 @@ class LLMObs(Service):
                      regarding the span's context.
         """
         return AnnotationContext(cls._instance.tracer, lambda span: cls.annotate(span, tags=tags))
-
-    @classmethod
-    def annotation_context_async(cls, tags: Optional[Dict[str, Any]] = None) -> AnnotationContextAsync:
-        """
-        Sets specified attributes on all LLMObs spans created while the returned AnnotationContextAsync is active.
-        Do not use nested annotation contexts to override the same tags since the order in which annotations
-        are applied is non-deterministic.
-
-        :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
-                     regarding the span's context.
-        """
-        return AnnotationContextAsync(cls._instance.tracer, lambda span: cls.annotate(span, tags=tags))
 
     @classmethod
     def flush(cls) -> None:
