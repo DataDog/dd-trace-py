@@ -9,6 +9,7 @@ from typing import List
 import wrapt
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._utils import _get_attr
 
 
 try:
@@ -28,10 +29,9 @@ class BaseTracedOpenAIStream(wrapt.ObjectProxy):
     def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
         super().__init__(wrapped)
         n = kwargs.get("n", 1) or 1
-        if is_completion:
-            prompts = kwargs.get("prompt", "")
-            if isinstance(prompts, list) and not isinstance(prompts[0], int):
-                n *= len(prompts)
+        prompts = kwargs.get("prompt", "")
+        if is_completion and prompts and isinstance(prompts, list) and not isinstance(prompts[0], int):
+            n *= len(prompts)
         self._dd_span = span
         self._streamed_chunks = [[] for _ in range(n)]
         self._dd_integration = integration
@@ -112,7 +112,7 @@ def _compute_token_count(content, model):
             enc = encoding_for_model(model)
             if isinstance(content, str):
                 num_prompt_tokens += len(enc.encode(content))
-            elif isinstance(content, list) and isinstance(content[0], int):
+            elif content and isinstance(content, list) and isinstance(content[0], int):
                 num_prompt_tokens += len(content)
             return estimated, num_prompt_tokens
         except KeyError:
@@ -137,6 +137,8 @@ def _est_tokens(prompt):
     #    * English text
     #    * 1 token ~= 4 chars
     #    * 1 token ~= ¾ words
+    if not prompt:
+        return 0
     est_tokens = 0
     if isinstance(prompt, str):
         est1 = len(prompt) / 4
@@ -216,6 +218,8 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
 
 def _construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
     """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
+    if not streamed_chunks:
+        return {"text": ""}
     completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
     if streamed_chunks[-1].finish_reason is not None:
         completion["finish_reason"] = streamed_chunks[-1].finish_reason
@@ -296,7 +300,7 @@ def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
-    if response and isinstance(response, list) and response[0].get("usage") is not None:
+    if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
         prompt_tokens = getattr(usage, "prompt_tokens", 0)
         completion_tokens = getattr(usage, "completion_tokens", 0)
@@ -323,11 +327,11 @@ def _compute_prompt_tokens(model_name, prompts=None, messages=None):
     """
     num_prompt_tokens = 0
     estimated = False
-    if messages is not None:
+    if messages:
         for m in messages:
             estimated, prompt_tokens = _compute_token_count(m.get("content", ""), model_name)
             num_prompt_tokens += prompt_tokens
-    elif prompts is not None:
+    elif prompts:
         if isinstance(prompts, str) or isinstance(prompts, list) and isinstance(prompts[0], int):
             prompts = [prompts]
         for prompt in prompts:
