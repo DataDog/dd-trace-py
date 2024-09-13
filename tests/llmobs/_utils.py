@@ -173,7 +173,13 @@ def _expected_llmobs_non_llm_span_event(
 
 
 def _llmobs_base_span_event(
-    span, span_kind, tags=None, session_id=None, error=None, error_message=None, error_stack=None,
+    span,
+    span_kind,
+    tags=None,
+    session_id=None,
+    error=None,
+    error_message=None,
+    error_stack=None,
 ):
     span_event = {
         "trace_id": "{:x}".format(span.trace_id),
