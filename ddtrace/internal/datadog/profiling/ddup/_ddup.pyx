@@ -6,7 +6,6 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace import ext
 import platform
 from .._types import StringType
 from ..util import ensure_binary_or_empty
@@ -299,7 +298,6 @@ cdef class SampleHandle:
         if span._local_root.span_type:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
-
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
