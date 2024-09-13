@@ -66,14 +66,28 @@ class _SpanPointer(SpanLink):
         pass
 
 
-def _standard_hashing_function(*elements: bytes) -> str:
+class _StandardHashingRules:
+    # This is a bit of a strange class. Its instances behave like simple
+    # function. This allows us to do the hex_digits calculation once. It also
+    # allows us to write tests for the chosen base_hashing_function instead of
+    # having to add runtime sanity checks. This class should be instantiated
+    # only once, internally, and the result stored as a the
+    # _standard_hashing_function "function" below.
+
     separator = b"|"
     bits_per_hex_digit = 4
     desired_bits = 128
     hex_digits = desired_bits // bits_per_hex_digit
 
-    hex_digest = sha256(separator.join(elements)).hexdigest()
-    if len(hex_digest) < hex_digits:
-        raise Exception(f"the hash is smaller than required: {len(hex_digest)} < {hex_digits}")
+    # We need to call it a staticmethod to keep python from adding a `self`
+    # argument to the function call.
+    base_hashing_function = staticmethod(sha256)
 
-    return hex_digest[:hex_digits]
+    def __call__(self, *elements: bytes) -> str:
+        if not elements:
+            raise ValueError("elements must not be empty")
+
+        return self.base_hashing_function(self.separator.join(elements)).hexdigest()[: self.hex_digits]
+
+
+_standard_hashing_function = _StandardHashingRules()
