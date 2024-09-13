@@ -11,7 +11,7 @@ from wrapt import ObjectProxy
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
@@ -148,7 +148,7 @@ def _datadog_trace_operation(operation, wrapped):
     # set analytics sample rate
     sample_rate = config.pymongo.get_analytics_sample_rate()
     if sample_rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
     return span
 
 
@@ -272,7 +272,7 @@ def _trace_cmd(cmd, socket_instance, address):
     _set_query_metadata(s, cmd)
 
     # set analytics sample rate
-    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.pymongo.get_analytics_sample_rate())
+    s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.pymongo.get_analytics_sample_rate())
 
     if address:
         set_address_tags(s, address)
