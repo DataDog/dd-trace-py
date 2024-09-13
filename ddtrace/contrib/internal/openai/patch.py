@@ -205,8 +205,8 @@ def _patched_make_session(func, args, kwargs):
     return session
 
 
-def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs, is_async=False):
-    span = integration.trace(pin, endpoint_hook.OPERATION_ID, is_async=is_async)
+def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
+    span = integration.trace(pin, endpoint_hook.OPERATION_ID)
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
     if openai_api_key:
@@ -250,7 +250,7 @@ def _patched_endpoint(openai, integration, patch_hook):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        g = _traced_endpoint(patch_hook, integration, pin, args, kwargs, is_async=False)
+        g = _traced_endpoint(patch_hook, integration, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
         try:
@@ -282,7 +282,7 @@ def _patched_endpoint_async(openai, integration, patch_hook):
         pin = Pin._find(openai, args[0])
         if not pin or not pin.enabled():
             return await func(*args, **kwargs)
-        g = _traced_endpoint(patch_hook, integration, pin, args, kwargs, is_async=True)
+        g = _traced_endpoint(patch_hook, integration, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
         try:
