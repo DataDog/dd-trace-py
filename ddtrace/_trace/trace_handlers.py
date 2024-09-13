@@ -691,6 +691,16 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
 
 
+def _after_perform_job(ctx, job):
+    """sets job.status and job.origin span tags after job is performed"""
+    # get_status() returns None when ttl=0
+    span = ctx[ctx["call_key"]]
+    span.set_tag_str("job.status", job.get_status() or "None")
+    span.set_tag_str("job.origin", job.origin)
+    if job.is_failed:
+        span.error = 1
+
+
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: Dict[str, Any],
@@ -830,6 +840,7 @@ def listen():
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
     core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
+    core.on("rq.worker.perform_job", _after_perform_job)
 
     for context_name in (
         "flask.call",
