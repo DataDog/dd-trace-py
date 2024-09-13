@@ -85,11 +85,12 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
     def run(self, spans: List[LLMObsSpanContext]) -> List[EvaluationMetric]:
         def score_and_return_evaluation(span) -> Optional[EvaluationMetric]:
             try:
-                score, exported_ragas_span = score_faithfulness(
+                score, faithfulness_list, exported_ragas_span = score_faithfulness(
                     span, llmobs_instance=self.llmobs_instance, shutdown_event=self.shutdown_event
                 )
                 if math.isnan(score):
                     return None
+
                 return EvaluationMetric(
                     label="ragas.faithfulness",
                     span_id=span.span_id,
