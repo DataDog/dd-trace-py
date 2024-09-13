@@ -232,6 +232,8 @@ class LLMObs(Service):
     def annotation_context(cls, tags: Optional[Dict[str, Any]] = None) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
+        Do not use nested annotation contexts to override the same tags since the order in which annotations
+        are applied is non-deterministic.
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
@@ -242,6 +244,8 @@ class LLMObs(Service):
     def annotation_context_async(cls, tags: Optional[Dict[str, Any]] = None) -> AnnotationContextAsync:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContextAsync is active.
+        Do not use nested annotation contexts to override the same tags since the order in which annotations
+        are applied is non-deterministic.
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.

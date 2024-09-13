@@ -1521,9 +1521,9 @@ def test_annotation_context_finished_context_does_not_modify_spans(LLMObs):
 
 def test_annotation_context_nested(LLMObs):
     with LLMObs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
-        with LLMObs.annotation_context(tags={"foo": "baz"}):
+        with LLMObs.annotation_context(tags={"car": "car"}):
             with LLMObs.agent(name="test_agent") as span:
-                assert json.loads(span.get_tag(TAGS)) == {"foo": "baz", "boo": "bar"}
+                assert json.loads(span.get_tag(TAGS)) == {"foo": "bar", "boo": "bar", "car": "car"}
 
 
 async def test_annotation_context_async_modifies_span_tags(LLMObs):
@@ -1541,6 +1541,6 @@ async def test_annotation_context_async_finished_context_does_not_modify_spans(L
 
 async def test_annotation_context_async_nested(LLMObs):
     async with LLMObs.annotation_context_async(tags={"foo": "bar", "boo": "bar"}):
-        async with LLMObs.annotation_context_async(tags={"foo": "baz"}):
+        async with LLMObs.annotation_context_async(tags={"car": "car"}):
             with LLMObs.agent(name="test_agent") as span:
-                assert json.loads(span.get_tag(TAGS)) == {"foo": "baz", "boo": "bar"}
+                assert json.loads(span.get_tag(TAGS)) == {"foo": "bar", "boo": "bar", "car": "car"}
