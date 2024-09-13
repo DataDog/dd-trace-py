@@ -357,6 +357,8 @@ class TestLLMObsOpenaiV1:
     def test_completion_azure(
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
+        prompt = "why do some languages have words that can't directly be translated to other languages?"
+        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -365,12 +367,7 @@ class TestLLMObsOpenaiV1:
                 api_key=azure_openai_config["api_key"],
             )
             resp = azure_client.completions.create(
-                model="gpt-35-turbo",
-                prompt="why do some languages have words that can't directly be translated to other languages?",
-                temperature=0,
-                n=1,
-                max_tokens=20,
-                user="ddtrace-test",
+                model="gpt-35-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -379,16 +376,8 @@ class TestLLMObsOpenaiV1:
                 span,
                 model_name=resp.model,
                 model_provider="openai",
-                input_messages=[
-                    {
-                        "content": "why do some languages have words that can't directly be translated to other languages?"
-                    }
-                ],
-                output_messages=[
-                    {
-                        "content": '". The answer is that languages are not just a collection of words, but also a collection of cultural'
-                    }
-                ],
+                input_messages=[{"content": prompt}],
+                output_messages=[{"content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
                 tags={"ml_app": "<ml-app-name>"},
@@ -398,6 +387,8 @@ class TestLLMObsOpenaiV1:
     async def test_completion_azure_async(
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
+        prompt = "why do some languages have words that can't directly be translated to other languages?"
+        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AsyncAzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -406,12 +397,7 @@ class TestLLMObsOpenaiV1:
                 api_key=azure_openai_config["api_key"],
             )
             resp = await azure_client.completions.create(
-                model="gpt-35-turbo",
-                prompt="why do some languages have words that can't directly be translated to other languages?",
-                temperature=0,
-                n=1,
-                max_tokens=20,
-                user="ddtrace-test",
+                model="gpt-35-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -420,16 +406,8 @@ class TestLLMObsOpenaiV1:
                 span,
                 model_name=resp.model,
                 model_provider="openai",
-                input_messages=[
-                    {
-                        "content": "why do some languages have words that can't directly be translated to other languages?"
-                    }
-                ],
-                output_messages=[
-                    {
-                        "content": '". The answer is that languages are not just a collection of words, but also a collection of cultural'
-                    }
-                ],
+                input_messages=[{"content": prompt}],
+                output_messages=[{"content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
                 tags={"ml_app": "<ml-app-name>"},
@@ -498,6 +476,8 @@ class TestLLMObsOpenaiV1:
     def test_chat_completion_azure(
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
+        input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
+        expected_output = "I'm sorry, as an AI language model, I do not have real-time information. Please check"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_chat_completion.yaml"):
             azure_client = openai.AzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -506,12 +486,7 @@ class TestLLMObsOpenaiV1:
                 api_key=azure_openai_config["api_key"],
             )
             resp = azure_client.chat.completions.create(
-                model="gpt-35-turbo",
-                messages=[{"role": "user", "content": "What's the weather like in NYC right now?"}],
-                temperature=0,
-                n=1,
-                max_tokens=20,
-                user="ddtrace-test",
+                model="gpt-35-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -520,13 +495,8 @@ class TestLLMObsOpenaiV1:
                 span,
                 model_name=resp.model,
                 model_provider="openai",
-                input_messages=[{"role": "user", "content": "What's the weather like in NYC right now?"}],
-                output_messages=[
-                    {
-                        "role": "assistant",
-                        "content": "I'm sorry, as an AI language model, I do not have real-time information. Please check",
-                    }
-                ],
+                input_messages=input_messages,
+                output_messages=[{"role": "assistant", "content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
                 tags={"ml_app": "<ml-app-name>"},
@@ -536,6 +506,8 @@ class TestLLMObsOpenaiV1:
     async def test_chat_completion_azure_async(
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
+        input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
+        expected_output = "I'm sorry, as an AI language model, I do not have real-time information. Please check"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_chat_completion.yaml"):
             azure_client = openai.AsyncAzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -544,12 +516,7 @@ class TestLLMObsOpenaiV1:
                 api_key=azure_openai_config["api_key"],
             )
             resp = await azure_client.chat.completions.create(
-                model="gpt-35-turbo",
-                messages=[{"role": "user", "content": "What's the weather like in NYC right now?"}],
-                temperature=0,
-                n=1,
-                max_tokens=20,
-                user="ddtrace-test",
+                model="gpt-35-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -558,13 +525,8 @@ class TestLLMObsOpenaiV1:
                 span,
                 model_name=resp.model,
                 model_provider="openai",
-                input_messages=[{"role": "user", "content": "What's the weather like in NYC right now?"}],
-                output_messages=[
-                    {
-                        "role": "assistant",
-                        "content": "I'm sorry, as an AI language model, I do not have real-time information. Please check",
-                    }
-                ],
+                input_messages=input_messages,
+                output_messages=[{"role": "assistant", "content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
                 tags={"ml_app": "<ml-app-name>"},
