@@ -6,6 +6,7 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
+from ddtrace import ext
 import platform
 from .._types import StringType
 from ..util import ensure_binary_or_empty
@@ -61,7 +62,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
-    void ddup_push_trace_endpoint(Sample *sample, string_view trace_endpoint)
+    void ddup_push_trace_endpoint(Sample *sample, uint64_t local_root_span_id, string_view trace_endpoint)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
@@ -283,12 +284,14 @@ cdef class SampleHandle:
         if span._local_root.span_type:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
-        if endpoint_collection_enabled:
-            root_resource_bytes = ensure_binary_or_empty(span._local_root.resource)
-            ddup_push_trace_endpoint(
-                    self.ptr,
-                    string_view(<const char*>root_resource_bytes, len(root_resource_bytes))
-            )
+            # Do not export resource for non Web spans for privacy concerns
+            if endpoint_collection_enabled and span._local_root.span_type == ext.SpanTypes.WEB:
+                root_resource_bytes = ensure_binary_or_empty(span._local_root.resource)
+                ddup_push_trace_endpoint(
+                        self.ptr,
+                        clamp_to_uint64_unsigned(span._local_root.span_id),
+                        string_view(<const char*>root_resource_bytes, len(root_resource_bytes))
+                )
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
