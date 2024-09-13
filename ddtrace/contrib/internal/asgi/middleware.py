@@ -8,7 +8,7 @@ from urllib import parse
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.span import Span
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -168,7 +168,7 @@ class TraceMiddleware:
 
             sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
             if sample_rate is not None:
-                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+                span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
             host_header = None
             for key, value in _extract_headers(scope).items():

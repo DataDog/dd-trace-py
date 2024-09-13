@@ -4,7 +4,7 @@ import grpc
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -204,7 +204,7 @@ class _ClientInterceptor(
 
         sample_rate = config.grpc.get_analytics_sample_rate()
         if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         # inject tags from pin
         if self._pin.tags:

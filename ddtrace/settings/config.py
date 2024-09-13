@@ -416,9 +416,18 @@ class Config(object):
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
+        self.analytics_enabled = asbool(
+            os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=os.getenv("DD_ANALYTICS_ENABLED", default=False))
+        )
+        if self.analytics_enabled:
+            deprecate(
+                "Datadog App Analytics is deprecated and will be removed in a future version. "
+                "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
+                "environment variables and ddtrace.config.analytics_enabled configuration. "
+                "These configurations will also be removed.",
+                category=DDTraceDeprecationWarning,
+            )
 
-        self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 

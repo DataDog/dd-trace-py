@@ -4,7 +4,6 @@ import mongoengine
 import pymongo
 
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mongoengine.patch import patch
 from ddtrace.contrib.mongoengine.patch import unpatch
 from ddtrace.ext import mongo as mongox
@@ -169,35 +168,6 @@ class MongoEngineCore(object):
         assert dd_cmd_span.span_type == "mongodb"
         assert dd_cmd_span.service == self.TEST_SERVICE
         _assert_timing(dd_cmd_span, start, end)
-
-    def test_analytics_default(self):
-        tracer = self.get_tracer_and_connect()
-        Artist.drop_collection()
-
-        spans = tracer.pop()
-        assert len(spans) == 2
-        assert spans[1].name == "pymongo.cmd"
-        assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-    def test_analytics_with_rate(self):
-        with TracerTestCase.override_config("pymongo", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            tracer = self.get_tracer_and_connect()
-            Artist.drop_collection()
-
-            spans = tracer.pop()
-            assert len(spans) == 2
-            assert spans[1].name == "pymongo.cmd"
-            assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
-
-    def test_analytics_without_rate(self):
-        with TracerTestCase.override_config("pymongo", dict(analytics_enabled=True)):
-            tracer = self.get_tracer_and_connect()
-            Artist.drop_collection()
-
-            spans = tracer.pop()
-            assert len(spans) == 2
-            assert spans[1].name == "pymongo.cmd"
-            assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
 
 class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):

@@ -98,7 +98,6 @@ def test_standard_tags():
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
     assert f.get("enabled_cli") is False
-    assert f.get("analytics_enabled") is False
     assert f.get("log_injection_enabled") is False
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
@@ -149,7 +148,6 @@ class TestGlobalConfig(SubprocessTestCase):
         env_overrides=dict(
             DD_AGENT_HOST="0.0.0.0",
             DD_TRACE_AGENT_PORT="4321",
-            DD_TRACE_ANALYTICS_ENABLED="true",
             DD_TRACE_HEALTH_METRICS_ENABLED="true",
             DD_LOGS_INJECTION="true",
             DD_ENV="prod",
@@ -161,7 +159,6 @@ class TestGlobalConfig(SubprocessTestCase):
     def test_env_config(self):
         f = debug.collect(ddtrace.tracer)
         assert f.get("agent_url") == "http://0.0.0.0:4321"
-        assert f.get("analytics_enabled") is True
         assert f.get("health_metrics_enabled") is True
         assert f.get("log_injection_enabled") is True
         assert f.get("env") == "prod"
