@@ -22,66 +22,65 @@ _VISITOR = AstVisitor()
 
 
 # Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
+IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast.",)
 IAST_DENYLIST: Tuple[Text, ...] = (
-    "flask",
-    "werkzeug",
-    "crypto",  # This module is patched by the IAST patch methods, propagation is not needed
-    "deprecated",
-    "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "api_pb2_grpc",  # ditto
-    "asyncpg.pgproto",
-    "blinker",
-    "bytecode",
-    "cattrs",
-    "click",
-    "ddsketch",
-    "ddtrace",
-    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
-    "encodings.idna",
-    "envier",
-    "exceptiongroup",
-    "freezegun",  # Testing utilities for time manipulation
-    "hypothesis",
-    "importlib_metadata",
-    "inspect",  # this package is used to get the stack frames, propagation is not needed
-    "itsdangerous",
-    "moto",  # used for mocking AWS, propagation is not needed
-    "moto[all]",
-    "moto[ec2]",
-    "moto[s3]",
-    "opentelemetry-api",
-    "packaging",
-    "pip",
-    "pkg_resources",
-    "pluggy",
-    "protobuf",
-    "pycparser",  # this package is called when a module is imported, propagation is not needed
-    "pytest",  # Testing framework
-    "setuptools",
-    "sklearn",  # Machine learning library
-    "sqlalchemy.orm.interfaces",  # Performance optimization
-    "tomli",
-    "typing_extensions",
-    "unittest.mock",
-    "uvloop",
-    "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
-    "wrapt",
-    "zipp",
+    "flask.",
+    "werkzeug.",
+    "crypto.",  # This module is patched by the IAST patch methods, propagation is not needed
+    "deprecated.",
+    "api_pb2.",  # Patching crashes with these auto-generated modules, propagation is not needed
+    "api_pb2_grpc.",  # ditto
+    "asyncpg.pgproto.",
+    "blinker.",
+    "bytecode.",
+    "cattrs.",
+    "click.",
+    "ddsketch.",
+    "ddtrace.",
+    "encodings.",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "envier.",
+    "exceptiongroup.",
+    "freezegun.",  # Testing utilities for time manipulation
+    "hypothesis.",
+    "importlib_metadata.",
+    "inspect.",  # this package is used to get the stack frames, propagation is not needed
+    "itsdangerous.",
+    "moto.",  # used for mocking AWS, propagation is not needed
+    "moto[all].",
+    "moto[ec2].",
+    "moto[s3].",
+    "opentelemetry-api.",
+    "packaging.",
+    "pip.",
+    "pkg_resources.",
+    "pluggy.",
+    "protobuf.",
+    "pycparser.",  # this package is called when a module is imported, propagation is not needed
+    "pytest.",  # Testing framework
+    "setuptools.",
+    "sklearn.",  # Machine learning library
+    "sqlalchemy.orm.interfaces.",  # Performance optimization
+    "tomli.",
+    "typing_extensions.",
+    "unittest.mock.",
+    "uvloop.",
+    "urlpatterns_reverse.tests.",  # assertRaises eat exceptions in native code, so we don't call the original function
+    "wrapt.",
+    "zipp.",
     ## This is a workaround for Sanic failures:
-    "websocket",
-    "h11",
-    "aioquic",
-    "httptools",
-    "sniffio",
-    "py",
-    "sanic",
-    "rich",
-    "httpx",
-    "websockets",
-    "uvicorn",
-    "anyio",
-    "httpcore",
+    "websocket.",
+    "h11.",
+    "aioquic.",
+    "httptools.",
+    "sniffio.",
+    "py.",
+    "sanic.",
+    "rich.",
+    "httpx.",
+    "websockets.",
+    "uvicorn.",
+    "anyio.",
+    "httpcore.",
 )
 
 
@@ -128,10 +127,11 @@ def _should_iast_patch(module_name: Text) -> bool:
     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
-    if module_name.lower().startswith(IAST_ALLOWLIST):
+    dotted_module_name = module_name.lower() + "."
+    if dotted_module_name.startswith(IAST_ALLOWLIST):
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
         return True
-    if module_name.lower().startswith(IAST_DENYLIST):
+    if dotted_module_name.startswith(IAST_DENYLIST):
         log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
         return False
     if _in_python_stdlib(module_name):
