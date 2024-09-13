@@ -52,9 +52,17 @@ appsec threats fastapi:
     SUITE_NAME: "appsec_threats_fastapi"
   retry: 2
 
+<<<<<<< juanjux/better-leak-script-and-testing
 appsec aggregated leak testing:
   extends: .test_base_hatch
   parallel: 6
   variables:
     SUITE_NAME: "appsec_aggregated_leak_testing"
+=======
+appsec iast native:
+  extends: .test_base_hatch
+  parallel: 6
+  variables:
+    SUITE_NAME: "appsec_iast_native"
+>>>>>>> main
   retry: 2
