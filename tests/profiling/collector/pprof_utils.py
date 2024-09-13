@@ -43,7 +43,7 @@ class LockEvent:
         linenos: LineNo,
         lock_name: typing.Union[str, None] = None,
         span_id=None,
-        trace_resource=None,
+        trace_endpoint=None,
         trace_type=None,
         task_id: typing.Union[int, None] = None,
         task_name: typing.Union[str, None] = None,
@@ -56,7 +56,7 @@ class LockEvent:
         self.linenos = linenos
         self.lock_name = lock_name
         self.span_id = reinterpret_int_as_int64(clamp_to_uint64(span_id)) if span_id else None
-        self.trace_endpoint = trace_resource
+        self.trace_endpoint = trace_endpoint
         self.trace_type = trace_type
         self.task_id = task_id
         self.task_name = task_name

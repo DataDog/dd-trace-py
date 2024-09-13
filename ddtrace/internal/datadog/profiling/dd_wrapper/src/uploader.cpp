@@ -62,6 +62,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     }
     ddog_prof_EncodedProfile* encoded = &result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
 
+    ddog_prof_ProfiledEndpointsStats* endpoint_stats = encoded->endpoints_stats;
+
     if (!output_filename.empty()) {
         bool ret = export_to_file(encoded);
         ddog_prof_EncodedProfile_drop(encoded);
@@ -79,7 +81,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                                       ddog_prof_Exporter_Slice_File_empty(),
                                                       { .ptr = &file, .len = 1 },
                                                       nullptr,
-                                                      nullptr,
+                                                      endpoint_stats,
                                                       nullptr,
                                                       nullptr);
     ddog_prof_EncodedProfile_drop(encoded);

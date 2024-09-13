@@ -298,12 +298,32 @@ Datadog::Sample::push_trace_type(std::string_view trace_type)
 }
 
 bool
-Datadog::Sample::push_trace_endpoint(std::string_view trace_endpoint)
+Datadog::Sample::push_trace_endpoint(uint64_t local_root_span_id, std::string_view trace_endpoint)
 {
-    if (!push_label(ExportLabelKey::trace_endpoint, trace_endpoint)) {
-        std::cout << "bad push" << std::endl;
+    ddog_prof_Profile& profile = profile_borrow();
+
+    ddog_CharSlice trace_endpoint_slice = to_slice(trace_endpoint);
+    auto res = ddog_prof_Profile_set_endpoint(&profile, local_root_span_id, trace_endpoint_slice);
+    if (!res.ok) {
+        auto err = res.err;
+        errmsg = err_to_msg(&err, "Error setting trace endpoint");
+        std::cout << errmsg << std::endl;
+        ddog_Error_drop(&err);
+        profile_release();
         return false;
     }
+
+    res = ddog_prof_Profile_add_endpoint_count(&profile, trace_endpoint_slice, 1);
+    if (!res.ok) {
+        auto err = res.err;
+        errmsg = err_to_msg(&err, "Error adding endpoint count");
+        std::cout << errmsg << std::endl;
+        ddog_Error_drop(&err);
+        profile_release();
+        return false;
+    }
+
+    profile_release();
     return true;
 }
 
