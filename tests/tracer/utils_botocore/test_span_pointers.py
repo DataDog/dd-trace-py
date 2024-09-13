@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import List
 from typing import NamedTuple
 from typing import Optional
 
@@ -69,7 +70,7 @@ class TestBotocoreSpanPointers:
         operation_name: str
         request_parameters: dict
         response: dict
-        expected_pointers: list[_SpanPointerDescription]
+        expected_pointers: List[_SpanPointerDescription]
         expected_warning_regex: Optional[str]
 
     @pytest.mark.parametrize(
