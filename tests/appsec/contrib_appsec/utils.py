@@ -1299,12 +1299,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     @pytest.mark.parametrize(
-        ("rule_file", "action_level"),
+        ("rule_file", "action_level", "status_expected"),
         # action_level 0: no action, 1: report, 2: block
         [
-            (rules.RULES_EXPLOIT_PREVENTION, 1),
-            (rules.RULES_EXPLOIT_PREVENTION_BLOCKING, 2),
-            (rules.RULES_EXPLOIT_PREVENTION_DISABLED, 0),
+            (rules.RULES_EXPLOIT_PREVENTION, 1, 200),
+            (rules.RULES_EXPLOIT_PREVENTION_BLOCKING, 2, 403),
+            (rules.RULES_EXPLOIT_PREVENTION_REDIRECTING, 2, 301),
+            (rules.RULES_EXPLOIT_PREVENTION_DISABLED, 0, 200),
         ],
     )
     def test_exploit_prevention(
@@ -1321,6 +1322,7 @@ class Contrib_TestClass_For_Threats:
         top_functions,
         rule_file,
         action_level,
+        status_expected,
     ):
         from unittest.mock import patch as mock_patch
 
@@ -1334,7 +1336,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
             response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
-            code = 403 if action_level == 2 and asm_enabled and ep_enabled else 200
+            code = status_expected if asm_enabled and ep_enabled else 200
             assert self.status(response) == code, (self.status(response), code)
             assert get_tag(http.STATUS_CODE) == str(code), (get_tag(http.STATUS_CODE), code)
             if code == 200:
