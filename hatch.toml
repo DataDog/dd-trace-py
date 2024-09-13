@@ -296,6 +296,7 @@ template = "appsec_aggregated_leak_testing"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "hypothesis",
 ]
 
 [envs.appsec_aggregated_leak_testing.env-vars]
