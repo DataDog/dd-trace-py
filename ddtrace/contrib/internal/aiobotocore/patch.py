@@ -4,7 +4,7 @@ import aiobotocore.client
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import unwrap
@@ -174,6 +174,6 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             span.set_tag_str("aws.requestid2", request_id2)
 
         # set analytics sample rate
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())
 
         return result

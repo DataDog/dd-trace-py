@@ -563,12 +563,12 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
 
-    cdef inline int _pack_links(self, object span_links):
+    cdef inline int _pack_links(self, list span_links):
         ret = msgpack_pack_array(&self.pk, len(span_links))
         if ret != 0:
             return ret
 
-        for _, link in span_links.items():
+        for link in span_links:
             # SpanLink.to_dict() returns all serializable span link fields
             # v0.4 encoding is disabled by default. SpanLinks.to_dict() is optimizied for the v0.5 format.
             d = link.to_dict()
@@ -905,7 +905,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         span_links = ""
         if span._links:
-            span_links = json_dumps([link.to_dict() for _, link in span._links.items()])
+            span_links = json_dumps([link.to_dict() for link in span._links])
 
         span_events = ""
         if span._events:

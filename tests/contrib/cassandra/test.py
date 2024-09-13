@@ -11,7 +11,6 @@ import mock
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.cassandra.patch import patch
@@ -154,40 +153,11 @@ class CassandraBase(object):
         assert query.get_tag("span.kind") == "client"
         assert query.get_tag("db.system") == "cassandra"
 
-        # confirm no analytics sample rate set by default
-        assert query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
     def test_query(self):
         def execute_fn(session, query):
             return session.execute(query)
 
         self._test_query_base(execute_fn)
-
-    def test_query_analytics_with_rate(self):
-        with self.override_config("cassandra", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            session, tracer = self._traced_session()
-            session.execute(self.TEST_QUERY)
-
-            spans = tracer.pop()
-            assert spans, spans
-            # another for the actual query
-            assert len(spans) == 1
-            query = spans[0]
-            # confirm no analytics sample rate set by default
-            assert query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
-
-    def test_query_analytics_without_rate(self):
-        with self.override_config("cassandra", dict(analytics_enabled=True)):
-            session, tracer = self._traced_session()
-            session.execute(self.TEST_QUERY)
-
-            spans = tracer.pop()
-            assert spans, spans
-            # another for the actual query
-            assert len(spans) == 1
-            query = spans[0]
-            # confirm no analytics sample rate set by default
-            assert query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
     def test_query_ot(self):
         """Ensure that cassandra works with the opentracer."""
