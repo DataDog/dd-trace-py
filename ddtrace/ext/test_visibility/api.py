@@ -47,6 +47,7 @@ log = _get_logger(__name__)
 
 
 class TestStatus(Enum):
+    __test__ = False
     PASS = _TestStatus.PASS.value
     FAIL = _TestStatus.FAIL.value
     SKIP = _TestStatus.SKIP.value
@@ -73,6 +74,7 @@ class TestSourceFileInfo(TestSourceFileInfoBase):
 
 @dataclasses.dataclass(frozen=True)
 class TestExcInfo:
+    __test__ = False
     exc_type: Type[BaseException]
     exc_value: BaseException
     exc_traceback: TracebackType
