@@ -3,7 +3,6 @@ import webtest
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.bottle import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal import compat
@@ -315,131 +314,6 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag("component") == "bottle"
         assert s.get_tag("span.kind") == "server"
         assert s.get_tag("http.route") == "/home/"
-
-    def test_analytics_global_on_integration_default(self):
-        """
-        When making a request
-            When an integration trace search is not event sample rate is not set and globally trace search is enabled
-                We expect the root span to have the appropriate tag
-        """
-
-        # setup our test app
-        @self.app.route("/hi/<name>")
-        def hi(name):
-            return "hi %s" % name
-
-        self._trace_app(self.tracer)
-
-        with self.override_global_config(dict(analytics_enabled=True)):
-            resp = self.app.get("/hi/dougie")
-            assert resp.status_int == 200
-            assert compat.to_unicode(resp.body) == "hi dougie"
-
-        root = self.get_root_span()
-        root.assert_matches(
-            name="bottle.request",
-            metrics={
-                ANALYTICS_SAMPLE_RATE_KEY: 1.0,
-            },
-        )
-
-        for span in self.spans:
-            if span == root:
-                continue
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_global_on_integration_on(self):
-        """
-        When making a request
-            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
-                We expect the root span to have the appropriate tag
-        """
-
-        # setup our test app
-        @self.app.route("/hi/<name>")
-        def hi(name):
-            return "hi %s" % name
-
-        self._trace_app(self.tracer)
-
-        with self.override_global_config(dict(analytics_enabled=True)):
-            with self.override_config("bottle", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                resp = self.app.get("/hi/dougie")
-                assert resp.status_int == 200
-                assert compat.to_unicode(resp.body) == "hi dougie"
-
-        root = self.get_root_span()
-        root.assert_matches(
-            name="bottle.request",
-            metrics={
-                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
-            },
-        )
-
-        for span in self.spans:
-            if span == root:
-                continue
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_global_off_integration_default(self):
-        """
-        When making a request
-            When an integration trace search is not set and sample rate is set and globally trace search is disabled
-                We expect the root span to not include tag
-        """
-
-        # setup our test app
-        @self.app.route("/hi/<name>")
-        def hi(name):
-            return "hi %s" % name
-
-        self._trace_app(self.tracer)
-
-        with self.override_global_config(dict(analytics_enabled=False)):
-            resp = self.app.get("/hi/dougie")
-            assert resp.status_int == 200
-            assert compat.to_unicode(resp.body) == "hi dougie"
-
-        root = self.get_root_span()
-        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-        for span in self.spans:
-            if span == root:
-                continue
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_global_off_integration_on(self):
-        """
-        When making a request
-            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
-                We expect the root span to have the appropriate tag
-        """
-
-        # setup our test app
-        @self.app.route("/hi/<name>")
-        def hi(name):
-            return "hi %s" % name
-
-        self._trace_app(self.tracer)
-
-        with self.override_global_config(dict(analytics_enabled=False)):
-            with self.override_config("bottle", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                resp = self.app.get("/hi/dougie")
-                assert resp.status_int == 200
-                assert compat.to_unicode(resp.body) == "hi dougie"
-
-        root = self.get_root_span()
-        root.assert_matches(
-            name="bottle.request",
-            metrics={
-                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
-            },
-        )
-
-        for span in self.spans:
-            if span == root:
-                continue
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_200_ot(self):
         ot_tracer = init_tracer("my_svc", self.tracer)

@@ -32,7 +32,6 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -146,7 +145,6 @@ class BotocoreTest(TracerTestCase):
         assert span.resource == "ec2.describeinstances"
         assert span.name == "ec2.command"
         assert span.span_type == "http"
-        assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     @mock_ec2
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
@@ -227,18 +225,6 @@ class BotocoreTest(TracerTestCase):
             span.service == DEFAULT_SPAN_SERVICE_NAME
         ), "Expected 'internal.schema.DEFAULT_SPAN_SERVICE_NAME' but got {}".format(span.service)
         assert span.name == "aws.ec2.request"
-
-    @mock_ec2
-    def test_traced_client_analytics(self):
-        with self.override_config("botocore", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            ec2 = self.session.create_client("ec2", region_name="us-west-2")
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
-            ec2.describe_instances()
-
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     @pytest.mark.skipif(
         PYTHON_VERSION_INFO < (3, 8),

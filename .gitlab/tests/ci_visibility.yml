@@ -1,0 +1,28 @@
+ci_visibility:
+  extends: .test_base_riot_snapshot
+  parallel: 6
+  variables:
+    SUITE_NAME: "ci_visibility"
+
+dd_coverage:
+  extends: .test_base_hatch_snapshot
+  parallel: 6
+  variables:
+    SUITE_NAME: "dd_coverage"
+
+pytest:
+  extends: .test_base_riot_snapshot
+  parallel: 12
+  variables:
+    SUITE_NAME: "pytest"
+
+pytest_v2:
+  extends: .test_base_hatch_snapshot
+  parallel: 10
+  variables:
+    SUITE_NAME: "pytest"
+
+unittest:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "unittest"
