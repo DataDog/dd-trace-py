@@ -12,6 +12,7 @@ from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import SPAN_NAME_OVERRIDE_KEY
 
 
 log = get_logger(__name__)
@@ -49,8 +50,8 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
 def _get_span_name(span: Span) -> str:
     if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME) and span.resource != "":
         return span.resource
-    elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
-        return "{}.{}".format(span.get_tag("openai.request.client"), span.resource)
+    elif span.name == OPENAI_APM_SPAN_NAME and span.get_tag(SPAN_NAME_OVERRIDE_KEY):
+        return span._meta.pop(SPAN_NAME_OVERRIDE_KEY, "")
     return span.name
 
 

@@ -20,6 +20,7 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_NAME_OVERRIDE_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _unserializable_default_repr
@@ -55,7 +56,13 @@ class OpenAIIntegration(BaseLLMIntegration):
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         if operation_id.endswith("Completion") or operation_id == "createEmbedding":
             submit_to_llmobs = True
-        return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+        if submit_to_llmobs:
+            client_name = span.get_tag("openai.request.client")
+            if kwargs.get("is_async", False):
+                client_name = "Async{}".format(client_name)
+            span.set_tag_str(SPAN_NAME_OVERRIDE_KEY, "{}.{}".format(client_name, span.resource))
+        return span
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -78,10 +85,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                     span.set_tag_str("openai.organization.id", v or "")
                 else:
                     span.set_tag_str("openai.%s" % attr, str(v))
-        client_name = "AzureOpenAI" if self._is_azure_openai(span) else "OpenAI"
-        if kwargs.get("is_async", False):
-            client_name += "Async"
-        span.set_tag_str("openai.request.client", client_name)
+        span.set_tag_str("openai.request.client", "AzureOpenAI" if self._is_azure_openai(span) else "OpenAI")
 
     @staticmethod
     def _is_azure_openai(span):
