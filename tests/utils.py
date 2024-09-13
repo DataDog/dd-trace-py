@@ -73,7 +73,7 @@ def assert_span_http_status_code(span, code):
 
 
 @contextlib.contextmanager
-def override_env(env):
+def override_env(env, replace_os_env=False):
     """
     Temporarily override ``os.environ`` with provided values::
 
@@ -82,6 +82,10 @@ def override_env(env):
     """
     # Copy the full original environment
     original = dict(os.environ)
+
+    # We allow callers to clear out the environment to prevent leaking variables into the test
+    if replace_os_env:
+        os.environ.clear()
 
     for k in os.environ.keys():
         if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
