@@ -33,7 +33,7 @@ Example::
 
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["bottle"]
@@ -41,10 +41,14 @@ required_modules = ["bottle"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.bottle.patch` directly
-        from . import patch as _  # noqa: F401, I001
+        import warnings as _w
 
-        from ..internal.bottle.patch import get_version
-        from ..internal.bottle.patch import patch
-        from ..internal.bottle.trace import TracePlugin
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
+
+        from ddtrace.contrib.internal.bottle.patch import get_version
+        from ddtrace.contrib.internal.bottle.patch import patch
+        from ddtrace.contrib.internal.bottle.trace import TracePlugin
 
         __all__ = ["TracePlugin", "patch", "get_version"]

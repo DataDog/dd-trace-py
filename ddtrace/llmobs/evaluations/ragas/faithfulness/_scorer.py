@@ -1,6 +1,7 @@
 import json
 import typing
 
+from langchain_core.pydantic_v1 import ValidationError
 import numpy as np
 from ragas.llms import llm_factory
 from ragas.llms.output_parser import RagasoutputParser
@@ -11,6 +12,8 @@ from ragas.metrics.base import get_segmenter
 
 from ddtrace.internal.logger import get_logger
 
+from ....utils import LLMObsSpanContext
+from ._utils import FaithfulnessInputs
 from ._utils import StatementFaithfulnessAnswers
 from ._utils import StatementsAnswers
 from ._utils import context_parser
@@ -62,8 +65,8 @@ def compute_score(answers, llmobs_instance):
         return score
 
 
-def extract_input_from_messages(messages, llmobs_instance):
-    with llmobs_instance.workflow("_ragas.infer_context"):
+def extract_question_and_context_using_llm(messages, llmobs_instance):
+    with llmobs_instance.workflow("ragas.infer_context"):
         extracted_inputs = faithfulness.llm.generate_text(
             prompt=extract_inputs_from_messages_prompt.format(messages=messages)
         )
@@ -74,35 +77,53 @@ def extract_input_from_messages(messages, llmobs_instance):
         return statements.question, statements.context
 
 
-def extract_faithfulness_inputs(span, llmobs_instance):
-    if span.meta.output.messages and len(span.meta.output.messages) > 0:
-        answer = span.meta.output.messages[-1]["content"]
-    else:
-        raise ValueError("Failed to extract answer from span")
-    question, context = extract_input_from_messages(span.meta.input.messages, llmobs_instance=llmobs_instance)
-    return question, context, answer
+def extract_faithfulness_inputs(span: LLMObsSpanContext, llmobs_instance) -> typing.Optional[FaithfulnessInputs]:
+    question, answer, context_str = None, None, None
+
+    if span.meta.output.messages is not None and len(span.meta.output.messages) > 0:
+        answer = span.meta.output.messages[-1].get("content")
+    if span.meta.input.prompt is not None:
+        variables = span.meta.input.prompt.variables.model_dump()
+        question = variables.get("question")
+        if not question and span.meta.input.messages is not None and len(span.meta.input.messages) > 0:
+            question = span.meta.input.messages[-1].get("content")
+        context_str = variables.get("context")
+
+    if question is None or context_str is None:
+        # fallback to using llm
+        question, context_str = extract_question_and_context_using_llm(span, llmobs_instance)
+
+    try:
+        return FaithfulnessInputs(question=question, context=context_str, answer=answer)
+    except ValidationError as e:
+        logger.debug("Failed to validate faithfulness inputs", e)
+        return None
 
 
 def score_faithfulness(span, llmobs_instance, shutdown_event):
-    with llmobs_instance.workflow("_ragas.faithfulness") as workflow:
+    with llmobs_instance.workflow("ragas.faithfulness") as workflow:
         token_usage = {"input_tokens": 0, "output_tokens": 0}
 
-        workflow.service = "_ragas"
+        workflow.service = "ragas"
 
-        try:
-            question, answer, context_str = extract_faithfulness_inputs(span, llmobs_instance)
-        except ValueError as e:
-            llmobs_instance.annotate(input_data=span.meta.input.messages, output_data=e)
-            return np.nan
+        faithfulness_inputs = extract_faithfulness_inputs(span, llmobs_instance)
+        if faithfulness_inputs is None:
+            return np.nan, llmobs_instance.export_span()
 
         if shutdown_event.is_set():
             return np.nan
+
+        question, answer, context_str = (
+            faithfulness_inputs.question,
+            faithfulness_inputs.answer,
+            faithfulness_inputs.context,
+        )
 
         statements_prompt = create_statements_prompt(question, answer, llmobs_instance=llmobs_instance)
 
         statements = faithfulness.llm.generate_text(statements_prompt)
         if shutdown_event.is_set():
-            return np.nan
+            return np.nan, llmobs_instance.export_span()
 
         usage = statements.llm_output.get("token_usage")
         if usage:
@@ -140,7 +161,7 @@ def score_faithfulness(span, llmobs_instance, shutdown_event):
 
             faithfulness_list = StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
         else:
-            return np.nan
+            return np.nan, llmobs_instance.export_span()
 
         score = compute_score(faithfulness_list, llmobs_instance=llmobs_instance)
         llmobs_instance.annotate(

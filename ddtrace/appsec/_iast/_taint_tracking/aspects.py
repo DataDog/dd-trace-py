@@ -58,6 +58,10 @@ _extend_aspect = aspects.extend_aspect
 index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
 slice_aspect = aspects.slice_aspect
+modulo_aspect = aspects.modulo_aspect
+split_aspect = _aspect_split
+rsplit_aspect = _aspect_rsplit
+splitlines_aspect = _aspect_splitlines
 ospathjoin_aspect = _aspect_ospathjoin
 ospathbasename_aspect = _aspect_ospathbasename
 ospathdirname_aspect = _aspect_ospathdirname
@@ -77,8 +81,12 @@ __all__ = [
     "re_sub_aspect",
     "ospathjoin_aspect",
     "_aspect_split",
+    "split_aspect",
     "_aspect_rsplit",
+    "rsplit_aspect",
+    "modulo_aspect",
     "_aspect_splitlines",
+    "splitlines_aspect",
     "ospathbasename_aspect",
     "ospathdirname_aspect",
     "ospathnormcase_aspect",
@@ -87,65 +95,6 @@ __all__ = [
     "ospathsplitdrive_aspect",
     "ospathsplitroot_aspect",
 ]
-
-
-# TODO: Factorize the "flags_added_args" copypasta into a decorator
-
-
-def split_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[List[TEXT_TYPES], TEXT_TYPES]:
-    if orig_function is not None:
-        if orig_function != builtin_str:
-            if flag_added_args > 0:
-                args = args[flag_added_args:]
-            return orig_function(*args, **kwargs)
-    try:
-        # re.split aspect, either with pattern as first arg or with re module
-        if isinstance(args[0], Pattern) or (
-            isinstance(args[0], ModuleType) and args[0].__name__ == "re" and args[0].__package__ in ("", "re")
-        ):
-            result = args[0].split(*args[1:], **kwargs)
-            offset = 0
-            if isinstance(args[0], Pattern):
-                offset = -1
-
-            if len(args) >= (3 + offset) and is_pyobject_tainted(args[2 + offset]):
-                for i in result:
-                    if len(i):
-                        copy_and_shift_ranges_from_strings(args[2 + offset], i, 0, len(i))
-            return result
-
-        return _aspect_split(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. split_aspect. {}".format(e))
-        return args[0].split(*args[1:], **kwargs)
-
-
-def rsplit_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
-    if orig_function is not None:
-        if orig_function != builtin_str:
-            if flag_added_args > 0:
-                args = args[flag_added_args:]
-            return orig_function(*args, **kwargs)
-    try:
-        return _aspect_rsplit(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. rsplit_aspect. {}".format(e))
-        return args[0].rsplit(*args[1:], **kwargs)
-
-
-def splitlines_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
-    if orig_function:
-        if orig_function != builtin_str:
-            if flag_added_args > 0:
-                args = args[flag_added_args:]
-            return orig_function(*args, **kwargs)
-    try:
-        return _aspect_splitlines(*args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. splitlines_aspect. {}".format(e))
-        return args[0].splitlines(*args[1:], **kwargs)
 
 
 def str_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
@@ -252,44 +201,6 @@ def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: 
     except Exception as e:
         iast_taint_log_error("IAST propagation error. extend_aspect. {}".format(e))
         return op1.extend(op2)
-
-
-def modulo_aspect(candidate_text: Text, candidate_tuple: Any) -> Any:
-    if not isinstance(candidate_text, IAST.TEXT_TYPES):
-        return candidate_text % candidate_tuple
-
-    try:
-        if isinstance(candidate_tuple, tuple):
-            parameter_list = candidate_tuple
-        else:
-            parameter_list = (candidate_tuple,)
-
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, parameter_list)
-        if not ranges_orig:
-            return candidate_text % candidate_tuple
-
-        return _convert_escaped_text_to_tainted_text(
-            as_formatted_evidence(
-                candidate_text,
-                candidate_text_ranges,
-                tag_mapping_function=TagMappingMode.Mapper,
-            )
-            % tuple(
-                (
-                    as_formatted_evidence(
-                        parameter,
-                        tag_mapping_function=TagMappingMode.Mapper,
-                    )
-                    if isinstance(parameter, IAST.TEXT_TYPES)
-                    else parameter
-                )
-                for parameter in parameter_list
-            ),
-            ranges_orig=ranges_orig,
-        )
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. modulo_aspect. {}".format(e))
-        return candidate_text % candidate_tuple
 
 
 def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:

@@ -65,14 +65,9 @@ set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
 }
 
 string
-PyObjectToString(PyObject* obj)
+AnyTextObjectToString(PyObject* py_string_like)
 {
-    const char* str = PyUnicode_AsUTF8(obj);
-
-    if (str == nullptr) {
-        return "";
-    }
-    return str;
+    return AnyTextObjectToString(py::handle(py_string_like));
 }
 
 PyObject*

@@ -99,10 +99,10 @@ class RagasFaithfulnessEvaluationRunner(PeriodicService):
                     timestamp_ms=math.floor(time.time() * 1000),
                     metric_type="score",
                     tags=[
-                        "trace_id:{}".format(
+                        "evaluation_trace_id:{}".format(
                             exported_ragas_span.get("trace_id") if exported_ragas_span.get("trace_id") else ""
                         ),
-                        "span_id:{}".format(
+                        "evaluation_span_id:{}".format(
                             exported_ragas_span.get("span_id") if exported_ragas_span.get("span_id") else ""
                         ),
                     ],

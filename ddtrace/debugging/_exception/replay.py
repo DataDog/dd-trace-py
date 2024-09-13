@@ -2,14 +2,12 @@ from collections import deque
 from dataclasses import dataclass
 from itertools import count
 from pathlib import Path
-import sys
 from threading import current_thread
 from types import FrameType
 from types import TracebackType
 import typing as t
 import uuid
 
-from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
@@ -17,10 +15,14 @@ from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
+from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 
+
+log = get_logger(__name__)
 
 GLOBAL_RATE_LIMITER = RateLimiter(
     limit_rate=1,  # one trace per second
@@ -141,19 +143,17 @@ def can_capture(span: Span) -> bool:
     raise ValueError(msg)
 
 
-@dataclass
-class SpanExceptionProcessor(SpanProcessor):
+class SpanExceptionHandler:
     __uploader__ = LogsIntakeUploaderV1
 
-    def on_span_start(self, span: Span) -> None:
-        pass
+    _instance: t.Optional["SpanExceptionHandler"] = None
 
-    def on_span_finish(self, span: Span) -> None:
-        if not (span.error and can_capture(span)):
-            # No error or budget to capture
+    def on_span_exception(
+        self, span: Span, _exc_type: t.Type[BaseException], exc: BaseException, _tb: t.Optional[TracebackType]
+    ) -> None:
+        if span.get_tag(DEBUG_INFO_TAG) == "true" or not can_capture(span):
+            # Debug info for span already captured or no budget to capture
             return
-
-        _, exc, _tb = sys.exc_info()
 
         chain, exc_id = unwind_exception_chain(exc, _tb)
         if not chain or exc_id is None:
@@ -208,12 +208,32 @@ class SpanExceptionProcessor(SpanProcessor):
             span.set_tag_str(DEBUG_INFO_TAG, "true")
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
 
-    def register(self) -> None:
-        super().register()
+    @classmethod
+    def enable(cls) -> None:
+        if cls._instance is not None:
+            log.debug("SpanExceptionHandler already enabled")
+            return
 
-        self.__uploader__.register(UploaderProduct.EXCEPTION_REPLAY)
+        log.debug("Enabling SpanExceptionHandler")
 
-    def unregister(self) -> None:
-        self.__uploader__.unregister(UploaderProduct.EXCEPTION_REPLAY)
+        instance = cls()
 
-        return super().unregister()
+        instance.__uploader__.register(UploaderProduct.EXCEPTION_REPLAY)
+        core.on("span.exception", instance.on_span_exception, name=__name__)
+
+        cls._instance = instance
+
+    @classmethod
+    def disable(cls) -> None:
+        if cls._instance is None:
+            log.debug("SpanExceptionHandler already disabled")
+            return
+
+        log.debug("Disabling SpanExceptionHandler")
+
+        instance = cls._instance
+
+        core.reset_listeners("span.exception", instance.on_span_exception)
+        instance.__uploader__.unregister(UploaderProduct.EXCEPTION_REPLAY)
+
+        cls._instance = None

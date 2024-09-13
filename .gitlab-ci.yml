@@ -10,16 +10,20 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
+  TESTRUNNER_IMAGE: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:ecc5741ff3e7c8a30363fcd9cca79a371dcea5b4
+  # CI_DEBUG_SERVICES: "true"
 
 .testrunner:
   image: $TESTRUNNER_IMAGE
-  tags: [ "arch:arm64" ]
+  # DEV: we have a larger pool of amd64 runners, prefer that over arm64
+  tags: [ "arch:amd64" ]
+  timeout: 20m
   before_script:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
   - local: ".gitlab/tests.yml"

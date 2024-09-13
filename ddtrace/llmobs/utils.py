@@ -5,6 +5,8 @@ from typing import Union
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
+from pydantic import Field
+from pydantic import RootModel
 
 
 # TypedDict was added to typing in python 3.8
@@ -28,10 +30,15 @@ class ToolCall(BaseModel):
     type: Optional[str] = ""
 
 
+class PromptVariables(RootModel):
+    root: Dict[str, Union[str, "PromptVariables"]]
+
+
 class Prompt(BaseModel):
-    template: str = ""
-    variables: Dict = {}
-    prompt_version: str = ""
+    template: str = Field(default="", description="the raw template for the prompt")
+    variables: PromptVariables = Field(default={}, description="the variables to be inserted into the prompt template")
+    id: str = Field(default="", description="a unique identifier for the prompt")
+    version: str = Field(default="", description="the version of the prompt")
 
 
 class MetaIO(BaseModel):

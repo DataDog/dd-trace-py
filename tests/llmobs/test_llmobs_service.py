@@ -8,11 +8,13 @@ import ddtrace
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.filters import TraceFilter
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -27,6 +29,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
+from ddtrace.llmobs.utils import Prompt
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
@@ -213,7 +216,6 @@ def test_llm_span(LLMObs, mock_llmobs_span_writer):
         assert span.get_tag(SPAN_KIND) == "llm"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
-        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
@@ -228,7 +230,6 @@ def test_llm_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
         assert span.get_tag(SPAN_KIND) == "llm"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
-        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
@@ -357,7 +358,6 @@ def test_embedding_span(LLMObs, mock_llmobs_span_writer):
         assert span.get_tag(SPAN_KIND) == "embedding"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
-        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
@@ -374,7 +374,6 @@ def test_embedding_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_wr
         assert span.get_tag(SPAN_KIND) == "embedding"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
-        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
@@ -788,6 +787,78 @@ def test_annotate_metrics_wrong_type(LLMObs, mock_logs):
         mock_logs.warning.assert_called_once_with(
             "Failed to parse span metrics. Metric key-value pairs must be JSON serializable."
         )
+
+
+def test_annotate_prompt_dict(LLMObs):
+    with LLMObs.llm(model_name="test_model") as span:
+        LLMObs.annotate(
+            span=span,
+            prompt={
+                "template": "{var1} {var2.var3}",
+                "variables": {"var1": "var1", "var2": {"var3": "var2.var3"}},
+                "version": "1.0.0",
+                "id": "test_prompt",
+            },
+        )
+        assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+            "template": "{var1} {var2.var3}",
+            "variables": {"var1": "var1", "var2": {"var3": "var2.var3"}},
+            "version": "1.0.0",
+            "id": "test_prompt",
+        }
+
+
+def test_annotate_prompt_object(LLMObs):
+    with LLMObs.llm(model_name="test_model") as span:
+        LLMObs.annotate(
+            span=span,
+            prompt=Prompt(
+                template="{var1} {var2.var3}",
+                variables={"var1": "var1", "var2": {"var3": "var2.var3"}},
+                version="1.0.0",
+                id="test_prompt",
+            ),
+        )
+        assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+            "template": "{var1} {var2.var3}",
+            "variables": {"var1": "var1", "var2": {"var3": "var2.var3"}},
+            "version": "1.0.0",
+            "id": "test_prompt",
+        }
+
+
+def test_annotate_prompt_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(
+        model_name="test_model",
+    ) as span:
+        LLMObs.annotate(
+            span=span,
+            prompt="prompt",
+        )
+        assert span.get_tag(INPUT_PROMPT) is None
+        mock_logs.warning.assert_called_once_with("Prompt must be a Prompt object or a dictionary.")
+        mock_logs.reset_mock()
+
+        LLMObs.annotate(
+            span=span,
+            prompt={
+                "template": 1,
+            },
+        )
+        assert span.get_tag(INPUT_PROMPT) is None
+        assert len(mock_logs.warning.call_args_list) == 1
+        assert "Failed to parse prompt dictionary with validation error:" in mock_logs.warning.call_args_list[0][0][0]
+        mock_logs.reset_mock()
+
+
+def test_annotate_prompt_wrong_kind(LLMObs, mock_logs):
+    with LLMObs.task(name="dummy") as span:
+        LLMObs.annotate(
+            prompt={"variables": {"var1": "var1"}},
+        )
+        assert span.get_tag(INPUT_PROMPT) is None
+        mock_logs.warning.assert_called_once_with("Annotating prompts are only supported for LLM span kinds.")
+        mock_logs.reset_mock()
 
 
 def test_span_error_sets_error(LLMObs, mock_llmobs_span_writer):
@@ -1464,6 +1535,42 @@ def test_llmobs_fork_create_span(monkeypatch):
                 with llmobs_service.task():
                     pass
             assert len(llmobs_service._instance._llmobs_span_writer._encoder) == 2
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
+
+
+def test_llmobs_fork_custom_filter(monkeypatch):
+    """Test that forking a process correctly keeps any custom filters."""
+
+    class CustomFilter(TraceFilter):
+        def process_trace(self, trace):
+            return trace
+
+    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
+    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+        tracer = DummyTracer()
+        custom_filter = CustomFilter()
+        tracer.configure(settings={"FILTERS": [custom_filter]})
+        llmobs_service.enable(_tracer=tracer, ml_app="test_app")
+        assert custom_filter in llmobs_service._instance.tracer._filters
+        pid = os.fork()
+        if pid:  # parent
+            assert custom_filter in llmobs_service._instance.tracer._filters
+            assert any(
+                isinstance(tracer_filter, LLMObsTraceProcessor)
+                for tracer_filter in llmobs_service._instance.tracer._filters
+            )
+        else:  # child
+            assert custom_filter in llmobs_service._instance.tracer._filters
+            assert any(
+                isinstance(tracer_filter, LLMObsTraceProcessor)
+                for tracer_filter in llmobs_service._instance.tracer._filters
+            )
             llmobs_service.disable()
             os._exit(12)
 

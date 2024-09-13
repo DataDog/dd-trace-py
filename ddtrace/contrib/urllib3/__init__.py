@@ -50,7 +50,7 @@ Global Configuration
 
    Default: ``False``
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["urllib3"]
@@ -58,11 +58,15 @@ required_modules = ["urllib3"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.urllib3.patch` directly
-        from . import patch as _  # noqa: F401, I001
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ..internal.urllib3.patch import get_version
-        from ..internal.urllib3.patch import patch
-        from ..internal.urllib3.patch import unpatch
+        from ddtrace.contrib.internal.urllib3.patch import get_version
+        from ddtrace.contrib.internal.urllib3.patch import patch
+        from ddtrace.contrib.internal.urllib3.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

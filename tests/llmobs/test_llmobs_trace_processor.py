@@ -1,3 +1,5 @@
+import json
+
 import mock
 import pytest
 
@@ -5,6 +7,7 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import METADATA
@@ -134,16 +137,6 @@ def test_session_id_if_set_manually():
             with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
                 llm_span.set_tag_str(SESSION_ID, "test_different_session_id")
     assert _get_session_id(llm_span) == "test_different_session_id"
-
-
-def test_session_id_defaults_to_trace_id():
-    """Test that session_id defaults to the span's trace ID if not set nor found upstream."""
-    dummy_tracer = DummyTracer()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM):
-        with dummy_tracer.trace("child_span"):
-            with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
-                pass
-    assert _get_session_id(llm_span) == "{:x}".format(llm_span.trace_id)
 
 
 def test_session_id_propagates_ignore_non_llmobs_spans():
@@ -334,6 +327,18 @@ def test_output_value_is_set():
             llm_span.set_tag(OUTPUT_VALUE, "value")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)["meta"]["output"]["value"] == "value"
+
+
+def test_prompt_is_set():
+    """Test that prompt is set on the span event if they are present on the span."""
+    dummy_tracer = DummyTracer()
+    mock_llmobs_span_writer = mock.MagicMock()
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(INPUT_PROMPT, json.dumps({"variables": {"var1": "var2"}}))
+        tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
+        assert tp._llmobs_span_event(llm_span)["meta"]["input"]["prompt"] == {"variables": {"var1": "var2"}}
 
 
 def test_metadata_is_set():

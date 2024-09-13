@@ -6,6 +6,8 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
+from pydantic import ValidationError
+
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
@@ -13,16 +15,18 @@ from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
-from ddtrace.internal import telemetry
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -49,6 +53,7 @@ from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import Prompt
 from ddtrace.propagation.http import HTTPPropagator
 
 from .evaluations.ragas.faithfulness._runner import RagasFaithfulnessEvaluationRunner
@@ -111,9 +116,12 @@ class LLMObs(Service):
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
-        self.tracer.configure(settings={"FILTERS": [self._trace_processor]})
         if self._ragas_faithfulness_runner:
             self._ragas_faithfulness_runner = self._ragas_faithfulness_runner.recreate()
+        tracer_filters = self.tracer._filters
+        if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
+            tracer_filters += [self._trace_processor]
+        self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
         except ServiceStatusError:
@@ -208,14 +216,14 @@ class LLMObs(Service):
                     "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                     "Ensure this configuration is set before running your application."
                 )
-            if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
-                config._telemetry_enabled = False
-                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
-                telemetry.telemetry_writer.disable()
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 remoteconfig_poller.disable()
+
+            # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
+            # we need to force telemetry to use agentless configuration
+            telemetry_writer.enable_agentless_client(True)
 
         if integrations_enabled:
             cls._patch_integrations()
@@ -228,6 +236,8 @@ class LLMObs(Service):
         cls._instance.start()
 
         atexit.register(cls.disable)
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
+
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
@@ -246,6 +256,7 @@ class LLMObs(Service):
 
         cls.enabled = False
         cls._instance.stop()
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
 
@@ -309,9 +320,9 @@ class LLMObs(Service):
             span.set_tag_str(MODEL_NAME, model_name)
         if model_provider is not None:
             span.set_tag_str(MODEL_PROVIDER, model_provider)
-        if session_id is None:
-            session_id = _get_session_id(span)
-        span.set_tag_str(SESSION_ID, session_id)
+        session_id = session_id if session_id is not None else _get_session_id(span)
+        if session_id is not None:
+            span.set_tag_str(SESSION_ID, session_id)
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
@@ -485,6 +496,7 @@ class LLMObs(Service):
         cls,
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
+        prompt: Optional[Union[Prompt, dict]] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -545,12 +557,35 @@ class LLMObs(Service):
                 cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+        if prompt is not None:
+            if span_kind == "llm":
+                cls._tag_prompt(span, prompt)
+            else:
+                log.warning("Annotating prompts are only supported for LLM span kinds.")
         if metadata is not None:
             cls._tag_metadata(span, metadata)
         if metrics is not None:
             cls._tag_metrics(span, metrics)
         if tags is not None:
             cls._tag_span_tags(span, tags)
+
+    @staticmethod
+    def _tag_prompt(span, prompt: Union[Prompt, dict]) -> None:
+        """Tags a given LLMObs span with a prompt object."""
+        serialized_prompt = None
+        if isinstance(prompt, Prompt):
+            serialized_prompt = prompt.model_dump_json()
+        elif isinstance(prompt, dict):
+            try:
+                serialized_prompt = Prompt(**prompt).model_dump_json()
+            except ValidationError as e:
+                log.warning("Failed to parse prompt dictionary with validation error: ", e)
+                return
+        else:
+            log.warning("Prompt must be a Prompt object or a dictionary.")
+
+        if serialized_prompt is not None:
+            span.set_tag_str(INPUT_PROMPT, serialized_prompt)
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
