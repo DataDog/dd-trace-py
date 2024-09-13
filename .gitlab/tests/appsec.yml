@@ -58,6 +58,7 @@ appsec aggregated leak testing:
   variables:
     SUITE_NAME: "appsec_aggregated_leak_testing"
   retry: 2
+  timeout: 25m
 
 appsec iast native:
   extends: .test_base_hatch
