@@ -6,7 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -215,7 +215,7 @@ def _create_sanic_request_span(request):
 
     sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     method = request.method
     url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
