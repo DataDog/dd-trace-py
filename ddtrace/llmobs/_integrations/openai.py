@@ -57,7 +57,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         if operation_id.endswith("Completion") or operation_id == "createEmbedding":
             submit_to_llmobs = True
         span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
-        if submit_to_llmobs:
+        if submit_to_llmobs and self.llmobs_enabled:
             client_name = span.get_tag("openai.request.client")
             if kwargs.get("is_async", False):
                 client_name = "Async{}".format(client_name)
