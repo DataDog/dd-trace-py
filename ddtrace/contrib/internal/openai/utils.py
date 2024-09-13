@@ -304,11 +304,12 @@ def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
         usage = response[0].get("usage", {})
         prompt_tokens = getattr(usage, "prompt_tokens", 0)
         completion_tokens = getattr(usage, "completion_tokens", 0)
+        total_tokens = getattr(usage, "total_tokens", 0)
     else:
         model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
         estimated, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
         estimated, completion_tokens = _compute_completion_tokens(response, model_name)
-    total_tokens = prompt_tokens + completion_tokens
+        total_tokens = prompt_tokens + completion_tokens
     span.set_metric("openai.response.usage.prompt_tokens", prompt_tokens)
     span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
     span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
