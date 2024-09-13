@@ -2,7 +2,9 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <regex>
 
+#include "Initializer/Initializer.h"
 #include "TaintTracking/TaintRange.h"
 
 using namespace pybind11::literals;
@@ -20,11 +22,24 @@ api_common_replace(const py::str& string_method,
 
 template<class StrType>
 StrType
-all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode);
+all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
+{
+    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+        return text;
+    }
+    TaintRangeRefs text_ranges = api_get_ranges(text);
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
+}
 
 template<class StrType>
 StrType
-int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode);
+int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode)
+{
+    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+        return text;
+    }
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
+}
 
 string
 as_formatted_evidence(const string& text,
@@ -93,11 +108,10 @@ inline string
 get_tag(const string& content)
 {
     if (content.empty()) {
-        return string(EVIDENCE_MARKS::BLANK);
+        return { EVIDENCE_MARKS::BLANK };
     }
 
-    auto result = string(EVIDENCE_MARKS::LESS) + content + string(EVIDENCE_MARKS::GREATER);
-    return result;
+    return string(EVIDENCE_MARKS::LESS) + content + string(EVIDENCE_MARKS::GREATER);
 }
 
 inline string
@@ -112,26 +126,56 @@ get_default_content(const TaintRangePtr& taint_range)
 
 // TODO OPTIMIZATION: check if we can use instead a struct object with range_guid_map, new_ranges and default members so
 // we dont have to get the keys by string
+/**
+ * @brief Replaces a taint range with a new range from the provided dictionary.
+ *
+ * This function takes a `TaintRangePtr` and an optional dictionary of new ranges.
+ * If the `taint_range` is found in the dictionary, it is replaced with the corresponding new range.
+ * If the `taint_range` is not found or if `new_ranges` is null, an empty string is returned.
+ *
+ * @param taint_range A shared pointer to the original taint range.
+ * @param new_ranges An optional dictionary containing new taint ranges.
+ * @return A string representation of the hash of the new taint range if replaced, otherwise an empty string.
+ */
 inline string
 mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>& new_ranges)
 {
-    if (!taint_range or !new_ranges) {
+
+    if (!taint_range or !new_ranges.has_value() or py::len(new_ranges.value()) == 0) {
         return {};
     }
+
+    const py::dict& new_ranges_value = new_ranges.value();
     py::object o = py::cast(taint_range);
 
-    if (!new_ranges->contains(o)) {
+    if (!new_ranges_value.contains(o)) {
         return {};
     }
     const TaintRange new_range = py::cast<TaintRange>((*new_ranges)[o]);
     return to_string(new_range.get_hash());
 }
 
+// FIXME: maybe using an "unsigned" -1 as flag is not the best idea...
+inline unsigned long int
+getNum(const std::string& s)
+{
+    unsigned long int n = -1;
+    try {
+        n = std::stoul(s, nullptr, 10);
+        if (errno != 0) {
+            PyErr_Print();
+        }
+    } catch (std::exception&) {
+        // throw std::invalid_argument("Value is too big");
+        PyErr_Print();
+    }
+    return n;
+}
+
 inline PyObject*
 process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyObject* args, PyObject* kwargs)
 {
     // If orig_function is not None and not the built-in str, bytes, or bytearray, slice args
-
     if (const auto orig_function_type = Py_TYPE(orig_function);
         orig_function != Py_None && orig_function_type != &PyUnicode_Type && orig_function_type != &PyByteArray_Type &&
         orig_function_type != &PyBytes_Type) {
@@ -160,6 +204,75 @@ process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyOb
     // Then you don't need to Py_INCREF the resulted value. But if it's used as a PyObject*, then you need
     // to do it.
     return args;
+}
+
+/**
+ * @brief Splits a string containing taint markers into its textual components and the markers.
+ *
+ * This function takes a string that contains special taint markers (e.g., `:+-<...>-+:`) and splits it
+ * into separate components: the plain text parts and the taint markers. The markers represent taint information
+ * surrounding sections of the string, and the result is a vector where both text and markers are included as separate
+ * elements.
+ *
+ * @param str_to_split The input string containing taint markers.
+ *
+ * @return A vector of strings where each element is either a part of the original text or a taint marker.
+ *
+ * @example
+ * std::string tainted_str = "This :+-<123>-+:is a :+-<456>-+:test.";
+ * std::vector<std::string> result = split_taints(tainted_str);
+ * // result will be: ["This ", ":+-<123>-+:", "is a ", ":+-<456>-+:", "test."]
+ */
+inline vector<string>
+split_taints(const string& str_to_split)
+{
+    const std::regex rgx(R"((:\+-(<[0-9.a-z\-]+>)?|(<[0-9.a-z\-]+>)?-\+:))");
+    std::sregex_token_iterator iter(str_to_split.begin(), str_to_split.end(), rgx, { -1, 0 });
+    vector<string> res;
+
+    for (const std::sregex_token_iterator end; iter != end; ++iter) {
+        res.push_back(*iter);
+    }
+
+    return res;
+}
+
+/**
+ * @brief Retrieves a parameter from either the positional arguments, keyword arguments, or returns a default value.
+ *
+ * This function checks if a value is provided in the positional arguments (`args`) at the specified position.
+ * If not found, it checks the keyword arguments (`kwargs`) for the specified key. If neither is found,
+ * it returns the default value provided.
+ *
+ * @param position The position in the positional arguments (`args`) to check.
+ * @param keyword_name The name of the keyword to search for in the keyword arguments (`kwargs`).
+ * @param default_value The default value to return if the argument is not found in either `args` or `kwargs`.
+ * @param args The list of positional arguments.
+ * @param kwargs The dictionary of keyword arguments.
+ *
+ * @return The parameter found in the positional arguments, keyword arguments, or the default value if none is found.
+ *
+ * @example
+ * py::args args = py::make_tuple(42);
+ * py::kwargs kwargs;
+ * py::object default_value = py::int_(0);
+ * py::object result = parse_params(0, "key", default_value, args, kwargs);
+ * // In this case, the result will be 42 (the positional argument).
+ */
+inline py::object
+parse_params(size_t position,
+             const char* keyword_name,
+             const py::object& default_value,
+             const py::args& args,
+             const py::kwargs& kwargs)
+{
+    if (args.size() >= position + 1) {
+        return args[position];
+    }
+    if (kwargs && kwargs.contains(keyword_name)) {
+        return kwargs[keyword_name];
+    }
+    return default_value;
 }
 
 void

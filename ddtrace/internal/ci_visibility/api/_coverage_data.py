@@ -21,6 +21,8 @@ class CoverageFilePayload(TypedDict):
 class TestVisibilityCoverageData:
     """Container for coverage data for an item (suite or test)"""
 
+    __test__ = False
+
     def __init__(self) -> None:
         self._coverage_data: Dict[Path, CoverageLines] = defaultdict(CoverageLines)
 
