@@ -198,7 +198,7 @@ class Span(object):
 
         self._context: Optional[Context] = context._with_span(self) if context else None
 
-        self._links: List[SpanLink] = []
+        self._links: List[Union[SpanLink, _SpanPointer]] = []
         if links:
             for new_link in links:
                 self._set_link_or_append_pointer(new_link)
