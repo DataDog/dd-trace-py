@@ -1,4 +1,4 @@
 ---
 features:
   - |
-     LLM Observability: Introduces the `LLMObs.annotation_context()` context manager method which allows modifying or overriding the tags of integration generated LLM Observability spans created while the context manager is active.
+     LLM Observability: Introduces the `LLMObs.annotation_context()` and `LLMObs.annotate_context_async()` context manager methods which allows modifying or overriding the tags of integration generated LLM Observability spans created while the context manager is active.
