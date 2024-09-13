@@ -286,18 +286,36 @@ cdef class SampleHandle:
 
     def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool) -> None:
         if self.ptr is NULL:
+            call_ddup_config_user_tag(ensure_binary_or_empty("self.ptr"), ensure_binary_or_empty("null"))
             return
+        else:
+            call_ddup_config_user_tag(ensure_binary_or_empty("self.ptr"), ensure_binary_or_empty("not null"))
         if not span:
+            call_ddup_config_user_tag(ensure_binary_or_empty("span"), ensure_binary_or_empty("null"))
             return
+        else:
+            call_ddup_config_user_tag(ensure_binary_or_empty("span"), ensure_binary_or_empty("not null"))
         if span.span_id:
             ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span.span_id))
+            call_ddup_config_user_tag(ensure_binary_or_empty("span.span_id"), ensure_binary_or_empty(str(span.span_id)))
+        else:
+            call_ddup_config_user_tag(ensure_binary_or_empty("span_id"), ensure_binary_or_empty("null"))
         if not span._local_root:
+            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root"), ensure_binary_or_empty("null"))
             return
+        else:
+            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root"), ensure_binary_or_empty(str(span._local_root)))
         if span._local_root.span_id:
             ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
+            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root.span_id"), ensure_binary_or_empty(str(span._local_root.span_id)))
+        else:
+            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root.span_id"), ensure_binary_or_empty("null"))
         if span._local_root.span_type:
+            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root.span_type"), ensure_binary_or_empty(str(span._local_root.span_type)))
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
+        else:
+            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root.span_type"), ensure_binary_or_empty("null"))
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
