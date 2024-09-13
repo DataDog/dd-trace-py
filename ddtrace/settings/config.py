@@ -95,7 +95,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
 
 
 def _parse_propagation_styles(name, default):
-    # type: (str, Optional[str]) -> Optional[List[str]]
+    # type: (str, Optional[str]) -> List[str]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -133,7 +133,7 @@ def _parse_propagation_styles(name, default):
     styles = []
     envvar = os.getenv(name, default=default)
     if envvar is None:
-        return None
+        return []
     for style in envvar.split(","):
         style = style.strip().lower()
         if style == "b3 single header":

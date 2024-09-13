@@ -123,15 +123,14 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
-def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
+def _attach_baggage_to_context(headers: Dict[str, str], context: Context) -> None:
     if context is not None:
         for key, value in headers.items():
             if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
                 context._set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
 
 
-def _hex_id_to_dd_id(hex_id):
-    # type: (str) -> int
+def _hex_id_to_dd_id(hex_id: str) -> int:
     """Helper to convert hex ids into Datadog compatible ints."""
     return int(hex_id, 16)
 
@@ -139,8 +138,7 @@ def _hex_id_to_dd_id(hex_id):
 _b3_id_to_dd_id = _hex_id_to_dd_id
 
 
-def _dd_id_to_b3_id(dd_id):
-    # type: (int) -> str
+def _dd_id_to_b3_id(dd_id: int) -> str:
     """Helper to convert Datadog trace/span int ids into lower case hex values"""
     if dd_id > _MAX_UINT_64BITS:
         # b3 trace ids can have the length of 16 or 32 characters:
@@ -686,7 +684,7 @@ class _TraceContext:
             span_id_hex,
             trace_flags_hex,
             future_vals,
-        ) = valid_tp_values.groups()  # type: Tuple[str, str, str, str, Optional[str]]
+        ) = valid_tp_values.groups()
 
         if version == "ff":
             # https://www.w3.org/TR/trace-context/#version
@@ -758,7 +756,7 @@ class _TraceContext:
     @staticmethod
     def _get_sampling_priority(
         traceparent_sampled: int, tracestate_sampling_priority: Optional[int], origin: Optional[str] = None
-    ):
+    ) -> int:
         """
         When the traceparent sampled flag is set, the Datadog sampling priority is either
         1 or a positive value of sampling priority if propagated in tracestate.
@@ -782,6 +780,8 @@ class _TraceContext:
             and (not tracestate_sampling_priority or tracestate_sampling_priority < 0)
         ):
             sampling_priority = 1
+        elif tracestate_sampling_priority is None:
+            sampling_priority = traceparent_sampled
         else:
             # The two other options provided for clarity:
             # elif traceparent_sampled == 1 and tracestate_sampling_priority > 0:
@@ -801,7 +801,7 @@ class _TraceContext:
                 return None
             trace_id, span_id, trace_flag = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
-            log.exception("received invalid w3c traceparent: %s ", tp)
+            log.exception("received invalid w3c traceparent: %s ", headers)
             return None
 
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
@@ -901,6 +901,7 @@ class HTTPPropagator(object):
 
     @staticmethod
     def _extract_configured_contexts_avail(normalized_headers):
+        # type: (Dict[str, str]) -> Tuple[List[Context], List[str]]
         contexts = []
         styles_w_ctx = []
         for prop_style in config._propagation_style_extract:
@@ -912,7 +913,7 @@ class HTTPPropagator(object):
         return contexts, styles_w_ctx
 
     @staticmethod
-    def _resolve_contexts(contexts, styles_w_ctx, normalized_headers):
+    def _resolve_contexts(contexts, styles_w_ctx, normalized_headers) -> Context:
         primary_context = contexts[0]
         links = []
         for context in contexts[1:]:
