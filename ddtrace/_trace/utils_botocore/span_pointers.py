@@ -5,6 +5,10 @@ from typing import List
 from ddtrace._trace._span_pointers import _SpanPointerDescription
 from ddtrace._trace._span_pointers import _SpanPointerDirection
 from ddtrace._trace._span_pointers import _standard_hashing_function
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
 
 
 def extract_span_pointers_from_successful_botocore_response(
@@ -41,19 +45,28 @@ def _extract_span_pointers_for_s3_put_object_response(
         bucket = request_parameters["Bucket"]
         key = request_parameters["Key"]
         etag = response["ETag"]
-    except KeyError:
-        # Maybe we log this strange situation? Those fields are supposed to be
-        # required.
+    except KeyError as e:
+        log.warning(
+            "missing a parameter or response field required to make span pointer for S3.PutObject: %s",
+            str(e),
+        )
         return []
 
-    return [
-        _aws_s3_object_span_pointer_description(
-            pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-            bucket=bucket,
-            key=key,
-            etag=etag,
+    try:
+        return [
+            _aws_s3_object_span_pointer_description(
+                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                bucket=bucket,
+                key=key,
+                etag=etag,
+            )
+        ]
+    except Exception as e:
+        log.warning(
+            "failed to generate S3.PutObject span pointer: %s",
+            str(e),
         )
-    ]
+        return []
 
 
 def _aws_s3_object_span_pointer_description(
