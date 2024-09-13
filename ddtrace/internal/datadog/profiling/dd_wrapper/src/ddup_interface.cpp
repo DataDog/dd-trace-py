@@ -236,13 +236,6 @@ ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type) // cp
 }
 
 void
-ddup_push_trace_resource_container(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
-                                   std::string_view trace_resource_container)
-{
-    sample->push_trace_resource_container(trace_resource_container);
-}
-
-void
 ddup_push_exceptioninfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                         std::string_view exception_type,
                         int64_t count)
