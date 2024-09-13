@@ -754,8 +754,12 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
+                # ddtrace patches different methods for the following pymongo version:
+                # pymmongo<3.9, 3.9<=pymongo<3.12, 3.12<=pymongo<4.5, pymongo>=4.5
+                # To get full test coverage we must test all these version ranges
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.0", latest]}
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={"pymongo": ["~=3.8.0", "~=3.9.0", "~=3.11", "~=4.0", latest]},
                 ),
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
@@ -2109,6 +2113,24 @@ venv = Venv(
             },
         ),
         Venv(
+            name="avro",
+            pys=select_pys(min_version="3.7", max_version="3.12"),
+            command="pytest {cmdargs} tests/contrib/avro",
+            pkgs={
+                "avro": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
+            name="protobuf",
+            command="pytest {cmdargs} tests/contrib/protobuf",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pkgs={
+                "protobuf": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
@@ -2673,6 +2695,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_generativeai",
+            command="pytest {cmdargs} tests/contrib/google_generativeai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-generativeai": [latest],
+                "pillow": latest,
+            },
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
@@ -2938,6 +2970,7 @@ venv = Venv(
             env={"DD_PROFILING_ENABLE_ASSERTS": "1", "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1"},
             pkgs={
                 "gunicorn": latest,
+                "lz4": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177

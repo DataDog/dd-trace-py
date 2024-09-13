@@ -3,7 +3,6 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace._trace.span import Span  # noqa:F401
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi_async import FetchTracedAsyncCursor
 from ddtrace.contrib.dbapi_async import TracedAsyncConnection
 from ddtrace.contrib.dbapi_async import TracedAsyncCursor
@@ -312,20 +311,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
-    @mark_asyncio
-    async def test_cursor_analytics_default(self):
-        cursor = self.cursor
-        cursor.rowcount = 0
-        cursor.execute.return_value = "__result__"
-
-        pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = TracedAsyncCursor(cursor, pin, {})
-        # DEV: We always pass through the result
-        assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
-
-        span = self.pop_spans()[0]
-        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
 
 class TestFetchTracedAsyncCursor(AsyncioTestCase):
     def setUp(self):
@@ -495,40 +480,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
     @mark_asyncio
-    async def test_fetch_no_analytics(self):
-        """Confirm fetch* methods do not have analytics sample rate metric"""
-        with self.override_config("dbapi2", dict(analytics_enabled=True)):
-            cursor = self.cursor
-            cursor.rowcount = 0
-            cursor.fetchone.return_value = "__result__"
-            pin = Pin("pin_name", tracer=self.tracer)
-            traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
-            assert "__result__" == await traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
-
-            span = self.pop_spans()[0]
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-            cursor = self.cursor
-            cursor.rowcount = 0
-            cursor.fetchall.return_value = "__result__"
-            pin = Pin("pin_name", tracer=self.tracer)
-            traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
-            assert "__result__" == await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
-
-            span = self.pop_spans()[0]
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-            cursor = self.cursor
-            cursor.rowcount = 0
-            cursor.fetchmany.return_value = "__result__"
-            pin = Pin("pin_name", tracer=self.tracer)
-            traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
-            assert "__result__" == await traced_cursor.fetchmany("arg_1", kwarg1="kwarg1")
-
-            span = self.pop_spans()[0]
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    @mark_asyncio
     async def test_unknown_rowcount(self):
         class Unknown(object):
             pass
@@ -653,18 +604,6 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         await traced_connection.rollback()
         assert tracer.pop()[0].name == "mock.connection.rollback"
         connection.rollback.assert_called_with()
-
-    @mark_asyncio
-    async def test_connection_analytics_with_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            connection = self.connection
-            tracer = self.tracer
-            connection.commit.return_value = None
-            pin = Pin("pin_name", tracer=tracer)
-            traced_connection = TracedAsyncConnection(connection, pin)
-            await traced_connection.commit()
-            span = tracer.pop()[0]
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     @mark_asyncio
     async def test_connection_context_manager(self):

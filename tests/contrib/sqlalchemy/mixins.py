@@ -8,7 +8,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlalchemy import trace_engine
 from tests.opentracer.utils import init_tracer
 
@@ -200,33 +199,3 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
         assert dd_span.span_type == "sql"
         assert dd_span.error == 0
         assert dd_span.duration > 0
-
-    def test_analytics_default(self):
-        # ensures that the ORM session is traced
-        wayne = Player(id=1, name="wayne")
-        self.session.add(wayne)
-        self.session.commit()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("sqlalchemy", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            wayne = Player(id=1, name="wayne")
-            self.session.add(wayne)
-            self.session.commit()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("sqlalchemy", dict(analytics_enabled=True)):
-            wayne = Player(id=1, name="wayne")
-            self.session.add(wayne)
-            self.session.commit()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
