@@ -297,6 +297,7 @@ dependencies = [
     "pytest",
     "pytest-cov",
     "hypothesis",
+    "requests",
 ]
 
 [envs.appsec_aggregated_leak_testing.env-vars]
