@@ -289,6 +289,29 @@ test = [
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 
+# ASM Appsec Aggregated Leak Testing
+
+[envs.appsec_aggregated_leak_testing]
+template = "appsec_aggregated_leak_testing"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+]
+
+[envs.appsec_aggregated_leak_testing.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
+[envs.appsec_aggregated_leak_testing.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+]
+
+[[envs.appsec_aggregated_leak_testing.matrix]]
+python = ["3.7", "3.9", "3.10", "3.11", "3.12"]
+
+
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_fastapi.matrix]]

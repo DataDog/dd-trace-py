@@ -191,10 +191,3 @@ def test_stacktrace_memory_random_string_check():
         file_name, line_number = frame_info
         assert file_name == ""
         assert line_number == -1
-
-
-def test_aggregated_leaks():
-    with override_env({"DD_IAST_ENABLED": "True"}):
-        from scripts.iast.test_leak_functions import test_iast_leaks
-
-        assert test_iast_leaks(100000, 2.0, 50) == 0
