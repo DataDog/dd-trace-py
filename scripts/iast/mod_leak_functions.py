@@ -67,5 +67,6 @@ def test_doit():
     string19 = os.path.normcase(string18)  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
     string20 = os.path.splitdrive(string19)[1]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
 
-    # expected = "notainted_HIROOT1234-HIROOT123_notainted"  # noqa: F841
+    string20 += "_extend"
+    # expected = "notainted_HIROOT1234-HIROOT123_notainted_extend"  # noqa: F841
     return string20
