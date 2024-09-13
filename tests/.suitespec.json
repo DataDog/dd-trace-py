@@ -163,6 +163,10 @@
             "ddtrace/contrib/avro/*",
             "ddtrace/contrib/internal/avro/*"
         ],
+        "protobuf": [
+            "ddtrace/contrib/protobuf/*",
+            "ddtrace/contrib/internal/protobuf/*"
+        ],
         "mongo": [
             "ddtrace/contrib/pymongo/*",
             "ddtrace/contrib/internal/pymongo/*",
@@ -1379,6 +1383,14 @@
             "@tracing",
             "@avro",
             "tests/contrib/avro/*"
+        ],
+        "protobuf": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@protobuf",
+            "tests/contrib/protobuf/*"
         ],
         "yaaredis": [
             "@core",
