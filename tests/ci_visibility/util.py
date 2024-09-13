@@ -161,13 +161,8 @@ def _get_default_os_env_vars():
     return {key: os.environ[key] for key in os_env_keys if key in os.environ}
 
 
-def _get_default_ci_env_vars(
-    new_vars: t.Optional[t.Dict[str, str]] = None, inherit_os=False, mock_ci_env=None
-) -> t.Dict[str, str]:
+def _get_default_ci_env_vars(new_vars: t.Optional[t.Dict[str, str]] = None, mock_ci_env=None) -> t.Dict[str, str]:
     _env = _get_default_os_env_vars()
-
-    if inherit_os:
-        _env.update(os.environ)
 
     if mock_ci_env:
         _env.update(_PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS)

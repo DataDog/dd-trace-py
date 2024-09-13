@@ -80,9 +80,10 @@ def override_env(env, replace_os_env=False):
         >>> with self.override_env(dict(DD_TRACE_DEBUG=True)):
             # Your test
     """
-    # Only copy the full original environment if requested:
+    # Copy the full original environment
     original = dict(os.environ)
 
+    # We allow callers to clear out the environment to prevent leaking variables into the test
     if replace_os_env:
         os.environ.clear()
 
