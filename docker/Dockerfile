@@ -54,14 +54,16 @@ RUN \
       unixodbc-dev \
       wget \
       zlib1g-dev \
-  # Install Mariadb
+      awscli \
+  # For running datadog-ci CLI with npx
+  && apt-get install -y --no-install-recommends nodejs npm \
+  && npm install -g @datadog/datadog-ci \
+  # Install Mariadb last because mariadb_repo_setup currently breaks apt
   && wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup \
   && chmod +x mariadb_repo_setup \
   && ./mariadb_repo_setup \
   && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
   && rm mariadb_repo_setup \
-  # For running datadog-ci CLI with npx
-  && apt-get install -y --no-install-recommends nodejs npm \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 

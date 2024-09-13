@@ -7,7 +7,11 @@ variables:
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
   needs: []
   parallel: 4
+  services:
+    - !reference [.testrunner, services]
   script:
+    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
+    - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
     - |
       envs=( $(hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh) )
       if [[ ${#envs[@]} -eq 0 ]]; then
@@ -23,7 +27,7 @@ variables:
 .test_base_hatch_snapshot:
   extends: .test_base_hatch
   services:
-    - !reference [.services, testagent]
+    - !reference [.test_base_hatch, services]
   before_script:
     - !reference [.testrunner, before_script]
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
@@ -36,7 +40,7 @@ variables:
   needs: [ build_base_venvs ]
   parallel: 4
   services:
-    - !reference [.services, ddagent]
+    - !reference [.testrunner, services]
   script:
     - pip install riot~=0.19.1
     - unset DD_SERVICE
@@ -53,7 +57,7 @@ variables:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
-        ${RIOT_RUN_CMD} "${hash}"
+        ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
