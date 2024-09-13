@@ -132,6 +132,7 @@ def test_wrapt_disable_extensions():
     import os
     import threading
 
+    from ddtrace import tracer
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import _lock
     from ddtrace.profiling.collector import threading as collector_threading
@@ -140,6 +141,10 @@ def test_wrapt_disable_extensions():
     from tests.profiling.collector.lock_utils import init_linenos
 
     assert ddup.is_available, "ddup is not available"
+
+    # The tracer fixture doesn't seem to work with subprocess, so just import
+    # and enable the endpoint call counter span processor here.
+    tracer._endpoint_call_counter_span_processor.enable()
 
     # Set up the ddup exporter
     test_name = "test_wrapt_disable_extensions"
@@ -161,7 +166,7 @@ def test_wrapt_disable_extensions():
         with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
             pass
 
-    ddup.upload()
+    ddup.upload(tracer._endpoint_call_counter_span_processor)
 
     expected_filename = "test_threading.py"
 
@@ -217,7 +222,7 @@ class TestThreadingLockCollector:
         pass
 
     # Tests
-    def test_lock_events(self):
+    def test_lock_events(self, tracer):
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
@@ -225,7 +230,7 @@ class TestThreadingLockCollector:
             lock.acquire()  # !ACQUIRE! test_lock_events
             lock.release()  # !RELEASE! test_lock_events
         # Calling upload will trigger the exporter to write to a file
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         profile = pprof_utils.parse_profile(self.output_filename)
         linenos = get_lock_linenos("test_lock_events")
@@ -249,7 +254,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_acquire_events_class(self):
+    def test_lock_acquire_events_class(self, tracer):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
 
             class Foobar(object):
@@ -259,7 +264,7 @@ class TestThreadingLockCollector:
 
             Foobar().lockfunc()
 
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos = get_lock_linenos("test_lock_acquire_events_class")
 
@@ -294,7 +299,7 @@ class TestThreadingLockCollector:
                 span_id = t.span_id
 
             lock2.release()  # !RELEASE! test_lock_events_tracer_2
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos1 = get_lock_linenos("test_lock_events_tracer_1")
         linenos2 = get_lock_linenos("test_lock_events_tracer_2")
@@ -356,7 +361,7 @@ class TestThreadingLockCollector:
             lock2.release()  # !RELEASE! test_lock_events_tracer_late_finish_2
         span.resource = resource
         span.finish()
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos1 = get_lock_linenos("test_lock_events_tracer_late_finish_1")
         linenos2 = get_lock_linenos("test_lock_events_tracer_late_finish_2")
@@ -412,7 +417,7 @@ class TestThreadingLockCollector:
                 lock1.release()  # !RELEASE! test_resource_not_collected_1
                 span_id = t.span_id
             lock2.release()  # !RELEASE! test_resource_not_collected_2
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos1 = get_lock_linenos("test_resource_not_collected_1")
         linenos2 = get_lock_linenos("test_resource_not_collected_2")
@@ -457,7 +462,7 @@ class TestThreadingLockCollector:
         )
 
     @pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
-    def test_lock_gevent_tasks(self):
+    def test_lock_gevent_tasks(self, tracer):
         from gevent import monkey
 
         monkey.patch_all()
@@ -472,7 +477,7 @@ class TestThreadingLockCollector:
             t.start()
             t.join()
 
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos = get_lock_linenos("test_lock_gevent_tasks")
 
@@ -501,13 +506,13 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_enter_exit_events(self):
+    def test_lock_enter_exit_events(self, tracer):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
             th_lock = threading.Lock()  # !CREATE! test_lock_enter_exit_events
             with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
                 pass
 
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         # for enter/exits, we need to update the lock_linenos for versions >= 3.10
         linenos = get_lock_linenos("test_lock_enter_exit_events", with_stmt=True)
@@ -537,7 +542,7 @@ class TestThreadingLockCollector:
         "inspect_dir_enabled",
         [True, False],
     )
-    def test_class_member_lock(self, inspect_dir_enabled):
+    def test_class_member_lock(self, tracer, inspect_dir_enabled):
         with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
             expected_lock_name = "foo_lock" if inspect_dir_enabled else None
 
@@ -547,7 +552,7 @@ class TestThreadingLockCollector:
                 bar = Bar()
                 bar.bar()
 
-            ddup.upload()
+            ddup.upload(tracer._endpoint_call_counter_span_processor)
 
             linenos = get_lock_linenos("foolock", with_stmt=True)
             profile = pprof_utils.parse_profile(self.output_filename)
@@ -576,7 +581,7 @@ class TestThreadingLockCollector:
                 ],
             )
 
-    def test_private_lock(self):
+    def test_private_lock(self, tracer):
         class Foo:
             def __init__(self):
                 self.__lock = threading.Lock()  # !CREATE! test_private_lock
@@ -589,7 +594,7 @@ class TestThreadingLockCollector:
             foo = Foo()
             foo.foo()
 
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos = get_lock_linenos("test_private_lock", with_stmt=True)
 
@@ -615,7 +620,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_inner_lock(self):
+    def test_inner_lock(self, tracer):
         class Bar:
             def __init__(self):
                 self.foo = Foo()
@@ -628,7 +633,7 @@ class TestThreadingLockCollector:
             bar = Bar()
             bar.bar()
 
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos_foo = get_lock_linenos("foolock")
         linenos_bar = get_lock_linenos("test_inner_lock", with_stmt=True)
@@ -655,11 +660,11 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_anonymous_lock(self):
+    def test_anonymous_lock(self, tracer):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
             with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
                 pass
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         linenos = get_lock_linenos("test_anonymous_lock", with_stmt=True)
 
@@ -682,14 +687,14 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_global_locks(self):
+    def test_global_locks(self, tracer):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
             from tests.profiling.collector import global_locks
 
             global_locks.foo()
             global_locks.bar_instance.bar()
 
-        ddup.upload()
+        ddup.upload(tracer._endpoint_call_counter_span_processor)
 
         profile = pprof_utils.parse_profile(self.output_filename)
         linenos_foo = get_lock_linenos("global_lock", with_stmt=True)

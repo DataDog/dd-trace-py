@@ -7,6 +7,7 @@ from typing import List
 from typing import Optional
 from typing import Sequence  # noqa F401
 
+from ddtrace import tracer
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
@@ -53,7 +54,7 @@ class Scheduler(periodic.PeriodicService):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
         if self._export_libdd_enabled:
-            ddup.upload()
+            ddup.upload(tracer._endpoint_call_counter_span_processor)
 
             # These are only used by the Python uploader, but set them here to keep logs/etc
             # consistent for now

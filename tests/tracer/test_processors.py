@@ -596,7 +596,7 @@ def switch_out_trace_sampling_processor(tracer, sampling_processor):
                 i += 1
 
 
-def test_endpoint_call_counter_processor():
+def test_endpoint_call_counter_span_processor():
     """ProfilingSpanProcessor collects information about endpoints for profiling"""
     spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
     spanA._local_root = spanA
@@ -614,12 +614,12 @@ def test_endpoint_call_counter_processor():
     processor.on_span_finish(spanNonWeb)
     processor.on_span_finish(spanNonLocalRoot)
 
-    assert processor.reset() == {"a": 2, "b": 1}
+    assert processor.reset()[0] == {"a": 2, "b": 1}
     # Make sure data has been cleared
-    assert processor.reset() == {}
+    assert processor.reset()[0] == {}
 
 
-def test_endpoint_call_counter_processor_disabled():
+def test_endpoint_call_counter_span_processor_disabled():
     """ProfilingSpanProcessor is disabled by default"""
     spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
     spanA._local_root = spanA
@@ -628,10 +628,10 @@ def test_endpoint_call_counter_processor_disabled():
 
     processor.on_span_finish(spanA)
 
-    assert processor.reset() == {}
+    assert processor.reset()[0] == {}
 
 
-def test_endpoint_call_counter_processor_real_tracer():
+def test_endpoint_call_counter_span_processor_real_tracer():
     tracer = Tracer()
     tracer._endpoint_call_counter_span_processor.enable()
     tracer.configure(writer=DummyWriter())
@@ -652,7 +652,7 @@ def test_endpoint_call_counter_processor_real_tracer():
     with tracer.trace("parent", service="top_level_test_service", resource="ignored", span_type=SpanTypes.HTTP):
         pass
 
-    assert tracer._endpoint_call_counter_span_processor.reset() == {"a": 2, "b": 1}
+    assert tracer._endpoint_call_counter_span_processor.reset()[0] == {"a": 2, "b": 1}
 
 
 def test_trace_tag_processor_adds_chunk_root_tags():
