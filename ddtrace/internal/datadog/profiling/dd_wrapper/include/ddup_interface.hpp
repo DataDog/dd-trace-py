@@ -48,10 +48,10 @@ extern "C"
                               std::string_view thread_name);
     void ddup_push_task_id(Datadog::Sample* sample, int64_t task_id);
     void ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name);
-    void ddup_push_span_id(Datadog::Sample* sample, int64_t span_id);
-    void ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id);
+    void ddup_push_span_id(Datadog::Sample* sample, uint64_t span_id);
+    void ddup_push_local_root_span_id(Datadog::Sample* sample, uint64_t local_root_span_id);
     void ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type);
-    bool ddup_push_trace_endpoint(int64_t local_root_span_id, std::string_view trace_endpoint, int64_t count);
+    bool ddup_push_trace_endpoint(uint64_t local_root_span_id, std::string_view trace_endpoint, int64_t count);
     void ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count);
     void ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name);
     void ddup_push_frame(Datadog::Sample* sample,
