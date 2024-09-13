@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from typing import List
 from typing import Optional
 
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -45,7 +45,7 @@ def _set_span_tags(
             if hasattr(instance, attr):
                 span.set_metric(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
     # set analytics sample rate if enabled
-    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
+    span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
 
 
 @contextmanager

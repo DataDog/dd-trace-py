@@ -4,7 +4,6 @@ import aiobotocore
 from botocore.errorfactory import ClientError
 import pytest
 
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
@@ -45,21 +44,8 @@ async def test_traced_client(tracer):
     assert span.resource == "ec2.describeinstances"
     assert span.name == "ec2.command"
     assert span.span_type == "http"
-    assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
     assert span.get_tag("component") == "aiobotocore"
     assert span.get_tag("span.kind") == "client"
-
-
-@pytest.mark.asyncio
-async def test_traced_client_analytics(tracer):
-    with override_config("aiobotocore", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        async with aiobotocore_client("ec2", tracer) as ec2:
-            await ec2.describe_instances()
-
-    traces = tracer.pop_traces()
-    assert traces
-    span = traces[0][0]
-    assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
 
 @pytest.mark.asyncio
