@@ -41,7 +41,7 @@ ABSOLUTE_JUMPS = set(dis.hasjabs)
 BACKWARD_JUMPS = set(op for op in dis.hasjrel if "BACKWARD" in dis.opname[op])
 FORWARD_JUMPS = set(op for op in dis.hasjrel if "BACKWARD" not in dis.opname[op])
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_all_lines_nonrecursive(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     extended_arg = 0
     old_code = code.co_code
     new_code = bytearray()
@@ -247,13 +247,16 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         new_code[new_end - 3] = (arg >>  8) & 0xFF
         new_code[new_end - 1] = arg         & 0xFF
 
+    return new_code, new_consts, new_linetable, seen_lines
+
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+    new_code, new_consts, new_linetable, seen_lines = instrument_all_lines_nonrecursive(code, hook, path, package)
 
     # Instrument nested code objects recursively
-    for original_offset, nested_code in enumerate(code.co_consts):
+    for const_index, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
-            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, hook, path, package)
+            new_consts[const_index], nested_lines = instrument_all_lines(nested_code, hook, path, package)
             seen_lines.update(nested_lines)
-
 
     return code.replace(
         co_code=bytes(new_code),
