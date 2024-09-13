@@ -39,6 +39,7 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
@@ -54,7 +55,6 @@ from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
-
 
 SUPPORTED_LLMOBS_INTEGRATIONS = {
     "anthropic": "anthropic",
@@ -85,7 +85,16 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
+
         self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
+        self._ragas_evaluator = None
+
+        if config._llmobs_ragas_faithfulness_enabled:
+            self._ragas_evaluator = RagasFaithfulnessEvaluator(
+                interval=1, _evaluation_metric_writer=self._llmobs_eval_metric_writer, _llmobs_instance=self
+            )
+            self._trace_processor._register_ragas_evaluator(self._ragas_evaluator)
+
         forksafe.register(self._child_after_fork)
 
     def _child_after_fork(self):
@@ -99,6 +108,10 @@ class LLMObs(Service):
             self._llmobs_span_writer.start()
         except ServiceStatusError:
             log.debug("Error starting LLMObs span writer after fork")
+        try:
+            self._ragas_evaluator.start()
+        except ServiceStatusError:
+            log.debug("Error starting LLMObs ragas evaluator after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
@@ -111,12 +124,22 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
+        try:
+            self._ragas_evaluator.start()
+        except ServiceStatusError:
+            log.debug("Error starting LLMObs ragas evaluator")
+
     def _stop_service(self) -> None:
         try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
+
+        try:
+            self._ragas_evaluator.stop()
+        except ServiceStatusError:
+            log.debug("Error stopping LLMObs ragas evaluator")
 
         try:
             forksafe.unregister(self._child_after_fork)
