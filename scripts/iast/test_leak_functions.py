@@ -40,7 +40,7 @@ def test_iast_leaks(iterations: int, fail_percent: float, print_every: int):
         for i in range(iterations):
             create_context()
             result = test_doit()  # noqa: F841
-            assert result == "notainted_HIROOT1234-HIROOT123_notainted"  # noqa: F841
+            assert result == "notainted_HIROOT1234-HIROOT123_notainted_extend"  # noqa: F841
             assert is_pyobject_tainted(result)
             reset_context()
 
