@@ -44,7 +44,6 @@ namespace Datadog {
     X(span_id, "span id")                                                                                              \
     X(local_root_span_id, "local root span id")                                                                        \
     X(trace_type, "trace type")                                                                                        \
-    X(trace_endpoint, "trace endpoint")                                                                                \
     X(class_name, "class name")                                                                                        \
     X(lock_name, "lock name")
 
