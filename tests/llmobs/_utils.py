@@ -11,6 +11,7 @@ except ImportError:
 import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._utils import _get_span_name
 
 
 if vcr:
@@ -68,7 +69,6 @@ def _expected_llmobs_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
-    integration=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -86,9 +86,7 @@ def _expected_llmobs_llm_span_event(
     error_message: error message
     error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(
-        span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
-    )
+    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
         if input_messages is not None:
@@ -132,7 +130,6 @@ def _expected_llmobs_non_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
-    integration=None,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -148,9 +145,7 @@ def _expected_llmobs_non_llm_span_event(
     error_message: error message
     error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(
-        span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
-    )
+    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
         if input_value is not None:
@@ -178,25 +173,13 @@ def _expected_llmobs_non_llm_span_event(
 
 
 def _llmobs_base_span_event(
-    span,
-    span_kind,
-    tags=None,
-    session_id=None,
-    error=None,
-    error_message=None,
-    error_stack=None,
-    integration=None,
+    span, span_kind, tags=None, session_id=None, error=None, error_message=None, error_stack=None,
 ):
-    span_name = span.name
-    if integration in ("langchain", "gemini"):
-        span_name = span.resource
-    elif integration == "openai":
-        span_name = "openai.{}".format(span.resource)
     span_event = {
         "trace_id": "{:x}".format(span.trace_id),
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
-        "name": span_name,
+        "name": _get_span_name(span),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",

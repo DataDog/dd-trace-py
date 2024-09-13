@@ -50,7 +50,7 @@ def _get_span_name(span: Span) -> str:
     if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME) and span.resource != "":
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
-        return "openai.{}".format(span.resource)
+        return "{}.{}".format(span.get_tag("openai.request.client"), span.resource)
     return span.name
 
 
