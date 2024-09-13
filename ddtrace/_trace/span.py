@@ -512,12 +512,6 @@ class Span(object):
     def _get_all_baggage_items(self) -> str:
         return json.dumps(self.context._get_all_baggage_items())
 
-    def _remove_baggage_item(self, key: str) -> None:
-        self.context._remove_baggage_item(key)
-
-    def _remove_all_baggage_items(self) -> None:
-        self.context._remove_all_baggage_items()
-
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
         return self._metrics.copy()
