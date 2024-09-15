@@ -17,6 +17,7 @@ from typing import Union
 
 from ddtrace import _hooks
 from ddtrace import config
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -63,6 +64,7 @@ from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.propagation.context_snipping import context_snipping_matcher
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
@@ -747,15 +749,7 @@ class Tracer(object):
                     self.context_provider.activate(new_ctx)
                 child_of = new_ctx
 
-        parent: Optional[Span] = None
-        if child_of is not None:
-            if isinstance(child_of, Context):
-                context = child_of
-            else:
-                context = child_of.context
-                parent = child_of
-        else:
-            context = Context(is_remote=False)
+        context, parent = _get_span_context(name, child_of, service, resource, span_type)
 
         trace_id = context.trace_id
         parent_id = context.span_id
@@ -815,6 +809,10 @@ class Tracer(object):
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
             )
+            for link in links:
+                span.set_link(trace_id=link.trace_id, span_id=link.span_id)
+                span._links[link.span_id].span = link.span
+
             span._local_root = span
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
@@ -1218,3 +1216,36 @@ class Tracer(object):
         sampler = DatadogSampler(rules=sampling_rules, default_sample_rate=sample_rate)
 
         self._sampler = sampler
+
+
+def _get_span_context(
+    name: str,
+    child_of: Optional[Union[Span, Context]] = None,
+    service: Optional[str] = None,
+    resource: Optional[str] = None,
+    span_type: Optional[str] = None,
+):
+    # breakpoint()
+    parent: Optional[Span] = None
+    if child_of is not None:
+        if isinstance(child_of, Context):
+            context = child_of
+        else:
+            context = child_of.context
+            parent = child_of
+
+        # if we find a match for any context snipping rules, we break the trace context
+        if config.context_snipping_enabled:
+            if context_snipping_matcher(name, child_of, service, resource, span_type):
+                context = Context(is_remote=False)
+                if config.context_snipping_style.USE_LINKS:
+                    context._span_links.append(SpanLink(trace_id=child_of.trace_id, span_id=child_of.span_id))
+                    context._span_links[0].span = child_of
+                else:
+                    # just start a new trace, no links
+                    pass
+                parent = None
+    else:
+        context = Context(is_remote=False)
+
+    return context, parent
