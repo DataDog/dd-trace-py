@@ -1,6 +1,7 @@
 #include "AspectIndex.h"
 #include "Helpers.h"
 #include "Utils/StringUtils.h"
+#include <iostream> // JJJ
 
 /**
  * @brief Index aspect
@@ -18,6 +19,7 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
     TaintRangeRefs ranges_to_set;
     auto [ranges, ranges_error] = get_ranges(candidate_text, tx_taint_map);
     if (ranges_error) {
+        cerr << "JJJ exit 1\n";
         return result_o;
     }
 
@@ -39,9 +41,11 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
                 py::set_error(PyExc_IndexError, "Index out of range");
             }
             // No ranges found, return original object
+            cerr << "JJJ exit 2\n";
             return result_o;
         }
     } else { // For other types nothing to do
+        cerr << "JJJ exit 3\n";
         return result_o;
     }
 
@@ -49,10 +53,12 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
     Py_DecRef(result_o);
 
     if (ranges_to_set.empty()) {
+        cerr << "JJJ exit 4\n";
         return res_new_id;
     }
     set_ranges(res_new_id, ranges_to_set, tx_taint_map);
 
+    cerr << "JJJ exit 5\n";
     return res_new_id;
 }
 
