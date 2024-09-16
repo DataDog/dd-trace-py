@@ -71,8 +71,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                     if integration.is_pc_sampled_span(span):
                         if _get_attr(block, "type", None) == "text":
                             span.set_tag_str(
-                                "anthropic.request.messages.%d.content.%d.text" % message_idx,
-                                block_idx,
+                                "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
                                 integration.trunc(str(_get_attr(block, "text", ""))),
                             )
                         elif _get_attr(block, "type", None) == "image":
@@ -145,8 +144,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
                     if integration.is_pc_sampled_span(span):
                         if _get_attr(block, "type", None) == "text":
                             span.set_tag_str(
-                                "anthropic.request.messages.%d.content.%d.text" % message_idx,
-                                block_idx,
+                                "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
                                 integration.trunc(str(_get_attr(block, "text", ""))),
                             )
                         elif _get_attr(block, "type", None) == "image":

@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "66e893d800000000",
-      "anthropic.request.api_key": "sk-...4gAA",
+      "anthropic.request.api_key": "sk-...key>",
       "anthropic.request.messages.0.content.0.text": "Valid content but unserializable metadata param",
       "anthropic.request.messages.0.content.0.type": "text",
       "anthropic.request.messages.0.role": "user",
