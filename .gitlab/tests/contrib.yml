@@ -34,14 +34,13 @@ bottle:
     SUITE_NAME: "bottle"
 
 celery:
-  extends: .test_base_riot_snapshot
-  variables:
-    SUITE_NAME: "celery"
+  extends: .test_base_riot_snapshot    
   services:
     - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, rabbitmq]
     - !reference [.services, redis]
   variables:
+    SUITE_NAME: "celery"
     LOG_LEVEL: DEBUG
     SNAPSHOT_DIR: /snapshots
     PORT: 9126

@@ -77,4 +77,3 @@
   rabbitmq:
     name: registry.ddbuild.io/images/mirror/rabbitmq:3.12.7-management-alpine
     alias: rabbitmq
-
