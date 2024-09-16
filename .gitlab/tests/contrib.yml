@@ -205,6 +205,11 @@ molten:
   variables:
     SUITE_NAME: "molten"
 
+protobuf:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "protobuf"
+
 opentracer:
   extends: .test_base_riot
   variables:
@@ -332,10 +337,39 @@ tornado:
   variables:
     SUITE_NAME: "tornado"
 
-unittest:
+aiohttp:
+  extends: .test_base_riot_snapshot
+  parallel: 3
+  variables:
+    SUITE_NAME: "aiohttp"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+requests:
   extends: .test_base_riot_snapshot
   variables:
-    SUITE_NAME: "unittest"
+    SUITE_NAME: "requests"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+httplib:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httplib"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+httpx:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httpx"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+  parallel: 2
 
 urllib3:
   extends: .test_base_riot_snapshot

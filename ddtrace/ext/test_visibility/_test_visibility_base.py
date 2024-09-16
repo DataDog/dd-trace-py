@@ -19,6 +19,7 @@ log = get_logger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class TestSessionId:
+    __test__ = False
     """Placeholder ID without attributes
 
     Allows reusing the same _TestVisibilityIdBase methods for sessions which do not have individual session IDs
@@ -29,6 +30,7 @@ class TestSessionId:
 class _TestVisibilityRootItemIdBase:
     """This class exists for the ABC class below"""
 
+    __test__ = False
     name: str
 
     def get_parent_id(self) -> "_TestVisibilityRootItemIdBase":
@@ -40,6 +42,8 @@ RT = TypeVar("RT", bound="_TestVisibilityRootItemIdBase")
 
 @dataclasses.dataclass(frozen=True)
 class _TestVisibilityIdBase(abc.ABC):
+    __test__ = False
+
     @abc.abstractmethod
     def get_parent_id(self) -> Union["_TestVisibilityIdBase", _TestVisibilityRootItemIdBase]:
         raise NotImplementedError("This method must be implemented by the subclass")
@@ -63,6 +67,8 @@ TestVisibilityItemId = TypeVar(
 
 
 class _TestVisibilityAPIBase(abc.ABC):
+    __test__ = False
+
     class GetTagArgs(NamedTuple):
         item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
         name: str
@@ -115,6 +121,8 @@ class TestSourceFileInfoBase:
 
     It is simply here for cosmetic reasons of keeping the original class definition short
     """
+
+    __test__ = False
 
     path: Path
     start_line: Optional[int] = None
