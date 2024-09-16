@@ -1330,7 +1330,10 @@ def test_streamed_llm(langchain_openai, streamed_response_responder):
         pass
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS,
+    token="tests.contrib.langchain.test_langchain_community.test_streamed_chain",
+)
 async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
         module="openai",
@@ -1351,7 +1354,10 @@ async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_
         pass
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS,
+    token="tests.contrib.langchain.test_langchain_community.test_streamed_chat",
+)
 async def test_astreamed_chat(langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
         module="openai",
@@ -1367,7 +1373,10 @@ async def test_astreamed_chat(langchain_openai, async_streamed_response_responde
         pass
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS,
+    token="tests.contrib.langchain.test_langchain_community.test_streamed_llm",
+)
 async def test_astreamed_llm(langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
         module="openai",
