@@ -3,8 +3,8 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from pydantic import BaseModel
-from pydantic import ConfigDict
+from pydantic.v1 import BaseModel
+from pydantic.v1 import ConfigDict
 
 
 # TypedDict was added to typing in python 3.8
