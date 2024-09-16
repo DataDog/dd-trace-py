@@ -1397,11 +1397,9 @@ def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai
     parser = langchain_core.output_parsers.JsonOutputParser()
 
     chain = model | parser
-    inp = """
-        output a list of the country france their population in JSON format.
-        Use a dict with an outer key of "countries" which contains a list of countries.
-        Each country should have the key `name` and `population`
-    """
+    inp = ('output a list of the country france their population in JSON format. '
+        'Use a dict with an outer key of "countries" which contains a list of countries. '
+        'Each country should have the key `name` and `population`')
 
     messages = [
         langchain.schema.SystemMessage(content="You know everything about the world."),

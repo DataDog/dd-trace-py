@@ -21,7 +21,7 @@
       "langchain.request.provider": "openai-chat",
       "langchain.request.stream": "True",
       "langchain.request.type": "chat_model",
-      "langchain.response.content": "Python is\n\nthe best!",
+      "langchain.response.content": "Python is\\n\\nthe best!",
       "language": "python",
       "runtime-id": "b3018660b0904cbfbe25aa695ac32c27"
     },
