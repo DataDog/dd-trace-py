@@ -1300,7 +1300,7 @@ def test_streamed_chain(langchain_core, langchain_openai, streamed_response_resp
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_streamed_chat(langchain_openai, request_vcr, streamed_response_responder):
+def test_streamed_chat(langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
         module="openai",
         client_class_key="OpenAI",
@@ -1315,7 +1315,7 @@ def test_streamed_chat(langchain_openai, request_vcr, streamed_response_responde
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_streamed_llm(langchain_community, langchain_core, langchain_openai, streamed_response_responder):
+def test_streamed_llm(langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
         module="openai",
         client_class_key="OpenAI",
@@ -1352,7 +1352,7 @@ async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_astreamed_chat(langchain_core, langchain_openai, async_streamed_response_responder):
+async def test_astreamed_chat(langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
         module="openai",
         client_class_key="AsyncOpenAI",
@@ -1368,7 +1368,7 @@ async def test_astreamed_chat(langchain_core, langchain_openai, async_streamed_r
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_astreamed_llm(langchain_community, langchain_core, langchain_openai, async_streamed_response_responder):
+async def test_astreamed_llm(langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
         module="openai",
         client_class_key="AsyncOpenAI",
@@ -1406,3 +1406,65 @@ def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai
 
     for _ in chain.stream(input=messages):
         pass
+@pytest.mark.snapshot(
+    # tool description is generated differently is some langchain_core versions
+    ignores=["meta.langchain.request.tool.description"],
+    token="tests.contrib.langchain.test_langchain_community.test_base_tool_invoke",
+)
+def test_base_tool_invoke(langchain_core, request_vcr):
+    """
+    Test that invoking a tool with langchain will
+    result in a 1-span trace with a tool span.
+    """
+    if langchain_core is None:
+        pytest.skip("langchain-core not installed which is required for this test.")
+
+    from math import pi
+
+    from langchain_core.tools import StructuredTool
+
+    def circumference_tool(radius: float) -> float:
+        return float(radius) * 2.0 * pi
+
+    calculator = StructuredTool.from_function(
+        func=circumference_tool,
+        name="Circumference calculator",
+        description="Use this tool when you need to calculate a circumference using the radius of a circle",
+        return_direct=True,
+        response_format="content",
+    )
+
+    calculator.invoke("2")
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(
+    # tool description is generated differently is some langchain_core versions
+    ignores=["meta.langchain.request.tool.description"],
+    token="tests.contrib.langchain.test_langchain_community.test_base_tool_invoke",
+)
+async def test_base_tool_ainvoke(langchain_core, request_vcr):
+    """
+    Test that invoking a tool with langchain will
+    result in a 1-span trace with a tool span. Async mode
+    """
+
+    if langchain_core is None:
+        pytest.skip("langchain-core not installed which is required for this test.")
+
+    from math import pi
+
+    from langchain_core.tools import StructuredTool
+
+    def circumference_tool(radius: float) -> float:
+        return float(radius) * 2.0 * pi
+
+    calculator = StructuredTool.from_function(
+        func=circumference_tool,
+        name="Circumference calculator",
+        description="Use this tool when you need to calculate a circumference using the radius of a circle",
+        return_direct=True,
+        response_format="content",
+    )
+
+    await calculator.ainvoke("2")

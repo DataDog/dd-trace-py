@@ -9,6 +9,7 @@ from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
 
 from ._metrics import _set_metric_iast_instrumented_source
+from ._taint_utils import taint_structure
 from ._utils import _is_iast_enabled
 
 
@@ -88,16 +89,10 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
             yield key, value
 
 
-def _patched_fastapi_request_cookies(original_func, instance, args, kwargs):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_utils import LazyTaintDict
-
+def _patched_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):
     result = original_func(*args, **kwargs)
 
-    if isinstance(result, (LazyTaintDict)):
-        return result
-
-    return LazyTaintDict(result, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE), override_pyobject_tainted=True)
+    return taint_structure(result, origin_key, origin_value, override_pyobject_tainted=True)
 
 
 def _patched_fastapi_function(origin, original_func, instance, args, kwargs):
@@ -106,14 +101,14 @@ def _patched_fastapi_function(origin, original_func, instance, args, kwargs):
     if _is_iast_enabled():
         try:
             from ._taint_tracking import is_pyobject_tainted
-            from ._taint_tracking import taint_pyobject
             from .processor import AppSecIastSpanProcessor
 
             if not AppSecIastSpanProcessor.is_span_analyzed():
                 return result
 
             if not is_pyobject_tainted(result):
-                from ._taint_tracking._native.taint_tracking import origin_to_str
+                from ._taint_tracking import origin_to_str
+                from ._taint_tracking import taint_pyobject
 
                 return taint_pyobject(
                     pyobject=result, source_name=origin_to_str(origin), source_value=result, source_origin=origin
@@ -130,7 +125,7 @@ def _on_iast_fastapi_patch():
     try_wrap_function_wrapper(
         "starlette.requests",
         "cookie_parser",
-        _patched_fastapi_request_cookies,
+        functools.partial(_patched_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
     )
     try_wrap_function_wrapper(
         "fastapi",
@@ -170,3 +165,62 @@ def _on_iast_fastapi_patch():
         functools.partial(_patched_fastapi_function, OriginType.HEADER),
     )
     _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+    # Path source
+    try_wrap_function_wrapper("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
+    _set_metric_iast_instrumented_source(OriginType.PATH)
+
+    # Body source
+    try_wrap_function_wrapper("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
+    _set_metric_iast_instrumented_source(OriginType.BODY)
+
+    # Instrumented on _iast_starlette_scope_taint
+    _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+
+
+def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import origin_to_str
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    def path(self) -> str:
+        return taint_pyobject(
+            self.components.path,
+            source_name=origin_to_str(OriginType.PATH),
+            source_value=self.components.path,
+            source_origin=OriginType.PATH,
+        )
+
+    instance.__class__.path = property(path)
+    wrapped(*args, **kwargs)
+
+
+def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+
+    def receive(self):
+        """This pattern comes from a Request._receive property, which returns a callable"""
+
+        async def wrapped_property_call():
+            body = await self._receive()
+            return taint_structure(body, OriginType.BODY, OriginType.BODY, override_pyobject_tainted=True)
+
+        return wrapped_property_call
+
+    # `self._receive` is set in `__init__`, so we wait for the constructor to finish before setting the new property
+    wrapped(*args, **kwargs)
+    instance.__class__.receive = property(receive)
+
+
+def _iast_instrument_starlette_scope(scope):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    if scope.get("path_params"):
+        try:
+            for k, v in scope["path_params"].items():
+                scope["path_params"][k] = taint_pyobject(
+                    v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+                )
+        except Exception:
+            log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)

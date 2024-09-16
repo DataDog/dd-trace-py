@@ -52,7 +52,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     if (!is_text(candidate_text) or !is_some_number(idx)) {
         return result_o;
     }
-    TRY_CATCH_ASPECT("index_aspect", {
+    TRY_CATCH_ASPECT("index_aspect", return result_o, , {
         const auto ctx_map = Initializer::get_tainting_map();
         if (not ctx_map or ctx_map->empty()) {
             return result_o;

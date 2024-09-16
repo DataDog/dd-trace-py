@@ -80,7 +80,7 @@ To configure the Anthropic integration on a per-instance basis use the
 
     Pin.override(anthropic, service="my-anthropic-service")
 """  # noqa: E501
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["anthropic"]
@@ -88,10 +88,14 @@ required_modules = ["anthropic"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # Required to allow users to import from `ddtrace.contrib.anthropic.patch` directly
-        from . import patch as _  # noqa: F401, I001
+        import warnings as _w
 
-        from ..internal.anthropic.patch import patch
-        from ..internal.anthropic.patch import unpatch
-        from ..internal.anthropic.patch import get_version
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
+
+        from ddtrace.contrib.internal.anthropic.patch import get_version
+        from ddtrace.contrib.internal.anthropic.patch import patch
+        from ddtrace.contrib.internal.anthropic.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

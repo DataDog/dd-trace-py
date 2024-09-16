@@ -168,8 +168,6 @@ class TraceSamplingProcessor(TraceProcessor):
 
             return trace
 
-        log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
-
         return None
 
 

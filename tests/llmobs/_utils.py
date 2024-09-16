@@ -1,21 +1,29 @@
 import os
 
 import mock
-import vcr
+
+
+try:
+    import vcr
+except ImportError:
+    vcr = None
 
 import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 
 
-logs_vcr = vcr.VCR(
-    cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
-    record_mode="once",
-    match_on=["path"],
-    filter_headers=[("DD-API-KEY", "XXXXXX")],
-    # Ignore requests to the agent
-    ignore_localhost=True,
-)
+if vcr:
+    logs_vcr = vcr.VCR(
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
+        record_mode="once",
+        match_on=["path"],
+        filter_headers=[("DD-API-KEY", "XXXXXX")],
+        # Ignore requests to the agent
+        ignore_localhost=True,
+    )
+else:
+    logs_vcr = None
 
 
 def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
@@ -27,7 +35,6 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         "service:{}".format(tags.get("service", "")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
-        "session_id:{}".format(session_id or "{:x}".format(span.trace_id)),
         "ddtrace.version:{}".format(ddtrace.__version__),
     ]
     if error:
@@ -35,6 +42,8 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error_type:{}".format(error))
     else:
         expected_tags.append("error:0")
+    if session_id:
+        expected_tags.append("session_id:{}".format(session_id))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -179,7 +188,7 @@ def _llmobs_base_span_event(
     integration=None,
 ):
     span_name = span.name
-    if integration == "langchain":
+    if integration in ("langchain", "gemini"):
         span_name = span.resource
     elif integration == "openai":
         span_name = "openai.{}".format(span.resource)
@@ -187,15 +196,16 @@ def _llmobs_base_span_event(
         "trace_id": "{:x}".format(span.trace_id),
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
-        "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span_name,
-        "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",
         "meta": {"span.kind": span_kind},
         "metrics": {},
+        "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
     }
+    if session_id:
+        span_event["session_id"] = session_id
     if error:
         span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message

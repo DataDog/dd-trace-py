@@ -3,7 +3,7 @@ from celery.utils import nodenames
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -57,7 +57,7 @@ def trace_prerun(*args, **kwargs):
     # set analytics sample rate
     rate = config.celery.get_analytics_sample_rate()
     if rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
     span.set_tag(SPAN_MEASURED_KEY)
     attach_span(task, task_id, span)
@@ -119,7 +119,7 @@ def trace_before_publish(*args, **kwargs):
     # set analytics sample rate
     rate = config.celery.get_analytics_sample_rate()
     if rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
     span.set_tag(SPAN_MEASURED_KEY)
     span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
