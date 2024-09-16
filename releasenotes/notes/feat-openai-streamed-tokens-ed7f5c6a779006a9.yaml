@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    openai: The OpenAI integration now captures token data from streamed completions and chat completions, if provided 
+    in the streamed response. To ensure accurate token data in the traced streamed operation, ensure
+    that the ``stream_options={"include_usage": True}`` option is set on the completion or chat completion call.
+  - |
+    LLM Observability: The OpenAI integration now ensures accurate token data from streamed OpenAI completions and 
+    chat completions, if provided in the streamed response. To ensure accurate token data in the traced streamed operation, 
+    ensure that the ``stream_options={"include_usage": True}`` option is set on the completion or chat completion call.

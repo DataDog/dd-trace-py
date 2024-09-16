@@ -5,7 +5,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace import _limits
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.elasticsearch.quantize import quantize
@@ -200,7 +200,7 @@ def _get_perform_request_coro(transport):
             status = None
 
             # set analytics sample rate
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.elasticsearch.get_analytics_sample_rate())
+            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.elasticsearch.get_analytics_sample_rate())
 
             span = quantize(span)
 
