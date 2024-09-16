@@ -11,7 +11,6 @@ from flask import jsonify
 from flask import make_response
 import pytest
 
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
@@ -183,118 +182,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Request tags
         assert spans[0].get_tag(http.QUERY_STRING) == "foo=bar&baz=����ó��"
-
-    def test_analytics_global_on_integration_default(self):
-        """
-        When making a request
-            When an integration trace search is not event sample rate is not set and globally trace search is enabled
-                We expect the root span to have the appropriate tag
-        """
-
-        @self.app.route("/")
-        def index():
-            return "Hello Flask", 200
-
-        with self.override_global_config(dict(analytics_enabled=True)):
-            res = self.client.get("/")
-            self.assertEqual(res.status_code, 200)
-            self.assertEqual(res.data, b"Hello Flask")
-
-        root = self.get_root_span()
-        root.assert_matches(
-            name="flask.request",
-            metrics={
-                ANALYTICS_SAMPLE_RATE_KEY: 1.0,
-            },
-        )
-
-        for span in self.spans:
-            if span == root:
-                continue
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_global_on_integration_on(self):
-        """
-        When making a request
-            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
-                We expect the root span to have the appropriate tag
-        """
-
-        @self.app.route("/")
-        def index():
-            return "Hello Flask", 200
-
-        with self.override_global_config(dict(analytics_enabled=True)):
-            with self.override_config("flask", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                res = self.client.get("/")
-                self.assertEqual(res.status_code, 200)
-                self.assertEqual(res.data, b"Hello Flask")
-
-        root = self.get_root_span()
-        root.assert_matches(
-            name="flask.request",
-            metrics={
-                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
-            },
-        )
-
-        for span in self.spans:
-            if span == root:
-                continue
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_global_off_integration_default(self):
-        """
-        When making a request
-            When an integration trace search is not set and sample rate is set and globally trace search is disabled
-                We expect the root span to not include tag
-        """
-
-        @self.app.route("/")
-        def index():
-            return "Hello Flask", 200
-
-        with self.override_global_config(dict(analytics_enabled=False)):
-            res = self.client.get("/")
-            self.assertEqual(res.status_code, 200)
-            self.assertEqual(res.data, b"Hello Flask")
-
-        root = self.get_root_span()
-        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-        for span in self.spans:
-            if span == root:
-                continue
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_global_off_integration_on(self):
-        """
-        When making a request
-            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
-                We expect the root span to have the appropriate tag
-        """
-
-        @self.app.route("/")
-        def index():
-            return "Hello Flask", 200
-
-        with self.override_global_config(dict(analytics_enabled=False)):
-            with self.override_config("flask", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                res = self.client.get("/")
-                self.assertEqual(res.status_code, 200)
-                self.assertEqual(res.data, b"Hello Flask")
-        root = self.get_root_span()
-        root.assert_matches(
-            name="flask.request",
-            metrics={
-                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
-            },
-        )
-
-        for span in self.spans:
-            if span == root:
-                continue
-            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_distributed_tracing(self):
         """

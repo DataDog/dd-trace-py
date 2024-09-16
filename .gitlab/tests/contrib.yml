@@ -1,3 +1,12 @@
+aiohttp:
+  extends: .test_base_riot_snapshot
+  parallel: 3
+  variables:
+    SUITE_NAME: "aiohttp"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
 algoliasearch:
   extends: .test_base_riot_snapshot
   variables:
@@ -38,25 +47,49 @@ cherrypy:
   variables:
     SUITE_NAME: "cherrypy"
 
+django:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, memcached]
+    - !reference [.services, redis]
+    - !reference [.services, postgres]
+  variables:
+    SUITE_NAME: "django($|_celery)"
+    TEST_POSTGRES_HOST: "postgres"
+    TEST_MEMCACHED_HOST: "memcached"
+    TEST_REDIS_HOST: "redis"
+
 django_hosts:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: 'django_hosts$'
     
 djangorestframework:
-  parallel: 2
   extends: .test_base_riot_snapshot
-  variables:
-    SUITE_NAME: "djangorestframework"
   services:
     - !reference [.test_base_riot_snapshot, services]
     - !reference [.services, memcached]
     - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "djangorestframework"
+    TEST_MEMCACHED_HOST: "memcached"
+    TEST_REDIS_HOST: "redis"
 
 dogpile_cache:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "dogpile_cache"
+
+dramatiq:
+  parallel: 2
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "dramatiq"
+    TEST_REDIS_HOST: "redis"
 
 elasticsearch:
   extends: .test_base_riot_snapshot
@@ -119,6 +152,23 @@ gunicorn:
   variables:
     SUITE_NAME: "gunicorn"
 
+httplib:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httplib"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+httpx:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httpx"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+  parallel: 2
+
 jinja2:
   extends: .test_base_riot_snapshot
   variables:
@@ -154,6 +204,11 @@ molten:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "molten"
+
+protobuf:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "protobuf"
 
 opentelemetry:
   parallel: 4
@@ -228,6 +283,14 @@ rediscluster:
     - !reference [.services, rediscluster]
   variables:
     SUITE_NAME: "rediscluster"
+
+requests:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "requests"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
 
 rq:
   extends: .test_base_riot_snapshot

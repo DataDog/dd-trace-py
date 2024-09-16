@@ -540,30 +540,6 @@ jobs:
       - run_test:
           pattern: "datastreams"
 
-  ci_visibility:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "ci_visibility"
-          snapshot: true
-
-  dd_coverage:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_hatch_env_test:
-          env: 'dd_coverage'
-          snapshot: true
-
-  pytest_v2:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_hatch_env_test:
-          env: 'pytest_plugin_v2'
-          snapshot: true
-
   botocore:
     <<: *machine_executor
     parallelism: 6
@@ -580,15 +556,6 @@ jobs:
           pattern: 'asyncpg'
           snapshot: true
           docker_services: 'postgres'
-
-  aiohttp:
-    <<: *machine_executor
-    parallelism: 3
-    steps:
-      - run_test:
-          pattern: 'aiohttp'  # includes aiohttp_jinja2
-          snapshot: true
-          docker_services: 'httpbin_local'
 
   cassandra:
     <<: *contrib_job
@@ -644,32 +611,6 @@ jobs:
           snapshot: true
           docker_services: "memcached redis postgres"
 
-  dramatiq:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "dramatiq"
-          snapshot: true
-          docker_services: "redis"
-
-  httplib:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "httplib"
-          snapshot: true
-          docker_services: 'httpbin_local'
-
-  httpx:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'httpx'
-          snapshot: true
-          docker_services: 'httpbin_local'
-
   mariadb:
     <<: *machine_executor
     parallelism: 4
@@ -712,14 +653,6 @@ jobs:
           wait: mysql
           pattern: 'pymysql$'
 
-  pytest:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          pattern: 'pytest'
-          snapshot: true
-
   mongoengine:
     <<: *machine_executor
     steps:
@@ -727,16 +660,6 @@ jobs:
           pattern: 'mongoengine'
           snapshot: true
           docker_services: 'mongo'
-
-  requests:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-      - *httpbin_local
-    steps:
-      - run_test:
-          pattern: "requests"
 
   sqlalchemy:
     <<: *contrib_job_small

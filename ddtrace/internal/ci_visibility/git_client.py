@@ -113,6 +113,9 @@ class CIVisibilityGitClient(object):
 
     def _wait_for_metadata_upload(self, timeout=DEFAULT_METADATA_UPLOAD_TIMEOUT):
         log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
+        if self._worker is None:
+            log.debug("No git metadata upload worker started")
+            return
         with StopWatch() as stopwatch:
             while not self.metadata_upload_finished():
                 log.debug("Waited %s so far, status is %s", stopwatch.elapsed(), self._metadata_upload_status.value)

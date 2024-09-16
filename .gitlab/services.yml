@@ -67,3 +67,11 @@
       DISABLE_SECURITY_PLUGIN: true
       discovery.type: single-node
       http.port: 9201
+  postgres:
+    name: registry.ddbuild.io/images/mirror/postgres:12-alpine
+    alias: postgres
+    variables:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+

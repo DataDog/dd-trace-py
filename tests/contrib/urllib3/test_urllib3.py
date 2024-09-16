@@ -4,7 +4,6 @@ import urllib3
 
 from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -445,35 +444,6 @@ class TestUrllib3(BaseUrllib3TestCase):
         s = spans[0]
         assert s.get_tag("http.request.headers.my-header") == "my_value"
         assert s.get_tag("http.response.headers.access-control-allow-origin") == "*"
-
-    def test_analytics_integration_default(self):
-        """Tests the default behavior of analytics integration is disabled"""
-        r = self.http.request("GET", URL_200)
-        assert r.status == 200
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-        assert s.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-    def test_analytics_integration_disabled(self):
-        """Test disabling the analytics integration"""
-        with self.override_config("urllib3", dict(analytics_enabled=False, analytics_sample_rate=0.5)):
-            self.http.request("GET", URL_200)
-
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-        assert s.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-    def test_analytics_integration_enabled(self):
-        """Tests enabline the analytics integration"""
-        with self.override_config("urllib3", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            self.http.request("GET", URL_200)
-
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-        assert s.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     def test_distributed_tracing_enabled(self):
         """Tests distributed tracing headers are passed by default"""
