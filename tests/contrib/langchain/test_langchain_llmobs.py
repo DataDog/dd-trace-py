@@ -69,7 +69,6 @@ def _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role=N
             metadata=metadata,
             token_metrics={},
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
     )
 
@@ -81,7 +80,6 @@ def _assert_expected_llmobs_chain_span(span, mock_llmobs_span_writer, input_valu
         input_value=input_value if input_value is not None else mock.ANY,
         output_value=output_value if output_value is not None else mock.ANY,
         tags={"ml_app": "langchain_test"},
-        integration="langchain",
     )
     mock_llmobs_span_writer.enqueue.assert_any_call(expected_chain_span_event)
 
@@ -388,7 +386,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -414,7 +411,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -442,7 +438,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
             output_value="[1 document(s) retrieved]",
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
         assert mock_llmobs_span_writer.enqueue.call_count == 2
@@ -653,7 +648,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -680,7 +674,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -711,7 +704,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             ],
             output_value="[1 document(s) retrieved]",
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
 
@@ -759,7 +751,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 metadata={"temperature": 0.7},
                 token_metrics={},
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -803,7 +794,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                     },
                 },
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
