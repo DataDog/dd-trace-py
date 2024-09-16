@@ -151,8 +151,9 @@ def instrument_all_lines_nonrecursive(
         If the argument does not fit in a single byte, EXTENDED_ARG instructions are prepended as needed.
         """
         if extended_arg > 255:
-            extended_bytes = extended_arg.bit_length() // 8
+            extended_bytes = (extended_arg.bit_length() - 1) // 8
             shift = 8 * extended_bytes
+
             while shift:
                 new_code.append(EXTENDED_ARG)
                 new_code.append((extended_arg >> shift) & 0xFF)
