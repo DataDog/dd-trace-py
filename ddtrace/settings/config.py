@@ -525,6 +525,18 @@ class Config(object):
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
 
+        legacy_client_tag_enabled = os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", None)
+        if legacy_client_tag_enabled is None:
+            self._http_tag_query_string = asbool(os.getenv("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", default=True))
+        else:
+            deprecate(
+                "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
+                message="Please use DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._http_tag_query_string = asbool(legacy_client_tag_enabled)
+
         dd_trace_obfuscation_query_string_regexp = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
