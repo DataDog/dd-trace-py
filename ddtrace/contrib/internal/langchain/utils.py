@@ -1,6 +1,5 @@
-import sys
-
 import inspect
+import sys
 
 
 class BaseTracedLangChainStreamResponse:

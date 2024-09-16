@@ -168,9 +168,10 @@ def langchain_pinecone(ddtrace_config_langchain, mock_logs, mock_metrics, langch
 def streamed_response_responder():
     # TODO (sam.brenner): clean this up a bit, make it more generic
     try:
-        import httpx
-        import os
         import importlib
+        import os
+
+        import httpx
 
         class CustomTransport(httpx.BaseTransport):
             def __init__(self, file: str):
@@ -186,12 +187,12 @@ def streamed_response_responder():
                     content = f.read()
                     return httpx.Response(200, request=request, content=content)
 
-        def responder(module, client_class_key, http_client_key, property: list[str], file: str):
+        def responder(module, client_class_key, http_client_key, client_path: list[str], file: str):
             clientModule = importlib.import_module(module)  # openai, anthropic, etc.
             client_class = getattr(clientModule, client_class_key)
             client = client_class(**{http_client_key: httpx.Client(transport=CustomTransport(file=file))})
 
-            for prop in property:
+            for prop in client_path:
                 client = getattr(client, prop)
 
             return client
@@ -206,9 +207,10 @@ def streamed_response_responder():
 def async_streamed_response_responder():
     # TODO (sam.brenner): clean this up a bit, make it more generic
     try:
-        import httpx
-        import os
         import importlib
+        import os
+
+        import httpx
 
         class CustomTransport(httpx.AsyncBaseTransport):
             def __init__(self, file: str):
@@ -224,12 +226,12 @@ def async_streamed_response_responder():
                     content = f.read()
                     return httpx.Response(200, request=request, content=content)
 
-        def responder(module, client_class_key, http_client_key, property: list[str], file: str):
+        def responder(module, client_class_key, http_client_key, client_path: list[str], file: str):
             clientModule = importlib.import_module(module)  # openai, anthropic, etc.
             client_class = getattr(clientModule, client_class_key)
             client = client_class(**{http_client_key: httpx.AsyncClient(transport=CustomTransport(file=file))})
 
-            for prop in property:
+            for prop in client_path:
                 client = getattr(client, prop)
 
             return client

@@ -1,7 +1,6 @@
 import json
 import os
 import sys
-import json
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -51,6 +50,7 @@ from ddtrace.contrib.internal.langchain.constants import TOTAL_COST
 from ddtrace.contrib.internal.langchain.constants import agent_output_parser_classes
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
+from ddtrace.contrib.internal.langchain.utils import shared_stream
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -62,7 +62,6 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
-from ddtrace.contrib.internal.langchain.utils import shared_stream
 
 
 log = get_logger(__name__)
@@ -1081,7 +1080,6 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
             if usage:
                 for k, v in usage.items():
                     span.set_tag_str("langchain.response.usage_metadata.%s" % k, str(v))
-        print("done with span")
 
     return shared_stream(
         integration=integration,
@@ -1135,6 +1133,8 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
         api_key=_extract_api_key(instance),
         provider=llm_provider,
     )
+
+
 @with_traced_module
 def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
@@ -1363,9 +1363,9 @@ def patch():
         wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
     else:
         from langchain.chains.base import Chain  # noqa:F401
-        from langchain_core import prompt_values  # noqa: F401
-        from langchain_core import output_parsers  # noqa: F401
         from langchain_core import messages  # noqa: F401
+        from langchain_core import output_parsers  # noqa: F401
+        from langchain_core import prompt_values  # noqa: F401
         from langchain_core.tools import BaseTool  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
