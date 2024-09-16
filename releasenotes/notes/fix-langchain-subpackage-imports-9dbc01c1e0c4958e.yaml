@@ -3,3 +3,5 @@ fixes:
   - |
     langchain: Resolves a potential patching issue where importing from the langchain community or langchain partner 
     subpackages could result in the langchain integration not being enabled.
+  - |
+    langchain: Fixes circular imports raised when langchain automatic instrumentation is enabled.

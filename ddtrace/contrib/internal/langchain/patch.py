@@ -6,42 +6,12 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
-import langchain
 from pydantic import SecretStr
-
-
-try:
-    import langchain_core
-except ImportError:
-    langchain_core = None
-try:
-    import langchain_community
-except ImportError:
-    langchain_community = None
-try:
-    import langchain_openai
-except ImportError:
-    langchain_openai = None
-try:
-    import langchain_pinecone
-except ImportError:
-    langchain_pinecone = None
-
-from ddtrace.appsec._iast import _is_iast_enabled
-
-
-try:
-    from langchain.callbacks.openai_info import get_openai_token_cost_for_model
-except ImportError:
-    try:
-        from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
-    except ImportError:
-        get_openai_token_cost_for_model = None
-
 import wrapt
 
 from ddtrace import Span
 from ddtrace import config
+from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.contrib.internal.langchain.constants import API_KEY
 from ddtrace.contrib.internal.langchain.constants import COMPLETION_TOKENS
 from ddtrace.contrib.internal.langchain.constants import MODEL
@@ -65,10 +35,21 @@ from ddtrace.pin import Pin
 
 log = get_logger(__name__)
 
+langchain = None
+langchain_community = None
+langchain_core = None
+langchain_openai = None
+langchain_pinecone = None
+get_openai_token_cost_for_model = None
+
 
 def get_version():
     # type: () -> str
-    return getattr(langchain, "__version__", "")
+    try:
+        import langchain
+    except ImportError:
+        return ""
+    return getattr(langchain, "__version__", "0.2.0")
 
 
 # After 0.1.0, implementation split into langchain, langchain_community, and langchain_core.
@@ -87,6 +68,48 @@ config._add(
         "span_char_limit": int(os.getenv("DD_LANGCHAIN_SPAN_CHAR_LIMIT", 128)),
     },
 )
+
+
+def _import_langchain_subpackages():
+    """Import all langchain subpackages that are available."""
+    global langchain, langchain_core, langchain_community, langchain_openai, langchain_pinecone
+
+    try:
+        import langchain
+    except ImportError:
+        langchain = None
+    try:
+        import langchain_core
+    except ImportError:
+        langchain_core = None
+    try:
+        import langchain_community
+    except ImportError:
+        langchain_community = None
+    try:
+        import langchain_openai
+    except ImportError:
+        langchain_openai = None
+    try:
+        import langchain_pinecone
+    except ImportError:
+        langchain_pinecone = None
+
+
+def _import_openai_token_calculator():
+    """Import langchain's OpenAI token calculator if available."""
+    global get_openai_token_cost_for_model
+
+    if get_openai_token_cost_for_model:
+        return get_openai_token_cost_for_model
+    try:
+        from langchain.callbacks.openai_info import get_openai_token_cost_for_model
+    except ImportError:
+        try:
+            from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
+        except ImportError:
+            get_openai_token_cost_for_model = None
+    return get_openai_token_cost_for_model
 
 
 def _extract_model_name(instance: Any) -> Optional[str]:
@@ -130,6 +153,8 @@ def _tag_openai_token_usage(
     Calculate the total cost for each LLM/chat_model, then propagate those values up the trace so that
     the root span will store the total token_usage/cost of all of its descendants.
     """
+    get_openai_token_cost_for_model = _import_openai_token_calculator()
+
     for token_type in ("prompt", "completion", "total"):
         current_metric_value = span.get_metric("langchain.tokens.%s_tokens" % token_type) or 0
         metric_value = llm_output["token_usage"].get("%s_tokens" % token_type, 0)
@@ -1175,14 +1200,22 @@ def _unpatch_embeddings_and_vectorstores():
 
 
 def patch():
-    if getattr(langchain, "_datadog_patch", False):
-        return
+    _import_langchain_subpackages()
 
-    langchain._datadog_patch = True
-
-    Pin().onto(langchain)
     integration = LangChainIntegration(integration_config=config.langchain)
-    langchain._datadog_integration = integration
+
+    if langchain and getattr(langchain, "_datadog_patch", False):
+        return
+    elif langchain:
+        langchain._datadog_patch = True
+        Pin().onto(langchain)
+        langchain._datadog_integration = integration
+    if langchain_core and getattr(langchain_core, "_datadog_patch", False):
+        return
+    elif langchain_core:
+        langchain_core._datadog_patch = True
+        Pin().onto(langchain_core)
+        langchain_core._datadog_integration = integration
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
@@ -1250,12 +1283,18 @@ def patch():
 
 
 def unpatch():
-    if not getattr(langchain, "_datadog_patch", False):
+    if langchain and getattr(langchain, "_datadog_patch", False):
+        delattr(langchain, "_datadog_integration")
+        langchain._datadog_patch = False
+    elif langchain:
+        return
+    if langchain_core and getattr(langchain_core, "_datadog_patch", False):
+        delattr(langchain_core, "_datadog_integration")
+        langchain_core._datadog_patch = False
+    elif langchain_core:
         return
 
-    langchain._datadog_patch = False
-
-    if PATCH_LANGCHAIN_V0:
+    if PATCH_LANGCHAIN_V0 and langchain:
         unwrap(langchain.llms.base.BaseLLM, "generate")
         unwrap(langchain.llms.base.BaseLLM, "agenerate")
         unwrap(langchain.chat_models.base.BaseChatModel, "generate")
@@ -1265,18 +1304,20 @@ def unpatch():
         unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_query")
         unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_documents")
     else:
-        unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
-        unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
-        unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
-        unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
-        unwrap(langchain.chains.base.Chain, "invoke")
-        unwrap(langchain.chains.base.Chain, "ainvoke")
-        unwrap(langchain_core.runnables.base.RunnableSequence, "invoke")
-        unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
-        unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
-        unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
-        unwrap(langchain_core.tools.BaseTool, "invoke")
-        unwrap(langchain_core.tools.BaseTool, "ainvoke")
+        if langchain_core:
+            unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
+            unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
+            unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
+            unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
+            unwrap(langchain_core.runnables.base.RunnableSequence, "invoke")
+            unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
+            unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
+            unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
+            unwrap(langchain_core.tools.BaseTool, "invoke")
+            unwrap(langchain_core.tools.BaseTool, "ainvoke")
+        if langchain:
+            unwrap(langchain.chains.base.Chain, "invoke")
+            unwrap(langchain.chains.base.Chain, "ainvoke")
         if langchain_openai:
             unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
         if langchain_pinecone:
@@ -1285,7 +1326,6 @@ def unpatch():
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _unpatch_embeddings_and_vectorstores()
 
-    delattr(langchain, "_datadog_integration")
 
 
 def taint_outputs(instance, inputs, outputs):
