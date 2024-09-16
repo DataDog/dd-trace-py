@@ -98,7 +98,7 @@ def test_tag_querystring_env_var(
     if server_tag_query_string is not None:
         env["DD_HTTP_SERVER_TAG_QUERY_STRING"] = server_tag_query_string
     if client_tag_query_string is not None:
-        env["DD_HTTP_CLIENT_TAG_QUERY_STRING"] = client_tag_query_string
+        env["DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING"] = client_tag_query_string
     out = subprocess.check_output(
         [
             "python",
