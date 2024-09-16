@@ -32,18 +32,18 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
         }
 
     } else if (PyReMatch_Check(candidate_text)) { // For re.Match objects, taint the whole output
-                                                  // try {
-        const size_t& len_result_o{ get_pyobject_size(result_o) };
-        const auto& current_range = ranges.at(0);
-        ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, len_result_o, current_range->source));
-        // } catch (const std::out_of_range& ex) {
-        //     if (nullptr == result_o) {
-        //         py::set_error(PyExc_IndexError, "Index out of range");
-        //     }
-        //     // No ranges found, return original object
-        //     cerr << "JJJ exit 2\n";
-        //     return result_o;
-        // }
+        try {
+            const size_t& len_result_o{ get_pyobject_size(result_o) };
+            const auto& current_range = ranges.at(0);
+            ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, len_result_o, current_range->source));
+        } catch (const std::out_of_range& ex) {
+            if (nullptr == result_o) {
+                throw py::index_error();
+            }
+            // No ranges found, return original object
+            cerr << "JJJ exit 2\n";
+            return result_o;
+        }
     } else { // For other types nothing to do
         cerr << "JJJ exit 3\n";
         return result_o;
