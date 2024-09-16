@@ -15,7 +15,7 @@
       "langchain.request.inputs.1": "content='output a list of the country france their population in JSON format. Use a dict with an outer key of \"countries\" which ...",
       "langchain.request.stream": "True",
       "langchain.request.type": "chain",
-      "langchain.response.content": "{\"countries\": \"France is a country\"",
+      "langchain.response.content": "{\"countries\": \"France is a country!\"}",
       "language": "python",
       "runtime-id": "525b9ac09789411c96a2663986ca6fa7"
     },
