@@ -150,16 +150,16 @@ def instrument_all_lines_nonrecursive(
 
         If the argument does not fit in a single byte, EXTENDED_ARG instructions are prepended as needed.
         """
-        new_offset = len(new_code)
+        if extended_arg > 255:
+            extended_bytes = extended_arg.bit_length() // 8
+            shift = 8 * extended_bytes
+            while shift:
+                new_code.append(EXTENDED_ARG)
+                new_code.append((extended_arg >> shift) & 0xFF)
+                shift -= 8
+
         new_code.append(opcode)
         new_code.append(extended_arg & 0xFF)
-
-        extended_arg >>= 8
-        while extended_arg:
-            # insert extended args BEFORE opcode
-            new_code.insert(new_offset, EXTENDED_ARG)
-            new_code.insert(new_offset + 1, extended_arg & 0xFF)
-            extended_arg >>= 8
 
     def update_linetable(offset_delta: int, line_delta: int) -> None:
         """
