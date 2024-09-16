@@ -171,10 +171,11 @@ def instrument_all_lines_nonrecursive(
 
         See <https://github.com/python/cpython/blob/3.10/Objects/lnotab_notes.txt> for details on the line table format.
         """
-        # Offset delta is always positive.
+        # Offset delta is always positive. If the delta is more than 254, we keep adding increments of 254 with 0 line
+        # change, until we reach the desired number.
         while offset_delta > 254:
-            new_linetable.append(254)  # 254 offsets...
-            new_linetable.append(0)  # ...with no line change
+            new_linetable.append(254)
+            new_linetable.append(0)
             offset_delta -= 254
 
         new_linetable.append(offset_delta)
