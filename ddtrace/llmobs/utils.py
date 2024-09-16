@@ -21,24 +21,6 @@ Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": 
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
 
 
-class AnnotationContext:
-    def __init__(self, _tracer, _annotation_callback):
-        self._tracer = _tracer
-        self._annotate_prompt = _annotation_callback
-
-    def __enter__(self):
-        self._tracer.on_start_span(self._annotate_prompt)
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._tracer.deregister_on_start_span(self._annotate_prompt)
-
-    async def __aenter__(self):
-        self._tracer.on_start_span(self._annotate_prompt)
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self._tracer.deregister_on_start_span(self._annotate_prompt)
-
-
 class Messages:
     def __init__(self, messages: Union[List[Dict[str, str]], Dict[str, str], str]):
         self.messages = []
