@@ -162,3 +162,79 @@ def langchain_pinecone(ddtrace_config_langchain, mock_logs, mock_metrics, langch
             yield langchain_pinecone
         except ImportError:
             yield
+
+
+@pytest.fixture
+def streamed_response_responder():
+    # TODO (sam.brenner): clean this up a bit, make it more generic
+    try:
+        import httpx
+        import os
+        import importlib
+
+        class CustomTransport(httpx.BaseTransport):
+            def __init__(self, file: str):
+                super().__init__()
+                self.file = file
+
+            def handle_request(self, request: httpx.Request) -> httpx.Response:
+                with open(
+                    os.path.join(os.path.dirname(__file__), f"cassettes/langchain_community/{self.file}"),
+                    "r",
+                    encoding="utf-8",
+                ) as f:
+                    content = f.read()
+                    return httpx.Response(200, request=request, content=content)
+
+        def responder(module, client_class_key, http_client_key, property: list[str], file: str):
+            clientModule = importlib.import_module(module)  # openai, anthropic, etc.
+            client_class = getattr(clientModule, client_class_key)
+            client = client_class(**{http_client_key: httpx.Client(transport=CustomTransport(file=file))})
+
+            for prop in property:
+                client = getattr(client, prop)
+
+            return client
+
+        yield responder
+
+    except ImportError:
+        yield
+
+
+@pytest.fixture
+def async_streamed_response_responder():
+    # TODO (sam.brenner): clean this up a bit, make it more generic
+    try:
+        import httpx
+        import os
+        import importlib
+
+        class CustomTransport(httpx.AsyncBaseTransport):
+            def __init__(self, file: str):
+                super().__init__()
+                self.file = file
+
+            async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                with open(
+                    os.path.join(os.path.dirname(__file__), f"cassettes/langchain_community/{self.file}"),
+                    "r",
+                    encoding="utf-8",
+                ) as f:
+                    content = f.read()
+                    return httpx.Response(200, request=request, content=content)
+
+        def responder(module, client_class_key, http_client_key, property: list[str], file: str):
+            clientModule = importlib.import_module(module)  # openai, anthropic, etc.
+            client_class = getattr(clientModule, client_class_key)
+            client = client_class(**{http_client_key: httpx.AsyncClient(transport=CustomTransport(file=file))})
+
+            for prop in property:
+                client = getattr(client, prop)
+
+            return client
+
+        yield responder
+
+    except ImportError:
+        yield

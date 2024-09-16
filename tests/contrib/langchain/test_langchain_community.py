@@ -23,6 +23,8 @@ IGNORE_FIELDS = [
     "meta.openai.request.logprobs",  # langchain-openai llm call now includes logprobs as param
     "meta.error.stack",
     "meta.http.useragent",
+    "meta.langchain.request.openai-chat.parameters.logprobs",
+    "meta.langchain.request.openai.parameters.logprobs",
     "meta.langchain.request.openai.parameters.seed",  # langchain-openai llm call now includes seed as param
     "meta.langchain.request.openai.parameters.logprobs",  # langchain-openai llm call now includes seed as param
     "metrics.langchain.tokens.total_cost",  # total_cost depends on if tiktoken is installed
@@ -1274,3 +1276,133 @@ def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, requ
             retriever = faiss.as_retriever()
         with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
             retriever.invoke("What was the message of the last test query?")
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+def test_streamed_chain(langchain_core, langchain_openai, streamed_response_responder):
+    client = streamed_response_responder(
+        module="openai",
+        client_class_key="OpenAI",
+        http_client_key="http_client",
+        property=["chat", "completions"],
+        file="lcel_openai_chat_streamed_response.txt",
+    )
+
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are world class technical documentation writer."), ("user", "{input}")]
+    )
+    llm = langchain_openai.ChatOpenAI(client=client)
+    parser = langchain_core.output_parsers.StrOutputParser()
+
+    chain = prompt | llm | parser
+    for _ in chain.stream({"input": "how can langsmith help with testing?"}):
+        pass
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+def test_streamed_chat(langchain_openai, request_vcr, streamed_response_responder):
+    client = streamed_response_responder(
+        module="openai",
+        client_class_key="OpenAI",
+        http_client_key="http_client",
+        property=["chat", "completions"],
+        file="lcel_openai_chat_streamed_response.txt",
+    )
+    model = langchain_openai.ChatOpenAI(client=client)
+
+    for _ in model.stream(input="how can langsmith help with testing?"):
+        pass
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+def test_streamed_llm(langchain_community, langchain_core, langchain_openai, streamed_response_responder):
+    client = streamed_response_responder(
+        module="openai",
+        client_class_key="OpenAI",
+        http_client_key="http_client",
+        property=["completions"],
+        file="lcel_openai_llm_streamed_response.txt",
+    )
+
+    llm = langchain_openai.OpenAI(client=client)
+
+    for _ in llm.stream(input="How do I write technical documentation?"):
+        pass
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_response_responder):
+    client = async_streamed_response_responder(
+        module="openai",
+        client_class_key="AsyncOpenAI",
+        http_client_key="http_client",
+        property=["chat", "completions"],
+        file="lcel_openai_chat_streamed_response.txt",
+    )
+
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are world class technical documentation writer."), ("user", "{input}")]
+    )
+    llm = langchain_openai.ChatOpenAI(async_client=client)
+    parser = langchain_core.output_parsers.StrOutputParser()
+
+    chain = prompt | llm | parser
+    async for _ in chain.astream({"input": "how can langsmith help with testing?"}):
+        pass
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_astreamed_chat(langchain_core, langchain_openai, async_streamed_response_responder):
+    client = async_streamed_response_responder(
+        module="openai",
+        client_class_key="AsyncOpenAI",
+        http_client_key="http_client",
+        property=["chat", "completions"],
+        file="lcel_openai_chat_streamed_response.txt",
+    )
+
+    model = langchain_openai.ChatOpenAI(async_client=client)
+
+    async for _ in model.astream(input="how can langsmith help with testing?"):
+        pass
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_astreamed_llm(langchain_community, langchain_core, langchain_openai, async_streamed_response_responder):
+    client = async_streamed_response_responder(
+        module="openai",
+        client_class_key="AsyncOpenAI",
+        http_client_key="http_client",
+        property=["completions"],
+        file="lcel_openai_llm_streamed_response.txt",
+    )
+
+    llm = langchain_openai.OpenAI(async_client=client)
+
+    async for _ in llm.astream(input="How do I write technical documentation?"):
+        pass
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai, streamed_response_responder):
+    client = streamed_response_responder(
+        module="openai",
+        client_class_key="OpenAI",
+        http_client_key="http_client",
+        property=["chat", "completions"],
+        file="lcel_openai_chat_streamed_response_json_output_parser.txt",
+    )
+
+    model = langchain_openai.ChatOpenAI(model="gpt-4o", max_tokens=50, client=client)
+    parser = langchain_core.output_parsers.JsonOutputParser()
+
+    chain = model | parser
+    inp = 'output a list of the country france their population in JSON format. Use a dict with an outer key of "countries" which contains a list of countries. Each country should have the key `name` and `population`'
+
+    messages = [
+        langchain.schema.SystemMessage(content="You know everything about the world."),
+        langchain.schema.HumanMessage(content=inp),
+    ]
+
+    for _ in chain.stream(input=messages):
+        pass
