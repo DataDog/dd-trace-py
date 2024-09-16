@@ -1,6 +1,4 @@
 import sys
-import os
-from ddtrace.internal.utils.formats import asbool
 
 
 # Import are noqa'd otherwise some formatters will helpfully remove them
