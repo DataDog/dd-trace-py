@@ -179,6 +179,11 @@ molten:
   variables:
     SUITE_NAME: "molten"
 
+protobuf:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "protobuf"
+
 opentracer:
   extends: .test_base_riot
   variables:
@@ -305,11 +310,6 @@ tornado:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "tornado"
-
-unittest:
-  extends: .test_base_riot_snapshot
-  variables:
-    SUITE_NAME: "unittest"
 
 aiohttp:
   extends: .test_base_riot_snapshot

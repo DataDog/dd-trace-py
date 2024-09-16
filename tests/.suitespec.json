@@ -163,6 +163,10 @@
             "ddtrace/contrib/avro/*",
             "ddtrace/contrib/internal/avro/*"
         ],
+        "protobuf": [
+            "ddtrace/contrib/protobuf/*",
+            "ddtrace/contrib/internal/protobuf/*"
+        ],
         "mongo": [
             "ddtrace/contrib/pymongo/*",
             "ddtrace/contrib/internal/pymongo/*",
@@ -628,6 +632,14 @@
             "@appsec_iast",
             "@remoteconfig",
             "tests/appsec/iast/*"
+        ],
+        "appsec_iast_native": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "@remoteconfig"
         ],
         "appsec_iast_memcheck": [
             "@bootstrap",
@@ -1379,6 +1391,14 @@
             "@tracing",
             "@avro",
             "tests/contrib/avro/*"
+        ],
+        "protobuf": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@protobuf",
+            "tests/contrib/protobuf/*"
         ],
         "yaaredis": [
             "@core",
