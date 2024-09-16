@@ -16,7 +16,7 @@ from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context
 from ddtrace.internal._encoding import BufferFull
-from ddtrace.internal.compat import BUILTIN_MAPPNG_TYPES
+from ddtrace.internal.compat import BUILTIN_MAPPING_TYPES
 from ddtrace.internal.compat import BUILTIN_SEQUENCE_TYPES
 from tests.debugging.test_config import debugger_config
 from tests.debugging.test_safety import SideEffects
@@ -632,7 +632,7 @@ def test_capture_value_redacted_type():
         }
 
 
-@pytest.mark.parametrize("_type", BUILTIN_MAPPNG_TYPES)
+@pytest.mark.parametrize("_type", BUILTIN_MAPPING_TYPES)
 def test_capture_value_mapping_type(_type):
     try:
         d = _type({"bar": 42})
