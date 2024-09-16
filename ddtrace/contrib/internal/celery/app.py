@@ -18,6 +18,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.pin import _DD_PIN_NAME
 
+
 def patch_app(app, pin=None):
     """Attach the Pin class to the application and connect
     our handlers to Celery signals.
@@ -101,13 +102,14 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
 
     return _traced_beat_inner
 
+
 def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
     def _traced_apply_async_inner(func, instance, args, kwargs):
-        with core.context_with_data('task_context'):
+        with core.context_with_data("task_context"):
             try:
                 return func(*args, **kwargs)
             finally:
-                task_span = core.get_item('task_span')
+                task_span = core.get_item("task_span")
                 if task_span:
                     task_span.finish()
 
