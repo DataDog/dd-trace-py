@@ -10,6 +10,14 @@ using namespace pybind11::literals;
 
 namespace py = pybind11;
 
+#define GET_HASH_KEY(hash) (hash & 0xFFFFFF)
+
+typedef struct _PyASCIIObject_State_Hidden
+{
+    unsigned int : 8;
+    unsigned int hidden : 24;
+} PyASCIIObject_State_Hidden;
+
 enum class PyTextType
 {
     UNICODE = 0,
@@ -47,16 +55,13 @@ set_fast_tainted_if_notinterned_unicode(PyObject* objptr);
 inline bool
 is_text(const PyObject* pyptr)
 {
-    if (!pyptr)
-        return false;
-
-    return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr);
+    return (pyptr != nullptr) and (PyUnicode_Check(pyptr) or PyBytes_Check(pyptr) or PyByteArray_Check(pyptr));
 }
 
 inline bool
 is_tainteable(const PyObject* pyptr)
 {
-    return is_text(pyptr) || PyReMatch_Check(pyptr);
+    return pyptr != nullptr and (is_text(pyptr) or PyReMatch_Check(pyptr));
 }
 
 // Base function for the variadic template
@@ -104,7 +109,7 @@ StringToPyObject(const string& str, const PyTextType type)
         case PyTextType::BYTEARRAY:
             return py::bytearray(str);
         default:
-            return {};
+            return py::none();
     }
 }
 
@@ -117,6 +122,10 @@ StringToPyObject(const char* str, const PyTextType type)
 inline string
 PyObjectToString(PyObject* obj)
 {
+    if (obj == nullptr or !PyUnicode_Check(obj)) {
+        return "";
+    }
+
     const char* str = PyUnicode_AsUTF8(obj);
 
     if (str == nullptr) {

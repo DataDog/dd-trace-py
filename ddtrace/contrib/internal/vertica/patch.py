@@ -4,7 +4,7 @@ import wrapt
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -240,7 +240,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                     conf["span_start"](instance, span, conf, *args, **kwargs)
 
                 # set analytics sample rate
-                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.get_analytics_sample_rate())
+                span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.get_analytics_sample_rate())
 
                 result = wrapped(*args, **kwargs)
                 return result
