@@ -62,7 +62,7 @@ RUN git clone --depth 1 --branch v3.11.6 https://github.com/python/cpython/ "${P
 RUN wget https://bootstrap.pypa.io/get-pip.py
 RUN python3.11d get-pip.py --break-system-packages
 
-# Verifica la instalación de Python y pip
+# Verify Python and pip installation
 RUN python3.11d --version && python3.11d -m pip --version
 
 RUN python3.11d -c "import sys;sys.gettotalrefcount()"
