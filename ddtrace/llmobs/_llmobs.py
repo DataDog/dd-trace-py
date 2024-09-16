@@ -24,6 +24,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -46,6 +47,7 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
@@ -475,6 +477,7 @@ class LLMObs(Service):
         cls,
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
+        prompt: Optional[dict] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -532,6 +535,12 @@ class LLMObs(Service):
         if not span_kind:
             log.debug("Span kind not specified, skipping annotation for input/output data")
             return
+        if prompt is not None:
+            if span_kind == "llm":
+                cls._tag_prompt(span, prompt)
+            else:
+                log.warning("Annotating prompts are only supported for LLM span kinds.")
+
         if input_data or output_data:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
@@ -541,6 +550,19 @@ class LLMObs(Service):
                 cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+
+    @staticmethod
+    def _tag_prompt(span, prompt: dict) -> None:
+        """Tags a given LLMObs span with a prompt"""
+        validated_prompt = None
+        try:
+            validated_prompt = validate_prompt(prompt)
+        except TypeError:
+            log.warning("Failed to validate prompt with error: ", exc_info=True)
+            return
+
+        if validated_prompt is not None:
+            span.set_tag_str(INPUT_PROMPT, json.dumps(validated_prompt))
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
