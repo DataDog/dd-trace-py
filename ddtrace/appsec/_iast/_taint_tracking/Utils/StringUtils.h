@@ -41,7 +41,7 @@ PyReMatch_Check(const PyObject* obj)
 
         return py::isinstance((PyObject*)obj, re_match_type);
     } catch (py::error_already_set& err) {
-        err.clear();
+        PyErr_Clear();
         return false;
     }
 }
