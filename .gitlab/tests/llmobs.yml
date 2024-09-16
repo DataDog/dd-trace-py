@@ -22,3 +22,7 @@ anthropic:
   variables:
     SUITE_NAME: "anthropic"
 
+google_generativeai:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "google_generativeai"
