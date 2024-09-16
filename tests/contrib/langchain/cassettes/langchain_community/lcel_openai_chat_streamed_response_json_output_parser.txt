@@ -30,7 +30,7 @@ data: {"id":"chatcmpl-A87AG6I7sUCYtwCx9oIF0UK8vJLkl","object":"chat.completion.c
 
 data: {"id":"chatcmpl-A87AG6I7sUCYtwCx9oIF0UK8vJLkl","object":"chat.completion.chunk","created":1726497528,"model":"gpt-4o-2024-05-13","system_fingerprint":"fp_992d1ea92d","choices":[{"index":0,"delta":{"content":"\n}"},"logprobs":null,"finish_reason":null}]}
 
-data: {"id":"chatcmpl-A87AG6I7sUCYtwCx9oIF0UK8vJLkl","object":"chat.completion.chunk","created":1726497528,"model":"gpt-4o-2024-05-13","system_fingerprint":"fp_992d1ea92d","choices":[{"index":0,"delta":{"content":"```"},"logprobs":null,"finish_reason":null}]}
+data: {"id":"chatcmpl-A87AG6I7sUCYtwCx9oIF0UK8vJLkl","object":"chat.completion.chunk","created":1726497528,"model":"gpt-4o-2024-05-13","system_fingerprint":"fp_992d1ea92d","choices":[{"index":0,"delta":{"content":"\n```"},"logprobs":null,"finish_reason":null}]}
 
 data: [DONE]
 
