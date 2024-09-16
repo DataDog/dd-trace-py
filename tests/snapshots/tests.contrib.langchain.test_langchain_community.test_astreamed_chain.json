@@ -14,7 +14,7 @@
       "langchain.request.inputs.0.input": "how can langsmith help with testing?",
       "langchain.request.stream": "True",
       "langchain.request.type": "chain",
-      "langchain.response.content": "# Python Basics\\n\\n## Introduction\\n\\nPython is a high-level, general-purpose programming language that is widely used for web d...",
+      "langchain.response.content": "Python is\n\nthe best!",
       "language": "python",
       "runtime-id": "5cc38abdb0cc498b9404b6d0dcbf576f"
     },
@@ -51,7 +51,7 @@
          "langchain.request.provider": "openai-chat",
          "langchain.request.stream": "True",
          "langchain.request.type": "chat_model",
-         "langchain.response.content": "# Python Basics\\n\\n## Introduction\\n\\nPython is a high-level, general-purpose programming language that is widely used for web d..."
+         "langchain.response.content": "Python is\n\nthe best!"
        },
        "metrics": {
          "_dd.measured": 1

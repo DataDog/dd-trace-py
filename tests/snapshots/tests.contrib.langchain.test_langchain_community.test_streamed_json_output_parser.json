@@ -15,7 +15,7 @@
       "langchain.request.inputs.1": "content='output a list of the country france their population in JSON format. Use a dict with an outer key of \"countries\" which ...",
       "langchain.request.stream": "True",
       "langchain.request.type": "chain",
-      "langchain.response.content": "{\"countries\": [{\"name\": \"France\", \"population\": 67081000}]}",
+      "langchain.response.content": "{\"countries\": \"France is a country\"",
       "language": "python",
       "runtime-id": "525b9ac09789411c96a2663986ca6fa7"
     },
@@ -53,7 +53,7 @@
          "langchain.request.provider": "openai-chat",
          "langchain.request.stream": "True",
          "langchain.request.type": "chat_model",
-         "langchain.response.content": "Here's the information for the country France and its population in JSON format:\\n\\n```json\\n{\\n  \"countries\": [\\n    {\\n      \"..."
+         "langchain.response.content": "Here:\\n\\n```json\\n{\\n  \"countries\": \"France is a country\"\\n}\\n```"
        },
        "metrics": {
          "_dd.measured": 1

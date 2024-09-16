@@ -23,7 +23,7 @@
       "langchain.request.provider": "openai",
       "langchain.request.stream": "True",
       "langchain.request.type": "llm",
-      "langchain.response.content": "\\n\\n1. Identify your audience: Before you start writing, it is important to understand who your audience is. Technical documenta...",
+      "langchain.response.content": "\\n\\nPython is cool!",
       "language": "python",
       "runtime-id": "b3018660b0904cbfbe25aa695ac32c27"
     },
