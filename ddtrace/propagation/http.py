@@ -903,7 +903,7 @@ class _BaggageHeader:
 
     @staticmethod
     def _inject(span_context: Context, headers: Dict[str, str]) -> None:
-        baggage_items = span_context._get_all_baggage_items()
+        baggage_items = span_context._baggage.items()
         if not baggage_items:
             return
 
