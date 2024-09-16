@@ -87,15 +87,16 @@ class LLMObs(Service):
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
 
-        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
-        self._ragas_evaluator = None
+        self.evaluators = []
 
         if config._llmobs_ragas_faithfulness_enabled:
-            self._ragas_evaluator = RagasFaithfulnessEvaluator(
-                interval=1, _evaluation_metric_writer=self._llmobs_eval_metric_writer, _llmobs_instance=self
+            self.evaluators.append(
+                RagasFaithfulnessEvaluator(
+                    interval=1, _evaluation_metric_writer=self._llmobs_eval_metric_writer, _llmobs_instance=self
+                )
             )
-            self._trace_processor._register_ragas_evaluator(self._ragas_evaluator)
 
+        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._ragas_evaluator)
         forksafe.register(self._child_after_fork)
 
     def _child_after_fork(self):
@@ -110,7 +111,8 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error starting LLMObs span writer after fork")
         try:
-            self._ragas_evaluator.start()
+            for evaluator in self.evaluators:
+                evaluator.start()
         except ServiceStatusError:
             log.debug("Error starting LLMObs ragas evaluator after fork")
 
@@ -125,10 +127,13 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
-        try:
-            self._ragas_evaluator.start()
-        except ServiceStatusError:
-            log.debug("Error starting LLMObs ragas evaluator")
+        for evaluator in self.evaluators:
+            try:
+                evaluator.start()
+            except ServiceStatusError:
+                log.debug(
+                    "Error starting evaluator: %n", evaluator.name if hasattr(evaluator, "name") else str(evaluator)
+                )
 
     def _stop_service(self) -> None:
         try:
@@ -137,10 +142,13 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
-        try:
-            self._ragas_evaluator.stop()
-        except ServiceStatusError:
-            log.debug("Error stopping LLMObs ragas evaluator")
+        for evaluator in self.evaluators:
+            try:
+                evaluator.stop()
+            except ServiceStatusError:
+                log.debug(
+                    "Error stopping evaluator: %n", evaluator.name if hasattr(evaluator, "name") else str(evaluator)
+                )
 
         try:
             forksafe.unregister(self._child_after_fork)
