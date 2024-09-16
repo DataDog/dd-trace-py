@@ -16,6 +16,7 @@ from ddtrace.contrib.internal.celery.utils import set_tags_from_context
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
@@ -110,6 +111,9 @@ def trace_before_publish(*args, **kwargs):
     # in the task_after_publish signal
     service = config.celery["producer_service_name"]
     span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
+
+    # Store an item called "task span" in case AFTER_TASK_PUBLISH doesn't get called
+    core.set_item("task_span", span)
 
     span.set_tag_str(COMPONENT, config.celery.integration_name)
 

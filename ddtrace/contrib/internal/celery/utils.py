@@ -131,6 +131,9 @@ def retrieve_task_id(context):
     if headers:
         # Protocol Version 2 (default from Celery 4.0)
         return headers.get("id")
-    else:
+    elif body:
         # Protocol Version 1
         return body.get("id")
+    else:
+        # Do not run body.get("id") if the body is None, instead, return a None value
+        return None

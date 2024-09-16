@@ -15,8 +15,8 @@ from ddtrace.contrib.internal.celery.signals import trace_prerun
 from ddtrace.contrib.internal.celery.signals import trace_retry
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.pin import _DD_PIN_NAME
-
 
 def patch_app(app, pin=None):
     """Attach the Pin class to the application and connect
@@ -40,6 +40,10 @@ def patch_app(app, pin=None):
     )
     trace_utils.wrap("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
     pin.onto(celery.beat.Scheduler)
+
+    # Patch apply_async
+    trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
+    pin.onto(celery.app.task.Task)
 
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)
@@ -96,3 +100,15 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
             return func(*args, **kwargs)
 
     return _traced_beat_inner
+
+def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
+    def _traced_apply_async_inner(func, instance, args, kwargs):
+        with core.context_with_data('task_context'):
+            try:
+                return func(*args, **kwargs)
+            finally:
+                task_span = core.get_item('task_span')
+                if task_span:
+                    task_span.finish()
+
+    return _traced_apply_async_inner
