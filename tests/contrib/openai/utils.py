@@ -10,24 +10,46 @@ chat_completion_input_description = """
     """
 chat_completion_custom_functions = [
     {
-        "name": "extract_student_info",
-        "description": "Get the student information from the body of the input text",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Name of the person"},
-                "major": {"type": "string", "description": "Major subject."},
-                "school": {"type": "string", "description": "The university name."},
-                "grades": {"type": "integer", "description": "GPA of the student."},
-                "clubs": {
-                    "type": "array",
-                    "description": "School clubs for extracurricular activities. ",
-                    "items": {"type": "string", "description": "Name of School Club"},
+        "type": "function",
+        "function": {
+            "name": "extract_student_info",
+            "description": "Get the student information from the body of the input text",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the person"},
+                    "major": {"type": "string", "description": "Major subject."},
+                    "school": {"type": "string", "description": "The university name."},
+                    "grades": {"type": "integer", "description": "GPA of the student."},
+                    "clubs": {
+                        "type": "array",
+                        "description": "School clubs for extracurricular activities. ",
+                        "items": {"type": "string", "description": "Name of School Club"},
+                    },
                 },
             },
         },
     },
 ]
+function_call_expected_output = {
+    "content": "",
+    "role": "assistant",
+    "tool_calls": [
+        {
+            "name": "extract_student_info",
+            "arguments": {
+                "name": "David Nguyen",
+                "major": "computer science",
+                "school": "Stanford University",
+                "grades": 3.8,
+                "clubs": ["Chess Club", "South Asian Student Association"],
+            },
+        }
+    ],
+}
+tool_call_expected_output = function_call_expected_output.copy()
+tool_call_expected_output["tool_calls"][0]["tool_id"] = "call_FJStsEjxdODw9tBmQRRkm6vY"
+tool_call_expected_output["tool_calls"][0]["type"] = "function"
 
 
 def iswrapped(obj):
