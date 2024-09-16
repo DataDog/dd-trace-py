@@ -6,8 +6,6 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
-from pydantic import ValidationError
-
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
@@ -48,12 +46,12 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
-from ddtrace.llmobs.utils import Prompt
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -466,7 +464,7 @@ class LLMObs(Service):
         cls,
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
-        prompt: Optional[Union[Prompt, dict]] = None,
+        prompt: Optional[dict] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -540,22 +538,17 @@ class LLMObs(Service):
             cls._tag_span_tags(span, tags)
 
     @staticmethod
-    def _tag_prompt(span, prompt: Union[Prompt, dict]) -> None:
-        """Tags a given LLMObs span with a prompt object."""
-        serialized_prompt = None
-        if isinstance(prompt, Prompt):
-            serialized_prompt = prompt.model_dump_json()
-        elif isinstance(prompt, dict):
-            try:
-                serialized_prompt = Prompt(**prompt).model_dump_json()
-            except ValidationError as e:
-                log.warning("Failed to parse prompt dictionary with validation error: ", e)
-                return
-        else:
-            log.warning("Prompt must be a Prompt object or a dictionary.")
+    def _tag_prompt(span, prompt: dict) -> None:
+        """Tags a given LLMObs span with a prompt"""
+        validated_prompt = None
+        try:
+            validated_prompt = validate_prompt(prompt)
+        except TypeError:
+            log.warning("Failed to validate prompt with error: ", exc_info=True)
+            return
 
-        if serialized_prompt is not None:
-            span.set_tag_str(INPUT_PROMPT, serialized_prompt)
+        if validated_prompt is not None:
+            span.set_tag_str(INPUT_PROMPT, json.dumps(validated_prompt))
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:

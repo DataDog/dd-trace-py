@@ -17,6 +17,33 @@ from ddtrace.llmobs._constants import SESSION_ID
 log = get_logger(__name__)
 
 
+def validate_prompt(prompt: dict) -> dict:
+    validated_prompt = {}
+    if not isinstance(prompt, dict):
+        raise TypeError("Prompt must be a dictionary")
+    if prompt.get("variables"):
+        variables = prompt["variables"]
+        if not isinstance(variables, dict):
+            raise TypeError("Prompt variables must be a dictionary.")
+        for key, value in variables.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise TypeError("Prompt variable keys and values must be strings.")
+        validated_prompt["variables"] = prompt["variables"]
+    if prompt.get("template"):
+        if not isinstance(prompt["template"], str):
+            raise TypeError("Prompt template must be a string")
+        validated_prompt["template"] = prompt["template"]
+    if prompt.get("version"):
+        if not isinstance(prompt["version"], str):
+            raise TypeError("Prompt version must be a string.")
+        validated_prompt["version"] = prompt["version"]
+    if prompt.get("id"):
+        if not isinstance(prompt["id"], str):
+            raise TypeError("Prompt id must be a string.")
+        validated_prompt["id"] = prompt["id"]
+    return validated_prompt
+
+
 def _get_attr(o: object, attr: str, default: object):
     # Convenience method to get an attribute from an object or dict
     if isinstance(o, dict):

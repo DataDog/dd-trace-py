@@ -794,34 +794,34 @@ def test_annotate_prompt_dict(LLMObs):
         LLMObs.annotate(
             span=span,
             prompt={
-                "template": "{var1} {var2.var3}",
-                "variables": {"var1": "var1", "var2": {"var3": "var2.var3"}},
+                "template": "{var1} {var3}",
+                "variables": {"var1": "var1", "var2": "var3"},
                 "version": "1.0.0",
                 "id": "test_prompt",
             },
         )
         assert json.loads(span.get_tag(INPUT_PROMPT)) == {
-            "template": "{var1} {var2.var3}",
-            "variables": {"var1": "var1", "var2": {"var3": "var2.var3"}},
+            "template": "{var1} {var3}",
+            "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
         }
 
 
-def test_annotate_prompt_object(LLMObs):
+def test_annotate_prompt_typed_dict(LLMObs):
     with LLMObs.llm(model_name="test_model") as span:
         LLMObs.annotate(
             span=span,
             prompt=Prompt(
-                template="{var1} {var2.var3}",
-                variables={"var1": "var1", "var2": {"var3": "var2.var3"}},
+                template="{var1} {var3}",
+                variables={"var1": "var1", "var2": "var3"},
                 version="1.0.0",
                 id="test_prompt",
             ),
         )
         assert json.loads(span.get_tag(INPUT_PROMPT)) == {
-            "template": "{var1} {var2.var3}",
-            "variables": {"var1": "var1", "var2": {"var3": "var2.var3"}},
+            "template": "{var1} {var3}",
+            "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
         }
@@ -836,7 +836,7 @@ def test_annotate_prompt_wrong_type(LLMObs, mock_logs):
             prompt="prompt",
         )
         assert span.get_tag(INPUT_PROMPT) is None
-        mock_logs.warning.assert_called_once_with("Prompt must be a Prompt object or a dictionary.")
+        mock_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
         mock_logs.reset_mock()
 
         LLMObs.annotate(
@@ -845,9 +845,7 @@ def test_annotate_prompt_wrong_type(LLMObs, mock_logs):
                 "template": 1,
             },
         )
-        assert span.get_tag(INPUT_PROMPT) is None
-        assert len(mock_logs.warning.call_args_list) == 1
-        assert "Failed to parse prompt dictionary with validation error:" in mock_logs.warning.call_args_list[0][0][0]
+        mock_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
         mock_logs.reset_mock()
 
 
