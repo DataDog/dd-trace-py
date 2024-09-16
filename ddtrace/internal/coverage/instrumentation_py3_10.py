@@ -52,8 +52,8 @@ def instrument_all_lines_nonrecursive(
     # path and dependency information of the corresponding source code line.
     #
     # The hook function is added to the code constants. For each line, a new constant of the form (line, path,
-    # dependency_info) is also added to the code constants, and then a call to the hook with the given constant is added
-    # to the bytecode. For example, let's say the hook function is added at index 100 to the code constants, and the
+    # dependency_info) is also added to the code constants, and then a call to the hook with that constant is added to
+    # the bytecode. For example, let's say the hook function is added at index 100 to the code constants, and the
     # instructions corresponding to source code line 42 in file "foo.py" are:
     #
     #    1000 LOAD_CONST    1
