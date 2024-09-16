@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    langchain: Adds support for tracing `stream` calls on LCEL chains, chat completion models, or completion models.
+    langchain: Adds support for tracing ``stream`` calls on LCEL chains, chat completion models, or completion models.
