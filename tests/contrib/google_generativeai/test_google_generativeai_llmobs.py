@@ -43,7 +43,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 12, "output_tokens": 30, "total_tokens": 42},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -69,7 +68,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 12, "output_tokens": 30, "total_tokens": 42},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -98,7 +96,6 @@ class TestLLMObsGemini:
                 error_stack=span.get_tag("error.stack"),
                 metadata={"temperature": 1.0, "max_output_tokens": 35},
                 tags={"ml_app": "<ml-app-name>"},
-                integration="gemini",
             )
         )
 
@@ -131,7 +128,6 @@ class TestLLMObsGemini:
                 error_stack=span.get_tag("error.stack"),
                 metadata={"temperature": 1.0, "max_output_tokens": 35},
                 tags={"ml_app": "<ml-app-name>"},
-                integration="gemini",
             )
         )
 
@@ -165,7 +161,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 24, "output_tokens": 35, "total_tokens": 59},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -199,7 +194,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 24, "output_tokens": 35, "total_tokens": 59},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -233,7 +227,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 24, "output_tokens": 35, "total_tokens": 59},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -269,7 +262,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 35},
             token_metrics={"input_tokens": 24, "output_tokens": 35, "total_tokens": 59},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -305,7 +297,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 50},
             token_metrics={"input_tokens": 29, "output_tokens": 45, "total_tokens": 74},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -343,7 +334,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 50},
             token_metrics={"input_tokens": 29, "output_tokens": 45, "total_tokens": 74},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -372,7 +362,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 60},
             token_metrics={"input_tokens": 6, "output_tokens": 52, "total_tokens": 58},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -403,7 +392,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 60},
             token_metrics={"input_tokens": 6, "output_tokens": 52, "total_tokens": 58},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -438,7 +426,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 150, "output_tokens": 25, "total_tokens": 175},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -475,7 +462,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 150, "output_tokens": 25, "total_tokens": 175},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -517,7 +503,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 150, "output_tokens": 25, "total_tokens": 175},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -559,7 +544,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 150, "output_tokens": 25, "total_tokens": 175},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -586,7 +570,6 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 277, "output_tokens": 14, "total_tokens": 291},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
 
@@ -615,6 +598,5 @@ class TestLLMObsGemini:
             metadata={"temperature": 1.0, "max_output_tokens": 30},
             token_metrics={"input_tokens": 277, "output_tokens": 14, "total_tokens": 291},
             tags={"ml_app": "<ml-app-name>"},
-            integration="gemini",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
