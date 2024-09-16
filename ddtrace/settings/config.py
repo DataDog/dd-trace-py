@@ -551,8 +551,7 @@ class Config(object):
                 )
             except Exception:
                 log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
-                # Disable query string tagging if malformed obfuscation pattern
-                self.http_tag_query_string = False
+                self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
