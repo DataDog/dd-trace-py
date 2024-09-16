@@ -35,7 +35,7 @@ config._add(
     "httplib",
     {
         "distributed_tracing": asbool(os.getenv("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
-        "default_http_tag_query_string": config._http_tag_query_string,
+        "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )
 

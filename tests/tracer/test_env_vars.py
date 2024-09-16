@@ -110,7 +110,7 @@ from ddtrace import config;
 config._add(
     "requests",
     {
-        "default_http_tag_query_string": config._http_tag_query_string,
+        "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 );
 assert config.django.http_tag_query_string == %s;
