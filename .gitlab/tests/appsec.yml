@@ -26,7 +26,7 @@ appsec iast tdd_propagation:
 
 appsec iast memcheck:
   extends: .test_base_riot_snapshot
-  parallel: 5
+  parallel: 4
   variables:
     SUITE_NAME: "appsec_iast_memcheck"
   retry: 2
