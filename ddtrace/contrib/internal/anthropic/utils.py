@@ -15,18 +15,18 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
         if integration.is_pc_sampled_span(span):
             if getattr(block, "text", "") != "":
                 span.set_tag_str(
-                    "anthropic.response.completions.content.%d.text" % (idx),
+                    "anthropic.response.completions.content.%d.text" % idx,
                     integration.trunc(str(getattr(block, "text", ""))),
                 )
             elif block.type == "tool_use":
                 tag_tool_use_output_on_span(integration, span, block, idx)
 
-        span.set_tag_str("anthropic.response.completions.content.%d.type" % (idx), block.type)
+        span.set_tag_str("anthropic.response.completions.content.%d.type" % idx, str(block.type))
 
     # set message level tags
     if getattr(chat_completions, "stop_reason", None) is not None:
-        span.set_tag_str("anthropic.response.completions.finish_reason", chat_completions.stop_reason)
-    span.set_tag_str("anthropic.response.completions.role", chat_completions.role)
+        span.set_tag_str("anthropic.response.completions.finish_reason", str(chat_completions.stop_reason))
+    span.set_tag_str("anthropic.response.completions.role", str(chat_completions.role))
 
     usage = _get_attr(chat_completions, "usage", {})
     integration.record_usage(span, usage)
@@ -35,13 +35,11 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
 def tag_tool_use_input_on_span(integration, span, chat_input, message_idx, block_idx):
     span.set_tag_str(
         "anthropic.request.messages.%d.content.%d.tool_call.name" % (message_idx, block_idx),
-        _get_attr(chat_input, "name", ""),
+        str(_get_attr(chat_input, "name", "")),
     )
     span.set_tag_str(
         "anthropic.request.messages.%d.content.%d.tool_call.input" % (message_idx, block_idx),
-        integration.trunc(
-            json.dumps(_get_attr(chat_input, "input", {}), default=_unserializable_default_repr)
-        ),
+        integration.trunc(json.dumps(_get_attr(chat_input, "input", {}), default=_unserializable_default_repr)),
     )
 
 
@@ -71,7 +69,7 @@ def tag_tool_result_input_on_span(integration, span, chat_input, message_idx, bl
             span.set_tag_str(
                 "anthropic.request.messages.%d.content.%d.tool_result.content.%d.type"
                 % (message_idx, block_idx, tool_block_idx),
-                tool_block_type,
+                str(tool_block_type),
             )
 
 
@@ -79,10 +77,10 @@ def tag_tool_use_output_on_span(integration, span, chat_completion, idx):
     tool_name = _get_attr(chat_completion, "name", None)
     tool_inputs = _get_attr(chat_completion, "input", None)
     if tool_name:
-        span.set_tag_str("anthropic.response.completions.content.%d.tool_call.name" % (idx), tool_name)
+        span.set_tag_str("anthropic.response.completions.content.%d.tool_call.name" % idx, str(tool_name))
     if tool_inputs:
         span.set_tag_str(
-            "anthropic.response.completions.content.%d.tool_call.input" % (idx),
+            "anthropic.response.completions.content.%d.tool_call.input" % idx,
             integration.trunc(json.dumps(tool_inputs, default=_unserializable_default_repr)),
         )
 
@@ -91,7 +89,7 @@ def tag_params_on_span(span, kwargs, integration):
     tagged_params = {}
     for k, v in kwargs.items():
         if k == "system" and integration.is_pc_sampled_span(span):
-            span.set_tag_str("anthropic.request.system", integration.trunc(v))
+            span.set_tag_str("anthropic.request.system", integration.trunc(str(v)))
         elif k not in ("messages", "model"):
             tagged_params[k] = v
     span.set_tag_str("anthropic.request.parameters", json.dumps(tagged_params, default=_unserializable_default_repr))
