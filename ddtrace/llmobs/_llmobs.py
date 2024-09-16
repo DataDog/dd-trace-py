@@ -554,15 +554,12 @@ class LLMObs(Service):
     @staticmethod
     def _tag_prompt(span, prompt: dict) -> None:
         """Tags a given LLMObs span with a prompt"""
-        validated_prompt = None
         try:
             validated_prompt = validate_prompt(prompt)
+            span.set_tag_str(INPUT_PROMPT, json.dumps(validated_prompt))
         except TypeError:
             log.warning("Failed to validate prompt with error: ", exc_info=True)
             return
-
-        if validated_prompt is not None:
-            span.set_tag_str(INPUT_PROMPT, json.dumps(validated_prompt))
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
