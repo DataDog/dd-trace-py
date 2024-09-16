@@ -5,8 +5,6 @@ from typing import Optional
 
 from ddtrace import Span
 from ddtrace import config
-from ddtrace._trace._span_pointers import _SpanPointerDescription
-from ddtrace._trace._span_pointers import _SpanPointerDirection
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
