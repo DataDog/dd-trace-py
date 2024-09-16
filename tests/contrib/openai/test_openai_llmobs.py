@@ -585,7 +585,6 @@ class TestLLMObsOpenaiV1:
                 metadata={"stream": True, "stream_options": {"include_usage": True}},
                 token_metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
                 tags={"ml_app": "<ml-app-name>"},
-                integration="openai",
             )
         )
 
@@ -688,7 +687,6 @@ class TestLLMObsOpenaiV1:
                 metadata={"user": "ddtrace-test", "stream": True, "stream_options": {"include_usage": True}},
                 token_metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
                 tags={"ml_app": "<ml-app-name>"},
-                integration="openai",
             )
         )
 
