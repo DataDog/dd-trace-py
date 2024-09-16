@@ -1,14 +1,16 @@
 import json
 import os
 import textwrap
+import typing as t
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest import get_version
+from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
@@ -19,10 +21,47 @@ from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from tests.ci_visibility.util import _ci_override_env
+from tests.ci_visibility.util import _get_default_ci_env_vars
+from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
 from tests.utils import override_env
+
+
+def _get_spans_from_list(
+    spans: t.List[ddtrace.Span], span_type: str, name: t.Optional[str] = None, status: t.Optional[str] = None
+) -> t.List[ddtrace.Span]:
+    _names_map = {
+        "session": ("test_session_end",),
+        "module": ("test_module_end", "test.module"),
+        "suite": ("test_suite_end", "test.suite"),
+        "test": ("test", "test.name"),
+    }
+
+    if span_type == "session" and name is not None:
+        raise ValueError("Cannot get session spans with a name")
+
+    target_type = _names_map[span_type][0]
+    target_name = _names_map[span_type][1] if name else None
+
+    selected_spans = []
+
+    for span in spans:
+        # filter out spans that don't match our desired criteria
+        if span.get_tag("type") != target_type:
+            continue
+
+        if name is not None and span.get_tag(target_name) != name:
+            continue
+
+        if status is not None and span.get_tag("test.status") != status:
+            continue
+
+        selected_spans.append(span)
+
+    return selected_spans
 
 
 class PytestTestCase(TracerTestCase):
@@ -44,7 +83,7 @@ class PytestTestCase(TracerTestCase):
         ):
             yield
 
-    def inline_run(self, *args):
+    def inline_run(self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None):
         """Execute test script with test tracer."""
 
         class CIVisibilityPlugin:
@@ -57,12 +96,25 @@ class PytestTestCase(TracerTestCase):
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
                         CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
 
-        with override_env(dict(DD_API_KEY="foobar.baz")):
+        if project_dir is None:
+            project_dir = str(self.testdir.tmpdir)
+
+        _test_env = _get_default_ci_env_vars(dict(DD_API_KEY="foobar.baz"), mock_ci_env=mock_ci_env)
+        if mock_ci_env:
+            _test_env["CI_PROJECT_DIR"] = project_dir
+
+        if block_gitlab_env:
+            _test_env["GITLAB_CI"] = "0"
+
+        with _ci_override_env(_test_env, replace_os_env=True):
             return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
-    def subprocess_run(self, *args):
+    def subprocess_run(self, *args, env: t.Optional[t.Dict[str, str]] = None):
         """Execute test script with test tracer."""
-        with override_env(dict(DD_API_KEY="foobar.baz")):
+        _base_env = dict(DD_API_KEY="foobar.baz")
+        if env is not None:
+            _base_env.update(env)
+        with _ci_override_env(_base_env):
             return self.testdir.runpytest_subprocess(*args)
 
     def test_and_emit_get_version(self):
@@ -218,13 +270,16 @@ class PytestTestCase(TracerTestCase):
         """Test parametrize case with complex objects."""
         py_file = self.testdir.makepyfile(
             """
-            from mock import MagicMock
+            from unittest.mock import MagicMock
             import pytest
 
             class A:
                 def __init__(self, name, value):
                     self.name = name
                     self.value = value
+
+                def __repr__(self):
+                    return f"{self.__class__.__name__}(name={self.name}, value={self.value})"
 
             def item_param():
                 return 42
@@ -257,12 +312,12 @@ class PytestTestCase(TracerTestCase):
         # Since object will have arbitrary addresses, only need to ensure that
         # the params string contains most of the string representation of the object.
         expected_params_contains = [
-            "test_parameterize_case_complex_objects.A",
-            "test_parameterize_case_complex_objects.A",
+            "A(name=test_name",
+            "A(name=test_name, value=A(name=inner_name, value=value))",
             "<function item_param>",
-            "'a': <test_parameterize_case_complex_objects.A",
+            "{'a': A(name=test_name, value=value), 'b': [1, 2, 3]}",
             "<MagicMock id=",
-            "test_parameterize_case_complex_objects.A",
+            "Could not encode",
             "{('x', 'y'): 12345}",
         ]
         assert len(spans) == 10
@@ -274,7 +329,7 @@ class PytestTestCase(TracerTestCase):
         """Test parametrize case with complex objects that cannot be JSON encoded."""
         py_file = self.testdir.makepyfile(
             """
-            from mock import MagicMock
+            from unittest.mock import MagicMock
             import pytest
 
             class A:
@@ -293,12 +348,13 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        test_span = spans[0]
+        test_span = _get_spans_from_list(spans, "test")[0]
         assert json.loads(test_span.get_tag(test.PARAMETERS)) == {
             "arguments": {"item": "Could not encode"},
             "metadata": {},
         }
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_skip(self):
         """Test skip case."""
         py_file = self.testdir.makepyfile(
@@ -480,15 +536,17 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 5
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        assert test_spans[0].get_tag(test.STATUS) == test.Status.PASS.value
-        assert test_spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
-        assert test_spans[0].get_tag(XFAIL_REASON) == "test should fail"
-        assert test_spans[1].get_tag(test.STATUS) == test.Status.PASS.value
-        assert test_spans[1].get_tag(test.RESULT) == test.Status.XPASS.value
-        assert test_spans[1].get_tag(XFAIL_REASON) == "test should not xfail"
-        assert test_spans[0].get_tag("component") == "pytest"
-        assert test_spans[1].get_tag("component") == "pytest"
+        test_should_fail_span = _get_spans_from_list(spans, "test", "test_should_fail_but_passes")[0]
+        assert test_should_fail_span.get_tag(test.STATUS) == test.Status.PASS.value
+        assert test_should_fail_span.get_tag(test.RESULT) == test.Status.XPASS.value
+        assert test_should_fail_span.get_tag(XFAIL_REASON) == "test should fail"
+        assert test_should_fail_span.get_tag("component") == "pytest"
+
+        test_should_not_fail_span = _get_spans_from_list(spans, "test", "test_should_not_fail")[0]
+        assert test_should_not_fail_span.get_tag(test.STATUS) == test.Status.PASS.value
+        assert test_should_not_fail_span.get_tag(test.RESULT) == test.Status.XPASS.value
+        assert test_should_not_fail_span.get_tag(XFAIL_REASON) == "test should not xfail"
+        assert test_should_not_fail_span.get_tag("component") == "pytest"
 
     def test_xpass_strict(self):
         """Test xpass (unexpected passing) with strict=True, should be marked as fail."""
@@ -507,7 +565,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        span = [span for span in spans if span.get_tag("type") == "test"][0]
+        span = _get_spans_from_list(spans, "test")[0]
         assert span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert span.get_tag(test.RESULT) == test.Status.XPASS.value
         # Note: XFail (strict=True) does not mark the reason with result.wasxfail but into result.longrepr,
@@ -549,14 +607,15 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        with override_env(
-            {
+        rec = self.subprocess_run(
+            "--ddtrace",
+            file_name,
+            env={
                 "APPVEYOR": "true",
                 "APPVEYOR_REPO_PROVIDER": "github",
                 "APPVEYOR_REPO_NAME": "test-repository-name",
-            }
-        ):
-            rec = self.subprocess_run("--ddtrace", file_name)
+            },
+        )
         rec.assert_outcomes(passed=1)
 
     def test_default_service_name(self):
@@ -591,8 +650,8 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        with override_env({"DD_SERVICE": "mysvc"}):
-            rec = self.subprocess_run("--ddtrace", file_name)
+
+        rec = self.subprocess_run("--ddtrace", file_name, env={"DD_SERVICE": "mysvc"})
         assert 0 == rec.ret
 
     def test_dd_pytest_service_name(self):
@@ -609,10 +668,11 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        with override_env(
-            {"DD_SERVICE": "mysvc", "DD_PYTEST_SERVICE": "pymysvc", "DD_PYTEST_OPERATION_NAME": "mytest"}
-        ):
-            rec = self.subprocess_run("--ddtrace", file_name)
+        rec = self.subprocess_run(
+            "--ddtrace",
+            file_name,
+            env={"DD_SERVICE": "mysvc", "DD_PYTEST_SERVICE": "pymysvc", "DD_PYTEST_OPERATION_NAME": "mytest"},
+        )
         assert 0 == rec.ret
 
     def test_dd_origin_tag_propagated_to_every_span(self):
@@ -637,7 +697,7 @@ class PytestTestCase(TracerTestCase):
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
         encoder = self.tracer.encoder
         encoder.put(spans)
-        trace = encoder.encode()
+        trace, _ = encoder.encode()
         (decoded_trace,) = self.tracer.encoder._decode(trace)
         assert len(decoded_trace) == 7
         for span in decoded_trace:
@@ -645,7 +705,7 @@ class PytestTestCase(TracerTestCase):
 
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         assert len(decoded_event_payload[b"events"]) == 7
         for event in decoded_event_payload[b"events"]:
@@ -678,12 +738,12 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=3)
         spans = self.pop_spans()
 
-        assert len(spans) == 8
+        assert len(spans) == (6 if _USE_PLUGIN_V2 else 8)
         non_session_spans = [span for span in spans if span.get_tag("type") != "test_session_end"]
         for span in non_session_spans:
             if span.get_tag("type") == "test_suite_end":
                 assert span.get_tag(test.SUITE) == file_name
-        test_session_span = spans[5]
+        test_session_span = _get_spans_from_list(spans, "session")[0]
         assert test_session_span.get_tag("test.command") == (
             "pytest -p no:randomly --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
         )
@@ -766,7 +826,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        test_span = spans[0]
+        test_span = _get_spans_from_list(spans, "test")[0]
 
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type").endswith("Exception") is True
@@ -794,7 +854,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        test_span = spans[0]
+        test_span = _get_spans_from_list(spans, "test")[0]
 
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type").endswith("Exception") is True
@@ -816,7 +876,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        test_span = spans[2]
+        test_span = _get_spans_from_list(spans, "test")[0]
 
         assert test_span.get_tag(test.FRAMEWORK_VERSION) == pytest.__version__
 
@@ -840,12 +900,12 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_names.append(os.path.basename(py_team_b_file.strpath))
-        codeowners = "* @default-team\n{0} @team-b @backup-b".format(os.path.basename(py_team_b_file.strpath))
+        codeowners = "* @default-team\n{0} @team-b @backup-b\n".format(os.path.basename(py_team_b_file.strpath))
         self.testdir.makefile("", CODEOWNERS=codeowners)
 
         self.inline_run("--ddtrace", *file_names)
         spans = self.pop_spans()
-        assert len(spans) == 7
+        assert len(spans) == (6 if _USE_PLUGIN_V2 else 7)
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert json.loads(test_spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], test_spans[0]
         assert json.loads(test_spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], test_spans[1]
@@ -859,6 +919,7 @@ class PytestTestCase(TracerTestCase):
         assert spans[0].get_tag("test_session_id") == str(spans[0].span_id)
         assert spans[0].get_tag("test.command") == "pytest -p no:randomly --ddtrace"
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not use class hierarchy")
     def test_pytest_test_class_hierarchy_is_added_to_test_span(self):
         """Test that given a test class, the test span will include the hierarchy of test class(es) as a tag."""
         py_file = self.testdir.makepyfile(
@@ -927,17 +988,17 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
 
-        assert len(spans) == 7
-        test_session_span = spans[2]
+        assert len(spans) == (6 if _USE_PLUGIN_V2 else 7)
+        test_session_span = _get_spans_from_list(spans, "session")[0]
         assert test_session_span.name == "pytest.test_session"
         assert test_session_span.parent_id is None
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        test_spans = _get_spans_from_list(spans, "test")
+        test_module_spans = _get_spans_from_list(spans, "module")
         test_module_span_ids = [span.span_id for span in test_module_spans]
         for test_span in test_spans:
             assert test_span.name == "pytest.test"
             assert test_span.parent_id is None
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = _get_spans_from_list(spans, "suite")
         for test_suite_span in test_suite_spans:
             assert test_suite_span.name == "pytest.test_suite"
             assert test_suite_span.parent_id in test_module_span_ids
@@ -966,7 +1027,8 @@ class PytestTestCase(TracerTestCase):
         test_span_a_outside_after_class = spans[2]
         test_suite_a_span = spans[5]
         assert test_suite_a_span.get_tag("type") == "test_suite_end"
-        assert test_span_a_inside_class.get_tag("test.class_hierarchy") == "TestClass"
+        if not _USE_PLUGIN_V2:
+            assert test_span_a_inside_class.get_tag("test.class_hierarchy") == "TestClass"
         assert test_suite_a_span.start_ns + test_suite_a_span.duration_ns >= test_span_a_outside_after_class.start_ns
 
     def test_pytest_suites_one_fails_propagates(self):
@@ -988,19 +1050,20 @@ class PytestTestCase(TracerTestCase):
         file_names.append(os.path.basename(file_b.strpath))
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
-        test_session_span = spans[2]
-        test_a_module_span = spans[3]
+        test_session_span = _get_spans_from_list(spans, "session")[0]
+        test_module_spans = _get_spans_from_list(spans, "module")
+        test_a_module_span = test_module_spans[0]
         assert test_a_module_span.get_tag("type") == "test_module_end"
-        test_a_suite_span = spans[4]
+        test_a_suite_span = _get_spans_from_list(spans, "suite", "test_a.py")[0]
         assert test_a_suite_span.get_tag("type") == "test_suite_end"
-        test_b_module_span = spans[5]
+        test_b_module_span = test_module_spans[0] if _USE_PLUGIN_V2 else test_module_spans[1]
         assert test_b_module_span.get_tag("type") == "test_module_end"
-        test_b_suite_span = spans[6]
+        test_b_suite_span = _get_spans_from_list(spans, "suite", "test_b.py")[0]
         assert test_b_suite_span.get_tag("type") == "test_suite_end"
         assert test_session_span.get_tag("test.status") == "fail"
         assert test_a_suite_span.get_tag("test.status") == "pass"
         assert test_b_suite_span.get_tag("test.status") == "fail"
-        assert test_a_module_span.get_tag("test.status") == "pass"
+        assert test_a_module_span.get_tag("test.status") == ("fail" if _USE_PLUGIN_V2 else "pass")
         assert test_b_module_span.get_tag("test.status") == "fail"
 
     def test_pytest_suites_one_skip_does_not_propagate(self):
@@ -1024,20 +1087,21 @@ class PytestTestCase(TracerTestCase):
         file_names.append(os.path.basename(file_b.strpath))
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
-        test_session_span = spans[2]
-        test_a_module_span = spans[3]
+        test_session_span = _get_spans_from_list(spans, "session")[0]
+        test_module_spans = _get_spans_from_list(spans, "module")
+        test_a_module_span = test_module_spans[0]
         assert test_a_module_span.get_tag("type") == "test_module_end"
-        test_a_suite_span = spans[4]
+        test_a_suite_span = _get_spans_from_list(spans, "suite", "test_a.py")[0]
         assert test_a_suite_span.get_tag("type") == "test_suite_end"
-        test_b_module_span = spans[5]
+        test_b_module_span = test_module_spans[0] if _USE_PLUGIN_V2 else test_module_spans[1]
         assert test_b_module_span.get_tag("type") == "test_module_end"
-        test_b_suite_span = spans[6]
+        test_b_suite_span = _get_spans_from_list(spans, "suite", "test_b.py")[0]
         assert test_b_suite_span.get_tag("type") == "test_suite_end"
         assert test_session_span.get_tag("test.status") == "pass"
         assert test_a_suite_span.get_tag("test.status") == "pass"
         assert test_b_suite_span.get_tag("test.status") == "skip"
         assert test_a_module_span.get_tag("test.status") == "pass"
-        assert test_b_module_span.get_tag("test.status") == "skip"
+        assert test_b_module_span.get_tag("test.status") == ("pass" if _USE_PLUGIN_V2 else "skip")
 
     def test_pytest_all_tests_pass_status_propagates(self):
         """Test that if all tests pass, the status propagates upwards."""
@@ -1131,11 +1195,11 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=1, passed=1)
         spans = self.pop_spans()
-        test_span_skipped = spans[0]
-        test_span_ok = spans[1]
-        test_suite_span = spans[4]
-        test_session_span = spans[2]
-        test_module_span = spans[3]
+        test_session_span = _get_spans_from_list(spans, "session")[0]
+        test_module_span = _get_spans_from_list(spans, "module")[0]
+        test_suite_span = _get_spans_from_list(spans, "suite")[0]
+        test_span_skipped = _get_spans_from_list(spans, "test", "test_not_ok_but_skipped")[0]
+        test_span_ok = _get_spans_from_list(spans, "test", "test_ok")[0]
         assert test_suite_span.get_tag("type") == "test_suite_end"
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_session_span.get_tag("type") == "test_session_end"
@@ -1202,11 +1266,11 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=2, passed=0)
         spans = self.pop_spans()
-        test_span_skipped = spans[0]
-        test_span_ok = spans[1]
-        test_suite_span = spans[4]
-        test_session_span = spans[2]
-        test_module_span = spans[3]
+        test_session_span = [s for s in spans if s.get_tag("type") == "test_session_end"][0]
+        test_suite_span = [s for s in spans if s.get_tag("type") == "test_suite_end"][0]
+        test_module_span = [s for s in spans if s.get_tag("type") == "test_module_end"][0]
+        test_span_ok = [s for s in spans if "test_ok_but_skipped" in str(s.get_tag("test.name"))][0]
+        test_span_skipped = [s for s in spans if "test_not_ok_but_skipped" in str(s.get_tag("test.name"))][0]
         assert test_suite_span.get_tag("type") == "test_suite_end"
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_session_span.get_tag("type") == "test_session_end"
@@ -1265,8 +1329,8 @@ class PytestTestCase(TracerTestCase):
         for span in spans:
             assert span.get_tag("test.status") == "pass"
         assert len(spans) == 4
-        test_module_span = spans[2]
-        test_session_span = spans[1]
+        test_module_span = _get_spans_from_list(spans, "module")[0]
+        test_session_span = _get_spans_from_list(spans, "session")[0]
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
@@ -1298,18 +1362,18 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 7
-        test_session_span = spans[2]
+        test_session_span = _get_spans_from_list(spans, "session")[0]
         assert test_session_span.name == "pytest.test_session"
         assert test_session_span.get_tag("test.status") == "fail"
-        test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        test_module_spans = _get_spans_from_list(spans, "module")
         for span in test_module_spans:
             assert span.name == "pytest.test_module"
             assert span.parent_id == test_session_span.span_id
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = _get_spans_from_list(spans, "suite")
         for i in range(len(test_suite_spans)):
             assert test_suite_spans[i].name == "pytest.test_suite"
             assert test_suite_spans[i].parent_id == test_module_spans[i].span_id
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = _get_spans_from_list(spans, "test")
         for i in range(len(test_spans)):
             assert test_spans[i].name == "pytest.test"
             assert test_spans[i].parent_id is None
@@ -1444,7 +1508,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        test_module_spans = _get_spans_from_list(spans, "module")
         assert len(test_module_spans) == 1
         assert test_module_spans[0].get_tag("test.module") == ""
         assert test_module_spans[0].get_tag("test.module_path") == ""
@@ -1452,6 +1516,7 @@ class PytestTestCase(TracerTestCase):
         assert len(test_suite_spans) == 1
         assert test_suite_spans[0].get_tag("test.suite") == "test_cov.py"
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test(self):
         self.testdir.makepyfile(
             ret_false="""
@@ -1518,6 +1583,7 @@ class PytestTestCase(TracerTestCase):
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test_with_itr_skipped(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1584,6 +1650,7 @@ class PytestTestCase(TracerTestCase):
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test_with_pytest_mark_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1677,6 +1744,7 @@ class PytestTestCase(TracerTestCase):
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
         assert COVERAGE_TAG_NAME not in fourth_test_span.get_tags()
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1758,7 +1826,7 @@ class PytestTestCase(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
             ggr.return_value = self.git_repo
-            self.inline_run("--ddtrace", file_name)
+            self.inline_run("--ddtrace", file_name, mock_ci_env=False)
             spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -1837,16 +1905,23 @@ class PytestTestCase(TracerTestCase):
                 )
             )
         self.testdir.chdir()
-        with override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
+        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
             [
                 "test_outer_package/test_outer_abc.py",
                 "test_outer_package/test_inner_package/test_inner_class_abc.py",
             ],
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
@@ -1894,6 +1969,7 @@ class PytestTestCase(TracerTestCase):
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
             assert skipped_test_span.get_tag("itr_correlation_id") is None
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_tests_by_path(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -1976,6 +2052,7 @@ class PytestTestCase(TracerTestCase):
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
             assert skipped_test_span.get_tag("itr_correlation_id") == "pytestitrcorrelationid"
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_none_tests(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2029,6 +2106,7 @@ class PytestTestCase(TracerTestCase):
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 0
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_all_tests(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2114,22 +2192,31 @@ class PytestTestCase(TracerTestCase):
         with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_suite_itr_skippable", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        session_span = _get_spans_from_list(spans, "session")[0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
         assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
         assert session_span.get_metric("test.itr.tests_skipping.count") == 2
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = _get_spans_from_list(spans, "module")
         for module_span in module_spans:
             assert module_span.get_metric("test.itr.tests_skipping.count") == 1
             assert module_span.get_tag("test.itr.tests_skipping.type") == "suite"
@@ -2179,8 +2266,15 @@ class PytestTestCase(TracerTestCase):
         with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
@@ -2206,6 +2300,7 @@ class PytestTestCase(TracerTestCase):
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 0
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_all_tests_but_test_skipping_not_enabled(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2278,6 +2373,8 @@ class PytestTestCase(TracerTestCase):
         self.testdir.chdir()
         with override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled", return_value=True
         ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
@@ -2330,7 +2427,9 @@ class PytestTestCase(TracerTestCase):
                 assert True"""
             )
         self.testdir.chdir()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
+        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled", return_value=True
+        ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_tests_to_skip",
             {
@@ -2359,6 +2458,7 @@ class PytestTestCase(TracerTestCase):
         passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
         assert len(passed_test_spans) == 2
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_unskippable_tests_forced_run_in_test_level(self):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))
@@ -2550,6 +2650,9 @@ class PytestTestCase(TracerTestCase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
         ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
@@ -2557,76 +2660,71 @@ class PytestTestCase(TracerTestCase):
                 "test_outer_package/test_outer_abc.py",
                 "test_outer_package/test_inner_package/test_inner_abc.py",
             ],
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 12
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        session_span = _get_spans_from_list(spans, "session")[0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
         assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
         assert session_span.get_tag("test.itr.unskippable") == "true"
         assert session_span.get_tag("test.itr.forced_run") == "true"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = _get_spans_from_list(spans, "module")
         assert len(module_spans) == 2
 
-        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
+        outer_module_span = _get_spans_from_list(module_spans, "module", "test_outer_package")[0]
         assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
         assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
         assert outer_module_span.get_tag("test.itr.forced_run") == "false"
 
-        inner_module_span = [
-            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
-        ][0]
+        inner_module_span = _get_spans_from_list(module_spans, "module", "test_outer_package.test_inner_package")[0]
         assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
         assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
         assert inner_module_span.get_tag("test.itr.forced_run") == "true"
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = _get_spans_from_list(spans, "suite")
         assert len(test_suite_spans) == 2
 
-        inner_suite_span = [span for span in test_suite_spans if span.get_tag("test.suite") == "test_inner_abc.py"][0]
+        inner_suite_span = _get_spans_from_list(test_suite_spans, "suite", "test_inner_abc.py")[0]
         assert inner_suite_span.get_tag("test.itr.forced_run") == "true"
         assert inner_suite_span.get_tag("test.itr.unskippable") == "true"
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = _get_spans_from_list(spans, "test")
         assert len(test_spans) == 7
-        passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
+        passed_test_spans = _get_spans_from_list(test_spans, "test", status="pass")
         assert len(passed_test_spans) == 4
-        skipped_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "skip"]
+        skipped_test_spans = _get_spans_from_list(test_spans, "test", status="skip")
         assert len(skipped_test_spans) == 3
 
         test_inner_ok_span = [span for span in spans if span.get_tag("test.name") == "test_inner_ok"][0]
         assert test_inner_ok_span.get_tag("test.itr.forced_run") == "true"
 
-        test_inner_unskippable_span = [span for span in spans if span.get_tag("test.name") == "test_inner_unskippable"][
-            0
-        ]
+        test_inner_unskippable_span = _get_spans_from_list(spans, "test", "test_inner_unskippable")[0]
         assert test_inner_unskippable_span.get_tag("test.itr.unskippable") == "true"
         assert test_inner_unskippable_span.get_tag("test.itr.forced_run") == "true"
 
-        test_inner_shouldskip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skipif"
-        ][0]
+        test_inner_shouldskip_skipif_span = _get_spans_from_list(spans, "test", "test_inner_shouldskip_skipif")[0]
         assert test_inner_shouldskip_skipif_span.get_tag("test.itr.unskippable") == "true"
         assert test_inner_shouldskip_skipif_span.get_tag("test.status") == "skip"
 
-        test_inner_shouldskip_skip_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skip"
-        ][0]
+        test_inner_shouldskip_skip_span = _get_spans_from_list(spans, "test", "test_inner_shouldskip_skip")[0]
         assert test_inner_shouldskip_skip_span.get_tag("test.itr.unskippable") == "true"
         assert test_inner_shouldskip_skip_span.get_tag("test.status") == "skip"
 
-        test_inner_wasnot_going_to_skip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_wasnot_going_to_skip_skipif"
-        ][0]
+        test_inner_wasnot_going_to_skip_skipif_span = _get_spans_from_list(
+            spans, "test", "test_inner_wasnot_going_to_skip_skipif"
+        )[0]
         assert test_inner_wasnot_going_to_skip_skipif_span.get_tag("test.itr.unskippable") == "true"
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_unskippable_none_skipped_in_test_level(self):
         """When no tests are skipped, the test.itr.tests_skipping.tests_skipped tag should be false"""
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
@@ -2724,6 +2822,7 @@ class PytestTestCase(TracerTestCase):
         assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
         assert inner_module_span.get_tag("test.itr.forced_run") == "true"
 
+    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_unskippable_suite_not_skipped_in_test_level(self):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))
@@ -2915,13 +3014,20 @@ class PytestTestCase(TracerTestCase):
         with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch.object(
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), override_env(
+            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
+        ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
             [
                 "test_outer_package/test_outer_abc.py",
                 "test_outer_package/test_inner_package/test_inner_abc.py",
             ],
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
             self.inline_run("--ddtrace")
 
@@ -3041,14 +3147,21 @@ class PytestTestCase(TracerTestCase):
         with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch.object(
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), override_env(
+            dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True", DD_TRACE_DEBUG="1", DD_TESTING_RAISE="true")
+        ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
             [
                 "test_outer_package/test_inner_package/test_inner_abc.py",
             ],
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
         ):
-            self.inline_run("--ddtrace")
+            self.inline_run("--ddtrace", "-v")
 
         spans = self.pop_spans()
         assert len(spans) == 12
@@ -3241,23 +3354,43 @@ class PytestTestCase(TracerTestCase):
 
         sorted_test_names = sorted([span.get_tag("test.name") for span in spans if span.get_tag("type") == "test"])
         assert len(sorted_test_names) == 15
-        assert sorted_test_names == [
-            "test_inner_package_class_one_ok",
-            "test_inner_package_class_two_ok",
-            "test_inner_package_module_class_one_ok",
-            "test_inner_package_module_class_two_ok",
-            "test_inner_package_module_test_ok",
-            "test_inner_package_ok",
-            "test_outer_package_class_one_ok",
-            "test_outer_package_class_two_ok",
-            "test_outer_package_module_class_one_ok",
-            "test_outer_package_module_class_two_ok",
-            "test_outer_package_module_ok",
-            "test_outer_package_ok",
-            "test_outermost_ok",
-            "test_outermost_ok",
-            "test_outermost_test_ok",
-        ]
+
+        if _USE_PLUGIN_V2:
+            assert sorted_test_names == [
+                "TestInnerPackageClassOne::test_inner_package_class_one_ok",
+                "TestInnerPackageClassTwo::test_inner_package_class_two_ok",
+                "TestInnerPackageModuleClassOne::test_inner_package_module_class_one_ok",
+                "TestInnerPackageModuleClassTwo::test_inner_package_module_class_two_ok",
+                "TestOuterMostClassOne::test_outermost_ok",
+                "TestOuterMostClassTwo::test_outermost_ok",
+                "TestOuterPackageClassOne::test_outer_package_class_one_ok",
+                "TestOuterPackageClassTwo::test_outer_package_class_two_ok",
+                "TestOuterPackageModuleClassOne::test_outer_package_module_class_one_ok",
+                "TestOuterPackageModuleClassTwo::test_outer_package_module_class_two_ok",
+                "test_inner_package_module_test_ok",
+                "test_inner_package_ok",
+                "test_outer_package_module_ok",
+                "test_outer_package_ok",
+                "test_outermost_test_ok",
+            ]
+        else:
+            assert sorted_test_names == [
+                "test_inner_package_class_one_ok",
+                "test_inner_package_class_two_ok",
+                "test_inner_package_module_class_one_ok",
+                "test_inner_package_module_class_two_ok",
+                "test_inner_package_module_test_ok",
+                "test_inner_package_ok",
+                "test_outer_package_class_one_ok",
+                "test_outer_package_class_two_ok",
+                "test_outer_package_module_class_one_ok",
+                "test_outer_package_module_class_two_ok",
+                "test_outer_package_module_ok",
+                "test_outer_package_ok",
+                "test_outermost_ok",
+                "test_outermost_ok",
+                "test_outermost_test_ok",
+            ]
 
     def test_pytest_ddtrace_test_names_include_class_opt(self):
         package_outer_dir = self.testdir.mkpydir("test_package")
@@ -3306,11 +3439,15 @@ class PytestTestCase(TracerTestCase):
 
         assert test_spans[1].get_tag("test.module") == "test_package"
         assert test_spans[1].get_tag("test.suite") == "test_names.py"
-        assert test_spans[1].get_tag("test.name") == "TestClassOne.test_ok"
+        assert test_spans[1].get_tag("test.name") == (
+            "TestClassOne::test_ok" if _USE_PLUGIN_V2 else "TestClassOne.test_ok"
+        )
 
         assert test_spans[2].get_tag("test.module") == "test_package"
         assert test_spans[2].get_tag("test.suite") == "test_names.py"
-        assert test_spans[2].get_tag("test.name") == "TestClassTwo.test_ok"
+        assert test_spans[2].get_tag("test.name") == (
+            "TestClassTwo::test_ok" if _USE_PLUGIN_V2 else "TestClassTwo.test_ok"
+        )
 
     def test_pytest_ddtrace_name_hooks(self):
         """This only tests that whatever hooks a user defines are being used"""
@@ -3426,12 +3563,16 @@ class PytestTestCase(TracerTestCase):
         assert test_spans[0].get_metric("test.source.start") == 8
         assert test_spans[0].get_metric("test.source.end") == 11
 
-        assert test_spans[1].get_tag("test.name") == "test_my_second_test"
+        assert test_spans[1].get_tag("test.name") == (
+            "TestClassOne::test_my_second_test" if _USE_PLUGIN_V2 else "test_my_second_test"
+        )
         assert test_spans[1].get_tag("test.source.file") == "test_source_package/test_names.py"
         assert test_spans[1].get_metric("test.source.start") == 13
         assert test_spans[1].get_metric("test.source.end") == 16
 
-        assert test_spans[2].get_tag("test.name") == "test_my_third_test"
+        assert test_spans[2].get_tag("test.name") == (
+            "TestClassTwo::test_my_third_test" if _USE_PLUGIN_V2 else "test_my_third_test"
+        )
         assert test_spans[2].get_tag("test.source.file") == "test_source_package/test_names.py"
         assert test_spans[2].get_metric("test.source.start") == 18
         assert test_spans[2].get_metric("test.source.end") == 20
@@ -3748,7 +3889,7 @@ class PytestTestCase(TracerTestCase):
                 )
             )
 
-        self.inline_run("--ddtrace")
+        self.inline_run("--ddtrace", project_dir=str(self.git_repo))
 
         spans = self.pop_spans()
         assert len(spans) == 9
@@ -3774,3 +3915,59 @@ class PytestTestCase(TracerTestCase):
         }
 
         assert expected_source_info == test_names_to_source_info
+
+    def test_pytest_without_git_does_not_crash(self):
+        with open("tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def add_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a + number_b)
+                        return output_list
+
+                    def multiply_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a * number_b)
+                        return output_list
+                    """
+                    )
+                )
+            )
+
+        with open("test_tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    from tools import add_two_number_list
+
+                    def test_add_two_number_list():
+                        a_list = [1,2,3,4,5,6,7,8]
+                        b_list = [2,3,4,5,6,7,8,9]
+                        actual_output = add_two_number_list(a_list, b_list)
+
+                        assert actual_output == [3,5,7,9,11,13,15,17]
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        with mock.patch("ddtrace.ext.git._get_executable_path", return_value=None):
+            self.inline_run("--ddtrace")
+
+            spans = self.pop_spans()
+            assert len(spans) == 4
+            test_span = spans[0]
+            test_session_span = spans[1]
+            test_module_span = spans[2]
+            test_suite_span = spans[3]
+
+            assert test_session_span.get_metric("test.code_coverage.lines_pct") is None
+            assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
+            assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
+            assert test_span.get_metric("test.code_coverage.lines_pct") is None

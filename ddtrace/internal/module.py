@@ -20,6 +20,9 @@ TransformerType = t.Callable[[CodeType, ModuleType], CodeType]
 PreExecHookType = t.Callable[[t.Any, ModuleType], None]
 PreExecHookCond = t.Union[str, t.Callable[[str], bool]]
 
+ImportExceptionHookType = t.Callable[[t.Any, ModuleType], None]
+ImportExceptionHookCond = t.Union[str, t.Callable[[str], bool]]
+
 
 log = get_logger(__name__)
 
@@ -152,6 +155,8 @@ class _ImportHookChainedLoader:
         self.spec = spec
 
         self.callbacks: t.Dict[t.Any, t.Callable[[ModuleType], None]] = {}
+        self.import_exception_callbacks: t.Dict[t.Any, t.Callable[[ModuleType], None]] = {}
+
         self.transformers: t.Dict[t.Any, TransformerType] = {}
 
         # A missing loader is generally an indication of a namespace package.
@@ -182,18 +187,22 @@ class _ImportHookChainedLoader:
     def add_callback(self, key: t.Any, callback: t.Callable[[ModuleType], None]) -> None:
         self.callbacks[key] = callback
 
+    def add_import_exception_callback(self, key: t.Any, callback: t.Callable[[ModuleType], None]) -> None:
+        self.import_exception_callbacks[key] = callback
+
     def add_transformer(self, key: t.Any, transformer: TransformerType) -> None:
         self.transformers[key] = transformer
 
     def call_back(self, module: ModuleType) -> None:
-        # Restore the original loader
+        # Restore the original loader, if possible. Some specs might be native
+        # and won't support attribute assignment.
         try:
             module.__loader__ = self.loader
-        except AttributeError:
+        except (AttributeError, TypeError):
             pass
         try:
-            module.spec.loader = self.loader
-        except AttributeError:
+            object.__getattribute__(module, "spec").loader = self.loader
+        except (AttributeError, TypeError):
             pass
 
         if module.__name__ == "pkg_resources":
@@ -213,7 +222,10 @@ class _ImportHookChainedLoader:
         else:
             module = self.loader.load_module(fullname)
 
-        self.call_back(module)
+        try:
+            self.call_back(module)
+        except Exception:
+            log.exception("Failed to call back on module %s", module)
 
         return module
 
@@ -226,12 +238,36 @@ class _ImportHookChainedLoader:
 
         return None
 
+    def _find_first_hook(
+        self, module: ModuleType, hooks_attr: str
+    ) -> t.Optional[t.Callable[[t.Any, ModuleType], None]]:
+        for _ in sys.meta_path:
+            if isinstance(_, ModuleWatchdog):
+                try:
+                    for (
+                        cond,
+                        hook,
+                    ) in getattr(_, hooks_attr, []):
+                        if (isinstance(cond, str) and cond == module.__name__) or (
+                            callable(cond) and cond(module.__name__)
+                        ):
+                            return hook
+                except Exception:
+                    log.debug("Exception happened while processing %s", hooks_attr, exc_info=True)
+        return None
+
+    def _find_first_exception_hook(self, module: ModuleType) -> t.Optional[t.Callable[[t.Any, ModuleType], None]]:
+        return self._find_first_hook(module, "_import_exception_hooks")
+
+    def _find_first_pre_exec_hook(self, module: ModuleType) -> t.Optional[t.Callable[[t.Any, ModuleType], None]]:
+        return self._find_first_hook(module, "_pre_exec_module_hooks")
+
     def _exec_module(self, module: ModuleType) -> None:
         # Collect and run only the first hook that matches the module.
-        pre_exec_hook = None
 
         _get_code = getattr(self.loader, "get_code", None)
-        if _get_code is not None:
+        # DEV: avoid re-wrapping the loader's get_code method (eg: in case of repeated importlib.reload() calls)
+        if _get_code is not None and not getattr(_get_code, "_dd_get_code", False):
 
             def get_code(_loader, fullname):
                 code = _get_code(fullname)
@@ -241,35 +277,32 @@ class _ImportHookChainedLoader:
 
                 return code
 
+            setattr(get_code, "_dd_get_code", True)
+
             self.loader.get_code = get_code.__get__(self.loader, type(self.loader))  # type: ignore[union-attr]
 
-        for _ in sys.meta_path:
-            if isinstance(_, ModuleWatchdog):
-                try:
-                    for cond, hook in _._pre_exec_module_hooks:
-                        if (isinstance(cond, str) and cond == module.__name__) or (
-                            callable(cond) and cond(module.__name__)
-                        ):
-                            # Several pre-exec hooks could match, we keep the first one
-                            pre_exec_hook = hook
-                            break
-                except Exception:
-                    log.debug("Exception happened while processing pre_exec_module_hooks", exc_info=True)
-
-            if pre_exec_hook is not None:
-                break
+        pre_exec_hook = self._find_first_pre_exec_hook(module)
 
         if pre_exec_hook:
             pre_exec_hook(self, module)
         else:
-            if self.loader is None:
-                spec = getattr(module, "__spec__", None)
-                if spec is not None and is_namespace_spec(spec):
-                    sys.modules[spec.name] = module
-            else:
-                self.loader.exec_module(module)
+            try:
+                if self.loader is None:
+                    spec = getattr(module, "__spec__", None)
+                    if spec is not None and is_namespace_spec(spec):
+                        sys.modules[spec.name] = module
+                else:
+                    self.loader.exec_module(module)
+            except Exception:
+                exception_hook = self._find_first_exception_hook(module)
+                if exception_hook is not None:
+                    exception_hook(self, module)
+                raise
 
-        self.call_back(module)
+        try:
+            self.call_back(module)
+        except Exception:
+            log.exception("Failed to call back on module %s", module)
 
 
 class BaseModuleWatchdog(abc.ABC):
@@ -304,7 +337,8 @@ class BaseModuleWatchdog(abc.ABC):
         i = cls._find_in_meta_path()
 
         if i is None:
-            raise RuntimeError("%s is not installed" % cls.__name__)
+            log.warning("%s is not installed", cls.__name__)
+            return
 
         sys.meta_path.pop(i)
 
@@ -372,15 +406,14 @@ class BaseModuleWatchdog(abc.ABC):
 
     @classmethod
     def _check_installed(cls) -> None:
-        if not cls.is_installed():
-            raise RuntimeError("%s is not installed" % cls.__name__)
+        if cls.is_installed():
+            return
 
     @classmethod
     def install(cls) -> None:
         """Install the module watchdog."""
         if cls.is_installed():
-            raise RuntimeError("%s is already installed" % cls.__name__)
-
+            return
         cls._instance = cls()
         cls._instance._add_to_meta_path()
         log.debug("%s installed", cls)
@@ -424,6 +457,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
         # _pre_exec_module_hooks is a set of tuples (condition, hook) instead
         # of a list to ensure that no hook is duplicated
         self._pre_exec_module_hooks: t.Set[t.Tuple[PreExecHookCond, PreExecHookType]] = set()
+        self._import_exception_hooks: t.Set[t.Tuple[ImportExceptionHookCond, ImportExceptionHookType]] = set()
 
     @property
     def _origin_map(self) -> t.Dict[str, ModuleType]:
@@ -514,7 +548,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
         # change, then thread-safety might become a concern.
         resolved_path = _resolve(origin)
         if resolved_path is None:
-            raise ValueError("Cannot resolve module origin %s" % origin)
+            log.warning("Cannot resolve module origin %s", origin)
+            return
 
         path = str(resolved_path)
 
@@ -547,13 +582,15 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         resolved_path = _resolve(origin)
         if resolved_path is None:
-            raise ValueError("Module origin %s cannot be resolved", origin)
+            log.warning("Module origin %s cannot be resolved", origin)
+            return
 
         path = str(resolved_path)
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         if path not in instance._hook_map:
-            raise ValueError("No hooks registered for origin %s" % origin)
+            log.warning("No hooks registered for origin %s", origin)
+            return
 
         try:
             if path in instance._hook_map:
@@ -562,7 +599,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 if not hooks:
                     del instance._hook_map[path]
         except ValueError:
-            raise ValueError("Hook %r not registered for origin %s" % (hook, origin))
+            log.warning("Hook %r not registered for origin %s", hook, origin)
+            return
 
     @classmethod
     def register_module_hook(cls, module: str, hook: ModuleHookType) -> None:
@@ -595,7 +633,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         if module not in instance._hook_map:
-            raise ValueError("No hooks registered for module %s" % module)
+            log.warning("No hooks registered for module %s", module)
+            return
 
         try:
             if module in instance._hook_map:
@@ -604,7 +643,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 if not hooks:
                     del instance._hook_map[module]
         except ValueError:
-            raise ValueError("Hook %r not registered for module %r" % (hook, module))
+            log.warning("Hook %r not registered for module %r", hook, module)
+            return
 
     @classmethod
     def after_module_imported(cls, module: str) -> t.Callable[[ModuleHookType], None]:
@@ -629,3 +669,12 @@ class ModuleWatchdog(BaseModuleWatchdog):
         log.debug("Registering pre_exec module hook '%r' on condition '%s'", hook, cond)
         instance = t.cast(ModuleWatchdog, cls._instance)
         instance._pre_exec_module_hooks.add((cond, hook))
+
+    @classmethod
+    def register_import_exception_hook(
+        cls: t.Type["ModuleWatchdog"], cond: ImportExceptionHookCond, hook: ImportExceptionHookType
+    ):
+        cls._check_installed()
+
+        instance = t.cast(ModuleWatchdog, cls._instance)
+        instance._import_exception_hooks.add((cond, hook))

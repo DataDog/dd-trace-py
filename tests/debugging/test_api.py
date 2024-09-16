@@ -44,6 +44,7 @@ def test_debugger_fork():
     assert DynamicInstrumentation._instance.status == ServiceStatus.RUNNING
 
     parent_instance = DynamicInstrumentation._instance
+    parent_queue = parent_instance.__uploader__._instance._queue
 
     child_pid = os.fork()
     if child_pid == 0:
@@ -51,7 +52,8 @@ def test_debugger_fork():
         assert DynamicInstrumentation._instance.status == ServiceStatus.RUNNING
 
         # Proof that the debugger was actually restarted in the child process
-        assert DynamicInstrumentation._instance is not parent_instance
+        assert DynamicInstrumentation._instance is parent_instance
+        assert DynamicInstrumentation._instance.__uploader__._instance._queue is not parent_queue
 
         exit(0)
 

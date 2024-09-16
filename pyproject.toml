@@ -25,19 +25,16 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "attrs>=20",
     "bytecode>=0.15.0; python_version>='3.12'",
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
-    "ddsketch>=3.0.0",
     "envier~=0.5",
     "importlib_metadata<=6.5.0; python_version<'3.8'",
     "opentelemetry-api>=1",
     "protobuf>=3",
-    "setuptools; python_version>='3.12'",
-    "six>=1.12.0",
     "typing_extensions",
     "xmltodict>=0.12",
+    "wrapt>=1",
 ]
 
 [project.optional-dependencies]
@@ -52,7 +49,7 @@ openai = [
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
 
 [project.entry-points.opentelemetry_context]
-ddcontextvars_context = "ddtrace.opentelemetry._context:DDRuntimeContext"
+ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
 ddtrace = "ddtrace.contrib.pytest.plugin"
@@ -114,6 +111,7 @@ exclude = '''
   | buck-out/
   | build/
   | dist/
+  | tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py$
 )
 '''
 
@@ -160,8 +158,8 @@ exclude-modules = '''
   | ddtrace.internal.datadog.profiling.ddup._ddup
   | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
   # coverage has version-specific checks that prevent import
+  | ddtrace.internal.coverage.instrumentation_py3_7
   | ddtrace.internal.coverage.instrumentation_py3_8
-  | ddtrace.internal.coverage.instrumentation_py3_9
   | ddtrace.internal.coverage.instrumentation_py3_10
   | ddtrace.internal.coverage.instrumentation_py3_11
   | ddtrace.internal.coverage.instrumentation_py3_12
@@ -216,8 +214,10 @@ exclude = [
     "tests/profiling/simple_program_gevent.py",
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",
+    "tests/contrib/protobuf/schemas/**/*.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
+    "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"
 ]
 ignore = [
     "A003",
@@ -271,3 +271,7 @@ relative-imports-order = "furthest-to-closest"
 # Exclude typing stubs as vertical line spacing incompatibility with black
 # See: https://github.com/astral-sh/ruff/pull/6501
 "*.pyi" = ["I001"]
+
+[tool.ruff.lint]
+# Do not auto-fix unused imports (as this deletes things like import ddtrace)
+unfixable = ["F401"]

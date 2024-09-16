@@ -53,4 +53,4 @@ urllib3==1.26.18
 zipp==3.17.0
 
 # The following packages are considered to be unsafe in a requirements file:
-# setuptools
+setuptools==71.1.0

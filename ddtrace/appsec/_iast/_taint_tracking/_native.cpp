@@ -11,6 +11,7 @@
 #include "Aspects/AspectExtend.h"
 #include "Aspects/AspectIndex.h"
 #include "Aspects/AspectJoin.h"
+#include "Aspects/AspectModulo.h"
 #include "Aspects/AspectOperatorAdd.h"
 #include "Aspects/AspectSlice.h"
 #include "Aspects/_aspects_exports.h"
@@ -28,10 +29,12 @@ namespace py = pybind11;
 
 static PyMethodDef AspectsMethods[] = {
     { "add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add" },
+    { "add_inplace_aspect", ((PyCFunction)api_add_inplace_aspect), METH_FASTCALL, "aspect add" },
     { "extend_aspect", ((PyCFunction)api_extend_aspect), METH_FASTCALL, "aspect extend" },
     { "index_aspect", ((PyCFunction)api_index_aspect), METH_FASTCALL, "aspect index" },
     { "join_aspect", ((PyCFunction)api_join_aspect), METH_FASTCALL, "aspect join" },
     { "slice_aspect", ((PyCFunction)api_slice_aspect), METH_FASTCALL, "aspect slice" },
+    { "modulo_aspect", ((PyCFunction)api_modulo_aspect), METH_FASTCALL, "aspect modulo" },
     { nullptr, nullptr, 0, nullptr }
 };
 
@@ -60,14 +63,15 @@ PYBIND11_MODULE(_native, m)
 {
     const char* env_iast_enabled = std::getenv("DD_IAST_ENABLED");
     if (env_iast_enabled == nullptr) {
-        throw py::import_error("IAST not enabled");
-    }
-
-    std::string iast_enabled = std::string(env_iast_enabled);
-    std::transform(
-      iast_enabled.begin(), iast_enabled.end(), iast_enabled.begin(), [](unsigned char c) { return std::tolower(c); });
-    if (iast_enabled != "true" && iast_enabled != "1") {
-        throw py::import_error("IAST not enabled");
+        py::module::import("logging").attr("warning")("IAST not enabled but native module is being loaded");
+    } else {
+        std::string iast_enabled = std::string(env_iast_enabled);
+        std::transform(iast_enabled.begin(), iast_enabled.end(), iast_enabled.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+        if (iast_enabled != "true" && iast_enabled != "1") {
+            py::module::import("logging").attr("warning")("IAST not enabled but native module is being loaded");
+        }
     }
 
     initializer = make_unique<Initializer>();

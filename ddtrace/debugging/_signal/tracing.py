@@ -1,6 +1,6 @@
+from dataclasses import dataclass
+from dataclasses import field
 import typing as t
-
-import attr
 
 import ddtrace
 from ddtrace._trace.span import Span
@@ -29,13 +29,13 @@ SPAN_NAME = "dd.dynamic.span"
 PROBE_ID_TAG_NAME = "debugger.probeid"
 
 
-@attr.s
+@dataclass
 class DynamicSpan(Signal):
     """Dynamically created span"""
 
-    _span_cm = attr.ib(type=t.Optional[t.ContextManager[Span]], init=False)
+    _span_cm: t.Optional[Span] = field(init=False, default=None)
 
-    def __attrs_post_init__(self) -> None:
+    def __post_init__(self) -> None:
         self._span_cm = None
 
     def enter(self) -> None:
@@ -44,7 +44,7 @@ class DynamicSpan(Signal):
             log.debug("Dynamic span entered with non-span probe: %s", self.probe)
             return
 
-        if not self._eval_condition(dict(self.args) if self.args else {}):
+        if not self._eval_condition(self.args):
             return
 
         self._span_cm = ddtrace.tracer.trace(
@@ -55,7 +55,7 @@ class DynamicSpan(Signal):
         )
         span = self._span_cm.__enter__()
 
-        span.set_tags(probe.tags)
+        span.set_tags(probe.tags)  # type: ignore[arg-type]
         span.set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)
         span.set_tag_str(ORIGIN_KEY, "di")
 
@@ -74,11 +74,11 @@ class DynamicSpan(Signal):
         raise NotImplementedError("Dynamic line spans are not supported in Python")
 
 
-@attr.s
+@dataclass
 class SpanDecoration(LogSignal):
     """Decorate a span."""
 
-    def _decorate_span(self, _locals: t.Dict[str, t.Any]) -> None:
+    def _decorate_span(self, scope: t.Mapping[str, t.Any]) -> None:
         probe = t.cast(SpanDecorationMixin, self.probe)
 
         if probe.target_span == SpanDecorationTargetSpan.ACTIVE:
@@ -93,7 +93,7 @@ class SpanDecoration(LogSignal):
             log.debug("Decorating span %r according to span decoration probe %r", span, probe)
             for d in probe.decorations:
                 try:
-                    if not (d.when is None or d.when(_locals)):
+                    if not (d.when is None or d.when(scope)):
                         continue
                 except DDExpressionEvaluationError as e:
                     self.errors.append(
@@ -102,7 +102,7 @@ class SpanDecoration(LogSignal):
                     continue
                 for tag in d.tags:
                     try:
-                        tag_value = tag.value.render(_locals, serialize)
+                        tag_value = tag.value.render(scope, serialize)
                     except DDExpressionEvaluationError as e:
                         span.set_tag_str(
                             "_dd.di.%s.evaluation_error" % tag.name, ", ".join([serialize(v) for v in e.args])
@@ -117,8 +117,8 @@ class SpanDecoration(LogSignal):
             log.debug("Span decoration entered with non-span decoration probe: %s", self.probe)
             return
 
-        if probe.evaluate_at == ProbeEvaluateTimingForMethod.ENTER:
-            self._decorate_span(dict(self.args) if self.args else {})
+        if probe.evaluate_at is ProbeEvaluateTimingForMethod.ENTER:
+            self._decorate_span(self.args)
             self.state = SignalState.DONE
 
     def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float) -> None:
@@ -128,8 +128,8 @@ class SpanDecoration(LogSignal):
             log.debug("Span decoration exited with non-span decoration probe: %s", self.probe)
             return
 
-        if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
-            self._decorate_span(self._enrich_args(retval, exc_info, duration))
+        if probe.evaluate_at is ProbeEvaluateTimingForMethod.EXIT:
+            self._decorate_span(self.get_full_scope(retval, exc_info, duration))
             self.state = SignalState.DONE
 
     def line(self):
@@ -144,8 +144,7 @@ class SpanDecoration(LogSignal):
 
     @property
     def message(self):
-        return ("Condition evaluation errors for probe %s" % self.probe.probe_id) if self.errors else None
+        return f"Condition evaluation errors for probe {self.probe.probe_id}" if self.errors else None
 
-    def has_message(self):
-        # type () -> bool
+    def has_message(self) -> bool:
         return bool(self.errors)

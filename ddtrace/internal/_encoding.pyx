@@ -452,7 +452,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cpdef encode(self):
         with self._lock:
             if not self._count:
-                return None
+                return None, 0
 
             return self.flush()
 
@@ -556,19 +556,19 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cpdef flush(self):
         with self._lock:
             try:
-                return self.get_bytes()
+                return self.get_bytes(), len(self)
             finally:
                 self._reset_buffer()
 
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
 
-    cdef inline int _pack_links(self, object span_links):
+    cdef inline int _pack_links(self, list span_links):
         ret = msgpack_pack_array(&self.pk, len(span_links))
         if ret != 0:
             return ret
 
-        for _, link in span_links.items():
+        for link in span_links:
             # SpanLink.to_dict() returns all serializable span link fields
             # v0.4 encoding is disabled by default. SpanLinks.to_dict() is optimizied for the v0.5 format.
             d = link.to_dict()
@@ -831,7 +831,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                     PyLong_FromLong(<long> self.get_buffer()),
                     <Py_ssize_t> super(MsgpackEncoderV05, self).size,
                 )
-                return self._st.flush()
+                return self._st.flush(), len(self)
             finally:
                 self._reset_buffer()
 
@@ -905,7 +905,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         span_links = ""
         if span._links:
-            span_links = json_dumps([link.to_dict() for _, link in span._links.items()])
+            span_links = json_dumps([link.to_dict() for link in span._links])
 
         span_events = ""
         if span._events:

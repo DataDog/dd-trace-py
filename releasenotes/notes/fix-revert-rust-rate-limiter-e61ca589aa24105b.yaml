@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fix ``Already mutably borrowed`` error by reverting back to pure-python rate limiter.

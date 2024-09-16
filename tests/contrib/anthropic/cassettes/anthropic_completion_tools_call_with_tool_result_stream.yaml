@@ -9,7 +9,7 @@ interactions:
       are needed, as the get_weather tool should provide a complete answer to the
       user''s question.\n</thinking>", "type": "text"}, {"id": "toolu_01UiyhG7tywQKaqdgxyqa8z9",
       "input": {"location": "San Francisco, CA"}, "name": "get_weather", "type": "tool_use"}]},
-      {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_01UiyhG7tywQKaqdgxyqa8z9",
+      {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
       "content": [{"type": "text", "text": "The weather is 73f"}]}]}], "model": "claude-3-opus-20240229",
       "stream": true, "tools": [{"name": "get_weather", "description": "Get the weather
       for a specific location", "input_schema": {"type": "object", "properties": {"location":

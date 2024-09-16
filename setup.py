@@ -42,6 +42,8 @@ HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
+SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
+
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
@@ -53,13 +55,43 @@ STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.18.0"
+LIBDDWAF_VERSION = "1.19.1"
 
 RUST_MINIMUM_VERSION = "1.71"  # Safe guess:  1.71 is about a year old as of 2024-07-03
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
     os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
+
+
+def interpose_sccache():
+    """
+    Injects sccache into the relevant build commands if it's allowed and we think it'll work
+    """
+    if not SCCACHE_COMPILE:
+        return
+
+    # Check for sccache.  We don't do multi-step failover (e.g., if ${SCCACHE_PATH} is set, but the binary is invalid)
+    sccache_path = Path(os.getenv("SCCACHE_PATH", shutil.which("sccache")))
+    if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
+        # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
+        # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
+        # a wrapper
+        os.environ["DD_SCCACHE_PATH"] = str(sccache_path.resolve())
+        os.environ["RUSTC_WRAPPER"] = str(sccache_path.resolve())
+        cc_path = next(
+            (shutil.which(cmd) for cmd in [os.getenv("CC", ""), "cc", "gcc", "clang"] if shutil.which(cmd)), None
+        )
+        if cc_path:
+            os.environ["DD_CC_OLD"] = cc_path
+            os.environ["CC"] = str(HERE / "scripts" / "cc_wrapper.sh")
+
+        cxx_path = next(
+            (shutil.which(cmd) for cmd in [os.getenv("CXX", ""), "c++", "g++", "clang++"] if shutil.which(cmd)), None
+        )
+        if cxx_path:
+            os.environ["DD_CXX_OLD"] = cxx_path
+            os.environ["CXX"] = str(HERE / "scripts" / "cxx_wrapper.sh")
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -322,6 +354,17 @@ class CMakeBuild(build_ext):
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
 
+        # If it's been enabled, also propagate sccache to the CMake build.  We have to manually set the default CC/CXX
+        # compilers here, because otherwise the way we wrap sccache will conflict with the CMake wrappers
+        sccache_path = os.getenv("DD_SCCACHE_PATH")
+        if sccache_path:
+            cmake_args += [
+                "-DCMAKE_C_COMPILER={}".format(os.getenv("DD_CC_OLD", shutil.which("cc"))),
+                "-DCMAKE_C_COMPILER_LAUNCHER={}".format(sccache_path),
+                "-DCMAKE_CXX_COMPILER={}".format(os.getenv("DD_CXX_OLD", shutil.which("c++"))),
+                "-DCMAKE_CXX_COMPILER_LAUNCHER={}".format(sccache_path),
+            ]
+
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
         # by setuptools/distutils, such libdd_wrapper.so
@@ -473,13 +516,6 @@ if not IS_PYSTON:
             sources=["ddtrace/internal/_threads.cpp"],
             extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
         ),
-        Extension(
-            "ddtrace.internal.coverage._native",
-            sources=[
-                "ddtrace/internal/coverage/_native.c",
-            ],
-            extra_compile_args=debug_compile_args,
-        ),
     ]
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
@@ -535,7 +571,7 @@ if not IS_PYSTON:
 else:
     ext_modules = []
 
-
+interpose_sccache()
 setup(
     name="ddtrace",
     packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
@@ -618,7 +654,6 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
-    + get_exts_for("wrapt")
     + get_exts_for("psutil"),
     rust_extensions=[
         RustExtension(

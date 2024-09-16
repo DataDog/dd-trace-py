@@ -24,19 +24,18 @@ SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
     s1.link_span(s2.context, link_attributes)
 """
 
+import dataclasses
 from typing import Optional
-
-import attr
 
 from ddtrace.internal.utils.formats import flatten_key_value
 
 
-def _id_not_zero(self, attribute, value):
+def _id_not_zero(self, attribute_name, value):
     if not value > 0:
-        raise ValueError(f"{attribute.name} must be > 0. Value is {value}")
+        raise ValueError(f"{attribute_name} must be > 0. Value is {value}")
 
 
-@attr.s
+@dataclasses.dataclass
 class SpanLink:
     """
     TraceId [required]: The span's 128-bit Trace ID
@@ -51,12 +50,16 @@ class SpanLink:
     value is either a string, bool, number or an array of primitive type values.
     """
 
-    trace_id = attr.ib(type=int, validator=_id_not_zero)
-    span_id = attr.ib(type=int, validator=_id_not_zero)
-    tracestate = attr.ib(type=Optional[str], default=None)
-    flags = attr.ib(type=Optional[int], default=None)
-    attributes = attr.ib(type=dict, default=dict())
-    _dropped_attributes = attr.ib(type=int, default=0)
+    trace_id: int
+    span_id: int
+    tracestate: Optional[str] = None
+    flags: Optional[int] = None
+    attributes: dict = dataclasses.field(default_factory=dict)
+    _dropped_attributes: int = 0
+
+    def __post_init__(self):
+        _id_not_zero(self, "trace_id", self.trace_id)
+        _id_not_zero(self, "span_id", self.span_id)
 
     @property
     def name(self):
@@ -76,7 +79,7 @@ class SpanLink:
 
     def _drop_attribute(self, key):
         if key not in self.attributes:
-            raise ValueError(f"Invalid key: {key}")
+            raise KeyError(f"Invalid key: {key}")
         del self.attributes[key]
         self._dropped_attributes += 1
 
@@ -107,3 +110,10 @@ class SpanLink:
             d["flags"] = self.flags
 
         return d
+
+    def __str__(self) -> str:
+        attrs_str = ",".join([f"{k}:{v}" for k, v in self.attributes.items()])
+        return (
+            f"trace_id={self.trace_id} span_id={self.span_id} attributes={attrs_str} "
+            f"tracestate={self.tracestate} flags={self.flags} dropped_attributes={self._dropped_attributes}"
+        )

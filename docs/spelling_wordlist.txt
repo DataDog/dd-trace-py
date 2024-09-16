@@ -71,6 +71,7 @@ datastore
 datastores
 dbapi
 ddtrace
+deallocating
 deprecations
 deserializing
 django
@@ -95,6 +96,7 @@ exec
 fastapi
 formatter
 gRPC
+generativeai
 gevent
 graphql
 graphene

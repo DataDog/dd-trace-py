@@ -3,7 +3,7 @@ from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import TypeVar  # noqa:F401
 
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 F = TypeVar("F", bound=Callable[..., Any])

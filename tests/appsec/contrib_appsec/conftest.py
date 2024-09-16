@@ -39,9 +39,9 @@ def root_span(test_spans):
 @pytest.fixture
 def check_waf_timeout(request, printer):
     with unittest.mock.patch("ddtrace.appsec._processor._set_waf_error_metric", autospec=True) as mock_metrics:
-        # change timeout to 5 seconds to avoid flaky timeouts
+        # change timeout to 50 seconds to avoid flaky timeouts
         previous_timeout = asm_config._waf_timeout
-        asm_config._waf_timeout = 5000.0
+        asm_config._waf_timeout = 50_000.0
         test_failed = request.session.testsfailed
         yield
         if request.session.testsfailed > test_failed:

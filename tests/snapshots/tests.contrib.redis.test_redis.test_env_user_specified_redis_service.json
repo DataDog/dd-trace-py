@@ -18,6 +18,7 @@
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
       "runtime-id": "e263ff9ad1cd43099216a11ca5e19377",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
@@ -54,6 +55,7 @@
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
       "runtime-id": "e263ff9ad1cd43099216a11ca5e19377",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {

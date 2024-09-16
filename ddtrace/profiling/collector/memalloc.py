@@ -5,8 +5,6 @@ import os
 import threading
 import typing  # noqa:F401
 
-import attr
-
 
 try:
     from ddtrace.profiling.collector import _memalloc
@@ -20,51 +18,71 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.settings.profiling import config
 
+from ..recorder import Recorder
+
 
 LOG = logging.getLogger(__name__)
 
 
-@event.event_class
 class MemoryAllocSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size = attr.ib(default=0, type=int)
-    """Allocation size in bytes."""
+    __slots__ = ("size", "capture_pct", "nevents")
 
-    capture_pct = attr.ib(default=None, type=float)
-    """The capture percentage."""
+    def __init__(self, size=0, capture_pct=None, nevents=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.size = size
+        """Allocation size in bytes."""
+        self.capture_pct = capture_pct
+        """The capture percentage."""
+        self.nevents = nevents
+        """The total number of allocation events sampled."""
 
-    nevents = attr.ib(default=0, type=int)
-    """The total number of allocation events sampled."""
 
-
-@event.event_class
 class MemoryHeapSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size = attr.ib(default=0, type=int)
-    """Allocation size in bytes."""
+    __slots__ = ("size", "sample_size")
 
-    sample_size = attr.ib(default=0, type=int)
-    """The sampling size."""
+    def __init__(
+        self,
+        size=0,  # type: int
+        sample_size=0,  # type: int
+        *args,  # type: typing.Any
+        **kwargs,  # type: typing.Any
+    ):
+        super().__init__(*args, **kwargs)
+        self.size: int = size
+        """Allocation size in bytes."""
+
+        self.sample_size: int = sample_size
+        """The sampling size."""
 
 
-@attr.s
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
     _DEFAULT_MAX_EVENTS = 16
     _DEFAULT_INTERVAL = 0.5
 
-    # Arbitrary interval to empty the _memalloc event buffer
-    _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
-
-    # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-    _max_events = attr.ib(type=int, default=config.memory.events_buffer)
-    max_nframe = attr.ib(default=config.max_frames, type=int)
-    heap_sample_size = attr.ib(type=int, default=config.heap.sample_size)
-    ignore_profiler = attr.ib(default=config.ignore_profiler, type=bool)
-    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    def __init__(
+        self,
+        recorder: Recorder,
+        _interval: float = _DEFAULT_INTERVAL,
+        _max_events: int = config.memory.events_buffer,
+        max_nframe: int = config.max_frames,
+        heap_sample_size: int = config.heap.sample_size,
+        ignore_profiler: bool = config.ignore_profiler,
+        _export_libdd_enabled: bool = config.export.libdd_enabled,
+    ):
+        super().__init__(recorder=recorder)
+        self._interval: float = _interval
+        # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
+        self._max_events: int = _max_events
+        self.max_nframe: int = max_nframe
+        self.heap_sample_size: int = heap_sample_size
+        self.ignore_profiler: bool = ignore_profiler
+        self._export_libdd_enabled: bool = _export_libdd_enabled
 
     def _start_service(self):
         # type: (...) -> None

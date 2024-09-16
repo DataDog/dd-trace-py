@@ -18,6 +18,7 @@
       "out.host": "localhost",
       "redis.raw_command": "FLUSHALL",
       "runtime-id": "b99b2a231e9242f5b3e0fb971df07ef8",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
@@ -53,6 +54,7 @@
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
       "runtime-id": "b99b2a231e9242f5b3e0fb971df07ef8",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {

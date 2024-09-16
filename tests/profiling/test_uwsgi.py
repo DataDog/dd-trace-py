@@ -10,7 +10,6 @@ import time
 import pytest
 
 from tests.contrib.uwsgi import run_uwsgi
-from tests.utils import flaky
 
 from . import utils
 
@@ -50,7 +49,6 @@ def test_uwsgi_threads_disabled(uwsgi):
     assert THREADS_MSG in stdout
 
 
-@flaky(1719591602)
 def test_uwsgi_threads_number_set(uwsgi):
     proc = uwsgi("--threads", "1")
     try:

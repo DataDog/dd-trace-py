@@ -1,20 +1,14 @@
-import pylibmc
-
-from .client import TracedClient
-
-
-# Original Client class
-_Client = pylibmc.Client
+from ddtrace.contrib.internal.pylibmc.patch import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-def get_version():
-    # type: () -> str
-    return getattr(pylibmc, "__version__", "")
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-
-def patch():
-    pylibmc.Client = TracedClient
-
-
-def unpatch():
-    pylibmc.Client = _Client
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

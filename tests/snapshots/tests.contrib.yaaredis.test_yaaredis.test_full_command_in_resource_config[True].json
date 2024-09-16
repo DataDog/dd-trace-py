@@ -38,6 +38,7 @@
          "db.system": "redis",
          "out.host": "localhost",
          "redis.raw_command": "GET put_key_in_resource",
+         "server.address": "localhost",
          "span.kind": "client"
        },
        "metrics": {
@@ -66,6 +67,7 @@
          "db.system": "redis",
          "out.host": "localhost",
          "redis.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+         "server.address": "localhost",
          "span.kind": "client"
        },
        "metrics": {

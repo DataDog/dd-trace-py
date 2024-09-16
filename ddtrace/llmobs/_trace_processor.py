@@ -1,5 +1,4 @@
 import json
-import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -14,7 +13,6 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
@@ -47,7 +45,6 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def __init__(self, llmobs_span_writer):
         self._span_writer = llmobs_span_writer
-        self._no_apm_traces = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -55,7 +52,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         for span in trace:
             if span.span_type == SpanTypes.LLM:
                 self.submit_llmobs_span(span)
-        return None if self._no_apm_traces else trace
+        return None if config._llmobs_agentless_enabled else trace
 
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
@@ -99,39 +96,46 @@ class LLMObsTraceProcessor(TraceProcessor):
         metrics = json.loads(span._meta.pop(METRICS, "{}"))
         ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
-        session_id = _get_session_id(span)
-        span.set_tag_str(SESSION_ID, session_id)
+
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
         span._meta.pop(PARENT_ID_KEY, None)
-        return {
+
+        llmobs_span_event = {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
             "parent_id": parent_id,
-            "session_id": session_id,
             "name": _get_span_name(span),
-            "tags": self._llmobs_tags(span, ml_app=ml_app, session_id=session_id),
             "start_ns": span.start_ns,
             "duration": span.duration_ns,
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
         }
+        session_id = _get_session_id(span)
+        if session_id is not None:
+            span.set_tag_str(SESSION_ID, session_id)
+            llmobs_span_event["session_id"] = session_id
+
+        llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id)
+
+        return llmobs_span_event
 
     @staticmethod
-    def _llmobs_tags(span: Span, ml_app: str, session_id: str) -> List[str]:
+    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
         tags = {
             "version": config.version or "",
             "env": config.env or "",
             "service": span.service or "",
             "source": "integration",
             "ml_app": ml_app,
-            "session_id": session_id,
             "ddtrace.version": ddtrace.__version__,
             "error": span.error,
         }
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
+        if session_id:
+            tags["session_id"] = session_id
         existing_tags = span._meta.pop(TAGS, None)
         if existing_tags is not None:
             tags.update(json.loads(existing_tags))

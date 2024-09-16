@@ -8,40 +8,6 @@ from tests.utils import override_env
 
 
 class TestConfig(BaseTestCase):
-    def test_environment_analytics_enabled(self):
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.analytics_enabled)
-
-    def test_environment_analytics_overrides(self):
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="False", DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="False", DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True", DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True", DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.analytics_enabled)
-
     def test_logs_injection(self):
         with self.override_env(dict(DD_LOGS_INJECTION="True")):
             config = Config()
@@ -178,96 +144,6 @@ class TestIntegrationConfig(BaseTestCase):
         assert not self.integration_config.http.header_is_traced("global_header")
         assert not self.config.header_is_traced("integration_header")
 
-    def test_environment_analytics_enabled(self):
-        # default
-        self.assertFalse(self.config.analytics_enabled)
-        self.assertIsNone(self.config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-            self.assertIsNone(config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-            self.assertIsNone(config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.foo.analytics_enabled)
-            self.assertEqual(config.foo.analytics_sample_rate, 1.0)
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.foo.analytics_enabled)
-            self.assertEqual(config.foo.analytics_sample_rate, 1.0)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True", DD_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
-            config = Config()
-            self.assertTrue(config.foo.analytics_enabled)
-            self.assertEqual(config.foo.analytics_sample_rate, 0.5)
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True", DD_TRACE_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
-            config = Config()
-            self.assertTrue(config.foo.analytics_enabled)
-            self.assertEqual(config.foo.analytics_sample_rate, 0.5)
-
-    def test_analytics_enabled_attribute(self):
-        """Confirm environment variable and kwargs are handled properly"""
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=True)
-        self.assertTrue(ic.analytics_enabled)
-
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=False)
-        self.assertFalse(ic.analytics_enabled)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True")):
-            ic = IntegrationConfig(self.config, "foo", analytics_enabled=False)
-            self.assertFalse(ic.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True")):
-            ic = IntegrationConfig(self.config, "foo", analytics_enabled=False)
-            self.assertFalse(ic.analytics_enabled)
-
-    def test_get_analytics_sample_rate(self):
-        """Check method for accessing sample rate based on configuration"""
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5)
-        self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
-
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=True)
-        self.assertEqual(ic.get_analytics_sample_rate(), 1.0)
-
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=False)
-        self.assertIsNone(ic.get_analytics_sample_rate())
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True")):
-            config = Config()
-            ic = IntegrationConfig(config, "foo")
-            self.assertEqual(ic.get_analytics_sample_rate(use_global_config=True), 1.0)
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            ic = IntegrationConfig(config, "foo")
-            self.assertEqual(ic.get_analytics_sample_rate(use_global_config=True), 1.0)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="False")):
-            config = Config()
-            ic = IntegrationConfig(config, "foo")
-            self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
-            ic = IntegrationConfig(config, "foo")
-            self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
-
     def test_service(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service is None
@@ -328,15 +204,10 @@ def test_environment_header_tags():
         (dict(), (512, True)),
         (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="0"), (0, False)),
         (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="1024"), (1024, True)),
-        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="-1"), (ValueError, "Invalid value -1")),
+        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="-1"), (0, False)),
     ),
 )
 def test_x_datadog_tags(env, expected):
     with override_env(env):
-        if expected[0] == ValueError:
-            with pytest.raises(expected[0]) as exc:
-                _ = Config()
-            assert expected[1] in exc.value.args[0]
-        else:
-            _ = Config()
-            assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
+        _ = Config()
+        assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)

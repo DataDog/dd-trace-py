@@ -1,4 +1,5 @@
 import json
+import os
 
 import mock
 import pytest
@@ -7,6 +8,8 @@ import ddtrace
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.filters import TraceFilter
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -99,7 +102,7 @@ def test_service_enable_no_api_key():
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(_tracer=dummy_tracer)
+            llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=True)
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
@@ -194,6 +197,15 @@ def test_session_id_becomes_top_level_field(LLMObs, mock_llmobs_span_writer):
     )
 
 
+def test_session_id_becomes_top_level_field_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    session_id = "test_session_id"
+    with AgentlessLLMObs.task(session_id=session_id) as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "task", session_id=session_id)
+    )
+
+
 def test_llm_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         assert span.name == "test_llm_call"
@@ -202,9 +214,22 @@ def test_llm_span(LLMObs, mock_llmobs_span_writer):
         assert span.get_tag(SPAN_KIND) == "llm"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
-        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
+    )
+
+
+def test_llm_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        assert span.name == "test_llm_call"
+        assert span.resource == "llm"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "llm"
+        assert span.get_tag(MODEL_NAME) == "test_model"
+        assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
     )
 
@@ -239,6 +264,15 @@ def test_tool_span(LLMObs, mock_llmobs_span_writer):
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
 
 
+def test_tool_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.tool(name="test_tool") as span:
+        assert span.name == "test_tool"
+        assert span.resource == "tool"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "tool"
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
+
+
 def test_task_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.task(name="test_task") as span:
         assert span.name == "test_task"
@@ -246,6 +280,15 @@ def test_task_span(LLMObs, mock_llmobs_span_writer):
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "task"
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
+
+
+def test_task_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.task(name="test_task") as span:
+        assert span.name == "test_task"
+        assert span.resource == "task"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "task"
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
 
 
 def test_workflow_span(LLMObs, mock_llmobs_span_writer):
@@ -257,6 +300,15 @@ def test_workflow_span(LLMObs, mock_llmobs_span_writer):
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
 
 
+def test_workflow_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.workflow(name="test_workflow") as span:
+        assert span.name == "test_workflow"
+        assert span.resource == "workflow"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "workflow"
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
+
+
 def test_agent_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
@@ -264,6 +316,15 @@ def test_agent_span(LLMObs, mock_llmobs_span_writer):
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "agent"
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
+
+
+def test_agent_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.agent(name="test_agent") as span:
+        assert span.name == "test_agent"
+        assert span.resource == "agent"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "agent"
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
 def test_embedding_span_no_model_raises_error(LLMObs):
@@ -295,9 +356,24 @@ def test_embedding_span(LLMObs, mock_llmobs_span_writer):
         assert span.get_tag(SPAN_KIND) == "embedding"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
-        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
+    )
+
+
+def test_embedding_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.embedding(
+        model_name="test_model", name="test_embedding", model_provider="test_provider"
+    ) as span:
+        assert span.name == "test_embedding"
+        assert span.resource == "embedding"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "embedding"
+        assert span.get_tag(MODEL_NAME) == "test_model"
+        assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
     )
 
@@ -727,6 +803,22 @@ def test_span_error_sets_error(LLMObs, mock_llmobs_span_writer):
     )
 
 
+def test_span_error_sets_error_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with pytest.raises(ValueError):
+        with AgentlessLLMObs.llm(model_name="test_model", model_provider="test_model_provider") as span:
+            raise ValueError("test error message")
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name="test_model",
+            model_provider="test_model_provider",
+            error="builtins.ValueError",
+            error_message="test error message",
+            error_stack=span.get_tag("error.stack"),
+        )
+    )
+
+
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
@@ -735,6 +827,22 @@ def test_tags(ddtrace_global_config, LLMObs, mock_llmobs_span_writer, monkeypatc
     with LLMObs.task(name="test_task") as span:
         pass
     mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "task",
+            tags={"version": "1.2.3", "env": "test_env", "service": "test_service", "ml_app": "test_app_name"},
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
+)
+def test_tags_agentless(ddtrace_global_config, AgentlessLLMObs, mock_llmobs_span_agentless_writer, monkeypatch):
+    with AgentlessLLMObs.task(name="test_task") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(
             span,
             "task",
@@ -781,6 +889,48 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
     with LLMObs.retrieval(name="test_retrieval", ml_app="test_app") as span:
         pass
     mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "retrieval", tags={"ml_app": "test_app"})
+    )
+
+
+def test_ml_app_override_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
+    with AgentlessLLMObs.task(name="test_task", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "task", tags={"ml_app": "test_app"})
+    )
+    with AgentlessLLMObs.tool(name="test_tool", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "tool", tags={"ml_app": "test_app"})
+    )
+    with AgentlessLLMObs.llm(model_name="model_name", name="test_llm", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span, "llm", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        )
+    )
+    with AgentlessLLMObs.embedding(model_name="model_name", name="test_embedding", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span, "embedding", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        )
+    )
+    with AgentlessLLMObs.workflow(name="test_workflow", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "workflow", tags={"ml_app": "test_app"})
+    )
+    with AgentlessLLMObs.agent(name="test_agent", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "agent", tags={"ml_app": "test_app"})
+    )
+    with AgentlessLLMObs.retrieval(name="test_retrieval", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "retrieval", tags={"ml_app": "test_app"})
     )
 
@@ -833,6 +983,34 @@ def test_submit_evaluation_llmobs_disabled_raises_warning(LLMObs, mock_logs):
     )
 
 
+def test_submit_evaluation_no_api_key_raises_warning(AgentlessLLMObs, mock_logs):
+    with override_global_config(dict(_dd_api_key="")):
+        AgentlessLLMObs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+        )
+        mock_logs.warning.assert_called_once_with(
+            "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+            "Ensure this configuration is set before running your application."
+        )
+
+
+def test_submit_evaluation_ml_app_raises_warning(LLMObs, mock_logs):
+    with override_global_config(dict(_llmobs_ml_app="")):
+        LLMObs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+        )
+        mock_logs.warning.assert_called_once_with(
+            "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+            "Ensure this configuration is set before running your application."
+        )
+
+
 def test_submit_evaluation_span_context_incorrect_type_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(span_context="asd", label="toxicity", metric_type="categorical", value="high")
     mock_logs.warning.assert_called_once_with(
@@ -852,6 +1030,20 @@ def test_submit_evaluation_empty_span_or_trace_id_raises_warning(LLMObs, mock_lo
     LLMObs.submit_evaluation(span_context={"span_id": "456"}, label="toxicity", metric_type="categorical", value="high")
     mock_logs.warning.assert_called_once_with(
         "span_id and trace_id must both be specified for the given evaluation metric to be submitted."
+    )
+
+
+def test_submit_evaluation_invalid_timestamp_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="",
+        metric_type="categorical",
+        value="high",
+        ml_app="dummy",
+        timestamp_ms="invalid",
+    )
+    mock_logs.warning.assert_called_once_with(
+        "timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
     )
 
 
@@ -930,17 +1122,19 @@ def test_submit_evaluation_non_string_tags_raises_warning_but_still_submits(
         metric_type="categorical",
         value="high",
         tags={1: 2, "foo": "bar"},
+        ml_app="dummy",
     )
     mock_logs.warning.assert_called_once_with("Failed to parse tags. Tags for evaluation metrics must be strings.")
     mock_logs.reset_mock()
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
             span_id="123",
             trace_id="456",
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:test_app_name", "foo:bar"],
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:dummy", "foo:bar"],
         )
     )
 
@@ -956,9 +1150,11 @@ def test_submit_evaluation_metric_tags(LLMObs, mock_llmobs_eval_metric_writer):
         metric_type="categorical",
         value="high",
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
             span_id="123",
             trace_id="456",
             label="toxicity",
@@ -971,20 +1167,34 @@ def test_submit_evaluation_metric_tags(LLMObs, mock_llmobs_eval_metric_writer):
 
 def test_submit_evaluation_enqueues_writer_with_categorical_metric(LLMObs, mock_llmobs_eval_metric_writer):
     LLMObs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value="high"
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        ml_app="dummy",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
-            span_id="123", trace_id="456", label="toxicity", metric_type="categorical", categorical_value="high"
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
         )
     )
     mock_llmobs_eval_metric_writer.reset_mock()
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.submit_evaluation(
-            span_context=LLMObs.export_span(span), label="toxicity", metric_type="categorical", value="high"
+            span_context=LLMObs.export_span(span),
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+            ml_app="dummy",
         )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
             span_id=str(span.span_id),
             trace_id="{:x}".format(span.trace_id),
             label="toxicity",
@@ -996,17 +1206,21 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(LLMObs, mock_
 
 def test_submit_evaluation_enqueues_writer_with_score_metric(LLMObs, mock_llmobs_eval_metric_writer):
     LLMObs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"}, label="sentiment", metric_type="score", value=0.9
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="sentiment",
+        metric_type="score",
+        value=0.9,
+        ml_app="dummy",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
-            span_id="123", trace_id="456", label="sentiment", metric_type="score", score_value=0.9
+            span_id="123", trace_id="456", label="sentiment", metric_type="score", score_value=0.9, ml_app="dummy"
         )
     )
     mock_llmobs_eval_metric_writer.reset_mock()
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.submit_evaluation(
-            span_context=LLMObs.export_span(span), label="sentiment", metric_type="score", value=0.9
+            span_context=LLMObs.export_span(span), label="sentiment", metric_type="score", value=0.9, ml_app="dummy"
         )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -1015,6 +1229,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(LLMObs, mock_llmobs
             label="sentiment",
             metric_type="score",
             score_value=0.9,
+            ml_app="dummy",
         )
     )
 
@@ -1023,20 +1238,29 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
     LLMObs, mock_llmobs_eval_metric_writer
 ):
     LLMObs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value=35
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="token_count",
+        metric_type="numerical",
+        value=35,
+        ml_app="dummy",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
-            span_id="123", trace_id="456", label="token_count", metric_type="score", score_value=35
+            ml_app="dummy", span_id="123", trace_id="456", label="token_count", metric_type="score", score_value=35
         )
     )
     mock_llmobs_eval_metric_writer.reset_mock()
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.submit_evaluation(
-            span_context=LLMObs.export_span(span), label="token_count", metric_type="numerical", value=35
+            span_context=LLMObs.export_span(span),
+            label="token_count",
+            metric_type="numerical",
+            value=35,
+            ml_app="dummy",
         )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
             span_id=str(span.span_id),
             trace_id="{:x}".format(span.trace_id),
             label="token_count",
@@ -1046,9 +1270,11 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
     )
 
 
-def test_flush_calls_periodic(LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
-    LLMObs.flush()
-    mock_llmobs_span_writer.periodic.assert_called_once()
+def test_flush_calls_periodic_agentless(
+    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer
+):
+    AgentlessLLMObs.flush()
+    mock_llmobs_span_agentless_writer.periodic.assert_called_once()
     mock_llmobs_eval_metric_writer.periodic.assert_called_once()
 
 
@@ -1063,6 +1289,19 @@ def test_flush_does_not_call_period_when_llmobs_is_disabled(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
     LLMObs.enable()
+
+
+def test_flush_does_not_call_period_when_llmobs_is_disabled_agentless(
+    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, mock_logs
+):
+    AgentlessLLMObs.disable()
+    AgentlessLLMObs.flush()
+    mock_llmobs_span_agentless_writer.periodic.assert_not_called()
+    mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_logs.warning.assert_has_calls(
+        [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
+    )
+    AgentlessLLMObs.enable()
 
 
 def test_inject_distributed_headers_llmobs_disabled_does_nothing(LLMObs, mock_logs):
@@ -1162,3 +1401,106 @@ def test_activate_distributed_headers_activates_context(LLMObs, mock_logs):
             LLMObs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
             mock_activate.assert_called_once_with(dummy_context)
+
+
+def _task(llmobs_service, errors, original_pid, original_span_writer_id):
+    """Task in test_llmobs_fork which asserts that LLMObs in a forked process correctly recreates the writer."""
+    try:
+        with llmobs_service.workflow():
+            with llmobs_service.task():
+                assert llmobs_service._instance.tracer._pid != original_pid
+                assert id(llmobs_service._instance._llmobs_span_writer) != original_span_writer_id
+        assert llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 2
+        assert llmobs_service._instance._llmobs_span_writer._encoder.encode.call_count == 2
+    except AssertionError as e:
+        errors.put(e)
+
+
+def test_llmobs_fork_recreates_and_restarts_writer():
+    """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
+    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
+        original_pid = llmobs_service._instance.tracer._pid
+        original_span_writer = llmobs_service._instance._llmobs_span_writer
+        pid = os.fork()
+        if pid:  # parent
+            assert llmobs_service._instance.tracer._pid == original_pid
+            assert llmobs_service._instance._llmobs_span_writer == original_span_writer
+            assert (
+                llmobs_service._instance._trace_processor._span_writer == llmobs_service._instance._llmobs_span_writer
+            )
+            assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
+        else:  # child
+            assert llmobs_service._instance.tracer._pid != original_pid
+            assert llmobs_service._instance._llmobs_span_writer != original_span_writer
+            assert (
+                llmobs_service._instance._trace_processor._span_writer == llmobs_service._instance._llmobs_span_writer
+            )
+            assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
+
+
+def test_llmobs_fork_create_span(monkeypatch):
+    """Test that forking a process correctly encodes new spans created in each process."""
+    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
+    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
+        pid = os.fork()
+        if pid:  # parent
+            with llmobs_service.task():
+                pass
+            assert len(llmobs_service._instance._llmobs_span_writer._encoder) == 1
+        else:  # child
+            with llmobs_service.workflow():
+                with llmobs_service.task():
+                    pass
+            assert len(llmobs_service._instance._llmobs_span_writer._encoder) == 2
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
+
+
+def test_llmobs_fork_custom_filter(monkeypatch):
+    """Test that forking a process correctly keeps any custom filters."""
+
+    class CustomFilter(TraceFilter):
+        def process_trace(self, trace):
+            return trace
+
+    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
+    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+        tracer = DummyTracer()
+        custom_filter = CustomFilter()
+        tracer.configure(settings={"FILTERS": [custom_filter]})
+        llmobs_service.enable(_tracer=tracer, ml_app="test_app")
+        assert custom_filter in llmobs_service._instance.tracer._filters
+        pid = os.fork()
+        if pid:  # parent
+            assert custom_filter in llmobs_service._instance.tracer._filters
+            assert any(
+                isinstance(tracer_filter, LLMObsTraceProcessor)
+                for tracer_filter in llmobs_service._instance.tracer._filters
+            )
+        else:  # child
+            assert custom_filter in llmobs_service._instance.tracer._filters
+            assert any(
+                isinstance(tracer_filter, LLMObsTraceProcessor)
+                for tracer_filter in llmobs_service._instance.tracer._filters
+            )
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()

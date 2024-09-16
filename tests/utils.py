@@ -1,5 +1,6 @@
 import contextlib
 from contextlib import contextmanager
+import dataclasses
 import datetime as dt
 from http.client import RemoteDisconnected
 import inspect
@@ -11,9 +12,8 @@ import time
 from typing import List  # noqa:F401
 import urllib.parse
 
-import attr
-import pkg_resources
 import pytest
+import wrapt
 
 import ddtrace
 from ddtrace import Tracer
@@ -38,9 +38,13 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
+
+try:
+    import importlib.metadata as importlib_metadata
+except ImportError:
+    import importlib_metadata
 
 NO_CHILDREN = object()
 
@@ -69,7 +73,7 @@ def assert_span_http_status_code(span, code):
 
 
 @contextlib.contextmanager
-def override_env(env):
+def override_env(env, replace_os_env=False):
     """
     Temporarily override ``os.environ`` with provided values::
 
@@ -78,6 +82,10 @@ def override_env(env):
     """
     # Copy the full original environment
     original = dict(os.environ)
+
+    # We allow callers to clear out the environment to prevent leaking variables into the test
+    if replace_os_env:
+        os.environ.clear()
 
     for k in os.environ.keys():
         if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
@@ -105,7 +113,6 @@ def override_global_config(values):
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
         "_tracing_enabled",
-        "analytics_enabled",
         "client_ip_header",
         "retrieve_client_ip",
         "report_hostname",
@@ -149,6 +156,8 @@ def override_global_config(values):
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
         "_extract_ignore_active_span",
+        "_llmobs_agentless_enabled",
+        "_data_streams_enabled",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -978,10 +987,10 @@ class SnapshotFailed(Exception):
     pass
 
 
-@attr.s
-class SnapshotTest(object):
-    token = attr.ib(type=str)
-    tracer = attr.ib(type=ddtrace.Tracer, default=ddtrace.tracer)
+@dataclasses.dataclass
+class SnapshotTest:
+    token: str
+    tracer: ddtrace.Tracer = ddtrace.tracer
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
@@ -1098,7 +1107,7 @@ def snapshot_context(
         result = to_unicode(r.read())
         if r.status != 200:
             lowered = result.lower()
-            if "received unmatched traces" not in lowered and "did not receive expected traces" not in lowered:
+            if "received unmatched traces" not in lowered:
                 pytest.fail(result, pytrace=False)
             # we don't know why the test agent occasionally receives a different number of traces than it expects
             # during snapshot tests, but that does sometimes in an unpredictable manner
@@ -1217,9 +1226,9 @@ def request_token(request):
 
 def package_installed(package_name):
     try:
-        pkg_resources.get_distribution(package_name)
+        importlib_metadata.distribution(package_name)
         return True
-    except pkg_resources.DistributionNotFound:
+    except importlib_metadata.PackageNotFoundError:
         return False
 
 
@@ -1279,7 +1288,7 @@ def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
     try:
-        encoded_traces = client.encoder.encode()
+        encoded_traces, _ = client.encoder.encode()
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes incorrect URL for telemetry intake in EU that was causing missing telemetry data and SSL error log messages.

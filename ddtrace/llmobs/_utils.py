@@ -5,6 +5,7 @@ from ddtrace import Span
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
@@ -14,6 +15,13 @@ from ddtrace.llmobs._constants import SESSION_ID
 
 
 log = get_logger(__name__)
+
+
+def _get_attr(o: object, attr: str, default: object):
+    # Convenience method to get an attribute from an object or dict
+    if isinstance(o, dict):
+        return o.get(attr, default)
+    return getattr(o, attr, default)
 
 
 def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
@@ -39,7 +47,7 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
 
 
 def _get_span_name(span: Span) -> str:
-    if span.name == LANGCHAIN_APM_SPAN_NAME and span.resource != "":
+    if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME) and span.resource != "":
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
         return "openai.{}".format(span.resource)
@@ -60,7 +68,7 @@ def _get_ml_app(span: Span) -> str:
     return ml_app or config._llmobs_ml_app or "unknown-ml-app"
 
 
-def _get_session_id(span: Span) -> str:
+def _get_session_id(span: Span) -> Optional[str]:
     """
     Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the span's trace ID.
@@ -71,7 +79,7 @@ def _get_session_id(span: Span) -> str:
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         session_id = nearest_llmobs_ancestor.get_tag(SESSION_ID)
-    return session_id or "{:x}".format(span.trace_id)
+    return session_id
 
 
 def _inject_llmobs_parent_id(span_context):

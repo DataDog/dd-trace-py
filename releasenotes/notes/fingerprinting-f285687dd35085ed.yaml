@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: This introduces fingerprinting with libddwaf 1.19.1

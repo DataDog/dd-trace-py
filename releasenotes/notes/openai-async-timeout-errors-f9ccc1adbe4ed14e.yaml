@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.

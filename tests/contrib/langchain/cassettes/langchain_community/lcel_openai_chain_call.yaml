@@ -1,7 +1,7 @@
 interactions:
 - request:
     body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["System: You are world class
-      technical documentation writer.\nHuman: how can langsmith help with testing?"],
+      technical documentation writer.\nHuman: Can you explain what an LLM chain is?"],
       "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256, "n": 1, "presence_penalty":
       0, "temperature": 0.7, "top_p": 1}'
     headers:
@@ -12,13 +12,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '279'
+      - '280'
       content-type:
       - application/json
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.12.0
+      - OpenAI/Python 1.30.3
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -28,31 +28,31 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.30.3
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.5
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA3xTwWobMRC9+yuGPdsmTjDFvpWU0kOgpe2ltCWMpdldNdoZRTPrZBPy70Wy44RQ
-        elmQnt7Mm3lvH2cATfDNFho3pLjYrK8uvlzSvrvN6ev02T/cysU45Q+fePzhm3l5Lbs/5KwwjO7t
-        2smQIlkQPsAuExqViqt3q9XZerPebCowiKdYaF2yxcVyvbAx72QRWC2Pzo7sXoIjbbbwcwYA8Fi/
-        cOhVyL/426RGwxaukDsdgvXgkKGnmOCunIzUAncQGJT2lDHCHU66hI8hq80hWCV0xJTRCHA0GYrk
-        ylTYoZIHYZhkzGDkeg4OI3hx40BsWGadA7GOufSxHu3w1oknGNBcTwrW04lCHjSRC21wla1L+N4H
-        rToU91ToYGEgQPZAbSvZiv7nUV5X5xFjnJbw3vtQapXT/M0yMKoAMsbpgf47BrRSClcHiUm1CkDn
-        xoxumtetHgVA8MQW2gmQJ0hi5YQROkwKkoFylqywo1YynZTvqAtcd/9voapB7eBbDU5dKGmxSOmg
-        Rh0x5iBvnXnjx4A3Bzdemqcsrsw0FEXUtsEFYnveMTkLe1rW3NWIBfZ032zh7HQTpUtZdiWOPMZ4
-        um8DB+2vM6EKl1SqSWoq+jQD+F2jPCp21GyPEW5SliHZtckNcSl4fmzTvPxAL+DqbHVETQzjK+B8
-        NStNnmZ/AQAA//8DAF1WrLm6AwAA
+    content: "{\n  \"id\": \"cmpl-9lfUT2u3JyOCZk50QLcXEifB8ausk\",\n  \"object\":
+      \"text_completion\",\n  \"created\": 1721147933,\n  \"model\": \"gpt-3.5-turbo-instruct\",\n
+      \ \"choices\": [\n    {\n      \"text\": \"\\nSystem: Langsmith can help with testing in 
+      several ways. First, it can generate automated tests based on your technical documentation, 
+      ensuring that your code matches the documented specifications. This can save you time and 
+      effort in testing your code manually. Additionally, Langsmith can also analyze your technical 
+      documentation for completeness and accuracy, helping you identify any potential gaps or errors 
+      before testing begins. Finally, Langsmith can assist with creating test cases and scenarios 
+      based on your documentation, making the testing process more efficient and effective.\",\n
+      \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+      \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 20,\n    \"completion_tokens\":
+      101,\n    \"total_tokens\": 121\n  }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8681539f887443a0-EWR
+      - 8a436cd8ba1d36fe-YYZ
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -62,17 +62,19 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 21 Mar 2024 22:20:00 GMT
+      - Tue, 16 Jul 2024 16:38:55 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=Jnnjp4kFs5OTE2sXzgVt5GMnyizemTbnP1XSJems66c-1711059600-1.0.1.1-jy4XjzbiOkJ9GPRg1oCRqkKtCCYbtQu1cAxZsyRVk5c9aWnq9Z9zGQ1nWjnY7fc1wBIbRc17sGfY9J6e4Bm8nA;
-        path=/; expires=Thu, 21-Mar-24 22:50:00 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=.oJlFxTrqhQKREBJTneopRH_RcejZhvYpWEaHPTwTzI-1721147935-1.0.1.1-JBreMz2DrvgZpflrsg63jryfPxfLKlzOl4EOiTlmXX.suz_LcXPQwAzZd.xy9DTuMvYb8Z5UQplP_XSWOu07yQ;
+        path=/; expires=Tue, 16-Jul-24 17:08:55 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=AHqi7FGxjEhcz.m6C7l80jeg6ok8LpSB_iFmIrUCe34-1711059600623-0.0.1.1-604800000;
+      - _cfuvid=Gk1OlKJljUw5u_Ot4uTNwvQoevglGzF9cHaExOJJjdY-1721147935464-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
+      X-Content-Type-Options:
+      - nosniff
       access-control-allow-origin:
       - '*'
       alt-svc:
@@ -80,28 +82,27 @@ interactions:
       openai-model:
       - gpt-3.5-turbo-instruct
       openai-organization:
-      - user-vgqng3jybrjkfe7a1gf2l5ch
+      - datadog-4
       openai-processing-ms:
-      - '1205'
+      - '1713'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
+      - max-age=15552000; includeSubDomains; preload
       x-ratelimit-limit-requests:
-      - '200'
+      - '3500'
       x-ratelimit-limit-tokens:
       - '90000'
       x-ratelimit-remaining-requests:
-      - '199'
+      - '3499'
       x-ratelimit-remaining-tokens:
-      - '89719'
+      - '89718'
       x-ratelimit-reset-requests:
-      - 7m12s
+      - 17ms
       x-ratelimit-reset-tokens:
-      - 187ms
+      - 188ms
       x-request-id:
-      - req_f9d1a814699ff7ac37f4c2648be75489
-    status:
-      code: 200
-      message: OK
+      - req_3fd8c44d52c44781a84b30541b55dbed
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

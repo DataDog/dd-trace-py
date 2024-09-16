@@ -7,14 +7,17 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+import wrapt
+
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
 from ddtrace._trace.utils import set_botocore_response_metadata_tags
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
@@ -33,7 +36,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -474,7 +476,7 @@ def _on_request_span_modifier(
     # set analytics sample rate with global config enabled
     sample_rate = flask_config.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     span.set_tag_str(flask_version, flask_version_str)
 
@@ -517,10 +519,12 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
 
 
 def _on_django_start_response(
-    ctx, request, extract_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
+    ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
 ):
     parsed_query = request.GET
     body = extract_body(request)
+    remake_body(request)
+
     trace_utils.set_http_meta(
         ctx["call"],
         ctx["distributed_headers_config"],
@@ -648,6 +652,12 @@ def _on_botocore_update_messages(ctx, span, _, trace_data, __, message=None):
     HTTPPropagator.inject(context, trace_data)
 
 
+def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __):
+    context = span.context if span else ctx[ctx["call_key"]].context
+    HTTPPropagator.inject(context, trace_data["_datadog"])
+    ctx.set_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY, trace_data)
+
+
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span = ctx[ctx["call_key"]]
     integration = ctx["bedrock_integration"]
@@ -746,6 +756,24 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
+def _on_test_visibility_enable(config) -> None:
+    from ddtrace.internal.ci_visibility import CIVisibility
+
+    CIVisibility.enable(config=config)
+
+
+def _on_test_visibility_disable() -> None:
+    from ddtrace.internal.ci_visibility import CIVisibility
+
+    CIVisibility.disable()
+
+
+def _on_test_visibility_is_enabled() -> bool:
+    from ddtrace.internal.ci_visibility import CIVisibility
+
+    return CIVisibility.enabled
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -778,6 +806,8 @@ def listen():
     core.on("botocore.prep_context_injection.post", _on_botocore_trace_context_injection_prepared)
     core.on("botocore.patched_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_kinesis_api_call.started", _on_botocore_patched_api_call_started)
+    core.on("botocore.patched_kinesis_api_call.exception", _on_botocore_patched_api_call_exception)
+    core.on("botocore.patched_kinesis_api_call.success", _on_botocore_patched_api_call_success)
     core.on("botocore.kinesis.update_record", _on_botocore_kinesis_update_record)
     core.on("botocore.patched_sqs_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_sqs_api_call.exception", _on_botocore_patched_api_call_exception)
@@ -785,7 +815,7 @@ def listen():
     core.on("botocore.sqs_sns.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_stepfunctions_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_stepfunctions_api_call.exception", _on_botocore_patched_api_call_exception)
-    core.on("botocore.stepfunctions.update_messages", _on_botocore_update_messages)
+    core.on("botocore.stepfunctions.update_input", _on_botocore_patched_stepfunctions_update_input)
     core.on("botocore.eventbridge.update_messages", _on_botocore_update_messages)
     core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
@@ -796,6 +826,10 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+
+    core.on("test_visibility.enable", _on_test_visibility_enable)
+    core.on("test_visibility.disable", _on_test_visibility_disable)
+    core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
 
     for context_name in (
         "flask.call",

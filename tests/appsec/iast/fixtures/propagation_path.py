@@ -146,7 +146,8 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     string11 = "notainted#{}".format(string10)
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
     string12 = string11.rsplit("#")[1]
-    string13 = string12 + "\n" + "notainted"
+    string13_pre = string12 + "\n"
+    string13 = string13_pre + "notainted"
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted\nnotainted
     string14 = string13.splitlines()[0]  # string14 = string12
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
@@ -158,7 +159,8 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted.jpg
     string18 = os.path.splitext(string17)[0]
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
-    string19 = os.path.join(os.sep + string18, "nottainted_notdir")
+    string19_pre = os.sep + string18
+    string19 = os.path.join(string19_pre, "nottainted_notdir")
     # /TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted/nottainted_notdir
     string20 = os.path.dirname(string19)
     # /TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
@@ -173,6 +175,8 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     else:
         string23 = string21
 
+    # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted_extend
+    string23 += "_extend"
     try:
         # label propagation_memory_check
         m = open(ROOT_DIR + "/" + string23 + ".txt")

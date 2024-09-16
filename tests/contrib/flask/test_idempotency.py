@@ -2,12 +2,12 @@ import unittest
 
 import flask
 import mock
+import wrapt
 
 from ddtrace.contrib.flask import patch
 from ddtrace.contrib.flask import unpatch
-from ddtrace.contrib.flask.patch import _u
-from ddtrace.contrib.flask.patch import _w
-from ddtrace.vendor import wrapt
+from ddtrace.contrib.internal.flask.patch import _u
+from ddtrace.contrib.internal.flask.patch import _w
 
 
 class FlaskIdempotencyTestCase(unittest.TestCase):
@@ -38,7 +38,7 @@ class FlaskIdempotencyTestCase(unittest.TestCase):
         self.assert_is_not_patched()
 
     # DEV: Use `side_effect` so the original function still gets called
-    @mock.patch("ddtrace.contrib.flask._patch._w", side_effect=_w)
+    @mock.patch("ddtrace.contrib.internal.flask.patch._w", side_effect=_w)
     def test_patch_idempotency(self, _w):
         # Ensure we didn't do any patching automatically
         _w.assert_not_called()
@@ -59,8 +59,8 @@ class FlaskIdempotencyTestCase(unittest.TestCase):
         self.assert_is_patched()
 
     # DEV: Use `side_effect` so the original function still gets called
-    @mock.patch("ddtrace.contrib.flask._patch._w", side_effect=_w)
-    @mock.patch("ddtrace.contrib.flask._patch._u", side_effect=_u)
+    @mock.patch("ddtrace.contrib.internal.flask.patch._w", side_effect=_w)
+    @mock.patch("ddtrace.contrib.internal.flask.patch._u", side_effect=_u)
     def test_unpatch_idempotency(self, _u, _w):
         # We need to patch in order to unpatch
         patch()

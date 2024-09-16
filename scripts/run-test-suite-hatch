@@ -45,7 +45,7 @@ fi
 
 for hatch_env in ${HATCH_ENVS[@]}; do
     echo "Running hatch env: $hatch_env"
-    if ! $DDTEST_CMD hatch run $hatch_env:test; then
+    if ! $DDTEST_CMD hatch run "'${hatch_env}:test'"; then
         if [[ -v CIRCLECI ]]; then
             circleci step halt
         fi

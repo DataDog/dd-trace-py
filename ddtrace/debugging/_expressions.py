@@ -23,6 +23,7 @@ Full grammar:
     arg_operation           =>  {"<arg_op_type>": [<argument_list>]}
     arg_op_type             =>  filter | substring | getmember | index
 """  # noqa
+from dataclasses import dataclass
 from itertools import chain
 import re
 import sys
@@ -35,7 +36,6 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-import attr
 from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
@@ -370,12 +370,12 @@ def _invalid_expression(_):
     return None
 
 
-@attr.s
-class DDExpression(object):
+@dataclass
+class DDExpression:
     __compiler__ = dd_compile
 
-    dsl = attr.ib(type=str)
-    callable = attr.ib(type=Callable[[Dict[str, Any]], Any])
+    dsl: str
+    callable: Callable[[Dict[str, Any]], Any]
 
     def eval(self, _locals):
         try:

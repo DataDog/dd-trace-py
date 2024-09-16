@@ -4,7 +4,6 @@ import datetime
 import gzip
 from http import client as http_client
 import io
-import itertools
 import json
 import os
 import platform
@@ -12,19 +11,11 @@ import typing
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 
-import attr
-
 import ddtrace
-from ddtrace.ext.git import COMMIT_SHA
-from ddtrace.ext.git import MAIN_PACKAGE
-from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import agent
-from ddtrace.internal import compat
-from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import container
-from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder  # noqa:F401
@@ -37,46 +28,64 @@ PYTHON_IMPLEMENTATION = platform.python_implementation()
 PYTHON_VERSION = platform.python_version()
 
 
-@attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
     RETRY_ATTEMPTS = 3
+    # List of attributes to ignore when comparing two exporters for equality
+    # _upload is a function, which is dynamically added to the class, so we need
+    # to ignore it in __eq__.
+    EQ_IGNORE_ATTRS = ["_upload"]
 
-    # repeat this to please mypy
-    enable_code_provenance = attr.ib(default=True, type=bool)
+    def __init__(
+        self,
+        enable_code_provenance: bool = True,
+        endpoint: typing.Optional[str] = None,
+        api_key: typing.Optional[str] = None,
+        timeout: float = config.api_timeout,
+        service: typing.Optional[str] = None,
+        env: typing.Optional[str] = None,
+        version: typing.Optional[str] = None,
+        tags: typing.Optional[typing.Dict[str, str]] = None,
+        max_retry_delay: typing.Optional[float] = None,
+        endpoint_path: str = "/profiling/v1/input",
+        endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        # repeat this to please mypy
+        self.enable_code_provenance: bool = enable_code_provenance
+        self.endpoint: str = endpoint if endpoint is not None else agent.get_trace_url()
+        self.api_key: typing.Optional[str] = api_key
+        # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
+        # backend is not as fast as the tracer one.
+        self.timeout: float = timeout
+        self.service: typing.Optional[str] = service
+        self.env: typing.Optional[str] = env
+        self.version: typing.Optional[str] = version
+        self.tags: typing.Dict[str, str] = tags if tags is not None else {}
+        self.max_retry_delay: typing.Optional[float] = max_retry_delay
+        self._container_info: typing.Optional[container.CGroupInfo] = container.get_container_info()
+        self.endpoint_path: str = endpoint_path
+        self.endpoint_call_counter_span_processor: typing.Optional[
+            EndpointCallCounterProcessor
+        ] = endpoint_call_counter_span_processor
 
-    endpoint = attr.ib(type=str, factory=agent.get_trace_url)
-    api_key = attr.ib(default=None, type=typing.Optional[str])
-    # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
-    # backend is not as fast as the tracer one.
-    timeout = attr.ib(default=config.api_timeout, type=float)
-    service = attr.ib(default=None, type=typing.Optional[str])
-    env = attr.ib(default=None, type=typing.Optional[str])
-    version = attr.ib(default=None, type=typing.Optional[str])
-    tags = attr.ib(factory=dict, type=typing.Dict[str, str])
-    max_retry_delay = attr.ib(default=None)
-    _container_info = attr.ib(factory=container.get_container_info, repr=False)
-    endpoint_path = attr.ib(default="/profiling/v1/input")
+        self.__post_init__()
 
-    endpoint_call_counter_span_processor = attr.ib(default=None, type=EndpointCallCounterProcessor)
+    def __eq__(self, other):
+        # Exporter class used to be decorated with @attr.s which implements __eq__, using only the attributes defined
+        # in the class. However, the _upload attribute is added dynamically to the class, so we need to ignore it when
+        # comparing two exporters for equality.
 
-    def _update_git_metadata_tags(self, tags):
-        """
-        Update profiler tags with git metadata
-        """
-        # clean tags, because values will be combined and inserted back in the same way as for tracer
-        gitmetadata.clean_tags(tags)
-        repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
-        if repository_url:
-            tags[REPOSITORY_URL] = repository_url
-        if commit_sha:
-            tags[COMMIT_SHA] = commit_sha
-        if main_package:
-            tags[MAIN_PACKAGE] = main_package
-        return tags
+        if isinstance(other, self.__class__):
+            self_dict = {k: v for k, v in self.__dict__.items() if k not in self.EQ_IGNORE_ATTRS}
+            other_dict = {k: v for k, v in other.__dict__.items() if k not in self.EQ_IGNORE_ATTRS}
+            return self_dict == other_dict
+        return False
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         if self.max_retry_delay is None:
             self.max_retry_delay = self.timeout * 3
 
@@ -85,15 +94,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
             attempts=self.RETRY_ATTEMPTS,
         )(self._upload)
 
-        tags = {
-            k: compat.ensure_text(v, "utf-8")
-            for k, v in itertools.chain(
-                self._update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
-                config.tags.items(),
-            )
-        }
-        tags.update(self.tags)
-        tags.update(
+        # DEV: Lines updating the tags could be moved into settings/profiling.py
+        # and ddup.config() and ddup_interface can be simplified.
+        self.tags.update(
             {
                 "host": HOSTNAME,
                 "language": "python",
@@ -103,12 +106,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
             }
         )
         if self.version:
-            tags["version"] = self.version
+            self.tags["version"] = self.version
 
         if self.env:
-            tags["env"] = self.env
-
-        self.tags = tags
+            self.tags["env"] = self.env
 
     @staticmethod
     def _encode_multipart_formdata(
@@ -204,7 +205,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
                 {
                     "name": b"code-provenance",
                     "filename": b"code-provenance.json",
-                    "content-type": b"application/json",
+                    "content-type": b"application/octet-stream",
                     "data": code_provenance.getvalue(),
                 }
             )

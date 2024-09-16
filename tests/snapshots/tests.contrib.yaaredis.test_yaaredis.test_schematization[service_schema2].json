@@ -19,6 +19,7 @@
       "peer.service": "localhost",
       "redis.command": "FLUSHALL",
       "runtime-id": "6512d363c3094051ae21a945fbfcf82b",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
@@ -55,6 +56,7 @@
       "peer.service": "localhost",
       "redis.command": "GET cheese",
       "runtime-id": "6512d363c3094051ae21a945fbfcf82b",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {

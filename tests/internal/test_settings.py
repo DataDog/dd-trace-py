@@ -104,6 +104,17 @@ def _deleted_rc_config():
             "expected_source": {"trace_http_header_tags": "code"},
         },
         {
+            "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1,X-Header-Tag-2,X-Header-Tag-3:specific_tag3"},
+            "expected": {
+                "trace_http_header_tags": {
+                    "X-Header-Tag-1": "",
+                    "X-Header-Tag-2": "",
+                    "X-Header-Tag-3": "specific_tag3",
+                }
+            },
+            "expected_source": {"trace_http_header_tags": "env_var"},
+        },
+        {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
             "rc": {
                 "tracing_header_tags": [
@@ -542,7 +553,6 @@ log = logging.getLogger()
 log.level = logging.CRITICAL
 logHandler = logging.StreamHandler(); logHandler.setFormatter(jsonlogger.JsonFormatter())
 log.addHandler(logHandler)
-config._128_bit_trace_id_logging_enabled = True
 # Enable logs injection
 config._handle_remoteconfig(_base_rc_config({"log_injection_enabled": True}))
 with tracer.trace("test") as span:
@@ -557,7 +567,7 @@ with tracer.trace("test") as span:
     )
 
     assert status == 0, err
-    trace_id = out.decode("utf-8").strip().split("\n")[0]
+    trace_id = "{:032x}".format(int(out.decode("utf-8").strip().split("\n")[0]))
     log_enabled, log_disabled = map(json.loads, err.decode("utf-8").strip().split("\n")[0:2])
     assert log_enabled["dd.trace_id"] == trace_id
     assert "dd.trace_id" not in log_disabled

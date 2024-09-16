@@ -98,11 +98,13 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     @classmethod
     def _metrics_tags(cls, span: Span) -> List[str]:
+        model_name = span.get_tag("openai.request.model") or ""
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
-            "openai.request.model:%s" % (span.get_tag("openai.request.model") or ""),
+            "openai.request.model:%s" % model_name,
+            "model:%s" % model_name,
             "openai.request.endpoint:%s" % (span.get_tag("openai.request.endpoint") or ""),
             "openai.request.method:%s" % (span.get_tag("openai.request.method") or ""),
             "openai.organization.id:%s" % (span.get_tag("openai.organization.id") or ""),
@@ -197,29 +199,50 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         if streamed_messages:
             messages = []
-            for message in streamed_messages:
-                if "formatted_content" in message:
-                    messages.append({"content": message["formatted_content"], "role": message["role"]})
-                    continue
-                messages.append({"content": message["content"], "role": message["role"]})
+            for streamed_message in streamed_messages:
+                message = {"content": streamed_message["content"], "role": streamed_message["role"]}
+                tool_calls = streamed_message.get("tool_calls", [])
+                if tool_calls:
+                    message["tool_calls"] = [
+                        {
+                            "name": tool_call.get("name", ""),
+                            "arguments": json.loads(tool_call.get("arguments", "")),
+                            "tool_id": tool_call.get("tool_id", ""),
+                            "type": tool_call.get("type", ""),
+                        }
+                        for tool_call in tool_calls
+                    ]
+                messages.append(message)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(messages))
             return
         output_messages = []
         for idx, choice in enumerate(resp.choices):
+            tool_calls_info = []
             content = getattr(choice.message, "content", "")
             if getattr(choice.message, "function_call", None):
-                content = "[function: {}]\n\n{}".format(
-                    getattr(choice.message.function_call, "name", ""),
-                    getattr(choice.message.function_call, "arguments", ""),
+                function_call_info = {
+                    "name": getattr(choice.message.function_call, "name", ""),
+                    "arguments": json.loads(getattr(choice.message.function_call, "arguments", "")),
+                }
+                if content is None:
+                    content = ""
+                output_messages.append(
+                    {"content": content, "role": choice.message.role, "tool_calls": [function_call_info]}
                 )
             elif getattr(choice.message, "tool_calls", None):
-                content = ""
                 for tool_call in choice.message.tool_calls:
-                    content += "\n[tool: {}]\n\n{}\n".format(
-                        getattr(tool_call.function, "name", ""),
-                        getattr(tool_call.function, "arguments", ""),
-                    )
-            output_messages.append({"content": str(content).strip(), "role": choice.message.role})
+                    tool_call_info = {
+                        "name": getattr(tool_call.function, "name", ""),
+                        "arguments": json.loads(getattr(tool_call.function, "arguments", "")),
+                        "tool_id": getattr(tool_call, "id", ""),
+                        "type": getattr(tool_call, "type", ""),
+                    }
+                    tool_calls_info.append(tool_call_info)
+                if content is None:
+                    content = ""
+                output_messages.append({"content": content, "role": choice.message.role, "tool_calls": tool_calls_info})
+            else:
+                output_messages.append({"content": content, "role": choice.message.role})
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod

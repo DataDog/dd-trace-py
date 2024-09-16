@@ -3,7 +3,6 @@ import os
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.aiohttp.middlewares import CONFIG_KEY
@@ -14,7 +13,6 @@ from ddtrace.sampler import RateSampler
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_span_http_status_code
 from tests.utils import flaky
-from tests.utils import get_root_span
 
 from .app.web import noop_middleware
 from .app.web import setup_app
@@ -558,45 +556,3 @@ async def test_parenting_200_ot(app_tracer, aiohttp_client):
     assert "What's tracing?" == text
     traces = tracer.pop_traces()
     _assert_200_parenting(client, traces)
-
-
-@flaky(1735812000)
-async def test_analytics_integration_enabled(app_tracer, aiohttp_client):
-    """Check trace has analytics sample rate set"""
-    app, tracer = app_tracer
-    client = await aiohttp_client(app)
-    app["datadog_trace"]["analytics_enabled"] = True
-    app["datadog_trace"]["analytics_sample_rate"] = 0.5
-    request = await client.request("GET", "/")
-    await request.text()
-
-    # Assert root span sets the appropriate metric
-    root = get_root_span(tracer.pop())
-    root.assert_structure(dict(name="aiohttp.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}))
-
-
-@flaky(1735812000)
-async def test_analytics_integration_default(app_tracer, aiohttp_client):
-    """Check trace has analytics sample rate set"""
-    app, tracer = app_tracer
-    client = await aiohttp_client(app)
-    request = await client.request("GET", "/")
-    await request.text()
-
-    # Assert root span does not have the appropriate metric
-    root = get_root_span(tracer.pop())
-    assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-
-@flaky(1735812000)
-async def test_analytics_integration_disabled(app_tracer, aiohttp_client):
-    """Check trace has analytics sample rate set"""
-    app, tracer = app_tracer
-    client = await aiohttp_client(app)
-    app["datadog_trace"]["analytics_enabled"] = False
-    request = await client.request("GET", "/")
-    await request.text()
-
-    # Assert root span does not have the appropriate metric
-    root = get_root_span(tracer.pop())
-    assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None

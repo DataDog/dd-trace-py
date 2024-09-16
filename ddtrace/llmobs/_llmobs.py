@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -11,12 +12,14 @@ from ddtrace import config
 from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
-from ddtrace.internal import telemetry
+from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -68,24 +71,39 @@ class LLMObs(Service):
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
+        self._llmobs_span_writer = None
 
         self._llmobs_span_writer = LLMObsSpanWriter(
-            site=config._dd_site,
-            api_key=config._dd_api_key,
+            is_agentless=config._llmobs_agentless_enabled,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
+
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
+        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
+        forksafe.register(self._child_after_fork)
+
+    def _child_after_fork(self):
+        self._llmobs_span_writer = self._llmobs_span_writer.recreate()
+        self._trace_processor._span_writer = self._llmobs_span_writer
+        tracer_filters = self.tracer._filters
+        if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
+            tracer_filters += [self._trace_processor]
+        self.tracer.configure(settings={"FILTERS": tracer_filters})
+        try:
+            self._llmobs_span_writer.start()
+        except ServiceStatusError:
+            log.debug("Error starting LLMObs span writer after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [LLMObsTraceProcessor(self._llmobs_span_writer)]
+            tracer_filters += [self._trace_processor]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
@@ -101,6 +119,7 @@ class LLMObs(Service):
             log.debug("Error stopping LLMObs writers")
 
         try:
+            forksafe.unregister(self._child_after_fork)
             self.tracer.shutdown()
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
@@ -147,34 +166,33 @@ class LLMObs(Service):
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
-        if not config._dd_api_key:
-            raise ValueError(
-                "DD_API_KEY is required for sending LLMObs data. "
-                "Ensure this configuration is set before running your application."
-            )
-        if not config._dd_site:
-            raise ValueError(
-                "DD_SITE is required for sending LLMObs data. "
-                "Ensure this configuration is set before running your application."
-            )
         if not config._llmobs_ml_app:
             raise ValueError(
                 "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
 
-        if agentless_enabled or asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", "false")):
-            os.environ["DD_LLMOBS_AGENTLESS_ENABLED"] = "1"
-
-            if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
-                config._telemetry_enabled = False
-                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
-                telemetry.telemetry_writer.disable()
-
+        config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
+        if config._llmobs_agentless_enabled:
+            # validate required values for agentless LLMObs
+            if not config._dd_api_key:
+                raise ValueError(
+                    "DD_API_KEY is required for sending LLMObs data when agentless mode is enabled. "
+                    "Ensure this configuration is set before running your application."
+                )
+            if not config._dd_site:
+                raise ValueError(
+                    "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
+                    "Ensure this configuration is set before running your application."
+                )
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 remoteconfig_poller.disable()
+
+            # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
+            # we need to force telemetry to use agentless configuration
+            telemetry_writer.enable_agentless_client(True)
 
         if integrations_enabled:
             cls._patch_integrations()
@@ -184,6 +202,8 @@ class LLMObs(Service):
         cls._instance.start()
 
         atexit.register(cls.disable)
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
+
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
@@ -202,6 +222,7 @@ class LLMObs(Service):
 
         cls.enabled = False
         cls._instance.stop()
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
 
@@ -265,9 +286,9 @@ class LLMObs(Service):
             span.set_tag_str(MODEL_NAME, model_name)
         if model_provider is not None:
             span.set_tag_str(MODEL_PROVIDER, model_provider)
-        if session_id is None:
-            session_id = _get_session_id(span)
-        span.set_tag_str(SESSION_ID, session_id)
+        session_id = session_id if session_id is not None else _get_session_id(span)
+        if session_id is not None:
+            span.set_tag_str(SESSION_ID, session_id)
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
@@ -655,6 +676,8 @@ class LLMObs(Service):
         metric_type: str,
         value: Union[str, int, float],
         tags: Optional[Dict[str, str]] = None,
+        ml_app: Optional[str] = None,
+        timestamp_ms: Optional[int] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -665,10 +688,18 @@ class LLMObs(Service):
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), or float (score).
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
+        :param str ml_app: The name of the ML application
+        :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
         """
         if cls.enabled is False:
             log.warning(
                 "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
+            )
+            return
+        if not config._dd_api_key:
+            log.warning(
+                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                "Ensure this configuration is set before running your application."
             )
             return
         if not isinstance(span_context, dict):
@@ -677,6 +708,21 @@ class LLMObs(Service):
                 "LLMObs.export_span() can be used to generate this dictionary from a given span."
             )
             return
+
+        ml_app = ml_app if ml_app else config._llmobs_ml_app
+        if not ml_app:
+            log.warning(
+                "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                "Ensure this configuration is set before running your application."
+            )
+            return
+
+        timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
+
+        if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
+            log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+            return
+
         span_id = span_context.get("span_id")
         trace_id = span_context.get("trace_id")
         if not (span_id and trace_id):
@@ -711,7 +757,7 @@ class LLMObs(Service):
         # initialize tags with default values that will be overridden by user-provided tags
         evaluation_tags = {
             "ddtrace.version": ddtrace.__version__,
-            "ml_app": config._llmobs_ml_app or "unknown",
+            "ml_app": ml_app,
         }
 
         if tags:
@@ -727,7 +773,9 @@ class LLMObs(Service):
                 "trace_id": trace_id,
                 "label": str(label),
                 "metric_type": metric_type.lower(),
+                "timestamp_ms": timestamp_ms,
                 "{}_value".format(metric_type): value,
+                "ml_app": ml_app,
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
         )

@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: This introduces the agent proxy mode for LLM Observability. By default, LLM Observability spans 
+    will be sent to the Datadog agent and then forwarded to LLM Observability. 
+    To continue submitting data directly to LLM Observability without the Datadog agent, set 
+    ``DD_LLMOBS_AGENTLESS_ENABLED=1`` or set programmatically using ``LLMObs.enable(agentless_enabled=True)``.

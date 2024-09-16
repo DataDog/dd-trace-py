@@ -1,12 +1,11 @@
 import consul
+from wrapt import BoundFunctionWrapper
 
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.consul.patch import patch
 from ddtrace.contrib.consul.patch import unpatch
 from ddtrace.ext import consul as consulx
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -159,42 +158,6 @@ class TestConsulPatch(TracerTestCase):
         self.c.kv.delete(key)
         _, data = self.c.kv.get(key)
         assert data is None
-
-    def test_analytics_without_rate(self):
-        with self.override_config("consul", {"analytics_enabled": True}):
-            key = "test/kwargs/consul"
-            value = "test_value"
-
-            self.c.kv.put(key=key, value=value)
-
-            spans = self.get_spans()
-            assert len(spans) == 1
-            span = spans[0]
-            assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
-
-    def test_analytics_with_rate(self):
-        with self.override_config("consul", {"analytics_enabled": True, "analytics_sample_rate": 0.5}):
-            key = "test/kwargs/consul"
-            value = "test_value"
-
-            self.c.kv.put(key=key, value=value)
-
-            spans = self.get_spans()
-            assert len(spans) == 1
-            span = spans[0]
-            assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
-
-    def test_analytics_disabled(self):
-        with self.override_config("consul", {"analytics_enabled": False}):
-            key = "test/kwargs/consul"
-            value = "test_value"
-
-            self.c.kv.put(key=key, value=value)
-
-            spans = self.get_spans()
-            assert len(spans) == 1
-            span = spans[0]
-            assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
 class TestSchematization(TracerTestCase):

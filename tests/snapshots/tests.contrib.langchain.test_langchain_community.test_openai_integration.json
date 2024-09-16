@@ -82,28 +82,4 @@
        },
        "duration": 29336000,
        "start": 1709944786912931000
-     },
-        {
-          "name": "http.request",
-          "service": "",
-          "resource": "http.request",
-          "trace_id": 0,
-          "span_id": 3,
-          "parent_id": 2,
-          "type": "http",
-          "error": 0,
-          "meta": {
-            "component": "httpx",
-            "http.method": "POST",
-            "http.status_code": "200",
-            "http.url": "https://api.openai.com/v1/completions",
-            "http.useragent": "OpenAI/Python 1.30.3",
-            "out.host": "api.openai.com",
-            "span.kind": "client"
-          },
-          "metrics": {
-            "_dd.measured": 1
-          },
-          "duration": 1568000,
-          "start": 1709944786939260000
-        }]]
+     }]]

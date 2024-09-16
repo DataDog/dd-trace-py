@@ -1,9 +1,9 @@
 interactions:
 - request:
-    body: '{"messages": [{"role": "user", "content": [{"type": "text", "text": "What\u2019s
-      in this image?"}, {"type": "image_url", "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"}]}],
-      "model": "gpt-4-vision-preview", "max_tokens": 256, "n": 1, "stream": false,
-      "temperature": 0.0}'
+    body: '{"messages": [{"content": [{"type": "text", "text": "What\u2019s in this
+      image?"}, {"type": "image_url", "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"}],
+      "role": "user"}], "model": "gpt-4-vision-preview", "max_tokens": 256, "n": 1,
+      "stream": false, "temperature": 0.0}'
     headers:
       accept:
       - application/json
@@ -18,7 +18,7 @@ interactions:
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.12.0
+      - OpenAI/Python 1.30.3
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -28,7 +28,7 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.30.3
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
@@ -36,23 +36,24 @@ interactions:
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA0xSTW/bMAz9K4TPThCn68d63WG3YRvay4ahoC3W0iKTqkjHdYr+90F20/UkgeR7
-        JN/jSxVcdQtV59G6IcXN54v91X7/ne3yy8/7Pf+gdNf/il+fTt+e79uqhkrav9TZGbPtZEiRLAiX
-        ZJcJjQpjc93sLpvd7npXQzWIo1ggfbLNp03T7K42x6BBeJMyHQNNBTwq9lTdwkuVsgzJHkwOxFrI
-        muamsL/3+pDalwYmhvFj8OLmtQC8hI5K5PdLNZC+N8gSy6dC1aCGbMvwwka8rHbnCcKAPYF6mRQQ
-        JhFHDK1gdhPGA9CzEbvAPZjPMvYeEOKoHvpMxDAQOplgCubBMEboM6qSgjBQME8ZNDjaQmmlhxmC
-        QsJscYYuyujmFdrGsaQDKSA7UBkIJh+M1iqtQce+J7UyCEKKhIps4HBeqf8PHAmdgsmEubyewEsO
-        J+EaAh/DG8NSet6oFDHamDFCRHbaYVpHzgSYCVggkaRIUOxsI0HgBbWIVwMNyaOG0yoTgWXkpzHE
-        YDPI4xLSjrhwZjrv6PPYKnTI0BJoEfON1C1edVQDulV5eYsfKesHziP1ZFgOZRUhht6v+7GDTqJk
-        PesG5tEWUPJiAhMqGB6Ii1EIOjLPRc0akmhZcT5PE9EI8NEoswjD5GmN68jFTBYDFzJ1xVI5UvaE
-        bluVs3wMHNQ/ZEIVLuemJqlcYGBHz9Ut7F7/vP4DAAD//wMAWfuoIZoDAAA=
+    content: "{\n  \"id\": \"chatcmpl-9lnJJHGo7wOZFGt5tiEeKi1jiPJwL\",\n  \"object\":
+      \"chat.completion\",\n  \"created\": 1721177993,\n  \"model\": \"gpt-4-1106-vision-preview\",\n
+      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+      \"assistant\",\n        \"content\": \"The image shows a wooden boardwalk extending
+      through a lush green meadow with tall grasses on either side. The sky is partly
+      cloudy with blue skies and some white clouds, suggesting a pleasant day. In
+      the distance, there are trees and shrubs, and the overall scene is one of a
+      natural, tranquil environment, possibly a nature reserve or park. The perspective
+      of the boardwalk draws the viewer's eye towards the horizon, creating a sense
+      of depth and inviting exploration.\"\n      },\n      \"logprobs\": null,\n
+      \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+      1118,\n    \"completion_tokens\": 95,\n    \"total_tokens\": 1213\n  },\n  \"system_fingerprint\":
+      null\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 864ceb474916421b-EWR
+      - 8a464aa9dd9fab96-YYZ
       Connection:
       - keep-alive
       Content-Encoding:
@@ -60,29 +61,29 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 15 Mar 2024 13:41:16 GMT
+      - Wed, 17 Jul 2024 00:59:56 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=lJmoyZshFV1ybLwj3Ps0Q6EAb4sJM2EXi5GVPm4CRus-1710510076-1.0.1.1-OjEmV.3rOZurIdHpHcHWiRJ3jjEqzbfsIyactpetcXh_q1d5MeibsocYluaYcGLVBIP2_4DGf3.jgpfOdsb_XA;
-        path=/; expires=Fri, 15-Mar-24 14:11:16 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=Fd.3zfjJQz4.Vs7F0ur6HCt2l8hwpFsojFvYBzAR42Q-1721177996-1.0.1.1-bSt7NTRSWGy_k7d9ia3SPCtHDHm4laMZCs2GQ_FbieN_f9qdWKNcKfA9QCkFLGfHgIkNYu82rwsHyPP2EFW7uQ;
+        path=/; expires=Wed, 17-Jul-24 01:29:56 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=VTf14PAZ9m3HgdR7XTTsHxD1rGj81H3o4ibWeNEvZlw-1710510076453-0.0.1.1-604800000;
+      - _cfuvid=wd8C.hbPpM6whc85tJ0okPtlOA6Dm6X9_qK2fK.2T3U-1721177996450-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
+      X-Content-Type-Options:
+      - nosniff
       alt-svc:
       - h3=":443"; ma=86400
-      openai-model:
-      - gpt-4-1106-vision-preview
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '10555'
+      - '5658'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
+      - max-age=15552000; includeSubDomains; preload
       x-ratelimit-limit-requests:
       - '500000'
       x-ratelimit-limit-tokens:
@@ -90,14 +91,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '499999'
       x-ratelimit-remaining-tokens:
-      - '299737'
+      - '299736'
       x-ratelimit-reset-requests:
       - 0s
       x-ratelimit-reset-tokens:
       - 52ms
       x-request-id:
-      - req_0279d885fca01899938aca17cad9b161
-    status:
-      code: 200
-      message: OK
+      - req_d043fa0cb82f8c22b5cadf6fbc1132d7
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

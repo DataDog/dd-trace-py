@@ -2,8 +2,6 @@ import abc
 import enum
 import typing  # noqa:F401
 
-import attr
-
 from . import forksafe
 
 
@@ -27,12 +25,18 @@ class ServiceStatusError(RuntimeError):
         )
 
 
-@attr.s(eq=False)
 class Service(metaclass=abc.ABCMeta):
     """A service that can be started or stopped."""
 
-    status = attr.ib(default=ServiceStatus.STOPPED, type=ServiceStatus, init=False, eq=False)
-    _service_lock = attr.ib(factory=forksafe.Lock, repr=False, init=False, eq=False)
+    def __init__(self) -> None:
+        self.status: ServiceStatus = ServiceStatus.STOPPED
+        self._service_lock: typing.ContextManager = forksafe.Lock()
+
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+        return f"{class_name}({attrs_str})"
 
     def __enter__(self):
         self.start()
@@ -44,10 +48,9 @@ class Service(metaclass=abc.ABCMeta):
 
     def start(
         self,
-        *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
-    ):
-        # type: (...) -> None
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> None:
         """Start the service."""
         # Use a lock so we're sure that if 2 threads try to start the service at the same time, one of them will raise
         # an error.
@@ -60,10 +63,9 @@ class Service(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _start_service(
         self,
-        *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
-    ):
-        # type: (...) -> None
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> None:
         """Start the service for real.
 
         This method uses the internal lock to be sure there's no race conditions and that the service is really started
@@ -73,10 +75,9 @@ class Service(metaclass=abc.ABCMeta):
 
     def stop(
         self,
-        *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
-    ):
-        # type: (...) -> None
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> None:
         """Stop the service."""
         with self._service_lock:
             if self.status == ServiceStatus.STOPPED:
@@ -87,10 +88,9 @@ class Service(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _stop_service(
         self,
-        *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
-    ):
-        # type: (...) -> None
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> None:
         """Stop the service for real.
 
         This method uses the internal lock to be sure there's no race conditions and that the service is really stopped
@@ -100,7 +100,6 @@ class Service(metaclass=abc.ABCMeta):
 
     def join(
         self,
-        timeout=None,  # type: typing.Optional[float]
-    ):
-        # type: (...) -> None
+        timeout: typing.Optional[float] = None,
+    ) -> None:
         """Join the service once stopped."""

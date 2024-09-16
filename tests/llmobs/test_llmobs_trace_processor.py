@@ -30,8 +30,7 @@ def mock_logs():
         yield mock_logs
 
 
-def test_processor_returns_all_traces_by_default(monkeypatch):
-    monkeypatch.delenv("DD_LLMOBS_AGENTLESS_ENABLED", raising=False)
+def test_processor_returns_all_traces_by_default():
     """Test that the LLMObsTraceProcessor returns all traces by default."""
     trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
     root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
@@ -40,24 +39,24 @@ def test_processor_returns_all_traces_by_default(monkeypatch):
     assert trace_filter.process_trace(trace1) == trace1
 
 
-def test_processor_returns_all_traces_if_no_apm_env_var_is_false(monkeypatch):
+def test_processor_returns_all_traces_if_not_agentless():
     """Test that the LLMObsTraceProcessor returns all traces if DD_LLMOBS_AGENTLESS_ENABLED is not set to true."""
-    monkeypatch.setenv("DD_LLMOBS_AGENTLESS_ENABLED", "0")
-    trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
-    root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
-    root_llm_span.set_tag_str(SPAN_KIND, "llm")
-    trace1 = [root_llm_span]
-    assert trace_filter.process_trace(trace1) == trace1
+    with override_global_config(dict(_llmobs_agentless_enabled=False)):
+        trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
+        root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
+        root_llm_span.set_tag_str(SPAN_KIND, "llm")
+        trace1 = [root_llm_span]
+        assert trace_filter.process_trace(trace1) == trace1
 
 
-def test_processor_returns_none_if_no_apm_env_var_is_true(monkeypatch):
+def test_processor_returns_none_in_agentless_mode():
     """Test that the LLMObsTraceProcessor returns None if DD_LLMOBS_AGENTLESS_ENABLED is set to true."""
-    monkeypatch.setenv("DD_LLMOBS_AGENTLESS_ENABLED", "1")
-    trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
-    root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
-    root_llm_span.set_tag_str(SPAN_KIND, "llm")
-    trace1 = [root_llm_span]
-    assert trace_filter.process_trace(trace1) is None
+    with override_global_config(dict(_llmobs_agentless_enabled=True)):
+        trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
+        root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
+        root_llm_span.set_tag_str(SPAN_KIND, "llm")
+        trace1 = [root_llm_span]
+        assert trace_filter.process_trace(trace1) is None
 
 
 def test_processor_creates_llmobs_span_event():
@@ -135,16 +134,6 @@ def test_session_id_if_set_manually():
             with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
                 llm_span.set_tag_str(SESSION_ID, "test_different_session_id")
     assert _get_session_id(llm_span) == "test_different_session_id"
-
-
-def test_session_id_defaults_to_trace_id():
-    """Test that session_id defaults to the span's trace ID if not set nor found upstream."""
-    dummy_tracer = DummyTracer()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM):
-        with dummy_tracer.trace("child_span"):
-            with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
-                pass
-    assert _get_session_id(llm_span) == "{:x}".format(llm_span.trace_id)
 
 
 def test_session_id_propagates_ignore_non_llmobs_spans():

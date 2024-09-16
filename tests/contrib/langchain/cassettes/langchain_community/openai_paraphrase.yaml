@@ -7,8 +7,8 @@ interactions:
       an LLM. We can build more complex chains by combining\n multiple chains together,
       or by\n combining chains with other components.\n \n\n        In the style of
       a a 90s rapper.\n\n        Paraphrase: "], "frequency_penalty": 0, "logit_bias":
-      {}, "max_tokens": 256, "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p":
-      1}'
+      {}, "logprobs": null, "max_tokens": 256, "n": 1, "presence_penalty": 0, "seed":
+      null, "temperature": 0.7, "top_p": 1}'
     headers:
       accept:
       - application/json
@@ -17,13 +17,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '647'
+      - '679'
       content-type:
       - application/json
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.12.0
+      - OpenAI/Python 1.37.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -33,29 +33,28 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.37.0
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.5
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA0RSy27bMBC8+ysGuvQiF3Fjx49rb0UM9GAgjavCoKW1yJjaZclV7CbIvxdUnPhC
-        gDs7s7NDvo6AwjXFCkXdBT9evMRaJtv17HH79GMTH6abc1w+Ny9p++svF2Xulv0T1ZoZSmfd1dIF
-        T+rkAteRjFJWnMxvlvPZdHE7HYBOGvKZ1gYd336djbWPexk7Thr7Wi9sK66mVKzwewQAr8OJ91mZ
-        XPGjlDg5taitcZxwItSG4R0f0Qc07nCgSKwIJmqqeG2OBMMwIUCt0S8J6lqrMNyA6ZkiDsb7BJMJ
-        FW9yf58ownHotUSXC06ROhG18O5ISM4fK37INn5G6YJuqAveKJX4J+XHHCunbG/fO99UvLHE+RpM
-        SllPBff36xIutxrvB8OQA9QSgjdc8Xfp9o7pY9XsWNRSRE5dmFhTmSVbURi0MTckb7ohzCE3xw2d
-        ixVuPite2hBlnzPm3vvP+sGxS3YXySThHHVSCcWAvo2AP8P79Mm0VKwu71KEYfedypE4Cy7v3uWK
-        66+4gvNvF1BFjb/WJ3eLUZ7xNvoPAAD//wMA+PxhFI4CAAA=
+    content: "{\n  \"id\": \"cmpl-9pS5lqV3dl9M3x8ynHbf2mCHTQcDh\",\n  \"object\":
+      \"text_completion\",\n  \"created\": 1722049741,\n  \"model\": \"gpt-3.5-turbo-instruct\",\n
+      \ \"choices\": [\n    {\n      \"text\": \"\\nYo, with chains we can link up
+      different parts\\nMake one dope app, ain't gotta stress or start\\nJust take
+      user input, use a fly PromptTemplate\\nThen send it to an LLM, yeah it's great\\nAnd
+      we ain't done, can build chains on chains\\nMix it up with other components,
+      no reins\",\n      \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\":
+      \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 96,\n    \"completion_tokens\":
+      69,\n    \"total_tokens\": 165\n  }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8604e500492642f8-EWR
+      - 8a996da18b060f41-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -65,17 +64,19 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Wed, 06 Mar 2024 19:53:54 GMT
+      - Sat, 27 Jul 2024 03:09:02 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=q8eSpW.28M4_iiwESFAuFnt.M8nOpz48m9W1fNH4WO0-1709754834-1.0.1.1-05sNRXXe2jnVnEXoLsQif9Jf438lDl_d7P9bCorGSdbS6kEHM9iEZkHLTY62v3pNSM4yQL7.SeiqqJUdlWea1g;
-        path=/; expires=Wed, 06-Mar-24 20:23:54 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=5OznTIwoKYyhFhNfEeyi7DkMRp31cTru4.JbO1vMvSI-1722049742-1.0.1.1-L9eoJf_geVwKEWcZ8_oAUZ7CjNQDDZ1XinQTrgbtrYVv1r1j7y2KCQPZJvcRwa.LRYUbU8.lcSju1BLA2YyoWg;
+        path=/; expires=Sat, 27-Jul-24 03:39:02 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=QByLxV1tozipc2W8zrOdCHZEr.flKCHFfYPvPLnnLNU-1709754834834-0.0.1.1-604800000;
+      - _cfuvid=eL2Kx5nW.Z5Y5dijBh.8JMG6y8Jq95yNIpKRNLJziFw-1722049742035-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
+      X-Content-Type-Options:
+      - nosniff
       access-control-allow-origin:
       - '*'
       alt-svc:
@@ -85,26 +86,25 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '763'
+      - '810'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
+      - max-age=15552000; includeSubDomains; preload
       x-ratelimit-limit-requests:
-      - '3000'
+      - '3500'
       x-ratelimit-limit-tokens:
-      - '250000'
+      - '90000'
       x-ratelimit-remaining-requests:
-      - '2999'
+      - '3499'
       x-ratelimit-remaining-tokens:
-      - '249629'
+      - '89629'
       x-ratelimit-reset-requests:
-      - 20ms
+      - 17ms
       x-ratelimit-reset-tokens:
-      - 88ms
+      - 246ms
       x-request-id:
-      - req_150f9633dbe9276064683489a08d680a
-    status:
-      code: 200
-      message: OK
+      - req_fe40effea30a9599d675125559c2677a
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

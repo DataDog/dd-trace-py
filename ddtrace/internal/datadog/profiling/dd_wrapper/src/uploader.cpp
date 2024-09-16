@@ -1,6 +1,12 @@
 #include "uploader.hpp"
 #include "libdatadog_helpers.hpp"
 
+#include <errno.h>  // errno
+#include <fstream>  // ofstream
+#include <sstream>  // ostringstream
+#include <string.h> // strerror
+#include <unistd.h> // getpid
+
 using namespace Datadog;
 
 void
@@ -12,10 +18,34 @@ DdogCancellationTokenDeleter::operator()(ddog_CancellationToken* ptr) const
     }
 }
 
-Datadog::Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
-  : url{ _url }
+Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_Exporter* _ddog_exporter)
+  : output_filename{ _output_filename }
   , ddog_exporter{ _ddog_exporter }
 {
+    // Increment the upload sequence number every time we build an uploader.
+    // Upoloaders are use-once-and-destroy.
+    upload_seq++;
+}
+
+bool
+Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
+{
+    // Write the profile to a file using the following format for filename:
+    // <output_filename>.<process_id>.<sequence_number>
+    std::ostringstream oss;
+    oss << output_filename << "." << getpid() << "." << upload_seq;
+    std::string filename = oss.str();
+    std::ofstream out(filename, std::ios::binary);
+    if (!out.is_open()) {
+        std::cerr << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
+        return false;
+    }
+    out.write(reinterpret_cast<const char*>(encoded->buffer.ptr), encoded->buffer.len);
+    if (out.fail()) {
+        std::cerr << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
+        return false;
+    }
+    return true;
 }
 
 bool
@@ -32,26 +62,26 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     }
     ddog_prof_EncodedProfile* encoded = &result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
 
-    // If we have any custom tags, set them now
-    ddog_Vec_Tag tags = ddog_Vec_Tag_new();
-    add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
+    if (!output_filename.empty()) {
+        bool ret = export_to_file(encoded);
+        ddog_prof_EncodedProfile_drop(encoded);
+        return ret;
+    }
 
     // Build the request object
     const ddog_prof_Exporter_File file = {
         .name = to_slice("auto.pprof"),
         .file = ddog_Vec_U8_as_slice(&encoded->buffer),
     };
-    const uint64_t max_timeout_ms = 5000; // 5s is a common timeout parameter for Datadog profilers
     auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
                                                       encoded->start,
                                                       encoded->end,
                                                       ddog_prof_Exporter_Slice_File_empty(),
                                                       { .ptr = &file, .len = 1 },
-                                                      &tags,
                                                       nullptr,
                                                       nullptr,
                                                       nullptr,
-                                                      max_timeout_ms);
+                                                      nullptr);
     ddog_prof_EncodedProfile_drop(encoded);
 
     if (build_res.tag ==
@@ -60,7 +90,6 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         errmsg = err_to_msg(&err, "Error building request");
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
-        ddog_Vec_Tag_drop(tags);
         return false;
     }
 
@@ -89,14 +118,11 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
             errmsg = err_to_msg(&err, "Error uploading");
             std::cerr << errmsg << std::endl;
             ddog_Error_drop(&err);
-            ddog_Vec_Tag_drop(tags);
             return false;
         }
         ddog_prof_Exporter_Request_drop(&req);
     }
 
-    // Cleanup
-    ddog_Vec_Tag_drop(tags);
     return true;
 }
 

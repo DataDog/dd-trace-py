@@ -475,7 +475,7 @@ interactions:
 
         event: content_block_start
 
-        data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01LktqwpwQ8XKE8D17BffC65","name":"get_weather","input":{}}      }
+        data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01DYJo37oETVsCdLTTcCWcdq","name":"get_weather","input":{}}      }
 
 
         event: content_block_delta

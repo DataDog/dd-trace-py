@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    opentelemetry: Resolves an issue where the ``get_tracer`` function would raise a ``TypeError`` when called with the ``attribute`` argument.
+    This resolves an incompatibility introduced in ``opentelemetry-api==1.26.0``.

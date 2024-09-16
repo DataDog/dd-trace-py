@@ -2,11 +2,12 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+
 import os  # noqa:I001
 
 from ddtrace import config  # noqa:F401
 from ddtrace.debugging._config import di_config  # noqa:F401
-from ddtrace.debugging._config import ed_config  # noqa:F401
+from ddtrace.debugging._config import er_config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
@@ -15,6 +16,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
 
@@ -41,6 +43,16 @@ def register_post_preload(func: t.Callable) -> None:
 
 log = get_logger(__name__)
 
+# DEV: We want to start the crashtracker as early as possible
+if crashtracker_config.enabled:
+    log.debug("crashtracking enabled via environment variable")
+    try:
+        from ddtrace.internal.core import crashtracking
+
+        crashtracking.start()
+    except Exception:
+        log.error("failed to enable crashtracking", exc_info=True)
+
 
 if profiling_config.enabled:
     log.debug("profiler enabled via environment variable")
@@ -59,10 +71,10 @@ if di_config.enabled:  # Dynamic Instrumentation
 
     DynamicInstrumentation.enable()
 
-if ed_config.enabled:  # Exception Replay
-    from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+if er_config.enabled:  # Exception Replay
+    from ddtrace.debugging._exception.replay import SpanExceptionHandler
 
-    SpanExceptionProcessor().register()
+    SpanExceptionHandler.enable()
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()

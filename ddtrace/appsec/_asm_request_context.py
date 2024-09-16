@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import json
+import sys
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -31,13 +32,18 @@ log = get_logger(__name__)
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
-_WAF_ADDRESSES = "waf_addresses"
-_CALLBACKS = "callbacks"
-_TELEMETRY = "telemetry"
-_CONTEXT_CALL = "context"
-_WAF_CALL = "waf_run"
-_BLOCK_CALL = "block"
-_TELEMETRY_WAF_RESULTS = "t_waf_results"
+if sys.version_info >= (3, 8):
+    from typing import Literal  # noqa:F401
+else:
+    from typing_extensions import Literal  # noqa:F401
+
+_WAF_ADDRESSES: Literal["waf_addresses"] = "waf_addresses"
+_CALLBACKS: Literal["callbacks"] = "callbacks"
+_TELEMETRY: Literal["telemetry"] = "telemetry"
+_CONTEXT_CALL: Literal["context"] = "context"
+_WAF_CALL: Literal["waf_run"] = "waf_run"
+_BLOCK_CALL: Literal["block"] = "block"
+_TELEMETRY_WAF_RESULTS: Literal["t_waf_results"] = "t_waf_results"
 
 
 GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {}

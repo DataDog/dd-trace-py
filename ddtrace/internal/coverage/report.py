@@ -45,6 +45,10 @@ def find_statement_for_line(node, line):
             if found_node is not None:
                 return found_node
 
+    # TODO: support nocover in Python 3.7
+    if not hasattr(node, "end_lineno"):
+        return None
+
     # If the start and end line numbers are the same, we're (almost certainly) dealing with some kind of
     # statement instead of the sort of block statements we're looking for.
     if node.lineno == node.end_lineno:

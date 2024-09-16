@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 #    Copyright (C) 2015 Yahoo! Inc. All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,10 +12,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import functools
 import inspect
 
-import six
-from .. import wrapt
+import wrapt
 
 from . import _utils
 
@@ -76,7 +74,7 @@ def moved_function(new_func, old_func_name, old_module_name,
                                           message=message, version=version,
                                           removal_version=removal_version)
 
-    @six.wraps(new_func, assigned=_utils.get_assigned(new_func))
+    @functools.wraps(new_func, assigned=_utils.get_assigned(new_func))
     def old_new_func(*args, **kwargs):
         _utils.deprecation(out_message, stacklevel=stacklevel,
                            category=category)
@@ -183,7 +181,7 @@ def moved_class(new_class, old_class_name, old_module_name,
 
     def decorator(f):
 
-        @six.wraps(f, assigned=_utils.get_assigned(f))
+        @functools.wraps(f, assigned=_utils.get_assigned(f))
         def wrapper(self, *args, **kwargs):
             _utils.deprecation(out_message, stacklevel=stacklevel,
                                category=category)

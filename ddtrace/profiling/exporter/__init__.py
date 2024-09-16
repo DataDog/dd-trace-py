@@ -1,7 +1,5 @@
 import typing
 
-import attr
-
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from .. import recorder  # noqa:F401
@@ -11,7 +9,6 @@ class ExportError(Exception):
     pass
 
 
-@attr.s
 class Exporter(object):
     """Exporter base class."""
 
@@ -31,7 +28,6 @@ class Exporter(object):
         raise NotImplementedError
 
 
-@attr.s
 class NullExporter(Exporter):
     """Exporter that does nothing."""
 

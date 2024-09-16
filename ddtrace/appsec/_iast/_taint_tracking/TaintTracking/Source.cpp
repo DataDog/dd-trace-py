@@ -45,8 +45,8 @@ Source::get_hash() const
 void
 pyexport_source(py::module& m)
 {
-    m.def("origin_to_str", &origin_to_str, "origin"_a);
-    m.def("str_to_origin", &str_to_origin, "origin"_a);
+    m.def("origin_to_str", &origin_to_str, "origin"_a, py::return_value_policy::reference);
+    m.def("str_to_origin", &str_to_origin, "origin"_a, py::return_value_policy::reference);
     py::enum_<TagMappingMode>(m, "TagMappingMode")
       .value("Normal", TagMappingMode::Normal)
       .value("Mapper", TagMappingMode::Mapper)

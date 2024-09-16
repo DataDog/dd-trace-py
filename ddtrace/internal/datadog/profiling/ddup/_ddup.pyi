@@ -1,7 +1,7 @@
 from typing import Dict
 from typing import Optional
 from typing import Union
-from ..types import StringType
+from .._types import StringType
 from ddtrace._trace.span import Span
 
 def config(
@@ -12,6 +12,8 @@ def config(
     max_nframes: Optional[int],
     url: Optional[str],
     timeline_enabled: Optional[bool],
+    output_filename: Optional[str],
+    sample_pool_capacity: Optional[int],
 ) -> None: ...
 def start() -> None: ...
 def upload() -> None: ...

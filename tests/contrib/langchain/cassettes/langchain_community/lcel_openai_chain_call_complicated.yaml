@@ -1,9 +1,9 @@
 interactions:
 - request:
-    body: '{"messages": [{"role": "user", "content": "Tell me a short joke about {''topic'':
-      ''chickens'', ''style'': ''a 90s rapper''} in the style of {''topic'': ''chickens'',
-      ''style'': ''a 90s rapper''}"}], "model": "gpt-3.5-turbo", "n": 1, "stream":
-      false, "temperature": 0.7}'
+    body: '{"messages": [{"content": "Tell me a short joke about {''topic'': ''chickens'',
+      ''style'': ''a 90s rapper''} in the style of {''topic'': ''chickens'', ''style'':
+      ''a 90s rapper''}", "role": "user"}], "model": "gpt-3.5-turbo", "logprobs":
+      false, "n": 1, "stream": false, "temperature": 0.7}'
     headers:
       accept:
       - application/json
@@ -12,13 +12,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '254'
+      - '273'
       content-type:
       - application/json
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.12.0
+      - OpenAI/Python 1.37.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -28,30 +28,27 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.37.0
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.5
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA1SRS0/DMBCE7/kVi88t6oPSxwVRgQTiBBdACFWOvUncOl7LuxGtqv53lLS04uLD
-        fJ7x7HqfAShn1QKUqbSYOvr+fG5tU7/oiVuajRe2r0+P27ePz/uH6fOD6rUOytdo5M91baiOHsVR
-        OGKTUAu2qcPpcDSY3YxvbztQk0Xf2soo/fH1pC9Nyqk/GI4mJ2dFziCrBXxlAAD77mw7BotbtYBB
-        70+pkVmXqBbnSwAqkW8VpZkdiw6iehdoKAiGrvZ7tQPrLEiFYCpnNhhgTS6AhqQjlImaCC50fD7g
-        O1ii0Q0jOIEfHQQtCIHXO7D0E4CpRigScgU5auErdXr1cK7rqYyJ8na00Hh/1gsXHFerhJoptNVY
-        KB7thwzgu1tL829SFRPVUVZCGwxt4GR8jFOXj7jA0c0JCon2F306zU79FO9YsF4VLpSYYnLHHRVx
-        lY9m+XheFHqmskP2CwAA//8DABDK1wktAgAA
+    content: "{\n  \"id\": \"chatcmpl-9pS3sGQPaCHWxPQIHWY9gDEjHStpQ\",\n  \"object\":
+      \"chat.completion\",\n  \"created\": 1722049624,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+      \"assistant\",\n        \"content\": \"Why did the chicken cross the road? To
+      drop some sick rhymes on the other side!\"\n      },\n      \"logprobs\": null,\n
+      \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+      53,\n    \"completion_tokens\": 19,\n    \"total_tokens\": 72\n  },\n  \"system_fingerprint\":
+      null\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 86e30e5a0ded7d11-EWR
-      Cache-Control:
-      - no-cache, must-revalidate
+      - 8a996ac6ddf20c9d-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -59,46 +56,43 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 02 Apr 2024 18:59:27 GMT
+      - Sat, 27 Jul 2024 03:07:04 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=Zm1L9YE1tbsiD2hZsKkPaXSqLNn3JTktsZNms3JZX4o-1712084367-1.0.1.1-CnGblJarTr1WLYvlpmPtvh.Z38FF.uHb32h_ZjqYpGWM.mRy0vhBGVYlDHLdQUQVsRAqVXtUA9eMias5BvcIMQ;
-        path=/; expires=Tue, 02-Apr-24 19:29:27 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=SHLkSgWMqiya_QcsuCtD_NODhvI1kq3psrZFEkLiVks-1722049624-1.0.1.1-ussM9D0r.iJIUoVU.UaC3v35EOlVi.0EPTEo03JhW4arEjAhSY2T9uNaLskJ8NjmjdY4Med_AJEJpusmCOWm4A;
+        path=/; expires=Sat, 27-Jul-24 03:37:04 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=4m45mNf7HE0FmSyJeo1_rKV4o8sHARW4prIqvbqYUPQ-1712084367146-0.0.1.1-604800000;
+      - _cfuvid=IR1otF8fHMUtv33jfuCF13p2R6X.KAuyUlE.XLZXxeI-1722049624743-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
-      access-control-allow-origin:
-      - '*'
+      X-Content-Type-Options:
+      - nosniff
       alt-svc:
       - h3=":443"; ma=86400
-      openai-model:
-      - gpt-3.5-turbo-0125
       openai-organization:
-      - user-vgqng3jybrjkfe7a1gf2l5ch
+      - datadog-4
       openai-processing-ms:
-      - '558'
+      - '482'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
+      - max-age=15552000; includeSubDomains; preload
       x-ratelimit-limit-requests:
-      - '200'
+      - '15000'
       x-ratelimit-limit-tokens:
-      - '40000'
+      - '2000000'
       x-ratelimit-remaining-requests:
-      - '199'
+      - '14999'
       x-ratelimit-remaining-tokens:
-      - '39949'
+      - '1999948'
       x-ratelimit-reset-requests:
-      - 7m12s
+      - 4ms
       x-ratelimit-reset-tokens:
-      - 76ms
+      - 1ms
       x-request-id:
-      - req_d06bea8feccfa57bb16e28191df4e10a
-    status:
-      code: 200
-      message: OK
+      - req_1b3c32bf0b2977608382df913dd62027
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

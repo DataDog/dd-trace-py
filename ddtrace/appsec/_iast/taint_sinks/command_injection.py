@@ -3,14 +3,15 @@ import subprocess  # nosec
 from typing import List
 from typing import Union
 
-from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
+from .._patch import try_wrap_function_wrapper
 from ..constants import VULN_CMDI
 from ..processor import AppSecIastSpanProcessor
 from ._base import VulnerabilityBase
@@ -28,13 +29,11 @@ def patch():
         return
 
     if not getattr(os, "_datadog_cmdi_patch", False):
-        trace_utils.wrap(os, "system", _iast_cmdi_ossystem)
-
         # all os.spawn* variants eventually use this one:
-        trace_utils.wrap(os, "_spawnvef", _iast_cmdi_osspawn)
+        try_wrap_function_wrapper("os", "_spawnvef", _iast_cmdi_osspawn)
 
     if not getattr(subprocess, "_datadog_cmdi_patch", False):
-        trace_utils.wrap(subprocess, "Popen.__init__", _iast_cmdi_subprocess_init)
+        try_wrap_function_wrapper("subprocess", "Popen.__init__", _iast_cmdi_subprocess_init)
 
         os._datadog_cmdi_patch = True
         subprocess._datadog_cmdi_patch = True
@@ -43,17 +42,12 @@ def patch():
 
 
 def unpatch() -> None:
-    trace_utils.unwrap(os, "system")
-    trace_utils.unwrap(os, "_spawnvef")
-    trace_utils.unwrap(subprocess.Popen, "__init__")
+    try_unwrap("os", "system")
+    try_unwrap("os", "_spawnvef")
+    try_unwrap("subprocess", "Popen.__init__")
 
     os._datadog_cmdi_patch = False  # type: ignore[attr-defined]
     subprocess._datadog_cmdi_patch = False  # type: ignore[attr-defined]
-
-
-def _iast_cmdi_ossystem(wrapped, instance, args, kwargs):
-    _iast_report_cmdi(args[0])
-    return wrapped(*args, **kwargs)
 
 
 def _iast_cmdi_osspawn(wrapped, instance, args, kwargs):

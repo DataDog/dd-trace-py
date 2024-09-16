@@ -38,6 +38,7 @@ class PackageForTesting:
     test_import_python_versions_to_skip = []
     test_e2e = True
     test_propagation = False
+    expect_no_change = False
 
     def __init__(
         self,
@@ -54,6 +55,7 @@ class PackageForTesting:
         import_module_to_validate=None,
         test_propagation=False,
         fixme_propagation_fails=False,
+        expect_no_change=False,
     ):
         self.name = name
         self.package_version = version
@@ -62,6 +64,7 @@ class PackageForTesting:
         self.test_e2e = test_e2e
         self.test_propagation = test_propagation
         self.fixme_propagation_fails = fixme_propagation_fails
+        self.expect_no_change = expect_no_change
 
         if expected_param:
             self.expected_param = expected_param
@@ -201,7 +204,9 @@ PACKAGES = [
         import_module_to_validate="boto3.session",
     ),
     PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
-    PackageForTesting("cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model"),
+    PackageForTesting(
+        "cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model", extras=[("setuptools", "72.1.0")]
+    ),
     PackageForTesting(
         "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
     ),
@@ -224,7 +229,7 @@ PACKAGES = [
         "",
         import_module_to_validate="cryptography.fernet",
         test_propagation=True,
-        fixme_propagation_fails=True,
+        fixme_propagation_fails=False,
     ),
     PackageForTesting(
         "distlib", "0.3.8", "", "Name: example-package\nVersion: 0.1", "", import_module_to_validate="distlib.util"
@@ -248,6 +253,16 @@ PACKAGES = [
     ),
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
+    PackageForTesting(
+        "google-auth",
+        "2.29.0",
+        "",
+        "",
+        "",
+        import_name="google.auth.crypt.rsa",
+        import_module_to_validate="google.auth.crypt.rsa",
+        expect_no_change=True,
+    ),
     PackageForTesting(
         "google-api-core",
         "2.19.0",
@@ -275,7 +290,6 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "importlib-resources",
@@ -489,7 +503,6 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "sqlalchemy",
@@ -530,7 +543,6 @@ PACKAGES = [
         "",
         import_module_to_validate="tomli._parser",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "tomlkit",
@@ -570,7 +582,6 @@ PACKAGES = [
         extras=[("beautifulsoup4", "4.12.3")],
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "werkzeug",
@@ -591,7 +602,6 @@ PACKAGES = [
         import_module_to_validate="yarl._url",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "zipp",
@@ -664,7 +674,6 @@ PACKAGES = [
         "",
         skip_python_version=[(3, 8)],
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     ## TODO: https://datadoghq.atlassian.net/browse/APPSEC-53659
     ## Disabled due to a bug in CI:
@@ -744,7 +753,6 @@ PACKAGES = [
         '(</span><span class="s1">&#39;Hello, world!&#39;</span><span class="p">)</span>\n</pre></div>\n',
         "",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting("grpcio", "1.64.0", "", "", "", test_e2e=False, import_name="grpc"),
     PackageForTesting(
@@ -858,12 +866,12 @@ def _assert_results(response, package):
         assert content["param"] == package.expected_param
 
     if type(content["result1"]) in (str, bytes):
-        assert content["result1"].startswith(package.expected_result1)
+        assert content["result1"].startswith(str(package.expected_result1))
     else:
         assert content["result1"] == package.expected_result1
 
     if type(content["result2"]) in (str, bytes):
-        assert content["result2"].startswith(package.expected_result2)
+        assert content["result2"].startswith(str(package.expected_result2))
     else:
         assert content["result2"] == package.expected_result2
 
@@ -872,12 +880,18 @@ def _assert_propagation_results(response, package):
     assert response.status_code == 200
     content = json.loads(response.content)
     result_ok = content["result1"] == "OK"
-    if package.fixme_propagation_fails:
+    if package.fixme_propagation_fails is not None:
         if result_ok:
-            pytest.fail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+            if package.fixme_propagation_fails:  # For packages that are reliably failing
+                pytest.xfail(
+                    "FIXME: Test passed unexpectedly, consider changing to fixme_propagation_fails=False for package %s"
+                    % package.name
+                )
+            else:
+                pytest.xfail("FIXME: Test passed unexpectedly for package %s" % package.name)
         else:
-            # Add pytest xfail marker to skip the test
-            pytest.xfail("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+            # result not OK, so propagation is not yet working for the package
+            pytest.xfail("FIXME: Test failed expectedly for package %s" % package.name)
 
     if not result_ok:
         print(f"Error: incorrect result from propagation endpoint for package {package.name}: {content}")
@@ -940,11 +954,7 @@ def test_flask_packages_patched(package, venv):
 
 @pytest.mark.parametrize(
     "package",
-    [
-        package
-        for package in PACKAGES
-        if package.test_propagation and package.name != "rsa"  # the "rsa" mode fails reliably
-    ],
+    [package for package in PACKAGES if package.test_propagation],
     ids=lambda package: package.name,
 )
 def test_flask_packages_propagation(package, venv, printer):
@@ -1004,12 +1014,22 @@ def test_packages_patched_import(package, venv):
         pytest.skip(reason)
         return
 
-    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "patched", package.import_module_to_validate]
+    cmdlist = [
+        venv,
+        _INSIDE_ENV_RUNNER_PATH,
+        "patched",
+        package.import_module_to_validate,
+        "True" if package.expect_no_change else "False",
+    ]
 
     with override_env({IAST_ENV: "true"}):
         # 1. Try with the specified version
         package.install(venv)
-        result = subprocess.run(cmdlist, capture_output=True, text=True)
+        result = subprocess.run(
+            cmdlist,
+            capture_output=True,
+            text=True,
+        )
         assert result.returncode == 0, result.stdout
         package.uninstall(venv)
 

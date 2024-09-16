@@ -2,18 +2,24 @@ import math
 import pprint
 import sys
 import traceback
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import Union  # noqa:F401
+from types import TracebackType
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Text
+from typing import Type
+from typing import Union
+from typing import cast
 
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.types import _MetaDictType
+from ddtrace._trace.types import _MetricDictType
+from ddtrace._trace.types import _TagNameType
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -47,10 +53,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 
-_NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
-_TagNameType = Union[Text, bytes]
-_MetaDictType = Dict[_TagNameType, Text]
-_MetricDictType = Dict[_TagNameType, NumericType]
+_NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
 
 
 class SpanEvent:
@@ -69,18 +72,20 @@ class SpanEvent:
             d["attributes"] = self.attributes
         return d
 
+    def __str__(self):
+        attrs_str = ",".join([f"{k}:{v}" for k, v in self.attributes.items()])
+        return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
+
 
 log = get_logger(__name__)
 
 
-def _get_64_lowest_order_bits_as_int(large_int):
-    # type: (int) -> int
+def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
     """Get the 64 lowest order bits from a 128bit integer"""
     return _MAX_UINT_64BITS & large_int
 
 
-def _get_64_highest_order_bits_as_hex(large_int):
-    # type: (int) -> str
+def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     """Get the 64 highest order bits from a 128bit integer"""
     return "{:032x}".format(large_int)[:16]
 
@@ -116,20 +121,19 @@ class Span(object):
 
     def __init__(
         self,
-        name,  # type: str
-        service=None,  # type: Optional[str]
-        resource=None,  # type: Optional[str]
-        span_type=None,  # type: Optional[str]
-        trace_id=None,  # type: Optional[int]
-        span_id=None,  # type: Optional[int]
-        parent_id=None,  # type: Optional[int]
-        start=None,  # type: Optional[int]
-        context=None,  # type: Optional[Context]
-        on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
-        span_api=SPAN_API_DATADOG,  # type: str
-        links=None,  # type: Optional[List[SpanLink]]
-    ):
-        # type: (...) -> None
+        name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        parent_id: Optional[int] = None,
+        start: Optional[int] = None,
+        context: Optional[Context] = None,
+        on_finish: Optional[List[Callable[["Span"], None]]] = None,
+        span_api: str = SPAN_API_DATADOG,
+        links: Optional[List[SpanLink]] = None,
+    ) -> None:
         """
         Create a new span. Call `finish` once the traced operation is over.
 
@@ -151,110 +155,105 @@ class Span(object):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-        # pre-conditions
         if not (span_id is None or isinstance(span_id, int)):
-            raise TypeError("span_id must be an integer")
+            if config._raise:
+                raise TypeError("span_id must be an integer")
+            return
         if not (trace_id is None or isinstance(trace_id, int)):
-            raise TypeError("trace_id must be an integer")
+            if config._raise:
+                raise TypeError("trace_id must be an integer")
+            return
         if not (parent_id is None or isinstance(parent_id, int)):
-            raise TypeError("parent_id must be an integer")
+            if config._raise:
+                raise TypeError("parent_id must be an integer")
+            return
 
-        # required span info
         self.name = name
         self.service = service
         self._resource = [resource or name]
         self.span_type = span_type
         self._span_api = span_api
 
-        # tags / metadata
-        self._meta = {}  # type: _MetaDictType
+        self._meta: _MetaDictType = {}
         self.error = 0
-        self._metrics = {}  # type: _MetricDictType
+        self._metrics: _MetricDictType = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        # timing
-        self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
-        self.duration_ns = None  # type: Optional[int]
+        self.start_ns: int = time_ns() if start is None else int(start * 1e9)
+        self.duration_ns: Optional[int] = None
 
-        # tracing
         if trace_id is not None:
-            self.trace_id = trace_id  # type: int
+            self.trace_id: int = trace_id
         elif config._128_bit_trace_id_enabled:
-            self.trace_id = _rand128bits()
+            self.trace_id: int = _rand128bits()  # type: ignore[no-redef]
         else:
-            self.trace_id = _rand64bits()
-        self.span_id = span_id or _rand64bits()  # type: int
-        self.parent_id = parent_id  # type: Optional[int]
+            self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
+        self.span_id: int = span_id or _rand64bits()
+        self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        self._context = context._with_span(self) if context else None  # type: Optional[Context]
+        self._context: Optional[Context] = context._with_span(self) if context else None
 
-        self._links = {}  # type: Dict[int, SpanLink]
+        self._links: List[SpanLink] = []
         if links:
-            self._links = {link.span_id: link for link in links}
-        self._events = []  # type: List[SpanEvent]
-        self._parent = None  # type: Optional[Span]
-        self._ignored_exceptions = None  # type: Optional[List[Exception]]
-        self._local_root = None  # type: Optional[Span]
-        self._store = None  # type: Optional[Dict[str, Any]]
+            for new_link in links:
+                self._set_link_object(new_link)
 
-    def _ignore_exception(self, exc):
-        # type: (Exception) -> None
+        self._events: List[SpanEvent] = []
+        self._parent: Optional["Span"] = None
+        self._ignored_exceptions: Optional[List[Type[Exception]]] = None
+        self._local_root: Optional["Span"] = None
+        self._store: Optional[Dict[str, Any]] = None
+
+    def _ignore_exception(self, exc: Type[Exception]) -> None:
         if self._ignored_exceptions is None:
             self._ignored_exceptions = [exc]
         else:
             self._ignored_exceptions.append(exc)
 
-    def _set_ctx_item(self, key, val):
-        # type: (str, Any) -> None
+    def _set_ctx_item(self, key: str, val: Any) -> None:
         if not self._store:
             self._store = {}
         self._store[key] = val
 
-    def _set_ctx_items(self, items):
-        # type: (Dict[str, Any]) -> None
+    def _set_ctx_items(self, items: Dict[str, Any]) -> None:
         if not self._store:
             self._store = {}
         self._store.update(items)
 
-    def _get_ctx_item(self, key):
-        # type: (str) -> Optional[Any]
+    def _get_ctx_item(self, key: str) -> Optional[Any]:
         if not self._store:
             return None
         return self._store.get(key)
 
     @property
-    def _trace_id_64bits(self):
+    def _trace_id_64bits(self) -> int:
         return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     @property
-    def start(self):
-        # type: () -> float
+    def start(self) -> float:
         """The start timestamp in Unix epoch seconds."""
         return self.start_ns / 1e9
 
     @start.setter
-    def start(self, value):
-        # type: (Union[int, float]) -> None
+    def start(self, value: Union[int, float]) -> None:
         self.start_ns = int(value * 1e9)
 
     @property
-    def resource(self):
+    def resource(self) -> str:
         return self._resource[0]
 
     @resource.setter
-    def resource(self, value):
+    def resource(self, value: str) -> None:
         self._resource[0] = value
 
     @property
-    def finished(self):
-        # type: () -> bool
+    def finished(self) -> bool:
         return self.duration_ns is not None
 
     @finished.setter
-    def finished(self, value):
-        # type: (bool) -> None
+    def finished(self, value: bool) -> None:
         """Finishes the span if set to a truthy value.
 
         If the span is already finished and a truthy value is provided
@@ -267,21 +266,18 @@ class Span(object):
             self.duration_ns = None
 
     @property
-    def duration(self):
-        # type: () -> Optional[float]
+    def duration(self) -> Optional[float]:
         """The span duration in seconds."""
         if self.duration_ns is not None:
             return self.duration_ns / 1e9
         return None
 
     @duration.setter
-    def duration(self, value):
-        # type: (float) -> None
+    def duration(self, value: float) -> None:
         self.duration_ns = int(value * 1e9)
 
     @property
-    def sampled(self):
-        # type: () -> Optional[bool]
+    def sampled(self) -> Optional[bool]:
         deprecate(
             "span.sampled is deprecated and will be removed in a future version of the tracer.",
             message="""span.sampled references the state of span.context.sampling_priority.
@@ -295,7 +291,7 @@ class Span(object):
         return self.context.sampling_priority > 0
 
     @sampled.setter
-    def sampled(self, value):
+    def sampled(self, value: bool) -> None:
         deprecate(
             "span.sampled is deprecated and will be removed in a future version of the tracer.",
             message="""span.sampled has a no-op setter.
@@ -303,8 +299,7 @@ class Span(object):
             category=DDTraceDeprecationWarning,
         )
 
-    def finish(self, finish_time=None):
-        # type: (Optional[float]) -> None
+    def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
         If the span has already been finished don't do anything.
 
@@ -315,8 +310,7 @@ class Span(object):
         else:
             self._finish_ns(int(finish_time * 1e9))
 
-    def _finish_ns(self, finish_time_ns):
-        # type: (int) -> None
+    def _finish_ns(self, finish_time_ns: int) -> None:
         if self.duration_ns is not None:
             return
 
@@ -326,12 +320,13 @@ class Span(object):
         for cb in self._on_finish_callbacks:
             cb(self)
 
-    def _override_sampling_decision(self, decision):
+    def _override_sampling_decision(self, decision: Optional[NumericType]):
         self.context.sampling_priority = decision
         set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
-        for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
-            if key in self._local_root._metrics:
-                del self._local_root._metrics[key]
+        if self._local_root:
+            for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
+                if key in self._local_root._metrics:
+                    del self._local_root._metrics[key]
 
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
@@ -499,21 +494,20 @@ class Span(object):
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
-    def _set_baggage_item(self, key, value):
-        # type: (str, Any) -> Span
+    def _set_baggage_item(self, key: str, value: Any) -> "Span":
         """Sets a baggage item in the span context of this span.
         Baggage is used to propagate state between spans (in-process, http/https).
         """
         self._context = self.context._with_baggage_item(key, value)
         return self
 
-    def _add_event(self, name, attributes=None, timestamp=None):
-        # type: (str, Optional[Dict[str, str]], Optional[int]) -> None
+    def _add_event(
+        self, name: str, attributes: Optional[Dict[str, str]] = None, timestamp: Optional[int] = None
+    ) -> None:
         """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
 
-    def _get_baggage_item(self, key):
-        # type: (str) -> Optional[Any]
+    def _get_baggage_item(self, key: str) -> Optional[Any]:
         """Gets a baggage item from the span context of this span."""
         return self.context._get_baggage_item(key)
 
@@ -536,17 +530,18 @@ class Span(object):
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
             self._meta[ERROR_STACK] = tb
 
-    def set_exc_info(self, exc_type, exc_val, exc_tb):
-        # type: (Any, Any, Any) -> None
+    def set_exc_info(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
+    ) -> None:
         """Tag the span with an error tuple as from `sys.exc_info()`."""
         if not (exc_type and exc_val and exc_tb):
             return  # nothing to do
 
         # SystemExit(0) is not an error
-        if issubclass(exc_type, SystemExit) and exc_val.code == 0:
+        if issubclass(exc_type, SystemExit) and cast(SystemExit, exc_val).code == 0:
             return
 
-        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa:F401
+        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):
             return
 
         self.error = 1
@@ -565,8 +560,7 @@ class Span(object):
 
         core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
 
-    def _pprint(self):
-        # type: () -> str
+    def _pprint(self) -> str:
         """Return a human readable version of the span."""
         data = [
             ("name", self.name),
@@ -582,6 +576,8 @@ class Span(object):
             ("error", self.error),
             ("tags", dict(sorted(self._meta.items()))),
             ("metrics", dict(sorted(self._metrics.items()))),
+            ("links", ", ".join([str(link) for link in self._links])),
+            ("events", ", ".join([str(e) for e in self._events])),
         ]
         return " ".join(
             # use a large column width to keep pprint output on one line
@@ -590,63 +586,87 @@ class Span(object):
         )
 
     @property
-    def context(self):
-        # type: () -> Context
+    def context(self) -> Context:
         """Return the trace context for this span."""
         if self._context is None:
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
         return self._context
 
-    def link_span(self, context, attributes=None):
-        # type: (Context, Optional[Dict[str, Any]]) -> None
+    def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
-            raise ValueError(f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
+            msg = f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}"
+            if config._raise:
+                raise ValueError(msg)
+            else:
+                log.warning(msg)
 
-        self.set_link(
-            trace_id=context.trace_id,
-            span_id=context.span_id,
-            tracestate=context._tracestate,
-            flags=int(context._traceflags),
-            attributes=attributes,
-        )
+        if context.trace_id and context.span_id:
+            self.set_link(
+                trace_id=context.trace_id,
+                span_id=context.span_id,
+                tracestate=context._tracestate,
+                flags=int(context._traceflags),
+                attributes=attributes,
+            )
 
-    def set_link(self, trace_id, span_id, tracestate=None, flags=None, attributes=None):
-        # type: (int, int, Optional[str], Optional[int], Optional[Dict[str, Any]]) -> None
+    def set_link(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
         if attributes is None:
             attributes = dict()
 
-        if span_id in self._links:
+        self._set_link_object(
+            SpanLink(
+                trace_id=trace_id,
+                span_id=span_id,
+                tracestate=tracestate,
+                flags=flags,
+                attributes=attributes,
+            )
+        )
+
+    def _set_link_object(self, link: SpanLink) -> None:
+        # We will be changing this behavior to allow certain kinds of span
+        # links to coexist in the _links list even if they have the same
+        # span_id. For now, we are basically reimplementing the old
+        # dictionary-like behavior.
+
+        try:
+            existing_link_idx_with_same_span_id = [link.span_id for link in self._links].index(link.span_id)
+
             log.debug(
                 "Span %d already linked to span %d. Overwriting existing link: %s",
                 self.span_id,
-                span_id,
-                str(self._links[span_id]),
+                link.span_id,
+                str(self._links[existing_link_idx_with_same_span_id]),
             )
-        self._links[span_id] = SpanLink(
-            trace_id=trace_id,
-            span_id=span_id,
-            tracestate=tracestate,
-            flags=flags,
-            attributes=attributes,
-        )
 
-    def finish_with_ancestors(self):
-        # type: () -> None
+            self._links[existing_link_idx_with_same_span_id] = link
+
+        except ValueError:
+            self._links.append(link)
+
+    def finish_with_ancestors(self) -> None:
         """Finish this span along with all (accessible) ancestors of this span.
 
         This method is useful if a sudden program shutdown is required and finishing
         the trace is desired.
         """
-        span = self  # type: Optional[Span]
+        span: Optional["Span"] = self
         while span is not None:
             span.finish()
             span = span._parent
 
-    def __enter__(self):
+    def __enter__(self) -> "Span":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]) -> None:
         try:
             if exc_type:
                 self.set_exc_info(exc_type, exc_val, exc_tb)
@@ -654,7 +674,7 @@ class Span(object):
         except Exception:
             log.exception("error closing trace")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (
             self.span_id,
             self.trace_id,
@@ -663,8 +683,7 @@ class Span(object):
         )
 
 
-def _is_top_level(span):
-    # type: (Span) -> bool
+def _is_top_level(span: Span) -> bool:
     """Return whether the span is a "top level" span.
 
     Top level meaning the root of the trace or a child span

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import random
 import time
 
 import confluent_kafka
@@ -29,10 +30,16 @@ from tests.utils import override_config
 
 
 GROUP_ID = "test_group"
-BOOTSTRAP_SERVERS = "localhost:{}".format(KAFKA_CONFIG["port"])
+BOOTSTRAP_SERVERS = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
 KEY = "test_key"
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 DSM_TEST_PATH_HEADER_SIZE = 28
+SNAPSHOT_IGNORES = [
+    "metrics.kafka.message_offset",
+    "meta.error.stack",
+    "meta.messaging.kafka.bootstrap.servers",
+    "meta.peer.service",
+]
 
 
 class KafkaConsumerPollFilter(TraceFilter):
@@ -274,7 +281,7 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_message(producer, consumer, tombstone, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         if tombstone:
@@ -284,7 +291,7 @@ def test_message(producer, consumer, tombstone, kafka_topic):
         producer.flush()
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -293,7 +300,7 @@ def test_commit(producer, consumer, kafka_topic):
         consumer.commit(message)
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit_with_consume_single_message(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -304,7 +311,7 @@ def test_commit_with_consume_single_message(producer, consumer, kafka_topic):
         consumer.commit(messages[0])
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -315,7 +322,7 @@ def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_to
         assert len(messages) == 2
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.error.stack"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
 def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -329,7 +336,7 @@ def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
             consumer.consume(num_messages=1, invalid_args="invalid_args")
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit_with_offset(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -338,7 +345,7 @@ def test_commit_with_offset(producer, consumer, kafka_topic):
         consumer.commit(offsets=[TopicPartition(kafka_topic)])
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -347,30 +354,12 @@ def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
         consumer.commit(asynchronous=False)
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
-)
+@pytest.mark.snapshot(token="tests.contrib.kafka.test_kafka.test_service_override", ignores=SNAPSHOT_IGNORES)
 def test_service_override_config(producer, consumer, kafka_topic):
     with override_config("kafka", dict(service="my-custom-service-name", trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
         consumer.poll()
-
-
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_analytics_with_rate(producer, consumer, kafka_topic):
-    with override_config(
-        "kafka", dict(analytics_enabled=True, analytics_sample_rate=0.5, trace_empty_poll_enabled=False)
-    ):
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
-        producer.flush()
-
-
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_analytics_without_rate(producer, consumer, kafka_topic):
-    with override_config("kafka", dict(analytics_enabled=True, trace_empty_poll_enabled=False)):
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
-        producer.flush()
 
 
 def retry_until_not_none(factory):
@@ -408,8 +397,8 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
     for _bucket_name, bucket in first.items():
-        assert bucket.payload_size._count >= 1
-        assert bucket.payload_size._sum == expected_payload_size
+        assert bucket.payload_size.count >= 1
+        assert bucket.payload_size.sum == expected_payload_size
 
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
@@ -448,10 +437,9 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
         sorted(["direction:in", "type:kafka", "group:test_group", "topic:{}".format(kafka_topic)]), parent_hash
     )
     assert (
-        first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].full_pathway_latency._count
-        >= 1
+        first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].full_pathway_latency.count >= 1
     )
-    assert first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].edge_latency._count >= 1
+    assert first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].edge_latency.count >= 1
     assert (
         first[
             (
@@ -459,7 +447,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
                 child_hash,
                 parent_hash,
             )
-        ].full_pathway_latency._count
+        ].full_pathway_latency.count
         >= 1
     )
     assert (
@@ -469,7 +457,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
                 child_hash,
                 parent_hash,
             )
-        ].edge_latency._count
+        ].edge_latency.count
         >= 1
     )
 
@@ -510,9 +498,7 @@ def _generate_in_subprocess(random_topic):
     consumer.close()
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=["metrics.kafka.message_offset"]
-)
+@pytest.mark.snapshot(token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=SNAPSHOT_IGNORES)
 def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
 import sys
@@ -537,7 +523,7 @@ if __name__ == "__main__":
     assert err == b"", err.decode()
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
 def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema, kafka_topic):
@@ -776,7 +762,6 @@ def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_s
     code = """
 import pytest
 import random
-import six
 import sys
 
 from ddtrace import Pin
@@ -799,7 +784,7 @@ def test(consumer, producer, kafka_topic):
     # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "context propagation enabled test " + str(random.randint(0, 1000))
     test_key = "context propagation key " + str(random.randint(0, 1000))
-    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+    PAYLOAD = bytes(test_string, encoding="utf-8")
 
     producer.produce(kafka_topic, PAYLOAD, key=test_key)
     producer.flush()
@@ -842,6 +827,28 @@ if __name__ == "__main__":
     env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
+
+
+def test_context_header_injection_works_no_client_added_headers(kafka_topic, producer, consumer):
+    with override_config("kafka", dict(distributed_tracing_enabled=True)):
+        # use a random int in this string to prevent reading a message produced by a previous test run
+        test_string = "context propagation enabled test " + str(random.randint(0, 1000))
+        test_key = "context propagation key " + str(random.randint(0, 1000))
+        PAYLOAD = bytes(test_string, encoding="utf-8")
+
+        producer.produce(kafka_topic, PAYLOAD, key=test_key)
+        producer.flush()
+
+        message = None
+        while message is None or str(message.value()) != str(PAYLOAD):
+            message = consumer.poll()
+
+        propagation_asserted = False
+        for header in message.headers():
+            if header[0] == "x-datadog-trace-id":
+                propagation_asserted = True
+
+        assert propagation_asserted is True
 
 
 def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
@@ -966,7 +973,6 @@ def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subp
     code = """
 import pytest
 import random
-import six
 import sys
 
 from ddtrace import Pin

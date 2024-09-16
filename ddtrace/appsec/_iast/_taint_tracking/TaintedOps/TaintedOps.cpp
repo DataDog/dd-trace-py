@@ -24,7 +24,7 @@ bool
 api_is_tainted(py::object tainted_object)
 {
     if (tainted_object) {
-        const auto tx_map = initializer->get_tainting_map();
+        const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return false;
         }

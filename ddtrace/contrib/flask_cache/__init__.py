@@ -44,14 +44,18 @@ Use a specific ``Cache`` implementation with::
 
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["flask_cache", "flask_caching"]
 
 with require_modules(required_modules) as missing_modules:
     if len(missing_modules) < len(required_modules):
-        from .tracers import get_traced_cache
-        from .tracers import get_version
+        # Required to allow users to import from `ddtrace.contrib.aiohttp.patch` directly
+        from . import tracers as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ddtrace.contrib.internal.flask_cache.tracers import get_traced_cache
+        from ddtrace.contrib.internal.flask_cache.tracers import get_version
 
         __all__ = ["get_traced_cache", "get_version"]

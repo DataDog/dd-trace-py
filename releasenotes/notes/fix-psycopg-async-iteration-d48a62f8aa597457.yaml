@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    psycopg: Ensures traced async cursors return an asynchronous iterator object.

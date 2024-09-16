@@ -6,12 +6,10 @@ import logging
 import sys
 import typing
 
-import attr
-import six
-
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
@@ -22,7 +20,10 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config
+
+from ..recorder import Recorder
 
 
 LOG = logging.getLogger(__name__)
@@ -424,8 +425,9 @@ else:
     _thread_span_links_base = _threading._ThreadLink
 
 
-@attr.s(slots=True, eq=False)
 class _ThreadSpanLinks(_thread_span_links_base):
+
+    __slots__ = ()
 
     def link_span(
             self,
@@ -460,30 +462,60 @@ def _default_min_interval_time():
     return sys.getswitchinterval() * 2
 
 
-@attr.s(slots=True)
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
-    # This need to be a real OS thread in order to catch
-    _real_thread = True
-    _interval = attr.ib(factory=_default_min_interval_time, init=False, repr=False)
-    # This is the minimum amount of time the thread will sleep between polling interval,
-    # no matter how fast the computer is.
-    min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct = attr.ib(type=float, default=config.max_time_usage_pct)
-    nframes = attr.ib(type=int, default=config.max_frames)
-    ignore_profiler = attr.ib(type=bool, default=config.ignore_profiler)
-    endpoint_collection_enabled = attr.ib(default=None)
-    tracer = attr.ib(default=None)
-    _thread_time = attr.ib(init=False, repr=False, eq=False)
-    _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
-    _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
-    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
+    __slots__ = (
+        "_real_thread",
+        "min_interval_time",
+        "max_time_usage_pct",
+        "nframes",
+        "ignore_profiler",
+        "endpoint_collection_enabled",
+        "tracer",
+        "_thread_time",
+        "_last_wall_time",
+        "_thread_span_links",
+        "_stack_collector_v2_enabled",
+    )
 
-    @max_time_usage_pct.validator
-    def _check_max_time_usage(self, attribute, value):
-        if value <= 0 or value > 100:
+    def __init__(self,
+                 recorder: Recorder,
+                 max_time_usage_pct: float = config.max_time_usage_pct,
+                 nframes: int = config.max_frames,
+                 ignore_profiler: bool = config.ignore_profiler,
+                 endpoint_collection_enabled: typing.Optional[bool] = None,
+                 tracer: typing.Optional[Tracer] = None,
+                 _stack_collector_v2_enabled: bool = config.stack.v2_enabled):
+        super().__init__(recorder, interval= _default_min_interval_time())
+        if max_time_usage_pct <= 0 or max_time_usage_pct > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
+
+        # This need to be a real OS thread in order to catch
+        self._real_thread: bool = True
+        self.min_interval_time: float = _default_min_interval_time()
+
+        self.max_time_usage_pct: float = max_time_usage_pct
+        self.nframes: int = nframes
+        self.ignore_profiler: bool = ignore_profiler
+        self.endpoint_collection_enabled: typing.Optional[bool] = endpoint_collection_enabled
+        self.tracer: typing.Optional[Tracer] = tracer
+        self._thread_time: typing.Optional[_ThreadTime] = None
+        self._last_wall_time: int = 0  # Placeholder for initial value
+        self._thread_span_links: typing.Optional[_ThreadSpanLinks] = None
+        self._stack_collector_v2_enabled: bool = _stack_collector_v2_enabled
+
+
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+
+        slot_attrs = {slot: getattr(self, slot) for slot in self.__slots__ if not slot.startswith("_")}
+        slot_attrs_str = ", ".join(f"{k}={v!r}" for k, v in slot_attrs.items())
+
+        return f"{class_name}({attrs_str}, {slot_attrs_str})"
+
 
     def _init(self):
         # type: (...) -> None
@@ -499,9 +531,11 @@ class StackCollector(collector.PeriodicCollector):
 
         # If stack v2 is enabled, then use the v2 sampler
         if self._stack_collector_v2_enabled:
-            LOG.debug("Starting the stack v2 sampler")
+            # stack v2 requires us to patch the Threading module.  It's possible to do this from the stack v2 code
+            # itself, but it's a little bit fiddly and it's easier to make it correct here.
+            # TODO take the `threading` import out of here and just handle it in v2 startup
+            threading.init_stack_v2()
             stack_v2.start()
-
 
     def _start_service(self):
         # type: (...) -> None
