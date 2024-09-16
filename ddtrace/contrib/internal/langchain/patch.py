@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -60,6 +61,7 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
+from ddtrace.contrib.internal.langchain.utils import shared_stream
 
 
 log = get_logger(__name__)
@@ -974,6 +976,166 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     return documents
 
 
+# TODO refactor some of these on_span_started/on_span_finished functions
+# that are used in other patched methods in this file into the utils module
+@with_traced_module
+def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+
+    def _on_span_started(span: Span):
+        inputs = get_argument_value(args, kwargs, 0, "input")
+        if integration.is_pc_sampled_span(span):
+            if not isinstance(inputs, list):
+                inputs = [inputs]
+            for idx, inp in enumerate(inputs):
+                if not isinstance(inp, dict):
+                    span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
+                else:
+                    for k, v in inp.items():
+                        span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), integration.trunc(str(v)))
+
+    def _on_span_finished(span: Span, streamed_chunks, error: Optional[bool] = None):
+        if not error and integration.is_pc_sampled_span(span):
+            if langchain_core and isinstance(instance.steps[-1], langchain_core.output_parsers.JsonOutputParser):
+                # it's possible that the chain has a json output parser
+                # this will have already concatenated the chunks into a json object
+
+                # it's also possible the json output parser isn't the last step,
+                # but one of the last steps, in which case we won't act on it here
+                # TODO (sam.brenner) make this more robust
+                content = json.dumps(streamed_chunks[-1])
+            else:
+                # best effort to join chunks together
+                content = "".join([str(chunk) for chunk in streamed_chunks])
+            span.set_tag_str("langchain.response.content", integration.trunc(content))
+
+    return shared_stream(
+        integration=integration,
+        pin=pin,
+        func=func,
+        instance=instance,
+        args=args,
+        kwargs=kwargs,
+        interface_type="chain",
+        on_span_started=_on_span_started,
+        on_span_finished=_on_span_finished,
+    )
+
+
+@with_traced_module
+def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    llm_provider = instance._llm_type
+
+    def _on_span_started(span: Span):
+        chat_messages = get_argument_value(args, kwargs, 0, "input")
+        if not isinstance(chat_messages, list):
+            chat_messages = [chat_messages]
+        for message_idx, message in enumerate(chat_messages):
+            if integration.is_pc_sampled_span(span):
+                if isinstance(message, dict):
+                    span.set_tag_str(
+                        "langchain.request.messages.%d.content" % (message_idx),
+                        integration.trunc(str(message.get("content", ""))),
+                    )
+                    span.set_tag_str(
+                        "langchain.request.messages.%d.role" % (message_idx),
+                        str(message.get("role", "")),
+                    )
+                elif isinstance(message, langchain_core.prompt_values.PromptValue):
+                    for langchain_message_idx, langchain_message in enumerate(message.messages):
+                        span.set_tag_str(
+                            "langchain.request.messages.%d.%d.content" % (message_idx, langchain_message_idx),
+                            integration.trunc(str(langchain_message.content)),
+                        )
+                        span.set_tag_str(
+                            "langchain.request.messages.%d.%d.role" % (message_idx, langchain_message_idx),
+                            str(langchain_message.__class__.__name__),
+                        )
+                elif isinstance(message, langchain_core.messages.BaseMessage):
+                    span.set_tag_str(
+                        "langchain.request.messages.%d.content" % (message_idx), integration.trunc(str(message.content))
+                    )
+                    span.set_tag_str(
+                        "langchain.request.messages.%d.role" % (message_idx), str(message.__class__.__name__)
+                    )
+                else:
+                    span.set_tag_str(
+                        "langchain.request.messages.%d.content" % (message_idx), integration.trunc(message)
+                    )
+
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if isinstance(val, dict):
+                for k, v in val.items():
+                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+            else:
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+
+    def _on_span_finished(span: Span, streamed_chunks, error: Optional[bool] = None):
+        if not error and integration.is_pc_sampled_span(span):
+            content = "".join([str(chunk.content) for chunk in streamed_chunks])
+            span.set_tag_str("langchain.response.content", integration.trunc(content))
+
+            usage = getattr(streamed_chunks[-1], "usage_metadata", None)
+            if usage:
+                for k, v in usage.items():
+                    span.set_tag_str("langchain.response.usage_metadata.%s" % k, str(v))
+        print("done with span")
+
+    return shared_stream(
+        integration=integration,
+        pin=pin,
+        func=func,
+        instance=instance,
+        args=args,
+        kwargs=kwargs,
+        interface_type="chat_model",
+        on_span_started=_on_span_started,
+        on_span_finished=_on_span_finished,
+        api_key=_extract_api_key(instance),
+        provider=llm_provider,
+    )
+
+
+@with_traced_module
+def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    llm_provider = instance._llm_type
+
+    def _on_span_start(span: Span):
+        inp = get_argument_value(args, kwargs, 0, "input")
+        if not isinstance(inp, list):
+            inp = [inp]
+        if integration.is_pc_sampled_span(span):
+            for idx, prompt in enumerate(inp):
+                span.set_tag_str("langchain.request.prompts.%d" % idx, integration.trunc(str(prompt)))
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if isinstance(val, dict):
+                for k, v in val.items():
+                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+            else:
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+
+    def _on_span_finished(span: Span, streamed_chunks, error: Optional[bool] = None):
+        if not error and integration.is_pc_sampled_span(span):
+            content = "".join([str(chunk) for chunk in streamed_chunks])
+            span.set_tag_str("langchain.response.content", integration.trunc(content))
+
+    return shared_stream(
+        integration=integration,
+        pin=pin,
+        func=func,
+        instance=instance,
+        args=args,
+        kwargs=kwargs,
+        interface_type="llm",
+        on_span_started=_on_span_start,
+        on_span_finished=_on_span_finished,
+        api_key=_extract_api_key(instance),
+        provider=llm_provider,
+    )
+
+
 def _patch_embeddings_and_vectorstores():
     """
     Text embedding models override two abstract base methods instead of super calls,
@@ -1080,6 +1242,9 @@ def patch():
         wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
     else:
         from langchain.chains.base import Chain  # noqa:F401
+        from langchain_core import prompt_values  # noqa: F401
+        from langchain_core import output_parsers  # noqa: F401
+        from langchain_core import messages  # noqa: F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
@@ -1101,6 +1266,23 @@ def patch():
         )
         wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
         wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
+
+        # streaming
+        wrap("langchain_core", "runnables.base.RunnableSequence.stream", traced_chain_stream(langchain))
+        wrap("langchain_core", "runnables.base.RunnableSequence.astream", traced_chain_stream(langchain))
+        wrap(
+            "langchain_core",
+            "language_models.chat_models.BaseChatModel.stream",
+            traced_chat_stream(langchain),
+        )
+        wrap(
+            "langchain_core",
+            "language_models.chat_models.BaseChatModel.astream",
+            traced_chat_stream(langchain),
+        )
+        wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain))
+        wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain))
+
         if langchain_openai:
             wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         if langchain_pinecone:
@@ -1149,6 +1331,12 @@ def unpatch():
         unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
         unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
         unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
+        unwrap(langchain_core.runnables.base.RunnableSequence, "stream")
+        unwrap(langchain_core.runnables.base.RunnableSequence, "astream")
+        unwrap(langchain_core.language_models.chat_models.BaseChatModel, "stream")
+        unwrap(langchain_core.language_models.chat_models.BaseChatModel, "astream")
+        unwrap(langchain_core.language_models.llms.BaseLLM, "stream")
+        unwrap(langchain_core.language_models.llms.BaseLLM, "astream")
         if langchain_openai:
             unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
         if langchain_pinecone:
