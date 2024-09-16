@@ -16,6 +16,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -43,8 +44,9 @@ class LLMObsTraceProcessor(TraceProcessor):
     Processor that extracts LLM-type spans in a trace to submit as separate LLMObs span events to LLM Observability.
     """
 
-    def __init__(self, llmobs_span_writer):
+    def __init__(self, llmobs_span_writer, ragas_faithfulness_runner=None):
         self._span_writer = llmobs_span_writer
+        self._ragas_faithfulness_runner = ragas_faithfulness_runner
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -56,11 +58,15 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
+        span_event = None
         try:
             span_event = self._llmobs_span_event(span)
             self._span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
+        if span_event is not None and self._ragas_faithfulness_runner:
+            if span.service != "ragas" and span_event["meta"]["span.kind"] == "llm":
+                self._ragas_faithfulness_runner.enqueue(span_event)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
@@ -85,6 +91,8 @@ class LLMObsTraceProcessor(TraceProcessor):
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
         if span_kind == "retrieval" and span.get_tag(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = json.loads(span._meta.pop(OUTPUT_DOCUMENTS))
+        if span_kind == "llm" and span.get_tag(INPUT_PROMPT) is not None:
+            meta["input"]["prompt"] = json.loads(span._meta.pop(INPUT_PROMPT))
         if span.error:
             meta[ERROR_MSG] = span.get_tag(ERROR_MSG)
             meta[ERROR_STACK] = span.get_tag(ERROR_STACK)
@@ -109,6 +117,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "duration": span.duration_ns,
             "status": "error" if span.error else "ok",
             "meta": meta,
+            "ml_app": ml_app,
             "metrics": metrics,
         }
         session_id = _get_session_id(span)
@@ -117,7 +126,6 @@ class LLMObsTraceProcessor(TraceProcessor):
             llmobs_span_event["session_id"] = session_id
 
         llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id)
-
         return llmobs_span_event
 
     @staticmethod

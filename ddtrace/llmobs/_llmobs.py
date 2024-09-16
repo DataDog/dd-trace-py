@@ -6,6 +6,8 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
+from pydantic import ValidationError
+
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
@@ -24,6 +26,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -50,7 +53,10 @@ from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import Prompt
 from ddtrace.propagation.http import HTTPPropagator
+
+from .evaluations.ragas.faithfulness._runner import RagasFaithfulnessEvaluationRunner
 
 
 log = get_logger(__name__)
@@ -63,12 +69,14 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "langchain": "langchain",
 }
 
+SUPPORTED_LLMOBS_EVALUATIONS = {"ragas.faithfulness": RagasFaithfulnessEvaluationRunner}
+
 
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
 
-    def __init__(self, tracer=None):
+    def __init__(self, tracer=None, _ragas_faithfulness_enabled=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_span_writer = None
@@ -85,12 +93,31 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
-        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
+
+        if _ragas_faithfulness_enabled:
+            try:
+                from ragas.metrics import faithfulness  # noqa: F401
+
+                self._ragas_faithfulness_runner = RagasFaithfulnessEvaluationRunner(
+                    interval=os.getenv("_DD_LLMOBS_EVALUATION_INTERVAL", 1.0),
+                    writer=self._llmobs_eval_metric_writer,
+                    llmobs_instance=self,
+                )
+            except ImportError:
+                log.warning("Failed to import ragas, skipping RAGAS evaluation runner")
+        else:
+            self._ragas_faithfulness_runner = None
+
+        self._trace_processor = LLMObsTraceProcessor(
+            self._llmobs_span_writer, ragas_faithfulness_runner=self._ragas_faithfulness_runner
+        )
         forksafe.register(self._child_after_fork)
 
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
+        if self._ragas_faithfulness_runner:
+            self._ragas_faithfulness_runner = self._ragas_faithfulness_runner.recreate()
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
             tracer_filters += [self._trace_processor]
@@ -108,6 +135,8 @@ class LLMObs(Service):
         try:
             self._llmobs_span_writer.start()
             self._llmobs_eval_metric_writer.start()
+            if self._ragas_faithfulness_runner:
+                self._ragas_faithfulness_runner.start()
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
@@ -115,6 +144,8 @@ class LLMObs(Service):
         try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
+            if self._ragas_faithfulness_runner:
+                self._ragas_faithfulness_runner.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
@@ -196,8 +227,11 @@ class LLMObs(Service):
 
         if integrations_enabled:
             cls._patch_integrations()
+
         # override the default _instance with a new tracer
-        cls._instance = cls(tracer=_tracer)
+        cls._instance = cls(
+            tracer=_tracer, _ragas_faithfulness_enabled=asbool(os.getenv("DD_LLMOBS_RAGAS_FAITHFULNESS_ENABLED", False))
+        )
         cls.enabled = True
         cls._instance.start()
 
@@ -462,6 +496,7 @@ class LLMObs(Service):
         cls,
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
+        prompt: Optional[Union[Prompt, dict]] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -522,12 +557,35 @@ class LLMObs(Service):
                 cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+        if prompt is not None:
+            if span_kind == "llm":
+                cls._tag_prompt(span, prompt)
+            else:
+                log.warning("Annotating prompts are only supported for LLM span kinds.")
         if metadata is not None:
             cls._tag_metadata(span, metadata)
         if metrics is not None:
             cls._tag_metrics(span, metrics)
         if tags is not None:
             cls._tag_span_tags(span, tags)
+
+    @staticmethod
+    def _tag_prompt(span, prompt: Union[Prompt, dict]) -> None:
+        """Tags a given LLMObs span with a prompt object."""
+        serialized_prompt = None
+        if isinstance(prompt, Prompt):
+            serialized_prompt = prompt.model_dump_json()
+        elif isinstance(prompt, dict):
+            try:
+                serialized_prompt = Prompt(**prompt).model_dump_json()
+            except ValidationError as e:
+                log.warning("Failed to parse prompt dictionary with validation error: ", e)
+                return
+        else:
+            log.warning("Prompt must be a Prompt object or a dictionary.")
+
+        if serialized_prompt is not None:
+            span.set_tag_str(INPUT_PROMPT, serialized_prompt)
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:

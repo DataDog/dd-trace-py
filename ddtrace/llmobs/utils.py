@@ -1,6 +1,12 @@
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
+
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
+from pydantic import RootModel
 
 
 # TypedDict was added to typing in python 3.8
@@ -15,6 +21,79 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 DocumentType = Dict[str, Union[str, int, float]]
+
+
+class ToolCall(BaseModel):
+    name: Optional[str] = ""
+    arguments: Optional[Dict] = {}
+    tool_id: Optional[str] = ""
+    type: Optional[str] = ""
+
+
+class PromptVariables(RootModel):
+    root: Dict[str, Union[str, "PromptVariables"]]
+
+
+class Prompt(BaseModel):
+    template: str = Field(default="", description="the raw template for the prompt")
+    variables: PromptVariables = Field(default={}, description="the variables to be inserted into the prompt template")
+    id: str = Field(default="", description="a unique identifier for the prompt")
+    version: str = Field(default="", description="the version of the prompt")
+
+
+class MetaIO(BaseModel):
+    prompt: Optional[Prompt] = None
+    value: Optional[str] = None
+    # (TODO(<owner>)): lievan, let Messages and Documents inherit from BaseModel
+    documents: Optional[List[DocumentType]] = None
+    messages: Optional[List[Dict[str, str]]] = None
+
+
+class SpanField(BaseModel):
+    kind: str = ""
+
+
+class Error(BaseModel):
+    message: str = ""
+    stack: str = ""
+
+
+class Meta(BaseModel):
+    # model_* is a protected namespace in pydantic, so we need to add this line to allow
+    # for model_* fields
+    model_config = ConfigDict(protected_namespaces=())
+    span: SpanField = SpanField()
+    error: Error = Error()
+    input: MetaIO = MetaIO()
+    output: MetaIO = MetaIO()
+    metadata: Dict = {}
+    # (TODO(<owner>)) lievan: validate model_* fields are only present on certain span types
+    model_name: str = ""
+    model_provider: str = ""
+
+
+class LLMObsSpanContext(BaseModel):
+    span_id: str
+    trace_id: str
+    name: str
+    ml_app: str
+    meta: Meta = Meta()
+    session_id: str = ""
+    metrics: Dict[str, Union[int, float]] = {}
+    tags: List[str] = []
+
+
+class EvaluationMetric(BaseModel):
+    label: str
+    categorical_value: str = ""
+    score_value: Union[int, float] = 0.0
+    metric_type: str
+    tags: List[str] = []
+    ml_app: str
+    timestamp_ms: int
+    span_id: str
+    trace_id: str
+
 
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
@@ -41,7 +120,12 @@ class Messages:
                 continue
             if not isinstance(role, str):
                 raise TypeError("Message role must be a string, and one of .")
-            self.messages.append(Message(content=content, role=role))
+            self.messages.append(
+                {
+                    "content": content,
+                    "role": role,
+                }
+            )
 
 
 class Documents:
