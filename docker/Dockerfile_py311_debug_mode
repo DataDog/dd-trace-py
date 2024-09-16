@@ -72,7 +72,7 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
 ENV PATH="/root/.cargo/bin:$PATH"
 
 RUN python3.11d -m pip install --break-system-packages setuptools cython wheel cmake pytest pytest-cov hypothesis pytest-memray\
-    "memray==1.12.0" \
+    "memray==1.14.0" \
     "requests==2.31.0" \
     "bytecode>=0.14.0" \
     "envier~=0.5" \
