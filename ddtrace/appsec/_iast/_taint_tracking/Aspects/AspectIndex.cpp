@@ -77,10 +77,12 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         if (!error_str.empty()) {
             py::handle error;
             // Check if the error_str contains "ndex"
-            if (error_str.find("ndex") != std::string::npos) {
+            if (error_str.find("IndexError") != std::string::npos) {
                 error = PyExc_IndexError;
-            } else {
+            } else if (error_str.find("TypeError") != std::string::npos) {
                 error = PyExc_TypeError;
+            } else {
+                error = PyExc_KeyError;
             }
             error_str += " (native index_aspect)";
             iast_taint_log_error(error_str);
