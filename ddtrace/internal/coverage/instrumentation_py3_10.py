@@ -296,7 +296,7 @@ def instrument_all_lines_nonrecursive(
                 )
 
     # Update line table for the last line we've seen.
-    update_linetable(len(new_code) - new_offset, previous_line - previous_previous_line)
+    update_linetable(len(new_code) - previous_line_new_offset, previous_line - previous_previous_line)
 
     # Fixup the offsets.
     for old_offset, old_target in old_targets.items():
