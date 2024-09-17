@@ -21,6 +21,8 @@ from moto import mock_sqs
 from moto import mock_stepfunctions
 import pytest
 
+from ddtrace._trace._span_pointer import _SpanPointer
+from ddtrace._trace._span_pointer import _SpanPointerDirection
 from tests.utils import get_128_bit_trace_id_from_headers
 
 
@@ -284,6 +286,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.s3"
         assert span.resource == "s3.listbuckets"
 
+        assert not span._links, "no links, i.e. no span pointers"
+
         # testing for span error
         self.reset()
         try:
@@ -392,6 +396,17 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.s3.bucket_name") == "mybucket"
         assert span.get_tag("bucketname") == "mybucket"
 
+        assert span._links == [
+            _SpanPointer(
+                pointer_kind="aws.s3.object",
+                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                # We have more detailed tests for the hashing behavior
+                # elsewhere. Here we just want to make sure that the pointer is
+                # correctly attached to the span.
+                pointer_hash="0baa59add96c451c6e77641698d115a4",
+            ),
+        ]
+
     @mock_s3
     def test_s3_put_no_params(self):
         with self.override_config("botocore", dict(tag_no_params=True)):
@@ -402,6 +417,18 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.Bucket") is None
             assert span.get_tag("params.Body") is None
             assert span.get_tag("component") == "botocore"
+
+            # We still create the link since we're hashing the parameter data.
+            assert span._links == [
+                _SpanPointer(
+                    pointer_kind="aws.s3.object",
+                    pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                    # We have more detailed tests for the hashing behavior
+                    # elsewhere. Here we just want to make sure that the pointer is
+                    # correctly attached to the span.
+                    pointer_hash="0baa59add96c451c6e77641698d115a4",
+                ),
+            ]
 
     @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_SERVICE="botocore"))
