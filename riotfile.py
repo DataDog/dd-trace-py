@@ -272,7 +272,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} tests/tracer/",
+            command="pytest -v {cmdargs} tests/tracer/  --no-ddtrace",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
