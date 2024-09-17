@@ -558,7 +558,7 @@ class LLMObs(Service):
         """Tags a given LLMObs span with a prompt"""
         try:
             validated_prompt = validate_prompt(prompt)
-            span.set_tag_str(INPUT_PROMPT, json.dumps(validated_prompt))
+            span.set_tag_str(INPUT_PROMPT, json.dumps(validated_prompt, default=_unserializable_default_repr))
         except TypeError:
             log.warning("Failed to validate prompt with error: ", exc_info=True)
             return

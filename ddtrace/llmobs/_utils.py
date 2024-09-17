@@ -25,9 +25,11 @@ def validate_prompt(prompt: dict) -> dict:
         variables = prompt["variables"]
         if not isinstance(variables, dict):
             raise TypeError("Prompt variables must be a dictionary.")
-        for key, value in variables.items():
-            if not isinstance(key, str) or not isinstance(value, str):
-                raise TypeError("Prompt variable keys and values must be strings.")
+        if not any(isinstance(k, str) or isinstance(v, str) for k, v in variables.items()):
+            raise TypeError("Prompt variable keys and values must be strings.")
+        # for key, value in variables.items():
+        #     if not isinstance(key, str) or not isinstance(value, str):
+        #         raise TypeError("Prompt variable keys and values must be strings.")
         validated_prompt["variables"] = prompt["variables"]
     if prompt.get("template"):
         if not isinstance(prompt["template"], str):
