@@ -299,11 +299,15 @@ cdef class SampleHandle:
         if not span:
             return
         if span.span_id:
-            ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span.span_id))
+            clamped_span_id = clamp_to_uint64_unsigned(span.span_id)
+            print("ddup_push_span_id", span.span_id, clamped_span_id)
+            ddup_push_span_id(self.ptr, clamped_span_id)
         if not span._local_root:
             return
         if span._local_root.span_id:
-            ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
+            clamped_local_root_span_id = clamp_to_uint64_unsigned(span._local_root.span_id)
+            print("ddup_push_local_root_span_id", span._local_root.span_id, clamped_local_root_span_id)
+            ddup_push_local_root_span_id(self.ptr, clamped_local_root_span_id)
         if span._local_root.span_type:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
