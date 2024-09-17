@@ -87,16 +87,17 @@ class LLMObs(Service):
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
 
-        self.evaluators = []
-
+        self._evaluators = []
         if config._llmobs_ragas_faithfulness_enabled:
-            self.evaluators.append(
+            self._evaluators.append(
                 RagasFaithfulnessEvaluator(
-                    interval=1, _evaluation_metric_writer=self._llmobs_eval_metric_writer, _llmobs_instance=self
+                    interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_RAGAS_FAITHFULNESS_INTERVAL", 1.0)),
+                    _evaluation_metric_writer=self._llmobs_eval_metric_writer,
+                    _llmobs_instance=self,
                 )
             )
 
-        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._ragas_evaluator)
+        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluators)
         forksafe.register(self._child_after_fork)
 
     def _child_after_fork(self):
@@ -110,11 +111,6 @@ class LLMObs(Service):
             self._llmobs_span_writer.start()
         except ServiceStatusError:
             log.debug("Error starting LLMObs span writer after fork")
-        try:
-            for evaluator in self.evaluators:
-                evaluator.start()
-        except ServiceStatusError:
-            log.debug("Error starting LLMObs ragas evaluator after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
@@ -127,7 +123,7 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
-        for evaluator in self.evaluators:
+        for evaluator in self._evaluators:
             try:
                 evaluator.start()
             except ServiceStatusError:
@@ -142,7 +138,7 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
-        for evaluator in self.evaluators:
+        for evaluator in self._evaluators:
             try:
                 evaluator.stop()
             except ServiceStatusError:
@@ -185,7 +181,6 @@ class LLMObs(Service):
 
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
-            return
 
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site

@@ -45,7 +45,7 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def __init__(self, llmobs_span_writer, evaluators):
         self._span_writer = llmobs_span_writer
-        self.evaluators = evaluators
+        self._evaluators = evaluators
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -65,7 +65,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
         finally:
             if span_event:
-                for evaluator in self.evaluators:
+                for evaluator in self._evaluators:
                     evaluator.enqueue(span_event)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:

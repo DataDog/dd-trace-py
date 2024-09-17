@@ -1,10 +1,6 @@
 from typing import Dict
 from typing import List
-from typing import Optional
 from typing import Union
-
-from pydantic.v1 import BaseModel
-from pydantic.v1 import ConfigDict
 
 
 # TypedDict was added to typing in python 3.8
@@ -23,66 +19,6 @@ DocumentType = Dict[str, Union[str, int, float]]
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
-
-
-class ToolCall(BaseModel):
-    name: Optional[str] = ""
-    arguments: Optional[Dict] = {}
-    tool_id: Optional[str] = ""
-    type: Optional[str] = ""
-
-
-class MetaIO(BaseModel):
-    value: Optional[str] = None
-    # (TODO(<owner>)): lievan, let Messages and Documents inherit from BaseModel
-    documents: Optional[List[DocumentType]] = None
-    messages: Optional[List[Dict[str, str]]] = None
-
-
-class SpanField(BaseModel):
-    kind: str = ""
-
-
-class Error(BaseModel):
-    message: str = ""
-    stack: str = ""
-
-
-class Meta(BaseModel):
-    # model_* is a protected namespace in pydantic, so we need to add this line to allow
-    # for model_* fields
-    model_config = ConfigDict(protected_namespaces=())
-    span: SpanField = SpanField()
-    error: Error = Error()
-    input: MetaIO = MetaIO()
-    output: MetaIO = MetaIO()
-    metadata: Dict = {}
-    # (TODO(<owner>)) lievan: validate model_* fields are only present on certain span types
-    model_name: str = ""
-    model_provider: str = ""
-
-
-class LLMObsSpanContext(BaseModel):
-    span_id: str
-    trace_id: str
-    name: str
-    ml_app: str
-    meta: Meta = Meta()
-    session_id: str = ""
-    metrics: Dict[str, Union[int, float]] = {}
-    tags: List[str] = []
-
-
-class EvaluationMetric(BaseModel):
-    label: str
-    categorical_value: Optional[str] = ""
-    score_value: Optional[Union[int, float]] = None
-    metric_type: str
-    tags: Optional[List[str]] = []
-    ml_app: str
-    timestamp_ms: int
-    span_id: str
-    trace_id: str
 
 
 class Messages:

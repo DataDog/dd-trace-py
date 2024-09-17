@@ -59,6 +59,16 @@ def mock_llmobs_eval_metric_writer():
 
 
 @pytest.fixture
+def mock_llmobs_ragas_evaluator():
+    patcher = mock.patch("ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator.RagasFaithfulnessEvaluator")
+    RagasEvaluator = patcher.start()
+    m = mock.MagicMock()
+    RagasEvaluator.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
 def mock_http_writer_send_payload_response():
     with mock.patch(
         "ddtrace.internal.writer.HTTPWriter._send_payload",
@@ -85,6 +95,12 @@ def mock_http_writer_put_response_forbidden():
 @pytest.fixture
 def mock_writer_logs():
     with mock.patch("ddtrace.llmobs._writer.logger") as m:
+        yield m
+
+
+@pytest.fixture
+def mock_evaluator_logs():
+    with mock.patch("ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator.logger") as m:
         yield m
 
 
@@ -120,6 +136,19 @@ def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_w
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     global_config.update(dict(_llmobs_agentless_enabled=True))
+    with override_global_config(global_config):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        yield llmobs_service
+        llmobs_service.disable()
+
+
+@pytest.fixture
+def LLMObsWithRagas(monkeypatch, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
+    global_config = default_global_config()
+    global_config.update(ddtrace_global_config)
+    global_config.update(dict(_llmobs_ragas_faithfulness_enabled=True))
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_RAGAS_FAITHFULNESS_INTERVAL", "0.1")
     with override_global_config(global_config):
         dummy_tracer = DummyTracer()
         llmobs_service.enable(_tracer=dummy_tracer)

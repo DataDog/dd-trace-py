@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import mock
 import pytest
@@ -88,6 +89,27 @@ def test_service_enable_with_apm_disabled(monkeypatch):
         llmobs_service.disable()
 
 
+def test_service_enable_with_ragas_evaluator_enabled():
+    with override_global_config(
+        dict(
+            _dd_api_key="<not-a-real-api-key>",
+            _llmobs_ml_app="<ml-app-name>",
+            _llmobs_ragas_faithfulness_enabled="true",
+        )
+    ):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert llmobs_instance.tracer == dummy_tracer
+        assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
+        assert run_llmobs_trace_filter(dummy_tracer) is not None
+        assert len(llmobs_service._instance._evaluators) == 1
+        assert llmobs_service._instance._evaluators[0].status.value == "running"
+        llmobs_service.disable()
+
+
 def test_service_disable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
@@ -96,6 +118,24 @@ def test_service_disable():
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
+
+
+def test_service_disable_with_ragas_evaluator_enabled():
+    with override_global_config(
+        dict(
+            _dd_api_key="<not-a-real-api-key>",
+            _llmobs_ml_app="<ml-app-name>",
+            _llmobs_ragas_faithfulness_enabled="true",
+        )
+    ):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.disable()
+        assert llmobs_service.enabled is False
+        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
+        assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
+        assert len(llmobs_service._instance._evaluators) == 1
+        assert llmobs_service._instance._evaluators[0].status.value == "stopped"
 
 
 def test_service_enable_no_api_key():
@@ -1504,3 +1544,10 @@ def test_llmobs_fork_custom_filter(monkeypatch):
         exit_code = os.WEXITSTATUS(status)
         assert exit_code == 12
         llmobs_service.disable()
+
+
+def test_llm_span_ragas_evaluator(LLMObsWithRagas):
+    with LLMObsWithRagas.llm(model_name="test_model"):
+        pass
+    time.sleep(0.1)
+    LLMObsWithRagas._instance._llmobs_eval_metric_writer.enqueue.call_count = 1

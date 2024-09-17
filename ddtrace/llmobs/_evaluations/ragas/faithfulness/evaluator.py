@@ -3,7 +3,6 @@ from concurrent import futures
 import math
 import time
 from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace import config
@@ -11,8 +10,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 
-from ....utils import EvaluationMetric
-from ....utils import LLMObsSpanContext
+from ...._writer import LLMObsEvaluationMetricEvent
 
 
 logger = get_logger(__name__)
@@ -25,11 +23,10 @@ class RagasFaithfulnessEvaluator(PeriodicService):
         super(RagasFaithfulnessEvaluator, self).__init__(interval=interval)
         self.llmobs_instance = _llmobs_instance
         self._lock = forksafe.RLock()
-        self._buffer = []  # type: List[LLMObsSpanContext]
+        self._buffer = []  # type: list[Dict]
         self._buffer_limit = 1000
 
         self._evaluation_metric_writer = _evaluation_metric_writer
-        self.spans = []  # type: List[LLMObsSpanContext]
 
         self.name = "ragas.faithfulness"
 
@@ -48,17 +45,14 @@ class RagasFaithfulnessEvaluator(PeriodicService):
             interval=self._interval, writer=self._llmobs_eval_metric_writer, llmobs_instance=self.llmobs_instance
         )
 
-    def enqueue(self, raw_span_event: Dict) -> None:
+    def enqueue(self, span_event: Dict) -> None:
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
                 return
-            try:
-                self._buffer.append(LLMObsSpanContext(**raw_span_event))
-            except Exception as e:
-                logger.error("Failed to validate span event for eval", e)
+            self._buffer.append(span_event)
 
     def periodic(self) -> None:
         with self._lock:
@@ -71,25 +65,21 @@ class RagasFaithfulnessEvaluator(PeriodicService):
             evaluation_metrics = self.run(events)
             for metric in evaluation_metrics:
                 if metric is not None:
-                    self._evaluation_metric_writer.enqueue(metric.model_dump())
+                    self._evaluation_metric_writer.enqueue(metric)
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)
 
-    def run(self, spans: List[LLMObsSpanContext]) -> List[EvaluationMetric]:
-        def dummy_score_and_return_evaluation_that_will_be_replaced(span) -> Optional[EvaluationMetric]:
-            try:
-                return EvaluationMetric(
-                    label="dummy.ragas.faithfulness",
-                    span_id=span.span_id,
-                    trace_id=span.trace_id,
-                    score_value=1,
-                    ml_app=config._llmobs_ml_app,
-                    timestamp_ms=math.floor(time.time() * 1000),
-                    metric_type="score",
-                )
-            except RuntimeError as e:
-                logger.error("Failed to run evaluation: %s", e)
-                return None
+    def run(self, spans):
+        def dummy_score_and_return_evaluation_that_will_be_replaced(span) -> Optional[LLMObsEvaluationMetricEvent]:
+            return LLMObsEvaluationMetricEvent(
+                span_id=span.get("span_id"),
+                trace_id=span.get("trace_id"),
+                score_value=1,
+                ml_app=config._llmobs_ml_app,
+                timestamp_ms=math.floor(time.time() * 1000),
+                metric_type="score",
+                label="dummy.ragas.faithfulness",
+            )
 
         results = self.executor.map(dummy_score_and_return_evaluation_that_will_be_replaced, spans)
         return [result for result in results if result is not None]
