@@ -1350,16 +1350,10 @@ class Contrib_TestClass_For_Threats:
                         asm_config._iast_enabled and function.endswith("ast_function")
                     ), f"unknown top function {function}"
                 # assert mocked.call_args_list == []
-                assert (
-                    "CountMetric",
-                    "appsec.rasp.rule.match",
-                    (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
-                ) in telemetry_calls
-                assert (
-                    "CountMetric",
-                    "appsec.rasp.rule.eval",
-                    (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
-                ) in telemetry_calls
+                matches = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.match"]
+                assert matches == [(("rule_type", endpoint), ("waf_version", DDWAF_VERSION))]
+                evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
+                assert evals == [(("rule_type", endpoint), ("waf_version", DDWAF_VERSION))]
                 if action_level == 2:
                     assert get_tag("rasp.request.done") is None
                 else:
