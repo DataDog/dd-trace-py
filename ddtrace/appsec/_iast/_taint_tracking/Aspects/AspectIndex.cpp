@@ -72,9 +72,6 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     // if (!is_tainteable(candidate_text) or !is_some_number(idx)) {
     //     return result_o;
     // }
-    if ((!is_text(candidate_text) or !is_some_number(idx)) and !PyReMatch_Check(candidate_text)) {
-        return result_o;
-    }
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
         const auto ctx_map = Initializer::get_tainting_map();
         if (not ctx_map or ctx_map->empty()) {
@@ -87,6 +84,10 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
             iast_taint_log_error(error_str);
             py::set_error(PyExc_IndexError, error_str.c_str());
             return nullptr;
+        }
+
+        if ((!is_text(candidate_text) or !is_some_number(idx)) and !PyReMatch_Check(candidate_text)) {
+            return result_o;
         }
 
         return index_aspect(result_o, candidate_text, idx, ctx_map);
