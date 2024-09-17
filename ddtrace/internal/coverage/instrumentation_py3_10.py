@@ -143,6 +143,7 @@ def instrument_all_lines_nonrecursive(
     new_consts.append(hook)
 
     seen_lines = CoverageLines()
+    is_first_instrumented_module_line = code.co_name == "<module>"
 
     def append_instruction(opcode: int, extended_arg: int) -> None:
         """
@@ -230,8 +231,9 @@ def instrument_all_lines_nonrecursive(
             # Make sure that the current module is marked as depending on its own package by instrumenting the
             # first executable line.
             package_dep = None
-            if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
+            if is_first_instrumented_module_line:
                 package_dep = (package, ("",))
+                is_first_instrumented_module_line = False
 
             new_consts.append((line, path, package_dep))
 
