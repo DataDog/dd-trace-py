@@ -17,7 +17,6 @@ else
     fi
 fi
 COVERAGE_FLAG=$([[ "${2:-false}" == false && $COLLECT_COVERAGE == false ]] && echo '--no-cov')
-DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
 
 RIOT_HASHES=( $(riot list --hash-only $RIOT_PATTERN | sort) )
 echo "Found ${#RIOT_HASHES[@]} riot hashes: ${RIOT_HASHES[@]}"
@@ -45,7 +44,7 @@ fi
 
 for hash in ${RIOT_HASHES[@]}; do
     echo "Running riot hash: $hash"
-    ($DDTEST_CMD riot -P -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG)
+    (riot -P -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG)
     exit_code=$?
     if [ $exit_code -ne 0 ] ; then
         if [[ -v CI ]]; then
