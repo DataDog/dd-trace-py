@@ -216,7 +216,7 @@ django = ["~=4.2"]
 
 [[envs.appsec_threats_django.matrix]]
 python = ["3.10", "3.12"]
-django = ["~=5.0"]
+django = ["~=5.1"]
 
 
 ## ASM Flask
