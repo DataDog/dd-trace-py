@@ -342,6 +342,7 @@ venv = Venv(
                     name="integration-latest",
                     env={
                         "AGENT_VERSION": "latest",
+                        "_CI_DD_AGENT_URL": "",
                     },
                 ),
                 Venv(
@@ -349,6 +350,7 @@ venv = Venv(
                     env={
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
+                        "_CI_DD_AGENT_URL": "",
                     },
                 ),
             ],
@@ -365,6 +367,7 @@ venv = Venv(
                     name="integration-latest-civisibility",
                     env={
                         "AGENT_VERSION": "latest",
+                        "_CI_DD_AGENT_URL": "",
                     },
                 ),
                 Venv(
@@ -372,6 +375,7 @@ venv = Venv(
                     env={
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
+                        "_CI_DD_AGENT_URL": "",
                     },
                 ),
             ],
@@ -1592,6 +1596,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "_CI_DD_AGENT_URL": "",
             },
             venvs=[
                 Venv(
@@ -1650,6 +1655,7 @@ venv = Venv(
                 # gitlab sets the service name to the repo name while locally the default service name is used
                 # setting DD_SERVICE ensures the output of the snapshot tests is consistent.
                 "DD_UNITTEST_SERVICE": "dd-trace-py",
+                "_CI_DD_AGENT_URL": "",
             },
             pys=select_pys(),
         ),
@@ -2796,6 +2802,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "_CI_DD_AGENT_URL": "",
             },
         ),
         Venv(
