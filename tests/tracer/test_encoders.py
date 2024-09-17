@@ -17,6 +17,7 @@ import msgpack
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_link import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
@@ -477,9 +478,17 @@ def test_span_link_v04_encoding():
             ),
         ],
     )
+    span._add_span_pointer(
+        pointer_kind="some-kind",
+        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+        pointer_hash="some-hash",
+        extra_attributes={"some": "extra"},
+    )
     assert span._links
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links.get(6)._drop_attribute("drop_me")
+    [link_6, *others] = [link for link in span._links if link.span_id == 6]
+    assert not others
+    link_6._drop_attribute("drop_me")
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -520,6 +529,17 @@ def test_span_link_v04_encoding():
             b"tracestate": b"congo=t61rcWkgMzE",
             b"flags": 1 | (1 << 31),
             b"trace_id_high": 123,
+        },
+        {
+            b"trace_id": 0,
+            b"span_id": 0,
+            b"attributes": {
+                b"link.kind": b"span-pointer",
+                b"ptr.kind": b"some-kind",
+                b"ptr.dir": b"d",
+                b"ptr.hash": b"some-hash",
+                b"some": b"extra",
+            },
         },
     ]
 
@@ -582,10 +602,17 @@ def test_span_link_v05_encoding():
             ),
         ],
     )
+    span._add_span_pointer(
+        pointer_kind="some-kind",
+        pointer_direction=_SpanPointerDirection.UPSTREAM,
+        pointer_hash="some-hash",
+    )
 
-    assert len(span._links) == 2
+    assert len(span._links) == 3
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links.get((2**64) - 1)._drop_attribute("drop_me")
+    [link_bignum, *others] = [link for link in span._links if link.span_id == (2**64) - 1]
+    assert not others
+    link_bignum._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -603,7 +630,10 @@ def test_span_link_v05_encoding():
         b'{"trace_id": "7fffffffffffffffffffffffffffffff", "span_id": "ffffffffffffffff", '
         b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", '
         b'"key2.0": "false", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
-        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}'
+        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}, '
+        b'{"trace_id": "00000000000000000000000000000000", "span_id": "0000000000000000", '
+        b'"attributes": {"ptr.kind": "some-kind", "ptr.dir": "u", "ptr.hash": "some-hash", '
+        b'"link.kind": "span-pointer"}}'
         b"]"
     )
 

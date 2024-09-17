@@ -23,6 +23,7 @@ SPAN_START_WHILE_DISABLED_WARNING = (
     "Span started while LLMObs is disabled." " Spans will not be sent to LLM Observability."
 )
 
+GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 

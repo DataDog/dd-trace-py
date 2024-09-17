@@ -1,0 +1,216 @@
+{
+  "version": "2.1",
+  "metadata": {
+    "rules_version": "rules_rasp"
+  },
+  "actions": [
+    {
+      "id": "block",
+      "type": "redirect_request",
+      "parameters": {
+        "status_code": 301,
+        "location": "https://www.datadoghq.com"
+      }
+    }
+  ],
+  "rules": [
+    {
+      "id": "rasp-930-100",
+      "name": "Local file inclusion exploit",
+      "tags": {
+        "type": "lfi",
+        "category": "vulnerability_trigger",
+        "cwe": "22",
+        "capec": "1000/255/153/126",
+        "confidence": "0",
+        "module": "rasp"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "resource": [
+              {
+                "address": "server.io.fs.file"
+              }
+            ],
+            "params": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "grpc.server.request.message"
+              },
+              {
+                "address": "graphql.server.all_resolvers"
+              },
+              {
+                "address": "graphql.server.resolver"
+              }
+            ]
+          },
+          "operator": "lfi_detector"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "stack_trace",
+        "block"
+      ]
+    },
+    {
+      "id": "rasp-934-100",
+      "name": "Server-side request forgery exploit",
+      "tags": {
+        "type": "ssrf",
+        "category": "vulnerability_trigger",
+        "cwe": "918",
+        "capec": "1000/225/115/664",
+        "confidence": "0",
+        "module": "rasp"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "resource": [
+              {
+                "address": "server.io.net.url"
+              }
+            ],
+            "params": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "grpc.server.request.message"
+              },
+              {
+                "address": "graphql.server.all_resolvers"
+              },
+              {
+                "address": "graphql.server.resolver"
+              }
+            ]
+          },
+          "operator": "ssrf_detector"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "stack_trace",
+        "block"
+      ]
+    },
+    {
+      "id": "rasp-942-100",
+      "name": "SQL injection exploit",
+      "tags": {
+        "type": "sql_injection",
+        "category": "vulnerability_trigger",
+        "cwe": "89",
+        "capec": "1000/152/248/66",
+        "confidence": "0",
+        "module": "rasp"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "resource": [
+              {
+                "address": "server.db.statement"
+              }
+            ],
+            "params": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "graphql.server.all_resolvers"
+              },
+              {
+                "address": "graphql.server.resolver"
+              }
+            ],
+            "db_type": [
+              {
+                "address": "server.db.system"
+              }
+            ]
+          },
+          "operator": "sqli_detector"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "stack_trace",
+        "block"
+      ]
+    },
+    {
+      "id": "rasp-932-100",
+      "name": "Shell injection exploit",
+      "tags": {
+        "type": "command_injection",
+        "category": "vulnerability_trigger",
+        "cwe": "77",
+        "capec": "1000/152/248/88",
+        "confidence": "0",
+        "module": "rasp"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "resource": [
+              {
+                "address": "server.sys.shell.cmd"
+              }
+            ],
+            "params": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "grpc.server.request.message"
+              },
+              {
+                "address": "graphql.server.all_resolvers"
+              },
+              {
+                "address": "graphql.server.resolver"
+              }
+            ]
+          },
+          "operator": "shi_detector"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "stack_trace",
+        "block"
+      ]
+    }
+  ]
+}
