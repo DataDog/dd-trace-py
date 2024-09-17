@@ -200,6 +200,69 @@ def iast_ast_patching_import_error():
     return Response(str(module_with_import_errors.verbal_kint_is_keyser_soze))
 
 
+@app.route("/iast-ast-patching-io-bytesio", methods=["GET"])
+def iast_ast_patching_io_bytes_io():
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    bytes_filename = filename.encode()
+    if style == "_io_module":
+        import _io
+
+        changed = _io.BytesIO(bytes_filename)
+    elif style == "io_module":
+        import io
+
+        changed = io.BytesIO(bytes_filename)
+    elif style == "io_function":
+        from io import BytesIO
+
+        changed = BytesIO(bytes_filename)
+    else:
+        from _io import BytesIO
+
+        changed = BytesIO(bytes_filename)
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if is_pyobject_tainted(changed):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
+
+
+@app.route("/iast-ast-patching-io-stringio", methods=["GET"])
+def iast_ast_patching_io_string_io():
+    filename = request.args.get("filename")
+    style = request.args.get("style")
+    if style == "_io_module":
+        import _io
+
+        changed = _io.StringIO(filename)
+    elif style == "io_module":
+        import io
+
+        changed = io.StringIO(filename)
+    elif style == "io_function":
+        from io import StringIO
+
+        changed = StringIO(filename)
+    else:
+        from _io import StringIO
+
+        changed = StringIO(filename)
+    resp = Response("Fail")
+    try:
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if is_pyobject_tainted(changed):
+            resp = Response("OK")
+    except Exception as e:
+        print(e)
+    return resp
+
+
 @app.route("/iast-ast-patching-re-sub", methods=["GET"])
 def iast_ast_patching_re_sub():
     filename = request.args.get("filename")
