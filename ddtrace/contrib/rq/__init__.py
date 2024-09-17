@@ -155,9 +155,9 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         tags={
             COMPONENT: config.rq.integration_name,
             SPAN_KIND: SpanKind.PRODUCER,
-            QUEUE_NAME :  instance.name,
+            QUEUE_NAME: instance.name,
             JOB_ID: job.get_id(),
-            JOB_FUNC_NAME : job.func_name,
+            JOB_FUNC_NAME: job.func_name,
         },
     ) as ctx, ctx[ctx["call_key"]] as span:
         # If the queue is_async then add distributed tracing headers to the job
@@ -177,7 +177,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
         pin=pin,
         service=trace_utils.int_service(pin, config.rq),
         call_key="traced_queue_fetch_job",
-        tags={COMPONENT: config.rq.integration_name, JOB_ID : job_id},
+        tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
     ) as ctx, ctx[ctx["call_key"]] as span:
         return func(*args, **kwargs)
 
