@@ -67,7 +67,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
-    auto result_o = PyObject_GetItem(candidate_text, idx);
+    const auto result_o = PyObject_GetItem(candidate_text, idx);
     if (!is_text(candidate_text) or !is_some_number(idx)) {
         // if (!is_tainteable(candidate_text) or !is_some_number(idx)) {
         return result_o;
