@@ -186,7 +186,7 @@ commands:
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-                  DD_CIVISIBILITY_AGENTLESS_ENABLED: "true"
+                  DD_CIVISIBILITY_AGENTLESS_ENABLED: true
                 no_output_timeout: 5m
                 command: |
                   ulimit -c unlimited
@@ -223,7 +223,7 @@ commands:
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-                  DD_CIVISIBILITY_AGENTLESS_ENABLED: "true"
+                  DD_CIVISIBILITY_AGENTLESS_ENABLED: true
                 no_output_timeout: 5m
                 command: |
                   ulimit -c unlimited
