@@ -210,6 +210,10 @@ def _llmobs_base_span_event(
         span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message
         span_event["meta"]["error.stack"] = error_stack
+    if tags:
+        span_event["ml_app"] = tags.get("ml_app", "unnamed-ml-app")
+    else:
+        span_event["ml_app"] = "unnamed-ml-app"
     return span_event
 
 
