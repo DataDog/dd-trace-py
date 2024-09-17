@@ -63,7 +63,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
-    void ddup_push_trace_endpoint(Sample *sample, string_view trace_endpoint)
+    void ddup_push_trace_endpoint(uint64_t local_root_span_id, string_view trace_endpoint)
     void ddup_push_endpoint_count(string_view trace_endpoint, int64_t count)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
@@ -175,16 +175,25 @@ def upload(processsor: EndpointCallCounterProcessor) -> None:
     runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
 
-    counts= processsor.reset()
-    if counts:
-        for resource, cnt in counts.items():
-            resource_bytes = ensure_binary_or_empty(resource)
-            cnt = clamp_to_int64_unsigned(cnt)
-            print("ddup_push_endpoint_count", resource_bytes, cnt)
-            ddup_push_endpoint_count(
-                string_view(<const char*>resource_bytes, len(resource_bytes)),
-                cnt
-            )
+    counts, span_ids = processsor.reset()
+
+    for resource, span_id in span_ids.items():
+        resource_bytes = ensure_binary_or_empty(resource)
+        span_id = clamp_to_uint64_unsigned(span_id)
+        print("ddup_push_trace_endpoint", span_id, resource_bytes)
+        ddup_push_trace_endpoint(
+            span_id,
+            string_view(<const char*>resource_bytes, len(resource_bytes)),
+        )
+
+    for resource, cnt in counts.items():
+        resource_bytes = ensure_binary_or_empty(resource)
+        cnt = clamp_to_int64_unsigned(cnt)
+        print("ddup_push_endpoint_count", resource_bytes, cnt)
+        ddup_push_endpoint_count(
+            string_view(<const char*>resource_bytes, len(resource_bytes)),
+            cnt
+        )
 
     with nogil:
         ddup_upload()
@@ -298,10 +307,6 @@ cdef class SampleHandle:
         if span._local_root.span_type:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
-            if span._local_root.span_type == ext.SpanTypes.WEB and endpoint_collection_enabled:
-                print("ddup_push_trace_endpoint", span._local_root.resource)
-                resource_bytes = ensure_binary_or_empty(span._local_root.resource)
-                ddup_push_trace_endpoint(self.ptr, string_view(<const char*>resource_bytes, len(resource_bytes)))
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
