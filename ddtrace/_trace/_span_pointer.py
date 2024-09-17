@@ -1,4 +1,5 @@
 from enum import Enum
+from hashlib import sha256
 from typing import Any
 from typing import Dict
 from typing import NamedTuple
@@ -53,3 +54,31 @@ class _SpanPointer(SpanLink):
     def __post_init__(self):
         # Do not want to do the trace_id and span_id checks that SpanLink does.
         pass
+
+
+class _StandardHashingRules:
+    # This is a bit of a strange class. Its instances behave like simple
+    # function. This allows us to do the hex_digits calculation once. It also
+    # allows us to write tests for the chosen base_hashing_function instead of
+    # having to add runtime sanity checks. This class should be instantiated
+    # only once, internally, and the result stored as a the
+    # _standard_hashing_function "function" below.
+
+    def __init__(self):
+        self.separator = b"|"
+
+        self.bits_per_hex_digit = 4
+        self.desired_bits = 128
+
+        self.hex_digits = self.desired_bits // self.bits_per_hex_digit
+
+        self.base_hashing_function = sha256
+
+    def __call__(self, *elements: bytes) -> str:
+        if not elements:
+            raise ValueError("elements must not be empty")
+
+        return self.base_hashing_function(self.separator.join(elements)).hexdigest()[: self.hex_digits]
+
+
+_standard_hashing_function = _StandardHashingRules()
