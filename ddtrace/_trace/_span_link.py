@@ -25,9 +25,24 @@ SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
 """
 
 import dataclasses
+from enum import Enum
+from typing import Any
+from typing import Dict
 from typing import Optional
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
+
+
+log = get_logger(__name__)
+
+
+class SpanLinkKind(Enum):
+    """
+    A collection of standard SpanLink kinds. It's possible to use others, but these should be used when possible.
+    """
+
+    SPAN_POINTER = "span-pointer"  # Should not be used on normal SpanLinks.
 
 
 def _id_not_zero(self, attribute_name, value):
@@ -70,11 +85,11 @@ class SpanLink:
         self.attributes["link.name"] = value
 
     @property
-    def kind(self):
-        return self.attributes["link.kind"]
+    def kind(self) -> Optional[str]:
+        return self.attributes.get("link.kind")
 
     @kind.setter
-    def kind(self, value):
+    def kind(self, value: str) -> None:
         self.attributes["link.kind"] = value
 
     def _drop_attribute(self, key):
@@ -117,3 +132,41 @@ class SpanLink:
             f"trace_id={self.trace_id} span_id={self.span_id} attributes={attrs_str} "
             f"tracestate={self.tracestate} flags={self.flags} dropped_attributes={self._dropped_attributes}"
         )
+
+
+# Span Pointers are currently private, so let's put them here for now
+
+
+_SPAN_POINTER_SPAN_LINK_TRACE_ID = 0
+_SPAN_POINTER_SPAN_LINK_SPAN_ID = 0
+
+
+class _SpanPointerDirection(Enum):
+    UPSTREAM = "u"
+    DOWNSTREAM = "d"
+
+
+class _SpanPointer(SpanLink):
+    def __init__(
+        self,
+        pointer_kind: str,
+        pointer_direction: _SpanPointerDirection,
+        pointer_hash: str,
+        extra_attributes: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            trace_id=_SPAN_POINTER_SPAN_LINK_TRACE_ID,
+            span_id=_SPAN_POINTER_SPAN_LINK_SPAN_ID,
+            attributes={
+                "ptr.kind": pointer_kind,
+                "ptr.dir": pointer_direction.value,
+                "ptr.hash": pointer_hash,
+                **(extra_attributes or {}),
+            },
+        )
+
+        self.kind = SpanLinkKind.SPAN_POINTER.value
+
+    def __post_init__(self):
+        # Do not want to do the trace_id and span_id checks that SpanLink does.
+        pass
