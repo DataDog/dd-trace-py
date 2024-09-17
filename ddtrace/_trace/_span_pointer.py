@@ -2,6 +2,7 @@
 from enum import Enum
 from typing import Any
 from typing import Dict
+from typing import NamedTuple
 from typing import Optional
 
 from ddtrace._trace._span_link import SpanLink
@@ -15,6 +16,18 @@ _SPAN_POINTER_SPAN_LINK_SPAN_ID = 0
 class _SpanPointerDirection(Enum):
     UPSTREAM = "u"
     DOWNSTREAM = "d"
+
+
+class _SpanPointerDescription(NamedTuple):
+    # Not to be confused with _SpanPointer. This class describes the parameters
+    # required to attach a span pointer to a Span. It lets us decouple code
+    # that calculates span pointers from code that actually attaches them to
+    # the right Span.
+
+    pointer_kind: str
+    pointer_direction: _SpanPointerDirection
+    pointer_hash: str
+    extra_attributes: Dict[str, Any]
 
 
 class _SpanPointer(SpanLink):
