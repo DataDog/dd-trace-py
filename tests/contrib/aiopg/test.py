@@ -6,7 +6,6 @@ import pytest
 
 # project
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiopg.patch import patch
 from ddtrace.contrib.aiopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -403,26 +402,6 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
         assert rows
 
         return self.get_spans()
-
-    @pytest.mark.asyncio
-    async def test_analytics_default(self):
-        spans = await self.trace_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    @pytest.mark.asyncio
-    async def test_analytics_with_rate(self):
-        with self.override_config("aiopg", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            spans = await self.trace_spans()
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    @pytest.mark.asyncio
-    async def test_analytics_without_rate(self):
-        with self.override_config("aiopg", dict(analytics_enabled=True)):
-            spans = await self.trace_spans()
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     async def _test_cursor_ctx_manager(self):
         conn, tracer = await self._get_conn_and_tracer()

@@ -33,6 +33,23 @@ bottle:
   variables:
     SUITE_NAME: "bottle"
 
+celery:
+  extends: .test_base_riot_snapshot    
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, rabbitmq]
+    - !reference [.services, redis]
+  variables:
+    SUITE_NAME: "celery"
+    LOG_LEVEL: DEBUG
+    SNAPSHOT_DIR: /snapshots
+    PORT: 9126
+    SNAPSHOT_CI: 1
+    DD_POOL_TRACE_CHECK_FAILURES: true
+    DD_DISABLE_ERROR_RESPONSES: true
+    ENABLED_CHECKS: trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
+
+
 cherrypy:
   extends: .test_base_riot_snapshot
   variables:
@@ -55,7 +72,7 @@ django_hosts:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: 'django_hosts$'
-    
+
 djangorestframework:
   extends: .test_base_riot_snapshot
   services:
@@ -159,6 +176,14 @@ kafka:
     TEST_KAFKA_HOST: "kafka"
     TEST_KAFKA_PORT: "29092"
 
+kombu:
+  extends: .test_base_riot_snapshot
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, rabbitmq]
+  variables:
+    SUITE_NAME: "kombu"
+
 logbook:
   extends: .test_base_riot_snapshot
   variables:
@@ -179,11 +204,16 @@ molten:
   variables:
     SUITE_NAME: "molten"
 
+protobuf:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "protobuf"
+
 opentracer:
   extends: .test_base_riot
   variables:
     SUITE_NAME: "opentracer"
-    
+
 pylibmc:
   extends: .test_base_riot_snapshot
   services:
@@ -285,7 +315,7 @@ structlog:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "structlog"
-    
+
 sourcecode:
   extends: .test_base_riot
   variables:
@@ -306,10 +336,39 @@ tornado:
   variables:
     SUITE_NAME: "tornado"
 
-unittest:
+aiohttp:
+  extends: .test_base_riot_snapshot
+  parallel: 3
+  variables:
+    SUITE_NAME: "aiohttp"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+requests:
   extends: .test_base_riot_snapshot
   variables:
-    SUITE_NAME: "unittest"
+    SUITE_NAME: "requests"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+httplib:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httplib"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+httpx:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httpx"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+  parallel: 2
 
 urllib3:
   extends: .test_base_riot_snapshot

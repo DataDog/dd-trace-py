@@ -540,30 +540,6 @@ jobs:
       - run_test:
           pattern: "datastreams"
 
-  ci_visibility:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "ci_visibility"
-          snapshot: true
-
-  dd_coverage:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_hatch_env_test:
-          env: 'dd_coverage'
-          snapshot: true
-
-  pytest_v2:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_hatch_env_test:
-          env: 'pytest_plugin_v2'
-          snapshot: true
-
   opentelemetry:
     parallelism: 4
     <<: *machine_executor
@@ -589,15 +565,6 @@ jobs:
           snapshot: true
           docker_services: 'postgres'
 
-  aiohttp:
-    <<: *machine_executor
-    parallelism: 3
-    steps:
-      - run_test:
-          pattern: 'aiohttp'  # includes aiohttp_jinja2
-          snapshot: true
-          docker_services: 'httpbin_local'
-
   cassandra:
     <<: *contrib_job
     docker:
@@ -613,25 +580,6 @@ jobs:
       - run_test:
           wait: cassandra
           pattern: 'cassandra'
-
-  celery:
-    <<: *contrib_job_large
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *rabbitmq_image
-      - image: *testagent_image
-        environment:
-        - LOG_LEVEL=DEBUG
-        - SNAPSHOT_DIR=/snapshots
-        - PORT=9126
-        - SNAPSHOT_CI=1
-        - DD_POOL_TRACE_CHECK_FAILURES=true
-        - DD_DISABLE_ERROR_RESPONSES=true
-        - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
-    steps:
-      - run_test:
-          pattern: 'celery'
 
   consul:
     <<: *contrib_job_small
@@ -651,23 +599,6 @@ jobs:
           pattern: 'django($|_celery)'
           snapshot: true
           docker_services: "memcached redis postgres"
-
-  httplib:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "httplib"
-          snapshot: true
-          docker_services: 'httpbin_local'
-
-  httpx:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'httpx'
-          snapshot: true
-          docker_services: 'httpbin_local'
 
   mariadb:
     <<: *machine_executor
@@ -711,14 +642,6 @@ jobs:
           wait: mysql
           pattern: 'pymysql$'
 
-  pytest:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          pattern: 'pytest'
-          snapshot: true
-
   mongoengine:
     <<: *machine_executor
     steps:
@@ -726,16 +649,6 @@ jobs:
           pattern: 'mongoengine'
           snapshot: true
           docker_services: 'mongo'
-
-  requests:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-      - *httpbin_local
-    steps:
-      - run_test:
-          pattern: "requests"
 
   sqlalchemy:
     <<: *contrib_job_small
@@ -789,17 +702,6 @@ jobs:
       - run_test:
           wait: postgres
           pattern: 'aiopg'
-
-  kombu:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *rabbitmq_image
-      - *testagent
-    steps:
-      - run_test:
-          wait: rabbitmq
-          pattern: 'kombu'
 
   build_docs:
     # build documentation and store as an artifact

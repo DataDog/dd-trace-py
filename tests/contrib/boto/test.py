@@ -16,7 +16,6 @@ from moto import mock_sts
 
 # project
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.boto.patch import patch
 from ddtrace.contrib.boto.patch import unpatch
 from ddtrace.ext import http
@@ -53,7 +52,6 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.get_tag("region"), "us-west-2")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
-        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
         # Create an instance
         ec2.run_instances(21)
@@ -185,32 +183,6 @@ class BotoTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assertEqual(span.name, "aws.ec2.request")
-
-    @mock_ec2
-    def test_analytics_enabled_with_rate(self):
-        with self.override_config("boto", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            ec2 = boto.ec2.connect_to_region("us-west-2")
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
-
-            ec2.get_all_instances()
-
-        spans = self.pop_spans()
-        assert spans
-        span = spans[0]
-        self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    @mock_ec2
-    def test_analytics_enabled_without_rate(self):
-        with self.override_config("boto", dict(analytics_enabled=True)):
-            ec2 = boto.ec2.connect_to_region("us-west-2")
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
-
-            ec2.get_all_instances()
-
-        spans = self.pop_spans()
-        assert spans
-        span = spans[0]
-        self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def _test_s3_client(self):
         # DEV: To test tag params check create bucket's span

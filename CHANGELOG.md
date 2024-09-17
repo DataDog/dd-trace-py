@@ -12,6 +12,28 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.11.6
+
+### Bug Fixes
+
+- library injection: Resolves an issue where the version of `attrs` installed by default on some Ubuntu installations was treated as incompatible with library injection
+- Code Security: This fixes a bug in the IAST patching process where `AttributeError` exceptions were being caught, interfering with the proper application cycle.
+
+
+---
+
+## 2.10.7
+
+---
+
+## 2.11.5
+
+### Bug Fixes
+
+- SSI: This fix ensures injection denylist is included in published OCI package.
+
+---
+
 ## 2.10.7
 
 ### Bug Fixes

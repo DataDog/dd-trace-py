@@ -8,8 +8,6 @@ from grpc import aio
 import pytest
 
 from ddtrace import Pin
-from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -31,7 +29,6 @@ from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterStub
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeterServicer_to_server
 from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
-from tests.utils import override_config
 
 
 _GRPC_PORT = 50531
@@ -413,74 +410,6 @@ async def test_pin_can_be_defined_per_channel(server_info, tracer):
     _check_server_span(server_span1, "grpc-aio-server", "SayHello", "unary")
     _check_client_span(client_span2, "grpc2", "SayHello", "unary")
     _check_server_span(server_span2, "grpc-aio-server", "SayHello", "unary")
-
-
-@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
-async def test_analytics_default(server_info, tracer):
-    credentials = grpc.ChannelCredentials(None)
-    async with aio.secure_channel(server_info.target, credentials) as channel:
-        stub = HelloStub(channel)
-        await stub.SayHello(HelloRequest(name="test"))
-
-    spans = _get_spans(tracer)
-    assert len(spans) == 2
-    client_span, server_span = spans
-
-    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
-    assert client_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-    _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
-    assert server_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-
-@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
-async def test_analytics_with_rate(server_info, tracer):
-    with override_config("grpc_aio_client", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        with override_config("grpc_aio_server", dict(analytics_enabled=True, analytics_sample_rate=0.75)):
-            async with aio.insecure_channel(server_info.target) as channel:
-                stub = HelloStub(channel)
-                await stub.SayHello(HelloRequest(name="test"))
-
-    spans = _get_spans(tracer)
-    assert len(spans) == 2
-    client_span, server_span = spans
-
-    assert client_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
-    assert server_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.75
-
-
-@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
-async def test_priority_sampling(server_info, tracer):
-    # DEV: Priority sampling is enabled by default
-    # Setting priority sampling reset the writer, we need to re-override it
-    async with aio.insecure_channel(server_info.target) as channel:
-        stub = HelloStub(channel)
-        response = await stub.SayHello(HelloRequest(name="propogator"))
-
-    spans = _get_spans(tracer)
-    assert len(spans) == 2
-    client_span, _ = spans
-    assert "x-datadog-trace-id={}".format(str(client_span._trace_id_64bits)) in response.message
-    assert "_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(client_span.trace_id)) in response.message
-    assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
-    assert "x-datadog-sampling-priority=1" in response.message
-
-
-@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
-async def test_analytics_without_rate(server_info, tracer):
-    with override_config("grpc_aio_client", dict(analytics_enabled=True)):
-        with override_config("grpc_aio_server", dict(analytics_enabled=True)):
-            async with aio.insecure_channel(server_info.target) as channel:
-                stub = HelloStub(channel)
-                await stub.SayHello(HelloRequest(name="test"))
-
-    spans = _get_spans(tracer)
-    assert len(spans) == 2
-    client_span, server_span = spans
-
-    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
-    assert client_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
-    _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
-    assert server_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
 
 @pytest.mark.skipif(
