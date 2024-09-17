@@ -14,7 +14,6 @@ import pytest
 
 import ddtrace
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -304,42 +303,6 @@ class TestSQLite(TracerTestCase):
         db = sqlite3.connect(":memory:")
         Pin.get_from(db).clone(tracer=tracer).onto(db)
         return db
-
-    def test_analytics_default(self):
-        q = "select * from sqlite_master"
-        connection = self._given_a_traced_connection(self.tracer)
-        cursor = connection.execute(q)
-        cursor.fetchall()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        span = spans[0]
-        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("sqlite", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            q = "select * from sqlite_master"
-            connection = self._given_a_traced_connection(self.tracer)
-            cursor = connection.execute(q)
-            cursor.fetchall()
-
-            spans = self.get_spans()
-            self.assertEqual(len(spans), 1)
-            span = spans[0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("sqlite", dict(analytics_enabled=True)):
-            q = "select * from sqlite_master"
-            connection = self._given_a_traced_connection(self.tracer)
-            cursor = connection.execute(q)
-            cursor.fetchall()
-
-            spans = self.get_spans()
-
-            self.assertEqual(len(spans), 1)
-            span = spans[0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_app_service_v0(self):

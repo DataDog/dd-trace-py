@@ -175,6 +175,8 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     else:
         string23 = string21
 
+    # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted_extend
+    string23 += "_extend"
     try:
         # label propagation_memory_check
         m = open(ROOT_DIR + "/" + string23 + ".txt")

@@ -17,6 +17,7 @@
       "openai.api_type": "azure",
       "openai.api_version": "2023-05-15",
       "openai.base_url": "https://test-openai.openai.azure.com//openai/deployments/test-openai/",
+      "openai.request.client": "AzureOpenAI",
       "openai.request.endpoint": "/v1/completions",
       "openai.request.max_tokens": "20",
       "openai.request.method": "POST",

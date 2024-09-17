@@ -5,7 +5,6 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.elasticsearch.patch import get_version
 from ddtrace.contrib.elasticsearch.patch import get_versions
 from ddtrace.contrib.elasticsearch.patch import patch
@@ -183,32 +182,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         result = es.search(size=100, body={"query": query}, **args)
 
         assert len(result["hits"]["hits"]) == 2, result
-
-    def test_analytics_default(self):
-        es = self.es
-        self.create_index(es)
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("elasticsearch", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            es = self.es
-            self.create_index(es)
-
-            spans = self.get_spans()
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("elasticsearch", dict(analytics_enabled=True)):
-            es = self.es
-            self.create_index(es)
-
-            spans = self.get_spans()
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_patch_unpatch(self):
         # Test patch idempotence

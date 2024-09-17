@@ -58,6 +58,7 @@ variables:
 
 include:
   - local: ".gitlab/tests/appsec.yml"
+  - local: ".gitlab/tests/ci_visibility.yml"
   - local: ".gitlab/tests/contrib.yml"
   - local: ".gitlab/tests/core.yml"
   - local: ".gitlab/tests/debugging.yml"

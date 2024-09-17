@@ -2122,6 +2122,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="protobuf",
+            command="pytest {cmdargs} tests/contrib/protobuf",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pkgs={
+                "protobuf": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
@@ -2683,6 +2692,16 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
                 "anthropic": [latest, "~=0.28"],
+            },
+        ),
+        Venv(
+            name="google_generativeai",
+            command="pytest {cmdargs} tests/contrib/google_generativeai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-generativeai": [latest],
+                "pillow": latest,
             },
         ),
         Venv(
