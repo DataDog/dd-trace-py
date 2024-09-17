@@ -116,6 +116,11 @@ config._add(
 )
 
 
+JOB_ID = "job.id"
+QUEUE_NAME = "queue.name"
+JOB_FUNC_NAME = "job.func_name"
+
+
 def get_version():
     # type: () -> str
     import rq
@@ -150,9 +155,9 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         tags={
             COMPONENT: config.rq.integration_name,
             SPAN_KIND: SpanKind.PRODUCER,
-            "queue.name": instance.name,
-            "job.id": job.get_id(),
-            "job.func_name": job.func_name,
+            QUEUE_NAME :  instance.name,
+            JOB_ID: job.get_id(),
+            JOB_FUNC_NAME : job.func_name,
         },
     ) as ctx, ctx[ctx["call_key"]] as span:
         # If the queue is_async then add distributed tracing headers to the job
@@ -172,7 +177,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
         pin=pin,
         service=trace_utils.int_service(pin, config.rq),
         call_key="traced_queue_fetch_job",
-        tags={COMPONENT: config.rq.integration_name, "job.id": job_id},
+        tags={COMPONENT: config.rq.integration_name, JOB_ID : job_id},
     ) as ctx, ctx[ctx["call_key"]] as span:
         return func(*args, **kwargs)
 
@@ -194,15 +199,15 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             call_key="worker.perform_job",
             distributed_headers_config=config.rq_worker,
             distributed_headers=job.meta,
-            tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, "job.id": job.get_id()},
+            tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
         ) as ctx, ctx[ctx["call_key"]] as span:
             try:
                 return func(*args, **kwargs)
             finally:
                 # call _after_perform_job handler for job status and origin
-                # core.dispatch("rq.worker.perform_job", [ctx, job])
                 span_tags = {"job.status": job.get_status() or "None", "job.origin": job.origin}
-                core.dispatch("rq.worker.perform_job", [ctx, job.is_failed, span_tags])
+                job_failed = job.is_failed
+                core.dispatch("rq.worker.perform_job", [ctx, job_failed, span_tags])
 
     finally:
         # Force flush to agent since the process `os.exit()`s
@@ -225,7 +230,7 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
         resource=job.func_name,
         call_key="job.perform",
         pin=pin,
-        tags={COMPONENT: config.rq.integration_name, "job.id": job.get_id()},
+        tags={COMPONENT: config.rq.integration_name, JOB_ID: job.get_id()},
     ) as ctx, ctx[ctx["call_key"]] as span:
         return func(*args, **kwargs)
 
@@ -242,7 +247,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.rq_worker),
         call_key="job.fetch_many",
         pin=pin,
-        tags={COMPONENT: config.rq.integration_name, "job_ids": job_ids},
+        tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
     ) as ctx, ctx[ctx["call_key"]] as span:
         return func(*args, **kwargs)
 
