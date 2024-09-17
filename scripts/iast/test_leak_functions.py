@@ -23,13 +23,14 @@ def parse_arguments():
 
 
 def test_iast_leaks(iterations: int, fail_percent: float, print_every: int):
-    if iterations < 100000:
+    if iterations < 60000:
         print(
-            "Warning: running with %d iterations. At least 100.000 are recommended to stabilize the RSS info"
-            % iterations
+            "Error: not running with %d iterations. At least 60.000 are needed to stabilize the RSS info" % iterations
         )
+        sys.exit(1)
+
     try:
-        half_iterations = iterations // 2
+        mem_reference_iterations = 50000
         print("Test %d iterations" % iterations)
         current_rss = 0
         half_rss = 0
@@ -44,8 +45,9 @@ def test_iast_leaks(iterations: int, fail_percent: float, print_every: int):
             assert is_pyobject_tainted(result)
             reset_context()
 
-            if i == half_iterations:
+            if i == mem_reference_iterations:
                 half_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+                print("Reference usage taken at %d iterations: %f" % (i, half_rss))
 
             current_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
 
