@@ -1,10 +1,10 @@
 import dis
 import sys
-import typing as t
 from types import CodeType
+import typing as t
 
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.injection import HookType
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
