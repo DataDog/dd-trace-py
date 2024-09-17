@@ -7,7 +7,6 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
 from ddtrace.appsec._iast._taint_tracking.aspects import index_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_expand_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_findall_aspect
