@@ -15,6 +15,7 @@ from typing import Optional
 from typing import Text
 from typing import Tuple
 from typing import Union
+
 import _io
 
 from ddtrace.appsec._constants import IAST

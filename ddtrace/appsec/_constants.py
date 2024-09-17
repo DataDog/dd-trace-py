@@ -1,8 +1,9 @@
 import os
-from _io import BytesIO
-from _io import StringIO
 from re import Match
 import sys
+
+from _io import BytesIO
+from _io import StringIO
 
 
 if sys.version_info >= (3, 8):
