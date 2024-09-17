@@ -61,13 +61,13 @@ def test_iast_leaks(iterations: int, fail_percent: float, print_every: int):
         percent_increase = ((final_rss - half_rss) / half_rss) * 100
         if percent_increase > fail_percent:
             print(
-                f"Failed: memory increase from half-point ({half_iterations} iterations) is "
+                f"Failed: memory increase from reference-point ({mem_reference_iterations} iterations) is "
                 f"{percent_increase:.2f}% which is greater than {fail_percent}%"
             )
             return 1
 
         print(
-            f"Success: memory increase is {percent_increase:.2f}% from half-point ({half_iterations} "
+            f"Success: memory increase is {percent_increase:.2f}% from reference-point ({mem_reference_iterations} "
             f"iterations) which is less than {fail_percent}%"
         )
         return 0
