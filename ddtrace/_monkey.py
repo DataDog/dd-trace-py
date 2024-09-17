@@ -45,6 +45,7 @@ PATCH_MODULES = {
     "grpc": True,
     "httpx": True,
     "kafka": True,
+    "aiokafka": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,

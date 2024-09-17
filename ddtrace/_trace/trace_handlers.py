@@ -9,6 +9,7 @@ from typing import Optional
 
 import wrapt
 
+from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
@@ -23,6 +24,11 @@ from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import db
 from ddtrace.ext import http
+from ddtrace.ext.kafka import MESSAGE_KEY
+from ddtrace.ext.kafka import MESSAGE_OFFSET
+from ddtrace.ext.kafka import PARTITION
+from ddtrace.ext.kafka import TOMBSTONE
+from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.compat import nullcontext
@@ -756,6 +762,34 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
+def _on_aiokafka_send_start(topic, value, key, headers, span):
+    if config.aiokafka.distributed_tracing_enabled:
+        # inject headers with Datadog tags:
+        tracing_headers = {}
+        HTTPPropagator.inject(span.context, tracing_headers)
+        for key, value in tracing_headers.items():
+            headers.append((key, value.encode("utf-8")))
+
+
+def _on_aiokafka_getone_message(ctx, message, err):
+    span = ctx[ctx["call_key"]]
+    span.set_tag(TOMBSTONE, str(message is None).lower())
+    if message is not None:
+        message_key = message.key or ""
+        message_offset = message.offset or -1
+        span.set_tag_str(TOPIC, message.topic)
+
+    if isinstance(message_key, str) or isinstance(message_key, bytes):
+        span.set_tag_str(MESSAGE_KEY, message_key)
+
+    span.set_tag(PARTITION, message.partition)
+    span.set_tag(MESSAGE_OFFSET, message_offset)
+    span.set_tag(SPAN_MEASURED_KEY)
+
+    if err is not None:
+        span.set_exc_info(*sys.exc_info())
+
+
 def _on_test_visibility_enable(config) -> None:
     from ddtrace.internal.ci_visibility import CIVisibility
 
@@ -826,7 +860,8 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
-
+    core.on("aiokafka.send.start", _on_aiokafka_send_start)
+    core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
     core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
@@ -848,6 +883,10 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "aiokafka.send",
+        "aiokafka.send_and_wait",
+        "aiokafka.getone",
+        "aiokafka.getmany",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

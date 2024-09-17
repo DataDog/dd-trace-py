@@ -722,6 +722,14 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
+  aiokafka:
+    <<: *machine_executor
+    parallelism: 6
+    steps:
+      - run_test:
+          pattern: 'aiokafka$'
+          snapshot: true
+          docker_services: 'kafka'
   kombu:
     <<: *contrib_job
     docker:
