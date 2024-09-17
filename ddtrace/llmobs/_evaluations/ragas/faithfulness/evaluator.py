@@ -3,14 +3,11 @@ from concurrent import futures
 import math
 import time
 from typing import Dict
-from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-
-from ...._writer import LLMObsEvaluationMetricEvent
 
 
 logger = get_logger(__name__)
@@ -18,6 +15,8 @@ logger = get_logger(__name__)
 
 class RagasFaithfulnessEvaluator(PeriodicService):
     """Base class for evaluating LLM Observability span events"""
+
+    name = "ragas.faithfulness"
 
     def __init__(self, interval: float, _evaluation_metric_writer=None, _llmobs_instance=None):
         super(RagasFaithfulnessEvaluator, self).__init__(interval=interval)
@@ -27,8 +26,6 @@ class RagasFaithfulnessEvaluator(PeriodicService):
         self._buffer_limit = 1000
 
         self._evaluation_metric_writer = _evaluation_metric_writer
-
-        self.name = "ragas.faithfulness"
 
         self.executor = futures.ThreadPoolExecutor()
 
@@ -70,16 +67,16 @@ class RagasFaithfulnessEvaluator(PeriodicService):
             logger.debug("failed to run evaluation: %s", e)
 
     def run(self, spans):
-        def dummy_score_and_return_evaluation_that_will_be_replaced(span) -> Optional[LLMObsEvaluationMetricEvent]:
-            return LLMObsEvaluationMetricEvent(
-                span_id=span.get("span_id"),
-                trace_id=span.get("trace_id"),
-                score_value=1,
-                ml_app=config._llmobs_ml_app,
-                timestamp_ms=math.floor(time.time() * 1000),
-                metric_type="score",
-                label="dummy.ragas.faithfulness",
-            )
+        def dummy_score_and_return_evaluation_that_will_be_replaced(span):
+            return {
+                "span_id": span.get("span_id"),
+                "trace_id": span.get("trace_id"),
+                "score_value": 1,
+                "ml_app": config._llmobs_ml_app,
+                "timestamp_ms": math.floor(time.time() * 1000),
+                "metric_type": "score",
+                "label": "dummy.ragas.faithfulness",
+            }
 
         results = self.executor.map(dummy_score_and_return_evaluation_that_will_be_replaced, spans)
         return [result for result in results if result is not None]
