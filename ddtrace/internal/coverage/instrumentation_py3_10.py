@@ -313,10 +313,11 @@ def instrument_all_lines_nonrecursive(
             raise NotImplementedError(f"Unexpected instruction {opcode}")
 
         # The code to patch looks like <EXTENDED_ARG, 0, EXTENDED_ARG, 0, EXTENDED_ARG, 0, opcode, 0>.
-        # Fit each byte of the argument over the corresponding 0, addressed from the end of the instruction.
-        new_code[new_end - 7] = (arg >> 24) & 0xFF
-        new_code[new_end - 5] = (arg >> 16) & 0xFF
-        new_code[new_end - 3] = (arg >> 8) & 0xFF
-        new_code[new_end - 1] = arg & 0xFF
+        # Write each byte of the argument over the corresponding 0, starting from the end of the instruction.
+        arg_offset = new_end - 1
+        while arg:
+            new_code[arg_offset] = arg & 0xFF
+            arg >>= 8
+            arg_offset -= 2
 
     return new_code, new_consts, new_linetable, seen_lines
