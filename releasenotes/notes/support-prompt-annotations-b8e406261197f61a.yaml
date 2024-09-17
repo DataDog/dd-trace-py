@@ -1,6 +1,4 @@
 ---
 features:
   - |
-    LLM Observability: This introduces the ability to annotate prompt templates via `LLMObs.annotate` on LLM spans.
-    Prompt templates should be passed in as a `Prompt` typed dictionary using `from ddtrace.llmobs.utils import Prompt`
-    or a dictionary following the `Prompt` schema.
+    LLM Observability: LLM Observability: Introduces the prompt template argument to `LLMObs.annotate(prompt={...})` for LLM span kinds.
