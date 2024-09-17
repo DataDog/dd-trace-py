@@ -126,7 +126,7 @@ def get_version():
 @trace_utils.with_traced_module
 def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     job = get_argument_value(args, kwargs, 0, "f")
-
+   
     func_name = job.func_name
     job_inst = job.instance
     job_inst_str = "%s.%s" % (job_inst.__module__, job_inst.__class__.__name__) if job_inst else ""
@@ -146,6 +146,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WORKER,
         call_key="queue.enqueue_job",
+        integration_config=config.rq_worker,
         tags={
             COMPONENT: config.rq.integration_name,
             SPAN_KIND: SpanKind.PRODUCER,
@@ -155,8 +156,8 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         },
     ) as ctx, ctx[ctx["call_key"]] as span:
         # If the queue is_async then add distributed tracing headers to the job
-        if instance.is_async and config.rq.distributed_tracing_enabled:
-            core.dispatch("rq.queue.enqueue_job", [ctx, job])
+        if instance.is_async:
+            core.dispatch("rq.queue.enqueue_job", [ctx, job.meta])
         return func(*args, **kwargs)
 
 
@@ -199,15 +200,16 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 return func(*args, **kwargs)
             finally:
                 # call _after_perform_job handler for job status and origin
-                core.dispatch("rq.worker.perform_job", [ctx, job])
+                # core.dispatch("rq.worker.perform_job", [ctx, job])
+                span_tags = {"job.status":job.get_status() or "None", "job.origin":job.origin}
+                core.dispatch("rq.worker.perform_job", [ctx, job.is_failed, span_tags])
 
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
-
         core.context_with_data("rq.worker.after.perform.job")
-        core.dispatch("rq.worker.after.perform.job", [ctx, job])
-
+        core.dispatch("rq.worker.after.perform.job", [ctx])
+     
 
 @trace_utils.with_traced_module
 def traced_job_perform(rq, pin, func, instance, args, kwargs):

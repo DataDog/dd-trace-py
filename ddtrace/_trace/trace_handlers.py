@@ -35,6 +35,7 @@ from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -691,22 +692,33 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
 
 
-def _on_rq_queue_enqueue_job_is_async(ctx, job):
-    span = ctx[ctx["call_key"]]
-    HTTPPropagator.inject(span.context, job.meta)
+def _on_propagate_context(ctx, headers):
+    config = ctx.get_item("integration_config")
+    distributed_tracing_enabled = config.distributed_tracing_enabled
+    call_key = ctx.get_item("call_key")
+    if call_key is None:
+        log.warning("call_key not found in ctx")
+    if distributed_tracing_enabled and call_key:           
+            span = ctx[ctx["call_key"]]
+            HTTPPropagator.inject(span.context, headers)
 
 
-def _on_rq_after_perform_job(ctx, job):
+def _on_rq_after_perform_job(ctx, job_failed, span_tags):
     """sets job.status and job.origin span tags after job is performed"""
     # get_status() returns None when ttl=0
-    span = ctx[ctx["call_key"]]
-    span.set_tag_str("job.status", job.get_status() or "None")
-    span.set_tag_str("job.origin", job.origin)
-    if job.is_failed:
+    call_key = ctx.get_item("call_key")
+    if call_key:
+        span = ctx[ctx["call_key"]]
+    
+    if job_failed and span:
         span.error = 1
 
+    if span_tags:
+        for k in span_tags.keys():
+            span.set_tag_str(k, span_tags[k])
 
-def _on_rq_end_of_traced_method_in_fork(ctx, job):
+
+def _on_end_of_traced_method_in_fork(ctx):
     """Force flush to agent since the process `os.exit()`s
     immediately after this method returnsf
     """
@@ -853,8 +865,8 @@ def listen():
     core.on("test_visibility.disable", _on_test_visibility_disable)
     core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
     core.on("rq.worker.perform_job", _on_rq_after_perform_job)
-    core.on("rq.worker.after.perform.job", _on_rq_end_of_traced_method_in_fork)
-    core.on("rq.queue.enqueue_job", _on_rq_queue_enqueue_job_is_async)
+    core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
+    core.on("rq.queue.enqueue_job", _on_propagate_context)
 
     for context_name in (
         "flask.call",
