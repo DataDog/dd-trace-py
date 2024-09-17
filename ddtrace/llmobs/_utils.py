@@ -17,6 +17,24 @@ from ddtrace.llmobs._constants import SESSION_ID
 log = get_logger(__name__)
 
 
+class AnnotationContext:
+    def __init__(self, _tracer, _annotation_callback):
+        self._tracer = _tracer
+        self._annotate_prompt = _annotation_callback
+
+    def __enter__(self):
+        self._tracer.on_start_span(self._annotate_prompt)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._tracer.deregister_on_start_span(self._annotate_prompt)
+
+    async def __aenter__(self):
+        self._tracer.on_start_span(self._annotate_prompt)
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self._tracer.deregister_on_start_span(self._annotate_prompt)
+
+
 def _get_attr(o: object, attr: str, default: object):
     # Convenience method to get an attribute from an object or dict
     if isinstance(o, dict):
@@ -50,7 +68,8 @@ def _get_span_name(span: Span) -> str:
     if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME) and span.resource != "":
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
-        return "openai.{}".format(span.resource)
+        client_name = span.get_tag("openai.request.client") or "OpenAI"
+        return "{}.{}".format(client_name, span.resource)
     return span.name
 
 

@@ -9,6 +9,7 @@ import mock
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_link import _SpanPointerDirection
 from ddtrace._trace.span import Span
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
@@ -445,6 +446,60 @@ class SpanTestCase(TracerTestCase):
             SpanLink(span_id=0, trace_id=1)
         assert str(exc_span.value) == "span_id must be > 0. Value is 0"
         assert str(exc_trace.value) == "trace_id must be > 0. Value is 0"
+
+    def test_span_pointers(self):
+        s = Span(name="test.span")
+
+        s.set_link(trace_id=1, span_id=10)
+        s._add_span_pointer(
+            pointer_kind="some-kind",
+            pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+            pointer_hash="some-hash",
+            extra_attributes={"extra": "attribute"},
+        )
+        s.set_link(trace_id=1, span_id=15)
+        s._add_span_pointer(
+            pointer_kind="another-kind",
+            pointer_direction=_SpanPointerDirection.UPSTREAM,
+            pointer_hash="another-hash",
+            extra_attributes={"more-extra": "attribute"},
+        )
+
+        # We don't particularly care about how they're stored, but we do care
+        # that they are serizlied correctly into the _links when they get
+        # shipped.
+        assert [link.to_dict() for link in s._links] == [
+            {
+                "trace_id": "00000000000000000000000000000001",
+                "span_id": "000000000000000a",
+            },
+            {
+                "trace_id": "00000000000000000000000000000000",
+                "span_id": "0000000000000000",
+                "attributes": {
+                    "link.kind": "span-pointer",
+                    "ptr.kind": "some-kind",
+                    "ptr.dir": "d",
+                    "ptr.hash": "some-hash",
+                    "extra": "attribute",
+                },
+            },
+            {
+                "trace_id": "00000000000000000000000000000001",
+                "span_id": "000000000000000f",
+            },
+            {
+                "trace_id": "00000000000000000000000000000000",
+                "span_id": "0000000000000000",
+                "attributes": {
+                    "link.kind": "span-pointer",
+                    "ptr.kind": "another-kind",
+                    "ptr.dir": "u",
+                    "ptr.hash": "another-hash",
+                    "more-extra": "attribute",
+                },
+            },
+        ]
 
 
 @pytest.mark.parametrize(

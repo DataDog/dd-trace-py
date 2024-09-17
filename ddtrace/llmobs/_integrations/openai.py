@@ -78,6 +78,15 @@ class OpenAIIntegration(BaseLLMIntegration):
                     span.set_tag_str("openai.organization.id", v or "")
                 else:
                     span.set_tag_str("openai.%s" % attr, str(v))
+        span.set_tag_str("openai.request.client", "AzureOpenAI" if self._is_azure_openai(span) else "OpenAI")
+
+    @staticmethod
+    def _is_azure_openai(span):
+        """Check if the traced operation is an AzureOpenAI operation using the request's base URL."""
+        base_url = span.get_tag("openai.base_url") or span.get_tag("openai.api_base")
+        if not base_url or not isinstance(base_url, str):
+            return False
+        return "azure" in base_url.lower()
 
     @classmethod
     def _logs_tags(cls, span: Span) -> str:
