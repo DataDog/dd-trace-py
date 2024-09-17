@@ -147,7 +147,7 @@ def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_w
 def LLMObsWithRagas(monkeypatch, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
-    global_config.update(dict(_llmobs_ragas_faithfulness_enabled=True))
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATORS_RAGAS", "faithfulness")
     monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_RAGAS_FAITHFULNESS_INTERVAL", "0.1")
     with override_global_config(global_config):
         dummy_tracer = DummyTracer()

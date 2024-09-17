@@ -89,14 +89,14 @@ def test_service_enable_with_apm_disabled(monkeypatch):
         llmobs_service.disable()
 
 
-def test_service_enable_with_ragas_evaluator_enabled():
+def test_service_enable_with_ragas_evaluator_enabled(monkeypatch):
     with override_global_config(
         dict(
             _dd_api_key="<not-a-real-api-key>",
             _llmobs_ml_app="<ml-app-name>",
-            _llmobs_ragas_faithfulness_enabled="true",
         )
     ):
+        monkeypatch.setenv("_DD_LLMOBS_EVALUATORS_RAGAS", "faithfulness")
         dummy_tracer = DummyTracer()
         llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_instance = llmobs_service._instance
@@ -120,14 +120,14 @@ def test_service_disable():
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
 
 
-def test_service_disable_with_ragas_evaluator_enabled():
+def test_service_disable_with_ragas_evaluator_enabled(monkeypatch):
     with override_global_config(
         dict(
             _dd_api_key="<not-a-real-api-key>",
             _llmobs_ml_app="<ml-app-name>",
-            _llmobs_ragas_faithfulness_enabled="true",
         )
     ):
+        monkeypatch.setenv("_DD_LLMOBS_EVALUATORS_RAGAS", "faithfulness")
         dummy_tracer = DummyTracer()
         llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_service.disable()

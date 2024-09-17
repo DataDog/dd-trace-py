@@ -65,6 +65,10 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "langchain": "langchain",
 }
 
+SUPPORTED_RAGAS_EVALUATORS = {
+    "faithfulness": RagasFaithfulnessEvaluator,
+}
+
 
 class LLMObs(Service):
     _instance = None  # type: LLMObs
@@ -89,14 +93,18 @@ class LLMObs(Service):
         )
 
         self._evaluators = []
-        if config._llmobs_ragas_faithfulness_enabled:
-            self._evaluators.append(
-                RagasFaithfulnessEvaluator(
-                    interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_RAGAS_FAITHFULNESS_INTERVAL", 1.0)),
-                    _evaluation_metric_writer=self._llmobs_eval_metric_writer,
-                    _llmobs_instance=self,
-                )
-            )
+
+        if os.getenv("_DD_LLMOBS_EVALUATORS_RAGAS"):
+            ragas_evaluators = os.getenv("_DD_LLMOBS_EVALUATORS_RAGAS").split(",")
+            for evaluator in ragas_evaluators:
+                if evaluator in SUPPORTED_RAGAS_EVALUATORS:
+                    self._evaluators.append(
+                        SUPPORTED_RAGAS_EVALUATORS[evaluator](
+                            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_RAGAS_FAITHFULNESS_INTERVAL", 1.0)),
+                            _evaluation_metric_writer=self._llmobs_eval_metric_writer,
+                            _llmobs_instance=self,
+                        )
+                    )
 
         self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluators)
         forksafe.register(self._child_after_fork)
