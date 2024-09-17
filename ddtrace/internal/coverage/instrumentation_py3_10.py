@@ -1,7 +1,7 @@
 import dis
 import sys
-from types import CodeType
 import typing as t
+from types import CodeType
 
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.injection import HookType
@@ -166,9 +166,9 @@ def instrument_all_lines_nonrecursive(
         """
         Add a new line number update to the line table array.
 
-        Conceptually, the line table registers which ranges of offsets are assigned a given line number. Since we need to
-        know the start and end offsets of a given line, this function should be called _after_ a given line is finished,
-        i.e., at the beginning of the next line, and after all lines have been processed.
+        Conceptually, the line table registers which ranges of offsets are assigned a given line number. Since we need
+        to know the start and end offsets of a given line, this function should be called _after_ a given line is
+        finished, i.e., at the beginning of the next line, and after all lines have been processed.
 
         See <https://github.com/python/cpython/blob/3.10/Objects/lnotab_notes.txt> for details on the line table format.
         """
