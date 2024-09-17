@@ -69,7 +69,10 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     PyObject* idx = args[1];
     const auto result_o = PyObject_GetItem(candidate_text, idx);
     // if (!is_text(candidate_text) or !is_some_number(idx)) {
-    if (!is_tainteable(candidate_text) or !is_some_number(idx)) {
+    // if (!is_tainteable(candidate_text) or !is_some_number(idx)) {
+    //     return result_o;
+    // }
+    if ((!is_text(candidate_text) or !is_some_number(idx)) and !PyReMatch_Check(candidate_text)) {
         return result_o;
     }
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
