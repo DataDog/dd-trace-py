@@ -126,7 +126,7 @@ def get_version():
 @trace_utils.with_traced_module
 def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     job = get_argument_value(args, kwargs, 0, "f")
-   
+
     func_name = job.func_name
     job_inst = job.instance
     job_inst_str = "%s.%s" % (job_inst.__module__, job_inst.__class__.__name__) if job_inst else ""
@@ -201,7 +201,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             finally:
                 # call _after_perform_job handler for job status and origin
                 # core.dispatch("rq.worker.perform_job", [ctx, job])
-                span_tags = {"job.status":job.get_status() or "None", "job.origin":job.origin}
+                span_tags = {"job.status": job.get_status() or "None", "job.origin": job.origin}
                 core.dispatch("rq.worker.perform_job", [ctx, job.is_failed, span_tags])
 
     finally:
@@ -209,7 +209,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
         # immediately after this method returns
         core.context_with_data("rq.worker.after.perform.job")
         core.dispatch("rq.worker.after.perform.job", [ctx])
-     
+
 
 @trace_utils.with_traced_module
 def traced_job_perform(rq, pin, func, instance, args, kwargs):
