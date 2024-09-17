@@ -646,9 +646,7 @@ class LLMObs(Service):
             log.warning("span_tags must be a dictionary of string key - primitive value pairs.")
             return
         current_tags = span.get_tag(TAGS)
-        if current_tags and not isinstance(current_tags, dict):
-            log.warning("Failed to parse existing span tags. Existing tags must be a dictionary of key-value pairs.")
-        elif current_tags:
+        if current_tags:
             span_tags.update(json.loads(current_tags))
         span.set_tag_str(TAGS, json.dumps(span_tags, skipkeys=True, default=_unserializable_default_repr))
 

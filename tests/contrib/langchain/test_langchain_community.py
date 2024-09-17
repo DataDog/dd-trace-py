@@ -1358,9 +1358,6 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core, request_v
 
     from langchain_core.tools import StructuredTool
 
-    class Unserializable:
-        pass
-
     def circumference_tool(radius: float) -> float:
         return float(radius) * 2.0 * pi
 
@@ -1372,4 +1369,4 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core, request_v
         response_format="content",
     )
 
-    calculator.invoke("2", config={"unserializable": Unserializable()})
+    calculator.invoke("2", config={"unserializable": object()})

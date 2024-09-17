@@ -148,7 +148,6 @@ class TestLLMObsAnthropic:
         actual_span = mock_llmobs_writer.enqueue.call_args[0][0]
         assert "[Unserializable object: <object object at " in actual_span["meta"]["metadata"]["max_tokens"]
 
-
     def test_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
