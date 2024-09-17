@@ -6,6 +6,7 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
+from ddtrace import ext
 import platform
 from .._types import StringType
 from ..util import ensure_binary_or_empty
@@ -62,7 +63,8 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
-    void ddup_push_trace_endpoint(uint64_t local_root_span_id, string_view trace_endpoint, int64_t count)
+    void ddup_push_trace_endpoint(Sample *sample, string_view trace_endpoint)
+    void ddup_push_endpoint_count(string_view trace_endpoint, int64_t count)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
@@ -173,18 +175,15 @@ def upload(processsor: EndpointCallCounterProcessor) -> None:
     runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
 
-    counts, local_roots = processsor.reset()
+    counts= processsor.reset()
     if counts:
         for resource, cnt in counts.items():
             resource_bytes = ensure_binary_or_empty(resource)
-            local_root = local_roots.get(resource, None)
             cnt = clamp_to_int64_unsigned(cnt)
-            if local_root:
-                ddup_push_trace_endpoint(
-                    clamp_to_uint64_unsigned(local_root),
-                    string_view(<const char*>resource_bytes, len(resource_bytes)),
-                    cnt
-                )
+            ddup_push_endpoint_count(
+                string_view(<const char*>resource_bytes, len(resource_bytes)),
+                cnt
+            )
 
     with nogil:
         ddup_upload()
@@ -286,36 +285,21 @@ cdef class SampleHandle:
 
     def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool) -> None:
         if self.ptr is NULL:
-            call_ddup_config_user_tag(ensure_binary_or_empty("self.ptr"), ensure_binary_or_empty("null"))
             return
-        else:
-            call_ddup_config_user_tag(ensure_binary_or_empty("self.ptr"), ensure_binary_or_empty("not null"))
         if not span:
-            call_ddup_config_user_tag(ensure_binary_or_empty("span"), ensure_binary_or_empty("null"))
             return
-        else:
-            call_ddup_config_user_tag(ensure_binary_or_empty("span"), ensure_binary_or_empty("not null"))
         if span.span_id:
             ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span.span_id))
-            call_ddup_config_user_tag(ensure_binary_or_empty("span.span_id"), ensure_binary_or_empty(str(span.span_id)))
-        else:
-            call_ddup_config_user_tag(ensure_binary_or_empty("span_id"), ensure_binary_or_empty("null"))
         if not span._local_root:
-            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root"), ensure_binary_or_empty("null"))
             return
-        else:
-            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root"), ensure_binary_or_empty(str(span._local_root)))
         if span._local_root.span_id:
             ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
-            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root.span_id"), ensure_binary_or_empty(str(span._local_root.span_id)))
-        else:
-            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root.span_id"), ensure_binary_or_empty("null"))
         if span._local_root.span_type:
-            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root.span_type"), ensure_binary_or_empty(str(span._local_root.span_type)))
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
-        else:
-            call_ddup_config_user_tag(ensure_binary_or_empty("span._local_root.span_type"), ensure_binary_or_empty("null"))
+            if span._local_root.span_type == ext.SpanTypes.WEB and endpoint_collection_enabled:
+                resource_bytes = ensure_binary_or_empty(span._local_root.resource)
+                ddup_push_trace_endpoint(self.ptr, string_view(<const char*>resource_bytes, len(resource_bytes)))
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:

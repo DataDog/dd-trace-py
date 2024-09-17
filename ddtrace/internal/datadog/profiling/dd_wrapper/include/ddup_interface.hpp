@@ -51,7 +51,7 @@ extern "C"
     void ddup_push_span_id(Datadog::Sample* sample, uint64_t span_id);
     void ddup_push_local_root_span_id(Datadog::Sample* sample, uint64_t local_root_span_id);
     void ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type);
-    bool ddup_push_trace_endpoint(uint64_t local_root_span_id, std::string_view trace_endpoint, int64_t count);
+    void ddup_push_trace_endpoint(Datadog::Sample* sample, std::string_view trace_endpoint);
     void ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count);
     void ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name);
     void ddup_push_frame(Datadog::Sample* sample,
@@ -62,6 +62,9 @@ extern "C"
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
+
+    // Proxy function to next Profile
+    bool ddup_push_endpoint_count(std::string_view trace_endpoint, int64_t count);
 #ifdef __cplusplus
 } // extern "C"
 #endif
