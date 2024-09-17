@@ -28,11 +28,7 @@ import dataclasses
 from enum import Enum
 from typing import Optional
 
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
-
-
-log = get_logger(__name__)
 
 
 class SpanLinkKind(Enum):
