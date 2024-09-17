@@ -27,7 +27,6 @@ variables:
 .test_base_hatch_snapshot:
   extends: .test_base_hatch
   services:
-    - !reference [.test_base_hatch, services]
     - !reference [.services, testagent]
   before_script:
     - !reference [.testrunner, before_script]
