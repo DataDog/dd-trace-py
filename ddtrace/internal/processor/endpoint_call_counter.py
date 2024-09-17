@@ -15,6 +15,7 @@ EndpointCountsType = typing.Dict[str, int]
 @dataclass(eq=False)
 class EndpointCallCounterProcessor(SpanProcessor):
     endpoint_counts: EndpointCountsType = field(default_factory=dict, init=False, repr=False, compare=False)
+    endpoint_to_span_id: typing.Dict[str, int] = field(default_factory=dict, init=False, repr=False, compare=False)
     _endpoint_counts_lock: typing.ContextManager = field(
         default_factory=forksafe.Lock, init=False, repr=False, compare=False
     )
@@ -34,12 +35,15 @@ class EndpointCallCounterProcessor(SpanProcessor):
             return
         if span._local_root == span and span.span_type == SpanTypes.WEB:
             resource = ensure_text(span.resource, errors="backslashreplace")
+            span_id = span.span_id
             with self._endpoint_counts_lock:
                 self.endpoint_counts[resource] = self.endpoint_counts.get(resource, 0) + 1
+                self.endpoint_to_span_id[resource] = span_id
 
-    def reset(self):
-        # type: () -> EndpointCountsType
+    def reset(self) -> typing.Tuple[EndpointCountsType, typing.Dict[str, int]]:
         with self._endpoint_counts_lock:
             counts = self.endpoint_counts
             self.endpoint_counts = {}
-            return counts
+            span_ids = self.endpoint_to_span_id
+            self.endpoint_to_span_id = {}
+            return counts, span_ids

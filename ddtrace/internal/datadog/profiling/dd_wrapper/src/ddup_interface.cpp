@@ -236,13 +236,6 @@ ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type) // cp
 }
 
 void
-ddup_push_trace_endpoint(Datadog::Sample* sample,
-                         std::string_view trace_endpoint) // cppcheck-suppress unusedFunction
-{
-    sample->push_trace_endpoint(trace_endpoint);
-}
-
-void
 ddup_push_exceptioninfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                         std::string_view exception_type,
                         int64_t count)
@@ -315,7 +308,27 @@ ddup_upload() // cppcheck-suppress unusedFunction
     return success;
 }
 
-bool
+void
+ddup_push_trace_endpoint(uint64_t local_root_span_id,
+                         std::string_view trace_endpoint) // cppcheck-suppress unusedFunction
+{
+    ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
+    ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
+
+    auto res = ddog_prof_Profile_set_endpoint(&profile, local_root_span_id, trace_endpoint_slice);
+    if (!res.ok) {
+        auto err = res.err;
+        const std::string errmsg = Datadog::err_to_msg(&err, "Error setting endpoint");
+        std::cerr << errmsg << std::endl;
+        ddog_Error_drop(&err);
+        Datadog::Sample::profile_release();
+        return;
+    }
+    Datadog::Sample::profile_release();
+    return;
+}
+
+void
 ddup_push_endpoint_count(std::string_view trace_endpoint, int64_t count)
 {
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
@@ -328,8 +341,8 @@ ddup_push_endpoint_count(std::string_view trace_endpoint, int64_t count)
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
         Datadog::Sample::profile_release();
-        return false;
+        return;
     }
     Datadog::Sample::profile_release();
-    return true;
+    return;
 }
