@@ -163,6 +163,10 @@
             "ddtrace/contrib/avro/*",
             "ddtrace/contrib/internal/avro/*"
         ],
+        "protobuf": [
+            "ddtrace/contrib/protobuf/*",
+            "ddtrace/contrib/internal/protobuf/*"
+        ],
         "mongo": [
             "ddtrace/contrib/pymongo/*",
             "ddtrace/contrib/internal/pymongo/*",
@@ -288,6 +292,10 @@
         "anthropic": [
             "ddtrace/contrib/anthropic/*",
             "ddtrace/contrib/internal/anthropic/*"
+        ],
+        "google_generativeai": [
+            "ddtrace/contrib/google_generativeai/*",
+            "ddtrace/contrib/internal/google_generativeai/*"
         ],
         "subprocess": [
             "ddtrace/contrib/subprocess/*",
@@ -624,6 +632,14 @@
             "@appsec_iast",
             "@remoteconfig",
             "tests/appsec/iast/*"
+        ],
+        "appsec_iast_native": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "@remoteconfig"
         ],
         "appsec_iast_memcheck": [
             "@bootstrap",
@@ -1376,6 +1392,14 @@
             "@avro",
             "tests/contrib/avro/*"
         ],
+        "protobuf": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@protobuf",
+            "tests/contrib/protobuf/*"
+        ],
         "yaaredis": [
             "@core",
             "@bootstrap",
@@ -1519,6 +1543,16 @@
             "@llmobs",
             "tests/contrib/anthropic/*",
             "tests/snapshots/tests.contrib.anthropic.*"
+        ],
+        "google_generativeai": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@google_generativeai",
+            "@llmobs",
+            "tests/contrib/google_generativeai/*",
+            "tests/snapshots/tests.contrib.google_generativeai.*"
         ],
         "runtime": [
             "@core",

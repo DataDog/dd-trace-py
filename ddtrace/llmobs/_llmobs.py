@@ -40,6 +40,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
+from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
@@ -225,6 +226,18 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    def annotation_context(cls, tags: Optional[Dict[str, Any]] = None) -> AnnotationContext:
+        """
+        Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
+        Do not use nested annotation contexts to override the same tags since the order in which annotations
+        are applied is non-deterministic.
+
+        :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
+                     regarding the span's context.
+        """
+        return AnnotationContext(cls._instance.tracer, lambda span: cls.annotate(span, tags=tags))
 
     @classmethod
     def flush(cls) -> None:
@@ -506,13 +519,19 @@ class LLMObs(Service):
         if span.finished:
             log.warning("Cannot annotate a finished span.")
             return
+        if metadata is not None:
+            cls._tag_metadata(span, metadata)
+        if metrics is not None:
+            cls._tag_metrics(span, metrics)
+        if tags is not None:
+            cls._tag_span_tags(span, tags)
         span_kind = span.get_tag(SPAN_KIND)
-        if not span_kind:
-            log.warning("LLMObs span must have a span kind specified.")
-            return
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
+        if not span_kind:
+            log.debug("Span kind not specified, skipping annotation for input/output data")
+            return
         if input_data or output_data:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
@@ -522,12 +541,6 @@ class LLMObs(Service):
                 cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
-        if metadata is not None:
-            cls._tag_metadata(span, metadata)
-        if metrics is not None:
-            cls._tag_metrics(span, metrics)
-        if tags is not None:
-            cls._tag_span_tags(span, tags)
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
