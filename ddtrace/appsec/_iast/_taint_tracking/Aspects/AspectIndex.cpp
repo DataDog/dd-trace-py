@@ -1,7 +1,6 @@
 #include "AspectIndex.h"
 #include "Helpers.h"
 #include "Utils/StringUtils.h"
-#include <iostream> // JJJ
 
 /**
  * @brief Index aspect
@@ -74,10 +73,9 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         auto error_str = has_pyerr_as_string();
         if (!error_str.empty()) {
             py::handle error;
-            // Check if the error_str contains "ndex"
-            if (error_str.find("IndexError") != std::string::npos) {
+            if (error_str.find("index out of range") != std::string::npos) {
                 error = PyExc_IndexError;
-            } else if (error_str.find("TypeError") != std::string::npos) {
+            } else if (error_str.find("indices must be") != std::string::npos) {
                 error = PyExc_TypeError;
             } else {
                 error = PyExc_KeyError;
