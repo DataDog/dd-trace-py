@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream> // JJJ
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <regex>
@@ -327,15 +328,18 @@ Example calling:
     } catch (py::error_already_set & e) {                                                                              \
         e.restore();                                                                                                   \
         CLEANUP;                                                                                                       \
+        cerr << "JJJ exit 5\n";                                                                                        \
         RETURNRESULT;                                                                                                  \
     } catch (const std::exception& e) {                                                                                \
         const std::string error_message = "IAST propagation error in " NAME ". " + std::string(e.what());              \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
+        cerr << "JJJ exit 6\n";                                                                                        \
         RETURNRESULT;                                                                                                  \
     } catch (...) {                                                                                                    \
         const std::string error_message = "Unknown IAST propagation error in " NAME ". ";                              \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
+        cerr << "JJJ exit 7\n";                                                                                        \
         RETURNRESULT;                                                                                                  \
     }
