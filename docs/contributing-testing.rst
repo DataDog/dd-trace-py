@@ -72,7 +72,7 @@ How do I run only the tests I care about?
 3. Find the directive in the file `./circleci/config.templ.yml <https://github.com/DataDog/dd-trace-py/blob/733a80eeb08c631967d3b17502cf0d6a9239c5cb/.circleci/config.templ.yml#L799>`_
    whose ``pattern`` is equal to the suite name. Note the ``docker_services`` section of the directive, if present -
    these are the "suite services".
-4. Start the suite services, if applicable, with ``$ docker-compose up -d service1 service2``.
+4. Start the suite services, if applicable, with ``$ docker compose up -d service1 service2``.
 5. Start the test-runner Docker container with ``$ scripts/ddtest``.
 6. In the test-runner shell, run the tests with ``$ riot -v run --pass-env -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'``.
 
@@ -102,7 +102,7 @@ To fix this:
 .. code-block:: bash
 
     # outside of the testrunner shell
-    $ docker-compose up -d testagent
+    $ docker compose up -d testagent
 
     # inside the testrunner shell, started with scripts/ddtest
     $ DD_AGENT_PORT=9126 riot -v run --pass-env ...
