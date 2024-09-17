@@ -29,6 +29,8 @@ appsec iast memcheck:
   parallel: 5
   variables:
     SUITE_NAME: "appsec_iast_memcheck"
+    CI_DEBUG_TRACE: "true" 
+    PYTEST_ADDOPTS: "-v -s" 
   retry: 2
 
 appsec threats django:
