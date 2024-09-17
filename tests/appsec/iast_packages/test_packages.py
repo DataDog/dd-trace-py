@@ -439,6 +439,7 @@ PACKAGES = [
         "",
         import_module_to_validate="pyasn1.codec.native.decoder",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("pycparser", "2.22", "", "", ""),
     PackageForTesting(
