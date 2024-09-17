@@ -180,6 +180,7 @@ def upload(processsor: EndpointCallCounterProcessor) -> None:
         for resource, cnt in counts.items():
             resource_bytes = ensure_binary_or_empty(resource)
             cnt = clamp_to_int64_unsigned(cnt)
+            print("ddup_push_endpoint_count", resource_bytes, cnt)
             ddup_push_endpoint_count(
                 string_view(<const char*>resource_bytes, len(resource_bytes)),
                 cnt
@@ -298,6 +299,7 @@ cdef class SampleHandle:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
             if span._local_root.span_type == ext.SpanTypes.WEB and endpoint_collection_enabled:
+                print("ddup_push_trace_endpoint", span._local_root.resource)
                 resource_bytes = ensure_binary_or_empty(span._local_root.resource)
                 ddup_push_trace_endpoint(self.ptr, string_view(<const char*>resource_bytes, len(resource_bytes)))
 
