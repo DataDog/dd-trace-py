@@ -75,9 +75,16 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
         auto error_str = has_pyerr_as_string();
         if (!error_str.empty()) {
+            py::handle error;
+            // Check if the error_str contains "ndex"
+            if (error_str.find("ndex") != std::string::npos) {
+                error = PyExc_IndexError;
+            } else {
+                error = PyExc_TypeError;
+            }
             error_str += " (native index_aspect)";
             iast_taint_log_error(error_str);
-            py::set_error(PyExc_IndexError, error_str.c_str());
+            py::set_error(error, error_str.c_str());
             return nullptr;
         }
 
