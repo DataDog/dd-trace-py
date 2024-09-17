@@ -41,7 +41,7 @@ variables:
   needs: [ build_base_venvs ]
   parallel: 4
   services:
-    - !reference [.testrunner, services]
+    - !reference [.services, ddagent]
   script:
     - pip install riot~=0.19.1
     - unset DD_SERVICE

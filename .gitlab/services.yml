@@ -1,4 +1,16 @@
 .services:
+  ddagent:
+    name: registry.ddbuild.io/images/mirror/datadog/agent:7.40.1
+    alias: ddagent
+    variables:
+      DD_HOSTNAME: ddagent
+      LOG_LEVEL: ERROR
+      DD_REMOTE_CONFIGURATION_ENABLED: true
+      DD_SITE: datadoghq.com
+      DD_API_KEY: invalid_but_this_is_fine
+      DD_REMOTE_CONFIGURATION_KEY: invalid_but_this_is_fine
+      DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
     name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.17.0
     alias: testagent
