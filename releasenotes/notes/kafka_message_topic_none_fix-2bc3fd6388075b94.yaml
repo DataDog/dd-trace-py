@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    kafka: Fixed an issue where a ``TypeError`` exception would be raised if the first message's ``topic()`` returned ``None`` during consumption.
