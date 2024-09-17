@@ -2966,7 +2966,7 @@ venv = Venv(
         Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling-v2",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
             env={"DD_PROFILING_ENABLE_ASSERTS": "1", "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1"},
             pkgs={
                 "gunicorn": latest,
