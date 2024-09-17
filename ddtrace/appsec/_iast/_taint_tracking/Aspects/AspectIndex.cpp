@@ -19,7 +19,6 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
     TaintRangeRefs ranges_to_set;
     auto [ranges, ranges_error] = get_ranges(candidate_text, tx_taint_map);
     if (ranges_error) {
-        cerr << "JJJ exit 1\n";
         return result_o;
     }
 
@@ -42,24 +41,18 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
     //             throw py::index_error();
     //         }
     //         // No ranges found, return original object
-    //         cerr << "JJJ exit 2\n";
     //         return result_o;
     //     }
-    // } else { // For other types nothing to do
-    //     cerr << "JJJ exit 3\n";
-    //     return result_o;
     // }
 
     const auto& res_new_id = new_pyobject_id(result_o);
     Py_DecRef(result_o);
 
     if (ranges_to_set.empty()) {
-        cerr << "JJJ exit 4\n";
         return res_new_id;
     }
     set_ranges(res_new_id, ranges_to_set, tx_taint_map);
 
-    cerr << "JJJ exit 5\n";
     return res_new_id;
 }
 
@@ -75,7 +68,8 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
     auto result_o = PyObject_GetItem(candidate_text, idx);
-    if (!is_tainteable(candidate_text) or !is_some_number(idx)) {
+    if (!is_text(candidate_text) or !is_some_number(idx)) {
+        // if (!is_tainteable(candidate_text) or !is_some_number(idx)) {
         return result_o;
     }
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
