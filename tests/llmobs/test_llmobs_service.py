@@ -828,32 +828,20 @@ def test_annotate_prompt_typed_dict(LLMObs):
 
 
 def test_annotate_prompt_wrong_type(LLMObs, mock_logs):
-    with LLMObs.llm(
-        model_name="test_model",
-    ) as span:
-        LLMObs.annotate(
-            span=span,
-            prompt="prompt",
-        )
+    with LLMObs.llm(model_name="test_model") as span:
+        LLMObs.annotate(span=span, prompt="prompt")
         assert span.get_tag(INPUT_PROMPT) is None
         mock_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
         mock_logs.reset_mock()
 
-        LLMObs.annotate(
-            span=span,
-            prompt={
-                "template": 1,
-            },
-        )
+        LLMObs.annotate(span=span, prompt={"template": 1})
         mock_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
         mock_logs.reset_mock()
 
 
 def test_annotate_prompt_wrong_kind(LLMObs, mock_logs):
     with LLMObs.task(name="dummy") as span:
-        LLMObs.annotate(
-            prompt={"variables": {"var1": "var1"}},
-        )
+        LLMObs.annotate(prompt={"variables": {"var1": "var1"}})
         assert span.get_tag(INPUT_PROMPT) is None
         mock_logs.warning.assert_called_once_with("Annotating prompts are only supported for LLM span kinds.")
         mock_logs.reset_mock()
