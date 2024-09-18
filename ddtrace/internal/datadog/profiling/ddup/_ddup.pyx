@@ -177,14 +177,15 @@ def upload(processsor: EndpointCallCounterProcessor) -> None:
 
     counts, span_ids = processsor.reset()
 
-    for resource, span_id in span_ids.items():
-        resource_bytes = ensure_binary_or_empty(resource)
-        span_id = clamp_to_uint64_unsigned(span_id)
-        print("ddup_push_trace_endpoint", span_id, resource_bytes)
-        ddup_push_trace_endpoint(
-            span_id,
-            string_view(<const char*>resource_bytes, len(resource_bytes)),
-        )
+    for resource, span_id_set in span_ids.items():
+        for span_id in span_id_set:
+            resource_bytes = ensure_binary_or_empty(resource)
+            span_id = clamp_to_uint64_unsigned(span_id)
+            print("ddup_push_trace_endpoint", span_id, resource_bytes)
+            ddup_push_trace_endpoint(
+                span_id,
+                string_view(<const char*>resource_bytes, len(resource_bytes)),
+            )
 
     for resource, cnt in counts.items():
         resource_bytes = ensure_binary_or_empty(resource)
