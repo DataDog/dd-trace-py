@@ -139,60 +139,37 @@ def test_re_match_index_indexerror():
         mod.do_re_match_index(string_input, regexp, "doesntexist")
 
 
-# JJJ do a fixture
+@pytest.mark.parametrize(
+    "input_str, index, tainted, expected_result, ",
+    [
+        ("user@example.com", 0, True, "user@example.com"),
+        ("user@example.com", 1, True, "user"),
+        ("user@example.com", 2, True, "example"),
+        ("user@example.com", 3, True, "com"),
+        ("user@example.com", "username", True, "user"),
+        ("user@example.com", "domain", True, "example"),
+        ("user@example.com", "tld", True, "com"),
+        ("cleanuser@example.com", 0, False, "cleanuser@example.com"),
+        ("cleanuser@example.com", 1, False, "cleanuser"),
+        ("cleanuser@example.com", 2, False, "example"),
+        ("cleanuser@example.com", 3, False, "com"),
+        ("cleanuser@example.com", "username", False, "cleanuser"),
+        ("cleanuser@example.com", "domain", False, "example"),
+        ("cleanuser@example.com", "tld", False, "com"),
+    ],
+)
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
-def test_re_match_index():
+def test_re_match_index(input_str, index, tainted, expected_result):
     regexp = r"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
-    input_str = "user@example.com"
-    string_input = taint_pyobject(
-        pyobject=input_str,
-        source_name="test_add_aspect_tainting_left_hand",
-        source_value="foo",
-        source_origin=OriginType.PARAMETER,
-    )
-    result = mod.do_re_match_index(string_input, regexp, 0)
-    assert result == "user@example.com"
-    tainted_ranges = get_tainted_ranges(result)
-    assert len(tainted_ranges) == 1
-
-    result = mod.do_re_match_index(string_input, regexp, 1)
-    assert result == "user"
-    tainted_ranges = get_tainted_ranges(result)
-    assert len(tainted_ranges) == 1
-
-    result = mod.do_re_match_index(string_input, regexp, 2)
-    assert result == "example"
-    tainted_ranges = get_tainted_ranges(result)
-    assert len(tainted_ranges) == 1
-
-    result = mod.do_re_match_index(string_input, regexp, 3)
-    assert result == "com"
-    tainted_ranges = get_tainted_ranges(result)
-    assert len(tainted_ranges) == 1
-
-    result = mod.do_re_match_index(string_input, regexp, "username")
-    assert result == "user"
-    tainted_ranges = get_tainted_ranges(result)
-    assert len(tainted_ranges) == 1
-
-    result = mod.do_re_match_index(string_input, regexp, "domain")
-    assert result == "example"
-    tainted_ranges = get_tainted_ranges(result)
-    assert len(tainted_ranges) == 1
-
-    result = mod.do_re_match_index(string_input, regexp, "tld")
-    assert result == "com"
-    tainted_ranges = get_tainted_ranges(result)
-    assert len(tainted_ranges) == 1
-
-    clean_input = "foo@bar.net"
-    result = mod.do_re_match_index(clean_input, regexp, 0)
-    assert result == "foo@bar.net"
-    tainted_ranges = get_tainted_ranges(result)
-    assert len(tainted_ranges) == 0
-
-    clean_input = "foo@bar.net"
-    result = mod.do_re_match_index(clean_input, regexp, "username")
-    assert result == "foo"
-    tainted_ranges = get_tainted_ranges(result)
-    assert len(tainted_ranges) == 0
+    if tainted:
+        string_input = taint_pyobject(
+            pyobject=input_str,
+            source_name="test_add_aspect_tainting_left_hand",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+        )
+    else:
+        string_input = input_str
+    result = mod.do_re_match_index(string_input, regexp, index)
+    assert result == expected_result
+    assert len(get_tainted_ranges(result)) == int(tainted)
