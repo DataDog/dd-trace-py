@@ -70,19 +70,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     PyObject* idx = args[1];
     const auto result_o = PyObject_GetItem(candidate_text, idx);
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
-        auto error_str = has_pyerr_as_string();
-        if (!error_str.empty()) {
-            py::handle error;
-            if (error_str.find("index out of range") != std::string::npos) {
-                error = PyExc_IndexError;
-            } else if (error_str.find("indices must be") != std::string::npos) {
-                error = PyExc_TypeError;
-            } else {
-                error = PyExc_KeyError;
-            }
-            error_str += " (native index_aspect)";
-            iast_taint_log_error(error_str);
-            py::set_error(error, error_str.c_str());
+        if (has_pyerr()) {
             return nullptr;
         }
 
