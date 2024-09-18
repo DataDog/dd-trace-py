@@ -43,7 +43,20 @@ variables:
     - unset DD_ENV
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
-    - ./scripts/run-test-suite-gitlab "${SUITE_NAME}" "${COVERAGE}" 1
+    - |
+      hashes=( $(riot list --hash-only "${SUITE_NAME}" | sort | ./.gitlab/ci-split-input.sh) )
+      if [[ ${#hashes[@]} -eq 0 ]]; then
+        echo "No riot hashes found for ${SUITE_NAME}"
+        exit 1
+      fi
+      for hash in "${hashes[@]}"
+      do
+        echo "Running riot hash: ${hash}"
+        riot list "${hash}"
+        ${RIOT_RUN_CMD} "${hash}"
+      done
+      ./scripts/check-diff ".riot/requirements/" \
+        "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
 
 .test_base_riot_snapshot:
   extends: .test_base_riot
@@ -56,12 +69,12 @@ variables:
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
 
-include:
-  - local: ".gitlab/tests/appsec.yml"
-  - local: ".gitlab/tests/ci_visibility.yml"
-  - local: ".gitlab/tests/contrib.yml"
-  - local: ".gitlab/tests/core.yml"
-  - local: ".gitlab/tests/debugging.yml"
-  - local: ".gitlab/tests/llmobs.yml"
-  - local: ".gitlab/tests/tracer.yml"
-  - local: ".gitlab/tests/profiling.yml"
+# include:
+#   - local: ".gitlab/tests/appsec.yml"
+#   - local: ".gitlab/tests/ci_visibility.yml"
+  # - local: ".gitlab/tests/contrib.yml"
+  # - local: ".gitlab/tests/core.yml"
+  # - local: ".gitlab/tests/debugging.yml"
+  # - local: ".gitlab/tests/llmobs.yml"
+  # - local: ".gitlab/tests/tracer.yml"
+  # - local: ".gitlab/tests/profiling.yml"

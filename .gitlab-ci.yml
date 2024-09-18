@@ -1,8 +1,8 @@
 stages:
+  - setup
   - package
   - tests
   - shared-pipeline
-  - dogfood
   - benchmarks
   - macrobenchmarks
   - dogfood
@@ -30,6 +30,27 @@ include:
   - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/dogfood.yml"
   - local: ".gitlab/release.yml"
+
+generate-contrib-pipeline:
+  stage: setup
+  image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
+  script:
+    - pip install pyyaml
+    - python scripts/generate_contrib_pipeline.py
+  artifacts:
+    paths:
+      - contrib-pipeline.yml
+
+trigger-contrib-pipeline:
+  stage: tests
+  needs: ["generate-contrib-pipeline"]
+  trigger:
+    include:
+      - artifact: contrib-pipeline.yml
+        job: generate-contrib-pipeline
+  rules:
+    - exists:
+        - contrib-pipeline.yml
 
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
