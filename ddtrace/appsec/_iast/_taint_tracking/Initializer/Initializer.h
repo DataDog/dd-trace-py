@@ -33,7 +33,6 @@ class Initializer
      * Constructor for the Initializer class.
      */
     Initializer();
-    ~Initializer();
 
     /**
      * Creates a new taint range map.
