@@ -101,9 +101,6 @@ venv = Venv(
         "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-        "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-        "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
-        "DD_CIVISIBILITY_ITR_ENABLED": "1",
         "DD_INJECTION_ENABLED": "1",
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
@@ -290,6 +287,7 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -401,6 +399,7 @@ venv = Venv(
             env={
                 "DD_TRACE_AGENT_URL": "http://ddagent:8126",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
