@@ -4,7 +4,8 @@ import time
 import mock
 import pytest
 
-from ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator import RagasFaithfulnessEvaluator
+from ddtrace.llmobs._evaluators.ragas.faithfulness import dummy_run
+from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 
 
@@ -49,31 +50,26 @@ def _dummy_ragas_eval_metric_event(span_id, trace_id):
     )
 
 
-def test_ragas_faithfulness_evaluator_start(mock_evaluator_logs):
-    ragas_faithfulness_evaluator = RagasFaithfulnessEvaluator(
-        interval=0.01, _evaluation_metric_writer=mock.MagicMock(), _llmobs_instance=mock.MagicMock()
-    )
-    ragas_faithfulness_evaluator.start()
-    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r to %r", "RagasFaithfulnessEvaluator")])
+def test_evaluator_runner_start(mock_evaluator_logs):
+    evaluator_runner = EvaluatorRunner(interval=0.01, _evaluation_metric_writer=mock.MagicMock())
+    evaluator_runner.start()
+    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r to %r", "EvaluatorRunner")])
 
 
-def test_ragas_faithfulness_evaluator_buffer_limit(mock_evaluator_logs):
-    ragas_faithfulness_evaluator = RagasFaithfulnessEvaluator(
-        interval=0.01, _evaluation_metric_writer=mock.MagicMock(), _llmobs_instance=mock.MagicMock()
-    )
+def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
+    evaluator_runner = EvaluatorRunner(interval=0.01, _evaluation_metric_writer=mock.MagicMock())
     for _ in range(1001):
-        ragas_faithfulness_evaluator.enqueue({})
+        evaluator_runner.enqueue({})
     mock_evaluator_logs.warning.assert_called_with(
-        "%r event buffer full (limit is %d), dropping event", "RagasFaithfulnessEvaluator", 1000
+        "%r event buffer full (limit is %d), dropping event", "EvaluatorRunner", 1000
     )
 
 
-def test_ragas_faithfulness_evaluator_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
-    ragas_faithfulness_evaluator = RagasFaithfulnessEvaluator(
-        interval=0.01, _evaluation_metric_writer=mock_llmobs_eval_metric_writer, _llmobs_instance=mock.MagicMock()
-    )
-    ragas_faithfulness_evaluator.enqueue({"span_id": "123", "trace_id": "1234"})
-    ragas_faithfulness_evaluator.periodic()
+def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
+    evaluator_runner = EvaluatorRunner(interval=0.01, _evaluation_metric_writer=mock_llmobs_eval_metric_writer)
+    evaluator_runner.evaluators.append(dummy_run)
+    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
+    evaluator_runner.periodic()
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
         _dummy_ragas_eval_metric_event(span_id="123", trace_id="1234")
     )
@@ -81,12 +77,11 @@ def test_ragas_faithfulness_evaluator_periodic_enqueues_eval_metric(LLMObs, mock
 
 @pytest.mark.vcr_logs
 def test_ragas_faithfulness_evaluator_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
-    ragas_faithfulness_evaluator = RagasFaithfulnessEvaluator(
-        interval=0.01, _evaluation_metric_writer=mock_llmobs_eval_metric_writer, _llmobs_instance=mock.MagicMock()
-    )
-    ragas_faithfulness_evaluator.start()
+    evaluator_runner = EvaluatorRunner(interval=0.01, _evaluation_metric_writer=mock_llmobs_eval_metric_writer)
+    evaluator_runner.evaluators.append(dummy_run)
+    evaluator_runner.start()
 
-    ragas_faithfulness_evaluator.enqueue({"span_id": "123", "trace_id": "1234"})
+    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
 
     time.sleep(0.1)
 
@@ -95,7 +90,7 @@ def test_ragas_faithfulness_evaluator_timed_enqueues_eval_metric(LLMObs, mock_ll
     )
 
 
-def test_ragas_evaluator_on_exit(mock_writer_logs, run_python_code_in_subprocess):
+def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import os
@@ -104,7 +99,8 @@ import mock
 
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
-from ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator import RagasFaithfulnessEvaluator
+from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._evaluators.ragas.faithfulness import dummy_run
 
 with mock.patch(
     "ddtrace.internal.writer.HTTPWriter._send_payload",
@@ -117,11 +113,12 @@ with mock.patch(
     site="datad0g.com", api_key=os.getenv("DD_API_KEY_STAGING"), interval=0.01, timeout=1
     )
     llmobs_eval_metric_writer.start()
-    ragas_faithfulness_evaluator = RagasFaithfulnessEvaluator(
-        interval=0.01, _evaluation_metric_writer=llmobs_eval_metric_writer, _llmobs_instance=mock.MagicMock()
+    evaluator_runner = EvaluatorRunner(
+        interval=0.01, _evaluation_metric_writer=llmobs_eval_metric_writer
     )
-    ragas_faithfulness_evaluator.start()
-    ragas_faithfulness_evaluator.enqueue({"span_id": "123", "trace_id": "1234"})
+    evaluator_runner.evaluators.append(dummy_run)
+    evaluator_runner.start()
+    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
 """,
     )
     assert status == 0, err

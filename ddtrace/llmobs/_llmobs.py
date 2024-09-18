@@ -39,7 +39,7 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator import RagasFaithfulnessEvaluator
+from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
@@ -65,10 +65,6 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "langchain": "langchain",
 }
 
-SUPPORTED_RAGAS_EVALUATORS = {
-    "faithfulness": RagasFaithfulnessEvaluator,
-}
-
 
 class LLMObs(Service):
     _instance = None  # type: LLMObs
@@ -92,21 +88,12 @@ class LLMObs(Service):
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
 
-        self._evaluators = []
+        self._evaluator_runner = EvaluatorRunner(
+            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
+            _evaluation_metric_writer=self._llmobs_eval_metric_writer,
+        )
 
-        if os.getenv("_DD_LLMOBS_EVALUATORS_RAGAS"):
-            ragas_evaluators = os.getenv("_DD_LLMOBS_EVALUATORS_RAGAS").split(",")
-            for evaluator in ragas_evaluators:
-                if evaluator in SUPPORTED_RAGAS_EVALUATORS:
-                    self._evaluators.append(
-                        SUPPORTED_RAGAS_EVALUATORS[evaluator](
-                            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_RAGAS_FAITHFULNESS_INTERVAL", 1.0)),
-                            _evaluation_metric_writer=self._llmobs_eval_metric_writer,
-                            _llmobs_instance=self,
-                        )
-                    )
-
-        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluators)
+        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluator_runner)
         forksafe.register(self._child_after_fork)
 
     def _child_after_fork(self):
@@ -132,13 +119,10 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
-        for evaluator in self._evaluators:
-            try:
-                evaluator.start()
-            except ServiceStatusError:
-                log.debug(
-                    "Error starting evaluator: %n", evaluator.name if hasattr(evaluator, "name") else str(evaluator)
-                )
+        try:
+            self._evaluator_runner.start()
+        except ServiceStatusError:
+            log.debug("Error starting evaluator runner")
 
     def _stop_service(self) -> None:
         try:
@@ -147,13 +131,10 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
-        for evaluator in self._evaluators:
-            try:
-                evaluator.stop()
-            except ServiceStatusError:
-                log.debug(
-                    "Error stopping evaluator: %n", evaluator.name if hasattr(evaluator, "name") else str(evaluator)
-                )
+        try:
+            self._evaluator_runner.stop()
+        except ServiceStatusError:
+            log.debug("Error stopping evaluator runner")
 
         try:
             forksafe.unregister(self._child_after_fork)

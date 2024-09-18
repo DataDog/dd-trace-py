@@ -89,27 +89,6 @@ def test_service_enable_with_apm_disabled(monkeypatch):
         llmobs_service.disable()
 
 
-def test_service_enable_with_ragas_evaluator_enabled(monkeypatch):
-    with override_global_config(
-        dict(
-            _dd_api_key="<not-a-real-api-key>",
-            _llmobs_ml_app="<ml-app-name>",
-        )
-    ):
-        monkeypatch.setenv("_DD_LLMOBS_EVALUATORS_RAGAS", "faithfulness")
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is not None
-        assert llmobs_service.enabled
-        assert llmobs_instance.tracer == dummy_tracer
-        assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
-        assert run_llmobs_trace_filter(dummy_tracer) is not None
-        assert len(llmobs_service._instance._evaluators) == 1
-        assert llmobs_service._instance._evaluators[0].status.value == "running"
-        llmobs_service.disable()
-
-
 def test_service_disable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
@@ -118,24 +97,7 @@ def test_service_disable():
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
-
-
-def test_service_disable_with_ragas_evaluator_enabled(monkeypatch):
-    with override_global_config(
-        dict(
-            _dd_api_key="<not-a-real-api-key>",
-            _llmobs_ml_app="<ml-app-name>",
-        )
-    ):
-        monkeypatch.setenv("_DD_LLMOBS_EVALUATORS_RAGAS", "faithfulness")
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
-        llmobs_service.disable()
-        assert llmobs_service.enabled is False
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
-        assert len(llmobs_service._instance._evaluators) == 1
-        assert llmobs_service._instance._evaluators[0].status.value == "stopped"
+        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
 def test_service_enable_no_api_key():
@@ -146,6 +108,7 @@ def test_service_enable_no_api_key():
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
+        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
 def test_service_enable_no_ml_app_specified():
@@ -156,6 +119,7 @@ def test_service_enable_no_ml_app_specified():
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
+        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
 def test_service_enable_deprecated_ml_app_name(monkeypatch, mock_logs):
@@ -166,6 +130,7 @@ def test_service_enable_deprecated_ml_app_name(monkeypatch, mock_logs):
         assert llmobs_service.enabled is True
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
+        assert llmobs_service._instance._evaluator_runner.status.value == "running"
         mock_logs.warning.assert_called_once_with("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
         llmobs_service.disable()
 

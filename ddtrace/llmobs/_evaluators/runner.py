@@ -1,26 +1,27 @@
 import atexit
 from concurrent import futures
-import math
-import time
+import os
 from typing import Dict
 
-from ddtrace import config
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 
+from .ragas.faithfulness import dummy_run
+
 
 logger = get_logger(__name__)
 
+SUPPORTED_EVALUATORS = {
+    "ragas_faithfulness": dummy_run,
+}
 
-class RagasFaithfulnessEvaluator(PeriodicService):
+
+class EvaluatorRunner(PeriodicService):
     """Base class for evaluating LLM Observability span events"""
 
-    name = "ragas.faithfulness"
-
-    def __init__(self, interval: float, _evaluation_metric_writer=None, _llmobs_instance=None):
-        super(RagasFaithfulnessEvaluator, self).__init__(interval=interval)
-        self.llmobs_instance = _llmobs_instance
+    def __init__(self, interval: float, _evaluation_metric_writer=None):
+        super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: list[Dict]
         self._buffer_limit = 1000
@@ -28,9 +29,17 @@ class RagasFaithfulnessEvaluator(PeriodicService):
         self._evaluation_metric_writer = _evaluation_metric_writer
 
         self.executor = futures.ThreadPoolExecutor()
+        self.evaluators = []
+
+        evaluator_str = os.getenv("_DD_LLMOBS_EVALUATORS")
+        if evaluator_str is not None:
+            evaluators = evaluator_str.split(",")
+            for evaluator in evaluators:
+                if evaluator in SUPPORTED_EVALUATORS:
+                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator])
 
     def start(self, *args, **kwargs):
-        super(RagasFaithfulnessEvaluator, self).start()
+        super(EvaluatorRunner, self).start()
         logger.debug("started %r to %r", self.__class__.__name__)
         atexit.register(self.on_shutdown)
 
@@ -67,16 +76,14 @@ class RagasFaithfulnessEvaluator(PeriodicService):
             logger.debug("failed to run evaluation: %s", e)
 
     def run(self, spans):
-        def dummy_score_and_return_evaluation_that_will_be_replaced(span):
-            return {
-                "span_id": span.get("span_id"),
-                "trace_id": span.get("trace_id"),
-                "score_value": 1,
-                "ml_app": config._llmobs_ml_app,
-                "timestamp_ms": math.floor(time.time() * 1000),
-                "metric_type": "score",
-                "label": "dummy.ragas.faithfulness",
-            }
+        batches_of_results = []
 
-        results = self.executor.map(dummy_score_and_return_evaluation_that_will_be_replaced, spans)
-        return [result for result in results if result is not None]
+        for evaluator in self.evaluators:
+            batches_of_results.append(self.executor.map(evaluator, spans))
+
+        results = []
+        for batch in batches_of_results:
+            for result in batch:
+                results.append(result)
+
+        return results

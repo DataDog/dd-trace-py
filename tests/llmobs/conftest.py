@@ -60,7 +60,7 @@ def mock_llmobs_eval_metric_writer():
 
 @pytest.fixture
 def mock_llmobs_ragas_evaluator():
-    patcher = mock.patch("ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator.RagasFaithfulnessEvaluator")
+    patcher = mock.patch("ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator.run")
     RagasEvaluator = patcher.start()
     m = mock.MagicMock()
     RagasEvaluator.return_value = m
@@ -100,7 +100,7 @@ def mock_writer_logs():
 
 @pytest.fixture
 def mock_evaluator_logs():
-    with mock.patch("ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator.logger") as m:
+    with mock.patch("ddtrace.llmobs._evaluators.runner.logger") as m:
         yield m
 
 
@@ -147,8 +147,8 @@ def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_w
 def LLMObsWithRagas(monkeypatch, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
-    monkeypatch.setenv("_DD_LLMOBS_EVALUATORS_RAGAS", "faithfulness")
-    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_RAGAS_FAITHFULNESS_INTERVAL", "0.1")
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATORS", "ragas_faithfulness")
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_INTERVAL", "0.1")
     with override_global_config(global_config):
         dummy_tracer = DummyTracer()
         llmobs_service.enable(_tracer=dummy_tracer)
