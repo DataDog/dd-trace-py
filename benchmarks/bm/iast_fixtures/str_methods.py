@@ -1236,3 +1236,9 @@ def index_lower_add(url):
 def urlib_urlsplit(text):
     results = urllib.parse.urlsplit(text)
     return results
+
+
+def do_re_match_index(text, regexp, index):
+    match = re.search(regexp, text)
+    print("JJJ id match: ", id(match))
+    return match[index]

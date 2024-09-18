@@ -120,3 +120,79 @@ def test_propagate_ranges_with_no_context(caplog):
         assert result == "d"
     log_messages = [record.message for record in caplog.get_records("call")]
     assert not any("[IAST] " in message for message in log_messages), log_messages
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
+def test_re_match_index_indexerror():
+    regexp = r"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
+    input_str = "user@example.com"
+    string_input = taint_pyobject(
+        pyobject=input_str,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value="foo",
+        source_origin=OriginType.PARAMETER,
+    )
+    with pytest.raises(IndexError):
+        mod.do_re_match_index(string_input, regexp, 4)
+
+    with pytest.raises(IndexError):
+        mod.do_re_match_index(string_input, regexp, "doesntexist")
+
+
+# JJJ do a fixture
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
+def test_re_match_index():
+    regexp = r"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
+    input_str = "user@example.com"
+    string_input = taint_pyobject(
+        pyobject=input_str,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value="foo",
+        source_origin=OriginType.PARAMETER,
+    )
+    result = mod.do_re_match_index(string_input, regexp, 0)
+    assert result == "user@example.com"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+
+    result = mod.do_re_match_index(string_input, regexp, 1)
+    assert result == "user"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+
+    result = mod.do_re_match_index(string_input, regexp, 2)
+    assert result == "example"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+
+    result = mod.do_re_match_index(string_input, regexp, 3)
+    assert result == "com"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+
+    result = mod.do_re_match_index(string_input, regexp, "username")
+    assert result == "user"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+
+    result = mod.do_re_match_index(string_input, regexp, "domain")
+    assert result == "example"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+
+    result = mod.do_re_match_index(string_input, regexp, "tld")
+    assert result == "com"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+
+    clean_input = "foo@bar.net"
+    result = mod.do_re_match_index(clean_input, regexp, 0)
+    assert result == "foo@bar.net"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 0
+
+    clean_input = "foo@bar.net"
+    result = mod.do_re_match_index(clean_input, regexp, "username")
+    assert result == "foo"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 0

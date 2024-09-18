@@ -14,15 +14,16 @@
 PyObject*
 index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const TaintRangeMapTypePtr& tx_taint_map)
 {
-    const auto idx_long = PyLong_AsLong(idx);
     TaintRangeRefs ranges_to_set;
     auto [ranges, ranges_error] = get_ranges(candidate_text, tx_taint_map);
+    // print the length of the ranges
     if (ranges_error) {
         return result_o;
     }
 
     if (is_text(candidate_text)) {
         for (const auto& current_range : ranges) {
+            const auto idx_long = PyLong_AsLong(idx);
             if (current_range->start <= idx_long and idx_long < (current_range->start + current_range->length)) {
                 ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, 1l, current_range->source));
                 break;
