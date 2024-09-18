@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    anthropic: Resolves an issue where attempting to tag non-JSON serializable request arguments caused a ``TypeError``. 
+    The Anthropic integration now safely tags non-JSON serializable arguments with a default placeholder text. 
