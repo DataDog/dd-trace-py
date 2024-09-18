@@ -1403,20 +1403,7 @@ def test_activate_distributed_headers_activates_context(LLMObs, mock_logs):
             mock_activate.assert_called_once_with(dummy_context)
 
 
-def _task(llmobs_service, errors, original_pid, original_span_writer_id):
-    """Task in test_llmobs_fork which asserts that LLMObs in a forked process correctly recreates the writer."""
-    try:
-        with llmobs_service.workflow():
-            with llmobs_service.task():
-                assert llmobs_service._instance.tracer._pid != original_pid
-                assert id(llmobs_service._instance._llmobs_span_writer) != original_span_writer_id
-        assert llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 2
-        assert llmobs_service._instance._llmobs_span_writer._encoder.encode.call_count == 2
-    except AssertionError as e:
-        errors.put(e)
-
-
-def test_llmobs_fork_recreates_and_restarts_writer():
+def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
@@ -1446,6 +1433,30 @@ def test_llmobs_fork_recreates_and_restarts_writer():
         llmobs_service.disable()
 
 
+def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
+    """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
+    with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
+        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
+        original_pid = llmobs_service._instance.tracer._pid
+        original_eval_metric_writer = llmobs_service._instance._llmobs_eval_metric_writer
+        pid = os.fork()
+        if pid:  # parent
+            assert llmobs_service._instance.tracer._pid == original_pid
+            assert llmobs_service._instance._llmobs_eval_metric_writer == original_eval_metric_writer
+            assert llmobs_service._instance._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
+        else:  # child
+            assert llmobs_service._instance.tracer._pid != original_pid
+            assert llmobs_service._instance._llmobs_eval_metric_writer != original_eval_metric_writer
+            assert llmobs_service._instance._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
+
+
 def test_llmobs_fork_create_span(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
@@ -1461,6 +1472,37 @@ def test_llmobs_fork_create_span(monkeypatch):
                 with llmobs_service.task():
                     pass
             assert len(llmobs_service._instance._llmobs_span_writer._encoder) == 2
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
+
+
+def test_llmobs_fork_submit_evaluation(monkeypatch):
+    """Test that forking a process correctly encodes new spans created in each process."""
+    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
+    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", api_key="test_api_key")
+        pid = os.fork()
+        if pid:  # parent
+            llmobs_service.submit_evaluation(
+                span_context={"span_id": "123", "trace_id": "456"},
+                label="toxicity",
+                metric_type="categorical",
+                value="high",
+            )
+            assert len(llmobs_service._instance._llmobs_eval_metric_writer._buffer) == 1
+        else:  # child
+            llmobs_service.submit_evaluation(
+                span_context={"span_id": "123", "trace_id": "456"},
+                label="toxicity",
+                metric_type="categorical",
+                value="high",
+            )
+            assert len(llmobs_service._instance._llmobs_eval_metric_writer._buffer) == 1
             llmobs_service.disable()
             os._exit(12)
 
