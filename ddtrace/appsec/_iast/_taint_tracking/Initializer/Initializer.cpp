@@ -25,11 +25,6 @@ Initializer::Initializer()
     }
 }
 
-Initializer::~Initializer()
-{
-    imported_cache.clear();
-}
-
 void
 Initializer::import_symbols_into_cache()
 {
