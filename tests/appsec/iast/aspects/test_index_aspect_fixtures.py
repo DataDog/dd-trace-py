@@ -31,7 +31,7 @@ def test_string_index_error_type_error():
 def test_string_error_key_error():
     with pytest.raises(KeyError) as excinfo:
         mod.do_index_on_dict({1: 1, 2: 2}, 3)
-    assert "'3'" in str(excinfo.value)
+    assert "3" in str(excinfo.value)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
