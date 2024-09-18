@@ -149,7 +149,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     handle.push_task_name(task_name)
 
                     if self._self_tracer is not None:
-                        handle.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled, thread_id)
+                        handle.push_span(
+                            self._self_tracer.current_span(), self._self_endpoint_collection_enabled, thread_id
+                        )
                     for frame in frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                     handle.flush_sample()
