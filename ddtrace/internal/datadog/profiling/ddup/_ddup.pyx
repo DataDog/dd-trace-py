@@ -312,11 +312,10 @@ cdef class SampleHandle:
         if span._local_root.span_type:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
-        if endpoint_collection_enabled:
-            if span._local_root == span and span.span_type == ddtrace.ext.SpanTypes.WEB and span.resource:
-                print("ddup_push_trace_endpoint", span.resource)
-                resource_bytes = ensure_binary_or_empty(span.resource)
-                ddup_push_trace_endpoint(self.ptr, string_view(<const char*>resource_bytes, len(resource_bytes)))
+        if endpoint_collection_enabled and span._local_root.resource:
+            print("ddup_push_trace_endpoint", span._local_root.resource)
+            resource_bytes = ensure_binary_or_empty(span._local_root.resource)
+            ddup_push_trace_endpoint(self.ptr, string_view(<const char*>resource_bytes, len(resource_bytes)))
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
