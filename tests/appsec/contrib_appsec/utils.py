@@ -1330,6 +1330,19 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.appsec._metrics import DDWAF_VERSION
         from ddtrace.ext import http
 
+        def validate_top_function(trace):
+            top_function = trace["frames"][0]["function"]
+            if any(top_function.endswith(top_function) for top_function in top_functions) or (
+                asm_config._iast_enabled and top_function.endswith("ast_function")
+            ):
+                return True
+            # some wrapper functions may be present
+            assert top_function == "__call__"
+            top_function = trace["frames"][1]["function"]
+            return any(top_function.endswith(top_function) for top_function in top_functions) or (
+                asm_config._iast_enabled and top_function.endswith("ast_function")
+            )
+
         with override_global_config(
             dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled, _asm_static_rule_file=rule_file)
         ), mock_patch("ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric") as mocked:
@@ -1347,21 +1360,15 @@ class Contrib_TestClass_For_Threats:
                 assert self.check_for_stack_trace(root_span)
                 for trace in self.check_for_stack_trace(root_span):
                     assert "frames" in trace
-                    function = trace["frames"][0]["function"]
-                    assert any(function.endswith(top_function) for top_function in top_functions) or (
-                        asm_config._iast_enabled and function.endswith("ast_function")
-                    ), f"unknown top function {function}"
+                    assert validate_top_function(
+                        trace
+                    ), f"unknown top function {trace['frames'][0]} {[t['function'] for t in trace['frames'][:4]]}"
                 # assert mocked.call_args_list == []
-                assert (
-                    "CountMetric",
-                    "appsec.rasp.rule.match",
-                    (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
-                ) in telemetry_calls
-                assert (
-                    "CountMetric",
-                    "appsec.rasp.rule.eval",
-                    (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
-                ) in telemetry_calls
+                matches = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.match"]
+                assert matches == [(("rule_type", endpoint), ("waf_version", DDWAF_VERSION))], matches
+                evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
+                # there may have been multiple evaluations of other rules too
+                assert (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)) in evals
                 if action_level == 2:
                     assert get_tag("rasp.request.done") is None
                 else:
