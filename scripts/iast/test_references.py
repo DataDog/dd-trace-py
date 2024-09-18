@@ -9,7 +9,7 @@ from ddtrace.appsec._iast._taint_tracking import reset_context
 
 
 def test_main():
-    for i in range(100):
+    for i in range(1000):
         gc.collect()
         a = sys.gettotalrefcount()
         try:
