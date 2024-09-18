@@ -76,21 +76,22 @@ def test_doit():
 
     string22 = re_match_result.group(0)  # 1 propagation: '_HIROOT
     # string22 = re_match_result.groups()[0]
-
-    string22 = "DDDD" + string22  # 1 propagation: 'DDDD_HIROOT
+    tmp_str = "DDDD"
+    string23 = tmp_str + string22  # 1 propagation: 'DDDD_HIROOT
 
     re_match = re.compile(r"(\w+)(_+)(\w+)", re.IGNORECASE)
-    re_match_result = re_match.search(string22)
-    string23 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDD_HIROOT
+    re_match_result = re_match.search(string23)
+    string24 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDD_HIROOT
 
     re_split = re.compile(r"[_.][a-zA-Z]*", re.IGNORECASE)
-    re_split_result = re_split.split(string23)
+    re_split_result = re_split.split(string24)
 
     # TODO(avara1986): DDDD_ is constant but we're tainting all re results
-    string24 = re_split_result[0] + " EEE"
-    string25 = re.sub(r" EEE", "_OOO", string24, re.IGNORECASE)
-    string26 = re.subn(r"OOO", "III", string25, re.IGNORECASE)[0]
+    string25 = re_split_result[0] + " EEE"
+    string26 = re.sub(r" EEE", "_OOO", string25, re.IGNORECASE)
+    string27 = re.subn(r"OOO", "III", string26, re.IGNORECASE)[0]
 
-    string26 += "_extend"
+    tmp_str2 = "_extend"
+    string27 += tmp_str2
 
-    return string26
+    return string27

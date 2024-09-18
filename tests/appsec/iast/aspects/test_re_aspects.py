@@ -18,6 +18,7 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_search_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
+from tests.utils import flaky
 
 
 def test_re_findall_aspect_tainted_string():
@@ -66,6 +67,24 @@ def test_re_sub_aspect_tainted_string():
             0, len(res_str), Source("test_re_sub_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER)
         ),
     ]
+
+
+@flaky("This function raise an unexpected exception")
+def test_re_sub_aspect_tainted_string_worng_expression():
+    tainted_foobarbaz = taint_pyobject(
+        pyobject="test [1]",
+        source_name="test_re_sub_aspect_tainted_string",
+        source_value="/foo/bar/baz.jpg",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    re_slash = re.compile(r".*\d]")
+    res_no_tainted = re_slash.sub("", tainted_foobarbaz)
+    # this function raises:
+    # copy_and_shift_ranges_from_strings(string, result, 0, len(result))
+    # ValueError: Error: Length cannot be set to 0.
+    res_str = re_sub_aspect(None, 1, re_slash, "", tainted_foobarbaz)
+    assert res_str == res_no_tainted
 
 
 def test_re_sub_aspect_tainted_repl():
