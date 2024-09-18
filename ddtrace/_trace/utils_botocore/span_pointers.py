@@ -45,6 +45,11 @@ def _extract_span_pointers_for_s3_put_object_response(
         bucket = request_parameters["Bucket"]
         key = request_parameters["Key"]
         etag = response["ETag"]
+
+        # The ETag is surrounded by double quotes for some reason.
+        if etag.startswith('"') and etag.endswith('"'):
+            etag = etag[1:-1]
+
     except KeyError as e:
         log.warning(
             "missing a parameter or response field required to make span pointer for S3.PutObject: %s",

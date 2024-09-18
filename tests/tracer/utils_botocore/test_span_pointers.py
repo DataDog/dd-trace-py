@@ -167,6 +167,28 @@ class TestBotocoreSpanPointers:
                 ],
                 expected_warning_regex=None,
             ),
+            PointersCase(
+                name="s3.PutObject with double quoted ETag",
+                endpoint_name="s3",
+                operation_name="PutObject",
+                request_parameters={
+                    "Bucket": "some-bucket",
+                    "Key": "some-key.data",
+                },
+                response={
+                    # the ETag can be surrounded by double quotes
+                    "ETag": '"ab12ef34"',
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.s3.object",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="e721375466d4116ab551213fdea08413",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
         ],
         ids=lambda case: case.name,
     )
