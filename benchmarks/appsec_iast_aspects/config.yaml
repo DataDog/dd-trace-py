@@ -223,7 +223,7 @@ aspect_no_iast_do_index_on_dict: &aspect_no_iast_do_index_on_dict
     warmups: 1
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_index_on_dict"
-    args: [{"fOobaR": 4, 3: "foobar"}, 'fOobaR']
+    args: [{'fOobaR': 4, 3: 'foobar'}, 'fOobaR']
 
 aspect_iast_do_index_on_dict:
     << : *aspect_no_iast_do_index_on_dict
