@@ -403,7 +403,7 @@ aspect_no_iast_do_re_match_index: &aspect_no_iast_do_re_match_index
     warmups: 1
     mod_original_name: "bm.iast_fixtures.str_methods"
     function_name: "do_re_match_index"
-    args: ['(\w+) (\w+)', 'foo bar', 1]
+    args: ['(\\w+) (\\w+)', 'foo bar', 1]
 
 aspect_iast_do_re_match_index:
     << : *aspect_no_iast_do_re_match_index

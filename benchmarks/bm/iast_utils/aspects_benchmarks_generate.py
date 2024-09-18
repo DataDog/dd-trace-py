@@ -168,7 +168,7 @@ _module_meta = {
         "do_partition": ["foobar", "o"],
         "do_re_sub": ["foobar", "o", "a", 1],
         "do_re_subn": ["foobar", "o", "a", 1],
-        "do_re_match_index": ["(\w+) (\w+)", "foo bar", 1],
+        "do_re_match_index": [r"(\w+) (\w+)", "foo bar", 1],
         "do_replace": ["foobar", "o", "a", 1],
         "do_rplit_separator_and_maxsplit": ["foobar", "o", 1],
         "do_rsplit": ["foo bar baz", " ", 1],
