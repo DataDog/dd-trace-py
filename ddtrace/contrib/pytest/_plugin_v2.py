@@ -18,6 +18,7 @@ from ddtrace.contrib.pytest._utils import _get_names_from_item
 from ddtrace.contrib.pytest._utils import _get_session_command
 from ddtrace.contrib.pytest._utils import _get_source_file_info
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
+from ddtrace.contrib.pytest._utils import _get_test_parameters_json
 from ddtrace.contrib.pytest._utils import _is_enabled_early
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
@@ -195,8 +196,6 @@ def _pytest_collection_finish(session) -> None:
     NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
     tests that pytest has selection for run (eg: with the use of -k as an argument).
     """
-    codeowners = InternalTestSession.get_codeowners()
-
     for item in session.items:
         test_id = _get_test_id_from_item(item)
         suite_id = test_id.parent_id
@@ -208,7 +207,7 @@ def _pytest_collection_finish(session) -> None:
 
         item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
 
-        item_codeowners = codeowners.of(str(item_path)) if codeowners is not None else None
+        item_codeowners = InternalTestSession.get_path_codeowners(item_path)
 
         source_file_info = _get_source_file_info(item, item_path)
 
@@ -245,6 +244,11 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     # TODO: don't re-start modules if already started
     InternalTestModule.start(module_id)
     InternalTestSuite.start(suite_id)
+
+    # DEV: pytest's fixtures resolution may change parameters between collection finish and test run
+    parameters = _get_test_parameters_json(item)
+    if parameters is not None:
+        InternalTest.set_parameters(test_id, parameters)
 
     InternalTest.start(test_id)
 
@@ -295,11 +299,6 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
     except:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
-        # yield and return because there's no point in attempting the post-yield part of pytest_runtest_protocol if
-        # the pre-yield part failed
-        _disable_ci_visibility()
-        yield
-        return
 
     # Yield control back to pytest to run the test
     yield
@@ -406,7 +405,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
-    # TODO: make coverage officially part of test session object so we don't use set_tag() directly.
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
     if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
@@ -417,7 +415,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if not isinstance(lines_pct_value, float):
             log.warning("Tried to add total covered percentage to session span but the format was unexpected")
             return
-        InternalTestSession.set_tag(test.TEST_LINES_PCT, lines_pct_value)
+        InternalTestSession.set_covered_lines_pct(lines_pct_value)
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()

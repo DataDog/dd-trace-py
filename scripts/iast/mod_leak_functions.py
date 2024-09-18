@@ -4,23 +4,19 @@ import subprocess
 
 import requests
 
-from ddtrace.appsec._iast._utils import _is_iast_enabled
+from tests.utils import override_env
 
 
-if _is_iast_enabled():
+with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
 
 def test_doit():
     origin_string1 = "hiroot"
-
-    if _is_iast_enabled():
-        tainted_string_2 = taint_pyobject(
-            pyobject="1234", source_name="abcdefghijk", source_value="1234", source_origin=OriginType.PARAMETER
-        )
-    else:
-        tainted_string_2 = "1234"
+    tainted_string_2 = taint_pyobject(
+        pyobject="1234", source_name="abcdefghijk", source_value="1234", source_origin=OriginType.PARAMETER
+    )
 
     string1 = str(origin_string1)  # String with 1 propagation range
     string2 = str(tainted_string_2)  # String with 1 propagation range
@@ -71,6 +67,6 @@ def test_doit():
     string19 = os.path.normcase(string18)  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
     string20 = os.path.splitdrive(string19)[1]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
 
-    expected = "notainted_HIROOT1234-HIROOT123_notainted"  # noqa: F841
-    # assert string20 == expected
+    string20 += "_extend"
+    # expected = "notainted_HIROOT1234-HIROOT123_notainted_extend"  # noqa: F841
     return string20

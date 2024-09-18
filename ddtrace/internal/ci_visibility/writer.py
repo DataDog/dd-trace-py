@@ -106,11 +106,11 @@ class CIVisibilityWriter(HTTPWriter):
             timeout = config._agent_timeout_seconds
         intake_cov_url = None
         if use_evp:
-            intake_url = agent.get_trace_url()
-            intake_cov_url = agent.get_trace_url()
+            intake_url = intake_url if intake_url else agent.get_trace_url()
+            intake_cov_url = intake_url
         elif config._ci_visibility_agentless_url:
-            intake_url = config._ci_visibility_agentless_url
-            intake_cov_url = config._ci_visibility_agentless_url
+            intake_url = intake_url if intake_url else config._ci_visibility_agentless_url
+            intake_cov_url = intake_url
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 

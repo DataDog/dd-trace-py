@@ -3,13 +3,16 @@ from http.client import RemoteDisconnected
 import json
 import os
 from pathlib import Path
+import re
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Union  # noqa:F401
+from urllib.parse import urljoin
 from uuid import uuid4
 
 import ddtrace
@@ -33,7 +36,6 @@ from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
-from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.codeowners import Codeowners
@@ -83,7 +85,6 @@ from .writer import CIVisibilityWriter
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import DefaultDict  # noqa:F401
-    from typing import List  # noqa:F401
     from typing import Tuple  # noqa:F401
 
     from ddtrace.settings import IntegrationConfig  # noqa:F401
@@ -103,12 +104,17 @@ class CIVisibilityAuthenticationException(Exception):
     pass
 
 
-def _extract_repository_name_from_url(repository_url):
-    # type: (str) -> str
+def _extract_repository_name_from_url(repository_url: str) -> str:
+    _REPO_NAME_REGEX = r".*/(?P<repo_name>.*?)(\.git)?$"
+
     try:
-        return parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
+        url_path = parse.urlparse(repository_url).path
+        matches = re.match(_REPO_NAME_REGEX, url_path, flags=re.IGNORECASE)
+        if matches:
+            return matches.group("repo_name")
+        log.warning("Cannot extract repository name from unexpected URL path: %s", url_path)
+        return repository_url
     except ValueError:
-        # In case of parsing error, default to repository url
         log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
         return repository_url
 
@@ -158,8 +164,16 @@ class CIVisibility(Service):
             self.tracer = tracer
         else:
             if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
-                # Create a new CI tracer
-                self.tracer = Tracer(context_provider=CIContextProvider())
+                log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
+                # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
+                url = ddconfig._trace_agent_url
+
+                env_agent_url = os.getenv("_CI_DD_AGENT_URL")
+                if env_agent_url is not None:
+                    log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
+                    url = env_agent_url
+
+                self.tracer = Tracer(context_provider=CIContextProvider(), url=url)
             else:
                 self.tracer = ddtrace.tracer
 
@@ -224,14 +238,16 @@ class CIVisibility(Service):
             self._should_upload_git_metadata = False
 
         if self._should_upload_git_metadata:
-            self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", requests_mode=self._requests_mode)
+            self._git_client = CIVisibilityGitClient(
+                api_key=self._api_key or "", requests_mode=self._requests_mode, tracer=self.tracer
+            )
             self._git_client.upload_git_metadata(cwd=_get_git_repo())
 
         self._api_settings = self._check_enabled_features()
 
         self._collect_coverage_enabled = self._should_collect_coverage(self._api_settings.coverage_enabled)
 
-        self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
+        self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
         log.info("Service: %s (env: %s)", self._service, ddconfig.env)
         log.info("Requests mode: %s", requests_mode_str)
@@ -294,6 +310,7 @@ class CIVisibility(Service):
             error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
             record_settings(sw.elapsed() * 1000, error=error_code)
             if response.status == 403:
+                log.warning("Error checking settings API, url: %s, payload: %s, headers: %s", url, payload, headers)
                 raise CIVisibilityAuthenticationException()
             raise ValueError("API response status code: %d", response.status)
         try:
@@ -334,7 +351,7 @@ class CIVisibility(Service):
             return _error_return_value
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
+            url = urljoin(self.tracer._agent_url, EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT)
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
                 "Content-Type": "application/json",
@@ -395,7 +412,7 @@ class CIVisibility(Service):
 
         return settings
 
-    def _configure_writer(self, coverage_enabled=False, requests_mode=None):
+    def _configure_writer(self, coverage_enabled=False, requests_mode=None, url=None):
         writer = None
         if requests_mode is None:
             requests_mode = self._requests_mode
@@ -409,7 +426,7 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent.get_trace_url(),
+                intake_url=agent.get_trace_url() if url is None else url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
@@ -421,7 +438,7 @@ class CIVisibility(Service):
     def _agent_evp_proxy_is_available(self):
         # type: () -> bool
         try:
-            info = agent.info()
+            info = agent.info(self.tracer._agent_url)
         except Exception:
             info = None
 
@@ -485,7 +502,7 @@ class CIVisibility(Service):
         }
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
+            url = urljoin(self.tracer._agent_url, EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT)
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
                 "Content-Type": "application/json",
@@ -984,12 +1001,28 @@ def _on_session_get_codeowners() -> Optional[Codeowners]:
     return CIVisibility.get_codeowners()
 
 
+@_requires_civisibility_enabled
+def _on_session_set_covered_lines_pct(coverage_pct) -> None:
+    log.debug("Setting coverage percentage for session to %s", coverage_pct)
+    CIVisibility.get_session().set_covered_lines_pct(coverage_pct)
+
+
+@_requires_civisibility_enabled
+def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
+    log.debug("Getting codeowners for path %s", path)
+    codeowners = CIVisibility.get_codeowners()
+    if codeowners is None:
+        return None
+    return codeowners.of(str(path.absolute()))
+
+
 def _register_session_handlers():
     log.debug("Registering session handlers")
     core.on("test_visibility.session.discover", _on_discover_session)
     core.on("test_visibility.session.start", _on_start_session)
     core.on("test_visibility.session.finish", _on_finish_session)
     core.on("test_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
+    core.on("test_visibility.session.get_path_codeowners", _on_session_get_path_codeowners, "path_codeowners")
     core.on("test_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
     core.on(
         "test_visibility.session.should_collect_coverage",
@@ -1001,6 +1034,7 @@ def _register_session_handlers():
         _on_session_is_test_skipping_enabled,
         "is_test_skipping_enabled",
     )
+    core.on("test_visibility.session.set_covered_lines_pct", _on_session_set_covered_lines_pct)
 
 
 @_requires_civisibility_enabled
@@ -1118,12 +1152,19 @@ def _on_finish_test(finish_args: Test.FinishArgs):
     )
 
 
+@_requires_civisibility_enabled
+def _on_set_test_paramaters(item_id: TestId, parameters: str):
+    log.debug("Handling set parameters for test id %s, parameters %s", item_id, parameters)
+    CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
+
+
 def _register_test_handlers():
     log.debug("Registering test handlers")
     core.on("test_visibility.test.discover", _on_discover_test)
     core.on("test_visibility.test.discover_early_flake_retry", _on_discover_test_early_flake_retry)
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
+    core.on("test_visibility.test.set_parameters", _on_set_test_paramaters)
 
 
 @_requires_civisibility_enabled

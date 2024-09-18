@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates support for `APM Legacy App Analytics <https://docs.datadoghq.com/tracing/legacy_app_analytics/>`_.
+    This feature and its associated configuration options are deprecated and will be removed in a future release.

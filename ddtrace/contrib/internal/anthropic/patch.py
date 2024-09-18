@@ -17,7 +17,7 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import AnthropicIntegration
-from ddtrace.llmobs._integrations.anthropic import _get_attr
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.pin import Pin
 
 
@@ -62,13 +62,10 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
             if isinstance(message.get("content", None), str):
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
-                        "anthropic.request.messages.%d.content.0.text" % (message_idx),
-                        integration.trunc(message.get("content", "")),
+                        "anthropic.request.messages.%d.content.0.text" % message_idx,
+                        integration.trunc(str(message.get("content", ""))),
                     )
-                span.set_tag_str(
-                    "anthropic.request.messages.%d.content.0.type" % (message_idx),
-                    "text",
-                )
+                span.set_tag_str("anthropic.request.messages.%d.content.0.type" % message_idx, "text")
             elif isinstance(message.get("content", None), list):
                 for block_idx, block in enumerate(message.get("content", [])):
                     if integration.is_pc_sampled_span(span):
@@ -90,12 +87,9 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
-                        _get_attr(block, "type", "text"),
+                        str(_get_attr(block, "type", "text")),
                     )
-            span.set_tag_str(
-                "anthropic.request.messages.%d.role" % (message_idx),
-                message.get("role", ""),
-            )
+            span.set_tag_str("anthropic.request.messages.%d.role" % message_idx, str(message.get("role", "")))
         tag_params_on_span(span, kwargs, integration)
 
         chat_completions = func(*args, **kwargs)
@@ -141,13 +135,10 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
             if isinstance(message.get("content", None), str):
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
-                        "anthropic.request.messages.%d.content.0.text" % (message_idx),
-                        integration.trunc(message.get("content", "")),
+                        "anthropic.request.messages.%d.content.0.text" % message_idx,
+                        integration.trunc(str(message.get("content", ""))),
                     )
-                span.set_tag_str(
-                    "anthropic.request.messages.%d.content.0.type" % (message_idx),
-                    "text",
-                )
+                span.set_tag_str("anthropic.request.messages.%d.content.0.type" % message_idx, "text")
             elif isinstance(message.get("content", None), list):
                 for block_idx, block in enumerate(message.get("content", [])):
                     if integration.is_pc_sampled_span(span):
@@ -169,12 +160,9 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
-                        _get_attr(block, "type", "text"),
+                        str(_get_attr(block, "type", "text")),
                     )
-            span.set_tag_str(
-                "anthropic.request.messages.%d.role" % (message_idx),
-                message.get("role", ""),
-            )
+            span.set_tag_str("anthropic.request.messages.%d.role" % message_idx, str(message.get("role", "")))
         tag_params_on_span(span, kwargs, integration)
 
         chat_completions = await func(*args, **kwargs)
