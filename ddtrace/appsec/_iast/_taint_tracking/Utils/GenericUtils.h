@@ -11,6 +11,10 @@ bool
 asbool(const py::object&);
 bool
 asbool(const char*);
+
+void
+set_metrics_error(const std::string& msg, const std::string& frame_info);
+
 void
 iast_taint_log_error(const std::string&);
 

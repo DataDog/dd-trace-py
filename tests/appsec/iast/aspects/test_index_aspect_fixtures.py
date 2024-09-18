@@ -83,8 +83,6 @@ def test_dictionary_index():
     assert len(tainted_ranges) == 1
 
 
-# JJJ fix this
-@flaky(1758199072)
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_index_error_with_tainted_gives_one_log_metric(telemetry_writer):
     string_input = taint_pyobject(

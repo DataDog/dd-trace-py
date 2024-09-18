@@ -71,7 +71,8 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     PyObject* idx = args[1];
     const auto result_o = PyObject_GetItem(candidate_text, idx);
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
-        if (has_pyerr()) {
+        if (const auto error = has_pyerr_as_string(); !error.empty()) {
+            set_metrics_error(error, "");
             return nullptr;
         }
 
