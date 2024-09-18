@@ -15,9 +15,7 @@ EndpointCountsType = typing.Dict[str, int]
 @dataclass(eq=False)
 class EndpointCallCounterProcessor(SpanProcessor):
     endpoint_counts: EndpointCountsType = field(default_factory=dict, init=False, repr=False, compare=False)
-    endpoint_to_span_id: typing.Dict[str, typing.Set[int]] = field(
-        default_factory=dict, init=False, repr=False, compare=False
-    )
+    span_id_to_endpoint: typing.Dict[int, str] = field(default_factory=dict, init=False, repr=False, compare=False)
     _endpoint_counts_lock: typing.ContextManager = field(
         default_factory=forksafe.Lock, init=False, repr=False, compare=False
     )
@@ -40,14 +38,12 @@ class EndpointCallCounterProcessor(SpanProcessor):
             span_id = span.span_id
             with self._endpoint_counts_lock:
                 self.endpoint_counts[resource] = self.endpoint_counts.get(resource, 0) + 1
-                if resource not in self.endpoint_to_span_id:
-                    self.endpoint_to_span_id[resource] = set()
-                self.endpoint_to_span_id[resource].add(span_id)
+                self.span_id_to_endpoint[span_id] = resource
 
-    def reset(self) -> typing.Tuple[EndpointCountsType, typing.Dict[str, typing.Set[int]]]:
+    def reset(self) -> typing.Tuple[EndpointCountsType, typing.Dict[int, str]]:
         with self._endpoint_counts_lock:
             counts = self.endpoint_counts
             self.endpoint_counts = {}
-            span_ids = self.endpoint_to_span_id
-            self.endpoint_to_span_id = {}
+            span_ids = self.span_id_to_endpoint
+            self.span_id_to_endpoint = {}
             return counts, span_ids

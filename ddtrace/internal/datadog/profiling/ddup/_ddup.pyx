@@ -6,7 +6,6 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace import ext
 import platform
 from .._types import StringType
 from ..util import ensure_binary_or_empty
@@ -177,15 +176,13 @@ def upload(processsor: EndpointCallCounterProcessor) -> None:
 
     counts, span_ids = processsor.reset()
 
-    for resource, span_id_set in span_ids.items():
-        for span_id in span_id_set:
-            resource_bytes = ensure_binary_or_empty(resource)
-            span_id = clamp_to_uint64_unsigned(span_id)
-            print("ddup_push_trace_endpoint", span_id, resource_bytes)
-            ddup_push_trace_endpoint(
-                span_id,
-                string_view(<const char*>resource_bytes, len(resource_bytes)),
-            )
+    for span_id, resource in span_ids.items():
+        resource_bytes = ensure_binary_or_empty(resource)
+        span_id = clamp_to_uint64_unsigned(span_id)
+        ddup_push_trace_endpoint(
+            span_id,
+            string_view(<const char*>resource_bytes, len(resource_bytes)),
+        )
 
     for resource, cnt in counts.items():
         resource_bytes = ensure_binary_or_empty(resource)
@@ -294,10 +291,11 @@ cdef class SampleHandle:
             class_name_bytes = ensure_binary_or_empty(class_name)
             ddup_push_class_name(self.ptr, string_view(<const char*>class_name_bytes, len(class_name_bytes)))
 
-    def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool) -> None:
+    def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool, thread_id: int) -> None:
         if self.ptr is NULL:
             return
         if not span:
+            print("ddup_push_span: span is None thread_id:", thread_id)
             return
         if span.span_id:
             clamped_span_id = clamp_to_uint64_unsigned(span.span_id)

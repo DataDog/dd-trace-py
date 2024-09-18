@@ -367,7 +367,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 handle.push_class_name(frames[0].class_name)
                 for frame in frames:
                     handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                handle.push_span(span, collect_endpoint)
+                handle.push_span(span, collect_endpoint, thread_id)
                 handle.flush_sample()
             else:
                 event = stack_event.StackSampleEvent(
@@ -399,7 +399,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     handle.push_class_name(frames[0].class_name)
                     for frame in frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                    handle.push_span(span, collect_endpoint)
+                    handle.push_span(span, collect_endpoint, thread_id)
                     handle.flush_sample()
                 else:
                     exc_event = stack_event.StackExceptionSampleEvent(
@@ -454,7 +454,10 @@ class _ThreadSpanLinks(_thread_span_links_base):
         """
         active_span = self.get_object(thread_id)
         if active_span is not None and not active_span.finished:
+            print("Found active_span with span_id: ", active_span.span_id)
             return active_span
+        else:
+            print("failed to find active_span with thread_id: ", thread_id)
         return None
 
 
