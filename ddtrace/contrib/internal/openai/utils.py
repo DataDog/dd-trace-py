@@ -228,14 +228,39 @@ def _construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Di
     return completion
 
 
+def _construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_chunk=None, function_call_chunk=None):
+    """Builds a tool_call dictionary from streamed function_call/tool_call chunks."""
+    if function_call_chunk:
+        if not stored_tool_calls:
+            stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
+        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "")
+        return
+    if not tool_call_chunk:
+        return
+    tool_call_idx = getattr(tool_call_chunk, "index", None)
+    tool_id = getattr(tool_call_chunk, "id", None)
+    tool_type = getattr(tool_call_chunk, "type", None)
+    function_call = getattr(tool_call_chunk, "function", None)
+    function_name = getattr(function_call, "name", "")
+    # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
+    list_idx = next(
+        (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call["index"] == tool_call_idx),
+        None,
+    )
+    if list_idx is None:
+        stored_tool_calls.append(
+            {"name": function_name, "arguments": "", "index": tool_call_idx, "tool_id": tool_id, "type": tool_type}
+        )
+        list_idx = -1
+    stored_tool_calls[list_idx]["arguments"] += getattr(function_call, "arguments", "")
+
+
 def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
     """Constructs a chat completion message dictionary from streamed chunks.
     The resulting message dictionary is of form:
-    {"content": "...", "role": "...", "finish_reason": "..."}
+    {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
     """
-    message = {"content": ""}
-    formatted_content = ""
-    idx = None
+    message = {"content": "", "tool_calls": []}
     for chunk in streamed_chunks:
         if getattr(chunk, "usage", None):
             message["usage"] = chunk.usage
@@ -253,26 +278,17 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
             continue
         function_call = getattr(chunk.delta, "function_call", None)
         if function_call:
-            if idx is None:
-                formatted_content += "\n\n[function: {}]\n\n".format(getattr(function_call, "name", ""))
-                idx = chunk.index
-            function_args = getattr(function_call, "arguments", "")
-            message["content"] += "{}".format(function_args)
-            formatted_content += "{}".format(function_args)
-        tool_calls = getattr(chunk.delta, "tool_calls", [])
+            _construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
+        tool_calls = getattr(chunk.delta, "tool_calls", None)
         if not tool_calls:
             continue
         for tool_call in tool_calls:
-            if tool_call.index != idx:
-                formatted_content += "\n\n[tool: {}]\n\n".format(getattr(tool_call.function, "name", ""))
-                idx = tool_call.index
-            function_args = getattr(tool_call.function, "arguments", "")
-            message["content"] += "{}".format(function_args)
-            formatted_content += "{}".format(function_args)
-
+            _construct_tool_call_from_streamed_chunk(message["tool_calls"], tool_call_chunk=tool_call)
+    if message["tool_calls"]:
+        message["tool_calls"].sort(key=lambda x: x.get("index", 0))
+    else:
+        message.pop("tool_calls", None)
     message["content"] = message["content"].strip()
-    if formatted_content:
-        message["formatted_content"] = formatted_content.strip()
     return message
 
 
@@ -290,6 +306,9 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
             span.set_tag_str(
                 "openai.response.choices.%d.message.content" % idx, integration.trunc(str(message_content))
             )
+        tool_calls = choice.get("tool_calls", [])
+        if tool_calls:
+            _tag_tool_calls(integration, span, tool_calls, idx)
         finish_reason = choice.get("finish_reason", "")
         if finish_reason:
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
@@ -358,14 +377,17 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx):
     # type: (...) -> None
     """
     Tagging logic if function_call or tool_calls are provided in the chat response.
-    Note: since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
+    Notes:
+        - since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
+        - streamed responses are processed and collected as dictionaries rather than objects,
+          so we need to handle both ways of accessing values.
     """
     for idy, tool_call in enumerate(tool_calls):
         if hasattr(tool_call, "function"):
             # tool_call is further nested in a "function" object
             tool_call = tool_call.function
-        function_arguments = getattr(tool_call, "arguments", "")
-        function_name = getattr(tool_call, "name", "")
+        function_arguments = _get_attr(tool_call, "arguments", "")
+        function_name = _get_attr(tool_call, "name", "")
         span.set_tag_str(
             "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
             integration.trunc(str(function_arguments)),

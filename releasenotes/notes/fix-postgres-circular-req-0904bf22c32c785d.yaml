@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    postgres: Fixes circular imports raised when psycopg automatic instrumentation is enabled.
