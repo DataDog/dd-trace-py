@@ -174,3 +174,56 @@ def test_re_match_index(input_str, index, tainted, expected_result):
     result = mod.do_re_match_index(string_input, regexp, index)
     assert result == expected_result
     assert len(get_tainted_ranges(result)) == int(tainted)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
+def test_re_match_index_indexerror_bytes():
+    regexp = rb"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
+    input_str = b"user@example.com"
+    string_input = taint_pyobject(
+        pyobject=input_str,
+        source_name="test_re_match_index_indexerror_bytes",
+        source_value="foo",
+        source_origin=OriginType.PARAMETER,
+    )
+    with pytest.raises(IndexError):
+        mod.do_re_match_index(string_input, regexp, 4)
+
+    with pytest.raises(IndexError):
+        mod.do_re_match_index(string_input, regexp, b"doesntexist")
+
+
+@pytest.mark.parametrize(
+    "input_str, index, tainted, expected_result, ",
+    [
+        (b"user@example.com", 0, True, b"user@example.com"),
+        (b"user@example.com", 1, True, b"user"),
+        (b"user@example.com", 2, True, b"example"),
+        (b"user@example.com", 3, True, b"com"),
+        (b"user@example.com", "username", True, b"user"),
+        (b"user@example.com", "domain", True, b"example"),
+        (b"user@example.com", "tld", True, b"com"),
+        (b"cleanuser@example.com", 0, False, b"cleanuser@example.com"),
+        (b"cleanuser@example.com", 1, False, b"cleanuser"),
+        (b"cleanuser@example.com", 2, False, b"example"),
+        (b"cleanuser@example.com", 3, False, b"com"),
+        (b"cleanuser@example.com", "username", False, b"cleanuser"),
+        (b"cleanuser@example.com", "domain", False, b"example"),
+        (b"cleanuser@example.com", "tld", False, b"com"),
+    ],
+)
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
+def test_re_match_index_bytes(input_str, index, tainted, expected_result):
+    regexp = rb"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
+    if tainted:
+        string_input = taint_pyobject(
+            pyobject=input_str,
+            source_name="test_re_match_index_bytes",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+        )
+    else:
+        string_input = input_str
+    result = mod.do_re_match_index(string_input, regexp, index)
+    assert result == expected_result
+    assert len(get_tainted_ranges(result)) == int(tainted)
