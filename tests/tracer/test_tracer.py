@@ -2070,7 +2070,7 @@ def test_gc_not_used_on_root_spans():
         pass
 
     # There should be no more span objects lingering around.
-    assert not any(str(object).startswith("<Span") for object in gc.get_objects())
+    assert not any(str(obj).startswith("<Span") for obj in gc.get_objects())
 
     # To check the exact nature of the objects and their references, use the following:
 
