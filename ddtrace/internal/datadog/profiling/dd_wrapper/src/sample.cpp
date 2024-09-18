@@ -298,16 +298,6 @@ Datadog::Sample::push_trace_type(std::string_view trace_type)
 }
 
 bool
-Datadog::Sample::push_trace_endpoint(std::string_view trace_endpoint)
-{
-    if (!push_label(ExportLabelKey::trace_endpoint, trace_endpoint)) {
-        std::cout << "bad push" << std::endl;
-        return false;
-    }
-    return true;
-}
-
-bool
 Datadog::Sample::push_class_name(std::string_view class_name)
 {
     if (!push_label(ExportLabelKey::class_name, class_name)) {
