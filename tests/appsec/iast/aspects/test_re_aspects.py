@@ -1,8 +1,6 @@
 import re
 import typing
 
-import pytest
-
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -71,7 +69,6 @@ def test_re_sub_aspect_tainted_string():
     ]
 
 
-@pytest.mark.skip("This function raise an unexpected exception")
 def test_re_sub_aspect_tainted_string_wrong_expression():
     tainted_foobarbaz = taint_pyobject(
         pyobject="test [1]",
