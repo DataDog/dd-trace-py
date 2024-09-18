@@ -4,6 +4,19 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.13.1
+
+
+### Bug Fixes
+
+- library injection: Resolves an issue where the version of `attrs` installed by default on some Ubuntu installations was treated as incompatible with library injection
+- anthropic: Resolves an issue where attempting to tag non-JSON serializable request arguments caused a `TypeError`. The Anthropic integration now safely tags non-JSON serializable arguments with a default placeholder text.
+- postgres: Fixes circular imports raised when psycopg automatic instrumentation is enabled.
+- ASM: This fix resolves an issue where exploit prevention was not properly blocking requests with custom redirection actions.
+
+
+---
+
 ## 2.11.6
 
 ### Bug Fixes
