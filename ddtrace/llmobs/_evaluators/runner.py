@@ -44,7 +44,7 @@ class EvaluatorRunner(PeriodicService):
         atexit.register(self.on_shutdown)
 
     def on_shutdown(self):
-        self.executor.shutdown(cancel_futures=True)
+        self.executor.shutdown()
 
     def recreate(self):
         return self.__class__(
