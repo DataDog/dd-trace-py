@@ -1,5 +1,8 @@
+import collections
+from functools import lru_cache as cached
+import inspect
 import logging
-import os
+from os import fspath  # noqa:F401
 import sys
 import sysconfig
 from types import ModuleType
@@ -7,47 +10,11 @@ import typing as t
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
-from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.settings.third_party import config as tp_config
 
 
 LOG = logging.getLogger(__name__)
-
-
-try:
-    fspath = os.fspath
-except AttributeError:
-    # Stolen from Python 3.10
-    def fspath(path):
-        # For testing purposes, make sure the function is available when the C
-        # implementation exists.
-        """Return the path representation of a path-like object.
-
-        If str or bytes is passed in, it is returned unchanged. Otherwise the
-        os.PathLike interface is used to get the path representation. If the
-        path representation is not str or bytes, TypeError is raised. If the
-        provided path is not str, bytes, or os.PathLike, TypeError is raised.
-        """
-        if isinstance(path, (str, bytes)):
-            return path
-
-        # Work from the object's type to match method resolution of other magic
-        # methods.
-        path_type = type(path)
-        try:
-            path_repr = path_type.__fspath__(path)
-        except AttributeError:
-            if hasattr(path_type, "__fspath__"):
-                raise
-            else:
-                raise TypeError("expected str, bytes or os.PathLike object, not " + path_type.__name__)
-        if isinstance(path_repr, (str, bytes)):
-            return path_repr
-        raise TypeError(
-            "expected {}.__fspath__() to return str or bytes, "
-            "not {}".format(path_type.__name__, type(path_repr).__name__)
-        )
 
 
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
@@ -77,7 +44,43 @@ def get_distributions():
     return pkgs
 
 
-@cached()
+@callonce
+def get_package_distributions() -> t.Mapping[str, t.List[str]]:
+    """a mapping of importable package names to their distribution name(s)"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    # Prefer the official API if available, otherwise fallback to the vendored version
+    if hasattr(importlib_metadata, "packages_distributions"):
+        return importlib_metadata.packages_distributions()
+    return _packages_distributions()
+
+
+@cached(maxsize=256)
+def get_module_distribution_versions(module_name: str) -> t.Dict[str, str]:
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        return {
+            module_name: importlib_metadata.distribution(module_name).version,
+        }
+    except importlib_metadata.PackageNotFoundError:
+        pass
+
+    pkgs = get_package_distributions()
+    names = pkgs.get(module_name)
+    if not names:
+        return {}
+
+    return {name: get_version_for_package(name) for name in names}
+
+
+@cached(maxsize=256)
 def get_version_for_package(name):
     # type: (str) -> str
     """returns the version of a package"""
@@ -194,7 +197,7 @@ def _third_party_packages() -> set:
     ) - tp_config.excludes
 
 
-@cached()
+@cached(maxsize=16384)
 def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
     mapping = _package_for_root_module_mapping()
     if mapping is None:
@@ -203,11 +206,11 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
     try:
         path = Path(filename) if isinstance(filename, str) else filename
         return mapping.get(_root_module(path.resolve()))
-    except ValueError:
+    except (ValueError, OSError):
         return None
 
 
-@cached()
+@cached(maxsize=256)
 def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
     """Returns the package distribution for a module"""
     module_origin = origin(module)
@@ -220,7 +223,7 @@ purelib_path = Path(sysconfig.get_path("purelib")).resolve()
 platlib_path = Path(sysconfig.get_path("platlib")).resolve()
 
 
-@cached()
+@cached(maxsize=256)
 def is_stdlib(path: Path) -> bool:
     rpath = path.resolve()
 
@@ -229,7 +232,6 @@ def is_stdlib(path: Path) -> bool:
     )
 
 
-@cached()
 def is_third_party(path: Path) -> bool:
     package = filename_to_package(str(path))
     if package is None:
@@ -238,12 +240,11 @@ def is_third_party(path: Path) -> bool:
     return package.name in _third_party_packages()
 
 
-@cached()
 def is_user_code(path: Path) -> bool:
     return not (is_stdlib(path) or is_third_party(path))
 
 
-@cached()
+@cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
     try:
@@ -257,3 +258,117 @@ def is_distribution_available(name: str) -> bool:
         return False
 
     return True
+
+
+# ----
+# the below helpers are copied from importlib_metadata
+# ----
+
+
+def _packages_distributions() -> t.Mapping[str, t.List[str]]:
+    """
+    Return a mapping of top-level packages to their
+    distributions.
+    >>> import collections.abc
+    >>> pkgs = packages_distributions()
+    >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
+    True
+    """
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    pkg_to_dist = collections.defaultdict(list)
+    for dist in importlib_metadata.distributions():
+        for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
+            pkg_to_dist[pkg].append(dist.metadata["Name"])
+    return dict(pkg_to_dist)
+
+
+def _top_level_declared(dist):
+    return (dist.read_text("top_level.txt") or "").split()
+
+
+def _topmost(name) -> t.Optional[str]:
+    """
+    Return the top-most parent as long as there is a parent.
+    """
+    top, *rest = name.parts
+    return top if rest else None
+
+
+def _get_toplevel_name(name) -> str:
+    """
+    Infer a possibly importable module name from a name presumed on
+    sys.path.
+    >>> _get_toplevel_name(PackagePath('foo.py'))
+    'foo'
+    >>> _get_toplevel_name(PackagePath('foo'))
+    'foo'
+    >>> _get_toplevel_name(PackagePath('foo.pyc'))
+    'foo'
+    >>> _get_toplevel_name(PackagePath('foo/__init__.py'))
+    'foo'
+    >>> _get_toplevel_name(PackagePath('foo.pth'))
+    'foo.pth'
+    >>> _get_toplevel_name(PackagePath('foo.dist-info'))
+    'foo.dist-info'
+    """
+    return _topmost(name) or (
+        # python/typeshed#10328
+        inspect.getmodulename(name)
+        or str(name)
+    )
+
+
+def _top_level_inferred(dist):
+    opt_names = set(map(_get_toplevel_name, _always_iterable(dist.files)))
+
+    def importable_name(name):
+        return "." not in name
+
+    return filter(importable_name, opt_names)
+
+
+# copied from more_itertools 8.8
+def _always_iterable(obj, base_type=(str, bytes)):
+    """If *obj* is iterable, return an iterator over its items::
+        >>> obj = (1, 2, 3)
+        >>> list(always_iterable(obj))
+        [1, 2, 3]
+    If *obj* is not iterable, return a one-item iterable containing *obj*::
+        >>> obj = 1
+        >>> list(always_iterable(obj))
+        [1]
+    If *obj* is ``None``, return an empty iterable:
+        >>> obj = None
+        >>> list(always_iterable(None))
+        []
+    By default, binary and text strings are not considered iterable::
+        >>> obj = 'foo'
+        >>> list(always_iterable(obj))
+        ['foo']
+    If *base_type* is set, objects for which ``isinstance(obj, base_type)``
+    returns ``True`` won't be considered iterable.
+        >>> obj = {'a': 1}
+        >>> list(always_iterable(obj))  # Iterate over the dict's keys
+        ['a']
+        >>> list(always_iterable(obj, base_type=dict))  # Treat dicts as a unit
+        [{'a': 1}]
+    Set *base_type* to ``None`` to avoid any special handling and treat objects
+    Python considers iterable as iterable:
+        >>> obj = 'foo'
+        >>> list(always_iterable(obj, base_type=None))
+        ['f', 'o', 'o']
+    """
+    if obj is None:
+        return iter(())
+
+    if (base_type is not None) and isinstance(obj, base_type):
+        return iter((obj,))
+
+    try:
+        return iter(obj)
+    except TypeError:
+        return iter((obj,))

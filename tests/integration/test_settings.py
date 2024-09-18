@@ -1,6 +1,7 @@
+import os
+
 import pytest
 
-from ..telemetry.utils import get_default_telemetry_env
 from .test_integration import AGENT_VERSION
 
 
@@ -16,8 +17,7 @@ def _get_telemetry_config_items(events, item_name):
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_setting_origin_environment(test_agent_session, run_python_code_in_subprocess):
-    env = get_default_telemetry_env()
-
+    env = os.environ.copy()
     env.update(
         {
             "DD_TRACE_SAMPLE_RATE": "0.1",
@@ -25,6 +25,7 @@ def test_setting_origin_environment(test_agent_session, run_python_code_in_subpr
             "DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
             "DD_TAGS": "team:apm,component:web",
             "DD_TRACE_ENABLED": "true",
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
     out, err, status, _ = run_python_code_in_subprocess(
@@ -65,7 +66,7 @@ with tracer.trace("test") as span:
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
-    env = get_default_telemetry_env()
+    env = os.environ.copy()
     env.update(
         {
             "DD_TRACE_SAMPLE_RATE": "0.1",
@@ -86,8 +87,9 @@ config.trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
 config._tracing_enabled = False
 
-with tracer.trace("test") as span:
-    pass
+from ddtrace.internal.telemetry import telemetry_writer
+# simulate app start event, this occurs when the first span is sent to the datadog agent
+telemetry_writer._app_started()
         """,
         env=env,
     )
@@ -132,6 +134,12 @@ with tracer.trace("test") as span:
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_remoteconfig_sampling_rate_default(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
+        }
+    )
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -161,7 +169,7 @@ with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote config trace sample rate"
         """,
-        env=get_default_telemetry_env(),
+        env=env,
     )
     assert status == 0, err
 
@@ -172,6 +180,12 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
+        }
+    )
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -182,7 +196,7 @@ with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.5
         """,
-        env=get_default_telemetry_env(),
+        env=env,
     )
     assert status == 0, err
 
@@ -193,6 +207,12 @@ assert span.get_metric("_dd.rule_psr") == 0.5
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_remoteconfig_header_tags_telemetry(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
+        }
+    )
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -213,7 +233,7 @@ assert span.get_tag("header_tag_69") == "foobarbanana"
 assert span.get_tag("header_tag_70") is None
 assert span.get_tag("http.request.headers.used-with-default") == "defaultname"
         """,
-        env=get_default_telemetry_env(),
+        env=env,
     )
     assert status == 0, err
 

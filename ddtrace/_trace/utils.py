@@ -5,7 +5,7 @@ from typing import Optional
 
 from ddtrace import Span
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
@@ -45,7 +45,7 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         span.set_tag_str("region", region_name)
 
     # set analytics sample rate
-    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
+    span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
 
 
 def set_botocore_response_metadata_tags(

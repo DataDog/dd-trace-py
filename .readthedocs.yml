@@ -5,6 +5,10 @@ build:
     python: "3.10"
   commands:
     - git fetch --unshallow || true
-    - pip install hatch~=1.8.0 hatch-containers==0.7.0
+    - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
+    - install -t /usr/local/bin hatch
+    - hatch -q
+    - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+    - echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
     - hatch -v run docs:sphinx-build -W -b html docs docs/_build/html
     - mv docs/_build $READTHEDOCS_OUTPUT

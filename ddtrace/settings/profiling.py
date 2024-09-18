@@ -1,8 +1,16 @@
+import itertools
 import math
+import os
 import typing as t
 
 from envier import En
 
+from ddtrace import config as core_config
+from ddtrace.ext.git import COMMIT_SHA
+from ddtrace.ext.git import MAIN_PACKAGE
+from ddtrace.ext.git import REPOSITORY_URL
+from ddtrace.internal import compat
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
 
@@ -10,8 +18,15 @@ from ddtrace.internal.utils.formats import parse_tags_str
 logger = get_logger(__name__)
 
 
+# Stash the reason why a transitive dependency failed to load; since we try to load things safely in order to guide
+# configuration, these errors won't bubble up naturally.  All of these components should use the same pattern
+# in order to guarantee uniformity.
+ddup_failure_msg = ""
+stack_v2_failure_msg = ""
+
+
 def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 * 1024):
-    # type: (ProfilingConfig.Heap, int) -> int
+    # type: (ProfilingConfigHeap, int) -> int
     heap_sample_size = heap_config._sample_size
     if heap_sample_size is not None:
         return heap_sample_size
@@ -38,18 +53,24 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
 
 
 def _check_for_ddup_available():
+    global ddup_failure_msg
     ddup_is_available = False
     try:
         from ddtrace.internal.datadog.profiling import ddup
 
         ddup_is_available = ddup.is_available
+        ddup_failure_msg = ddup.failure_msg
     except Exception:
         pass  # nosec
     return ddup_is_available
 
 
 def _check_for_stack_v2_available():
+    global stack_v2_failure_msg
     stack_v2_is_available = False
+
+    # stack_v2 will use libdd; in order to prevent two separate collectors from running, it then needs to force
+    # libdd to be enabled as well; that means it depends on the libdd interface (ddup)
     if not _check_for_ddup_available():
         return False
 
@@ -57,23 +78,99 @@ def _check_for_stack_v2_available():
         from ddtrace.internal.datadog.profiling import stack_v2
 
         stack_v2_is_available = stack_v2.is_available
+        stack_v2_failure_msg = stack_v2.failure_msg
     except Exception:
         pass  # nosec
     return stack_v2_is_available
 
 
-# We don't check for the availability of the ddup module when determining whether libdd is _required_,
-# since it's up to the application code to determine what happens in that failure case.
 def _is_libdd_required(config):
-    return config.stack.v2.enabled or config._libdd_required
+    # This function consolidates the logic for force-enabling the libdd uploader.  Otherwise this will get enabled in
+    # a bunch of separate places and it'll be tough to manage.
+    # v2 requires libdd because it communicates over a pure-native channel
+    # libdd... requires libdd
+    # injected environments _cannot_ deploy protobuf, so they must use libdd
+    # timeline requires libdd
+    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected or config.timeline_enabled
+
+
+# This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
+# indicate whether profiling was enabled.
+_profiling_injected = False
+
+
+def _parse_profiling_enabled(raw: str) -> bool:
+    global _profiling_injected
+
+    # Before we do anything else, check the tracer configuration
+    _profiling_injected = core_config._lib_was_injected
+
+    # Try to derive two bits of information
+    # - Are we injected (DD_INJECTION_ENABLED set) (almost certainly already populated correctly by core_config)
+    # - Is profiling enabled ("profiler" in the list)
+    if os.environ.get("DD_INJECTION_ENABLED") is not None:
+        _profiling_injected = True
+        for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
+            if tok.strip().lower() == "profiler":
+                return True
+
+    # This is the normal check
+    raw_lc = raw.lower()
+    if raw_lc in ("1", "true", "yes", "on"):
+        return True
+
+    # In addition to everything else, we have to check for the `auto` value of `DD_PROFILING_ENABLED`.
+    # This value simultaneously enables the profiler and indicates the environment is injected.
+    if raw_lc == "auto":
+        _profiling_injected = True
+        return True
+
+    # If it wasn't enabled, then disable it
+    return False
+
+
+def _check_for_injected():
+    global _profiling_injected
+    return _profiling_injected
+
+
+def _update_git_metadata_tags(tags):
+    """
+    Update profiler tags with git metadata
+    """
+    # clean tags, because values will be combined and inserted back in the same way as for tracer
+    gitmetadata.clean_tags(tags)
+    repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
+    if repository_url:
+        tags[REPOSITORY_URL] = repository_url
+    if commit_sha:
+        tags[COMMIT_SHA] = commit_sha
+    if main_package:
+        tags[MAIN_PACKAGE] = main_package
+    return tags
+
+
+def _enrich_tags(tags) -> t.Dict[str, str]:
+    tags = {
+        k: compat.ensure_text(v, "utf-8")
+        for k, v in itertools.chain(
+            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            tags.items(),
+        )
+    }
+
+    return tags
 
 
 class ProfilingConfig(En):
     __prefix__ = "dd.profiling"
 
+    # Note that the parser here has a side-effect, since SSI has changed the once-truthy value of the envvar to
+    # truthy + "auto", which has a special meaning.
     enabled = En.v(
         bool,
         "enabled",
+        parser=_parse_profiling_enabled,
         default=False,
         help_type="Boolean",
         help="Enable Datadog profiling when using ``ddtrace-run``",
@@ -170,6 +267,15 @@ class ProfilingConfig(En):
         help="The timeout in seconds before dropping events if the HTTP API does not reply",
     )
 
+    timeline_enabled = En.v(
+        bool,
+        "timeline_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to add timestamp information to captured samples.  Adds a small amount of "
+        "overhead to the profiler, but enables the use of the Timeline view in the UI.",
+    )
+
     tags = En.v(
         dict,
         "tags",
@@ -179,113 +285,167 @@ class ProfilingConfig(En):
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
 
-    class Stack(En):
-        __item__ = __prefix__ = "stack"
+    enable_asserts = En.v(
+        bool,
+        "enable_asserts",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable debug assertions in the profiler code",
+    )
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the stack profiler",
-        )
+    _force_legacy_exporter = En.v(
+        bool,
+        "_force_legacy_exporter",
+        default=False,
+        help_type="Boolean",
+        help="Exclusively used in testing environments to force the use of the legacy exporter. This parameter is "
+        "not for general use and will be removed in the near future.",
+    )
 
-        class V2(En):
-            __item__ = __prefix__ = "v2"
+    sample_pool_capacity = En.v(
+        int,
+        "sample_pool_capacity",
+        default=4,
+        help_type="Integer",
+        help="The number of Sample objects to keep in the pool for reuse. "
+        "Increasing this can reduce the overhead from frequently allocating "
+        "and deallocating Sample objects.",
+    )
 
-            _enabled = En.v(
-                bool,
-                "enabled",
-                default=False,
-                help_type="Boolean",
-                help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
-            )
 
-            enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._enabled)
+class ProfilingConfigStack(En):
+    __item__ = __prefix__ = "stack"
 
-    class Lock(En):
-        __item__ = __prefix__ = "lock"
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the stack profiler",
+    )
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the lock profiler",
-        )
+    _v2_enabled = En.v(
+        bool,
+        "v2_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
+    )
 
-    class Memory(En):
-        __item__ = __prefix__ = "memory"
+    # V2 can't be enabled if stack collection is disabled or if pre-requisites are not met
+    v2_enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._v2_enabled and c.enabled)
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the memory profiler",
-        )
 
-        events_buffer = En.v(
-            int,
-            "events_buffer",
-            default=16,
-            help_type="Integer",
-            help="",
-        )
+class ProfilingConfigLock(En):
+    __item__ = __prefix__ = "lock"
 
-    class Heap(En):
-        __item__ = __prefix__ = "heap"
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the lock profiler",
+    )
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the heap memory profiler",
-        )
+    name_inspect_dir = En.v(
+        bool,
+        "name_inspect_dir",
+        default=True,
+        help_type="Boolean",
+        help="Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
+        "With this enabled, the profiler finds the name of locks that are attributes of an object.",
+    )
 
-        _sample_size = En.v(
-            t.Optional[int],
-            "sample_size",
-            default=None,
-            help_type="Integer",
-            help="",
-        )
-        sample_size = En.d(int, _derive_default_heap_sample_size)
 
-    class Export(En):
-        __item__ = __prefix__ = "export"
+class ProfilingConfigMemory(En):
+    __item__ = __prefix__ = "memory"
 
-        _libdd_required = En.v(
-            bool,
-            "libdd_required",
-            default=False,
-            help_type="Boolean",
-            help="Requires the native exporter to be enabled",
-        )
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the memory profiler",
+    )
 
-        libdd_required = En.d(
-            bool,
-            _is_libdd_required,
-        )
+    events_buffer = En.v(
+        int,
+        "events_buffer",
+        default=16,
+        help_type="Integer",
+        help="",
+    )
 
-        _libdd_enabled = En.v(
-            bool,
-            "libdd_enabled",
-            default=False,
-            help_type="Boolean",
-            help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
-        )
 
-        libdd_enabled = En.d(
-            bool, lambda c: (_is_libdd_required(c) or c._libdd_enabled) and _check_for_ddup_available()
-        )
+class ProfilingConfigHeap(En):
+    __item__ = __prefix__ = "heap"
 
-    Export.include(Stack, namespace="stack")
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the heap memory profiler",
+    )
 
+    _sample_size = En.v(
+        t.Optional[int],
+        "sample_size",
+        default=None,
+        help_type="Integer",
+        help="",
+    )
+    sample_size = En.d(int, _derive_default_heap_sample_size)
+
+
+class ProfilingConfigExport(En):
+    __item__ = __prefix__ = "export"
+
+    _libdd_enabled = En.v(
+        bool,
+        "libdd_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
+    )
+
+
+# Include all the sub-configs
+ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
+ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
+ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
+ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
+ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
 
-if config.export.libdd_required and not config.export.libdd_enabled:
-    logger.warning("The native exporter is required, but not enabled. Disabling profiling.")
-    config.enabled = False
+# If during processing we discover that the configuration was injected, we need to do a few things
+# - Mark it as such
+# - Force libdd to be enabled, disabling the profiler otherwise the service might crash
+#   (this is done in the _is_libdd_required function)
+config._injected = _check_for_injected()
+
+# Force the enablement of libdd if the user requested a feature which requires it; otherwise the user has to manage
+# configuration too intentionally and we'll need to change the API too much over time.
+config.export.libdd_enabled = _is_libdd_required(config)
+
+# AFTER checking for libdd enablement, we process the override (_force_legacy_exporter), which will disable libdd.
+# This is done because we currently test in an injected posture, but the new exporter doesn't have the same
+# introspection capabilities as the legacy one.
+if config._force_legacy_exporter:
+    config.export.libdd_enabled = False
+
+# Certain features depend on libdd being available.  If it isn't for some reason, those features cannot be enabled.
+if config.stack.v2_enabled and not config.export.libdd_enabled:
+    msg = ddup_failure_msg or "libdd not available"
+    logger.warning("The v2 stack profiler cannot be used (%s)", msg)
+    config.stack.v2_enabled = False
+
+# Loading stack_v2 can fail for similar reasons
+if config.stack.v2_enabled and not _check_for_stack_v2_available():
+    msg = stack_v2_failure_msg or "stack_v2 not available"
+    logger.warning("The v2 stack profiler cannot be used (%s)", msg)
+    config.stack.v2_enabled = False
+
+# Enrich tags with git metadata and DD_TAGS
+config.tags = _enrich_tags(config.tags)

@@ -10,7 +10,10 @@ from typing import Optional
 from datadog_api_client import ApiClient
 from datadog_api_client import Configuration
 from datadog_api_client.v1.api.notebooks_api import NotebooksApi
+from github import Commit
 from github import Github
+from github import GithubException
+from packaging.version import Version
 import requests
 
 
@@ -36,8 +39,8 @@ Usage:
 The script should be run from the `scripts` directory.
 
 Required:
-    BASE - The base branch you are building your release candidate, patch, or minor release off of.
-        If this is a rc1, then just specify the branch you'll create after the release is published. e.g. BASE=2.9
+    BASE - The base git ref you are building your release candidate, patch, or minor release off of.
+        If this is a rc1, then specify the branch you'll create after the release is published. e.g. BASE=2.9
 
 Optional:
     RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
@@ -55,7 +58,7 @@ Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
 """  # noqa
 
 MAX_GH_RELEASE_NOTES_LENGTH = 125000
-ReleaseParameters = namedtuple("ReleaseParameters", ["branch", "name", "tag", "dd_repo", "rn", "prerelease"])
+ReleaseParameters = namedtuple("ReleaseParameters", ["ref", "name", "tag", "dd_repo", "rn", "prerelease"])
 DEFAULT_BRANCH = "main"
 DRY_RUN = os.getenv("DRY_RUN", "0") == "1"
 CHANGELOG_FILENAME = "../CHANGELOG.md"
@@ -82,6 +85,10 @@ def _decide_next_release_number(base: str, candidate: bool = False) -> int:
 
 def _get_rc_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress release candidate"""
+    if base.startswith("v") or base.endswith(".x"):
+        raise ValueError(
+            f"For release candidates, base ref must point to a release branch (the value given was '{base}')"
+        )
     # patch value should always be 0 if we're doing an RC
     new_rc_version = _decide_next_release_number(base, candidate=True)
     release_branch = DEFAULT_BRANCH if new_rc_version == 1 else base
@@ -93,6 +100,8 @@ def _get_rc_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
 
 def _get_patch_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress patch release"""
+    if base.startswith("v") or base.endswith(".x"):
+        raise ValueError(f"For patch releases, base ref must point to a release branch (the value given was '{base}')")
     name = "%s.%s" % (base, str(_decide_next_release_number(base)))
     release_notes = clean_release_notes(generate_release_notes(base))
     return ReleaseParameters(base, name, "v%s" % name, dd_repo, release_notes, False)
@@ -100,10 +109,11 @@ def _get_patch_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
 
 def _get_minor_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress minor release"""
-    name = "%s.0" % base
+    parsed_base = Version(base)
+    name = "%s.%s.0" % (parsed_base.major, parsed_base.minor)
 
     rn_raw = generate_release_notes(base)
-    rn_sections_clean = create_release_notes_sections(rn_raw, base)
+    rn_sections_clean = create_release_notes_sections(rn_raw, f"{parsed_base.major}.{parsed_base.minor}")
     release_notes = ""
     rn_key_order = [
         "Prelude",
@@ -137,7 +147,7 @@ def create_release_draft(dd_repo, base, rc, patch):
     return parameters.name, parameters.rn
 
 
-def clean_release_notes(rn_raw: str) -> str:
+def clean_release_notes(rn_raw: bytes) -> str:
     """removes everything from the given string except for release notes that haven't been released yet"""
     return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
@@ -202,8 +212,28 @@ def break_into_release_sections(rn):
     return [ele for ele in re.split(r"[^#](#)\1{2}[^#]", rn)[1:] if ele != "#"]
 
 
+def _commit_from(ref: str) -> Commit:
+    try:
+        branch = dd_repo.get_branch(branch=ref)
+    except GithubException as exc:
+        if exc._GithubException__status == 404:
+            pass
+    else:
+        return branch.commit
+
+    try:
+        tag = next((x for x in dd_repo.get_tags() if x.name == ref))
+    except (GithubException, StopIteration) as exc:
+        if isinstance(exc, StopIteration) or exc._GithubException__status == 404:
+            pass
+    else:
+        return tag.commit
+
+    raise ValueError(f"Ref '{ref}' could not be resolved to a commit hash")
+
+
 def create_draft_release_github(release_parameters: ReleaseParameters):
-    base_branch = dd_repo.get_branch(branch=release_parameters.branch)
+    base_commit = _commit_from(release_parameters.ref)
     print_release_notes = bool(os.getenv("PRINT"))
     if print_release_notes:
         print(
@@ -213,7 +243,7 @@ def create_draft_release_github(release_parameters: ReleaseParameters):
                 release_parameters.name,
                 release_parameters.tag,
                 release_parameters.prerelease,
-                base_branch,
+                base_commit,
                 release_parameters.rn,
             )
         )
@@ -224,11 +254,11 @@ def create_draft_release_github(release_parameters: ReleaseParameters):
                 tag=release_parameters.tag,
                 prerelease=release_parameters.prerelease,
                 draft=True,
-                target_commitish=base_branch,
+                target_commitish=base_commit,
                 message=release_parameters.rn[:MAX_GH_RELEASE_NOTES_LENGTH],
             ),
             f"create_git_release(name={release_parameters.name}, tag={release_parameters.tag}, "
-            f"prerelease={release_parameters.prerelease}, draft=True, target_commitish={base_branch}, "
+            f"prerelease={release_parameters.prerelease}, draft=True, target_commitish={base_commit}, "
             f"message={release_parameters.rn[:100]}...)",
         )
         print("\nPlease review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
@@ -392,7 +422,7 @@ def create_notebook(dd_repo, name, rn, base):
     # change the text inside of our template to include release notes
     data["data"]["attributes"]["cells"][1]["attributes"]["definition"][
         "text"
-    ] = f"# Relenv \n - [ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n# Release notes to test {notebook_rns}\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n"  # noqa
+    ] = f"# Dogweb CI \n - [ ] Dogweb CI passes with this RC [how to trigger it](https://datadoghq.atlassian.net/wiki/spaces/APMPY/pages/2870870705/Testing+any+ddtracepy+git+ref+in+dogweb+staging#Testing-any-ddtracepy-git-ref-in-dogweb-CI)\n# Relenv \n - [ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n# Release notes to test {notebook_rns}\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n"  # noqa
 
     # grab the latest commit id on the latest branch to mark the rc notebook with
     main_branch = dd_repo.get_branch(branch=DEFAULT_BRANCH)
@@ -478,9 +508,9 @@ if __name__ == "__main__":
     patch = bool(os.getenv("PATCH"))
 
     if base is None:
-        raise ValueError("Need to specify the base version with envar e.g. BASE=2.10")
+        raise ValueError("Need to specify the base ref with envvar e.g. BASE=2.10")
     if ".x" in base:
-        raise ValueError("Base branch must be a fully qualified semantic version.")
+        raise ValueError("Base ref must be a fully qualified semantic version.")
 
     dd_repo = get_ddtrace_repo()
     name, rn = create_release_draft(dd_repo, base, rc, patch)
@@ -507,7 +537,7 @@ if __name__ == "__main__":
     )
     print(
         (
-            "\nYou've been switch back to your original branch, if you had uncommitted changes before"
+            "\nYou've been switched back to your original branch, if you had uncommitted changes before"
             "running this command, run `git stash pop` to get them back."
         )
     )

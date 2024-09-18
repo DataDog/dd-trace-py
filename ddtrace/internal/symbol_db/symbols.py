@@ -506,7 +506,7 @@ class ScopeContext:
 
 def is_module_included(module: ModuleType) -> bool:
     # Check if module name matches the include patterns
-    if symdb_config._includes_re.match(module.__name__):
+    if symdb_config.includes and symdb_config._includes_re.match(module.__name__):
         return True
 
     # Check if it is user code
@@ -518,9 +518,10 @@ def is_module_included(module: ModuleType) -> bool:
         return True
 
     # Check if the package name matches the include patterns
-    package = packages.filename_to_package(module_origin)
-    if package is not None and symdb_config._includes_re.match(package.name):
-        return True
+    if symdb_config.includes:
+        package = packages.filename_to_package(module_origin)
+        if package is not None and symdb_config._includes_re.match(package.name):
+            return True
 
     return False
 
@@ -531,10 +532,32 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
     def __init__(self) -> None:
         super().__init__()
 
+        self._seen_modules: t.Set[str] = set()
+        self._update_called = False
+
+        self._process_unseen_loaded_modules()
+
+    def _process_unseen_loaded_modules(self) -> None:
         # Look for all the modules that are already imported when this is
         # installed and upload the symbols that are marked for inclusion.
         context = ScopeContext()
-        for module in (_ for _ in list(sys.modules.values()) if is_module_included(_)):
+        for name, module in list(sys.modules.items()):
+            # Skip modules that are being initialized as they might not be
+            # fully loaded yet.
+            try:
+                if module.__spec__._initializing:  # type: ignore[union-attr]
+                    continue
+            except AttributeError:
+                pass
+
+            if name in self._seen_modules:
+                continue
+
+            self._seen_modules.add(name)
+
+            if not is_module_included(module):
+                continue
+
             try:
                 scope = Scope.from_module(module)
             except Exception:
@@ -576,6 +599,21 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         scope = Scope.from_module(module)
         if scope is not None:
             self._upload_context(ScopeContext([scope]))
+
+    @classmethod
+    def update(cls):
+        instance = t.cast(SymbolDatabaseUploader, cls._instance)
+        if instance is None:
+            return
+
+        if instance._update_called:
+            return
+
+        # We only need to update the symbol database once, in case the
+        # enablement raced with module imports.
+        instance._process_unseen_loaded_modules()
+
+        instance._update_called = True
 
     @staticmethod
     def _upload_context(context: ScopeContext) -> None:

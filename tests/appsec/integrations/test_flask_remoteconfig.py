@@ -210,7 +210,7 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
     for id_try in range(max_retries):
         results = _multi_requests(client, debug_mode)
         check = all(
-            response.status_code == 403 and response.content.startswith(b'{"errors": [{"title": "You\'ve been blocked"')
+            response.status_code == 403 and response.content.startswith(b'{"errors":[{"title":"You\'ve been blocked"')
             for response in results
         )
         if check:
@@ -223,10 +223,13 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
     raise AssertionError("request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
+_PORT = 8040
+
+
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled_{}".format(str(uuid.uuid4()))
-    with gunicorn_server(remote_configuration_enabled="false", token=token) as context:
+    with gunicorn_server(remote_configuration_enabled="false", token=token, port=_PORT) as context:
         _, gunicorn_client, pid = context
 
         _request_200(gunicorn_client)
@@ -241,7 +244,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_block():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_{}".format(str(uuid.uuid4()))
-    with gunicorn_server(token=token) as context:
+    with gunicorn_server(token=token, port=_PORT) as context:
         _, gunicorn_client, pid = context
 
         _request_200(gunicorn_client)
@@ -258,7 +261,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
 @pytest.mark.skipif(list(sys.version_info[:2]) != [3, 10], reason="Run this tests in python 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(str(uuid.uuid4()))
-    with gunicorn_server(token=token) as context:
+    with gunicorn_server(token=token, port=_PORT) as context:
         _, gunicorn_client, pid = context
 
         _request_200(gunicorn_client)
@@ -281,7 +284,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
     token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
         str(uuid.uuid4())
     )
-    with gunicorn_server(appsec_enabled="", token=token) as context:
+    with gunicorn_server(appsec_enabled="", token=token, port=_PORT) as context:
         _, gunicorn_client, pid = context
 
         _request_200(gunicorn_client, debug_mode=False)

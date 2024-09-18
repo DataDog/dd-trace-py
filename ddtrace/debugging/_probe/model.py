@@ -1,17 +1,20 @@
 import abc
+from dataclasses import dataclass
+from dataclasses import field
+from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Optional
 from typing import Tuple
 from typing import Union
 
-import attr
-
 from ddtrace.debugging._expressions import DDExpression
+from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _resolve
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
@@ -51,24 +54,24 @@ MAXLEN = 255
 MAXFIELDS = 20
 
 
-@attr.s
-class CaptureLimits(object):
-    max_level = attr.ib(type=int, default=MAXLEVEL)
-    max_size = attr.ib(type=int, default=MAXSIZE)
-    max_len = attr.ib(type=int, default=MAXLEN)
-    max_fields = attr.ib(type=int, default=MAXFIELDS)
+@dataclass
+class CaptureLimits:
+    max_level: int = MAXLEVEL
+    max_size: int = MAXSIZE
+    max_len: int = MAXLEN
+    max_fields: int = MAXFIELDS
 
 
 DEFAULT_CAPTURE_LIMITS = CaptureLimits()
 
 
-@attr.s
+@dataclass
 class Probe(abc.ABC):
     __context_creator__ = False
 
-    probe_id = attr.ib(type=str)
-    version = attr.ib(type=int)
-    tags = attr.ib(type=dict, eq=False)
+    probe_id: str
+    version: int
+    tags: Dict[str, Any] = field(compare=False)
 
     def update(self, other: "Probe") -> None:
         """Update the mutable fields from another probe."""
@@ -79,68 +82,78 @@ class Probe(abc.ABC):
         if self.version == other.version:
             return
 
-        for attrib in (_.name for _ in self.__attrs_attrs__ if _.eq):
+        for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
 
     def __hash__(self):
         return hash(self.probe_id)
 
 
-@attr.s
-class RateLimitMixin(abc.ABC):
-    rate = attr.ib(type=float, eq=False)
-    limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)
+class AbstractProbeMixIn(abc.ABC):
+    def __post_init__(self):
+        ...
 
-    @limiter.default
-    def _(self):
-        return RateLimiter(
+
+@dataclass
+class RateLimitMixin(AbstractProbeMixIn):
+    rate: float
+    limiter: RateLimiter = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.limiter = RateLimiter(
             limit_rate=self.rate,
             tau=1.0 / self.rate if self.rate else 1.0,
-            on_exceed=lambda: log.warning("Rate limit exceeeded for %r", self),
+            on_exceed=lambda: log.warning("Rate limit exceeded for %r", self),
             call_once=True,
             raise_on_exceed=False,
         )
 
 
-@attr.s
-class ProbeConditionMixin(object):
+@dataclass
+class ProbeConditionMixin(AbstractProbeMixIn):
     """Conditional probe.
 
     If the condition is ``None``, then this is equivalent to a non-conditional
     probe.
     """
 
-    condition = attr.ib(type=Optional[DDExpression])
-    condition_error_rate = attr.ib(type=float, eq=False)
-    condition_error_limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)
+    condition: Optional[DDExpression]
+    condition_error_rate: float = field(compare=False)
+    condition_error_limiter: RateLimiter = field(init=False, repr=False, compare=False)
 
-    @condition_error_limiter.default
-    def _(self):
-        return RateLimiter(
+    def __post_init__(self):
+        super().__post_init__()
+        self.condition_error_limiter = RateLimiter(
             limit_rate=self.condition_error_rate,
             tau=1.0 / self.condition_error_rate if self.condition_error_rate else 1.0,
-            on_exceed=lambda: log.debug("Condition error rate limit exceeeded for %r", self),
+            on_exceed=lambda: log.debug("Condition error rate limit exceeded for %r", self),
             call_once=True,
             raise_on_exceed=False,
         )
 
 
-@attr.s
-class ProbeLocationMixin(object):
+@dataclass
+class ProbeLocationMixin(AbstractProbeMixIn):
     def location(self) -> Tuple[Optional[str], Optional[Union[str, int]]]:
-        """return a tuple of (location,sublocation) for the probe.
-        For example, line probe returns the (file,line) and method probe return (module,method)
+        """Return a tuple of (location, sublocation) for the probe.
+        For example, line probe returns the (file, line) and method probe return (module, method)
         """
         return (None, None)
 
 
-@attr.s
+@dataclass
 class LineLocationMixin(ProbeLocationMixin):
-    source_file = attr.ib(type=Path, converter=_resolve_source_file, eq=False)  # type: ignore[misc]
-    line = attr.ib(type=int, eq=False)
+    source_file: str = field(compare=False)
+    line: int = field(compare=False)
+    resolved_source_file: Optional[Path] = field(init=False, compare=False)
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.resolved_source_file = _resolve_source_file(self.source_file)
 
     def location(self):
-        return (str(self.source_file) if self.source_file is not None else None, self.line)
+        return (maybe_stringify(self.resolved_source_file), self.line)
 
 
 class ProbeEvaluateTimingForMethod(str, Enum):
@@ -149,11 +162,11 @@ class ProbeEvaluateTimingForMethod(str, Enum):
     EXIT = "EXIT"
 
 
-@attr.s
+@dataclass
 class FunctionLocationMixin(ProbeLocationMixin):
-    module = attr.ib(type=str, eq=False)
-    func_qname = attr.ib(type=str, eq=False)
-    evaluate_at = attr.ib(type=ProbeEvaluateTimingForMethod)
+    module: str = field(compare=False)
+    func_qname: str = field(compare=False)
+    evaluate_at: ProbeEvaluateTimingForMethod
 
     def location(self):
         return (self.module, self.func_qname)
@@ -166,115 +179,115 @@ class MetricProbeKind(str, Enum):
     DISTRIBUTION = "DISTRIBUTION"
 
 
-@attr.s
-class MetricProbeMixin(object):
-    kind = attr.ib(type=str)
-    name = attr.ib(type=str)
-    value = attr.ib(type=Optional[DDExpression])
+@dataclass
+class MetricProbeMixin(AbstractProbeMixIn):
+    kind: str
+    name: str
+    value: Optional[DDExpression]
 
 
-@attr.s
+@dataclass
 class MetricLineProbe(Probe, LineLocationMixin, MetricProbeMixin, ProbeConditionMixin):
     pass
 
 
-@attr.s
+@dataclass
 class MetricFunctionProbe(Probe, FunctionLocationMixin, MetricProbeMixin, ProbeConditionMixin):
     pass
 
 
-@attr.s
+@dataclass
 class TemplateSegment(abc.ABC):
     @abc.abstractmethod
-    def eval(self, _locals: Dict[str, Any]) -> str:
+    def eval(self, scope: Mapping[str, Any]) -> str:
         pass
 
 
-@attr.s
+@dataclass
 class LiteralTemplateSegment(TemplateSegment):
-    str_value = attr.ib(type=str, default=None)
+    str_value: str
 
-    def eval(self, _locals: Dict[str, Any]) -> Any:
+    def eval(self, _scope: Mapping[str, Any]) -> Any:
         return self.str_value
 
 
-@attr.s
+@dataclass
 class ExpressionTemplateSegment(TemplateSegment):
-    expr = attr.ib(type=DDExpression, default=None)
+    expr: DDExpression
 
-    def eval(self, _locals: Dict[str, Any]) -> Any:
-        return self.expr.eval(_locals)
+    def eval(self, scope: Mapping[str, Any]) -> Any:
+        return self.expr.eval(scope)
 
 
-@attr.s
-class StringTemplate(object):
-    template = attr.ib(type=str)
-    segments = attr.ib(type=List[TemplateSegment])
+@dataclass
+class StringTemplate:
+    template: str
+    segments: List[TemplateSegment]
 
-    def render(self, _locals: Dict[str, Any], serializer: Callable[[Any], str]) -> str:
+    def render(self, scope: Mapping[str, Any], serializer: Callable[[Any], str]) -> str:
         def _to_str(value):
             return value if _isinstance(value, str) else serializer(value)
 
-        return "".join([_to_str(s.eval(_locals)) for s in self.segments])
+        return "".join([_to_str(s.eval(scope)) for s in self.segments])
 
 
-@attr.s
-class LogProbeMixin(object):
-    template = attr.ib(type=str)
-    segments = attr.ib(type=List[TemplateSegment])
-    take_snapshot = attr.ib(type=bool)
-    limits = attr.ib(type=CaptureLimits, eq=False)
+@dataclass
+class LogProbeMixin(AbstractProbeMixIn):
+    template: str
+    segments: List[TemplateSegment]
+    take_snapshot: bool
+    limits: CaptureLimits = field(compare=False)
 
 
-@attr.s
+@dataclass
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     pass
 
 
-@attr.s
+@dataclass
 class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     pass
 
 
-@attr.s
-class SpanProbeMixin(object):
+@dataclass
+class SpanProbeMixin:
     pass
 
 
-@attr.s
+@dataclass
 class SpanFunctionProbe(Probe, FunctionLocationMixin, SpanProbeMixin, ProbeConditionMixin):
-    __context_creator__ = True
+    __context_creator__: bool = field(default=True, init=False, repr=False, compare=False)
 
 
-class SpanDecorationTargetSpan(object):
+class SpanDecorationTargetSpan(str, Enum):
     ROOT = "ROOT"
     ACTIVE = "ACTIVE"
 
 
-@attr.s
-class SpanDecorationTag(object):
-    name = attr.ib(type=str)
-    value = attr.ib(type=StringTemplate)
+@dataclass
+class SpanDecorationTag:
+    name: str
+    value: StringTemplate
 
 
-@attr.s
-class SpanDecoration(object):
-    when = attr.ib(type=Optional[DDExpression])
-    tags = attr.ib(type=List[SpanDecorationTag])
+@dataclass
+class SpanDecoration:
+    when: Optional[DDExpression]
+    tags: List[SpanDecorationTag]
 
 
-@attr.s
-class SpanDecorationMixin(object):
-    target_span = attr.ib(type=SpanDecorationTargetSpan)
-    decorations = attr.ib(type=List[SpanDecoration])
+@dataclass
+class SpanDecorationMixin:
+    target_span: SpanDecorationTargetSpan
+    decorations: List[SpanDecoration]
 
 
-@attr.s
+@dataclass
 class SpanDecorationLineProbe(Probe, LineLocationMixin, SpanDecorationMixin):
     pass
 
 
-@attr.s
+@dataclass
 class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, SpanDecorationMixin):
     pass
 
@@ -283,7 +296,7 @@ LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe]
 FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe]
 
 
-class ProbeType(object):
+class ProbeType(str, Enum):
     LOG_PROBE = "LOG_PROBE"
     METRIC_PROBE = "METRIC_PROBE"
     SPAN_PROBE = "SPAN_PROBE"

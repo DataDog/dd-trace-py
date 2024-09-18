@@ -31,6 +31,8 @@ The following environment variables for the tracer are supported:
    DD_TAGS:
      description: |
          Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2:value2`` or ``key1:value key2:value2``.
+
+         If a tag value is not supplied the value will be an empty string. e.g. ``key1,key2`` or ``key1 key2``.
      version_added:
        v0.38.0: Comma separated support added
        v0.48.0: Space separated support added
@@ -290,9 +292,11 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_HEADER_TAGS:
      description: |
-         A map of case-insensitive header keys to tag names. Automatically applies matching header values as tags on root spans.
+         A map of case-insensitive http headers to tag names. Automatically applies matching header values as tags on request and response spans. For example if
+         ``DD_TRACE_HEADER_TAGS=User-Agent:http.useragent,content-type:http.content_type``. The value of the header will be stored in tags with the name ``http.useragent`` and ``http.content_type``.
 
-         For example, ``User-Agent:http.useragent,content-type:http.content_type``.
+         If a tag name is not supplied the header name will be used. For example if
+         ``DD_TRACE_HEADER_TAGS=User-Agent,content-type``. The value of http header will be stored in tags with the names ``http.<response/request>.headers.user-agent`` and ``http.<response/request>.headers.content-type``.
 
    DD_TRACE_API_VERSION:
      default: |
@@ -410,7 +414,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
      type: Integer
-     default: 500
+     default: 300
      description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
 
    DD_APPSEC_ENABLED:
@@ -448,7 +452,7 @@ The following environment variables for the tracer are supported:
          Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and
          each item can take `fnmatch` style wildcards, for example: ``*ssn*,*personalid*,*idcard*,*creditcard*``.
 
-   DD_HTTP_CLIENT_TAG_QUERY_STRING:
+   DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http client integrations.
@@ -629,6 +633,14 @@ The following environment variables for the tracer are supported:
       version_added:
          v2.3.0:
 
+   DD_BOTOCORE_SERVICE:
+      type: String
+      default: "aws"
+      description: |
+         Set the service name, allowing default service name overrides for traces in botocore.
+      version_added:
+         v2.11.0:
+
    DD_BOTOCORE_PROPAGATION_ENABLED:
       type: Boolean
       default: False
@@ -663,7 +675,7 @@ Dynamic Instrumentation
 .. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
 
 
-Exception Debugging
--------------------
+Exception Replay
+----------------
 
-.. ddtrace-envier-configuration:: ddtrace.settings.exception_debugging:ExceptionDebuggingConfig
+.. ddtrace-envier-configuration:: ddtrace.settings.exception_replay:ExceptionReplayConfig

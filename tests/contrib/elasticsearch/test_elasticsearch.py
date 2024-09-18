@@ -5,7 +5,6 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.elasticsearch.patch import get_version
 from ddtrace.contrib.elasticsearch.patch import get_versions
 from ddtrace.contrib.elasticsearch.patch import patch
@@ -106,7 +105,8 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("component") == "elasticsearch"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
-        assert span.get_tag("out.host") == "localhost"
+        assert span.get_tag("out.host") == self._get_es_config()["host"]
+        assert span.get_tag("server.address") == self._get_es_config()["host"]
         assert span.get_tag("custom_tag") == "bar"
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
@@ -182,32 +182,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         result = es.search(size=100, body={"query": query}, **args)
 
         assert len(result["hits"]["hits"]) == 2, result
-
-    def test_analytics_default(self):
-        es = self.es
-        self.create_index(es)
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("elasticsearch", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            es = self.es
-            self.create_index(es)
-
-            spans = self.get_spans()
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("elasticsearch", dict(analytics_enabled=True)):
-            es = self.es
-            self.create_index(es)
-
-            spans = self.get_spans()
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_patch_unpatch(self):
         # Test patch idempotence
@@ -331,8 +305,12 @@ class ElasticsearchPatchTest(TracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
 
+    def _get_es_config(self):
+        return ELASTICSEARCH_CONFIG
+
     def _get_es(self):
-        es = elasticsearch.Elasticsearch(hosts=["http://localhost:%d" % ELASTICSEARCH_CONFIG["port"]])
+        config = self._get_es_config()
+        es = elasticsearch.Elasticsearch(hosts=["http://%s:%d" % (config["host"], config["port"])])
         if elasticsearch.__version__ < (5, 0, 0):
             es.transport.get_connection().headers["content-type"] = "application/json"
         return es

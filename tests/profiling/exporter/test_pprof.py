@@ -2,7 +2,6 @@ import os
 import platform
 
 import mock
-import six
 
 from ddtrace import ext
 from ddtrace.profiling.collector import _lock
@@ -714,7 +713,6 @@ def test_pprof_exporter_libs(gan):
                 trace_type=ext.SpanTypes.WEB,
                 trace_resource_container=["myresource"],
                 frames=[
-                    (six.__file__, 23, "func1", ""),
                     (memalloc.__file__, 44, "func2", ""),
                     ("foobar.py", 19, "func5", ""),
                 ],
@@ -762,7 +760,6 @@ def test_pprof_exporter_libs(gan):
 
     expected_libs = [
         # {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
-        {"name": "six", "kind": "library", "version": six.__version__, "paths": {six.__file__}},
         {"kind": "standard library", "name": "stdlib", "version": platform.python_version()},
         {
             "kind": "library",

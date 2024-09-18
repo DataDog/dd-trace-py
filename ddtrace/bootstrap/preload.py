@@ -2,11 +2,12 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+
 import os  # noqa:I001
 
 from ddtrace import config  # noqa:F401
 from ddtrace.debugging._config import di_config  # noqa:F401
-from ddtrace.debugging._config import ed_config  # noqa:F401
+from ddtrace.debugging._config import er_config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
@@ -15,6 +16,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
 
@@ -41,17 +43,15 @@ def register_post_preload(func: t.Callable) -> None:
 
 log = get_logger(__name__)
 
+# DEV: We want to start the crashtracker as early as possible
+if crashtracker_config.enabled:
+    log.debug("crashtracking enabled via environment variable")
+    try:
+        from ddtrace.internal.core import crashtracking
 
-# Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
-if config._telemetry_enabled:
-    from ddtrace.internal import telemetry
-
-    telemetry.install_excepthook()
-    # In order to support 3.12, we start the writer upon initialization.
-    # See https://github.com/python/cpython/pull/104826.
-    # Telemetry events will only be sent after the `app-started` is queued.
-    # This will occur when the agent writer starts.
-    telemetry.telemetry_writer.enable()
+        crashtracking.start()
+    except Exception:
+        log.error("failed to enable crashtracking", exc_info=True)
 
 
 if profiling_config.enabled:
@@ -66,8 +66,7 @@ if symdb_config.enabled:
 
     symbol_db.bootstrap()
 
-# TODO: Do not enable RC features if not required
-if di_config.enabled or ed_config.enabled or config._trace_span_origin_enabled:
+if di_config.enabled:  # Dynamic Instrumentation
     from ddtrace.debugging import DynamicInstrumentation
 
     DynamicInstrumentation.enable()
@@ -76,6 +75,11 @@ if config._trace_span_origin_enabled:
     from ddtrace.debugging._origin.span import SpanOriginProcessor
 
     SpanOriginProcessor.enable()
+
+if er_config.enabled:  # Exception Replay
+    from ddtrace.debugging._exception.replay import SpanExceptionHandler
+
+    SpanExceptionHandler.enable()
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()

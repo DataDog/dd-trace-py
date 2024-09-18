@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: Fixes Botocore Kinesis span parenting to use active trace context if a propagated child context is not found instead of empty context.

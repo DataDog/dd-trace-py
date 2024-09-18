@@ -1,0 +1,41 @@
+[[
+  {
+    "name": "anthropic.request",
+    "service": "",
+    "resource": "Messages.create",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66687a7500000000",
+      "anthropic.request.api_key": "sk-...key>",
+      "anthropic.request.messages.0.content.0.text": "Hello, what do you see in the following image?",
+      "anthropic.request.messages.0.content.0.type": "text",
+      "anthropic.request.messages.0.content.1.text": "([IMAGE DETECTED])",
+      "anthropic.request.messages.0.content.1.type": "image",
+      "anthropic.request.messages.0.role": "user",
+      "anthropic.request.model": "claude-3-opus-20240229",
+      "anthropic.request.parameters": "{\"max_tokens\": 15, \"stream\": true}",
+      "anthropic.response.completions.content.0.text": "The image shows the logo for a company or service called \"Datadog",
+      "anthropic.response.completions.content.0.type": "text",
+      "anthropic.response.completions.finish_reason": "max_tokens",
+      "anthropic.response.completions.role": "assistant",
+      "language": "python",
+      "runtime-id": "83436fa5572c4621bd5960baa80ddd25"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "anthropic.response.usage.input_tokens": 246,
+      "anthropic.response.usage.output_tokens": 15,
+      "anthropic.response.usage.total_tokens": 261,
+      "process_id": 66648
+    },
+    "duration": 37333448000,
+    "start": 1718123125393200000
+  }]]

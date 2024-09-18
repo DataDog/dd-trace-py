@@ -1,0 +1,86 @@
+interactions:
+- request:
+    body: '{"max_tokens": 15, "messages": [{"role": "user", "content": [{"type": "text",
+      "text": "Hello, I am looking for information about some books!"}, {"type": "text",
+      "text": "What is the best selling book?"}]}], "model": "claude-3-opus-20240229",
+      "system": "Respond only in all caps.", "temperature": 0.8}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '300'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.28.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.28.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.9
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0yOYUuEQBiE/8oyn1fw9ipovyXZZWdKKBFUiOnbIemud+8ueMj99/DooE8DM88M
+        M6NroTHwrgpXZfTinqJvNWz3X69vPBXHbJPdQMIdR1ooYq53BImD7RejZu7Y1cZBYrAt9dBo+tq3
+        FKwDO3oOVKiuQqVuIdFY48g46Pf5MuhoWqpn0SgfYxHFRRkUcZom2UZEeb4V+YO4S1NRJs+xSArx
+        gfs8w+lTgp0dqwPVbM3yrZ4qZ3/IMP4ipr0n0xC08X0v4c/f9YzOjN5dYL1WEta7/9bq+nT6BQAA
+        //8DAMSYrqgZAQAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88f16344983e1861-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 05 Jun 2024 16:02:36 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      anthropic-ratelimit-requests-limit:
+      - '5'
+      anthropic-ratelimit-requests-remaining:
+      - '4'
+      anthropic-ratelimit-requests-reset:
+      - '2024-06-05T16:02:57Z'
+      anthropic-ratelimit-tokens-limit:
+      - '10000'
+      anthropic-ratelimit-tokens-remaining:
+      - '10000'
+      anthropic-ratelimit-tokens-reset:
+      - '2024-06-05T16:02:57Z'
+      request-id:
+      - req_01Bd7D9NJM29LYXW5VTm99rv
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 07d6532b3235336a58f4f8d0baffd032
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -174,12 +174,6 @@ Flask Cache
 ^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.flask_cache
 
-.. _flask_login:
-
-Flask Login
-^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.flask_login
-
 
 .. _futures:
 
@@ -193,6 +187,13 @@ futures
 gevent
 ^^^^^^
 .. automodule:: ddtrace.contrib.gevent
+
+
+.. _google_generativeai:
+
+google-generativeai
+^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.google_generativeai
 
 
 .. _graphql:

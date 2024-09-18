@@ -9,6 +9,7 @@ from ddtrace.appsec._remoteconfiguration import AppSecRC
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal import runtime
+import ddtrace.internal.remoteconfig._connectors
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
@@ -79,9 +80,14 @@ def _assert_response(mock_send_request, expected_response):
     assert response == expected_response
 
 
+@mock.patch(
+    "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.write",
+    side_effect=ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.write,
+    autospec=True,
+)
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch("ddtrace.appsec._capabilities._appsec_rc_capabilities")
-def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
+def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request, mock_write):
     remoteconfig_poller.disable()
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -123,10 +129,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_not_called()
     mock_callback.assert_not_called()
+    mock_write.assert_not_called()
 
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 1. An update that doesn’t have any new config files but does have an updated TUF Targets file.
     # The tracer is supposed to process this update and store that the latest TUF Targets version is 1.
@@ -141,10 +149,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
     mock_callback.assert_called_with({"metadata": {}, "config": {"asm": {"enabled": True}}, "shared_data_counter": 1})
+    mock_write.assert_called_with(ANY, {}, {"asm": {"enabled": True}})
 
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 2. A single configuration for the product is added. (“base”)
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[2]
@@ -179,6 +189,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 3. The “base” configuration is modified.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[3]
@@ -207,12 +218,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     asm_callback._poll_data()
 
-    mock_preprocess_results.assert_called_with({})
-    mock_callback.assert_called_with({"metadata": {}, "config": {}, "shared_data_counter": ANY})
+    mock_preprocess_results.assert_called_with({"asm": {}})
+    mock_callback.assert_called_with({"metadata": {}, "config": {"asm": {}}, "shared_data_counter": ANY})
 
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 4. The “base” configuration is removed.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[4]
@@ -236,6 +248,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 5. The “base” configuration is added along with the “second” configuration.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[5]
@@ -279,10 +292,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
     mock_callback.assert_not_called()
+    mock_write.assert_called_with(ANY, {}, {"asm": {"enabled": True}})
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 6. The “third” configuration is added, the “second” configuration is removed
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[6]
@@ -325,11 +340,15 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     asm_callback._poll_data()
 
     mock_preprocess_results.assert_called()
-    mock_callback.assert_not_called()
+
+    mock_callback.assert_called_with(
+        {"metadata": {}, "config": {"asm": {"enabled": False}}, "shared_data_counter": ANY}
+    )
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 7. The “second” configuration is added back. The “first” configuration is modified.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[7]
@@ -383,11 +402,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     asm_callback._poll_data()
 
     mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
-    mock_callback.assert_not_called()
+    mock_callback.assert_called_with({"metadata": {}, "config": {"asm": {"enabled": True}}, "shared_data_counter": ANY})
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 8. The “first” configuration is modified again, the “third” configuration is removed.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[8]
@@ -431,10 +451,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_not_called()
     mock_callback.assert_not_called()
+    mock_write.assert_not_called()
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 9. Another update that doesn’t have any new or updated config files but has a newer TUF Targets file.
     # This tests that a tracer handles this scenario and still reports that it has tracked config files in
@@ -480,10 +502,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_not_called()
     mock_callback.assert_not_called()
+    mock_write.assert_not_called()
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 10. A file is included in TUF Targets that is NOT specified in client_configs.
     # The tracer should ignore this file and not report it in the next update request.
@@ -528,10 +552,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
     mock_callback.assert_not_called()
+    mock_write.assert_called_with(ANY, {}, {"asm": {"enabled": True}})
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 11. The “first” configuration is modified. Another file is included in the TUF Targets that is not specified
     # in client_configs. This again tests that the tracer is only processing files in client_configs.
@@ -591,11 +617,14 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     # Depends of the Python version, the order of this configuration could change and the result could be different
     # It doesn't matter because this problem can't exist on production
     mock_preprocess_results.assert_called_with({"asm": {"enabled": ANY}})
-    mock_callback.assert_not_called()
+    mock_callback.assert_called_with(
+        {"metadata": {}, "config": {"asm": {"enabled": False}}, "shared_data_counter": ANY}
+    )
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 12. A new configuration file’s raw bytes are missing from target_files that is referenced by client_configs
     # and targets.signed.targets. This update should fail. The tracer client’s state should not change other
@@ -652,10 +681,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_not_called()
     mock_callback.assert_not_called()
+    mock_write.assert_not_called()
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 13. A new configuration file is missing the TUF metadata in targets.signed.targets but is referenced in
     # client_configs and target_files. This update should fail. The tracer client’s state should not change
@@ -718,10 +749,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_not_called()
     mock_callback.assert_not_called()
+    mock_write.assert_not_called()
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
     # 14.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[13]
@@ -784,10 +817,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_not_called()
     mock_callback.assert_not_called()
+    mock_write.assert_not_called()
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
+    mock_write.reset_mock()
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")

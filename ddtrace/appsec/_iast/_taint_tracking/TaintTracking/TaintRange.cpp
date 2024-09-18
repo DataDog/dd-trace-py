@@ -70,9 +70,9 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
 }
 
 py::object
-api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
+api_set_ranges(py::handle& str, const TaintRangeRefs& ranges)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     if (not tx_map) {
         throw py::value_error(MSG_ERROR_TAINT_MAP);
@@ -111,7 +111,7 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize
 
     if (nargs == 5) {
         PyObject* tainted_object = args[0];
-        const auto tx_map = initializer->get_tainting_map();
+        const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map) {
             py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
             return nullptr;
@@ -150,8 +150,9 @@ std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
 {
     TaintRangeRefs result;
-    if (not is_text(string_input))
+    if (not is_tainteable(string_input)) {
         return std::make_pair(result, true);
+    }
 
     if (tx_map->empty()) {
         return std::make_pair(result, false);
@@ -197,11 +198,11 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypeP
 std::tuple<TaintRangeRefs, TaintRangeRefs>
 are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_list)
 {
-    if (not is_text(candidate_text))
+    if (not is_tainteable(candidate_text))
         return {};
 
     TaintRangeRefs all_ranges;
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return { {}, {} };
     }
@@ -209,7 +210,7 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
     auto [candidate_text_ranges, ranges_error] = get_ranges(candidate_text, tx_map);
     if (not ranges_error) {
         for (const auto& param_handler : parameter_list) {
-            if (const auto param = param_handler.cast<py::object>().ptr(); is_text(param)) {
+            if (const auto param = param_handler.cast<py::object>().ptr(); is_tainteable(param)) {
                 if (auto [ranges, ranges_error] = get_ranges(param, tx_map); not ranges_error) {
                     all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());
                 }
@@ -238,9 +239,9 @@ get_range_by_hash(const size_t range_hash, optional<TaintRangeRefs>& taint_range
 }
 
 TaintRangeRefs
-api_get_ranges(const py::object& string_input)
+api_get_ranges(const py::handle& string_input)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     if (not tx_map) {
         throw py::value_error(MSG_ERROR_TAINT_MAP);
@@ -254,9 +255,9 @@ api_get_ranges(const py::object& string_input)
 }
 
 void
-api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
+api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
 
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
@@ -274,12 +275,12 @@ api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 }
 
 inline void
-api_copy_and_shift_ranges_from_strings(py::object& str_1,
-                                       py::object& str_2,
+api_copy_and_shift_ranges_from_strings(py::handle& str_1,
+                                       py::handle& str_2,
                                        const int offset,
                                        const int new_length = -1)
 {
-    const auto tx_map = initializer->get_tainting_map();
+    const auto tx_map = Initializer::get_tainting_map();
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
         return;
@@ -339,7 +340,7 @@ get_internal_hash(PyObject* obj)
 void
 set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_map)
 {
-    if (not str or not is_text(str)) {
+    if (not str or not is_tainteable(str)) {
         return;
     }
     auto obj_id = get_unique_id(str);
@@ -415,7 +416,11 @@ pyexport_taintrange(py::module& m)
 
     m.def("get_ranges", &api_get_ranges, "string_input"_a, py::return_value_policy::take_ownership);
 
-    m.def("get_range_by_hash", &get_range_by_hash, "range_hash"_a, "taint_ranges"_a);
+    m.def("get_range_by_hash",
+          &get_range_by_hash,
+          "range_hash"_a,
+          "taint_ranges"_a,
+          py::return_value_policy::take_ownership);
 
     // Fake constructor, used to force calling allocate_taint_range for performance reasons
     m.def(
@@ -425,7 +430,8 @@ pyexport_taintrange(py::module& m)
       },
       "start"_a,
       "length"_a,
-      "source"_a);
+      "source"_a,
+      py::return_value_policy::move);
 
     py::class_<TaintRange, shared_ptr<TaintRange>>(m, "TaintRange_")
       // Normal constructor disabled on the Python side, see above

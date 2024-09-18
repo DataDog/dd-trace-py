@@ -7,6 +7,9 @@ import pytest
 from tests.appsec.appsec_utils import flask_server
 
 
+_PORT = 8060
+
+
 @pytest.mark.skipif(sys.version_info >= (3, 12, 0), reason="Package not yet compatible with Python 3.12")
 @pytest.mark.parametrize(
     "orm, xfail",
@@ -26,6 +29,7 @@ def test_iast_flask_orm(orm, xfail):
         token=None,
         app="tests/appsec/iast_tdd_propagation/flask_orm_app.py",
         env={"FLASK_ORM": orm},
+        port=_PORT,
     ) as context:
         _, client, pid = context
 
@@ -59,6 +63,7 @@ def test_iast_flask_weak_cipher():
         remote_configuration_enabled="false",
         token=None,
         app="tests/appsec/iast_tdd_propagation/flask_taint_sinks_app.py",
+        port=_PORT,
     ) as context:
         server_process, client, pid = context
         for i in range(10):
@@ -93,8 +98,8 @@ def test_iast_flask_headers():
         tracer_enabled="true",
         remote_configuration_enabled="false",
         token=None,
-        # app="tests/appsec/iast_tdd_propagation/flask_propagation_app.py",
-        app="flask_propagation_app.py",
+        app="tests/appsec/iast_tdd_propagation/flask_propagation_app.py",
+        port=_PORT,
     ) as context:
         server_process, client, pid = context
         tainted_response = client.get("/check-headers", headers={"Accept-Encoding": "gzip, deflate, br"})

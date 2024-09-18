@@ -232,15 +232,14 @@ with::
 Distributed Tracing
 -------------------
 
-To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id` and `parent_id`.
+To trace requests across hosts, the spans on the secondary hosts must be linked together using the ddtrace :py:class:`HTTPPropagator <ddtrace.propagation.http.HTTPPropagator>`.
 
 - On the server side, it means to read propagated attributes and set them to the active tracing context.
 - On the client side, it means to propagate the attributes, commonly as a header/metadata.
 
-`ddtrace` already provides default propagators but you can also implement your own. Note that `ddtrace` makes
-use of lazy sampling, essentially making the sampling decision for a trace at the latest possible moment. This 
-includes before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumented 
-integration. If utilizing your own propagator make sure to run `tracer.sample(tracer.current_root_span())` 
+Note that `ddtrace` makes use of lazy sampling, essentially making the sampling decision for a trace at the latest possible moment.
+This includes before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumented integration.
+If utilizing your own propagator make sure to run `tracer.sample(tracer.current_root_span())`
 before propagating downstream, to ensure that the sampling decision is the same across the trace.
 
 Web Frameworks
@@ -636,7 +635,7 @@ and database modules without the need for changing your code::
 
   Usage: ddtrace-run <my_program>
 
-`--info`: This argument prints an easily readable tracer health check and configurations. It does not reflect configuration changes made at the code level,
+``--info``: This argument prints an easily readable tracer health check and configurations. It does not reflect configuration changes made at the code level,
 only environment variable configurations.
 
 The environment variables for ``ddtrace-run`` used to configure the tracer are

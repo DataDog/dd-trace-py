@@ -4,7 +4,6 @@ import aiobotocore
 from botocore.errorfactory import ClientError
 import pytest
 
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
@@ -45,21 +44,8 @@ async def test_traced_client(tracer):
     assert span.resource == "ec2.describeinstances"
     assert span.name == "ec2.command"
     assert span.span_type == "http"
-    assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
     assert span.get_tag("component") == "aiobotocore"
     assert span.get_tag("span.kind") == "client"
-
-
-@pytest.mark.asyncio
-async def test_traced_client_analytics(tracer):
-    with override_config("aiobotocore", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        async with aiobotocore_client("ec2", tracer) as ec2:
-            await ec2.describe_instances()
-
-    traces = tracer.pop_traces()
-    assert traces
-    span = traces[0][0]
-    assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
 
 @pytest.mark.asyncio
@@ -83,12 +69,16 @@ async def test_s3_client(tracer):
     assert span.get_tag("span.kind") == "client"
 
 
-async def _test_s3_put(tracer):
+async def _test_s3_put(tracer, use_make_api_call):
     params = dict(Key="foo", Bucket="mybucket", Body=b"bar")
 
     async with aiobotocore_client("s3", tracer) as s3:
-        await s3.create_bucket(Bucket="mybucket")
-        await s3.put_object(**params)
+        if use_make_api_call:
+            await s3._make_api_call(operation_name="CreateBucket", api_params={"Bucket": "mybucket"})
+            await s3._make_api_call(operation_name="PutObject", api_params=params)
+        else:
+            await s3.create_bucket(Bucket="mybucket")
+            await s3.put_object(**params)
 
     spans = [trace[0] for trace in tracer.pop_traces()]
     assert spans
@@ -107,9 +97,10 @@ async def _test_s3_put(tracer):
     return spans[1]
 
 
+@pytest.mark.parametrize("use_make_api_call", [True, False])
 @pytest.mark.asyncio
-async def test_s3_put(tracer):
-    span = await _test_s3_put(tracer)
+async def test_s3_put(tracer, use_make_api_call):
+    span = await _test_s3_put(tracer, use_make_api_call)
     assert span.get_tag("aws.s3.bucket_name") == "mybucket"
     assert span.get_tag("bucketname") == "mybucket"
     assert span.get_tag("component") == "aiobotocore"
@@ -118,7 +109,7 @@ async def test_s3_put(tracer):
 @pytest.mark.asyncio
 async def test_s3_put_no_params(tracer):
     with override_config("aiobotocore", dict(tag_no_params=True)):
-        span = await _test_s3_put(tracer)
+        span = await _test_s3_put(tracer, False)
         assert span.get_tag("aws.s3.bucket_name") is None
         assert span.get_tag("bucketname") is None
         assert span.get_tag("params.Key") is None

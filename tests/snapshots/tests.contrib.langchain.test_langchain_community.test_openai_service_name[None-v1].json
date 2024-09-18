@@ -6,7 +6,7 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "llm",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
@@ -50,12 +50,13 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "llm",
+       "type": "",
        "error": 0,
        "meta": {
          "component": "openai",
          "openai.base_url": "https://api.openai.com/v1/",
          "openai.organization.name": "datadog-4",
+         "openai.request.client": "OpenAI",
          "openai.request.endpoint": "/v1/completions",
          "openai.request.frequency_penalty": "0",
          "openai.request.max_tokens": "256",
@@ -82,30 +83,4 @@
        },
        "duration": 28301000,
        "start": 1709944774092276000
-     },
-        {
-          "name": "http.client.request",
-          "service": "unnamed-python-service",
-          "resource": "http.client.request",
-          "trace_id": 0,
-          "span_id": 3,
-          "parent_id": 2,
-          "type": "http",
-          "error": 0,
-          "meta": {
-            "_dd.peer.service.source": "out.host",
-            "component": "httpx",
-            "http.method": "POST",
-            "http.status_code": "200",
-            "http.url": "https://api.openai.com/v1/completions",
-            "http.useragent": "OpenAI/Python 1.30.3",
-            "out.host": "api.openai.com",
-            "peer.service": "api.openai.com",
-            "span.kind": "client"
-          },
-          "metrics": {
-            "_dd.measured": 1
-          },
-          "duration": 1640000,
-          "start": 1709944774117553000
-        }]]
+     }]]

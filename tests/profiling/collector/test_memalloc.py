@@ -9,7 +9,6 @@ import pytest
 from ddtrace.profiling.event import DDFrame
 from ddtrace.settings.profiling import ProfilingConfig
 from ddtrace.settings.profiling import _derive_default_heap_sample_size
-from tests.utils import flaky
 
 
 try:
@@ -155,7 +154,6 @@ def test_iter_events_multi_thread():
     assert count_thread >= 1000
 
 
-@flaky(1719591602)
 def test_memory_collector():
     r = recorder.Recorder()
     mc = memalloc.MemoryCollector(r)
@@ -183,7 +181,6 @@ def test_memory_collector():
     assert count_object > 0
 
 
-@flaky(1719591602)
 @pytest.mark.parametrize(
     "ignore_profiler",
     (True, False),

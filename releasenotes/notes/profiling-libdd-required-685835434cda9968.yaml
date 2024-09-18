@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Turns on the new native exporter when `DD_PROFILING_TIMELINE_ENABLED=True`
+    is set.
+

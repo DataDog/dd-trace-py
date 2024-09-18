@@ -1,20 +1,18 @@
 # distutils: language = c++
 # cython: language_level=3
 
-import platform
 from typing import Dict
 from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace.internal.compat import ensure_binary
+import platform
+from .._types import StringType
+from ..util import ensure_binary_or_empty
+from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.datadog.profiling.ddup.utils import sanitize_string
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
-
-
-StringType = Union[str, bytes, None]
 
 
 cdef extern from "stdint.h":
@@ -31,7 +29,7 @@ cdef extern from "sample.hpp" namespace "Datadog":
     ctypedef struct Sample:
         pass
 
-cdef extern from "interface.hpp":
+cdef extern from "ddup_interface.hpp":
     void ddup_config_env(string_view env)
     void ddup_config_service(string_view service)
     void ddup_config_version(string_view version)
@@ -40,11 +38,14 @@ cdef extern from "interface.hpp":
     void ddup_config_profiler_version(string_view profiler_version)
     void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
+    void ddup_config_timeline(bint enable)
+    void ddup_config_output_filename(string_view output_filename)
+    void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
 
-    void ddup_init()
+    void ddup_start()
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -64,6 +65,7 @@ cdef extern from "interface.hpp":
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
+    void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
@@ -94,16 +96,11 @@ cdef call_ddup_config_profiler_version(bytes profiler_version):
 cdef call_ddup_config_user_tag(bytes key, bytes val):
     ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
 
+cdef call_ddup_config_output_filename(bytes output_filename):
+    ddup_config_output_filename(string_view(<const char*>output_filename, len(output_filename)))
+
 
 # Conversion functions
-def ensure_binary_or_empty(s: StringType) -> bytes:
-    try:
-        return ensure_binary(s)
-    except Exception:
-        pass
-    return b""
-
-
 cdef uint64_t clamp_to_uint64_unsigned(value):
     # This clamps a Python int to the nonnegative range of an unsigned 64-bit integer.
     # The name is redundant, but consistent with the other clamping function.
@@ -124,26 +121,30 @@ cdef int64_t clamp_to_int64_unsigned(value):
 
 
 # Public API
-def init(
+def config(
         service: StringType = None,
         env: StringType = None,
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None) -> None:
+        url: StringType = None,
+        timeline_enabled: Optional[bool] = None,
+        output_filename: StringType = None,
+        sample_pool_capacity: Optional[int] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
     call_ddup_config_service(ensure_binary_or_empty(service))
 
-    # If otherwise no values are provided, the uploader will omit the fields
-    # and they will be auto-populated in the backend
+    # Empty values are auto-populated in the backend (omitted in client)
     if env:
         call_ddup_config_env(ensure_binary_or_empty(env))
     if version:
         call_ddup_config_version(ensure_binary_or_empty(version))
     if url:
         call_ddup_config_url(ensure_binary_or_empty(url))
+    if output_filename:
+        call_ddup_config_output_filename(ensure_binary_or_empty(output_filename))
 
     # Inherited
     call_ddup_config_runtime(ensure_binary_or_empty(platform.python_implementation()))
@@ -156,7 +157,15 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
-    ddup_init()
+
+    if timeline_enabled is True:
+        ddup_config_timeline(True)
+    if sample_pool_capacity:
+        ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
+
+
+def start() -> None:
+    ddup_start()
 
 
 def upload() -> None:
@@ -234,7 +243,6 @@ cdef class SampleHandle:
     def push_task_id(self, task_id: Optional[int]) -> None:
         if self.ptr is not NULL:
             if task_id is not None:
-                ddup_push_task_id(self.ptr, task_id)
                 ddup_push_task_id(self.ptr, clamp_to_int64_unsigned(task_id))
 
     def push_task_name(self, task_name: StringType) -> None:
@@ -246,7 +254,7 @@ cdef class SampleHandle:
     def push_exceptioninfo(self, exc_type: Union[None, bytes, str, type], count: int) -> None:
         if self.ptr is not NULL:
             exc_name = None
-            if exc_type is type:
+            if isinstance(exc_type, type):
                 exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
             else:
                 exc_name = ensure_binary_or_empty(exc_type)
@@ -276,11 +284,15 @@ cdef class SampleHandle:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
         if endpoint_collection_enabled:
-            root_service_bytes = ensure_binary_or_empty(span._local_root.service)
+            root_resource_bytes = ensure_binary_or_empty(span._local_root.resource)
             ddup_push_trace_resource_container(
                     self.ptr,
-                    string_view(<const char*>root_service_bytes, len(root_service_bytes))
+                    string_view(<const char*>root_resource_bytes, len(root_resource_bytes))
             )
+
+    def push_monotonic_ns(self, monotonic_ns: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_monotonic_ns(self.ptr, <int64_t>monotonic_ns)
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use

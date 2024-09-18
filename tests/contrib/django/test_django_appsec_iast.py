@@ -470,7 +470,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
 
         line, hash_value = get_line_and_hash("iast_enabled_sqli_http_body", VULN_SQL_INJECTION, filename=TEST_FILE)
 
-        assert loaded["sources"] == [{"origin": "http.request.body", "name": "body", "value": "master"}]
+        assert loaded["sources"] == [{"origin": "http.request.body", "name": "http.request.body", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
@@ -530,6 +530,9 @@ def test_django_command_injection(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)):
         oce.reconfigure()
         patch_iast({"command_injection": True})
+        from ddtrace.appsec._common_module_patches import patch_common_modules
+
+        patch_common_modules()
         root_span, _ = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -544,7 +547,7 @@ def test_django_command_injection(client, test_spans, tracer):
         line, hash_value = get_line_and_hash("iast_command_injection", VULN_CMDI, filename=TEST_FILE)
 
         assert loaded["sources"] == [
-            {"name": "body", "origin": "http.request.body", "pattern": "abcdef", "redacted": True}
+            {"name": "http.request.body", "origin": "http.request.body", "pattern": "abcdef", "redacted": True}
         ]
         assert loaded["vulnerabilities"][0]["type"] == VULN_CMDI
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
@@ -573,7 +576,7 @@ def test_django_header_injection(client, test_spans, tracer):
 
         line, hash_value = get_line_and_hash("iast_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE)
 
-        assert loaded["sources"] == [{"origin": "http.request.body", "name": "body", "value": "master"}]
+        assert loaded["sources"] == [{"origin": "http.request.body", "name": "http.request.body", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == VULN_HEADER_INJECTION
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {

@@ -1,7 +1,11 @@
 # -*- encoding: utf-8 -*-
 import logging
-
-import attr
+from typing import Any  # noqa F401
+from typing import Callable
+from typing import Dict  # noqa F401
+from typing import List
+from typing import Optional
+from typing import Sequence  # noqa F401
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
@@ -10,25 +14,31 @@ from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
 
+from .exporter import Exporter
+from .recorder import EventsType
+from .recorder import Recorder
+
 
 LOG = logging.getLogger(__name__)
 
 
-@attr.s
 class Scheduler(periodic.PeriodicService):
     """Schedule export of recorded data."""
 
-    recorder = attr.ib()
-    exporters = attr.ib()
-    before_flush = attr.ib(default=None, eq=False)
-    _interval = attr.ib(type=float, default=config.upload_interval)
-    _configured_interval = attr.ib(init=False)
-    _last_export = attr.ib(init=False, default=None, eq=False)
-    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-
-    def __attrs_post_init__(self):
-        # Copy the value to use it later since we're going to adjust the real interval
-        self._configured_interval = self.interval
+    def __init__(
+        self,
+        recorder: Optional[Recorder] = None,
+        exporters: Optional[List[Exporter]] = None,
+        before_flush: Optional[Callable] = None,
+        interval: float = config.upload_interval,
+    ):
+        super(Scheduler, self).__init__(interval=interval)
+        self.recorder: Optional[Recorder] = recorder
+        self.exporters: Optional[List[Exporter]] = exporters
+        self.before_flush: Optional[Callable] = before_flush
+        self._configured_interval: float = self.interval
+        self._last_export: int = 0  # Overridden in _start_service
+        self._export_libdd_enabled: bool = config.export.libdd_enabled
 
     def _start_service(self):
         # type: (...) -> None
@@ -39,6 +49,7 @@ class Scheduler(periodic.PeriodicService):
         LOG.debug("Scheduler started")
 
     def flush(self):
+        # type: (...) -> None
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
         if self._export_libdd_enabled:
@@ -55,21 +66,25 @@ class Scheduler(periodic.PeriodicService):
                 self.before_flush()
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
-        events = self.recorder.reset()
+        events: EventsType = {}
+        if self.recorder:
+            events = self.recorder.reset()
         start = self._last_export
         self._last_export = compat.time_ns()
-        for exp in self.exporters:
-            try:
-                exp.export(events, start, self._last_export)
-            except exporter.ExportError as e:
-                LOG.warning("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
-            except Exception:
-                LOG.exception(
-                    "Unexpected error while exporting events. "
-                    "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
-                )
+        if self.exporters:
+            for exp in self.exporters:
+                try:
+                    exp.export(events, start, self._last_export)
+                except exporter.ExportError as e:
+                    LOG.warning("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
+                except Exception:
+                    LOG.exception(
+                        "Unexpected error while exporting events. "
+                        "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
+                    )
 
     def periodic(self):
+        # type: (...) -> None
         start_time = compat.monotonic()
         try:
             self.flush()
@@ -77,7 +92,6 @@ class Scheduler(periodic.PeriodicService):
             self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
 
 
-@attr.s
 class ServerlessScheduler(Scheduler):
     """Serverless scheduler that works on, e.g., AWS Lambda.
 
@@ -91,10 +105,14 @@ class ServerlessScheduler(Scheduler):
     FORCED_INTERVAL = 1.0
     FLUSH_AFTER_INTERVALS = 60.0
 
-    _interval = attr.ib(default=FORCED_INTERVAL, type=float)
-    _profiled_intervals = attr.ib(init=False, default=0)
+    def __init__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
+        kwargs.setdefault("interval", self.FORCED_INTERVAL)
+        super(ServerlessScheduler, self).__init__(*args, **kwargs)
+        self._profiled_intervals: int = 0
 
     def periodic(self):
+        # type: (...) -> None
         # Check both the number of intervals and time frame to be sure we don't flush, e.g., empty profiles
         if self._profiled_intervals >= self.FLUSH_AFTER_INTERVALS and (compat.time_ns() - self._last_export) >= (
             self.FORCED_INTERVAL * self.FLUSH_AFTER_INTERVALS

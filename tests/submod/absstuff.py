@@ -1,9 +1,7 @@
 import abc
 
-import six
 
-
-class AbsStuff(six.with_metaclass(abc.ABCMeta)):
+class AbsStuff(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def foo(self):
         pass

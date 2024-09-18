@@ -8,18 +8,6 @@ whenever a dependency is imported. Doing this allows us to have a little more co
 Dependencies
 ============
 
-wrapt
------
-
-Website: https://wrapt.readthedocs.io/en/latest/
-Source: https://github.com/GrahamDumpleton/wrapt/
-Version: 1.14.1
-License: BSD 2-Clause "Simplified" License
-
-Notes:
-  `setup.py` will attempt to build the `wrapt/_wrappers.c` C module
-
-
 dogstatsd
 ---------
 
@@ -56,7 +44,7 @@ debtcollector
 
 Website: https://docs.openstack.org/debtcollector/latest/index.html
 Source: https://github.com/openstack/debtcollector
-Version: 1.22.0
+Version: 2.5.0
 License: Apache License 2.0
 
 Notes:

@@ -42,9 +42,8 @@ def int_config():
 
 @pytest.fixture
 def span(tracer):
-    span = tracer.trace(name="myint")
-    yield span
-    span.finish()
+    with tracer.trace(name="myint") as span:
+        yield span
 
 
 class TestHeaders(object):
@@ -304,6 +303,47 @@ def test_ext_service(int_config, pin, config_val, default, expected):
         int_config.myint.service = config_val
 
     assert trace_utils.ext_service(pin, int_config.myint, default) == expected
+
+
+@pytest.mark.subprocess(
+    parametrize={
+        "DD_TRACE_HEADER_TAGS": ["header1 header2 header3:third-header", "header1,header2,header3:third-header"]
+    }
+)
+def test_set_http_meta_with_http_header_tags_config():
+    from ddtrace import config
+    from ddtrace._trace.span import Span
+    from ddtrace.contrib.trace_utils import set_http_meta
+
+    assert config.trace_http_header_tags == {
+        "header1": "",
+        "header2": "",
+        "header3": "third-header",
+    }, config.trace_http_header_tags
+    integration_config = config.new_integration
+    assert integration_config.is_header_tracing_configured
+
+    # test request headers
+    request_span = Span(name="new_integration.request")
+    set_http_meta(
+        request_span,
+        integration_config,
+        request_headers={"header1": "value1", "header2": "value2", "header3": "value3"},
+    )
+    assert request_span.get_tag("http.request.headers.header1") == "value1"
+    assert request_span.get_tag("http.request.headers.header2") == "value2"
+    assert request_span.get_tag("third-header") == "value3"
+
+    # test response headers
+    response_span = Span(name="new_integration.response")
+    set_http_meta(
+        response_span,
+        integration_config,
+        response_headers={"header1": "value1", "header2": "value2", "header3": "value3"},
+    )
+    assert response_span.get_tag("http.response.headers.header1") == "value1"
+    assert response_span.get_tag("http.response.headers.header2") == "value2"
+    assert response_span.get_tag("third-header") == "value3"
 
 
 @pytest.mark.parametrize("appsec_enabled", [False, True])

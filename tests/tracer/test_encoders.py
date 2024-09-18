@@ -17,6 +17,7 @@ import msgpack
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_link import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
@@ -97,10 +98,10 @@ class RefMsgpackEncoder(_EncoderBase):
 
     def encode_traces(self, traces):
         normalized_traces = [[self.normalize(span) for span in trace] for trace in traces]
-        return self.encode(normalized_traces)
+        return self.encode(normalized_traces)[0]
 
     def encode(self, obj):
-        return msgpack.packb(obj)
+        return msgpack.packb(obj), len(obj)
 
     @staticmethod
     def decode(data):
@@ -245,7 +246,7 @@ class TestEncoders(TestCase):
             ]
         )
 
-        spans = encoder.encode()
+        spans, _ = encoder.encode()
         items = encoder._decode(spans)
 
         # test the encoded output that should be a string
@@ -276,7 +277,7 @@ def test_encode_meta_struct(version):
         ]
     )
 
-    spans = encoder.encode()
+    spans, _ = encoder.encode()
     items = decode(spans)
     assert isinstance(spans, bytes)
     assert len(items) == 1
@@ -364,24 +365,24 @@ def test_custom_msgpack_encode(encoding):
     # Note that we assert on the decoded versions because the encoded
     # can vary due to non-deterministic map key/value positioning
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
+    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0])
 
     ref_encoded = refencoder.encode_traces([trace, trace])
     encoder.put(trace)
     encoder.put(trace)
-    encoded = encoder.encode()
+    encoded, _ = encoder.encode()
     assert decode(encoded) == decode(ref_encoded)
 
     # Empty trace (not that this should be done in practice)
     encoder.put([])
-    assert decode(refencoder.encode_traces([[]])) == decode(encoder.encode())
+    assert decode(refencoder.encode_traces([[]])) == decode(encoder.encode()[0])
 
     s = Span(None)
     # Need to .finish() to have a duration since the old implementation will not encode
     # duration_ns, the new one will encode as None
     s.finish()
     encoder.put([s])
-    assert decode(refencoder.encode_traces([[s]])) == decode(encoder.encode())
+    assert decode(refencoder.encode_traces([[s]])) == decode(encoder.encode()[0])
 
 
 def span_type_span():
@@ -409,7 +410,7 @@ def test_msgpack_span_property_variations(encoding, span):
 
     trace = [span]
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
+    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0])
 
 
 class SubString(str):
@@ -450,7 +451,7 @@ def test_span_types(encoding, span, tags):
 
     trace = [span]
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
+    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0])
 
 
 def test_span_link_v04_encoding():
@@ -477,14 +478,22 @@ def test_span_link_v04_encoding():
             ),
         ],
     )
+    span._add_span_pointer(
+        pointer_kind="some-kind",
+        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+        pointer_hash="some-hash",
+        extra_attributes={"some": "extra"},
+    )
     assert span._links
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links.get(6)._drop_attribute("drop_me")
+    [link_6, *others] = [link for link in span._links if link.span_id == 6]
+    assert not others
+    link_6._drop_attribute("drop_me")
     # Finish the span to ensure a duration exists.
     span.finish()
 
     encoder.put([span])
-    decoded_trace = decode(encoder.encode())
+    decoded_trace = decode(encoder.encode()[0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
     # ensure trace has one span
@@ -521,6 +530,17 @@ def test_span_link_v04_encoding():
             b"flags": 1 | (1 << 31),
             b"trace_id_high": 123,
         },
+        {
+            b"trace_id": 0,
+            b"span_id": 0,
+            b"attributes": {
+                b"link.kind": b"span-pointer",
+                b"ptr.kind": b"some-kind",
+                b"ptr.dir": b"d",
+                b"ptr.hash": b"some-hash",
+                b"some": b"extra",
+            },
+        },
     ]
 
 
@@ -538,7 +558,7 @@ def test_span_event_encoding_msgpack(version):
 
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
     encoder.put([span])
-    decoded_trace = decode(encoder.encode())
+    decoded_trace = decode(encoder.encode()[0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
     # ensure trace has one span
@@ -582,16 +602,23 @@ def test_span_link_v05_encoding():
             ),
         ],
     )
+    span._add_span_pointer(
+        pointer_kind="some-kind",
+        pointer_direction=_SpanPointerDirection.UPSTREAM,
+        pointer_hash="some-hash",
+    )
 
-    assert len(span._links) == 2
+    assert len(span._links) == 3
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links.get((2**64) - 1)._drop_attribute("drop_me")
+    [link_bignum, *others] = [link for link in span._links if link.span_id == (2**64) - 1]
+    assert not others
+    link_bignum._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()
 
     encoder.put([span])
-    decoded_trace = decode(encoder.encode())
+    decoded_trace = decode(encoder.encode()[0])
     assert len(decoded_trace) == 1
     assert len(decoded_trace[0]) == 1
 
@@ -603,7 +630,10 @@ def test_span_link_v05_encoding():
         b'{"trace_id": "7fffffffffffffffffffffffffffffff", "span_id": "ffffffffffffffff", '
         b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", '
         b'"key2.0": "false", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
-        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}'
+        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}, '
+        b'{"trace_id": "00000000000000000000000000000000", "span_id": "0000000000000000", '
+        b'"attributes": {"ptr.kind": "some-kind", "ptr.dir": "u", "ptr.hash": "some-hash", '
+        b'"link.kind": "span-pointer"}}'
         b"]"
     )
 
@@ -627,7 +657,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
     assert trace, "DummyWriter failed to encode the trace"
 
     encoder.put(trace)
-    decoded_trace = decode(encoder.encode())
+    decoded_trace = decode(encoder.encode()[0])
     assert len(decoded_trace) == 1
     assert decoded_trace[0]
 
@@ -657,7 +687,8 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
     trace = [span, span, span]
 
     encoder.put(trace)
-    assert encoder.size == len(encoder.encode())
+
+    assert encoder.size == len(encoder.encode()[0])
 
 
 def test_encoder_buffer_size_limit_v03():
@@ -741,9 +772,10 @@ def test_custom_msgpack_encode_v05():
     encoder.put(trace)
     assert len(encoder) == 1
 
-    size = encoder.size
-    encoded = encoder.flush()
-    assert size == len(encoded)
+    num_bytes = encoder.size
+    encoded, num_traces = encoder.flush()
+    assert num_traces == 1
+    assert num_bytes == len(encoded)
     st, ts = decode(encoded, reconstruct=False)
 
     def filter_mut(ts):
@@ -834,7 +866,7 @@ def test_encoding_invalid_data(data):
         encoder.put(trace)
 
     assert e.match(r"failed to pack span: <Span\(id="), e
-    assert encoder.encode() is None
+    assert encoder.encode()[0] is None
 
 
 @allencodings
@@ -865,7 +897,7 @@ def test_custom_msgpack_encode_thread_safe(encoding):
     for t in ts:
         t.join()
 
-    unpacked = decode(encoder.encode(), reconstruct=True)
+    unpacked = decode(encoder.encode()[0], reconstruct=True)
     assert unpacked is not None
 
 

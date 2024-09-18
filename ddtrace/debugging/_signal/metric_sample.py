@@ -1,7 +1,7 @@
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Optional
 from typing import cast
-
-import attr
 
 from ddtrace.debugging._metrics import probe_metrics
 from ddtrace.debugging._probe.model import MetricFunctionProbe
@@ -13,13 +13,13 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.metrics import Metrics
 
 
-@attr.s
+@dataclass
 class MetricSample(LogSignal):
-    """wrapper for making a metric sample"""
+    """Wrapper for making a metric sample"""
 
-    meter = attr.ib(type=Optional[Metrics.Meter], factory=lambda: probe_metrics.get_meter("probe"))
+    meter: Metrics.Meter = field(default_factory=lambda: probe_metrics.get_meter("probe"))
 
-    def enter(self):
+    def enter(self) -> None:
         if not isinstance(self.probe, MetricFunctionProbe):
             return
 
@@ -35,22 +35,22 @@ class MetricSample(LogSignal):
         self.sample(_args)
         self.state = SignalState.DONE
 
-    def exit(self, retval, exc_info, duration):
+    def exit(self, retval, exc_info, duration) -> None:
         if not isinstance(self.probe, MetricFunctionProbe):
             return
 
         probe = self.probe
-        _args = self._enrich_args(retval, exc_info, duration)
+        full_scope = self.get_full_scope(retval, exc_info, duration)
 
-        if probe.evaluate_at != ProbeEvaluateTimingForMethod.EXIT:
+        if probe.evaluate_at is not ProbeEvaluateTimingForMethod.EXIT:
             return
-        if not self._eval_condition(_args):
+        if not self._eval_condition(full_scope):
             return
 
-        self.sample(_args)
+        self.sample(full_scope)
         self.state = SignalState.DONE
 
-    def line(self):
+    def line(self) -> None:
         frame = self.frame
 
         if not self._eval_condition(frame.f_locals):
@@ -59,7 +59,8 @@ class MetricSample(LogSignal):
         self.sample(frame.f_locals)
         self.state = SignalState.DONE
 
-    def sample(self, _locals):
+    def sample(self, _locals) -> None:
+        tags = self.probe.tags
         probe = cast(MetricProbeMixin, self.probe)
 
         assert probe.kind is not None and probe.name is not None  # nosec
@@ -69,18 +70,17 @@ class MetricSample(LogSignal):
         # TODO[perf]: We know the tags in advance so we can avoid the
         # list comprehension.
         if probe.kind == MetricProbeKind.COUNTER:
-            self.meter.increment(probe.name, value, probe.tags)
+            self.meter.increment(probe.name, value, tags)
         elif probe.kind == MetricProbeKind.GAUGE:
-            self.meter.gauge(probe.name, value, probe.tags)
+            self.meter.gauge(probe.name, value, tags)
         elif probe.kind == MetricProbeKind.HISTOGRAM:
-            self.meter.histogram(probe.name, value, probe.tags)
+            self.meter.histogram(probe.name, value, tags)
         elif probe.kind == MetricProbeKind.DISTRIBUTION:
-            self.meter.distribution(probe.name, value, probe.tags)
+            self.meter.distribution(probe.name, value, tags)
 
     @property
-    def message(self):
-        return ("Evaluation errors for probe id %s" % self.probe.probe_id) if self.errors else None
+    def message(self) -> Optional[str]:
+        return f"Evaluation errors for probe id {self.probe.probe_id}" if self.errors else None
 
-    def has_message(self):
-        # type () -> bool
+    def has_message(self) -> bool:
         return bool(self.errors)

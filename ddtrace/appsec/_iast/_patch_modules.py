@@ -1,4 +1,4 @@
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
 
 IAST_PATCH = {

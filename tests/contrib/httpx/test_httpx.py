@@ -1,6 +1,6 @@
 import httpx
 import pytest
-import six
+from wrapt import ObjectProxy
 
 from ddtrace import config
 from ddtrace.contrib.httpx.patch import HTTPX_VERSION
@@ -8,7 +8,6 @@ from ddtrace.contrib.httpx.patch import patch
 from ddtrace.contrib.httpx.patch import unpatch
 from ddtrace.pin import Pin
 from ddtrace.settings.http import HttpConfig
-from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_http_config
@@ -71,7 +70,7 @@ def test_httpx_service_name(tracer, test_spans):
 
     spans = traces[0]
     assert len(spans) == 1
-    assert isinstance(spans[0].service, six.text_type)
+    assert isinstance(spans[0].service, str)
 
 
 @flaky(1735812000)

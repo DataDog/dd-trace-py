@@ -11,8 +11,8 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal.compat import get_mp_context
-from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal._file_queue import File_Queue
+from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -147,11 +147,8 @@ def _parse_propagation_styles(name, default):
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
-            raise ValueError(
-                "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
-                    style, name, PROPAGATION_STYLE_ALL
-                )
-            )
+            log.warning("Unknown style {!r} provided for %r, allowed values are %r", style, name, PROPAGATION_STYLE_ALL)
+            continue
         styles.append(style)
     return styles
 
@@ -218,25 +215,21 @@ class _ConfigItem:
                 self._env_value = parser(os.environ[env_var])
                 break
 
-    def set_value_source(self, value, source):
-        # type: (Any, _ConfigSource) -> None
+    def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
         else:
-            raise ValueError("Invalid source: {}".format(source))
+            log.warning("Invalid source: %s", source)
 
-    def set_code(self, value):
-        # type: (_JSONType) -> None
+    def set_code(self, value: _JSONType) -> None:
         self._code_value = value
 
-    def unset_rc(self):
-        # type: () -> None
+    def unset_rc(self) -> None:
         self._rc_value = None
 
-    def value(self):
-        # type: () -> _JSONType
+    def value(self) -> _JSONType:
         if self._rc_value is not None:
             return self._rc_value
         if self._code_value is not None:
@@ -245,8 +238,7 @@ class _ConfigItem:
             return self._env_value
         return self._default_value
 
-    def source(self):
-        # type: () -> _ConfigSource
+    def source(self) -> _ConfigSource:
         if self._rc_value is not None:
             return "remote_config"
         if self._code_value is not None:
@@ -271,8 +263,7 @@ def _parse_global_tags(s):
     return gitmetadata.clean_tags(parse_tags_str(s))
 
 
-def _default_config():
-    # type: () -> Dict[str, _ConfigItem]
+def _default_config() -> Dict[str, _ConfigItem]:
     return {
         "_trace_span_origin_enabled": _ConfigItem(
             name="trace_span_origin_enabled",
@@ -344,8 +335,6 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = None if in_aws_lambda() else get_mp_context().Queue(512)
-
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -400,7 +389,6 @@ class Config(object):
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
-        self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
@@ -438,9 +426,18 @@ class Config(object):
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
+        self.analytics_enabled = asbool(
+            os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=os.getenv("DD_ANALYTICS_ENABLED", default=False))
+        )
+        if self.analytics_enabled:
+            deprecate(
+                "Datadog App Analytics is deprecated and will be removed in a future version. "
+                "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
+                "environment variables and ddtrace.config.analytics_enabled configuration. "
+                "These configurations will also be removed.",
+                category=DDTraceDeprecationWarning,
+            )
 
-        self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
@@ -453,10 +450,11 @@ class Config(object):
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
-        if self.service is None and in_azure_function_consumption_plan():
+        if self.service is None and in_azure_function():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
         self._extra_services = set()
+        self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -485,6 +483,13 @@ class Config(object):
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+        if self._128_bit_trace_id_logging_enabled:
+            deprecate(
+                "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
+                message="Log injection format is now configured automatically.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
@@ -508,25 +513,39 @@ class Config(object):
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
         if x_datadog_tags_max_length < 0:
-            raise ValueError(
+            log.warning(
                 (
-                    "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
+                    "Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
                     "only non-negative values allowed"
-                ).format(x_datadog_tags_max_length)
+                ),
+                x_datadog_tags_max_length,
             )
+            x_datadog_tags_max_length = 0
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
 
-        trace_compute_stats_default = in_gcp_function() or in_azure_function_consumption_plan()
+        trace_compute_stats_default = in_gcp_function() or in_azure_function()
         self._trace_compute_stats = asbool(
             os.getenv(
                 "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
             )
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
+
+        legacy_client_tag_enabled = os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", None)
+        if legacy_client_tag_enabled is None:
+            self._http_client_tag_query_string = os.getenv("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", default="true")
+        else:
+            deprecate(
+                "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
+                message="Please use DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._http_client_tag_query_string = legacy_client_tag_enabled.lower()
 
         dd_trace_obfuscation_query_string_regexp = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
@@ -570,7 +589,12 @@ class Config(object):
 
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
-        self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
+        self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP")
+        self._llmobs_agentless_enabled = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
+
+        self._inject_force = asbool(os.getenv("DD_INJECT_FORCE", False))
+        self._lib_was_injected = False
+        self._inject_was_attempted = asbool(os.getenv("_DD_INJECT_WAS_ATTEMPTED", False))
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -583,23 +607,16 @@ class Config(object):
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
             return
-        if self._remote_config_enabled and service_name != self.service:
-            try:
-                self._extra_services_queue.put_nowait(service_name)
-            except Exception:  # nosec
-                pass
+        if service_name != self.service:
+            self._extra_services_queue.put(service_name)
 
     def _get_extra_services(self):
         # type: () -> set[str]
         if self._extra_services_queue is None:
             return set()
-        try:
-            while True:
-                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
-                if len(self._extra_services) > 64:
-                    self._extra_services.pop()
-        except Exception:  # nosec
-            pass
+        self._extra_services.update(self._extra_services_queue.get_all())
+        while len(self._extra_services) > 64:
+            self._extra_services.pop()
         return self._extra_services
 
     def get_from(self, obj):

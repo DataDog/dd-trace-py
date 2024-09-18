@@ -1,25 +1,10 @@
-dogfood-dogweb-failed:
-  stage: dogfood
-  tags: ["arch:amd64"]
-  needs: ["dogfood-dogweb-trigger"]
-  when: on_failure
-  script:
-    - exit 1
-
-dogfood-dogweb:
-  stage: dogfood
-  tags: ["arch:amd64"]
-  needs: ["dogfood-dogweb-trigger"]
-  when: on_success
-  script:
-    - exit 0
-
 dogfood-dogweb-trigger:
   stage: dogfood
   trigger:
     project: DataDog/dogweb
-    strategy: depend
     branch: emmett.butler/ddtrace-unstable-dogfooding
+  allow_failure: true
+  needs: []
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL

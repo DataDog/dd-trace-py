@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Code Security: add propagation for GRPC server sources.

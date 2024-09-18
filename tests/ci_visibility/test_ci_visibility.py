@@ -7,6 +7,7 @@ import re
 import socket
 import textwrap
 import time
+from typing import DefaultDict
 from unittest.mock import Mock
 
 import mock
@@ -16,9 +17,9 @@ import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
-from ddtrace.ext.ci_visibility import api
 from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _GitSubprocessDetails
+import ddtrace.ext.test_visibility.api as ext_api
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SUITE
@@ -30,12 +31,14 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+import ddtrace.internal.test_visibility.api as api
 from ddtrace.internal.utils.http import Response
+from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
-from tests.utils import override_env
+from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
 
@@ -66,7 +69,6 @@ def test_filters_test_spans():
     # Root span in trace is a test
     trace = [root_test_span]
     assert trace_filter.process_trace(trace) == trace
-    assert root_test_span.service == "test-service"
     assert root_test_span.get_tag(ci.LIBRARY_VERSION) == ddtrace.__version__
     assert root_test_span.get_tag("hello") == "world"
     assert root_test_span.context.dd_origin == ci.CI_APP_TEST_ORIGIN
@@ -83,7 +85,7 @@ def test_filters_non_test_spans():
 
 
 def test_ci_visibility_service_enable():
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
@@ -108,7 +110,7 @@ def test_ci_visibility_service_enable():
 
 def test_ci_visibility_service_enable_without_service():
     """Test that enabling works and sets the right service when service isn't provided as a parameter to enable()"""
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
@@ -135,15 +137,16 @@ def test_ci_visibility_service_enable_without_service():
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request):
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             DD_CIVISIBILITY_ITR_ENABLED="0",
         )
-    ), _dummy_noop_git_client():
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    ):
         with _patch_dummy_writer():
             _do_request.return_value = Response(
                 status=200,
@@ -159,14 +162,15 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)
 def test_ci_visibility_service_settings_timeout(_do_request):
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ), _dummy_noop_git_client():
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    ):
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._api_settings.coverage_enabled is False
         assert CIVisibility._instance._api_settings.skipping_enabled is False
@@ -175,14 +179,15 @@ def test_ci_visibility_service_settings_timeout(_do_request):
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=socket.timeout)
 def test_ci_visibility_service_settings_socket_timeout(_do_request):
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ), _dummy_noop_git_client():
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    ):
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._api_settings.coverage_enabled is False
         assert CIVisibility._instance._api_settings.skipping_enabled is False
@@ -195,14 +200,35 @@ def test_ci_visibility_service_settings_socket_timeout(_do_request):
 )
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)
 def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_features):
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ), _dummy_noop_git_client():
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    ):
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._test_suites_to_skip == []
+        CIVisibility.disable()
+
+
+@mock.patch(
+    "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    return_value=_CIVisibilitySettings(True, True, False, True),
+)
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=ValueError)
+def test_ci_visibility_service_skippable_other_error(_do_request, _check_enabled_features):
+    with _ci_override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    ):
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._test_suites_to_skip == []
         CIVisibility.disable()
@@ -210,15 +236,16 @@ def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_fea
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ):
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
         _do_request.return_value = Response(
             status=200,
             body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
@@ -234,14 +261,15 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
 @pytest.mark.parametrize("agentless_enabled", [False, True])
 def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agentless_enabled):
     agentless_enabled_str = "1" if agentless_enabled else "0"
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED=agentless_enabled_str,
             DD_CIVISIBILITY_ITR_ENABLED="0",
         )
-    ), _dummy_noop_git_client():
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    ):
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._api_settings.coverage_enabled is False
         assert CIVisibility._instance._api_settings.skipping_enabled is False
@@ -251,7 +279,7 @@ def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agen
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_request):
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
@@ -269,7 +297,9 @@ def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_reques
 
 
 def test_ci_visibility_service_disable():
-    with override_env(dict(DD_API_KEY="foobar.baz")), _dummy_noop_git_client():
+    with _ci_override_env(
+        dict(DD_API_KEY="foobar.baz"),
+    ), _dummy_noop_git_client():
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
@@ -293,6 +323,16 @@ def test_ci_visibility_service_disable():
         ("git+git://github.com/org/repo-name.git", "repo-name"),
         ("git+ssh://github.com/org/repo-name.git", "repo-name"),
         ("git+https://github.com/org/repo-name.git", "repo-name"),
+        ("https://github.com/fastapi/fastapi.git", "fastapi"),
+        ("git@github.com:fastapi/fastapi.git", "fastapi"),
+        ("git@github.com:fastapi/fastapi.gitttttt", "fastapi.gitttttt"),
+        ("git@github.com:fastapi/fastapiiiititititi.git", "fastapiiiititititi"),
+        ("https://github.com/fastapi/fastapitttttt.git", "fastapitttttt"),
+        ("this is definitely not a valid git repo URL", "this is definitely not a valid git repo URL"),
+        ("git@github.com:fastapi/FastAPI.GiT", "FastAPI"),
+        ("git+https://github.com/org/REPO-NAME.GIT", "REPO-NAME"),
+        ("https://github.com/DataDog/DD-TRACE-py", "DD-TRACE-py"),
+        ("https://github.com/DataDog/dd-trace-py.GIT", "dd-trace-py"),
     ],
 )
 def test_repository_name_extracted(repository_url, repository_name):
@@ -481,74 +521,83 @@ def test_git_do_request_evp(git_repo):
             )
 
 
-def test_civisibilitywriter_agentless_url():
-    with override_env(dict(DD_API_KEY="foobar.baz")):
-        with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}):
-            ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = (
-                ddtrace.config._ci_visibility_agentless_url
-            )  # this is what override_global_config is supposed to do, but in this case it doesn't work
-            dummy_writer = DummyCIVisibilityWriter()
-            assert dummy_writer.intake_url == "https://foo.bar"
+class TestCIVisibilityWriter(TracerTestCase):
+    def tearDown(self):
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:
+            pass
 
+    def test_civisibilitywriter_agentless_url(self):
+        with _ci_override_env(dict(DD_API_KEY="foobar.baz")):
+            with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}), mock.patch(
+                "ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url", "https://foo.bar"
+            ):
+                dummy_writer = DummyCIVisibilityWriter()
+                assert dummy_writer.intake_url == "https://foo.bar"
 
-def test_civisibilitywriter_coverage_agentless_url():
-    ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-        )
-    ):
-        dummy_writer = DummyCIVisibilityWriter(coverage_enabled=True)
-        assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
+    def test_civisibilitywriter_coverage_agentless_url(self):
+        ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            )
+        ):
+            dummy_writer = DummyCIVisibilityWriter(coverage_enabled=True)
+            assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
 
-        cov_client = dummy_writer._clients[1]
-        assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
+            cov_client = dummy_writer._clients[1]
+            assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
-        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
-            dummy_writer._put("", {}, cov_client, no_trace=True)
-            _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+                _get_connection.return_value.getresponse.return_value.status = 200
+                dummy_writer._put("", {}, cov_client, no_trace=True)
+                _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
+    def test_civisibilitywriter_coverage_agentless_with_intake_url_param(self):
+        ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            )
+        ):
+            dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
+            assert dummy_writer.intake_url == "https://some-url.com"
 
-def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
-    ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-        )
-    ):
-        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
-        assert dummy_writer.intake_url == "https://some-url.com"
+            cov_client = dummy_writer._clients[1]
+            assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
-        cov_client = dummy_writer._clients[1]
-        assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
+            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+                _get_connection.return_value.getresponse.return_value.status = 200
+                dummy_writer._put("", {}, cov_client, no_trace=True)
+                _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
-        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
-            dummy_writer._put("", {}, cov_client, no_trace=True)
-            _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+    def test_civisibilitywriter_coverage_evp_proxy_url(self):
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ), mock.patch(
+            "ddtrace.internal.agent.get_trace_url", return_value="http://arandomhost:9126"
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
+            dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
 
+            test_client = dummy_writer._clients[0]
+            assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"
+            cov_client = dummy_writer._clients[1]
+            assert cov_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcov"
 
-def test_civisibilitywriter_coverage_evp_proxy_url():
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-        )
-    ):
-        dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
-
-        test_client = dummy_writer._clients[0]
-        assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"
-        cov_client = dummy_writer._clients[1]
-        assert cov_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcov"
-
-        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
-            dummy_writer._put("", {}, cov_client, no_trace=True)
-            _get_connection.assert_called_once_with("http://localhost:9126", 2.0)
+            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+                _get_connection.return_value.getresponse.return_value.status = 200
+                dummy_writer._put("", {}, cov_client, no_trace=True)
+                _get_connection.assert_called_once_with("http://arandomhost:9126", 2.0)
 
 
 def test_civisibilitywriter_agentless_url_envvar():
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
@@ -556,45 +605,55 @@ def test_civisibilitywriter_agentless_url_envvar():
         )
     ), _dummy_noop_git_client(), mock.patch.object(
         CIVisibility, "_check_settings_api", return_value=_CIVisibilitySettings(False, False, False, False)
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ):
-        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
         CIVisibility.enable()
         assert CIVisibility._instance._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS
         assert CIVisibility._instance.tracer._writer.intake_url == "https://foo.bar"
         CIVisibility.disable()
 
+    def test_civisibilitywriter_evp_proxy_url(self):
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ), mock.patch(
+            "ddtrace.internal.agent.get_trace_url", return_value="http://evpproxy.bar:1234"
+        ), mock.patch("ddtrace.settings.config.Config", _get_default_civisibility_ddconfig()), mock.patch(
+            "ddtrace.tracer", ddtrace.Tracer()
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+        ), _dummy_noop_git_client(), mock.patch(
+            "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ):
+            CIVisibility.enable()
+            assert CIVisibility._instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
+            assert CIVisibility._instance.tracer._writer.intake_url == "http://evpproxy.bar:1234"
+            CIVisibility.disable()
 
-def test_civisibilitywriter_evp_proxy_url():
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-        )
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
-    ), _dummy_noop_git_client():
-        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
-        CIVisibility.enable()
-        assert CIVisibility._instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
-        assert CIVisibility._instance.tracer._writer.intake_url == "http://localhost:9126"
-        CIVisibility.disable()
-
-
-def test_civisibilitywriter_only_traces():
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-        )
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
-    ):
-        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
-        CIVisibility.enable()
-        assert CIVisibility._instance._requests_mode == REQUESTS_MODE.TRACES
-        assert CIVisibility._instance.tracer._writer.intake_url == "http://localhost:9126"
-        CIVisibility.disable()
+    def test_civisibilitywriter_only_traces(self):
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ), mock.patch(
+            "ddtrace.internal.agent.get_trace_url", return_value="http://onlytraces:1234"
+        ), mock.patch("ddtrace.tracer", ddtrace.Tracer()), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ):
+            CIVisibility.enable()
+            assert CIVisibility._instance._requests_mode == REQUESTS_MODE.TRACES
+            assert CIVisibility._instance.tracer._writer.intake_url == "http://onlytraces:1234"
+            CIVisibility.disable()
 
 
 class TestCheckEnabledFeatures:
@@ -616,7 +675,7 @@ class TestCheckEnabledFeatures:
             r"^https://api\.datad0g\.com/api/v2/libraries/tests/services/setting$"
         ),
         REQUESTS_MODE.EVP_PROXY_EVENTS: re.compile(
-            r"^http://localhost:[89]126/evp_proxy/v2/api/v2/libraries/tests/services/setting$"
+            r"^http://(localhost|testagent):[89]126/evp_proxy/v2/api/v2/libraries/tests/services/setting$"
         ),
     }
     expected_do_request_headers = {
@@ -626,6 +685,7 @@ class TestCheckEnabledFeatures:
         },
         REQUESTS_MODE.EVP_PROXY_EVENTS: {
             "X-Datadog-EVP-Subdomain": "api",
+            "Content-Type": "application/json",
         },
     }
 
@@ -663,7 +723,6 @@ class TestCheckEnabledFeatures:
             mock_civisibility._suite_skipping_mode = suite_skipping_mode
 
             # Defaults
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
             mock_civisibility._service = "service"
             mock_civisibility._api_key = "myfakeapikey"
             mock_civisibility._dd_site = "datad0g.com"
@@ -869,6 +928,34 @@ class TestCheckEnabledFeatures:
 
             assert mock_do_request.call_count == expected_call_count
             assert enabled_features == _CIVisibilitySettings(False, False, False, False)
+
+    @pytest.mark.parametrize(
+        "dd_civisibility_agentless_url, expected_url",
+        [
+            ("", "https://api.datad0g.com/api/v2/libraries/tests/services/setting"),
+            ("https://bar.foo:1234", "https://bar.foo:1234/api/v2/libraries/tests/services/setting"),
+        ],
+    )
+    def test_civisibility_check_enabled_feature_respects_civisibility_agentless_url(
+        self, dd_civisibility_agentless_url, expected_url
+    ):
+        """Tests that DD_CIVISIBILITY_AGENTLESS_URL is respected when set"""
+        with _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_AGENTLESS_URL=dd_civisibility_agentless_url,
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            )
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            side_effect=[self._get_settings_api_response(200, False, False, False, False)],
+        ) as mock_do_request:
+            mock_civisibility = self._get_mock_civisibility(REQUESTS_MODE.AGENTLESS_EVENTS, False)
+            _ = mock_civisibility._check_enabled_features()
+
+            assert mock_do_request.call_args_list[0][0][1] == expected_url
 
 
 def test_run_protocol_unshallow_git_ge_227():
@@ -1221,8 +1308,7 @@ class TestFetchTestsToSkip:
                     }"""
                 ),
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(TEST)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {
@@ -1266,8 +1352,7 @@ class TestFetchTestsToSkip:
                     }"""
                 ),
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == [
                 "testbundle/test_module_1.py",
@@ -1283,8 +1368,7 @@ class TestFetchTestsToSkip:
                 status=200,
                 body="{}",
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(TEST)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1296,8 +1380,7 @@ class TestFetchTestsToSkip:
                 status=200,
                 body="{}",
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1309,8 +1392,7 @@ class TestFetchTestsToSkip:
                 status=200,
                 body='{"data": null}',
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(TEST)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1322,8 +1404,7 @@ class TestFetchTestsToSkip:
                 status=200,
                 body='{"data": null}',
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1335,8 +1416,7 @@ class TestFetchTestsToSkip:
                 status=200,
                 body="{ this is not valid JSON { ",
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1348,8 +1428,7 @@ class TestFetchTestsToSkip:
                 status=500,
                 body="Internal server error",
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1361,8 +1440,7 @@ class TestFetchTestsToSkip:
                 status=200,
                 body='{"data": [{"somekey": "someval"}]}',
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1386,8 +1464,7 @@ class TestFetchTestsToSkip:
                     }]}""",
                 ),
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1411,8 +1488,7 @@ class TestFetchTestsToSkip:
                     }]}""",
                 ),
             ),
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1421,8 +1497,7 @@ class TestFetchTestsToSkip:
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder._do_request",
             side_effect=TimeoutError,
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
@@ -1431,18 +1506,23 @@ class TestFetchTestsToSkip:
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder._do_request",
             side_effect=socket.timeout,
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
 
 
-def test_fetch_tests_to_skip_custom_configurations():
-    with override_env(
+@pytest.mark.parametrize(
+    "dd_ci_visibility_agentless_url,expected_url_prefix",
+    [("", "https://api.datadoghq.com"), ("https://mycustomurl.com:1234", "https://mycustomurl.com:1234")],
+)
+def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_url, expected_url_prefix):
+    expected_url = expected_url_prefix + "/api/v2/ci/tests/skippable"
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_AGENTLESS_URL=dd_ci_visibility_agentless_url,
             DD_TAGS="test.configuration.disk:slow,test.configuration.memory:low",
             DD_SERVICE="test-service",
             DD_ENV="test-env",
@@ -1482,9 +1562,10 @@ def test_fetch_tests_to_skip_custom_configurations():
     ) as mock_do_request:
         with mock.patch(
             "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
-        ) as mock_build_packfiles:
+        ) as mock_build_packfiles, mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ):
             mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
-            ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
             CIVisibility.enable(service="test-service")
 
             expected_data_arg = json.dumps(
@@ -1512,7 +1593,7 @@ def test_fetch_tests_to_skip_custom_configurations():
 
             mock_do_request.assert_called_once_with(
                 "POST",
-                "https://api.datadoghq.com/api/v2/ci/tests/skippable",
+                expected_url,
                 expected_data_arg,
                 {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
                 20,
@@ -1521,13 +1602,13 @@ def test_fetch_tests_to_skip_custom_configurations():
 
 
 def test_civisibility_enable_tracer_uses_partial_traces():
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
         )
-    ), _dummy_noop_git_client():
-        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()):
         CIVisibility.enable()
         assert CIVisibility._instance.tracer._partial_flush_enabled is True
         assert CIVisibility._instance.tracer._partial_flush_min_spans == 1
@@ -1535,13 +1616,13 @@ def test_civisibility_enable_tracer_uses_partial_traces():
 
 
 def test_civisibility_enable_respects_passed_in_tracer():
-    with override_env(
+    with _ci_override_env(
         dict(
             DD_API_KEY="foobar.baz",
         )
-    ), _dummy_noop_git_client():
-        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()):
         tracer = ddtrace.Tracer()
         tracer.configure(partial_flush_enabled=False, partial_flush_min_spans=100)
         CIVisibility.enable(tracer=tracer)
@@ -1587,7 +1668,7 @@ class TestIsITRSkippable:
     No tests should be skippable in suite-level skipping mode, and vice versa.
     """
 
-    test_level_tests_to_skip = defaultdict()
+    test_level_tests_to_skip: DefaultDict = defaultdict()
     test_level_tests_to_skip.update(
         {
             "module_1/module_1_suite_1.py": ["test_1", "test_2", "test_5[param2]"],
@@ -1605,73 +1686,70 @@ class TestIsITRSkippable:
         "no_module_suite_1.py",
     ]
 
-    # Consistent IDs for all tests
-    session_id = api.CISessionId()
-
     # Module 1
-    m1 = api.CIModuleId(session_id, "module_1")
+    m1 = ext_api.TestModuleId("module_1")
     # Module 1 Suite 1
-    m1_s1 = api.CISuiteId(m1, "module_1_suite_1.py")
-    m1_s1_t1 = api.CITestId(m1_s1, "test_1")
-    m1_s1_t2 = api.CITestId(m1_s1, "test_2")
-    m1_s1_t3 = api.CITestId(m1_s1, "test_3")
-    m1_s1_t4 = api.CITestId(m1_s1, "test_4[param1]")
-    m1_s1_t5 = api.CITestId(m1_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m1_s1_t6 = api.CITestId(m1_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m1_s1_t7 = api.CITestId(m1_s1, "test_6[param3]")
+    m1_s1 = ext_api.TestSuiteId(m1, "module_1_suite_1.py")
+    m1_s1_t1 = api.InternalTestId(m1_s1, "test_1")
+    m1_s1_t2 = api.InternalTestId(m1_s1, "test_2")
+    m1_s1_t3 = api.InternalTestId(m1_s1, "test_3")
+    m1_s1_t4 = api.InternalTestId(m1_s1, "test_4[param1]")
+    m1_s1_t5 = api.InternalTestId(m1_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m1_s1_t6 = api.InternalTestId(m1_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m1_s1_t7 = api.InternalTestId(m1_s1, "test_6[param3]")
 
     # Module 1 Suite 2
-    m1_s2 = api.CISuiteId(m1, "module_1_suite_2.py")
-    m1_s2_t1 = api.CITestId(m1_s2, "test_1")
-    m1_s2_t2 = api.CITestId(m1_s2, "test_2")
-    m1_s2_t3 = api.CITestId(m1_s2, "test_3")
-    m1_s2_t4 = api.CITestId(m1_s2, "test_4[param1]")
-    m1_s2_t5 = api.CITestId(m1_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m1_s2_t6 = api.CITestId(m1_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m1_s2_t7 = api.CITestId(m1_s2, "test_6[param3]")
+    m1_s2 = ext_api.TestSuiteId(m1, "module_1_suite_2.py")
+    m1_s2_t1 = api.InternalTestId(m1_s2, "test_1")
+    m1_s2_t2 = api.InternalTestId(m1_s2, "test_2")
+    m1_s2_t3 = api.InternalTestId(m1_s2, "test_3")
+    m1_s2_t4 = api.InternalTestId(m1_s2, "test_4[param1]")
+    m1_s2_t5 = api.InternalTestId(m1_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m1_s2_t6 = api.InternalTestId(m1_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m1_s2_t7 = api.InternalTestId(m1_s2, "test_6[param3]")
 
     # Module 2
-    m2 = api.CIModuleId(session_id, "module_2")
+    m2 = ext_api.TestModuleId("module_2")
 
     # Module 2 Suite 1
-    m2_s1 = api.CISuiteId(m2, "module_2_suite_1.py")
-    m2_s1_t1 = api.CITestId(m2_s1, "test_1")
-    m2_s1_t2 = api.CITestId(m2_s1, "test_2")
-    m2_s1_t3 = api.CITestId(m2_s1, "test_3")
-    m2_s1_t4 = api.CITestId(m2_s1, "test_4[param1]")
-    m2_s1_t5 = api.CITestId(m2_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m2_s1_t6 = api.CITestId(m2_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m2_s1_t7 = api.CITestId(m2_s1, "test_6[param3]")
+    m2_s1 = ext_api.TestSuiteId(m2, "module_2_suite_1.py")
+    m2_s1_t1 = api.InternalTestId(m2_s1, "test_1")
+    m2_s1_t2 = api.InternalTestId(m2_s1, "test_2")
+    m2_s1_t3 = api.InternalTestId(m2_s1, "test_3")
+    m2_s1_t4 = api.InternalTestId(m2_s1, "test_4[param1]")
+    m2_s1_t5 = api.InternalTestId(m2_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m2_s1_t6 = api.InternalTestId(m2_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m2_s1_t7 = api.InternalTestId(m2_s1, "test_6[param3]")
 
     # Module 2 Suite 2
-    m2_s2 = api.CISuiteId(m2, "module_2_suite_2.py")
-    m2_s2_t1 = api.CITestId(m2_s2, "test_1")
-    m2_s2_t2 = api.CITestId(m2_s2, "test_2")
-    m2_s2_t3 = api.CITestId(m2_s2, "test_3")
-    m2_s2_t4 = api.CITestId(m2_s2, "test_4[param1]")
-    m2_s2_t5 = api.CITestId(m2_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m2_s2_t6 = api.CITestId(m2_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m2_s2_t7 = api.CITestId(m2_s2, "test_6[param3]")
+    m2_s2 = ext_api.TestSuiteId(m2, "module_2_suite_2.py")
+    m2_s2_t1 = api.InternalTestId(m2_s2, "test_1")
+    m2_s2_t2 = api.InternalTestId(m2_s2, "test_2")
+    m2_s2_t3 = api.InternalTestId(m2_s2, "test_3")
+    m2_s2_t4 = api.InternalTestId(m2_s2, "test_4[param1]")
+    m2_s2_t5 = api.InternalTestId(m2_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m2_s2_t6 = api.InternalTestId(m2_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m2_s2_t7 = api.InternalTestId(m2_s2, "test_6[param3]")
 
     # Module 3
-    m3 = api.CIModuleId(session_id, "")
-    m3_s1 = api.CISuiteId(m3, "no_module_suite_1.py")
-    m3_s1_t1 = api.CITestId(m3_s1, "test_1")
-    m3_s1_t2 = api.CITestId(m3_s1, "test_2")
-    m3_s1_t3 = api.CITestId(m3_s1, "test_3")
-    m3_s1_t4 = api.CITestId(m3_s1, "test_4[param1]")
-    m3_s1_t5 = api.CITestId(m3_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m3_s1_t6 = api.CITestId(m3_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m3_s1_t7 = api.CITestId(m3_s1, "test_6[param3]")
+    m3 = ext_api.TestModuleId("")
+    m3_s1 = ext_api.TestSuiteId(m3, "no_module_suite_1.py")
+    m3_s1_t1 = api.InternalTestId(m3_s1, "test_1")
+    m3_s1_t2 = api.InternalTestId(m3_s1, "test_2")
+    m3_s1_t3 = api.InternalTestId(m3_s1, "test_3")
+    m3_s1_t4 = api.InternalTestId(m3_s1, "test_4[param1]")
+    m3_s1_t5 = api.InternalTestId(m3_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m3_s1_t6 = api.InternalTestId(m3_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m3_s1_t7 = api.InternalTestId(m3_s1, "test_6[param3]")
 
-    m3_s2 = api.CISuiteId(m3, "no_module_suite_2.py")
-    m3_s2_t1 = api.CITestId(m3_s2, "test_1")
-    m3_s2_t2 = api.CITestId(m3_s2, "test_2")
-    m3_s2_t3 = api.CITestId(m3_s2, "test_3")
-    m3_s2_t4 = api.CITestId(m3_s2, "test_4[param1]")
-    m3_s2_t5 = api.CITestId(m3_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
-    m3_s2_t6 = api.CITestId(m3_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
-    m3_s2_t7 = api.CITestId(m3_s2, "test_6[param3]")
+    m3_s2 = ext_api.TestSuiteId(m3, "no_module_suite_2.py")
+    m3_s2_t1 = api.InternalTestId(m3_s2, "test_1")
+    m3_s2_t2 = api.InternalTestId(m3_s2, "test_2")
+    m3_s2_t3 = api.InternalTestId(m3_s2, "test_3")
+    m3_s2_t4 = api.InternalTestId(m3_s2, "test_4[param1]")
+    m3_s2_t5 = api.InternalTestId(m3_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m3_s2_t6 = api.InternalTestId(m3_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m3_s2_t7 = api.InternalTestId(m3_s2, "test_6[param3]")
 
     def _get_all_suite_ids(self):
         return {getattr(self, suite_id) for suite_id in vars(self.__class__) if re.match(r"^m\d_s\d$", suite_id)}

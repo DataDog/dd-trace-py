@@ -15,7 +15,6 @@ REDACTED_IDENTIFIERS = (
         {
             "2fa",
             "accesstoken",
-            "address",
             "aiohttpsession",
             "apikey",
             "apisecret",
@@ -30,7 +29,6 @@ REDACTED_IDENTIFIERS = (
             "cipher",
             "clientid",
             "clientsecret",
-            "config",
             "connectionstring",
             "connectsid",
             "cookie",

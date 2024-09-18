@@ -1,12 +1,15 @@
 from __future__ import division
 
+from dataclasses import dataclass
+from dataclasses import field
 import random
 import threading
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 
-import attr
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import compat
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
@@ -60,7 +63,7 @@ class RateLimiter(object):
     def _has_been_configured(self):
         return self.rate_limit != DEFAULT_SAMPLING_RATE_LIMIT
 
-    def is_allowed(self, timestamp_ns: int) -> bool:
+    def is_allowed(self, timestamp_ns: Optional[int] = None) -> bool:
         """
         Check whether the current request is allowed or not
 
@@ -70,7 +73,16 @@ class RateLimiter(object):
         :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
         """
-        # Determine if it is allowed
+        if timestamp_ns is not None:
+            deprecate(
+                "The `timestamp_ns` parameter is deprecated and will be removed in a future version."
+                "Ratelimiter will use the current time.",
+                category=DDTraceDeprecationWarning,
+            )
+
+        # rate limits are tested and mocked in pytest so we need to compute the timestamp here
+        # (or move the unit tests to rust)
+        timestamp_ns = timestamp_ns or compat.monotonic_ns()
         allowed = self._is_allowed(timestamp_ns)
         # Update counts used to determine effective rate
         self._update_rate_counts(allowed, timestamp_ns)
@@ -175,8 +187,8 @@ class RateLimitExceeded(Exception):
     pass
 
 
-@attr.s
-class BudgetRateLimiterWithJitter(object):
+@dataclass
+class BudgetRateLimiterWithJitter:
     """A budget rate limiter with jitter.
 
     The jitter is induced by a uniform distribution. The rate limit can be
@@ -199,17 +211,17 @@ class BudgetRateLimiterWithJitter(object):
     budget of ``1``.
     """
 
-    limit_rate = attr.ib(type=float)
-    tau = attr.ib(type=float, default=1.0)
-    raise_on_exceed = attr.ib(type=bool, default=True)
-    on_exceed = attr.ib(type=Callable, default=None)
-    call_once = attr.ib(type=bool, default=False)
-    budget = attr.ib(type=float, init=False)
-    max_budget = attr.ib(type=float, init=False)
-    last_time = attr.ib(type=float, init=False, factory=compat.monotonic)
-    _lock = attr.ib(type=threading.Lock, init=False, factory=threading.Lock)
+    limit_rate: float
+    tau: float = 1.0
+    raise_on_exceed: bool = True
+    on_exceed: Optional[Callable] = None
+    call_once: bool = False
+    budget: float = field(init=False)
+    max_budget: float = field(init=False)
+    last_time: float = field(init=False, default_factory=compat.monotonic)
+    _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         if self.limit_rate == float("inf"):
             self.budget = self.max_budget = float("inf")
         elif self.limit_rate:

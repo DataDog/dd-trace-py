@@ -6,98 +6,15 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 
-import ddtrace
-from ddtrace.contrib.fastapi import patch as fastapi_patch
-from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.contrib.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
-from tests.utils import DummyTracer
-from tests.utils import TracerSpanContainer
 from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
-
-from . import app
-
-
-@pytest.fixture
-def tracer():
-    original_tracer = ddtrace.tracer
-    tracer = DummyTracer()
-
-    ddtrace.tracer = tracer
-    fastapi_patch()
-    yield tracer
-    ddtrace.tracer = original_tracer
-    fastapi_unpatch()
-
-
-@pytest.fixture
-def test_spans(tracer):
-    container = TracerSpanContainer(tracer)
-    yield container
-    container.reset()
-
-
-@pytest.fixture
-def application(tracer):
-    application = app.get_app()
-    yield application
-
-
-@pytest.fixture
-def snapshot_app_with_middleware():
-    fastapi_patch()
-
-    application = app.get_app()
-
-    @application.middleware("http")
-    async def traced_middlware(request, call_next):
-        with ddtrace.tracer.trace("traced_middlware"):
-            response = await call_next(request)
-            return response
-
-    yield application
-
-    fastapi_unpatch()
-
-
-@pytest.fixture
-def client(tracer):
-    with TestClient(app.get_app()) as test_client:
-        yield test_client
-
-
-@pytest.fixture
-def snapshot_app():
-    fastapi_patch()
-    application = app.get_app()
-    yield application
-    fastapi_unpatch()
-
-
-@pytest.fixture
-def snapshot_client(snapshot_app):
-    with TestClient(snapshot_app) as test_client:
-        yield test_client
-
-
-@pytest.fixture
-def snapshot_app_with_tracer(tracer):
-    fastapi_patch()
-    application = app.get_app()
-    yield application
-    fastapi_unpatch()
-
-
-@pytest.fixture
-def snapshot_client_with_tracer(snapshot_app_with_tracer):
-    with TestClient(snapshot_app_with_tracer) as test_client:
-        yield test_client
 
 
 def assert_serialize_span(serialize_span):
@@ -506,9 +423,9 @@ def test_distributed_tracing(client, tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_multiple_requests(application, tracer, test_spans):
+async def test_multiple_requests(fastapi_application, tracer, test_spans):
     with override_http_config("fastapi", dict(trace_query_string=True)):
-        async with httpx.AsyncClient(app=application) as client:
+        async with httpx.AsyncClient(app=fastapi_application) as client:
             responses = await asyncio.gather(
                 client.get("http://testserver/", headers={"sleep": "True"}),
                 client.get("http://testserver/", headers={"sleep": "False"}),
@@ -665,8 +582,10 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     background_span = spans[1][0]
     # background task should link to the request span
     assert background_span.parent_id is None
-    assert background_span._links[request_span.span_id].trace_id == request_span.trace_id
-    assert background_span._links[request_span.span_id].span_id == request_span.span_id
+    [link, *others] = [link for link in background_span._links if link.span_id == request_span.span_id]
+    assert not others
+    assert link.trace_id == request_span.trace_id
+    assert link.span_id == request_span.span_id
     assert background_span.name == "fastapi.background_task"
     assert background_span.resource == "custom_task"
 
@@ -713,8 +632,8 @@ def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
 import pytest
 import sys
 
-from tests.contrib.fastapi.test_fastapi import snapshot_app
-from tests.contrib.fastapi.test_fastapi import snapshot_client
+from tests.contrib.fastapi.conftest import snapshot_app
+from tests.contrib.fastapi.conftest import snapshot_client
 
 def test_read_homepage(snapshot_client):
     snapshot_client.get("/sub-app/hello/name")

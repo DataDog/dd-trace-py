@@ -7,7 +7,6 @@ import pylibmc
 
 # project
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylibmc import TracedClient
 from ddtrace.contrib.pylibmc.patch import patch
 from ddtrace.contrib.pylibmc.patch import unpatch
@@ -160,6 +159,27 @@ class PylibmcCore(object):
         assert get_missing_key_span.resource == "get"
         assert get_missing_key_span.get_metric("db.row_count") == 0
 
+    def test_add(self):
+        client, tracer = self.get_client()
+        # test
+        start = time.time()
+        client.add("a", "first")
+        out = client.get("a")
+        assert out == "first"
+        client.add("a", "second")
+        out = client.get("a")
+        assert out == "first"
+        end = time.time()
+        # verify
+        spans = tracer.pop()
+        for s in spans:
+            self._verify_cache_span(s, start, end)
+
+        assert spans[0].resource == "add"
+        assert spans[1].resource == "get"
+        assert spans[2].resource == "add"
+        assert spans[3].resource == "get"
+
     def test_get_multi_rowcount(self):
         client, tracer = self.get_client()
         # test
@@ -244,32 +264,6 @@ class PylibmcCore(object):
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("db.system") == "memcached"
         assert s.get_metric("network.destination.port") == cfg["port"]
-
-    def test_analytics_default(self):
-        client, tracer = self.get_client()
-        client.set("a", "crow")
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("pylibmc", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            client, tracer = self.get_client()
-            client.set("a", "crow")
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("pylibmc", dict(analytics_enabled=True)):
-            client, tracer = self.get_client()
-            client.set("a", "crow")
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_disabled(self):
         """

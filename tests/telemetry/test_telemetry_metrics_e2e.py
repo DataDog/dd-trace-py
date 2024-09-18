@@ -5,8 +5,6 @@ import subprocess
 import sys
 
 from ddtrace.internal.utils.retry import RetryError
-from tests.telemetry.utils import get_default_telemetry_env
-from tests.utils import flaky
 from tests.webclient import Client
 
 
@@ -33,6 +31,7 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     # do not patch flask because we will end up with confusing metrics
     # now that we generate metrics for spans
     env["DD_PATCH_MODULES"] = "flask:false"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     server_process = subprocess.Popen(
         cmd,
         env=env,
@@ -73,10 +72,9 @@ def parse_payload(data):
     return json.loads(data)
 
 
-@flaky(1717255857)
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
     token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
-    initial_event_count = len(test_agent_session.get_events())
+    initial_event_count = len(test_agent_session.get_events("generate-metrics"))
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 
@@ -88,9 +86,8 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         response = gunicorn_client.get("/count_metric")
         assert response.status_code == 200
 
-    events = test_agent_session.get_events()
-    assert len(events) > initial_event_count
-    metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
+    metrics = test_agent_session.get_events("generate-metrics")
+    assert len(metrics) > initial_event_count
     assert len(metrics) == 1
     assert metrics[0]["payload"]["series"][0]["metric"] == "test_metric"
     assert metrics[0]["payload"]["series"][0]["points"][0][1] == 5
@@ -103,18 +100,22 @@ for _ in range(10):
     with tracer.trace('span1'):
         pass
 """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    events = test_agent_session.get_events()
+    metrics_events = test_agent_session.get_events("generate-metrics")
+    metrics_sc = get_metrics_from_events("spans_created", metrics_events)
+    assert len(metrics_sc) == 1
+    assert metrics_sc[0]["metric"] == "spans_created"
+    assert metrics_sc[0]["tags"] == ["integration_name:datadog"]
+    assert metrics_sc[0]["points"][0][1] == 10
 
-    metrics = get_metrics_from_events(events)
-    assert len(metrics) == 2
-    assert metrics[0]["metric"] == "spans_created"
-    assert metrics[0]["tags"] == ["integration_name:datadog"]
-    assert metrics[0]["points"][0][1] == 10
-    assert metrics[1]["metric"] == "spans_finished"
-    assert metrics[1]["tags"] == ["integration_name:datadog"]
-    assert metrics[1]["points"][0][1] == 10
+    metrics_sf = get_metrics_from_events("spans_finished", metrics_events)
+    assert len(metrics_sf) == 1
+    assert metrics_sf[0]["metric"] == "spans_finished"
+    assert metrics_sf[0]["tags"] == ["integration_name:datadog"]
+    assert metrics_sf[0]["points"][0][1] == 10
 
 
 def test_span_creation_and_finished_metrics_otel(test_agent_session, ddtrace_run_python_code_in_subprocess):
@@ -126,20 +127,25 @@ for _ in range(9):
     with ot.start_span('span'):
         pass
 """
-    env = get_default_telemetry_env()
+    env = os.environ.copy()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    events = test_agent_session.get_events()
 
-    metrics = get_metrics_from_events(events)
-    assert len(metrics) == 2
-    assert metrics[0]["metric"] == "spans_created"
-    assert metrics[0]["tags"] == ["integration_name:otel"]
-    assert metrics[0]["points"][0][1] == 9
-    assert metrics[1]["metric"] == "spans_finished"
-    assert metrics[1]["tags"] == ["integration_name:otel"]
-    assert metrics[1]["points"][0][1] == 9
+    metrics_events = test_agent_session.get_events("generate-metrics")
+
+    metrics_sc = get_metrics_from_events("spans_created", metrics_events)
+    assert len(metrics_sc) == 1
+    assert metrics_sc[0]["metric"] == "spans_created"
+    assert metrics_sc[0]["tags"] == ["integration_name:otel"]
+    assert metrics_sc[0]["points"][0][1] == 9
+
+    metrics_sf = get_metrics_from_events("spans_finished", metrics_events)
+    assert len(metrics_sf) == 1
+    assert metrics_sf[0]["metric"] == "spans_finished"
+    assert metrics_sf[0]["tags"] == ["integration_name:otel"]
+    assert metrics_sf[0]["points"][0][1] == 9
 
 
 def test_span_creation_and_finished_metrics_opentracing(test_agent_session, ddtrace_run_python_code_in_subprocess):
@@ -147,22 +153,29 @@ def test_span_creation_and_finished_metrics_opentracing(test_agent_session, ddtr
 from ddtrace.opentracer import Tracer
 
 ot = Tracer()
-for _ in range(9):
+for _ in range(2):
     with ot.start_span('span'):
         pass
 """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
+    env = os.environ.copy()
+    env["DD_TRACE_OTEL_ENABLED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    events = test_agent_session.get_events()
 
-    metrics = get_metrics_from_events(events)
-    assert len(metrics) == 2
-    assert metrics[0]["metric"] == "spans_created"
-    assert metrics[0]["tags"] == ["integration_name:opentracing"]
-    assert metrics[0]["points"][0][1] == 9
-    assert metrics[1]["metric"] == "spans_finished"
-    assert metrics[1]["tags"] == ["integration_name:opentracing"]
-    assert metrics[1]["points"][0][1] == 9
+    metrics_events = test_agent_session.get_events("generate-metrics")
+
+    metrics_sc = get_metrics_from_events("spans_created", metrics_events)
+    assert len(metrics_sc) == 1
+    assert metrics_sc[0]["metric"] == "spans_created"
+    assert metrics_sc[0]["tags"] == ["integration_name:opentracing"]
+    assert metrics_sc[0]["points"][0][1] == 2
+
+    metrics_sf = get_metrics_from_events("spans_finished", metrics_events)
+    assert len(metrics_sf) == 1
+    assert metrics_sf[0]["metric"] == "spans_finished"
+    assert metrics_sf[0]["tags"] == ["integration_name:opentracing"]
+    assert metrics_sf[0]["points"][0][1] == 2
 
 
 def test_span_creation_no_finish(test_agent_session, ddtrace_run_python_code_in_subprocess):
@@ -175,23 +188,27 @@ ddtracer = ddtrace.tracer
 otel = opentelemetry.trace.get_tracer(__name__)
 ot = opentracer.Tracer()
 
+# we must finish at least one span to enable sending telemetry to the agent
+ddtracer.trace("first_span").finish()
+
 for _ in range(4):
     ot.start_span('ot_span')
     otel.start_span('otel_span')
     ddtracer.trace("ddspan")
 """
-    env = get_default_telemetry_env()
+    env = os.environ.copy()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
-    events = test_agent_session.get_events()
-    metrics = get_metrics_from_events(events)
+    metrics_events = test_agent_session.get_events("generate-metrics")
+    metrics = get_metrics_from_events("spans_created", metrics_events)
     assert len(metrics) == 3
 
     assert metrics[0]["metric"] == "spans_created"
     assert metrics[0]["tags"] == ["integration_name:datadog"]
-    assert metrics[0]["points"][0][1] == 4
+    assert metrics[0]["points"][0][1] == 5
     assert metrics[1]["metric"] == "spans_created"
     assert metrics[1]["tags"] == ["integration_name:opentracing"]
     assert metrics[1]["points"][0][1] == 4
@@ -200,12 +217,11 @@ for _ in range(4):
     assert metrics[2]["points"][0][1] == 4
 
 
-def get_metrics_from_events(events):
+def get_metrics_from_events(name, events):
     metrics = []
     for event in events:
-        if event["request_type"] == "generate-metrics":
-            # Note - this helper function does not aggregate metrics across payloads
-            for series in event["payload"]["series"]:
+        for series in event["payload"]["series"]:
+            if series["metric"] == name:
                 metrics.append(series)
     metrics.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
     return metrics

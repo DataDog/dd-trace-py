@@ -6,6 +6,11 @@ container](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
 which allows users to easily instrument Python applications without requiring
 changes to the application image.
 
+This Library Injection functionality can be used independently of `ddtrace-run`, `ddtrace.auto`,
+and any other "manual" instrumentation mechanism.
+
+## Technical Details
+
 The `Dockerfile` defines the image that is published for `ddtrace` which is used
 as a Kubernetes InitContainer. Kubernetes runs it before deployment pods start.
 It is responsible for providing the files necessary to run `ddtrace` in an
@@ -45,7 +50,7 @@ To test this feature locally use the provided `docker-compose.yml`.
 export DDTRACE_PYTHON_VERSION=v1.16.1
 export APP_CONTEXT=$REPO_ROOT/tests/lib-injection/dd-lib-python-init-test-django
 export TEMP_DIR="/tmp/ddtrace"
-rm -rf $TEMP_DIR && docker-compose up --build lib_inject && docker-compose up --build
+rm -rf $TEMP_DIR && docker compose up --build lib_inject && docker compose up --build
 ```
 
 Note that the `lib_inject` step is separate to ensure the files are copied to the volume before the app starts up.

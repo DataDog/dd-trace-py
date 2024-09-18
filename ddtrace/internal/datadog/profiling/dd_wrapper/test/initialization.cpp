@@ -1,4 +1,4 @@
-#include "interface.hpp"
+#include "ddup_interface.hpp"
 #include "test_utils.hpp"
 #include <gtest/gtest.h>
 
@@ -65,7 +65,7 @@ short_lifetime_init()
         ddup_config_profiler_version(profiler_version.c_str());
     }
 
-    ddup_init();
+    ddup_start();
     std::exit(0);
 }
 

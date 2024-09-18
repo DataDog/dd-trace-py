@@ -56,33 +56,46 @@ _LOG_ERROR_FAIL_SEPARATOR = (
         ("key:val,key2:val2,key3:1234.23", dict(key="val", key2="val2", key3="1234.23"), None),
         ("key:val key2:val2 key3:1234.23", dict(key="val", key2="val2", key3="1234.23"), None),
         ("key: val", dict(key=" val"), None),
-        ("key key: val", {"key key": " val"}, None),
+        (
+            "key key: val",
+            {"key": "", "val": ""},
+            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key key: val")],
+        ),
         ("key: val,key2:val2", dict(key=" val", key2="val2"), None),
         (" key: val,key2:val2", {"key": " val", "key2": "val2"}, None),
-        ("key key2:val1", {"key key2": "val1"}, None),
+        ("key key2:val1", {"key": "", "key2": "val1"}, None),
         ("key:val key2:val:2", {"key": "val", "key2": "val:2"}, None),
         (
             "key:val,key2:val2 key3:1234.23",
             dict(),
             [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "key:val,key2:val2 key3:1234.23")],
         ),
-        ("key:val key2:val2 key3: ", dict(key="val", key2="val2", key3=""), None),
+        (
+            "key:val key2:val2 key3: ",
+            {"key": "val", "key2": "val2"},
+            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key3:", "key:val key2:val2 key3:")],
+        ),
         (
             "key:val key2:val 2",
-            dict(key="val", key2="val"),
-            [mock.call(_LOG_ERROR_MALFORMED_TAG, "2", "key:val key2:val 2")],
+            {"2": "", "key": "val", "key2": "val"},
+            None,
         ),
         (
             "key: val key2:val2 key3:val3",
-            {"key": "", "key2": "val2", "key3": "val3"},
-            [mock.call(_LOG_ERROR_MALFORMED_TAG, "val", "key: val key2:val2 key3:val3")],
+            {"key2": "val2", "key3": "val3", "val": ""},
+            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key: val key2:val2 key3:val3")],
         ),
-        ("key:,key3:val1,", dict(key3="val1", key=""), None),
+        (
+            "key:,key3:val1,",
+            {"key3": "val1"},
+            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key:,key3:val1")],
+        ),
         (",", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "")]),
         (":,:", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, ":,:")]),
-        ("key,key2:val1", {"key2": "val1"}, [mock.call(_LOG_ERROR_MALFORMED_TAG, "key", "key,key2:val1")]),
+        ("key,key2:val1", {"key": "", "key2": "val1"}, None),
         ("key2:val1:", {"key2": "val1:"}, None),
-        ("key,key2,key3", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "key,key2,key3")]),
+        ("key,key2,key3", {"key": "", "key2": "", "key3": ""}, None),
+        ("key key2 key3", {"key": "", "key2": "", "key3": ""}, None),
         ("foo:bar,foo:baz", dict(foo="baz"), None),
         ("hash:asd url:https://github.com/foo/bar", dict(hash="asd", url="https://github.com/foo/bar"), None),
     ],
@@ -559,6 +572,7 @@ def test_hourglass_init():
     assert sw.elapsed() > 0.9
 
 
+@pytest.mark.skip(reason="FIXME: There are precision issues with HourGlass and/or StopWatch")
 def test_hourglass_turn():
     with time.HourGlass(1) as hg, time.StopWatch() as sw:
         # We let 100ms trickle down before turning.

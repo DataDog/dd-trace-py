@@ -18,6 +18,13 @@ This includes:
 - ``langchain.embeddings.openai.OpenAIEmbeddings.embed_documents`` with ``langchain_openai.OpenAIEmbeddings.embed_documents``
 - ``langchain.vectorstores.pinecone.Pinecone.similarity_search`` with ``langchain_pinecone.PineconeVectorStore.similarity_search``
 
+**Note**: For ``langchain>=0.2.0``, this integration does not patch ``langchain-community`` if it is not available, as ``langchain-community``
+is no longer a required dependency of ``langchain>=0.2.0``. This means that this integration will not trace the following:
+
+- Embedding calls made using ``langchain_community.embeddings.*``
+- Vector store similarity search calls made using ``langchain_community.vectorstores.*``
+- Total cost metrics for OpenAI requests
+
 
 Metrics
 ~~~~~~~
@@ -200,17 +207,23 @@ Global Configuration
    Default: ``0.1``
 
 """  # noqa: E501
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["langchain"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from . import patch as _patch
+        # Required to allow users to import from `ddtrace.contrib.langchain.patch` directly
+        import warnings as _w
 
-        patch = _patch.patch
-        unpatch = _patch.unpatch
-        get_version = _patch.get_version
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ddtrace.contrib.internal.langchain.patch import get_version
+        from ddtrace.contrib.internal.langchain.patch import patch
+        from ddtrace.contrib.internal.langchain.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

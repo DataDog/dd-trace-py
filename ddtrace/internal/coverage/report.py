@@ -45,6 +45,10 @@ def find_statement_for_line(node, line):
             if found_node is not None:
                 return found_node
 
+    # TODO: support nocover in Python 3.7
+    if not hasattr(node, "end_lineno"):
+        return None
+
     # If the start and end line numbers are the same, we're (almost certainly) dealing with some kind of
     # statement instead of the sort of block statements we're looking for.
     if node.lineno == node.end_lineno:
@@ -132,7 +136,9 @@ def print_coverage_report(executable_lines, covered_lines, workspace_path: Path,
     print()
 
 
-def get_json_report(executable_lines, covered_lines, workspace_path: Path, ignore_nocover=False):
+def gen_json_report(
+    executable_lines, covered_lines, workspace_path: t.Optional[Path] = None, ignore_nocover=False
+) -> str:
     """Writes a JSON-formatted coverage report similar in structure to coverage.py 's JSON report, but only
     containing a subset (namely file-level executed and missing lines).
 
@@ -146,10 +152,13 @@ def get_json_report(executable_lines, covered_lines, workspace_path: Path, ignor
       }
     }
 
+    Paths are relative to workspace_path if provided, and are absolute otherwise.
     """
-    output: t.Dict[str, t.Any] = {"files": {}}
+    output: t.Dict[str, t.Dict[str, t.Dict[str, t.List[int]]]] = {"files": {}}
 
-    relative_path_strs: t.Dict[str, str] = _get_relative_path_strings(executable_lines, workspace_path)
+    relative_path_strs: t.Dict[str, str] = {}
+    if workspace_path is not None:
+        relative_path_strs.update(_get_relative_path_strings(executable_lines, workspace_path))
 
     for path, orig_lines in sorted(executable_lines.items()):
         path_lines = orig_lines.copy()
@@ -165,7 +174,9 @@ def get_json_report(executable_lines, covered_lines, workspace_path: Path, ignor
                         path_lines.discard(no_cover_line)
                         path_covered.discard(no_cover_line)
 
-        output["files"][relative_path_strs[path]] = {
+        path_str = relative_path_strs[path] if workspace_path is not None else path
+
+        output["files"][path_str] = {
             "executed_lines": sorted(list(path_covered)),
             "missing_lines": sorted(list(path_lines - path_covered)),
         }

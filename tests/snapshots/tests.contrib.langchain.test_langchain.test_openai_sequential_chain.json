@@ -6,7 +6,7 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "llm",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
@@ -41,7 +41,7 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "llm",
+       "type": "",
        "error": 0,
        "meta": {
          "langchain.request.inputs.style": "a 90s rapper",
@@ -62,7 +62,7 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "llm",
+       "type": "",
        "error": 0,
        "meta": {
          "langchain.request.inputs.output_text": "\\n Chains allow us to combine multiple\\n components together to create a single, coherent application.\\n For example, we can cre...",
@@ -89,7 +89,7 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 3,
-          "type": "llm",
+          "type": "",
           "error": 0,
           "meta": {
             "langchain.request.api_key": "...key>",

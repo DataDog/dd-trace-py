@@ -4,7 +4,6 @@ import urllib3
 
 from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -13,14 +12,15 @@ from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
+from tests.contrib.config import HTTPBIN_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 
 # host:port of httpbin_local container
-HOST = "localhost"
-PORT = 8001
+HOST = HTTPBIN_CONFIG["host"]
+PORT = HTTPBIN_CONFIG["port"]
 SOCKET = "{}:{}".format(HOST, PORT)
 URL_200 = "http://{}/status/200".format(SOCKET)
 URL_500 = "http://{}/status/500".format(SOCKET)
@@ -54,7 +54,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_200
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
 
         # Test an absolute URL
         r = pool.request("GET", URL_200)
@@ -72,7 +72,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == "http://" + SOCKET + "/"
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
 
     def test_resource_path(self):
         """Tests that a successful request tags a single span with the URL"""
@@ -84,7 +84,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("http.url") == URL_200
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
 
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
@@ -127,7 +127,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             assert s.get_tag("http.request.headers.accept") == "*"
             assert s.get_tag("component") == "urllib3"
             assert s.get_tag("span.kind") == "client"
-            assert s.get_tag("out.host") == "localhost"
+            assert s.get_tag("out.host") == HOST
 
     def test_untraced_request(self):
         """Disabling tracing with unpatch should submit no spans"""
@@ -162,7 +162,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
         assert s.error == 0
         assert s.span_type == "http"
         assert http.QUERY_STRING not in s.get_tags()
@@ -183,7 +183,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_200_QS
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
@@ -200,14 +200,14 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_500
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "localhost"
+        assert s.get_tag("out.host") == HOST
         assert s.error == 1
 
     def test_connection_retries(self):
         """Tests a connection error results in error spans with proper exc info"""
         retries = 3
         try:
-            self.http.request("GET", "http://localhost:9999", retries=retries)
+            self.http.request("GET", f"http://{HOST}:9999", retries=retries)
         except Exception:
             pass
         else:
@@ -445,35 +445,6 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("http.request.headers.my-header") == "my_value"
         assert s.get_tag("http.response.headers.access-control-allow-origin") == "*"
 
-    def test_analytics_integration_default(self):
-        """Tests the default behavior of analytics integration is disabled"""
-        r = self.http.request("GET", URL_200)
-        assert r.status == 200
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-        assert s.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-    def test_analytics_integration_disabled(self):
-        """Test disabling the analytics integration"""
-        with self.override_config("urllib3", dict(analytics_enabled=False, analytics_sample_rate=0.5)):
-            self.http.request("GET", URL_200)
-
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-        assert s.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-    def test_analytics_integration_enabled(self):
-        """Tests enabline the analytics integration"""
-        with self.override_config("urllib3", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            self.http.request("GET", URL_200)
-
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-        assert s.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
-
     def test_distributed_tracing_enabled(self):
         """Tests distributed tracing headers are passed by default"""
         # Check that distributed tracing headers are passed down; raise an error rather than make the
@@ -556,6 +527,92 @@ class TestUrllib3(BaseUrllib3TestCase):
                     timeout=mock.ANY,
                 )
 
+    def test_distributed_tracing_apm_opt_out_true(self):
+        """Tests distributed tracing headers are passed by default"""
+        # Check that distributed tracing headers are passed down; raise an error rather than make the
+        # request since we don't care about the response at all
+        config.urllib3["distributed_tracing"] = True
+        self.tracer._apm_opt_out = True
+        self.tracer.enabled = False
+        with mock.patch(
+            "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
+        ) as m_make_request:
+            with pytest.raises(ValueError):
+                self.http.request("GET", URL_200)
+
+            spans = self.pop_spans()
+            s = spans[0]
+            expected_headers = {
+                "x-datadog-trace-id": str(s._trace_id_64bits),
+                "x-datadog-parent-id": str(s.span_id),
+                "x-datadog-sampling-priority": "1",
+                "x-datadog-tags": "_dd.p.dm=-0,_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(s.trace_id)),
+                "traceparent": s.context._traceparent,
+                # outgoing headers must contain last parent span id in tracestate
+                "tracestate": s.context._tracestate.replace("dd=", "dd=p:{:016x};".format(s.span_id)),
+            }
+
+            if int(urllib3.__version__.split(".")[0]) >= 2:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers=expected_headers,
+                    timeout=mock.ANY,
+                    retries=mock.ANY,
+                    response_conn=mock.ANY,
+                    preload_content=mock.ANY,
+                    decode_content=mock.ANY,
+                )
+            else:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers=expected_headers,
+                    timeout=mock.ANY,
+                )
+
+    def test_distributed_tracing_apm_opt_out_false(self):
+        """Test with distributed tracing disabled does not propagate the headers"""
+        config.urllib3["distributed_tracing"] = True
+        self.tracer._apm_opt_out = False
+        self.tracer.enabled = False
+        with mock.patch(
+            "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
+        ) as m_make_request:
+            with pytest.raises(ValueError):
+                self.http.request("GET", URL_200)
+
+            if int(urllib3.__version__.split(".")[0]) >= 2:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers={},
+                    timeout=mock.ANY,
+                    retries=mock.ANY,
+                    response_conn=mock.ANY,
+                    preload_content=mock.ANY,
+                    decode_content=mock.ANY,
+                )
+            else:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers={},
+                    timeout=mock.ANY,
+                )
+
 
 @pytest.fixture()
 def patch_urllib3():
@@ -566,13 +623,13 @@ def patch_urllib3():
         unpatch()
 
 
-@snapshot()
+@snapshot(ignores=["meta.out.host", "meta.http.url", "meta.server.address"])
 def test_urllib3_poolmanager_snapshot(patch_urllib3):
     pool = urllib3.PoolManager()
     pool.request("GET", URL_200)
 
 
-@snapshot()
+@snapshot(ignores=["meta.out.host", "meta.http.url", "meta.server.address"])
 def test_urllib3_connectionpool_snapshot(patch_urllib3):
     pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
     pool.request("GET", "/status/200")

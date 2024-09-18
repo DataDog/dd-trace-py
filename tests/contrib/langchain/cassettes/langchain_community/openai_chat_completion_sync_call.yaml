@@ -1,7 +1,7 @@
 interactions:
 - request:
-    body: '{"messages": [{"role": "user", "content": "When do you use ''whom'' instead
-      of ''who''?"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "n": 1, "stream":
+    body: '{"messages": [{"content": "When do you use ''who'' instead of ''whom''?",
+      "role": "user"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "n": 1, "stream":
       false, "temperature": 0.0}'
     headers:
       accept:
@@ -17,7 +17,7 @@ interactions:
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.12.0
+      - OpenAI/Python 1.30.3
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -27,32 +27,30 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.30.3
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.5
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA2RSy47bMAy8+ysIXdwCcZBH87ws9tCiKYpeWiDFNkUgy4yt1hYFiU42XeTfF7Kd
-        V/eiw5AzGg75EgEInYklCFVIVpUtk/k/pzyvx58/zhZfntb1Sn1fuaeje3Rfv/0UvcCg9A8qPrP6
-        iipbImsybVk5lIxBdTgbLGaTD/PxvClUlGEZaLnlZNyfJFy7lJLBcDTpmAVphV4s4VcEAPDSvMGj
-        yfBZLGHQOyMVei9zFMtLE4BwVAZESO+1Z2lY9K5FRYbRNLbjdUFVDNpD7TED6YELhHYsoB1I2KNL
-        gRxYh5a8DsP14FDoEiE+FPSG6+v/yH3YmI35RA7wWYZ8lhuTQPgXMp3BkWrQZq8ZgalRsNLx8QHe
-        XV0EtPERt53x+yDxg+Bwq5LrPTatud7xG/6Nf4iZgsTGrAykxEXX4/Fs0fea4W6SSVHJ2iNoDtB9
-        SBd79zGBNm0iGOJW2BfdCk6X3ZWUW0dp2LOpy/KC77TRvtg6lJ5M2JNnsi39FAH8bm6kvlu7sI4q
-        y1umv2iC4Kg7EXG9ymtxMe2KTCzLKz4cTqPOoPBHz1htd9rk6KzT7cXs7HaUzmZzNU3HExGdolcA
-        AAD//wMA4yh54zsDAAA=
+    content: "{\n  \"id\": \"chatcmpl-9liZR0tCzCCXOrksGL1CAb7StG7E3\",\n  \"object\":
+      \"chat.completion\",\n  \"created\": 1721159773,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+      \"assistant\",\n        \"content\": \"'Who' is used as a subject pronoun, while
+      'whom' is used as an object pronoun. \\n\\nYou use 'who' when referring to the
+      subject of a sentence or clause. For example, \\\"Who is coming to the party?\\\"
+      \\n\\nYou use 'whom' when referring to the object of a verb or preposition.
+      For example, \\\"To whom did you give the gift?\\\"\"\n      },\n      \"logprobs\":
+      null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+      20,\n    \"completion_tokens\": 83,\n    \"total_tokens\": 103\n  },\n  \"system_fingerprint\":
+      null\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8604e51c4f4478e7-EWR
-      Cache-Control:
-      - no-cache, must-revalidate
+      - 8a448de4aa9cab54-YYZ
       Connection:
       - keep-alive
       Content-Encoding:
@@ -60,31 +58,29 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Wed, 06 Mar 2024 19:54:00 GMT
+      - Tue, 16 Jul 2024 19:56:14 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=KsOTba6iYukWVAgAt3iIyNaaYQ.D7b9YoHM5GuCR1y8-1709754840-1.0.1.1-pm9DjO.xLxLnIEZq3030RnycZSwZidq.eTCYvD1qQNmoDRiamjuKjtkHQ2ONhA32bx.QqprSoYFdb5G6E5ATdQ;
-        path=/; expires=Wed, 06-Mar-24 20:24:00 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=KwG37V1UcSbRB1gIll6K5Vu3DnB7EsqgsAamQg2._yE-1721159774-1.0.1.1-zpk9YeXPkU5qHbvXJaKY1ksowWIgJE.YA.GHOQNQaVrQuJ8c7RuvqIL4ledekuvpErsDn6Us4UwrXGTGqspf1g;
+        path=/; expires=Tue, 16-Jul-24 20:26:14 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=xbEo9ULZ3m1EIRb4NlwVk6dAbgLtoD0MnSM4mbE1laE-1709754840297-0.0.1.1-604800000;
+      - _cfuvid=anG5qzibBbtbQZgK8gz5qdRuCKkFaoLhuZtKPaHO8XY-1721159774071-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
-      access-control-allow-origin:
-      - '*'
+      X-Content-Type-Options:
+      - nosniff
       alt-svc:
       - h3=":443"; ma=86400
-      openai-model:
-      - gpt-3.5-turbo-0125
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '1746'
+      - '931'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
+      - max-age=15552000; includeSubDomains; preload
       x-ratelimit-limit-requests:
       - '15000'
       x-ratelimit-limit-tokens:
@@ -98,8 +94,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 8ms
       x-request-id:
-      - req_76509f3109e8c6468a8b4ee5d79ff019
-    status:
-      code: 200
-      message: OK
+      - req_c128e51c8d628a58e747535a80c6560c
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

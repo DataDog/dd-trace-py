@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: Adds Threat Monitoring support for gRPC.

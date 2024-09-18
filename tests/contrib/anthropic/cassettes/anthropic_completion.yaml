@@ -1,0 +1,84 @@
+interactions:
+- request:
+    body: '{"max_tokens": 15, "messages": [{"role": "user", "content": "What does
+      Nietzsche mean by ''God is dead''?"}], "model": "claude-3-opus-20240229"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '142'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.26.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.26.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0xPyWrDMBT8FTFnGRw1wVS3npJDySXQhaYYYb3EIrLk+knFqfG/F4cGehqYjZkJ
+        zkKj43Ndrrbj01vF34fqEMzleUeb6n03vEAiXXtaXMRszgSJIfqFMMyOkwkJEl205KHReJMtFQ9F
+        7DMXqlTrUqlHSDQxJAoJ+mO6FyYal+gNNF5bCmLvKP1w05I4mS5m9ldhqfFmICuO2EYrHAtLxh4h
+        XBCtY8yfEpxiXw9kOIZlqBnrFC8UGH8S01em0BB0yN5L5NsRPcGFPqe7WSslEXP6T6028/wLAAD/
+        /wMAVY+ZxCYBAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88ea0b65093d42c0-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 04 Jun 2024 18:39:16 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      anthropic-ratelimit-requests-limit:
+      - '5'
+      anthropic-ratelimit-requests-remaining:
+      - '4'
+      anthropic-ratelimit-requests-reset:
+      - '2024-06-04T18:39:57Z'
+      anthropic-ratelimit-tokens-limit:
+      - '10000'
+      anthropic-ratelimit-tokens-remaining:
+      - '10000'
+      anthropic-ratelimit-tokens-reset:
+      - '2024-06-04T18:39:57Z'
+      request-id:
+      - req_01A5sdFuYR9e3QLNLdpFz2g5
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 35c62374de27fdf8dc2fe68a12494c9e
+    status:
+      code: 200
+      message: OK
+version: 1

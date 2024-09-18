@@ -1,0 +1,14 @@
+---
+deprecations:
+  - |
+    openai: Deprecates all modules in the ``ddtrace.contrib.openai`` package. Use attributes exposed in ``ddtrace.contrib.openai.__all__`` instead.
+  - |
+    psycopg: Deprecates all modules in the ``ddtrace.contrib.psycopg`` package. Use attributes exposed in ``ddtrace.contrib.psycopg.__all__`` instead.
+  - |
+    pylibmc: Deprecates all modules in the ``ddtrace.contrib.pylibmc`` package. Use attributes exposed in ``ddtrace.contrib.pylibmc.__all__`` instead.
+  - |
+    pymemcache: Deprecates all modules in the ``ddtrace.contrib.pymemcache`` package. Use attributes exposed in ``ddtrace.contrib.pymemcache.__all__`` instead.
+  - |
+    pymongo: Deprecates all modules in the ``ddtrace.contrib.pymongo`` package. Use attributes exposed in ``ddtrace.contrib.pymongo.__all__`` instead.
+  - |
+    pymysql: Deprecates all modules in the ``ddtrace.contrib.pymysql`` package. Use attributes exposed in ``ddtrace.contrib.pymysql.__all__`` instead.

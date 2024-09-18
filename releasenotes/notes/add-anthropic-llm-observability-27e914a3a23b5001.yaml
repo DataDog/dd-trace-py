@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Adds support to automatically submit Anthropic chat messages to LLM Observability.

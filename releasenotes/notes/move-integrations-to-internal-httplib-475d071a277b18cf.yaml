@@ -1,0 +1,12 @@
+---
+deprecations:
+  - |
+    httplib: Deprecates all modules in the ``ddtrace.contrib.httplib`` package. Use attributes exposed in ``ddtrace.contrib.httplib.__all__`` instead.
+  - |
+    httpx: Deprecates all modules in the ``ddtrace.contrib.httpx`` package. Use attributes exposed in ``ddtrace.contrib.httpx.__all__`` instead.
+  - |
+    jinja2: Deprecates all modules in the ``ddtrace.contrib.jinja2`` package. Use attributes exposed in ``ddtrace.contrib.jinja2.__all__`` instead.
+  - |
+    kafka: Deprecates all modules in the ``ddtrace.contrib.kafka`` package. Use attributes exposed in ``ddtrace.contrib.kafka.__all__`` instead.
+  - |
+    kombu: Deprecates all modules in the ``ddtrace.contrib.kombu`` package. Use attributes exposed in ``ddtrace.contrib.kombu.__all__`` instead.

@@ -10,13 +10,15 @@ Source::Source(string name, string value, OriginType origin)
   : name(std::move(name))
   , value(std::move(value))
   , origin(origin)
-{}
+{
+}
 
 Source::Source(int name, string value, const OriginType origin)
   : name(origin_to_str(OriginType{ name }))
   , value(std::move(value))
   , origin(origin)
-{}
+{
+}
 
 string
 Source::toString() const
@@ -43,8 +45,8 @@ Source::get_hash() const
 void
 pyexport_source(py::module& m)
 {
-    m.def("origin_to_str", &origin_to_str, "origin"_a);
-    m.def("str_to_origin", &str_to_origin, "origin"_a);
+    m.def("origin_to_str", &origin_to_str, "origin"_a, py::return_value_policy::reference);
+    m.def("str_to_origin", &str_to_origin, "origin"_a, py::return_value_policy::reference);
     py::enum_<TagMappingMode>(m, "TagMappingMode")
       .value("Normal", TagMappingMode::Normal)
       .value("Mapper", TagMappingMode::Mapper)

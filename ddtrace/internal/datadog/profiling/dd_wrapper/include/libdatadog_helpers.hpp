@@ -27,7 +27,10 @@ namespace Datadog {
     X(runtime, "runtime")                                                                                              \
     X(runtime_id, "runtime-id")                                                                                        \
     X(profiler_version, "profiler_version")                                                                            \
-    X(profile_seq, "profile_seq")
+    X(library_version, "library_version")                                                                              \
+    X(profile_seq, "profile_seq")                                                                                      \
+    X(is_crash, "is_crash")                                                                                            \
+    X(severity, "severity")
 
 // Here there are two columns because the Datadog backend expects these labels
 // to have spaces in the names.
@@ -57,6 +60,18 @@ enum class ExportTagKey
 enum class ExportLabelKey
 {
     EXPORTER_LABELS(X_ENUM) Length_
+};
+
+// When a std::unique_ptr is registered, the template accepts a custom deleter. We want the runtime to manage pointers
+// for us, so here's the deleter for the exporter.
+struct DdogProfExporterDeleter
+{
+    void operator()(ddog_prof_Exporter* ptr) const
+    {
+        if (ptr) {
+            ddog_prof_Exporter_drop(ptr);
+        }
+    }
 };
 
 inline ddog_CharSlice

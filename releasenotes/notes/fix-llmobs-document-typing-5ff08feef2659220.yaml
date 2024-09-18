@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This resolves a typing hint error in the ``ddtrace.llmobs.utils.Documents`` helper class 
+    constructor where type hints did not accept input dictionaries with integer or float values.

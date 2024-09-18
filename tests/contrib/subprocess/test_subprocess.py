@@ -219,7 +219,13 @@ def test_fork(tracer):
         with tracer.trace("ossystem_test"):
             pid = os.fork()
             if pid == 0:
-                return
+                # Exit, otherwise the rest of this process will continue to be pytest
+                from ddtrace.contrib.coverage import unpatch
+
+                unpatch()
+                import pytest
+
+                pytest.exit("in forked child", returncode=0)
 
         spans = tracer.pop()
         assert spans

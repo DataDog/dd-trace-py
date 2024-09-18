@@ -3,10 +3,11 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
+import wrapt
+
 import ddtrace
 
 from .internal.logger import get_logger
-from .vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -143,7 +144,7 @@ class Pin(object):
     def enabled(self):
         # type: () -> bool
         """Return true if this pin's tracer is enabled."""
-        return bool(self.tracer) and self.tracer.enabled
+        return bool(self.tracer) and (self.tracer.enabled or self.tracer._apm_opt_out)
 
     def onto(self, obj, send=True):
         # type: (Any, bool) -> None

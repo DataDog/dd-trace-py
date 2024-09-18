@@ -2,8 +2,9 @@ from collections import defaultdict
 from collections import deque
 from pathlib import Path
 
+from wrapt import FunctionWrapper
+
 from ddtrace.internal.utils.inspection import undecorated
-from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
 
 try:

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: fixes a potential crash where using partial flushes and ``tracer.configure()`` could result in an IndexError

@@ -6,7 +6,7 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "llm",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
@@ -39,7 +39,7 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "llm",
+       "type": "",
        "error": 0,
        "meta": {
          "langchain.request.inputs.input_text": "\\nI have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\nbodies. Does it now fol...",
@@ -64,7 +64,7 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "type": "llm",
+          "type": "",
           "error": 0,
           "meta": {
             "langchain.request.api_key": "...key>",
@@ -101,7 +101,7 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "llm",
+       "type": "",
        "error": 0,
        "meta": {
          "langchain.request.inputs.input_text": "\\nI have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\nbodies. Does it now fol...",
@@ -127,7 +127,7 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
-          "type": "llm",
+          "type": "",
           "error": 0,
           "meta": {
             "langchain.request.api_key": "...key>",

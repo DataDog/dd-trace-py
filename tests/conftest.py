@@ -1,6 +1,7 @@
 import ast
 import base64
 import contextlib
+import functools
 import importlib
 from itertools import product
 import json
@@ -41,6 +42,63 @@ from tests.utils import snapshot_context as _snapshot_context
 
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
+
+
+# Hack to try and capture more logging data from pytest failing on `internal` jobs on
+# pytest shutdown. This is a temporary workaround until we can figure out... why....
+# https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/68751/workflows/8939123d-e0bf-4fd5-a4f2-2368eb9fc141/jobs/4201092
+# OSError: [Errno 9] Bad file descriptor
+if os.environ.get("CI") == "true":
+    try:
+        from _pytest.capture import FDCapture
+
+        original_done = FDCapture.done
+
+        @functools.wraps(FDCapture.done)
+        def wrapped_done(self) -> None:
+            try:
+                original_done(self)
+            except Exception as e:
+                import traceback
+
+                # Write to stderr since pytest captures and hides stdout by default
+                sys.stderr.write("Failed to close FDCapture: %s\n" % e)
+                traceback.print_exc()
+
+                sys.stderr.write(f"FDCapture: {self!r}\n")
+                for name in ("_state", "tmpfile", "syscapture", "targetfd", "targetfd_save", "targetfd_invalid"):
+                    value = "<unknown>"
+                    try:
+                        value = getattr(self, name, "<unknown>")
+                    except Exception:
+                        pass
+                    sys.stderr.write(f"FDCapture.{name}: {value!r}\n")
+
+                for name in ("targetfd", "targetfd_save", "targetfd_invalid"):
+                    try:
+                        # Try to see if the file descriptor is valid, and if so print the file name from /proc/self/fd
+                        fd = getattr(self, name)
+                        if fd is not None:
+                            try:
+                                fd_path = os.readlink(f"/proc/self/fd/{fd}")
+                                sys.stderr.write(f"FDCapture.{name} path: {fd_path!r}\n")
+                            except Exception:
+                                sys.stderr.write(f"FDCapture.{name} path: unknown or invalid\n")
+                        else:
+                            sys.stderr.write(f"FD: {name} is None\n")
+                    except Exception as e:
+                        sys.stderr.write(f"Failed to get FDCapture.{name}, error: {e}\n")
+                sys.stderr.flush()
+
+                # Try to mark the state as done anyways....
+                try:
+                    self._state = "done"
+                except Exception:
+                    pass
+
+        FDCapture.done = wrapped_done
+    except Exception as e:
+        print("Failed to wrap FDCapture", e)
 
 
 def pytest_configure(config):
@@ -103,7 +161,6 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
-    assert len(marks) < 2, "Multiple snapshot marks detected"
     if marks and os.getenv("DD_SNAPSHOT_ENABLED", "1") == "1":
         snap = marks[0]
         token = snap.kwargs.get("token")
@@ -420,11 +477,6 @@ def remote_config_worker():
 
 
 @pytest.fixture
-def filter_heartbeat_events():
-    yield True
-
-
-@pytest.fixture
 def telemetry_writer():
     # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
     # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
@@ -444,11 +496,9 @@ def telemetry_writer():
 
 
 class TelemetryTestSession(object):
-    def __init__(self, token, telemetry_writer, filter_heartbeats) -> None:
+    def __init__(self, token, telemetry_writer) -> None:
         self.token = token
         self.telemetry_writer = telemetry_writer
-        self.filter_heartbeats = filter_heartbeats
-        self.gotten_events = dict()
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
@@ -475,10 +525,9 @@ class TelemetryTestSession(object):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to clear session: %s" % self.token)
-        self.gotten_events = dict()
         return True
 
-    def get_requests(self, request_type=None):
+    def get_requests(self, request_type=None, filter_heartbeats=True):
         """Get a list of the requests sent to the test agent
 
         Results are in reverse order by ``seq_id``
@@ -489,44 +538,35 @@ class TelemetryTestSession(object):
             pytest.fail("Failed to fetch session requests: %s %s %s" % (self.create_connection(), status, self.token))
         requests = []
         for req in json.loads(body.decode("utf-8")):
-            body_str = base64.b64decode(req["body"]).decode("utf-8")
-            req["body"] = json.loads(body_str)
+            if "api/v2/apmtelemetry" not in req["url"]:
+                # /test/session/requests captures non telemetry payloads, ignore these requests
+                continue
+            req["body"] = json.loads(base64.b64decode(req["body"]))
             # filter heartbeat requests to reduce noise
-            if req["body"]["request_type"] == "app-heartbeat" and self.filter_heartbeats:
+            if req["body"]["request_type"] == "app-heartbeat" and filter_heartbeats:
                 continue
             if request_type is None or req["body"]["request_type"] == request_type:
                 requests.append(req)
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_events(self, event_type=None):
+    def get_events(self, event_type=None, filter_heartbeats=True):
         """Get a list of the event payloads sent to the test agent
 
         Results are in reverse order by ``seq_id``
         """
-        status, body = self._request("GET", "/test/session/apmtelemetry?test_session_token=%s" % self.token)
-        if status != 200:
-            pytest.fail("Failed to fetch session events: %s" % self.token)
-
-        for req in json.loads(body.decode("utf-8")):
-            # filter heartbeat events to reduce noise
-            if req.get("request_type") == "app-heartbeat" and self.filter_heartbeats:
-                continue
-            if (req["tracer_time"], req["seq_id"]) in self.gotten_events:
-                continue
-            if event_type is None or req["request_type"] == event_type:
-                self.gotten_events[(req["tracer_time"], req["seq_id"])] = req
-        return sorted(self.gotten_events.values(), key=lambda e: e["seq_id"], reverse=True)
+        requests = self.get_requests(event_type, filter_heartbeats)
+        return [req["body"] for req in requests]
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, filter_heartbeat_events, request):
-    # type: (TelemetryWriter, bool, Any) -> Generator[TelemetryTestSession, None, None]
+def test_agent_session(telemetry_writer, request):
+    # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
-    requests = TelemetryTestSession(token, telemetry_writer, filter_heartbeat_events)
+    requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
     MAX_RETRY = 9
@@ -542,7 +582,14 @@ def test_agent_session(telemetry_writer, filter_heartbeat_events, request):
             time.sleep(pow(exp_time, try_nb))
         finally:
             conn.close()
+
+    p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
     try:
+        # The default environment for the telemetry writer tests disables agentless mode
+        # because the behavior is identical except for the trace URL, endpoint, and
+        # presence of an API key header.
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "0"
         yield requests
     finally:
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()

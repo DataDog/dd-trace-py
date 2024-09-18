@@ -19,7 +19,6 @@ from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -30,6 +29,7 @@ from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import Either
 from tests.utils import override_env
@@ -56,7 +56,7 @@ def test_rc_enabled_by_default(tracer):
     # TODO: remove https://github.com/DataDog/dd-trace-py/blob/1.x/riotfile.py#L100 or refactor this test
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
-    assert _appsec_rc_features_is_enabled()
+    assert asm_config._asm_can_be_enabled
 
 
 def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_worker):
@@ -79,12 +79,10 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)), override_env(
-        {APPSEC.ENV: appsec_enabled}
+    with override_env({APPSEC.ENV: appsec_enabled} if appsec_enabled else {}), override_global_config(
+        dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)
     ):
-        if appsec_enabled == "":
-            del os.environ[APPSEC.ENV]
-        else:
+        if appsec_enabled:
             tracer.configure(appsec_enabled=asbool(appsec_enabled))
 
         rc_config = {"config": {"asm": {"enabled": rc_value}}}
@@ -102,7 +100,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
     ],
 )
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: appsec_enabled}):
+    with override_env({APPSEC.ENV: appsec_enabled}), override_global_config(dict(_asm_enabled=True)):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
         else:
@@ -120,11 +118,11 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "wAv8"),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "DYHkA/w="),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
-        (True, "false", "CAA="),
+        (True, "false", "gAAAAA=="),
         (False, "false", ""),
-        (True, "", "CAI="),  # ASM_ACTIVATION
+        (True, "", "gAAAAg=="),  # ASM_ACTIVATION
         (False, "", ""),
     ],
 )
@@ -145,14 +143,14 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "wAv+"),  # All capabilities
-        ({"DD_APPSEC_RULES": DEFAULT.RULES}, "CAI="),  # Only ASM_FEATURES
+        ({}, "DYHkA/4="),  # All capabilities
+        ({"_asm_static_rule_file": DEFAULT.RULES}, "gAAAAg=="),  # Only ASM_FEATURES
     ],
 )
 def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, expected):
-    with override_env(env_rules), override_global_config(
-        dict(_asm_enabled=False, api_version="v0.4", _remote_config_enabled=True)
-    ):
+    global_config = dict(_asm_enabled=False, _remote_config_enabled=True)
+    global_config.update(env_rules)
+    with override_global_config(global_config):
         rc_config = {"config": {"asm": {"enabled": True}}}
         # flaky test
         # assert not remoteconfig_poller._worker
@@ -176,15 +174,33 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
     "env_rules, expected",
     [
         ({}, True),  # All capabilities
-        ({"DD_APPSEC_RULES": DEFAULT.RULES}, False),  # Only ASM_FEATURES
+        ({"_asm_static_rule_file": DEFAULT.RULES}, False),  # Only ASM_FEATURES
+    ],
+)
+@pytest.mark.parametrize(
+    "enable_config, disable_config",
+    [
+        ({"asm": {"enabled": True}}, {"asm": {}}),
+        (
+            {"asm": {"enabled": True}, "data": [{"id": 1}]},
+            {"asm": {}, "data": [{"id": 1}]},
+        ),  # additional data in the same product should not change the result
+        (
+            {"asm": {"enabled": True, "data": 0}},
+            {"asm": {"data": 0}},
+        ),  # additional data in the same config should not change the result
     ],
 )
 def test_rc_activation_check_asm_features_product_disables_rest_of_products(
-    tracer, remote_config_worker, env_rules, expected
+    tracer, remote_config_worker, env_rules, expected, enable_config, disable_config
 ):
-    with override_env(env_rules), override_global_config(
-        dict(_remote_config_enabled=True, _asm_enabled=True, api_version="v0.4")
-    ):
+    global_config = dict(_remote_config_enabled=True, _asm_enabled=True)
+    global_config.update(env_rules)
+    from ddtrace.internal.remoteconfig.client import config as rc_config
+
+    rc_config.skip_shutdown = False
+    empty_config = {}
+    with override_global_config(global_config):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
 
@@ -192,25 +208,51 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
         assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
 
-        _preprocess_results_appsec_1click_activation({})
+        # sending nothing should not change anything (configuration is the same)
+        _preprocess_results_appsec_1click_activation(empty_config)
+
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)) is expected
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+
+        # sending empty config for asm should disable asm (meaning asm was deleted)
+        _preprocess_results_appsec_1click_activation(disable_config)
 
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is None
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is None
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+
+        # sending nothing should not change anything (configuration is the same)
+        _preprocess_results_appsec_1click_activation(empty_config)
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is None
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is None
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+
+        # sending config should enable asm again
+        _preprocess_results_appsec_1click_activation(enable_config)
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)) is expected
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+
     disable_appsec_rc()
 
 
-@pytest.mark.parametrize("apisec_enabled", [True, False])
-def test_rc_activation_with_api_security_appsec_fixed(tracer, remote_config_worker, apisec_enabled):
+@pytest.mark.parametrize("auto_user", [True, False])
+def test_rc_activation_with_auto_user_appsec_fixed(tracer, remote_config_worker, auto_user):
     with override_env({APPSEC.ENV: "true"}), override_global_config(
-        dict(_remote_config_enabled=True, _asm_enabled=True, _api_security_enabled=apisec_enabled, api_version="v0.4")
+        dict(
+            _remote_config_enabled=True,
+            _asm_enabled=True,
+            _auto_user_instrumentation_enabled=auto_user,
+            api_version="v0.4",
+        )
     ):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
 
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM)
-        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)) == apisec_enabled
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)) == auto_user
 
     disable_appsec_rc()
 
@@ -339,7 +381,7 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
 
     remoteconfig_poller._client._applied_configs = client_configs
     list_callbacks = []
-    remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, [])
+    remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
     remoteconfig_poller._client._publish_configuration(list_callbacks)
 
     remoteconfig_poller._poll_data()
@@ -396,7 +438,7 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
     }
     list_callbacks = []
     remoteconfig_poller._client._applied_configs = client_configs
-    remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, [])
+    remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
     remoteconfig_poller._client._publish_configuration(list_callbacks)
 
     remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
@@ -515,17 +557,10 @@ def test_load_new_config_and_remove_targets_file_same_product(
             ),
         }
 
-        target_file = {
-            "mock/ASM_DATA/2": ConfigMetadata(
-                id="",
-                product_name="ASM_DATA",
-                sha256_hash=hashlib.sha256(asm_data_data2).hexdigest(),
-                length=5,
-                tuf_version=5,
-            )
-        }
         list_callbacks = []
-        remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, first_config, {})
+        remoteconfig_poller._client._remove_previously_applied_configurations(
+            list_callbacks, {}, first_config, first_config
+        )
         remoteconfig_poller._client._load_new_configurations(
             list_callbacks, applied_configs, first_config, payload=payload
         )
@@ -538,13 +573,13 @@ def test_load_new_config_and_remove_targets_file_same_product(
 
         list_callbacks = []
         remoteconfig_poller._client._remove_previously_applied_configurations(
-            list_callbacks, {}, second_config, target_file
+            list_callbacks, {}, second_config, second_config
         )
         remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, second_config, payload=payload)
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
 
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": None}, "data": [{"d": 2}]}, None)
+        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"c": 1}]}, None)
         disable_appsec_rc()
 
 
@@ -605,17 +640,10 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
             ),
         }
 
-        target_file = {
-            "mock/ASM_DATA/2": ConfigMetadata(
-                id="",
-                product_name="ASM_DATA",
-                sha256_hash=hashlib.sha256(asm_data_data2).hexdigest(),
-                length=5,
-                tuf_version=5,
-            )
-        }
         list_callbacks = []
-        remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, first_config, {})
+        remoteconfig_poller._client._remove_previously_applied_configurations(
+            list_callbacks, {}, first_config, first_config
+        )
         remoteconfig_poller._client._load_new_configurations(
             list_callbacks, applied_configs, first_config, payload=payload
         )
@@ -630,13 +658,13 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
         enable_appsec_rc(tracer)
         list_callbacks = []
         remoteconfig_poller._client._remove_previously_applied_configurations(
-            list_callbacks, {}, second_config, target_file
+            list_callbacks, {}, second_config, second_config
         )
         remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, second_config, payload=payload)
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
 
-        mock_update_rules.assert_called_with({"exclusions": [{"f": 2}]})
+        mock_update_rules.assert_called_with({"exclusions": [{"e": 1}]})
     disable_appsec_rc()
 
 
@@ -672,16 +700,6 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
         }
 
         second_config = {
-            "mock/ASM_DATA/1": ConfigMetadata(
-                id="",
-                product_name="ASM_DATA",
-                sha256_hash=hashlib.sha256(asm_data_data1).hexdigest(),
-                length=5,
-                tuf_version=5,
-            ),
-        }
-
-        target_file = {
             "mock/ASM_DATA/2": ConfigMetadata(
                 id="",
                 product_name="ASM_DATA",
@@ -691,7 +709,9 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
             )
         }
         list_callbacks = []
-        remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, first_config, {})
+        remoteconfig_poller._client._remove_previously_applied_configurations(
+            list_callbacks, {}, first_config, first_config
+        )
         remoteconfig_poller._client._load_new_configurations(
             list_callbacks, applied_configs, first_config, payload=payload
         )
@@ -704,7 +724,7 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
 
         list_callbacks = []
         remoteconfig_poller._client._remove_previously_applied_configurations(
-            list_callbacks, {}, second_config, target_file
+            list_callbacks, {}, second_config, second_config
         )
         remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, second_config, payload=payload)
         remoteconfig_poller._client._publish_configuration(list_callbacks)
@@ -880,7 +900,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
 
 
 def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "config": {
@@ -914,7 +934,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "config": {
@@ -944,7 +964,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
 
 
 def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "config": {
@@ -978,7 +998,7 @@ def test_rc_rules_data(tracer):
     RULES_PATH = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(rules.ROOT_DIR))), "ddtrace/appsec/rules.json"
     )
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}), open(
+    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)), open(
         RULES_PATH, "r"
     ) as dd_rules:
         tracer.configure(appsec_enabled=True, api_version="v0.4")
@@ -1004,16 +1024,52 @@ def test_rc_rules_data(tracer):
 
 
 def test_rc_rules_data_error_empty(tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {}
         assert not _appsec_rules_data(config, tracer)
 
 
 def test_rc_rules_data_error_ddwaf(tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {
             "rules": [{"invalid": mock.MagicMock()}],
         }
         assert not _appsec_rules_data(config, tracer)
+
+
+def test_rules_never_empty(tracer):
+    with override_global_config(dict(_asm_enabled=True)):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
+            mock_update.reset_mock()
+            _appsec_rules_data({"rules": []}, tracer)
+            call = mock_update.mock_calls
+            args = call[-1][1][1]
+            assert "rules" in args
+            assert args["rules"], "empty rules should not be possible, it must switch to default."
+
+
+def test_static_rules_never_modified(tracer):
+    with override_global_config(dict(_asm_enabled=True)):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        processors = str(tracer._appsec_processor._rules["processors"])
+        scanners = str(tracer._appsec_processor._rules["scanners"])
+        proc_add = {"id": "new_processor"}
+        scan_add = {"id": "new_scanner"}
+        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
+            mock_update.reset_mock()
+            _appsec_rules_data({"rules": [], "processors": [proc_add], "scanners": [scan_add]}, tracer)
+            call = mock_update.mock_calls
+            args = call[-1][1][1]
+            # check the new rules have been sent and merged
+            assert "processors" in args
+            assert proc_add in args["processors"]
+            assert len(args["processors"]) > 1
+            assert "scanners" in args
+            assert scan_add in args["scanners"]
+            assert len(args["scanners"]) > 1
+            # check that the original rules are still there unmodified
+            assert processors == str(tracer._appsec_processor._rules["processors"])
+            assert scanners == str(tracer._appsec_processor._rules["scanners"])

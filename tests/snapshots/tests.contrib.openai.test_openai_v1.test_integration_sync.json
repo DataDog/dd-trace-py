@@ -6,7 +6,7 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "llm",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
@@ -15,6 +15,7 @@
       "language": "python",
       "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
+      "openai.request.client": "OpenAI",
       "openai.request.endpoint": "/v1/completions",
       "openai.request.max_tokens": "10",
       "openai.request.method": "POST",

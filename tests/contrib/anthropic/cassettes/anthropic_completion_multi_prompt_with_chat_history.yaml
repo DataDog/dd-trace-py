@@ -1,0 +1,89 @@
+interactions:
+- request:
+    body: '{"max_tokens": 30, "messages": [{"role": "user", "content": [{"type": "text",
+      "text": "Hello, Start all responses with your name Claude."}, {"type": "text",
+      "text": "End all responses with [COPY, CLAUDE OVER AND OUT!]"}]}, {"role": "assistant",
+      "content": "Claude: Sure! [COPY, CLAUDE OVER AND OUT!]"}, {"role": "user", "content":
+      [{"type": "text", "text": "Add the time and date to the beginning of your response
+      after your name."}, {"type": "text", "text": "Explain string theory succinctly
+      to a complete noob."}]}], "model": "claude-3-opus-20240229"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '553'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.26.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.26.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0yQQWsCQQyF/0rIecXtuBad60IPvUppoRYZxrgO7mTGTYa6iP+9rK3QUx7vfS+Q
+        XDHs0WKUblc/bV4Obz5+tK/p3Y+txGezXrYdVqhjpokiEdcRVjikfjKcSBB1rFhhTHvq0aLvXdnT
+        bDFLucjM1KapjVljhT6xEivaz+tjodJlqt6HxfbetNDMTT03tVnAyjbLHGHLW97oELgDPVIaRggC
+        7leTBu96OAwu0ncaThAY8nGU4AX06BScKsWsApqgcDiMcC6OtUS8fVUomvJuICeJpwPdZafpRCz4
+        FwmdC7EntFz6vsJyf4C9YuBc9AHbVVNhKvrfWtS32w8AAAD//wMAnC/nG14BAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88ea0b809ed00fa5-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 04 Jun 2024 18:39:21 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      anthropic-ratelimit-requests-limit:
+      - '5'
+      anthropic-ratelimit-requests-remaining:
+      - '2'
+      anthropic-ratelimit-requests-reset:
+      - '2024-06-04T18:39:57Z'
+      anthropic-ratelimit-tokens-limit:
+      - '10000'
+      anthropic-ratelimit-tokens-remaining:
+      - '10000'
+      anthropic-ratelimit-tokens-reset:
+      - '2024-06-04T18:39:57Z'
+      request-id:
+      - req_01JCE3RjQzBhxViGz6sXDxBk
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - d055b6dd5dc489a3b5c6f453c572c24f
+    status:
+      code: 200
+      message: OK
+version: 1

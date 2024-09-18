@@ -2,9 +2,10 @@ import os
 import subprocess
 import sys
 
-import six
-
 from tests.utils import snapshot
+
+
+SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host"]
 
 
 code = """
@@ -15,11 +16,15 @@ import os
 import %(module)s as elasticsearch
 from %(module)s import %(class)s as AsyncClient
 
-ELASTICSEARCH_CONFIG = {"port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200))}
+ELASTICSEARCH_CONFIG = {
+  "host": os.getenv("TEST_ELASTICSEARCH_HOST", "127.0.0.1"),
+  "port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200)),
+}
 ES_INDEX = "ddtrace_index"
+ES_URL = "http://%%s:%%d" %% (ELASTICSEARCH_CONFIG["host"], ELASTICSEARCH_CONFIG["port"])
 
 async def main():
-    es = AsyncClient(hosts=["http://localhost:%%d" %% ELASTICSEARCH_CONFIG["port"]])
+    es = AsyncClient(hosts=[ES_URL])
     if elasticsearch.__version__ >= (8, 0, 0):
         await es.options(ignore_status=400).indices.create(index=ES_INDEX)
         await es.options(ignore_status=[400, 404]).indices.delete(index=ES_INDEX)
@@ -55,21 +60,21 @@ def do_test(tmpdir, es_module, async_class):
     p.wait()
     stderr = p.stderr.read()
     stdout = p.stdout.read()
-    assert stderr == six.b(""), stderr
-    assert stdout == six.b(""), stdout
+    assert stderr == b"", stderr
+    assert stdout == b"", stdout
     assert p.returncode == 0
 
 
-@snapshot(async_mode=False)
+@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
 def test_elasticsearch(tmpdir):
     do_test(tmpdir, "elasticsearch", "AsyncElasticsearch")
 
 
-@snapshot(async_mode=False)
+@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
 def test_elasticsearch7(tmpdir):
     do_test(tmpdir, "elasticsearch7", "AsyncElasticsearch")
 
 
-@snapshot(async_mode=False)
+@snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
 def test_opensearch(tmpdir):
     do_test(tmpdir, "opensearchpy", "AsyncOpenSearch")

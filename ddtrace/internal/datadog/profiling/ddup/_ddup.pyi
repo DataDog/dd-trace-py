@@ -1,18 +1,21 @@
 from typing import Dict
 from typing import Optional
 from typing import Union
+from .._types import StringType
 from ddtrace._trace.span import Span
 
-StringType = Union[str, bytes, None]
-
-def init(
+def config(
     env: StringType,
     service: StringType,
     version: StringType,
     tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]],
     max_nframes: Optional[int],
     url: Optional[str],
+    timeline_enabled: Optional[bool],
+    output_filename: Optional[str],
+    sample_pool_capacity: Optional[int],
 ) -> None: ...
+def start() -> None: ...
 def upload() -> None: ...
 
 class SampleHandle:
@@ -30,4 +33,5 @@ class SampleHandle:
     def push_exceptioninfo(self, exc_type: Union[None, bytes, str, type], count: int) -> None: ...
     def push_class_name(self, class_name: StringType) -> None: ...
     def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool) -> None: ...
+    def push_monotonic_ns(self, monotonic_ns: int) -> None: ...
     def flush_sample(self) -> None: ...

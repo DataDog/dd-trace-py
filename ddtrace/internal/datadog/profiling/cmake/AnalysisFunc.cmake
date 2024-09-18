@@ -3,12 +3,15 @@ include(CheckIPOSupported)
 function(add_ddup_config target)
     target_compile_options(${target} PRIVATE
       "$<$<CONFIG:Debug>:-Og;-ggdb3>"
+      "$<$<CONFIG:RelWithDebInfo>:-Os;-ggdb3>"
       "$<$<CONFIG:Release>:-Os>"
-      -ffunction-sections -fno-semantic-interposition -Wall -Werror -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast
+      -ffunction-sections -fno-semantic-interposition
+      -Wall -Werror -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast
     )
     target_link_options(${target} PRIVATE
       "$<$<CONFIG:Release>:-s>"
-      -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,--gc-sections
+      "$<$<CONFIG:RelWithDebInfo>:>"
+      -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,--gc-sections -Wl,-z,nodelete -Wl,--exclude-libs,ALL
     )
 
     # If we can IPO, then do so

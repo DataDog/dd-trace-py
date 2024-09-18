@@ -1,0 +1,38 @@
+---
+deprecations:
+  - |
+    ASM: The environment variable DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING is deprecated and will be removed in the next major release.
+    Instead of DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING, you should use DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE. The "safe" and
+    "extended" modes are deprecated and have been replaced by "anonymization" and "identification", respectively.
+features:
+  - |
+    ASM: This update introduces new Auto User Events support.
+
+    ASM’s [Account TakeOver (ATO) detection](https://docs.datadoghq.com/security/account_takeover_protection) is now automatically monitoring
+    [all compatible user authentication frameworks](https://docs.datadoghq.com/security/application_security/enabling/compatibility/)
+    to detect attempted or leaked user credentials during an ATO campaign.
+
+    To do so, the monitoring of the user activity is extended to now collect all forms of user IDs, including non-numerical forms such as
+    usernames or emails. This is configurable with 3 different working modes: `identification` to send the user IDs in clear text;
+    `anonymization` to send anonymized user IDs; or `disabled` to completely turn off any type of user ID collection (which leads to the
+    disablement of the ATO detection).
+
+    The default collection mode being used is `identification` and this is configurable in your remote service configuration settings in the
+    [service catalog]( https://app.datadog.com/security/appsec/inventory/services?tab=capabilities) (clicking on a service), or with the
+    service environment variable `DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE`.
+
+    You can read more [here](https://docs.datadoghq.com/security/account_takeover_protection).
+
+    New local configuration environment variables include:
+    - `DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED`: Can be set to "true"/"1" (default if missing) or "false"/"0" (default if
+      set to any other value). If set to false, the feature is completely disabled. If enabled, the feature is active.
+    - `DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE`: Can be set to "identification" (default if missing), "anonymization", or
+      "disabled" (default if the environment variable is set to any other value). *The values can be modified via remote configuration
+      if the feature is active*. If set to "disabled", user events are not collected. Otherwise, user events are collected, using
+      either plain text user_id (in identification mode) or hashed user_id (in anonymization mode).
+
+    Additionally, an optional argument for the public API `track_user_login_success_event` and `track_user_login_failure_event`:
+    `login_events_mode="auto"`. This allows manual instrumentation to follow remote configuration settings, enabling or disabling
+    manual instrumentation with a single remote action on the Datadog UI.
+
+    Also prevents non numerical user ids to be reported by default without user instrumentation in Django.

@@ -9,7 +9,6 @@ from ddtrace import Pin
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_is_measured
@@ -41,7 +40,6 @@ class PsycopgCore(AsyncioTestCase):
 
         return conn
 
-    @mark_asyncio
     async def test_patch_unpatch(self):
         # Test patch idempotence
         patch()
@@ -130,7 +128,6 @@ class PsycopgCore(AsyncioTestCase):
         self.assertIsNone(root.get_tag("sql.query"))
         self.reset()
 
-    @mark_asyncio
     async def test_opentracing_propagation(self):
         # ensure OpenTracing plays well with our integration
         query = """SELECT 'tracing'"""
@@ -172,7 +169,6 @@ class PsycopgCore(AsyncioTestCase):
             )
             assert_is_measured(self.get_spans()[1])
 
-    @mark_asyncio
     async def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
@@ -190,7 +186,6 @@ class PsycopgCore(AsyncioTestCase):
             dict(name="postgres.query"),
         )
 
-    @mark_asyncio
     async def test_disabled_execute(self):
         conn = await self._get_conn()
         self.tracer.enabled = False
@@ -199,28 +194,24 @@ class PsycopgCore(AsyncioTestCase):
         await conn.cursor().execute("""select 'blah'""")
         self.assert_has_no_spans()
 
-    @mark_asyncio
     async def test_connect_factory(self):
         services = ["db", "another"]
         for service in services:
             conn = await self._get_conn(service=service)
             await self.assert_conn_is_traced_async(conn, service)
 
-    @mark_asyncio
     async def test_commit(self):
         conn = await self._get_conn()
         await conn.commit()
 
         self.assert_structure(dict(name="psycopg.connection.commit", service=self.TEST_SERVICE))
 
-    @mark_asyncio
     async def test_rollback(self):
         conn = await self._get_conn()
         await conn.rollback()
 
         self.assert_structure(dict(name="psycopg.connection.rollback", service=self.TEST_SERVICE))
 
-    @mark_asyncio
     async def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""
         query = SQL(" union all ").join(
@@ -240,7 +231,6 @@ class PsycopgCore(AsyncioTestCase):
             dict(name="postgres.query", resource=query.as_string(db)),
         )
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_app_service_v0(self):
         """
@@ -259,7 +249,6 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_app_service_v1(self):
         """
@@ -278,7 +267,6 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_span_name_v0_schema(self):
         conn = await self._get_conn()
@@ -288,7 +276,6 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].name == "postgres.query"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_span_name_v1_schema(self):
         conn = await self._get_conn()
@@ -298,7 +285,6 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].name == "postgresql.query"
 
-    @mark_asyncio
     async def test_contextmanager_connection(self):
         service = "fo"
         db = await self._get_conn(service=service)
@@ -306,7 +292,6 @@ class PsycopgCore(AsyncioTestCase):
             await cursor.execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query", service=service))
 
-    @mark_asyncio
     async def test_connection_execute(self):
         """Checks whether connection execute shortcute method works as normal"""
 
@@ -318,7 +303,6 @@ class PsycopgCore(AsyncioTestCase):
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
 
-    @mark_asyncio
     async def test_connection_context_execute(self):
         """Checks whether connection context manager works as normal."""
 
@@ -330,7 +314,6 @@ class PsycopgCore(AsyncioTestCase):
             assert len(rows) == 1, rows
             assert rows[0][0] == "one"
 
-    @mark_asyncio
     async def test_cursor_context_execute(self):
         """Checks whether cursor context manager works as normal."""
 
@@ -342,7 +325,6 @@ class PsycopgCore(AsyncioTestCase):
             assert len(rows) == 1, rows
             assert rows[0][0] == "one"
 
-    @mark_asyncio
     async def test_cursor_from_connection_shortcut(self):
         """Checks whether connection execute shortcute method works as normal"""
 
@@ -355,3 +337,21 @@ class PsycopgCore(AsyncioTestCase):
         rows = await cur.fetchall()
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
+
+    async def test_cursor_async_connect_execute(self):
+        """Checks whether connection can execute operations with async iteration."""
+
+        async with psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""select 'one' as x""")
+                await cur.execute("""select 'blah'""")
+
+                async for row in cur:
+                    spans = self.get_spans()
+                    assert len(spans) == 2
+                    assert spans[0].name == "postgres.query"
+                    assert spans[0].resource == "select ?"
+                    assert spans[0].service == "postgres"
+                    assert spans[1].name == "postgres.query"
+                    assert spans[1].resource == "select ?"
+                    assert spans[1].service == "postgres"

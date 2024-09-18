@@ -7,9 +7,11 @@ import pytest
 
 def _run_python_file(*args, **kwargs):
     current_dir = os.path.dirname(__file__)
-    cmd = [
-        "ddtrace-run",
-        "-d",
+    cmd = []
+    if "no_ddtracerun" not in kwargs:
+        cmd += ["ddtrace-run", "-d"]
+
+    cmd += [
         "python",
         os.path.join(current_dir, "fixtures", "integration", kwargs.get("filename", "main.py")),
     ] + list(args)
@@ -46,6 +48,18 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     captured = capfd.readouterr()
     assert "hi" in captured.out
     assert "IAST enabled" not in captured.err
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_IAST_ENABLED="False"), err=b"WARNING:root:IAST not enabled but native module is being loaded\n"
+)
+def test_env_var_iast_disabled_native_module_warning():
+    import ddtrace.appsec._iast._taint_tracking._native  # noqa: F401
+
+
+@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="True"), err=None)
+def test_env_var_iast_enabled_no__native_module_warning():
+    import ddtrace.appsec._iast._taint_tracking._native  # noqa: F401
 
 
 @pytest.mark.xfail(reason="IAST not working with Gevent yet")
@@ -123,3 +137,69 @@ def test_A_env_var_iast_modules_to_patch(capfd):
         "pytest",
     ]:
         assert not ap._should_iast_patch(module_name), module_name
+
+
+def assert_configure_wrong(monkeypatch, capfd, iast_enabled, env):
+    _run_python_file(iast_enabled, env=env, filename="main_configure_wrong.py", no_ddtracerun=True)
+    captured = capfd.readouterr()
+    assert "configuring IAST to false" in captured.out
+    assert "hi" in captured.out
+    assert "ImportError: IAST not enabled" not in captured.err
+
+
+def assert_configure_right_disabled(monkeypatch, capfd, iast_enabled, env):
+    _run_python_file(iast_enabled, env=env, filename="main_configure_right.py", no_ddtracerun=True)
+    captured = capfd.readouterr()
+    assert "configuring IAST to False" in captured.out
+    assert "hi" in captured.out
+    assert "ImportError: IAST not enabled" not in captured.err
+
+
+def assert_configure_right_enabled(monkeypatch, capfd, iast_enabled, env):
+    _run_python_file(iast_enabled, env=env, filename="main_configure_right.py", no_ddtracerun=True)
+    captured = capfd.readouterr()
+    assert "configuring IAST to True" in captured.out
+    assert "hi" in captured.out
+    assert "ImportError: IAST not enabled" not in captured.err
+
+
+def test_env_var__configure_wrong(monkeypatch, capfd):
+    # type: (...) -> None
+    env = os.environ.copy()
+    iast_enabled = "false"
+    # Test with DD_IAST_ENABLED = "false"
+    env["DD_IAST_ENABLED"] = iast_enabled
+    assert_configure_wrong(monkeypatch, capfd, iast_enabled, env)
+    # Test with env var unset
+    del env["DD_IAST_ENABLED"]
+    assert_configure_wrong(monkeypatch, capfd, iast_enabled, env)
+
+
+def test_env_var__configure_right(monkeypatch, capfd):
+    # type: (...) -> None
+    env = os.environ.copy()
+    iast_enabled = "false"
+    # Test with DD_IAST_ENABLED = "false"
+    env["DD_IAST_ENABLED"] = iast_enabled
+    assert_configure_right_disabled(monkeypatch, capfd, iast_enabled, env)
+    # Test with env var unset
+    del env["DD_IAST_ENABLED"]
+    assert_configure_right_disabled(monkeypatch, capfd, iast_enabled, env)
+
+    iast_enabled = "true"
+    # Test with DD_IAST_ENABLED = "true"
+    env["DD_IAST_ENABLED"] = iast_enabled
+    assert_configure_right_enabled(monkeypatch, capfd, iast_enabled, env)
+
+
+@pytest.mark.parametrize("_iast_enabled", ["true", "false"])
+@pytest.mark.parametrize("no_ddtracerun", [True, False])
+def test_config_over_env_var(_iast_enabled, no_ddtracerun, monkeypatch, capfd):
+    # Test that ``tracer.configure`` takes precedence over env var value
+    env = os.environ.copy()
+    env["DD_IAST_ENABLED"] = _iast_enabled
+    _run_python_file(_iast_enabled, env=env, filename="main_configure.py", no_ddtracerun=True, returncode=0)
+    captured = capfd.readouterr()
+    assert f"IAST env var: {_iast_enabled.capitalize()}" in captured.out
+    assert "hi" in captured.out
+    assert "ImportError: IAST not enabled" not in captured.err

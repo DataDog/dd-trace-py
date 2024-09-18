@@ -6,7 +6,7 @@ import pytest
 from ddtrace import tracer
 from ddtrace.contrib.graphql import patch
 from ddtrace.contrib.graphql import unpatch
-from ddtrace.contrib.graphql.patch import _graphql_version as graphql_version
+from ddtrace.contrib.internal.graphql.patch import _graphql_version as graphql_version
 from tests.utils import override_config
 from tests.utils import snapshot
 

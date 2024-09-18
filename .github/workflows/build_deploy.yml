@@ -3,11 +3,13 @@ name: Build
 on:
   push:
     branches:
+      - main
       - '[0-9].[0-9]*'
       - '[0-9].x'
       # special branches used to test this workflow
       # before merging/releasing
       - build_deploy*
+      - 'upgrade-latest-*'
   pull_request:
   release:
     types:
@@ -19,35 +21,10 @@ on:
     - cron:  0 2 * * 2-6
 
 jobs:
-  build_wheels_py37:
+  build_wheels:
     uses: ./.github/workflows/build_python_3.yml
     with:
-      cibw_build: 'cp37*'
-
-  build_wheels_py38:
-    uses: ./.github/workflows/build_python_3.yml
-    with:
-      cibw_build: 'cp38*'
-
-  build_wheels_py39:
-    uses: ./.github/workflows/build_python_3.yml
-    with:
-      cibw_build: 'cp39*'
-
-  build_wheels_py310:
-    uses: ./.github/workflows/build_python_3.yml
-    with:
-      cibw_build: 'cp310*'
-
-  build_wheels_py311:
-    uses: ./.github/workflows/build_python_3.yml
-    with:
-      cibw_build: 'cp311*'
-
-  build_wheels_py312:
-    uses: ./.github/workflows/build_python_3.yml
-    with:
-      cibw_build: 'cp312*'
+      cibw_build: 'cp37* cp38* cp39* cp310* cp311* cp312*'
 
   build_sdist:
     name: Build source distribution
@@ -103,12 +80,7 @@ jobs:
 
   upload_pypi:
     needs:
-      - build_wheels_py37
-      - build_wheels_py38
-      - build_wheels_py39
-      - build_wheels_py310
-      - build_wheels_py311
-      - build_wheels_py312
+      - build_wheels
       - test_alpine_sdist
     runs-on: ubuntu-latest
     if: (github.event_name == 'release' && github.event.action == 'published')
@@ -127,12 +99,3 @@ jobs:
           # due to a duplicate wheel being present which will ensure that the rest
           # of the wheels will be uploaded if some are uploaded manually.
           skip_existing: true
-
-  build-and-publish-init-image:
-    needs: [upload_pypi]
-    uses: ./.github/workflows/lib-inject-publish.yml
-    secrets:
-      token: ${{ secrets.GITHUB_TOKEN }}
-    with:
-      ddtrace-version: ${{ github.ref_name }}
-      image-tag: ${{ github.ref_name }}

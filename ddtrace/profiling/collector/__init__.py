@@ -1,13 +1,12 @@
 # -*- encoding: utf-8 -*-
 import typing  # noqa:F401
 
-import attr
-
 from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.settings.profiling import config
 
 from .. import event  # noqa:F401
+from ..recorder import Recorder
 
 
 class CollectorError(Exception):
@@ -18,11 +17,12 @@ class CollectorUnavailable(CollectorError):
     pass
 
 
-@attr.s
 class Collector(service.Service):
     """A profile collector."""
 
-    recorder = attr.ib()
+    def __init__(self, recorder: Recorder, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.recorder = recorder
 
     @staticmethod
     def snapshot():
@@ -32,9 +32,10 @@ class Collector(service.Service):
         """
 
 
-@attr.s(slots=True)
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
+
+    __slots__ = ()
 
     def periodic(self):
         # type: (...) -> None
@@ -51,17 +52,20 @@ class PeriodicCollector(Collector, periodic.PeriodicService):
         raise NotImplementedError
 
 
-@attr.s
 class CaptureSampler(object):
     """Determine the events that should be captured based on a sampling percentage."""
 
-    capture_pct = attr.ib(default=100)
-    _counter = attr.ib(default=0, init=False)
-
-    @capture_pct.validator
-    def capture_pct_validator(self, attribute, value):
-        if value < 0 or value > 100:
+    def __init__(self, capture_pct: float = 100.0):
+        if capture_pct < 0 or capture_pct > 100:
             raise ValueError("Capture percentage should be between 0 and 100 included")
+        self.capture_pct: float = capture_pct
+        self._counter: int = 0
+
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+        return f"{class_name}({attrs_str})"
 
     def capture(self):
         self._counter += self.capture_pct
@@ -71,11 +75,8 @@ class CaptureSampler(object):
         return False
 
 
-def _create_capture_sampler(collector):
-    return CaptureSampler(collector.capture_pct)
-
-
-@attr.s
 class CaptureSamplerCollector(Collector):
-    capture_pct = attr.ib(type=float, default=config.capture_pct)
-    _capture_sampler = attr.ib(default=attr.Factory(_create_capture_sampler, takes_self=True), init=False, repr=False)
+    def __init__(self, recorder, capture_pct=config.capture_pct, *args, **kwargs):
+        super().__init__(recorder, *args, **kwargs)
+        self.capture_pct = capture_pct
+        self._capture_sampler = CaptureSampler(self.capture_pct)

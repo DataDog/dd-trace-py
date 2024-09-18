@@ -1,4 +1,4 @@
-#include "interface.hpp"
+#include "ddup_interface.hpp"
 
 #include <array>
 #include <atomic>
@@ -26,7 +26,7 @@ configure(const char* service,
     ddup_config_runtime_version(runtime_version);
     ddup_config_profiler_version(profiler_version);
     ddup_config_max_nframes(max_nframes);
-    ddup_init();
+    ddup_start();
 }
 
 inline static std::string

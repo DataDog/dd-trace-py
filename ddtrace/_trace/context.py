@@ -1,12 +1,17 @@
 import base64
 import re
 import threading
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
-from typing import Text  # noqa:F401
+from typing import Text
+from typing import Tuple
 
-from ddtrace._trace._span_link import SpanLink  # noqa:F401
+from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace.types import _MetaDictType
+from ddtrace._trace.types import _MetricDictType
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_ID_KEY
@@ -18,23 +23,19 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Tuple  # noqa:F401,I001
+if TYPE_CHECKING:
+    from ddtrace._trace.span import Span
 
-    from ddtrace._trace.span import Span  # noqa:F401
 
-    from ddtrace._trace.span import _MetaDictType
-    from ddtrace._trace.span import _MetricDictType
-
-    _ContextState = Tuple[
-        Optional[int],  # trace_id
-        Optional[int],  # span_id
-        _MetaDictType,  # _meta
-        _MetricDictType,  # _metrics
-        list[SpanLink],  #  span_links
-        dict[str, Any],  # baggage
-        bool,  # is_remote
-    ]
+_ContextState = Tuple[
+    Optional[int],  # trace_id
+    Optional[int],  # span_id
+    _MetaDictType,  # _meta
+    _MetricDictType,  # _metrics
+    List[SpanLink],  #  span_links
+    Dict[str, Any],  # baggage
+    bool,  # is_remote
+]
 
 
 _DD_ORIGIN_INVALID_CHARS_REGEX = re.compile(r"[^\x20-\x7E]+")
@@ -51,24 +52,24 @@ class Context(object):
 
     def __init__(
         self,
-        trace_id=None,  # type: Optional[int]
-        span_id=None,  # type: Optional[int]
-        dd_origin=None,  # type: Optional[str]
-        sampling_priority=None,  # type: Optional[float]
-        meta=None,  # type: Optional[_MetaDictType]
-        metrics=None,  # type: Optional[_MetricDictType]
-        lock=None,  # type: Optional[threading.RLock]
-        span_links=None,  # type: Optional[list[SpanLink]]
-        baggage=None,  # type: Optional[dict[str, Any]]
-        is_remote=True,  # type: bool
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        dd_origin: Optional[str] = None,
+        sampling_priority: Optional[float] = None,
+        meta: Optional[_MetaDictType] = None,
+        metrics: Optional[_MetricDictType] = None,
+        lock: Optional[threading.RLock] = None,
+        span_links: Optional[List[SpanLink]] = None,
+        baggage: Optional[Dict[str, Any]] = None,
+        is_remote: bool = True,
     ):
-        self._meta = meta if meta is not None else {}  # type: _MetaDictType
-        self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
-        self._baggage = baggage if baggage is not None else {}  # type: dict[str, Any]
+        self._meta: _MetaDictType = meta if meta is not None else {}
+        self._metrics: _MetricDictType = metrics if metrics is not None else {}
+        self._baggage: Dict[str, Any] = baggage if baggage is not None else {}
 
-        self.trace_id = trace_id  # type: Optional[int]
-        self.span_id = span_id  # type: Optional[int]
-        self._is_remote = is_remote  # type: bool
+        self.trace_id: Optional[int] = trace_id
+        self.span_id: Optional[int] = span_id
+        self._is_remote: bool = is_remote
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[ORIGIN_KEY] = dd_origin
@@ -87,8 +88,7 @@ class Context(object):
             # https://github.com/DataDog/dd-trace-py/blob/a1932e8ddb704d259ea8a3188d30bf542f59fd8d/ddtrace/tracer.py#L489-L508
             self._lock = threading.RLock()
 
-    def __getstate__(self):
-        # type: () -> _ContextState
+    def __getstate__(self) -> _ContextState:
         return (
             self.trace_id,
             self.span_id,
@@ -100,14 +100,12 @@ class Context(object):
             # Note: self._lock is not serializable
         )
 
-    def __setstate__(self, state):
-        # type: (_ContextState) -> None
+    def __setstate__(self, state: _ContextState) -> None:
         self.trace_id, self.span_id, self._meta, self._metrics, self._span_links, self._baggage, self._is_remote = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
-    def _with_span(self, span):
-        # type: (Span) -> Context
+    def _with_span(self, span: "Span") -> "Context":
         """Return a shallow copy of the context with the given span."""
         return self.__class__(
             trace_id=span.trace_id,
@@ -119,8 +117,7 @@ class Context(object):
             is_remote=False,
         )
 
-    def _update_tags(self, span):
-        # type: (Span) -> None
+    def _update_tags(self, span: "Span") -> None:
         with self._lock:
             for tag in self._meta:
                 span._meta.setdefault(tag, self._meta[tag])
@@ -142,8 +139,7 @@ class Context(object):
             self._metrics[SAMPLING_PRIORITY_KEY] = value
 
     @property
-    def _traceparent(self):
-        # type: () -> str
+    def _traceparent(self) -> str:
         tp = self._meta.get(W3C_TRACEPARENT_KEY)
         if self.span_id is None or self.trace_id is None:
             # if we only have a traceparent then we'll forward it
@@ -160,13 +156,11 @@ class Context(object):
         return "00-{}-{:016x}-{}".format(trace_id, self.span_id, self._traceflags)
 
     @property
-    def _traceflags(self):
-        # type: () -> str
+    def _traceflags(self) -> str:
         return "01" if self.sampling_priority and self.sampling_priority > 0 else "00"
 
     @property
-    def _tracestate(self):
-        # type: () -> str
+    def _tracestate(self) -> str:
         dd_list_member = _w3c_get_dd_list_member(self)
 
         # if there's a preexisting tracestate we need to update it to preserve other vendor data
@@ -184,14 +178,12 @@ class Context(object):
         return ts
 
     @property
-    def dd_origin(self):
-        # type: () -> Optional[Text]
+    def dd_origin(self) -> Optional[Text]:
         """Get the origin of the trace."""
         return self._meta.get(ORIGIN_KEY)
 
     @dd_origin.setter
-    def dd_origin(self, value):
-        # type: (Optional[Text]) -> None
+    def dd_origin(self, value: Optional[Text]) -> None:
         """Set the origin of the trace."""
         with self._lock:
             if value is None:
@@ -201,8 +193,7 @@ class Context(object):
             self._meta[ORIGIN_KEY] = value
 
     @property
-    def dd_user_id(self):
-        # type: () -> Optional[Text]
+    def dd_user_id(self) -> Optional[Text]:
         """Get the user ID of the trace."""
         user_id = self._meta.get(USER_ID_KEY)
         if user_id:
@@ -210,8 +201,7 @@ class Context(object):
         return None
 
     @dd_user_id.setter
-    def dd_user_id(self, value):
-        # type: (Optional[Text]) -> None
+    def dd_user_id(self, value: Optional[Text]) -> None:
         """Set the user ID of the trace."""
         with self._lock:
             if value is None:
@@ -228,15 +218,13 @@ class Context(object):
         else:
             return _MAX_UINT_64BITS & self.trace_id
 
-    def _set_baggage_item(self, key, value):
-        # type: (str, Any) -> None
+    def _set_baggage_item(self, key: str, value: Any) -> None:
         """Sets a baggage item in this span context.
         Note that this operation mutates the baggage of this span context
         """
         self._baggage[key] = value
 
-    def _with_baggage_item(self, key, value):
-        # type: (str, Any) -> Context
+    def _with_baggage_item(self, key: str, value: Any) -> "Context":
         """Returns a copy of this span with a new baggage item.
         Useful for instantiating new child span contexts.
         """
@@ -249,13 +237,11 @@ class Context(object):
         ctx._baggage = new_baggage
         return ctx
 
-    def _get_baggage_item(self, key):
-        # type: (str) -> Optional[Any]
+    def _get_baggage_item(self, key: str) -> Optional[Any]:
         """Gets a baggage item in this span context."""
         return self._baggage.get(key, None)
 
-    def __eq__(self, other):
-        # type: (Any) -> bool
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, Context):
             with self._lock:
                 return (
@@ -269,8 +255,7 @@ class Context(object):
                 )
         return False
 
-    def __repr__(self):
-        # type: () -> str
+    def __repr__(self) -> str:
         return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s, _baggage=%s, _is_remote=%s)" % (
             self.trace_id,
             self.span_id,

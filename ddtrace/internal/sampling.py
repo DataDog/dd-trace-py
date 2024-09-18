@@ -1,7 +1,11 @@
 import json
 import re
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Text
 
 
 # TypedDict was added to typing in python 3.8
@@ -15,9 +19,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import SAMPLING_AGENT_DECISION
-from ddtrace.constants import SAMPLING_LIMIT_DECISION
 from ddtrace.constants import SAMPLING_RULE_DECISION
-from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import _CATEGORY_TO_PRIORITIES
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
@@ -39,11 +41,6 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Dict  # noqa:F401
-    from typing import List  # noqa:F401
-    from typing import Text  # noqa:F401
-
     from ddtrace._trace.context import Context  # noqa:F401
     from ddtrace._trace.span import Span  # noqa:F401
 
@@ -91,9 +88,8 @@ SpanSamplingRules = TypedDict(
 
 
 def validate_sampling_decision(
-    meta,  # type: Dict[str, str]
-):
-    # type: (...) -> Dict[str, str]
+    meta: Dict[str, str],
+) -> Dict[str, str]:
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
@@ -106,9 +102,8 @@ def validate_sampling_decision(
 
 def set_sampling_decision_maker(
     context,  # type: Context
-    sampling_mechanism,  # type: int
-):
-    # type: (...) -> Optional[Text]
+    sampling_mechanism: int,
+) -> Optional[Text]:
     value = "-%d" % sampling_mechanism
     context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
     return value
@@ -129,10 +124,10 @@ class SpanSamplingRule:
 
     def __init__(
         self,
-        sample_rate,  # type: float
-        max_per_second,  # type: int
-        service=None,  # type: Optional[str]
-        name=None,  # type: Optional[str]
+        sample_rate: float,
+        max_per_second: int,
+        service: Optional[str] = None,
+        name: Optional[str] = None,
     ):
         self._sample_rate = sample_rate
         self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
@@ -147,7 +142,7 @@ class SpanSamplingRule:
     def sample(self, span):
         # type: (Span) -> bool
         if self._sample(span):
-            if self._limiter.is_allowed(span.start_ns):
+            if self._limiter.is_allowed():
                 self.apply_span_sampling_tags(span)
                 return True
         return False
@@ -196,8 +191,7 @@ class SpanSamplingRule:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-def get_span_sampling_rules():
-    # type: () -> List[SpanSamplingRule]
+def get_span_sampling_rules() -> List[SpanSamplingRule]:
     json_rules = _get_span_sampling_json()
     sampling_rules = []
     for rule in json_rules:
@@ -207,27 +201,28 @@ def get_span_sampling_rules():
         name = rule.get("name")
 
         if not service and not name:
-            raise ValueError("Sampling rules must supply at least 'service' or 'name', got {}".format(json.dumps(rule)))
+            log.warning("Sampling rules must supply at least 'service' or 'name', got %s", json.dumps(rule))
+            return []
 
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
-        if service:
-            _check_unsupported_pattern(service)
-        if name:
-            _check_unsupported_pattern(name)
 
         try:
+            if service:
+                _check_unsupported_pattern(service)
+            if name:
+                _check_unsupported_pattern(name)
             sampling_rule = SpanSamplingRule(
                 sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
             )
         except Exception as e:
-            raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
-        sampling_rules.append(sampling_rule)
+            log.warning("Error creating single span sampling rule %s: %s", json.dumps(rule), e)
+        else:
+            sampling_rules.append(sampling_rule)
     return sampling_rules
 
 
-def _get_span_sampling_json():
-    # type: () -> List[Dict[str, Any]]
+def _get_span_sampling_json() -> List[Dict[str, Any]]:
     env_json_rules = _get_env_json()
     file_json_rules = _get_file_json()
 
@@ -242,8 +237,7 @@ def _get_span_sampling_json():
     return env_json_rules or file_json_rules or []
 
 
-def _get_file_json():
-    # type: () -> Optional[List[Dict[str, Any]]]
+def _get_file_json() -> Optional[List[Dict[str, Any]]]:
     file_json_raw = config._sampling_rules_file
     if file_json_raw:
         with open(file_json_raw) as f:
@@ -251,32 +245,31 @@ def _get_file_json():
     return None
 
 
-def _get_env_json():
-    # type: () -> Optional[List[Dict[str, Any]]]
+def _get_env_json() -> Optional[List[Dict[str, Any]]]:
     env_json_raw = config._sampling_rules
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None
 
 
-def _load_span_sampling_json(raw_json_rules):
-    # type: (str) -> List[Dict[str, Any]]
+def _load_span_sampling_json(raw_json_rules: str) -> List[Dict[str, Any]]:
     try:
         json_rules = json.loads(raw_json_rules)
         if not isinstance(json_rules, list):
-            raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
+            log.warning("DD_SPAN_SAMPLING_RULES is not list, got %r", json_rules)
+            return []
     except JSONDecodeError:
-        raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % raw_json_rules)
+        log.warning("Unable to parse DD_SPAN_SAMPLING_RULES=%r", raw_json_rules)
+        return []
 
     return json_rules
 
 
-def _check_unsupported_pattern(string):
-    # type: (str) -> None
+def _check_unsupported_pattern(string: str) -> None:
     # We don't support pattern bracket expansion or escape character
     unsupported_chars = {"[", "]", "\\"}
     for char in string:
-        if char in unsupported_chars:
+        if char in unsupported_chars and config._raise:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
@@ -304,18 +297,6 @@ def _set_sampling_tags(span, sampled, sample_rate, priority_category):
     priorities = _CATEGORY_TO_PRIORITIES[priority_category]
     _set_priority(span, priorities[_KEEP_PRIORITY_INDEX] if sampled else priorities[_REJECT_PRIORITY_INDEX])
     set_sampling_decision_maker(span.context, mechanism)
-
-
-def _apply_rate_limit(span, sampled, limiter):
-    # type: (Span, bool, RateLimiter) -> bool
-    allowed = True
-    if sampled:
-        allowed = limiter.is_allowed(span.start_ns)
-        if not allowed:
-            _set_priority(span, USER_REJECT)
-    if limiter._has_been_configured:
-        span.set_metric(SAMPLING_LIMIT_DECISION, limiter.effective_rate)
-    return allowed
 
 
 def _set_priority(span, priority):

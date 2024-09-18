@@ -37,7 +37,7 @@ pip_version = packaging.version.parse(out)
 if pip_version < MIN_PIP_VERSION:
     print(
         "WARNING: using known incompatible version, %r, of pip. The minimum compatible pip version is %r"
-        % (pip_version, MIN_PIP_VERSION)
+        % (pip_version, MIN_PIP_VERSION),
     )
 
 # Supported Python versions lists all python versions that can install at least one version of the ddtrace library.
@@ -64,7 +64,8 @@ parser.add_argument(
     action="append",
     required=True,
 )
-parser.add_argument("--ddtrace-version", type=str, required=True)
+parser.add_argument("--ddtrace-version", type=str)
+parser.add_argument("--local-ddtrace", action="store_true")
 parser.add_argument("--output-dir", type=str, required=True)
 parser.add_argument("--dry-run", action="store_true")
 parser.add_argument("--verbose", action="store_true")
@@ -82,6 +83,22 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         if python_version in ["2.7", "3.5", "3.6", "3.7"]:
             abi += "m"
 
+        if args.ddtrace_version:
+            ddtrace_specifier = "ddtrace==%s" % args.ddtrace_version
+        elif args.local_ddtrace:
+            wheel_files = [
+                f for f in os.listdir(".") if f.endswith(".whl") and abi in f and platform in f and arch in f
+            ]
+
+            if len(wheel_files) > 1:
+                print("More than one matching file found %s" % wheel_files)
+                sys.exit(1)
+
+            ddtrace_specifier = wheel_files[0]
+        else:
+            print("--ddtrace-version or --local-ddtrace must be specified")
+            sys.exit(1)
+
         # See the docs for an explanation of all the options used:
         # https://pip.pypa.io/en/stable/cli/pip_download/
         #   only-binary=:all: is specified to ensure we get all the dependencies of ddtrace as well.
@@ -90,7 +107,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             "-m",
             "pip",
             "download",
-            "ddtrace==%s" % args.ddtrace_version,
+            ddtrace_specifier,
             "--platform",
             "%s_%s" % (platform, arch),
             "--python-version",
@@ -98,6 +115,8 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             "--abi",
             abi,
             "--only-binary=:all:",
+            "--exists-action",
+            "i",  # ignore redownloads of same wheel
             "--dest",
             dl_dir,
         ]

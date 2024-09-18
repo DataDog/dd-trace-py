@@ -19,6 +19,7 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import forksafe
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
 
 
 log = get_logger(__name__)
@@ -101,16 +102,23 @@ def _build_log_track_payload(
 
     payload = {
         "service": service,
-        "debugger.snapshot": signal.snapshot,
+        "debugger": {"snapshot": signal.snapshot},
         "host": host,
         "logger": _logs_track_logger_details(signal.thread, signal.frame),
-        "dd.trace_id": context.trace_id if context else None,
-        "dd.span_id": context.span_id if context else None,
         "ddsource": "dd_debugger",
         "message": signal.message,
         "timestamp": int(signal.timestamp * 1e3),  # milliseconds,
     }
+
+    # Add the correlation IDs if available
+    if context is not None and context.trace_id is not None:
+        payload["dd"] = {
+            "trace_id": format_trace_id(context.trace_id),
+            "span_id": str(context.span_id),
+        }
+
     add_tags(payload)
+
     return payload
 
 

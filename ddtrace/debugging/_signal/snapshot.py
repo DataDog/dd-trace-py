@@ -1,14 +1,16 @@
+from collections import ChainMap
+from dataclasses import dataclass
+from dataclasses import field
+from itertools import chain
 import sys
+from types import FrameType
+from types import FunctionType
+from types import ModuleType
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import cast
 
-import attr
-
-from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import CaptureLimits
@@ -22,6 +24,9 @@ from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._redaction import DDRedactedExpressionError
+from ddtrace.debugging._safety import get_args
+from ddtrace.debugging._safety import get_globals
+from ddtrace.debugging._safety import get_locals
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import LogSignal
@@ -35,17 +40,32 @@ from ddtrace.internal.utils.time import HourGlass
 CAPTURE_TIME_BUDGET = 0.2  # seconds
 
 
+_NOTSET = object()
+
+
+EXCLUDE_GLOBAL_TYPES = (ModuleType, type, FunctionType)
+
+
 def _capture_context(
-    arguments: List[Tuple[str, Any]],
-    _locals: List[Tuple[str, Any]],
-    _globals: List[Tuple[str, Any]],
+    frame: FrameType,
     throwable: ExcInfoType,
+    retval: Any = _NOTSET,
     limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
 ) -> Dict[str, Any]:
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
 
         def timeout(_):
             return not hg.trickling()
+
+        arguments = get_args(frame)
+        _locals = get_locals(frame)
+        _globals = ((n, v) for n, v in get_globals(frame) if not isinstance(v, EXCLUDE_GLOBAL_TYPES))
+
+        _, exc, _ = throwable
+        if exc is not None:
+            _locals = chain(_locals, [("@exception", exc)])
+        elif retval is not _NOTSET:
+            _locals = chain(_locals, [("@return", retval)])
 
         return {
             "arguments": utils.capture_pairs(
@@ -67,30 +87,22 @@ def _capture_context(
         }
 
 
-_EMPTY_CAPTURED_CONTEXT = _capture_context(
-    arguments=[],
-    _locals=[],
-    _globals=[],
-    throwable=(None, None, None),
-    limits=DEFAULT_CAPTURE_LIMITS,
-)
+_EMPTY_CAPTURED_CONTEXT: Dict[str, Any] = {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None}
 
 
-@attr.s
+@dataclass
 class Snapshot(LogSignal):
     """Raw snapshot.
 
     Used to collect the minimum amount of information from a firing probe.
     """
 
-    entry_capture = attr.ib(type=Optional[dict], default=None)
-    return_capture = attr.ib(type=Optional[dict], default=None)
-    line_capture = attr.ib(type=Optional[dict], default=None)
-
-    _stack = attr.ib(type=Optional[list], default=None)
-
-    _message = attr.ib(type=Optional[str], default=None)
-    duration = attr.ib(type=Optional[int], default=None)  # nanoseconds
+    entry_capture: Optional[dict] = field(default=None)
+    return_capture: Optional[dict] = field(default=None)
+    line_capture: Optional[dict] = field(default=None)
+    _stack: Optional[list] = field(default=None)
+    _message: Optional[str] = field(default=None)
+    duration: Optional[int] = field(default=None)  # nanoseconds
 
     def _eval_segment(self, segment: TemplateSegment, _locals: Dict[str, Any]) -> str:
         probe = cast(LogProbeMixin, self.probe)
@@ -119,12 +131,13 @@ class Snapshot(LogSignal):
 
         probe = self.probe
         frame = self.frame
-        _args = list(self.args or _safety.get_args(frame))
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
             return
 
-        if not self._eval_condition(dict(_args)):
+        scope = ChainMap(self.args, frame.f_globals)
+
+        if not self._eval_condition(scope):
             return
 
         if probe.limiter.limit() is RateLimitExceeded:
@@ -132,16 +145,10 @@ class Snapshot(LogSignal):
             return
 
         if probe.take_snapshot:
-            self.entry_capture = _capture_context(
-                _args,
-                [],
-                [],
-                (None, None, None),
-                limits=probe.limits,
-            )
+            self.entry_capture = _capture_context(frame, (None, None, None), limits=probe.limits)
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.ENTER:
-            self._eval_message(dict(_args))
+            self._eval_message(scope)
             self.state = SignalState.DONE
 
     def exit(self, retval, exc_info, duration):
@@ -149,10 +156,10 @@ class Snapshot(LogSignal):
             return
 
         probe = self.probe
-        _args = self._enrich_args(retval, exc_info, duration)
+        full_scope = self.get_full_scope(retval, exc_info, duration)
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
-            if not self._eval_condition(_args):
+            if not self._eval_condition(full_scope):
                 return
             if probe.limiter.limit() is RateLimitExceeded:
                 self.state = SignalState.SKIP_RATE
@@ -160,26 +167,19 @@ class Snapshot(LogSignal):
         elif self.state not in {SignalState.NONE, SignalState.DONE}:
             return
 
-        _locals = list(_safety.get_locals(self.frame))
-        _, exc, tb = exc_info
-        if exc is None:
-            _locals.append(("@return", retval))
-        else:
-            _locals.append(("@exception", exc))
-
         if probe.take_snapshot:
-            self.return_capture = _capture_context(
-                self.args or _safety.get_args(self.frame), _locals, [], exc_info, limits=probe.limits
-            )
+            self.return_capture = _capture_context(self.frame, exc_info, retval=retval, limits=probe.limits)
+
         self.duration = duration
         self.state = SignalState.DONE
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
-            self._eval_message(dict(_args))
+            self._eval_message(full_scope)
 
         stack = utils.capture_stack(self.frame)
 
         # Fix the line number of the top frame. This might have been mangled by
         # the instrumented exception handling of function probes.
+        tb = exc_info[2]
         while tb is not None:
             frame = tb.tb_frame
             if frame == self.frame:
@@ -204,15 +204,9 @@ class Snapshot(LogSignal):
                 self.state = SignalState.SKIP_RATE
                 return
 
-            self.line_capture = _capture_context(
-                self.args or _safety.get_args(frame),
-                _safety.get_locals(frame),
-                _safety.get_globals(frame),
-                sys.exc_info(),
-                limits=probe.limits,
-            )
+            self.line_capture = _capture_context(frame, sys.exc_info(), limits=probe.limits)
 
-        self._eval_message(frame.f_locals)
+        self._eval_message(ChainMap(frame.f_locals, frame.f_globals))
 
         self._stack = utils.capture_stack(frame)
 
@@ -229,10 +223,10 @@ class Snapshot(LogSignal):
     def data(self):
         probe = self.probe
 
-        captures = None
+        captures = {}
         if isinstance(probe, LogProbeMixin) and probe.take_snapshot:
             if isinstance(probe, LineLocationMixin):
-                captures = {"lines": {probe.line: self.line_capture or _EMPTY_CAPTURED_CONTEXT}}
+                captures = {"lines": {str(probe.line): self.line_capture or _EMPTY_CAPTURED_CONTEXT}}
             elif isinstance(probe, FunctionLocationMixin):
                 captures = {
                     "entry": self.entry_capture or _EMPTY_CAPTURED_CONTEXT,

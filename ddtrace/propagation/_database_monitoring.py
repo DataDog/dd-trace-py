@@ -19,16 +19,23 @@ if TYPE_CHECKING:
 
     from ddtrace import Span  # noqa:F401
 
-DBM_PARENT_SERVICE_NAME_KEY = "ddps"
-DBM_DATABASE_SERVICE_NAME_KEY = "dddbs"
-DBM_PEER_HOSTNAME_KEY = "ddh"
-DBM_PEER_DB_NAME_KEY = "dddb"
-DBM_PEER_SERVICE_KEY = "ddprs"
-DBM_ENVIRONMENT_KEY = "dde"
-DBM_VERSION_KEY = "ddpv"
-DBM_TRACE_PARENT_KEY = "traceparent"
-DBM_TRACE_INJECTED_TAG = "_dd.dbm_trace_injected"
+import sys
 
+
+if sys.version_info >= (3, 8):
+    from typing import Literal  # noqa:F401
+else:
+    from typing_extensions import Literal  # noqa:F401
+
+DBM_PARENT_SERVICE_NAME_KEY: Literal["ddps"] = "ddps"
+DBM_DATABASE_SERVICE_NAME_KEY: Literal["dddbs"] = "dddbs"
+DBM_PEER_HOSTNAME_KEY: Literal["ddh"] = "ddh"
+DBM_PEER_DB_NAME_KEY: Literal["dddb"] = "dddb"
+DBM_PEER_SERVICE_KEY: Literal["ddprs"] = "ddprs"
+DBM_ENVIRONMENT_KEY: Literal["dde"] = "dde"
+DBM_VERSION_KEY: Literal["ddpv"] = "ddpv"
+DBM_TRACE_PARENT_KEY: Literal["traceparent"] = "traceparent"
+DBM_TRACE_INJECTED_TAG: Literal["_dd.dbm_trace_injected"] = "_dd.dbm_trace_injected"
 
 log = get_logger(__name__)
 
@@ -147,11 +154,28 @@ def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
     return span, args, kwargs
 
 
-if dbm_config.propagation_mode in ["full", "service"]:
-    core.on("aiomysql.execute", handle_dbm_injection, "result")
-    core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
-    core.on("dbapi.execute", handle_dbm_injection, "result")
-    core.on("mysql.execute", handle_dbm_injection, "result")
-    core.on("mysqldb.execute", handle_dbm_injection, "result")
-    core.on("psycopg.execute", handle_dbm_injection, "result")
-    core.on("pymysql.execute", handle_dbm_injection, "result")
+_DBM_STANDARD_EVENTS = {
+    "aiomysql.execute",
+    "dbapi.execute",
+    "django-postgres.execute",
+    "mysql.execute",
+    "mysqldb.execute",
+    "psycopg.execute",
+    "pymysql.execute",
+}
+
+
+def listen():
+    if dbm_config.propagation_mode in ["full", "service"]:
+        for event in _DBM_STANDARD_EVENTS:
+            core.on(event, handle_dbm_injection, "result")
+        core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
+
+
+def unlisten():
+    for event in _DBM_STANDARD_EVENTS:
+        core.reset_listeners(event, handle_dbm_injection)
+    core.reset_listeners("asyncpg.execute", handle_dbm_injection_asyncpg)
+
+
+listen()

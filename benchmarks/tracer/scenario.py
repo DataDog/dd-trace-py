@@ -3,7 +3,7 @@ import bm.utils as utils
 
 
 class Tracer(bm.Scenario):
-    depth = bm.var(type=int)
+    depth: int
 
     def run(self):
         # configure global tracer to drop traces rather than encoded and sent to

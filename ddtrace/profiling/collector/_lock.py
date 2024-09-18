@@ -4,13 +4,15 @@ import _thread
 import abc
 import os.path
 import sys
+import types
 import typing
 
-import attr
+import wrapt
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
@@ -18,29 +20,45 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
-from ddtrace.vendor import wrapt
 
 
-@event.event_class
+LOG = get_logger(__name__)
+
+
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
-    lock_name = attr.ib(default="<unknown lock name>", type=str)
-    sampling_pct = attr.ib(default=0, type=int)
+    __slots__ = ("lock_name", "sampling_pct")
+
+    def __init__(self, lock_name="<unknown lock name>", sampling_pct=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lock_name = lock_name
+        self.sampling_pct = sampling_pct
 
 
-@event.event_class
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
-    wait_time_ns = attr.ib(default=0, type=int)
+    __slots__ = ("wait_time_ns",)
+
+    def __init__(self, wait_time_ns=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.wait_time_ns = wait_time_ns
 
 
-@event.event_class
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 
-    locked_for_ns = attr.ib(default=0, type=int)
+    __slots__ = ("locked_for_ns",)
+
+    def __init__(
+        self,
+        locked_for_ns=0,  # type: int
+        *args,  # type: typing.Any
+        **kwargs,  # type: typing.Any
+    ):
+        super().__init__(*args, **kwargs)
+        self.locked_for_ns: int = locked_for_ns
 
 
 def _current_thread():
@@ -55,7 +73,7 @@ if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
     WRAPT_C_EXT = False
 else:
     try:
-        import ddtrace.vendor.wrapt._wrappers as _w  # noqa: F401
+        import wrapt._wrappers as _w  # noqa: F401
     except ImportError:
         WRAPT_C_EXT = False
     else:
@@ -86,29 +104,34 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_export_libdd_enabled = export_libdd_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
-        self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+        self._self_init_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+        self._self_name: typing.Optional[str] = None
 
-    def __aenter__(self):
-        return self.__wrapped__.__aenter__()
+    def __aenter__(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def __aexit__(self, *args, **kwargs):
-        return self.__wrapped__.__aexit__(*args, **kwargs)
+        return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
-    def acquire(self, *args, **kwargs):
+    def _acquire(self, inner_func, *args, **kwargs):
         if not self._self_capture_sampler.capture():
-            return self.__wrapped__.acquire(*args, **kwargs)
+            return inner_func(*args, **kwargs)
 
         start = compat.monotonic_ns()
         try:
-            return self.__wrapped__.acquire(*args, **kwargs)
+            return inner_func(*args, **kwargs)
         finally:
             try:
                 end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 task_id, task_name, task_frame = _task.get_task(thread_id)
+                self._maybe_update_self_name()
+                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
 
                 if task_frame is None:
-                    frame = sys._getframe(1)
+                    # If we can't get the task frame, we use the caller frame. We expect acquire/release or
+                    # __enter__/__exit__ to be on the stack, so we go back 2 frames.
+                    frame = sys._getframe(2)
                 else:
                     frame = task_frame
 
@@ -118,7 +141,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     thread_native_id = _threading.get_thread_native_id(thread_id)
 
                     handle = ddup.SampleHandle()
-                    handle.push_lock_name(self._self_name)
+                    handle.push_monotonic_ns(end)
+                    handle.push_lock_name(lock_name)
                     handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
@@ -131,7 +155,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     handle.flush_sample()
                 else:
                     event = self.ACQUIRE_EVENT_CLASS(
-                        lock_name=self._self_name,
+                        lock_name=lock_name,
                         frames=frames,
                         nframes=nframes,
                         thread_id=thread_id,
@@ -146,13 +170,17 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
 
                     self._self_recorder.push_event(event)
-            except Exception:
+            except Exception as e:
+                LOG.warning("Error recording lock acquire event: %s", e)
                 pass  # nosec
 
-    def release(self, *args, **kwargs):
+    def acquire(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
+
+    def _release(self, inner_func, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
         try:
-            return self.__wrapped__.release(*args, **kwargs)
+            return inner_func(*args, **kwargs)
         finally:
             try:
                 if hasattr(self, "_self_acquired_at"):
@@ -160,9 +188,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         end = compat.monotonic_ns()
                         thread_id, thread_name = _current_thread()
                         task_id, task_name, task_frame = _task.get_task(thread_id)
+                        lock_name = (
+                            "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                        )
 
                         if task_frame is None:
-                            frame = sys._getframe(1)
+                            # See the comments in _acquire
+                            frame = sys._getframe(2)
                         else:
                             frame = task_frame
 
@@ -172,7 +204,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             thread_native_id = _threading.get_thread_native_id(thread_id)
 
                             handle = ddup.SampleHandle()
-                            handle.push_lock_name(self._self_name)
+                            handle.push_monotonic_ns(end)
+                            handle.push_lock_name(lock_name)
                             handle.push_release(
                                 end - self._self_acquired_at, 1
                             )  # AFAICT, capture_pct does not adjust anything here
@@ -189,7 +222,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             handle.flush_sample()
                         else:
                             event = self.RELEASE_EVENT_CLASS(
-                                lock_name=self._self_name,
+                                lock_name=lock_name,
                                 frames=frames,
                                 nframes=nframes,
                                 thread_id=thread_id,
@@ -208,10 +241,71 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             self._self_recorder.push_event(event)
                     finally:
                         del self._self_acquired_at
-            except Exception:
+            except Exception as e:
+                LOG.warning("Error recording lock release event: %s", e)
                 pass  # nosec
 
+    def release(self, *args, **kwargs):
+        return self._release(self.__wrapped__.release, *args, **kwargs)
+
     acquire_lock = acquire
+
+    def __enter__(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
+
+    def __exit__(self, *args, **kwargs):
+        self._release(self.__wrapped__.__exit__, *args, **kwargs)
+
+    def _find_self_name(self, var_dict: typing.Dict):
+        for name, value in var_dict.items():
+            if name.startswith("__") or isinstance(value, types.ModuleType):
+                continue
+            if value is self:
+                return name
+            if config.lock.name_inspect_dir:
+                for attribute in dir(value):
+                    if not attribute.startswith("__") and getattr(value, attribute) is self:
+                        self._self_name = attribute
+                        return attribute
+        return None
+
+    # Get lock acquire/release call location and variable name the lock is assigned to
+    def _maybe_update_self_name(self):
+        if self._self_name:
+            return
+        try:
+            # We expect the call stack to be like this:
+            # 0: this
+            # 1: _acquire/_release
+            # 2: acquire/release (or __enter__/__exit__)
+            # 3: caller frame
+            if config.enable_asserts:
+                frame = sys._getframe(1)
+                if frame.f_code.co_name not in {"_acquire", "_release"}:
+                    raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+                frame = sys._getframe(2)
+                if frame.f_code.co_name not in {
+                    "acquire",
+                    "release",
+                    "__enter__",
+                    "__exit__",
+                    "__aenter__",
+                    "__aexit__",
+                }:
+                    raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
+            frame = sys._getframe(3)
+
+            # First, look at the local variables of the caller frame, and then the global variables
+            self._self_name = self._find_self_name(frame.f_locals) or self._find_self_name(frame.f_globals)
+
+            if not self._self_name:
+                self._self_name = ""
+                LOG.warning(
+                    "Failed to get lock variable name, we only support local/global variables and their attributes."
+                )
+
+        except Exception as e:
+            LOG.warning("Error getting lock acquire/release call location and variable name: %s", e)
 
 
 class FunctionWrapper(wrapt.FunctionWrapper):
@@ -222,21 +316,28 @@ class FunctionWrapper(wrapt.FunctionWrapper):
         return self
 
 
-@attr.s
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes = attr.ib(type=int, default=config.max_frames)
-    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
-    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-
-    tracer = attr.ib(default=None)
-
-    _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
-
-    # Check if libdd is available, if not, disable the feature
-    if export_libdd_enabled and not ddup.is_available:
-        export_libdd_enabled = False
+    def __init__(
+        self,
+        recorder,
+        nframes=config.max_frames,
+        endpoint_collection_enabled=config.endpoint_collection,
+        export_libdd_enabled=config.export.libdd_enabled,
+        tracer=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(recorder, *args, **kwargs)
+        self.nframes = nframes
+        self.endpoint_collection_enabled = endpoint_collection_enabled
+        self.export_libdd_enabled = export_libdd_enabled
+        self.tracer = tracer
+        self._original = None
+        # Check if libdd is available, if not, disable the feature
+        if self.export_libdd_enabled and not ddup.is_available:
+            self.export_libdd_enabled = False
 
     @abc.abstractmethod
     def _get_original(self):

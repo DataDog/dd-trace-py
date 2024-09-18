@@ -10,7 +10,6 @@ from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info_frame_py
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
-from tests.utils import flaky
 from tests.utils import override_env
 
 
@@ -49,7 +48,6 @@ class IASTFilter(LeaksFilterFunction):
         return False
 
 
-@flaky(1735812000)
 @pytest.mark.limit_leaks("8.2 KB", filter_fn=IASTFilter())
 @pytest.mark.parametrize(
     "origin1, origin2",
@@ -102,13 +100,14 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
             _initializer_size = initializer_size()
             assert _initializer_size > 0
 
-        assert _num_objects_tainted == num_objects_tainted()
+        # Some tainted pyobject is freed, and Python may reuse the memory address
+        # hence the number of tainted objects may be the same or less
+        assert _num_objects_tainted in (num_objects_tainted(), num_objects_tainted() - 1)
         assert _active_map_addreses_size == active_map_addreses_size()
         assert _initializer_size == initializer_size()
         reset_context()
 
 
-@flaky(1735812000)
 @pytest.mark.limit_leaks("460 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_check():
     for _ in range(LOOPS):
@@ -121,7 +120,6 @@ def test_stacktrace_memory_check():
         assert line_number > 0
 
 
-@flaky(1735812000)
 @pytest.mark.limit_leaks("460 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_check_direct_call():
     for _ in range(LOOPS):
@@ -134,7 +132,6 @@ def test_stacktrace_memory_check_direct_call():
         assert line_number > 0
 
 
-@flaky(1735812000)
 @pytest.mark.limit_leaks("460 KB", filter_fn=IASTFilter())
 def test_stacktrace_memory_check_no_native():
     for _ in range(LOOPS):
@@ -147,7 +144,6 @@ def test_stacktrace_memory_check_no_native():
         assert line_number > 0
 
 
-@flaky(1735812000)
 @pytest.mark.limit_leaks("24 KB", filter_fn=IASTFilter())
 def test_stacktrace_memory_check_no_native_direct_call():
     for _ in range(2):
@@ -160,7 +156,6 @@ def test_stacktrace_memory_check_no_native_direct_call():
         assert line_number > 0
 
 
-@flaky(1735812000)
 @pytest.mark.limit_leaks("440 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_empty_byte_check():
     for _ in range(LOOPS):
@@ -173,7 +168,6 @@ def test_stacktrace_memory_empty_byte_check():
         assert line_number > 0
 
 
-@flaky(1735812000)
 @pytest.mark.limit_leaks("440 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_empty_string_check():
     for _ in range(LOOPS):
@@ -186,7 +180,6 @@ def test_stacktrace_memory_empty_string_check():
         assert line_number > 0
 
 
-@flaky(1735812000)
 @pytest.mark.limit_leaks("10 KB", filter_fn=IASTFilter())
 def test_stacktrace_memory_random_string_check():
     """2.1 KB is enough but CI allocates 1.0 MB bytes"""
@@ -197,4 +190,4 @@ def test_stacktrace_memory_random_string_check():
 
         file_name, line_number = frame_info
         assert file_name == ""
-        assert line_number == 0
+        assert line_number == -1

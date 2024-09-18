@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: This introduces the agentless mode configuration for LLM Observability. To enable agentless mode, 
+    set the environment variable ``DD_LLMOBS_AGENTLESS_ENABLED=1``, or use the enable option ``LLMObs.enable(agentless_enabled=True)``. 

@@ -1,7 +1,14 @@
-RECORD_ATTR_TRACE_ID = "dd.trace_id"
-RECORD_ATTR_SPAN_ID = "dd.span_id"
-RECORD_ATTR_ENV = "dd.env"
-RECORD_ATTR_VERSION = "dd.version"
-RECORD_ATTR_SERVICE = "dd.service"
-RECORD_ATTR_VALUE_ZERO = "0"
-RECORD_ATTR_VALUE_EMPTY = ""
+from ddtrace.contrib.internal.logging.constants import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

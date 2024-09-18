@@ -1,0 +1,70 @@
+interactions:
+- request:
+    body: '{"max_tokens": 15, "messages": [{"role": "user", "content": [{"type": "text",
+      "text": "Hello, I am looking for information about some books!"}, {"type": "text",
+      "text": "What is the best selling book?"}]}], "model": "claude-3-opus-20240229",
+      "system": "Respond only in all caps.", "temperature": 0.8}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '300'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.28.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.28.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.9
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"type":"error","error":{"type":"authentication_error","message":"invalid
+        x-api-key"}}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88f189dac80ac32b-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '86'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 05 Jun 2024 16:28:54 GMT
+      Server:
+      - cloudflare
+      request-id:
+      - req_013JyjhVcnhy8mfJkvBTqMNB
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 93ac98996f397cc0399d31159d38f4bb
+      x-should-retry:
+      - 'false'
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

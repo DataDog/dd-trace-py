@@ -6,11 +6,11 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "llm",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6615ac2000000000",
+      "_dd.p.tid": "66a4712d00000000",
       "langchain.request.ai21.parameters.countPenalty.applyToEmojis": "True",
       "langchain.request.ai21.parameters.countPenalty.applyToNumbers": "True",
       "langchain.request.ai21.parameters.countPenalty.applyToPunctuations": "True",
@@ -41,17 +41,17 @@
       "langchain.request.prompts.0": "Why does everyone in Bikini Bottom hate Plankton?",
       "langchain.request.provider": "ai21",
       "langchain.request.type": "llm",
-      "langchain.response.completions.0.text": "\\nPlankton is a character in the animated television show SpongeBob SquarePants. He is the owner of The Chum Bucket, a fast food...",
+      "langchain.response.completions.0.text": "\\nPlankton is trying to steal the Krabby Patty secret formula from Mr. Krabs, so Mr. Krabs wants him gone.",
       "language": "python",
-      "runtime-id": "2304ee41d4dc442c862ba4160e934dcd"
+      "runtime-id": "ebef68ede30342bab185e0fba7035c8e"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 74685
+      "process_id": 88600
     },
-    "duration": 5152000,
-    "start": 1712696352430129000
+    "duration": 6954000,
+    "start": 1722052909315503000
   }]]

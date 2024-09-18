@@ -7,14 +7,12 @@ from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import Distribution
-from ddtrace.internal.packages import filename_to_package
+from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
 
 from ...settings import _config as config  # noqa:F401
-from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
 
 
@@ -69,26 +67,26 @@ def _get_application(key):
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version),
-        "products": _get_products(),
     }
 
 
-def update_imported_dependencies(
-    already_imported: Dict[str, Distribution], new_modules: List[str]
-) -> List[Dict[str, str]]:
+def update_imported_dependencies(already_imported: Dict[str, str], new_modules: List[str]) -> List[Dict[str, str]]:
     deps = []
 
-    for module_path in new_modules:
-        if not module_path:
+    for module_name in new_modules:
+        dists = get_module_distribution_versions(module_name)
+        if not dists:
             continue
-        try:
-            package = filename_to_package(module_path)
-            if not package or (package.name in already_imported) or package.name == "ddtrace":
-                continue  # not third party or already imported
-        except AttributeError:
-            continue
-        already_imported[package.name] = package
-        deps.append({"name": package.name, "version": package.version})
+
+        for name, version in dists.items():
+            if name == "ddtrace":
+                continue
+
+            if name in already_imported:
+                continue
+
+            already_imported[name] = version
+            deps.append({"name": name, "version": version})
 
     return deps
 
@@ -99,13 +97,6 @@ def get_application(service, version, env):
     # We cache the application dict to reduce overhead since service, version, or env configurations
     # can change during runtime
     return _get_application((service, version, env))
-
-
-def _get_products():
-    # type: () -> Dict
-    return {
-        "appsec": {"version": get_version(), "enabled": asm_config._asm_enabled},
-    }
 
 
 _host_info = None
