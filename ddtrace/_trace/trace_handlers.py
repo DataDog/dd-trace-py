@@ -34,7 +34,6 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.propagation.http import HTTPPropagator
 
