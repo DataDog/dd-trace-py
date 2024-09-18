@@ -156,7 +156,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_memcheck",
-            pys=select_pys(min_version="3.8"),
+            pys=select_pys(min_version="3.9"),
             command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
             pkgs={
                 "requests": latest,
@@ -166,7 +166,7 @@ venv = Venv(
                 "psycopg2-binary": "~=2.9.9",
                 # Should be "pytest-memray": latest, but we need to pin to a specific commit in a fork
                 # while this PR gets merged: https://github.com/bloomberg/pytest-memray/pull/103
-                "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73": "",
+                "pytest-memray": "~=1.7.0",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
