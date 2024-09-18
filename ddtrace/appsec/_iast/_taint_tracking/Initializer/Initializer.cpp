@@ -1,5 +1,7 @@
 #include "Initializer.h"
 
+#include <iostream>
+#include <map>
 #include <thread>
 
 using namespace std;
@@ -21,6 +23,67 @@ Initializer::Initializer()
     for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
         available_ranges_stack.push(make_shared<TaintRange>());
     }
+}
+
+Initializer::~Initializer()
+{
+    imported_cache.clear();
+}
+
+void
+Initializer::import_symbols_into_cache()
+{
+    const auto ospath_mod = py::module_::import("os.path");
+    imported_cache["os.path"] = ospath_mod;
+    const auto os_path_symbols = { "join",  "sep",      "basename",   "dirname",  "normcase",
+                                   "split", "splitext", "splitdrive", "splitroot" };
+    for (const auto& symbol_name : os_path_symbols) {
+        string joined_name = string("os.path.") + string(symbol_name);
+        imported_cache[joined_name.c_str()] = ospath_mod.attr(symbol_name);
+    }
+
+    const auto re_mod = py::module_::import("re");
+    imported_cache["re"] = re_mod;
+    imported_cache["re.Match"] = re_mod.attr("Match");
+
+    const auto inspect_mod = py::module_::import("inspect");
+    imported_cache["inspect"] = inspect_mod;
+    imported_cache["inspect.stack"] = inspect_mod.attr("stack");
+
+    const auto ddtrace_logger_mod = py::module_::import("ddtrace.internal.logger");
+    imported_cache["ddtrace.internal.logger"] = ddtrace_logger_mod;
+    imported_cache["ddtrace.internal.logger.get_logger"] = ddtrace_logger_mod.attr("get_logger");
+
+    const auto ddtrace_metrics_mod = py::module_::import("ddtrace.appsec._iast._metrics");
+    imported_cache["ddtrace.appsec._iast._metrics"] = ddtrace_metrics_mod;
+    imported_cache["ddtrace.appsec._iast._metrics._set_iast_error_metric"] =
+      ddtrace_metrics_mod.attr("_set_iast_error_metric");
+}
+
+py::object
+Initializer::get_imported_symbol(const char* module_name, const char* symbol_name)
+{
+    string str_module_name(module_name);
+    string str_symbol_name(symbol_name);
+    string final_name;
+
+    if (!str_symbol_name.empty()) {
+        final_name = string(module_name) + "." + string(symbol_name);
+    } else {
+        final_name = str_module_name;
+    }
+
+    const auto obj = imported_cache.find(final_name);
+    if (obj == imported_cache.end()) {
+        // Fallback: maybe we are outside a context, import the symbol
+        auto mod = py::module_::import(module_name);
+        if (!str_symbol_name.empty()) {
+            return mod.attr(symbol_name);
+        }
+        return mod;
+    }
+
+    return obj->second;
 }
 
 TaintRangeMapTypePtr
@@ -206,6 +269,7 @@ Initializer::create_context()
     // Create a new taint_map
     auto map_ptr = create_tainting_map();
     ThreadContextCache.tx_map = map_ptr;
+    import_symbols_into_cache();
 }
 
 void
@@ -213,6 +277,7 @@ Initializer::reset_context()
 {
     clear_tainting_maps();
     ThreadContextCache.tx_map = nullptr;
+    imported_cache.clear();
 }
 
 // Created in the PYBIND11_MODULE in _native.cpp

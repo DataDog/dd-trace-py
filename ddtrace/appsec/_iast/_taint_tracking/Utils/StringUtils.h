@@ -32,11 +32,8 @@ get_unique_id(const PyObject* str)
     return reinterpret_cast<uintptr_t>(str);
 }
 
-static bool
-PyReMatch_Check(const PyObject* obj)
-{
-    return py::isinstance((PyObject*)obj, py::module_::import("re").attr("Match"));
-}
+bool
+PyReMatch_Check(const PyObject* obj);
 
 bool
 is_notinterned_notfasttainted_unicode(const PyObject* objptr);

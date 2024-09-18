@@ -2,6 +2,9 @@
 
 #include "GenericUtils.h"
 
+#include "Aspects/Helpers.h"
+#include "Initializer/Initializer.h"
+
 bool
 asbool(const py::object& value)
 {
@@ -37,9 +40,13 @@ iast_taint_log_error(const std::string& msg)
             return;
         }
         std::string frame_info;
+        // If we don't clear the error, stack() and other functions won't work, so we save it first
+        PyObject *ptype, *pvalue, *ptraceback;
+        PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+        PyErr_Clear();
+
         try {
-            const py::module inspect = py::module::import("inspect");
-            const py::list stack = inspect.attr("stack")();
+            const py::list stack = initializer->get_imported_symbol("inspect", "stack")();
 
             for (size_t i = 0; i < std::min(stack.size(), static_cast<size_t>(7)); ++i) {
                 py::object frame = stack[i];
@@ -57,8 +64,11 @@ iast_taint_log_error(const std::string& msg)
         const auto log = get_python_logger();
         log.attr("debug")(msg + ": " + frame_info);
 
-        const py::module metrics = py::module::import("ddtrace.appsec._iast._metrics");
-        metrics.attr("_set_iast_error_metric")("IAST propagation error. " + msg);
+        initializer->get_imported_symbol("ddtrace.appsec._iast._metrics",
+                                         "_set_iast_error_metric")("IAST propagation error. " + msg);
+
+        // Restore the original exception state
+        PyErr_Restore(ptype, pvalue, ptraceback);
 
     } catch (const py::error_already_set& e) {
         if (!e.trace().is_none()) {
@@ -80,4 +90,10 @@ iast_taint_log_error(const std::string& msg)
     } catch (...) {
         cerr << "ddtrace: unkown error when trying to log an IAST native error";
     }
+}
+
+inline py::object
+get_python_logger()
+{
+    return initializer->get_imported_symbol("ddtrace.internal.logger", "get_logger")("native");
 }

@@ -24,14 +24,8 @@ is_iast_debug_enabled()
     return asbool(debug_value);
 }
 
-inline py::object
-get_python_logger()
-{
-    py::object logger_module = py::module::import("ddtrace.internal.logger");
-    py::object get_logger = logger_module.attr("get_logger");
-    py::object native_logger = get_logger("native");
-    return native_logger;
-}
+inline pybind11::object
+get_python_logger();
 
 inline bool
 is_some_number(PyObject* obj)
