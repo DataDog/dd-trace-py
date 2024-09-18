@@ -675,7 +675,7 @@ class TestCheckEnabledFeatures:
             r"^https://api\.datad0g\.com/api/v2/libraries/tests/services/setting$"
         ),
         REQUESTS_MODE.EVP_PROXY_EVENTS: re.compile(
-            r"^http://(localhost|testagent):[89]126/evp_proxy/v2/api/v2/libraries/tests/services/setting$"
+            r"^http://notahost:1234/evp_proxy/v2/api/v2/libraries/tests/services/setting$"
         ),
     }
     expected_do_request_headers = {
@@ -739,6 +739,8 @@ class TestCheckEnabledFeatures:
                 "runtime.version": "11.5.2",
             }
             mock_civisibility._git_client = mock.Mock(spec=CIVisibilityGitClient)
+            mock_civisibility.tracer = mock.Mock(spec=ddtrace.Tracer)
+            mock_civisibility.tracer._agent_url = "http://notahost:1234"
 
         return mock_civisibility
 
