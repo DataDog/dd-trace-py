@@ -215,6 +215,24 @@ aspect_iast_do_index:
     warmups: 1
     iast_enabled: 1
 
+aspect_no_iast_do_index_on_dict: &aspect_no_iast_do_index_on_dict
+    iast_enabled: 0
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    mod_original_name: "bm.iast_fixtures.str_methods"
+    function_name: "do_index_on_dict"
+    args: ['  fOobaR\t  \n', '  fOobaR\t  \n']
+
+aspect_iast_do_index_on_dict:
+    << : *aspect_no_iast_do_index_on_dict
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    iast_enabled: 1
+
 aspect_no_iast_do_join: &aspect_no_iast_do_join
     iast_enabled: 0
     processes: 10
@@ -341,6 +359,60 @@ aspect_iast_do_namedtuple:
     warmups: 1
     iast_enabled: 1
 
+aspect_no_iast_do_operator_add_inplace_3_params: &aspect_no_iast_do_operator_add_inplace_3_params
+    iast_enabled: 0
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    mod_original_name: "bm.iast_fixtures.str_methods"
+    function_name: "do_operator_add_inplace_3_params"
+    args: ['  fOobaR\t  \n', '  fOobaR\t  \n', '  fOobaR\t  \n']
+
+aspect_iast_do_operator_add_inplace_3_params:
+    << : *aspect_no_iast_do_operator_add_inplace_3_params
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    iast_enabled: 1
+
+aspect_no_iast_do_operator_add_inplace_3_times: &aspect_no_iast_do_operator_add_inplace_3_times
+    iast_enabled: 0
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    mod_original_name: "bm.iast_fixtures.str_methods"
+    function_name: "do_operator_add_inplace_3_times"
+    args: ['  fOobaR\t  \n', '  fOobaR\t  \n']
+
+aspect_iast_do_operator_add_inplace_3_times:
+    << : *aspect_no_iast_do_operator_add_inplace_3_times
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    iast_enabled: 1
+
+aspect_no_iast_do_operator_add_inplace_params: &aspect_no_iast_do_operator_add_inplace_params
+    iast_enabled: 0
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    mod_original_name: "bm.iast_fixtures.str_methods"
+    function_name: "do_operator_add_inplace_params"
+    args: ['  fOobaR\t  \n', '  fOobaR\t  \n']
+
+aspect_iast_do_operator_add_inplace_params:
+    << : *aspect_no_iast_do_operator_add_inplace_params
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    iast_enabled: 1
+
 aspect_no_iast_do_operator_add_params: &aspect_no_iast_do_operator_add_params
     iast_enabled: 0
     processes: 10
@@ -371,6 +443,24 @@ aspect_no_iast_do_partition: &aspect_no_iast_do_partition
 
 aspect_iast_do_partition:
     << : *aspect_no_iast_do_partition
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    iast_enabled: 1
+
+aspect_no_iast_do_re_match_index: &aspect_no_iast_do_re_match_index
+    iast_enabled: 0
+    processes: 10
+    loops: 1
+    values: 6
+    warmups: 1
+    mod_original_name: "bm.iast_fixtures.str_methods"
+    function_name: "do_re_match_index"
+    args: ['  fOobaR\t  \n', '  fOobaR\t  \n', '  fOobaR\t  \n']
+
+aspect_iast_do_re_match_index:
+    << : *aspect_no_iast_do_re_match_index
     processes: 10
     loops: 1
     values: 6
