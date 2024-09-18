@@ -453,8 +453,11 @@ class _ThreadSpanLinks(_thread_span_links_base):
         :return: A set with the active spans.
         """
         active_span = self.get_object(thread_id)
-        if active_span is not None and not active_span.finished:
-            print("Found active_span with span_id: ", active_span.span_id)
+        if active_span is not None:
+            if not active_span.finished:
+                print("Found active_span with span_id: ", active_span.span_id)
+            else:
+                print("Found finished_span with span_id: ", active_span.span_id)
             return active_span
         else:
             print("failed to find active_span with thread_id: ", thread_id)
