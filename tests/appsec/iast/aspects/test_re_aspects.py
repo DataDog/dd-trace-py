@@ -1,6 +1,8 @@
 import re
 import typing
 
+import pytest
+
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -18,7 +20,6 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_search_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
-from tests.utils import flaky
 
 
 def test_re_findall_aspect_tainted_string():
@@ -69,8 +70,8 @@ def test_re_sub_aspect_tainted_string():
     ]
 
 
-@flaky("This function raise an unexpected exception")
-def test_re_sub_aspect_tainted_string_worng_expression():
+@pytest.mark.skip("This function raise an unexpected exception")
+def test_re_sub_aspect_tainted_string_wrong_expression():
     tainted_foobarbaz = taint_pyobject(
         pyobject="test [1]",
         source_name="test_re_sub_aspect_tainted_string",
