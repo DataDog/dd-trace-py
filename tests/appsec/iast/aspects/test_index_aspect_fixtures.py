@@ -28,6 +28,12 @@ def test_string_index_error_type_error():
     assert "string indices must be integers" in str(excinfo.value)
 
 
+def test_string_error_key_error():
+    with pytest.raises(KeyError) as excinfo:
+        mod.do_index_on_dict({1: 1, 2: 2}, 3)
+    assert "'3'" in str(excinfo.value)
+
+
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "input_str, index_pos, expected_result, tainted",
@@ -61,6 +67,21 @@ def test_string_index(input_str, index_pos, expected_result, tainted):
         assert len(tainted_ranges) == 1
         assert tainted_ranges[0].start == 0
         assert tainted_ranges[0].length == 1
+
+
+def test_dictionary_index():
+    string_input = taint_pyobject(
+        pyobject="foobar",
+        source_name="test_dictionary_index",
+        source_value="foobar",
+        source_origin=OriginType.PARAMETER,
+    )
+    assert get_tainted_ranges(string_input)
+    d = {"a": string_input, "b": 2, "c": 3}
+    result = mod.do_index_on_dict(d, "a")
+    assert result == "foobar"
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
