@@ -115,7 +115,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
         if metadata:
-            span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
+            span.set_tag_str(METADATA, json.dumps(metadata, skipkeys=True, default=_unserializable_default_repr))
 
     def _llmobs_set_meta_tags_from_llm(
         self, span: Span, prompts: List[Any], completions: Any, err: bool = False, is_workflow: bool = False
@@ -135,7 +135,9 @@ class LangChainIntegration(BaseLLMIntegration):
         message_content = [{"content": ""}]
         if not err:
             message_content = [{"content": completion[0].text} for completion in completions.generations]
-        span.set_tag_str(output_tag_key, json.dumps(message_content, default=_unserializable_default_repr))
+        span.set_tag_str(
+            output_tag_key, json.dumps(message_content, skipkeys=True, default=_unserializable_default_repr)
+        )
 
     def _llmobs_set_meta_tags_from_chat_model(
         self,
@@ -162,7 +164,7 @@ class LangChainIntegration(BaseLLMIntegration):
                         "role": getattr(message, "role", ROLE_MAPPING.get(message.type, "")),
                     }
                 )
-        span.set_tag_str(input_tag_key, json.dumps(input_messages, default=_unserializable_default_repr))
+        span.set_tag_str(input_tag_key, json.dumps(input_messages, skipkeys=True, default=_unserializable_default_repr))
 
         output_messages = [{"content": ""}]
         if not err:
@@ -175,13 +177,13 @@ class LangChainIntegration(BaseLLMIntegration):
                         "content": str(chat_completion.text),
                         "role": role,
                     }
-
                     tool_calls_info = self._extract_tool_calls(chat_completion_msg)
                     if tool_calls_info:
                         output_message["tool_calls"] = tool_calls_info
-
                     output_messages.append(output_message)
-        span.set_tag_str(output_tag_key, json.dumps(output_messages, default=_unserializable_default_repr))
+        span.set_tag_str(
+            output_tag_key, json.dumps(output_messages, skipkeys=True, default=_unserializable_default_repr)
+        )
 
     def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
         """Extracts tool calls from a langchain chat completion."""
@@ -215,7 +217,8 @@ class LangChainIntegration(BaseLLMIntegration):
                     span.set_tag_str(INPUT_VALUE, formatted_inputs)
                 else:
                     span.set_tag_str(
-                        INPUT_VALUE, json.dumps(self.format_io(inputs), default=_unserializable_default_repr)
+                        INPUT_VALUE,
+                        json.dumps(self.format_io(inputs), skipkeys=True, default=_unserializable_default_repr),
                     )
             except TypeError:
                 log.warning("Failed to serialize chain input data to JSON")
@@ -228,7 +231,8 @@ class LangChainIntegration(BaseLLMIntegration):
                     span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
                 else:
                     span.set_tag_str(
-                        OUTPUT_VALUE, json.dumps(self.format_io(outputs), default=_unserializable_default_repr)
+                        OUTPUT_VALUE,
+                        json.dumps(self.format_io(outputs), skipkeys=True, default=_unserializable_default_repr),
                     )
             except TypeError:
                 log.warning("Failed to serialize chain output data to JSON")
@@ -259,14 +263,18 @@ class LangChainIntegration(BaseLLMIntegration):
                     formatted_str = (
                         formatted_inputs
                         if isinstance(formatted_inputs, str)
-                        else json.dumps(self.format_io(input_texts), default=_unserializable_default_repr)
+                        else json.dumps(
+                            self.format_io(input_texts), skipkeys=True, default=_unserializable_default_repr
+                        )
                     )
                     span.set_tag_str(input_tag_key, formatted_str)
                 else:
                     if isinstance(input_texts, str):
                         input_texts = [input_texts]
                     input_documents = [Document(text=str(doc)) for doc in input_texts]
-                    span.set_tag_str(input_tag_key, json.dumps(input_documents, default=_unserializable_default_repr))
+                    span.set_tag_str(
+                        input_tag_key, json.dumps(input_documents, skipkeys=True, default=_unserializable_default_repr)
+                    )
         except TypeError:
             log.warning("Failed to serialize embedding input data to JSON")
         if error:
@@ -325,7 +333,8 @@ class LangChainIntegration(BaseLLMIntegration):
                     documents.append(doc)
                 try:
                     span.set_tag_str(
-                        OUTPUT_DOCUMENTS, json.dumps(self.format_io(documents), default=_unserializable_default_repr)
+                        OUTPUT_DOCUMENTS,
+                        json.dumps(self.format_io(documents), skipkeys=True, default=_unserializable_default_repr),
                     )
                     # we set the value as well to ensure that the UI would display it in case the span was the root
                     span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
@@ -352,14 +361,15 @@ class LangChainIntegration(BaseLLMIntegration):
             if tool_inputs.get("info"):
                 metadata["tool_info"] = tool_inputs.get("info")
             if metadata:
-                span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
+                span.set_tag_str(METADATA, json.dumps(metadata, skipkeys=True, default=_unserializable_default_repr))
             try:
                 formatted_input = self.format_io(tool_input)
                 if isinstance(formatted_input, str):
                     span.set_tag_str(INPUT_VALUE, formatted_input)
                 else:
                     span.set_tag_str(
-                        INPUT_VALUE, json.dumps(self.format_io(tool_input), default=_unserializable_default_repr)
+                        INPUT_VALUE,
+                        json.dumps(self.format_io(tool_input), skipkeys=True, default=_unserializable_default_repr),
                     )
             except TypeError:
                 log.warning("Failed to serialize tool input data to JSON")
@@ -372,7 +382,8 @@ class LangChainIntegration(BaseLLMIntegration):
                     span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
                 else:
                     span.set_tag_str(
-                        OUTPUT_VALUE, json.dumps(self.format_io(tool_output), default=_unserializable_default_repr)
+                        OUTPUT_VALUE,
+                        json.dumps(self.format_io(tool_output), skipkeys=True, default=_unserializable_default_repr),
                     )
             except TypeError:
                 log.warning("Failed to serialize tool output data to JSON")
