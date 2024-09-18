@@ -839,14 +839,6 @@ def test_annotate_prompt_wrong_type(LLMObs, mock_logs):
         mock_logs.reset_mock()
 
 
-def test_annotate_prompt_wrong_kind(LLMObs, mock_logs):
-    with LLMObs.task(name="dummy") as span:
-        LLMObs.annotate(prompt={"variables": {"var1": "var1"}})
-        assert span.get_tag(INPUT_PROMPT) is None
-        mock_logs.warning.assert_called_once_with("Annotating prompts are only supported for LLM span kinds.")
-        mock_logs.reset_mock()
-
-
 def test_span_error_sets_error(LLMObs, mock_llmobs_span_writer):
     with pytest.raises(ValueError):
         with LLMObs.llm(model_name="test_model", model_provider="test_model_provider") as span:
@@ -1572,11 +1564,37 @@ def test_annotation_context_modifies_span_tags(LLMObs):
             assert json.loads(span.get_tag(TAGS)) == {"foo": "bar"}
 
 
-def test_annotation_context_finished_context_does_not_modify_spans(LLMObs):
+def test_annotation_context_modifies_prompt(LLMObs):
+    with LLMObs.annotation_context(prompt={"template": "test_template"}):
+        with LLMObs.llm(name="test_agent", model_name="test") as span:
+            assert json.loads(span.get_tag(INPUT_PROMPT)) == {"template": "test_template"}
+
+
+def test_annotation_context_modifies_name(LLMObs):
+    with LLMObs.annotation_context(name="test_agent_override"):
+        with LLMObs.llm(name="test_agent", model_name="test") as span:
+            assert span.name == "test_agent_override"
+
+
+def test_annotation_context_finished_context_does_not_modify_tags(LLMObs):
     with LLMObs.annotation_context(tags={"foo": "bar"}):
         pass
     with LLMObs.agent(name="test_agent") as span:
         assert span.get_tag(TAGS) is None
+
+
+def test_annotation_context_finished_context_does_not_modify_prompt(LLMObs):
+    with LLMObs.annotation_context(prompt={"template": "test_template"}):
+        pass
+    with LLMObs.llm(name="test_agent", model_name="test") as span:
+        assert span.get_tag(INPUT_PROMPT) is None
+
+
+def test_annotation_context_finished_context_does_not_modify_name(LLMObs):
+    with LLMObs.annotation_context(name="test_agent_override"):
+        pass
+    with LLMObs.agent(name="test_agent") as span:
+        assert span.name == "test_agent"
 
 
 def test_annotation_context_nested(LLMObs):
@@ -1592,11 +1610,37 @@ async def test_annotation_context_async_modifies_span_tags(LLMObs):
             assert json.loads(span.get_tag(TAGS)) == {"foo": "bar"}
 
 
-async def test_annotation_context_async_finished_context_does_not_modify_spans(LLMObs):
+async def test_annotation_context_async_modifies_prompt(LLMObs):
+    async with LLMObs.annotation_context(prompt={"template": "test_template"}):
+        with LLMObs.llm(name="test_agent", model_name="test") as span:
+            assert json.loads(span.get_tag(INPUT_PROMPT)) == {"template": "test_template"}
+
+
+async def test_annotation_context_async_modifies_name(LLMObs):
+    async with LLMObs.annotation_context(name="test_agent_override"):
+        with LLMObs.llm(name="test_agent", model_name="test") as span:
+            assert span.name == "test_agent_override"
+
+
+async def test_annotation_context_async_finished_context_does_not_modify_tags(LLMObs):
     async with LLMObs.annotation_context(tags={"foo": "bar"}):
         pass
     with LLMObs.agent(name="test_agent") as span:
         assert span.get_tag(TAGS) is None
+
+
+async def test_annotation_context_async_finished_context_does_not_modify_prompt(LLMObs):
+    async with LLMObs.annotation_context(prompt={"template": "test_template"}):
+        pass
+    with LLMObs.llm(name="test_agent", model_name="test") as span:
+        assert span.get_tag(INPUT_PROMPT) is None
+
+
+async def test_annotation_context_finished_context_async_does_not_modify_name(LLMObs):
+    async with LLMObs.annotation_context(name="test_agent_override"):
+        pass
+    with LLMObs.agent(name="test_agent") as span:
+        assert span.name == "test_agent"
 
 
 async def test_annotation_context_async_nested(LLMObs):

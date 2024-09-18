@@ -231,25 +231,21 @@ class LLMObs(Service):
 
     @classmethod
     def annotation_context(
-        cls,
-        tags: Optional[Dict[str, Any]] = None,
-        prompt: Optional[dict] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        cls, tags: Optional[Dict[str, Any]] = None, prompt: Optional[dict] = None, name: Optional[str] = None
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
-        Do not use nested annotation contexts to override attributes since the order in which annotations
+        Do not use annotation contexts to override attributes since the order in which annotations
         are applied is non-deterministic.
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
-        :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
-                    described by the LLMObs span.
-        :param prompt: A dictionary represents the prompt used for an LLM call in the following form:
+        :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                     {"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "value_1", ...}}
+        :param name: Set to override the span name for any spans annotated within the returned context.
         """
         return AnnotationContext(
-            cls._instance.tracer, lambda span: cls.annotate(span, tags=tags, prompt=prompt, metadata=metadata)
+            cls._instance.tracer, lambda span: cls.annotate(span, tags=tags, prompt=prompt, _name=name)
         )
 
     @classmethod
@@ -494,6 +490,7 @@ class LLMObs(Service):
         metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
         tags: Optional[Dict[str, Any]] = None,
+        _name: Optional[str] = None,
     ) -> None:
         """
         Sets parameters, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
@@ -545,15 +542,13 @@ class LLMObs(Service):
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
+        if _name is not None:
+            span.name = _name
+        if prompt is not None:
+            cls._tag_prompt(span, prompt)
         if not span_kind:
             log.debug("Span kind not specified, skipping annotation for input/output data")
             return
-        if prompt is not None:
-            if span_kind == "llm":
-                cls._tag_prompt(span, prompt)
-            else:
-                log.warning("Annotating prompts are only supported for LLM span kinds.")
-
         if input_data or output_data:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)

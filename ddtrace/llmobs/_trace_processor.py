@@ -86,8 +86,13 @@ class LLMObsTraceProcessor(TraceProcessor):
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
         if span_kind == "retrieval" and span.get_tag(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = json.loads(span._meta.pop(OUTPUT_DOCUMENTS))
-        if span_kind == "llm" and span.get_tag(INPUT_PROMPT) is not None:
-            meta["input"]["prompt"] = json.loads(span._meta.pop(INPUT_PROMPT))
+        if span.get_tag(INPUT_PROMPT) is not None:
+            if span_kind != "llm":
+                log.warning(
+                    "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
+                )
+            else:
+                meta["input"]["prompt"] = json.loads(span._meta.pop(INPUT_PROMPT))
         if span.error:
             meta[ERROR_MSG] = span.get_tag(ERROR_MSG)
             meta[ERROR_STACK] = span.get_tag(ERROR_STACK)
