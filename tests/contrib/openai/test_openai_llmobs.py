@@ -360,7 +360,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
-                model_provider="openai",
+                model_provider="azure_openai",
                 input_messages=[{"content": prompt}],
                 output_messages=[{"content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
@@ -390,7 +390,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
-                model_provider="openai",
+                model_provider="azure_openai",
                 input_messages=[{"content": prompt}],
                 output_messages=[{"content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
@@ -479,7 +479,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
-                model_provider="openai",
+                model_provider="azure_openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
@@ -509,7 +509,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
-                model_provider="openai",
+                model_provider="azure_openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},

@@ -153,7 +153,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
         span.set_tag_str(MODEL_NAME, model_name or "")
-        span.set_tag_str(MODEL_PROVIDER, "openai")
+        model_provider = "azure_openai" if self._is_azure_openai(span) else "openai"
+        span.set_tag_str(MODEL_PROVIDER, model_provider)
         if operation == "completion":
             self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_completions, span)
         elif operation == "chat":
