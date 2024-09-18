@@ -3,6 +3,7 @@ CAVEAT: the line number is important to some IAST tests, be careful to modify th
 make some changes
 """
 import os
+import re
 import sys
 
 
@@ -175,12 +176,33 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     else:
         string23 = string21
 
-    # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted_extend
-    string23 += "_extend"
+    re_slash = re.compile(r"[_.][a-zA-Z]*")
+    string24 = re_slash.findall(string23)[0]  # 1 propagation: '_HIROOT
+
+    re_match = re.compile(r"(\w+)", re.IGNORECASE)
+    re_match_result = re_match.match(string24)  # 1 propagation: 'HIROOT
+
+    string25 = re_match_result.group(0)  # 1 propagation: '_HIROOT
+
+    string25 = "DDDD" + string25  # 1 propagation: 'DDDD_HIROOT
+
+    re_match = re.compile(r"(\w+)(_+)(\w+)", re.IGNORECASE)
+    re_match_result = re_match.search(string25)
+    string26 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDDD_HIROOT
+
+    re_split = re.compile(r"[_.][a-zA-Z]*", re.IGNORECASE)
+    re_split_result = re_split.split(string26)
+
+    # TODO(avara1986): DDDD_ is constant but we're tainting all re results
+    string27 = re_split_result[0] + " EEE"
+    string28 = re.sub(r" EEE", "_OOO", string27, re.IGNORECASE)
+    string29 = re.subn(r"OOO", "III", string28, re.IGNORECASE)[0]
+
+    string29 += "_extend"
     try:
         # label propagation_memory_check
-        m = open(ROOT_DIR + "/" + string23 + ".txt")
+        m = open(ROOT_DIR + "/" + string29 + ".txt")
         _ = m.read()
     except Exception:
         pass
-    return string23
+    return string29

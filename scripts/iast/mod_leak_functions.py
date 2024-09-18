@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import subprocess
 
 import requests
@@ -67,6 +68,29 @@ def test_doit():
     string19 = os.path.normcase(string18)  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
     string20 = os.path.splitdrive(string19)[1]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
 
-    string20 += "_extend"
-    # expected = "notainted_HIROOT1234-HIROOT123_notainted_extend"  # noqa: F841
-    return string20
+    re_slash = re.compile(r"[_.][a-zA-Z]*")
+    string21 = re_slash.findall(string20)[0]  # 1 propagation: '_HIROOT
+
+    re_match = re.compile(r"(\w+)", re.IGNORECASE)
+    re_match_result = re_match.match(string21)  # 1 propagation: 'HIROOT
+
+    string22 = re_match_result.group(0)  # 1 propagation: '_HIROOT
+    # string22 = re_match_result.groups()[0]
+
+    string22 = "DDDD" + string22  # 1 propagation: 'DDDD_HIROOT
+
+    re_match = re.compile(r"(\w+)(_+)(\w+)", re.IGNORECASE)
+    re_match_result = re_match.search(string22)
+    string23 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDD_HIROOT
+
+    re_split = re.compile(r"[_.][a-zA-Z]*", re.IGNORECASE)
+    re_split_result = re_split.split(string23)
+
+    # TODO(avara1986): DDDD_ is constant but we're tainting all re results
+    string24 = re_split_result[0] + " EEE"
+    string25 = re.sub(r" EEE", "_OOO", string24, re.IGNORECASE)
+    string26 = re.subn(r"OOO", "III", string25, re.IGNORECASE)[0]
+
+    string26 += "_extend"
+
+    return string26
