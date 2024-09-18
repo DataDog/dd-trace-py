@@ -44,7 +44,6 @@ def patch_app(app, pin=None):
 
     # Patch apply_async
     trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
-    pin.onto(celery.app.task.Task)
 
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)
@@ -70,6 +69,7 @@ def unpatch_app(app):
 
     trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
     trace_utils.unwrap(celery.beat.Scheduler, "tick")
+    trace_utils.unwrap(celery.app.task.Task, "apply_async")
 
     signals.task_prerun.disconnect(trace_prerun)
     signals.task_postrun.disconnect(trace_postrun)
@@ -105,6 +105,7 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
 
 def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
     def _traced_apply_async_inner(func, instance, args, kwargs):
+
         with core.context_with_data("task_context"):
             try:
                 return func(*args, **kwargs)
@@ -112,5 +113,9 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
                 task_span = core.get_item("task_span")
                 if task_span:
                     task_span.finish()
+
+                prerun_span = core.get_item("prerun_span")
+                if prerun_span:
+                    prerun_span.finish()
 
     return _traced_apply_async_inner
