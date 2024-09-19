@@ -287,7 +287,7 @@ cdef class SampleHandle:
             class_name_bytes = ensure_binary_or_empty(class_name)
             ddup_push_class_name(self.ptr, string_view(<const char*>class_name_bytes, len(class_name_bytes)))
 
-    def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool, thread_id: int) -> None:
+    def push_span(self, span: Optional[Span]) -> None:
         if self.ptr is NULL:
             return
         if not span:
