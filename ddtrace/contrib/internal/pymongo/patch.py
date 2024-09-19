@@ -1,6 +1,7 @@
 import contextlib
 
 import pymongo
+import pymongo.pool
 
 from ddtrace import Pin
 from ddtrace import config
@@ -60,41 +61,41 @@ def unpatch():
 
 def patch_pymongo_module():
     _w(pymongo.MongoClient.__init__, _trace_mongo_client_init)
-    _w(pymongo.topology.Topology.select_server, _trace_topology_select_server)
+    _w(pymongo.synchronous.topology.Topology.select_server, _trace_topology_select_server)
     if _VERSION >= (3, 12):
-        _w(pymongo.server.Server.run_operation, _trace_server_run_operation_and_with_response)
+        _w(pymongo.synchronous.server.Server.run_operation, _trace_server_run_operation_and_with_response)
     elif _VERSION >= (3, 9):
-        _w(pymongo.server.Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
+        _w(pymongo.synchronous.server.Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
     else:
-        _w(pymongo.server.Server.send_message_with_response, _trace_server_send_message_with_response)
+        _w(pymongo.synchronous.server.Server.send_message_with_response, _trace_server_send_message_with_response)
 
     if _VERSION >= (4, 5):
-        _w(pymongo.server.Server.checkout, traced_get_socket)
+        _w(pymongo.synchronous.server.Server.checkout, traced_get_socket)
         _w(pymongo.pool.Connection.command, _trace_socket_command)
         _w(pymongo.pool.Connection.write_command, _trace_socket_write_command)
     else:
-        _w(pymongo.server.Server.get_socket, traced_get_socket)
+        _w(pymongo.synchronous.server.Server.get_socket, traced_get_socket)
         _w(pymongo.pool.SocketInfo.command, _trace_socket_command)
         _w(pymongo.pool.SocketInfo.write_command, _trace_socket_write_command)
 
 
 def unpatch_pymongo_module():
     _u(pymongo.MongoClient.__init__, _trace_mongo_client_init)
-    _u(pymongo.topology.Topology.select_server, _trace_topology_select_server)
+    _u(pymongo.synchronous.topology.Topology.select_server, _trace_topology_select_server)
 
     if _VERSION >= (3, 12):
-        _u(pymongo.server.Server.run_operation, _trace_server_run_operation_and_with_response)
+        _u(pymongo.synchronous.server.Server.run_operation, _trace_server_run_operation_and_with_response)
     elif _VERSION >= (3, 9):
-        _u(pymongo.server.Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
+        _u(pymongo.synchronous.server.Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
     else:
-        _u(pymongo.server.Server.send_message_with_response, _trace_server_send_message_with_response)
+        _u(pymongo.synchronous.server.Server.send_message_with_response, _trace_server_send_message_with_response)
 
     if _VERSION >= (4, 5):
-        _u(pymongo.server.Server.checkout, traced_get_socket)
+        _u(pymongo.synchronous.server.Server.checkout, traced_get_socket)
         _u(pymongo.pool.Connection.command, _trace_socket_command)
         _u(pymongo.pool.Connection.write_command, _trace_socket_write_command)
     else:
-        _u(pymongo.server.Server.get_socket, traced_get_socket)
+        _u(pymongo.synchronous.server.Server.get_socket, traced_get_socket)
         _u(pymongo.pool.SocketInfo.command, _trace_socket_command)
         _u(pymongo.pool.SocketInfo.write_command, _trace_socket_write_command)
 
