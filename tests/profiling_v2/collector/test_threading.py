@@ -143,10 +143,6 @@ def test_wrapt_disable_extensions():
 
     assert ddup.is_available, "ddup is not available"
 
-    # The tracer fixture doesn't seem to work with subprocess, so just import
-    # and enable the endpoint call counter span processor here.
-    tracer._endpoint_call_counter_span_processor.enable()
-
     # Set up the ddup exporter
     test_name = "test_wrapt_disable_extensions"
     pprof_prefix = "/tmp" + os.sep + test_name
