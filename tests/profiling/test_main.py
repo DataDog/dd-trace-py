@@ -2,7 +2,6 @@
 import multiprocessing
 import os
 import sys
-import time
 
 import pytest
 
@@ -113,6 +112,7 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
 )
 def test_memalloc_no_init_error_on_fork():
     import os
+    import time
 
     pid = os.fork()
     if not pid:
