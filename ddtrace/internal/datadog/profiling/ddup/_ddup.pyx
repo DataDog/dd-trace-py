@@ -46,6 +46,10 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_sample_type(unsigned int type)
 
     void ddup_start()
+    void ddup_set_runtime_id(string_view _id)
+    void ddup_profile_set_endpoint(uint64_t local_root_span_id, string_view trace_endpoint)
+    void ddup_profile_add_endpoint_count(string_view trace_endpoint, int64_t count)
+    bint ddup_upload() nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -61,16 +65,13 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
-    void ddup_profile_set_endpoint(uint64_t local_root_span_id, string_view trace_endpoint)
-    void ddup_profile_add_endpoint_count(string_view trace_endpoint, int64_t count)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
-    void ddup_set_runtime_id(string_view _id)
-    bint ddup_upload() nogil
+
 
 # Create wrappers for cython
 cdef call_ddup_config_service(bytes service):
