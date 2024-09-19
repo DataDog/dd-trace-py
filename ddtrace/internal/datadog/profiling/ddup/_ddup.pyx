@@ -170,10 +170,10 @@ def start() -> None:
 
 
 def upload() -> None:
-    processor = ddtrace.tracer._endpoint_call_counter_span_processor
     runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
 
+    processor = ddtrace.tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
     for endpoint, span_ids in endpoint_to_span_ids.items():
         endpoint_bytes = ensure_binary_or_empty(endpoint)
