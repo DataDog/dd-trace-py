@@ -1,7 +1,6 @@
 import contextlib
 
 import pymongo
-import pymongo.pool
 
 from ddtrace import Pin
 from ddtrace import config
@@ -71,12 +70,12 @@ def patch_pymongo_module():
 
     if _VERSION >= (4, 5):
         _w(pymongo.synchronous.server.Server.checkout, traced_get_socket)
-        _w(pymongo.pool.Connection.command, _trace_socket_command)
-        _w(pymongo.pool.Connection.write_command, _trace_socket_write_command)
+        _w(pymongo.synchronous.pool.Connection.command, _trace_socket_command)
+        _w(pymongo.synchronous.pool.Connection.write_command, _trace_socket_write_command)
     else:
         _w(pymongo.synchronous.server.Server.get_socket, traced_get_socket)
-        _w(pymongo.pool.SocketInfo.command, _trace_socket_command)
-        _w(pymongo.pool.SocketInfo.write_command, _trace_socket_write_command)
+        _w(pymongo.synchronous.pool.SocketInfo.command, _trace_socket_command)
+        _w(pymongo.synchronous.pool.SocketInfo.write_command, _trace_socket_write_command)
 
 
 def unpatch_pymongo_module():
@@ -92,12 +91,12 @@ def unpatch_pymongo_module():
 
     if _VERSION >= (4, 5):
         _u(pymongo.synchronous.server.Server.checkout, traced_get_socket)
-        _u(pymongo.pool.Connection.command, _trace_socket_command)
-        _u(pymongo.pool.Connection.write_command, _trace_socket_write_command)
+        _u(pymongo.synchronous.pool.Connection.command, _trace_socket_command)
+        _u(pymongo.synchronous.pool.Connection.write_command, _trace_socket_write_command)
     else:
         _u(pymongo.synchronous.server.Server.get_socket, traced_get_socket)
-        _u(pymongo.pool.SocketInfo.command, _trace_socket_command)
-        _u(pymongo.pool.SocketInfo.write_command, _trace_socket_write_command)
+        _u(pymongo.synchronous.pool.SocketInfo.command, _trace_socket_command)
+        _u(pymongo.synchronous.pool.SocketInfo.write_command, _trace_socket_write_command)
 
 
 @contextlib.contextmanager
