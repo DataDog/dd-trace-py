@@ -1484,7 +1484,7 @@ def test_llmobs_fork_create_span(monkeypatch):
 def test_llmobs_fork_submit_evaluation(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
-    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+    with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", api_key="test_api_key")
         pid = os.fork()
         if pid:  # parent
