@@ -286,6 +286,12 @@ _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=Execut
 _CONTEXT_CLASS = ExecutionContext
 
 
+def _reset_context():
+    """private function to reset the context. Only used in testing"""
+    global _CURRENT_CONTEXT
+    _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+
+
 def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
