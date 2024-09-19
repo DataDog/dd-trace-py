@@ -414,7 +414,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
      type: Integer
-     default: 500
+     default: 300
      description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
 
    DD_APPSEC_ENABLED:
@@ -452,7 +452,7 @@ The following environment variables for the tracer are supported:
          Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and
          each item can take `fnmatch` style wildcards, for example: ``*ssn*,*personalid*,*idcard*,*creditcard*``.
 
-   DD_HTTP_CLIENT_TAG_QUERY_STRING:
+   DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http client integrations.

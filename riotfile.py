@@ -101,9 +101,6 @@ venv = Venv(
         "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-        "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-        "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
-        "DD_CIVISIBILITY_ITR_ENABLED": "1",
         "DD_INJECTION_ENABLED": "1",
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
@@ -156,7 +153,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_memcheck",
-            pys=select_pys(min_version="3.8"),
+            pys=select_pys(min_version="3.9"),
             command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
             pkgs={
                 "requests": latest,
@@ -166,7 +163,7 @@ venv = Venv(
                 "psycopg2-binary": "~=2.9.9",
                 # Should be "pytest-memray": latest, but we need to pin to a specific commit in a fork
                 # while this PR gets merged: https://github.com/bloomberg/pytest-memray/pull/103
-                "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73": "",
+                "pytest-memray": "~=1.7.0",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -290,6 +287,7 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -401,6 +399,7 @@ venv = Venv(
             env={
                 "DD_TRACE_AGENT_URL": "http://ddagent:8126",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -754,8 +753,12 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
+                # ddtrace patches different methods for the following pymongo version:
+                # pymmongo<3.9, 3.9<=pymongo<3.12, 3.12<=pymongo<4.5, pymongo>=4.5
+                # To get full test coverage we must test all these version ranges
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.0", latest]}
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={"pymongo": ["~=3.8.0", "~=3.9.0", "~=3.11", "~=4.0", latest]},
                 ),
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
@@ -2109,6 +2112,24 @@ venv = Venv(
             },
         ),
         Venv(
+            name="avro",
+            pys=select_pys(min_version="3.7", max_version="3.12"),
+            command="pytest {cmdargs} tests/contrib/avro",
+            pkgs={
+                "avro": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
+            name="protobuf",
+            command="pytest {cmdargs} tests/contrib/protobuf",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pkgs={
+                "protobuf": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
@@ -2673,6 +2694,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_generativeai",
+            command="pytest {cmdargs} tests/contrib/google_generativeai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-generativeai": [latest],
+                "pillow": latest,
+            },
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
@@ -2938,6 +2969,7 @@ venv = Venv(
             env={"DD_PROFILING_ENABLE_ASSERTS": "1", "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1"},
             pkgs={
                 "gunicorn": latest,
+                "lz4": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177

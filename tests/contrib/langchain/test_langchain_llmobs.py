@@ -69,7 +69,6 @@ def _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role=N
             metadata=metadata,
             token_metrics={},
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
     )
 
@@ -81,7 +80,6 @@ def _assert_expected_llmobs_chain_span(span, mock_llmobs_span_writer, input_valu
         input_value=input_value if input_value is not None else mock.ANY,
         output_value=output_value if output_value is not None else mock.ANY,
         tags={"ml_app": "langchain_test"},
-        integration="langchain",
     )
     mock_llmobs_span_writer.enqueue.assert_any_call(expected_chain_span_event)
 
@@ -171,6 +169,14 @@ class BaseTestLLMObsLangchain:
 
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
+
+    @classmethod
+    def _invoke_tool(cls, tool, tool_input, config, mock_tracer):
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
+        if LANGCHAIN_VERSION > (0, 1):
+            tool.invoke(tool_input, config=config)
+        LLMObs.disable()
+        return mock_tracer.pop_traces()[0][0]
 
 
 @pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1), reason="These tests are for langchain < 0.1.0")
@@ -380,7 +386,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -406,7 +411,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -434,7 +438,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
             output_value="[1 document(s) retrieved]",
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
         assert mock_llmobs_span_writer.enqueue.call_count == 2
@@ -645,7 +648,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -672,7 +674,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -703,7 +704,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             ],
             output_value="[1 document(s) retrieved]",
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
 
@@ -751,7 +751,49 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 metadata={"temperature": 0.7},
                 token_metrics={},
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
+            )
+        )
+
+    def test_llmobs_base_tool_invoke(self, langchain_core, mock_llmobs_span_writer, mock_tracer):
+        if langchain_core is None:
+            pytest.skip("langchain-core not installed which is required for this test.")
+
+        from math import pi
+
+        from langchain_core.tools import StructuredTool
+
+        def circumference_tool(radius: float) -> float:
+            return float(radius) * 2.0 * pi
+
+        calculator = StructuredTool.from_function(
+            func=circumference_tool,
+            name="Circumference calculator",
+            description="Use this tool when you need to calculate a circumference using the radius of a circle",
+            return_direct=True,
+            response_format="content",
+        )
+
+        span = self._invoke_tool(
+            tool=calculator,
+            tool_input="2",
+            config={"test": "this is to test config"},
+            mock_tracer=mock_tracer,
+        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                span_kind="tool",
+                input_value="2",
+                output_value="12.566370614359172",
+                metadata={
+                    "tool_config": {"test": "this is to test config"},
+                    "tool_info": {
+                        "name": "Circumference calculator",
+                        "description": mock.ANY,
+                    },
+                },
+                tags={"ml_app": "langchain_test"},
             )
         )
 

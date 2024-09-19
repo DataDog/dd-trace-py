@@ -2,7 +2,7 @@ from typing import Optional  # noqa:F401
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -98,7 +98,7 @@ def _wrap_send(func, instance, args, kwargs):
         cfg = config.get_from(instance)
         analytics_enabled = cfg.get("analytics_enabled")
         if analytics_enabled:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))
+            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):

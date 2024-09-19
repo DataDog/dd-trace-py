@@ -27,6 +27,7 @@ PATCH_MODULES = {
     "aiomysql": True,
     "aredis": True,
     "asyncio": True,
+    "avro": True,
     "boto": True,
     "botocore": True,
     "bottle": True,
@@ -38,6 +39,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
+    "google_generativeai": True,
     "gevent": True,
     "graphql": True,
     "grpc": True,
@@ -138,6 +140,7 @@ _MODULES_FOR_CONTRIB = {
     "aws_lambda": ("datadog_lambda",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
+    "google_generativeai": ("google.generativeai",),
 }
 
 

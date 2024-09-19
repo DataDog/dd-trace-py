@@ -10,14 +10,6 @@ using namespace pybind11::literals;
 
 using namespace std;
 
-#define GET_HASH_KEY(hash) (hash & 0xFFFFFF)
-
-typedef struct _PyASCIIObject_State_Hidden
-{
-    unsigned int : 8;
-    unsigned int hidden : 24;
-} PyASCIIObject_State_Hidden;
-
 // Used to quickly exit on cases where the object is a non interned unicode
 // string and does not have the fast-taint mark on its internal data structure.
 // In any other case it will return false so the evaluation continue for (more
@@ -46,7 +38,7 @@ is_notinterned_notfasttainted_unicode(const PyObject* objptr)
     return hash == -1 || e->hidden != GET_HASH_KEY(hash);
 }
 
-// For non interned unicode strings, set a hidden mark on it's internsal data
+// For non interned unicode strings, set a hidden mark on it's internal data
 // structure that will allow us to quickly check if the string is not tainted
 // and thus skip further processing without having to search on the tainting map
 __attribute__((flatten)) void
@@ -65,14 +57,9 @@ set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
 }
 
 string
-PyObjectToString(PyObject* obj)
+AnyTextObjectToString(PyObject* py_string_like)
 {
-    const char* str = PyUnicode_AsUTF8(obj);
-
-    if (str == nullptr) {
-        return "";
-    }
-    return str;
+    return AnyTextObjectToString(py::handle(py_string_like));
 }
 
 PyObject*
