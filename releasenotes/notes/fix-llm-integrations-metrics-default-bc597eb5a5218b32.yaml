@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue in the OpenAI and LangChain integrations where agentless mode would still attempt to submit integration metrics.

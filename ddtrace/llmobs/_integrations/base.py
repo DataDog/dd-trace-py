@@ -59,9 +59,10 @@ class BaseLLMIntegration:
 
     @property
     def metrics_enabled(self) -> bool:
-        """Return whether submitting metrics is enabled for this integration, or global config if not set."""
-        env_metrics_enabled = asbool(os.getenv("DD_{}_METRICS_ENABLED".format(self._integration_name.upper())))
-        if not env_metrics_enabled and config._llmobs_agentless_enabled:
+        """
+        Return whether submitting metrics is enabled for this integration. Agentless mode disables submitting metrics.
+        """
+        if config._llmobs_agentless_enabled:
             return False
         if hasattr(self.integration_config, "metrics_enabled"):
             return asbool(self.integration_config.metrics_enabled)
@@ -69,7 +70,7 @@ class BaseLLMIntegration:
 
     @property
     def logs_enabled(self) -> bool:
-        """Return whether submitting logs is enabled for this integration, or global config if not set."""
+        """Return whether submitting logs is enabled for this integration."""
         if hasattr(self.integration_config, "logs_enabled"):
             return asbool(self.integration_config.logs_enabled)
         return False
@@ -80,17 +81,14 @@ class BaseLLMIntegration:
         return LLMObs.enabled
 
     def is_pc_sampled_span(self, span: Span) -> bool:
-        if span.context.sampling_priority is not None:
-            if span.context.sampling_priority <= 0:
-                return False
+        if span.context.sampling_priority and span.context.sampling_priority <= 0:
+            return False
         return self._span_pc_sampler.sample(span)
 
     def is_pc_sampled_log(self, span: Span) -> bool:
-        if span.context.sampling_priority is not None:
-            if span.context.sampling_priority <= 0:
-                return False
-
         if not self.logs_enabled:
+            return False
+        if span.context.sampling_priority and span.context.sampling_priority <= 0:
             return False
         return self._log_pc_sampler.sample(span)
 
