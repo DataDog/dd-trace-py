@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 
 import ddtrace
@@ -122,3 +123,12 @@ def _unserializable_default_repr(obj):
     default_repr = "[Unserializable object: {}]".format(repr(obj))
     log.warning("I/O object is not JSON serializable. Defaulting to placeholder value instead.")
     return default_repr
+
+
+def safe_json(obj):
+    if isinstance(obj, str):
+        return obj
+    try:
+        return json.dumps(obj, skipkeys=True, default=_unserializable_default_repr)
+    except Exception:
+        log.error("Failed to serialize object to JSON.", exc_info=True)
