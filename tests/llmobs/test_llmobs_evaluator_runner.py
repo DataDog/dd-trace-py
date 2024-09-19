@@ -130,3 +130,24 @@ with mock.patch(
     assert status == 0, err
     assert out == b""
     assert err == b""
+
+
+def test_evaluator_runner_sampler_init():
+    # sampler = EvaluatorSampler()
+    # assert sampler.rules == []
+    # assert (
+    #     sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+    # ), "EvaluatorSampler initialized with no arguments should hold a RateLimiter with the default limit"
+    pass
+
+
+def test_evaluator_runner_sampler_parse_rules_from_env():
+    pass
+
+
+def test_evaluator_runner_sampler_no_rules():
+    pass
+
+
+def test_evaluator_sampling_rule_matches():
+    pass

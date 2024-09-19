@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+# from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.sampling_rule import SamplingRule
 
 
@@ -29,21 +30,20 @@ class EvaluatorSamplingRule(SamplingRule):
                 return False
         return True
 
-    def __call__(self, span):
-        if self.span_name == span.get("name"):
-            return True
-        return False
-
     def __repr__(self):
         return "EvaluatorSamplingRule(sample_rate={}, evaluator_label={}, span_name={})".format(
             self.sample_rate, self.evaluator_name, self.span_name
         )
+
+    __str__ = __repr__
 
 
 class EvaluatorSampler:
     def __init__(self):
         self.sampling_rules = []
         self.sampling_rules = self.parse_rules()
+        # self.limiter = RateLimiter(rate_limit)
+
         self.default_sampling_rule = SamplingRule(float(os.getenv("_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE", 1)))
 
     def sample(self, evaluator_label, span):
