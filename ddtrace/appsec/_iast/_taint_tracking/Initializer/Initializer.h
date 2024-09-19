@@ -25,14 +25,14 @@ class Initializer
     // keys and values are the same pointer.
     unordered_map<TaintRangeMapType*, TaintRangeMapTypePtr> active_map_addreses;
     unordered_map<string, py::object> imported_cache;
-
-    void import_symbols_into_cache();
+    mutex imported_cache_mutex;
 
   public:
     /**
      * Constructor for the Initializer class.
      */
     Initializer();
+    ~Initializer();
 
     /**
      * Creates a new taint range map.
