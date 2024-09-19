@@ -141,8 +141,7 @@ class BaseLLMObsWriter(PeriodicService):
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
 
-    def recreate(self):
-        # type: () -> BaseLLMObsWriter
+    def recreate(self) -> BaseLLMObsWriter:
         return self.__class__(
             site=self._site,
             api_key=self._api_key,
