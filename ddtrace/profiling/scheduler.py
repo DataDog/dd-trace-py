@@ -7,7 +7,6 @@ from typing import List
 from typing import Optional
 from typing import Sequence  # noqa F401
 
-from ddtrace import tracer
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
