@@ -309,8 +309,8 @@ ddup_upload() // cppcheck-suppress unusedFunction
 }
 
 void
-ddup_push_trace_endpoint(uint64_t local_root_span_id,
-                         std::string_view trace_endpoint) // cppcheck-suppress unusedFunction
+ddup_profile_set_endpoint(uint64_t local_root_span_id,
+                          std::string_view trace_endpoint) // cppcheck-suppress unusedFunction
 {
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
@@ -329,7 +329,7 @@ ddup_push_trace_endpoint(uint64_t local_root_span_id,
 }
 
 void
-ddup_push_endpoint_count(std::string_view trace_endpoint, int64_t count)
+ddup_profile_add_endpoint_count(std::string_view trace_endpoint, int64_t count)
 {
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);

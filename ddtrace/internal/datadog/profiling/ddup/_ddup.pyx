@@ -62,8 +62,8 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
-    void ddup_push_trace_endpoint(uint64_t local_root_span_id, string_view trace_endpoint)
-    void ddup_push_endpoint_count(string_view trace_endpoint, int64_t count)
+    void ddup_profile_set_endpoint(uint64_t local_root_span_id, string_view trace_endpoint)
+    void ddup_profile_add_endpoint_count(string_view trace_endpoint, int64_t count)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
@@ -179,7 +179,7 @@ def upload(processsor: EndpointCallCounterProcessor) -> None:
     for span_id, resource in span_ids.items():
         resource_bytes = ensure_binary_or_empty(resource)
         span_id = clamp_to_uint64_unsigned(span_id)
-        ddup_push_trace_endpoint(
+        ddup_profile_set_endpoint(
             span_id,
             string_view(<const char*>resource_bytes, len(resource_bytes)),
         )
@@ -187,8 +187,8 @@ def upload(processsor: EndpointCallCounterProcessor) -> None:
     for resource, cnt in counts.items():
         resource_bytes = ensure_binary_or_empty(resource)
         cnt = clamp_to_int64_unsigned(cnt)
-        print("ddup_push_endpoint_count", resource_bytes, cnt)
-        ddup_push_endpoint_count(
+        print("ddup_profile_add_endpoint_count", resource_bytes, cnt)
+        ddup_profile_add_endpoint_count(
             string_view(<const char*>resource_bytes, len(resource_bytes)),
             cnt
         )
