@@ -87,6 +87,6 @@ def _add_random_suffix(*, prefix: str, minimum_length: int) -> str:
     if len(prefix) >= minimum_length:
         return prefix
 
-    suffix = "".join(random.choice("0123456789abcdef") for _ in range(minimum_length - len(prefix)))
+    suffix = "".join(random.choice("0123456789abcdef") for _ in range(minimum_length - len(prefix)))  # nosec
 
     return prefix + suffix
