@@ -458,8 +458,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         except ValueError:
             traces = self.pop_traces()
             assert 1 == len(traces)
-            assert traces[0][0].name == 'celery.apply'
-
+            assert traces[0][0].name == "celery.apply"
 
     def test_shared_task(self):
         # Ensure Django Shared Task are supported

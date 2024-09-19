@@ -21,6 +21,7 @@ from ddtrace.pin import _DD_PIN_NAME
 
 log = get_logger(__name__)
 
+
 def patch_app(app, pin=None):
     """Attach the Pin class to the application and connect
     our handlers to Celery signals.
@@ -114,12 +115,17 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
             finally:
                 task_span = core.get_item("task_span")
                 if task_span:
-                    log.debug("The after_task_publish signal was not called, so manually closing span: %s", task_span._pprint())
+                    log.debug(
+                        "The after_task_publish signal was not called, so manually closing span: %s",
+                        task_span._pprint(),
+                    )
                     task_span.finish()
 
                 prerun_span = core.get_item("prerun_span")
                 if prerun_span:
-                    log.debug("The task_postrun signal was not called, so manually closing span: %s", prerun_span._pprint())
+                    log.debug(
+                        "The task_postrun signal was not called, so manually closing span: %s", prerun_span._pprint()
+                    )
                     prerun_span.finish()
 
     return _traced_apply_async_inner
