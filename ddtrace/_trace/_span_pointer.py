@@ -56,29 +56,9 @@ class _SpanPointer(SpanLink):
         pass
 
 
-class _StandardHashingRules:
-    # This is a bit of a strange class. Its instances behave like simple
-    # function. This allows us to do the hex_digits calculation once. It also
-    # allows us to write tests for the chosen base_hashing_function instead of
-    # having to add runtime sanity checks. This class should be instantiated
-    # only once, internally, and the result stored as a the
-    # _standard_hashing_function "function" below.
+def _standard_hashing_function(*elements: bytes) -> str:
+    if not elements:
+        raise ValueError("elements must not be empty")
 
-    def __init__(self):
-        self.separator = b"|"
-
-        self.bits_per_hex_digit = 4
-        self.desired_bits = 128
-
-        self.hex_digits = self.desired_bits // self.bits_per_hex_digit
-
-        self.base_hashing_function = sha256
-
-    def __call__(self, *elements: bytes) -> str:
-        if not elements:
-            raise ValueError("elements must not be empty")
-
-        return self.base_hashing_function(self.separator.join(elements)).hexdigest()[: self.hex_digits]
-
-
-_standard_hashing_function = _StandardHashingRules()
+    # Please see the tests for more details about this logic.
+    return sha256(b"|".join(elements)).hexdigest()[:32]

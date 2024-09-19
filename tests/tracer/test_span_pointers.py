@@ -1,3 +1,4 @@
+from hashlib import sha256
 from typing import List
 from typing import NamedTuple
 
@@ -36,13 +37,26 @@ class TestStandardHashingFunction:
     def test_normal_hashing(self, test_case: HashingCase) -> None:
         assert _standard_hashing_function(*test_case.elements) == test_case.result
 
-    def test_validate_hashing_rules(self) -> None:
-        hex_digits_per_byte = 2
-        desired_bytes = _standard_hashing_function.hex_digits // hex_digits_per_byte
+    def test_validate_hash_size(self) -> None:
+        bits_per_hex_digit = 4
+        desired_bits = 128
 
-        bytes_in_digest = _standard_hashing_function.base_hashing_function().digest_size
+        expected_hex_digits = desired_bits // bits_per_hex_digit
 
-        assert bytes_in_digest >= desired_bytes
+        assert len(_standard_hashing_function(b"foo")) == expected_hex_digits
+
+    def test_validate_using_sha256_with_pipe_separator(self) -> None:
+        # We want this test to break if we change the logic of the standard
+        # function in any interesting way. If we want to change this behavior
+        # in the future, we'll need to make a new version of the standard
+        # hashing function.
+
+        bits_per_hex_digit = 4
+        desired_bits = 128
+
+        hex_digits = desired_bits // bits_per_hex_digit
+
+        assert _standard_hashing_function(b"foo", b"bar") == sha256(b"foo|bar").hexdigest()[:hex_digits]
 
     def test_hashing_requries_arguments(self) -> None:
         with pytest.raises(ValueError, match="elements must not be empty"):
