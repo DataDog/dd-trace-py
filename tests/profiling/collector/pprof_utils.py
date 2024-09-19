@@ -33,8 +33,29 @@ class LockEventType(Enum):
     RELEASE = 2
 
 
+class EventBaseClass:
+    def __init__(
+        self,
+        span_id: typing.Optional[int] = None,
+        local_root_span_id: typing.Optional[int] = None,
+        trace_type: typing.Optional[str] = None,
+        trace_endpoint: typing.Optional[str] = None,
+    ):
+        self.span_id = reinterpret_int_as_int64(clamp_to_uint64(span_id)) if span_id else None
+        self.local_root_span_id = (
+            reinterpret_int_as_int64(clamp_to_uint64(local_root_span_id)) if local_root_span_id else None
+        )
+        self.trace_type = trace_type
+        self.trace_endpoint = trace_endpoint
+
+
+class StackEvent(EventBaseClass):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
 # A simple class to hold the expected attributes of a lock sample.
-class LockEvent:
+class LockEvent(EventBaseClass):
     def __init__(
         self,
         event_type: LockEventType,
@@ -42,26 +63,23 @@ class LockEvent:
         filename: str,
         linenos: LineNo,
         lock_name: typing.Union[str, None] = None,
-        span_id=None,
-        trace_endpoint=None,
-        trace_type=None,
         task_id: typing.Union[int, None] = None,
         task_name: typing.Union[str, None] = None,
         thread_id: typing.Union[int, None] = None,
         thread_name: typing.Union[str, None] = None,
+        *args,
+        **kwargs,
     ):
         self.event_type = event_type
         self.caller_name = caller_name
         self.filename = filename
         self.linenos = linenos
         self.lock_name = lock_name
-        self.span_id = reinterpret_int_as_int64(clamp_to_uint64(span_id)) if span_id else None
-        self.trace_endpoint = trace_endpoint
-        self.trace_type = trace_type
         self.task_id = task_id
         self.task_name = task_name
         self.thread_id = thread_id
         self.thread_name = thread_name
+        super().__init__(*args, **kwargs)
 
 
 class LockAcquireEvent(LockEvent):
@@ -97,8 +115,12 @@ def get_samples_with_value_type(profile: pprof_pb2.Profile, value_type: str) -> 
     return [sample for sample in profile.sample if sample.value[value_type_idx] > 0]
 
 
+def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> typing.List[pprof_pb2.Sample]:
+    return [sample for sample in profile.sample if get_label_with_key(profile.string_table, sample, key)]
+
+
 def get_label_with_key(string_table: typing.Dict[int, str], sample: pprof_pb2.Sample, key: str) -> pprof_pb2.Label:
-    return next(label for label in sample.label if string_table[label.key] == key)
+    return next((label for label in sample.label if string_table[label.key] == key), None)
 
 
 def get_location_with_id(profile: pprof_pb2.Profile, location_id: int) -> pprof_pb2.Location:
@@ -150,6 +172,36 @@ def assert_lock_events(
         assert_lock_events_of_type(profile, expected_release_events, LockEventType.RELEASE)
 
 
+def assert_base_event(profile, sample: pprof_pb2.Sample, expected_event: EventBaseClass):
+    if expected_event.span_id is not None:
+        span_id_label = get_label_with_key(profile.string_table, sample, "span id")
+        assert span_id_label.num == expected_event.span_id, "Expected span_id {} got {}".format(
+            expected_event.span_id, span_id_label.num
+        )
+
+    if expected_event.local_root_span_id is not None:
+        local_root_span_id_label = get_label_with_key(profile.string_table, sample, "local root span id")
+        assert (
+            local_root_span_id_label.num == expected_event.local_root_span_id
+        ), "Expected local_root_span_id {} got {}".format(
+            expected_event.local_root_span_id, local_root_span_id_label.num
+        )
+
+    if expected_event.trace_type is not None:
+        trace_type_label = get_label_with_key(profile.string_table, sample, "trace type")
+        assert (
+            profile.string_table[trace_type_label.str] == expected_event.trace_type
+        ), "Expected trace_type {} got {}".format(expected_event.trace_type, profile.string_table[trace_type_label.str])
+
+    if expected_event.trace_endpoint is not None:
+        trace_endpoint_label = get_label_with_key(profile.string_table, sample, "trace endpoint")
+        assert (
+            profile.string_table[trace_endpoint_label.str] == expected_event.trace_endpoint
+        ), "Expected trace endpoint {} got {}".format(
+            expected_event.trace_endpoint, profile.string_table[trace_endpoint_label.str]
+        )
+
+
 def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEvent):
     # Check that the sample has label "lock name" with value
     # filename:self.lock_linenos.create:lock_name
@@ -183,26 +235,6 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
             expected_event.linenos.release, line.line
         )
 
-    if expected_event.span_id is not None:
-        span_id_label = get_label_with_key(profile.string_table, sample, "span id")
-        assert span_id_label.num == expected_event.span_id, "Expected span_id {} got {}".format(
-            expected_event.span_id, span_id_label.num
-        )
-
-    if expected_event.trace_type is not None:
-        trace_type_label = get_label_with_key(profile.string_table, sample, "trace type")
-        assert (
-            profile.string_table[trace_type_label.str] == expected_event.trace_type
-        ), "Expected trace_type {} got {}".format(expected_event.trace_type, profile.string_table[trace_type_label.str])
-
-    if expected_event.trace_endpoint is not None:
-        trace_endpoint_label = get_label_with_key(profile.string_table, sample, "trace endpoint")
-        assert (
-            profile.string_table[trace_endpoint_label.str] == expected_event.trace_endpoint
-        ), "Expected trace endpoint {} got {}".format(
-            expected_event.trace_endpoint, profile.string_table[trace_endpoint_label.str]
-        )
-
     if expected_event.task_id is not None:
         task_id_label = get_label_with_key(profile.string_table, sample, "task id")
         assert task_id_label.num == expected_event.task_id, "Expected task_id {} got {}".format(
@@ -229,3 +261,9 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
         ), "Expected thread_name {} got {}".format(
             expected_event.thread_name, profile.string_table[thread_name_label.str]
         )
+
+    assert_base_event(profile, sample, expected_event)
+
+
+def assert_stack_event(profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
+    assert_base_event(profile, sample, expected_event)
