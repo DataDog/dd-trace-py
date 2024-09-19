@@ -235,7 +235,7 @@ class LLMObs(Service):
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
-        Do not use annotation contexts to override attributes since the order in which annotations
+        Do not use nested annotation contexts to override the same attributes since the order in which annotations
         are applied is non-deterministic.
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
