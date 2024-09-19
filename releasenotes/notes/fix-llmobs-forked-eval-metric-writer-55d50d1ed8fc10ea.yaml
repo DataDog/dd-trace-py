@@ -2,5 +2,5 @@
 fixes:
   - |
     LLM Observability: This fix resolves an issue where LLM Observability evaluation metrics were not being submitted 
-    in forked processes, The LLM Observability evaluation metric writer thread now automatically restarts  when a forked 
+    in forked processes. The evaluation metric writer thread now automatically restarts when a forked 
     process is detected.
