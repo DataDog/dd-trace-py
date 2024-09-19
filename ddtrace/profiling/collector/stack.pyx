@@ -453,7 +453,6 @@ class _ThreadSpanLinks(_thread_span_links_base):
         :return: A set with the active spans.
         """
         active_span = self.get_object(thread_id)
-
         if active_span is not None and not active_span.finished:
             return active_span
         return None
