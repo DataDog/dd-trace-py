@@ -133,7 +133,6 @@ def test_wrapt_disable_extensions():
     import os
     import threading
 
-    from ddtrace import tracer
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import _lock
     from ddtrace.profiling.collector import threading as collector_threading
