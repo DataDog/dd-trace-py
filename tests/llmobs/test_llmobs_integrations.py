@@ -71,14 +71,14 @@ def test_integration_logs_enabled(mock_integration_config):
     assert integration.logs_enabled is True
 
 
-def test_integration_llmobs_enabled(mock_integration_config):
-    with mock.patch("ddtrace.llmobs._integrations.base.LLMObs") as mock_llmobs:
-        mock_llmobs.enabled = True
-        integration = BaseLLMIntegration(mock_integration_config)
-        assert integration.llmobs_enabled is True
-        mock_llmobs.enabled = False
-        integration = BaseLLMIntegration(mock_integration_config)
-        assert integration.llmobs_enabled is False
+@mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
+def test_integration_llmobs_enabled(mock_llmobs, mock_integration_config):
+    mock_llmobs.enabled = True
+    integration = BaseLLMIntegration(mock_integration_config)
+    assert integration.llmobs_enabled is True
+    mock_llmobs.enabled = False
+    integration = BaseLLMIntegration(mock_integration_config)
+    assert integration.llmobs_enabled is False
 
 
 def test_pc_span_sampling(mock_integration_config, mock_pin):
@@ -109,41 +109,52 @@ def test_pc_span_sampling_log(mock_integration_config, mock_pin):
         assert integration.is_pc_sampled_log(mock_span) is False
 
 
-def test_pc_span_sampling_llmobs(mock_integration_config, mock_pin):
-    with mock.patch("ddtrace.llmobs._integrations.base.LLMObs") as mock_llmobs:
-        mock_llmobs.enabled = True
-        integration = BaseLLMIntegration(mock_integration_config)
-        integration.pin = mock_pin
-        with mock_pin.tracer.trace("Dummy span") as mock_span:
-            assert integration.is_pc_sampled_llmobs(mock_span) is True
-        mock_llmobs.enabled = False
-        integration = BaseLLMIntegration(mock_integration_config)
-        integration.pin = mock_pin
-        with mock_pin.tracer.trace("Dummy span") as mock_span:
-            assert integration.is_pc_sampled_llmobs(mock_span) is False
+@mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
+def test_pc_span_sampling_llmobs(mock_llmobs, mock_integration_config, mock_pin):
+    mock_llmobs.enabled = True
+    integration = BaseLLMIntegration(mock_integration_config)
+    integration.pin = mock_pin
+    with mock_pin.tracer.trace("Dummy span") as mock_span:
+        assert integration.is_pc_sampled_llmobs(mock_span) is True
+    mock_llmobs.enabled = False
+    integration = BaseLLMIntegration(mock_integration_config)
+    integration.pin = mock_pin
+    with mock_pin.tracer.trace("Dummy span") as mock_span:
+        assert integration.is_pc_sampled_llmobs(mock_span) is False
 
 
-def test_log_writer_started(mock_integration_config):
-    with mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter") as mock_log_writer:
-        mock_integration_config.logs_enabled = True
-        _ = BaseLLMIntegration(mock_integration_config)
-        mock_log_writer().start.assert_called_once()
+@mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter")
+def test_log_writer_started(mock_log_writer, mock_integration_config):
+    mock_integration_config.logs_enabled = True
+    _ = BaseLLMIntegration(mock_integration_config)
+    mock_log_writer().start.assert_called_once()
 
-        mock_log_writer.reset_mock()
-        mock_integration_config.logs_enabled = False
-        _ = BaseLLMIntegration(mock_integration_config)
-        mock_log_writer().start.assert_not_called()
+    mock_log_writer.reset_mock()
+    mock_integration_config.logs_enabled = False
+    _ = BaseLLMIntegration(mock_integration_config)
+    mock_log_writer().start.assert_not_called()
 
 
-def test_log_enqueues_log_writer(mock_integration_config):
+@mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter")
+def test_log_enqueues_log_writer(mock_log_writer, mock_integration_config):
     span = DummyTracer().trace("Dummy span", service="dummy_service")
-    with mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter") as mock_log_writer:
-        mock_integration_config.logs_enabled = True
-        integration = BaseLLMIntegration(mock_integration_config)
-        integration.log(span, "level", "message", {"DummyKey": "DummyValue"})
-        mock_log_writer().enqueue.assert_called_once_with(
-            {"timestamp": mock.ANY, "message": "message", "hostname": mock.ANY, "ddsource": "baseLLM", "service": "dummy_service", "status": "level", "ddtags": mock.ANY, "dd.span_id": str(span.span_id), "dd.trace_id": "{:x}".format(span.trace_id), "DummyKey": "DummyValue"}
-        )
+    mock_integration_config.logs_enabled = True
+    integration = BaseLLMIntegration(mock_integration_config)
+    integration.log(span, "level", "message", {"DummyKey": "DummyValue"})
+    mock_log_writer().enqueue.assert_called_once_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "message",
+            "hostname": mock.ANY,
+            "ddsource": "baseLLM",
+            "service": "dummy_service",
+            "status": "level",
+            "ddtags": mock.ANY,
+            "dd.span_id": str(span.span_id),
+            "dd.trace_id": "{:x}".format(span.trace_id),
+            "DummyKey": "DummyValue",
+        }
+    )
 
 
 def test_metric_calls_statsd_client(mock_integration_config, monkeypatch):
