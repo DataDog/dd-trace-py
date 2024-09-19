@@ -50,7 +50,7 @@ To test this feature locally use the provided `docker-compose.yml`.
 export DDTRACE_PYTHON_VERSION=v1.16.1
 export APP_CONTEXT=$REPO_ROOT/tests/lib-injection/dd-lib-python-init-test-django
 export TEMP_DIR="/tmp/ddtrace"
-rm -rf $TEMP_DIR && docker-compose up --build lib_inject && docker-compose up --build
+rm -rf $TEMP_DIR && docker compose up --build lib_inject && docker compose up --build
 ```
 
 Note that the `lib_inject` step is separate to ensure the files are copied to the volume before the app starts up.
