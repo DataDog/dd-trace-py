@@ -3,7 +3,7 @@ import time
 
 import mock
 import pytest
-
+from ddtrace import Span
 from ddtrace.llmobs._evaluators.ragas.faithfulness import dummy_run
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
@@ -12,6 +12,7 @@ from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric"
 DD_SITE = "datad0g.com"
 dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
+DUMMY_SPAN = Span("dummy_span")
 
 
 def _categorical_metric_event():
@@ -46,7 +47,7 @@ def _dummy_ragas_eval_metric_event(span_id, trace_id):
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,
         metric_type="score",
-        label="dummy.ragas.faithfulness",
+        label="ragas_faithfulness",
     )
 
 
@@ -59,7 +60,7 @@ def test_evaluator_runner_start(mock_evaluator_logs):
 def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
     evaluator_runner = EvaluatorRunner(interval=0.01, _evaluation_metric_writer=mock.MagicMock())
     for _ in range(1001):
-        evaluator_runner.enqueue({})
+        evaluator_runner.enqueue({}, DUMMY_SPAN)
     mock_evaluator_logs.warning.assert_called_with(
         "%r event buffer full (limit is %d), dropping event", "EvaluatorRunner", 1000
     )
@@ -68,7 +69,7 @@ def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
 def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
     evaluator_runner = EvaluatorRunner(interval=0.01, _evaluation_metric_writer=mock_llmobs_eval_metric_writer)
     evaluator_runner.evaluators.append(dummy_run)
-    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
+    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
     evaluator_runner.periodic()
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
         _dummy_ragas_eval_metric_event(span_id="123", trace_id="1234")
@@ -81,7 +82,7 @@ def test_ragas_faithfulness_evaluator_timed_enqueues_eval_metric(LLMObs, mock_ll
     evaluator_runner.evaluators.append(dummy_run)
     evaluator_runner.start()
 
-    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
+    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
 
     time.sleep(0.1)
 
