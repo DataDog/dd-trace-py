@@ -281,9 +281,8 @@ class LangChainIntegration(BaseLLMIntegration):
         if input_query is not None:
             formatted_inputs = self.format_io(input_query)
             span.set_tag_str(INPUT_VALUE, safe_json(formatted_inputs))
-        if error:
+        if error or output_documents is None:
             span.set_tag_str(OUTPUT_VALUE, "")
-        elif not isinstance(output_documents, list):
             return
         if is_workflow:
             span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
