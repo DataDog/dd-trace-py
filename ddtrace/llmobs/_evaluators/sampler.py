@@ -3,9 +3,16 @@ import os
 from typing import List
 from typing import Optional
 
+from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampling_rule import SamplingRule
 
+
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
 
 logger = get_logger(__name__)
 
@@ -48,27 +55,26 @@ class EvaluatorSampler:
 
     def parse_rules(self) -> List[SamplingRule]:
         sampling_rules_str = os.getenv("_DD_LLMOBS_EVALUATOR_SAMPLING_RULES")
-        if sampling_rules_str is not None:
-            try:
-                sampling_rules = json.loads(sampling_rules_str)
-                if not isinstance(sampling_rules, list):
-                    raise TypeError("Sampling rules must be a list of dictionaries")
-                for rule in sampling_rules:
-                    if not isinstance(rule, dict):
-                        raise TypeError("Sampling rules must be a list of dictionaries")
-                    sample_rate = rule.get("sample_rate")
-                    if not sample_rate:
-                        raise TypeError("Sampling rules must have a sample rate")
-
-                    evaluator = rule.get("evaluator")
-                    if rule.get("evaluator") is not None and not isinstance(evaluator, str):
-                        raise TypeError("'evaluator' key in sampling rule must have string value")
-
-                    span_name = rule.get("name")
-                    if span_name is not None and not isinstance(span_name, str):
-                        raise TypeError("'name' key in sampling rule must have string value")
-
-                    self.sampling_rules.append(EvaluatorSamplingRule(sample_rate, evaluator, span_name))
-            except TypeError:
-                logger.error("Failed to parse sampling rules with error: ", exc_info=True)
+        if not sampling_rules_str:
+            return []
+        try:
+            json_rules = json.loads(sampling_rules_str)
+        except JSONDecodeError:
+            if config._raise:
+                raise ValueError("Unable to parse _DD_LLMOBS_EVALUATOR_SAMPLING_RULES")
+            logger.warning("Failed to parse evaluator sampling rules with error: ", exc_info=True)
+            return []
+        if not isinstance(json_rules, list):
+            if config._raise:
+                raise ValueError("Evaluator sampling rules must be a list of dictionaries")
+            return []
+        for rule in json_rules:
+            if "sample_rate" not in rule:
+                if config._raise:
+                    raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
+                continue
+            sample_rate = float(rule["sample_rate"])
+            name = rule.get("name", SamplingRule.NO_RULE)
+            evaluator_label = rule.get("evaluator_label", SamplingRule.NO_RULE)
+            self.sampling_rules.append(EvaluatorSamplingRule(sample_rate, evaluator_label, name))
         return []
