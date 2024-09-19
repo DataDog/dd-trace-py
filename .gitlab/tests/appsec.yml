@@ -26,9 +26,11 @@ appsec iast tdd_propagation:
 
 appsec iast memcheck:
   extends: .test_base_riot_snapshot
-  parallel: 5
+  parallel: 4
   variables:
     SUITE_NAME: "appsec_iast_memcheck"
+    CI_DEBUG_TRACE: "true" 
+    PYTEST_ADDOPTS: "-v -s" 
   retry: 2
 
 appsec threats django:
@@ -50,4 +52,19 @@ appsec threats fastapi:
   parallel: 9
   variables:
     SUITE_NAME: "appsec_threats_fastapi"
+  retry: 2
+
+appsec aggregated leak testing:
+  extends: .test_base_hatch
+  parallel: 4
+  variables:
+    SUITE_NAME: "appsec_aggregated_leak_testing"
+  retry: 2
+  timeout: 25m
+
+appsec iast native:
+  extends: .test_base_hatch
+  parallel: 6
+  variables:
+    SUITE_NAME: "appsec_iast_native"
   retry: 2

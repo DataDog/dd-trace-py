@@ -186,6 +186,7 @@ commands:
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                  DD_CIVISIBILITY_AGENTLESS_ENABLED: true
                 no_output_timeout: 5m
                 command: |
                   ulimit -c unlimited
@@ -222,6 +223,7 @@ commands:
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                  DD_CIVISIBILITY_AGENTLESS_ENABLED: true
                 no_output_timeout: 5m
                 command: |
                   ulimit -c unlimited
@@ -540,30 +542,6 @@ jobs:
       - run_test:
           pattern: "datastreams"
 
-  ci_visibility:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "ci_visibility"
-          snapshot: true
-
-  dd_coverage:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_hatch_env_test:
-          env: 'dd_coverage'
-          snapshot: true
-
-  pytest_v2:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_hatch_env_test:
-          env: 'pytest_plugin_v2'
-          snapshot: true
-
   opentelemetry:
     parallelism: 4
     <<: *machine_executor
@@ -604,25 +582,6 @@ jobs:
       - run_test:
           wait: cassandra
           pattern: 'cassandra'
-
-  celery:
-    <<: *contrib_job_large
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *rabbitmq_image
-      - image: *testagent_image
-        environment:
-        - LOG_LEVEL=DEBUG
-        - SNAPSHOT_DIR=/snapshots
-        - PORT=9126
-        - SNAPSHOT_CI=1
-        - DD_POOL_TRACE_CHECK_FAILURES=true
-        - DD_DISABLE_ERROR_RESPONSES=true
-        - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
-    steps:
-      - run_test:
-          pattern: 'celery'
 
   consul:
     <<: *contrib_job_small
@@ -685,14 +644,6 @@ jobs:
           wait: mysql
           pattern: 'pymysql$'
 
-  pytest:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          pattern: 'pytest'
-          snapshot: true
-
   mongoengine:
     <<: *machine_executor
     steps:
@@ -753,17 +704,6 @@ jobs:
       - run_test:
           wait: postgres
           pattern: 'aiopg'
-
-  kombu:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *rabbitmq_image
-      - *testagent
-    steps:
-      - run_test:
-          wait: rabbitmq
-          pattern: 'kombu'
 
   build_docs:
     # build documentation and store as an artifact

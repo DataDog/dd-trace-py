@@ -5,7 +5,7 @@ from bottle import response
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -59,7 +59,7 @@ class TracePlugin(object):
 
                 s.set_tag(SPAN_MEASURED_KEY)
                 # set analytics sample rate with global config enabled
-                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.bottle.get_analytics_sample_rate(use_global_config=True))
+                s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.bottle.get_analytics_sample_rate(use_global_config=True))
 
                 code = None
                 result = None

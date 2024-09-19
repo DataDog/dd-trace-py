@@ -9,7 +9,9 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
+from urllib.parse import urljoin
 
+from ddtrace import Tracer  # noqa: F401
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _extract_clone_defaultremotename_with_details
@@ -81,18 +83,25 @@ class CIVisibilityGitClient(object):
         self,
         api_key,
         requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
-        base_url="",
+        tracer=None,
     ):
-        # type: (str, int, str) -> None
+        # type: (str, int, Optional[Tracer]) -> None
         self._serializer = CIVisibilityGitClientSerializerV1(api_key)
         self._worker = None  # type: Optional[Process]
         self._response = RESPONSE
         self._requests_mode = requests_mode
         self._metadata_upload_status = Value(c_int, METADATA_UPLOAD_STATUS.PENDING, lock=True)
+
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            self._base_url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH
+            tracer_url = get_trace_url() if tracer is None else tracer._agent_url
+            self._base_url = urljoin(tracer_url, EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
-            self._base_url = "https://api.{}{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), GIT_API_BASE_PATH)
+            self._base_url = urljoin(
+                "https://api.{}".format(
+                    os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE),
+                ),
+                GIT_API_BASE_PATH,
+            )
 
     def upload_git_metadata(self, cwd=None):
         # type: (Optional[str]) -> None
@@ -113,6 +122,9 @@ class CIVisibilityGitClient(object):
 
     def _wait_for_metadata_upload(self, timeout=DEFAULT_METADATA_UPLOAD_TIMEOUT):
         log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
+        if self._worker is None:
+            log.debug("No git metadata upload worker started")
+            return
         with StopWatch() as stopwatch:
             while not self.metadata_upload_finished():
                 log.debug("Waited %s so far, status is %s", stopwatch.elapsed(), self._metadata_upload_status.value)

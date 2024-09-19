@@ -3,7 +3,7 @@ from collections import deque
 from tornado.web import HTTPError
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -55,7 +55,7 @@ def execute(func, handler, args, kwargs):
         # DEV: tornado is special case maintains separate configuration from config api
         analytics_enabled = settings["analytics_enabled"]
         if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-            request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.get("analytics_sample_rate", True))
+            request_span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, settings.get("analytics_sample_rate", True))
 
         http_route = _find_route(handler.application.default_router.rules, handler.request)
         if http_route is not None and isinstance(http_route, str):
