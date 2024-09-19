@@ -20,8 +20,8 @@ logger = get_logger(__name__)
 class EvaluatorSamplingRule(SamplingRule):
     def __init__(self, sample_rate: float, evaluator: Optional[str] = None, span_name: Optional[str] = None):
         super(EvaluatorSamplingRule, self).__init__(sample_rate)
-        self.evaluator_label = self.choose_matcher(evaluator)
-        self.span_name = self.choose_matcher(span_name)
+        self.evaluator_label = evaluator
+        self.span_name = span_name
 
     def matches(self, span_event, evaluator_label):
         for prop, pattern in [(span_event.get("name"), self.span_name), (evaluator_label, self.evaluator_label)]:
