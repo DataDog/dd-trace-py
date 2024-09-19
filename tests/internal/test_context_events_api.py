@@ -437,3 +437,44 @@ def test_core_context_data_concurrent_safety():
     task2.join()
 
     assert results[data_key] == "right"
+
+
+@pytest.mark.parametrize("nb_threads", [2, 16, 256])
+def test_core_in_threads(nb_threads):
+    """Test nested contexts in multiple threads with set/get/discard and global values in main context."""
+    import asyncio
+    import random
+
+    witness = object()
+
+    async def get_set_isolated(value: str):
+        with core.context_with_data(value):
+            core.set_item("key", value)
+            with core.context_with_data(value):
+                v = f"in {value}"
+                core.set_item("key", v)
+                await asyncio.sleep(random.random())
+                assert core.get_item("key") == v
+                core.discard_item("key")
+                assert core.get_item("key", default=witness, traverse=False) is witness
+                assert core.get_item("key") == value
+                core.get_item("global_counter")["value"] += 1
+            assert core.get_item("key") == value
+            core.discard_item("key")
+            assert core.get_item("key", default=witness) is witness
+            return witness
+
+    async def create_tasks_func():
+        tasks = [loop.create_task(get_set_isolated(str(i))) for i in range(nb_threads)]
+        await asyncio.wait(tasks)
+        return [task.result() for task in tasks]
+
+    with core.context_with_data("main"):
+        core.set_item("global_counter", {"value": 0})
+        loop = asyncio.new_event_loop()
+        assert not loop.is_closed()
+        res = loop.run_until_complete(create_tasks_func())
+        assert isinstance(res, list)
+        assert all(s is witness for s in res)
+        loop.close()
+        assert core.get_item("global_counter")["value"] == nb_threads
