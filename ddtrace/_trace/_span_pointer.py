@@ -1,5 +1,6 @@
 from enum import Enum
 from hashlib import sha256
+import random
 from typing import Any
 from typing import Dict
 from typing import NamedTuple
@@ -7,6 +8,10 @@ from typing import Optional
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
 
 
 _SPAN_POINTER_SPAN_LINK_TRACE_ID = 0
@@ -56,9 +61,32 @@ class _SpanPointer(SpanLink):
         pass
 
 
-def _standard_hashing_function(*elements: bytes) -> str:
-    if not elements:
-        raise ValueError("elements must not be empty")
+_STANDARD_HASHING_FUNCTION_FAILURE_PREFIX = "HashingFailure"
 
-    # Please see the tests for more details about this logic.
-    return sha256(b"|".join(elements)).hexdigest()[:32]
+
+def _standard_hashing_function(*elements: bytes) -> str:
+    try:
+        if not elements:
+            raise ValueError("elements must not be empty")
+
+        # Please see the tests for more details about this logic.
+        return sha256(b"|".join(elements)).hexdigest()[:32]
+
+    except Exception as e:
+        log.warning(
+            "failed to generate standard hash for span pointer: %s",
+            str(e),
+        )
+        return _add_random_suffix(
+            prefix=_STANDARD_HASHING_FUNCTION_FAILURE_PREFIX,
+            minimum_length=32,
+        )
+
+
+def _add_random_suffix(*, prefix: str, minimum_length: int) -> str:
+    if len(prefix) >= minimum_length:
+        return prefix
+
+    suffix = "".join(random.choice("0123456789abcdef") for _ in range(minimum_length - len(prefix)))
+
+    return prefix + suffix

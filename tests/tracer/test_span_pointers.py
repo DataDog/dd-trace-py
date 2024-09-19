@@ -4,6 +4,7 @@ from typing import NamedTuple
 
 import pytest
 
+from ddtrace._trace._span_pointer import _STANDARD_HASHING_FUNCTION_FAILURE_PREFIX
 from ddtrace._trace._span_pointer import _standard_hashing_function
 
 
@@ -44,6 +45,7 @@ class TestStandardHashingFunction:
         expected_hex_digits = desired_bits // bits_per_hex_digit
 
         assert len(_standard_hashing_function(b"foo")) == expected_hex_digits
+        assert len(_standard_hashing_function("bad-input")) == expected_hex_digits
 
     def test_validate_using_sha256_with_pipe_separator(self) -> None:
         # We want this test to break if we change the logic of the standard
@@ -59,9 +61,7 @@ class TestStandardHashingFunction:
         assert _standard_hashing_function(b"foo", b"bar") == sha256(b"foo|bar").hexdigest()[:hex_digits]
 
     def test_hashing_requries_arguments(self) -> None:
-        with pytest.raises(ValueError, match="elements must not be empty"):
-            _standard_hashing_function()
+        assert _standard_hashing_function().startswith(_STANDARD_HASHING_FUNCTION_FAILURE_PREFIX)
 
     def test_hashing_requires_bytes(self) -> None:
-        with pytest.raises(TypeError, match="expected a bytes-like object"):
-            _standard_hashing_function("foo")
+        assert _standard_hashing_function("foo").startswith(_STANDARD_HASHING_FUNCTION_FAILURE_PREFIX)
