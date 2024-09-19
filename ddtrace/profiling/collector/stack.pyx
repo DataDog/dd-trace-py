@@ -454,16 +454,8 @@ class _ThreadSpanLinks(_thread_span_links_base):
         """
         active_span = self.get_object(thread_id)
 
-        if active_span is not None:
-            if not active_span.finished:
-                print("Found active_span with span_id: ", active_span.span_id)
-                return active_span
-            else:
-                print("Found finished_span with span_id: ", active_span.span_id)
-                return None
-        else:
-            thread_name = _threading.get_thread_name(thread_id)
-            print("failed to find active_span with thread_id: ", thread_id, " and thread_name: ", thread_name)
+        if active_span is not None and not active_span.finished:
+            return active_span
         return None
 
 

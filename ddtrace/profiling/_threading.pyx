@@ -6,7 +6,6 @@ import weakref
 
 import _thread
 
-from ddtrace import span
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 
@@ -124,12 +123,6 @@ class _ThreadLink(_thread_link_base):
         """Link an object to the current running thread."""
         # Because threads might become tasks with some frameworks (e.g. gevent),
         # we retrieve the thread ID using the C API instead of the Python API.
-
-        thread_id = <object>PyLong_FromLong(PyThreadState_Get().thread_id)
-        thread_name = get_thread_name(thread_id)
-        if isinstance(obj, span.Span):
-            print("linking ", obj.span_id, " to thread ", thread_id, " with name ", thread_name)
-
         self._thread_id_to_object[<object>PyLong_FromLong(PyThreadState_Get().thread_id)] = weakref.ref(obj)
 
     def clear_threads(self,
