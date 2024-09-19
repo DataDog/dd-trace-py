@@ -24,10 +24,6 @@ class TestS3ObjectPointer:
     @pytest.mark.parametrize(
         "hashing_case",
         [
-            # These test cases are copied from the dd-span-pointer-rules
-            # pointer_testset.json file. We will add a system test to ensure
-            # that these hashing functions are consistent now and in the future
-            # once this code is merged.
             HashingCase(
                 name="a basic S3 object",
                 bucket="some-bucket",

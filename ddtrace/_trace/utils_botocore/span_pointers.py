@@ -89,6 +89,11 @@ def _aws_s3_object_span_pointer_description(
 
 
 def _aws_s3_object_span_pointer_hash(bucket: str, key: str, etag: str) -> str:
+    if '"' in etag:
+        # Some AWS API endpoints put the ETag in double quotes. We expect the
+        # calling code to have correctly fixed this already.
+        raise ValueError(f"ETag should not have double quotes: {etag}")
+
     return _standard_hashing_function(
         bucket.encode("ascii"),
         key.encode("utf-8"),
