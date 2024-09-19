@@ -1,5 +1,6 @@
 from collections import Counter
 import os
+import mock
 import socket
 import subprocess
 from time import sleep
@@ -440,6 +441,29 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("component") == "celery"
         assert span.get_tag("span.kind") == "consumer"
         assert span.error == 0
+
+    @mock.patch("kombu.messaging.Producer.publish", mock.Mock(side_effect=ValueError))
+    def test_fn_task_apply_async_soft_exception(self):
+        # If the underlying library runs into an exception that doesn't crash the app,
+        # we should still close the span even if the after_task_publish signal didn't get
+        # called
+
+        @self.app.task
+        def fn_task_parameters(user, force_logout=False):
+            return (user, force_logout)
+
+        try:
+            t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
+            t.get(timeout=self.ASYNC_GET_TIMEOUT)
+        except ValueError:
+            traces = self.pop_traces()
+            if self.ASYNC_USE_CELERY_FIXTURES:
+                assert 1 == len(traces)
+                assert traces[0][0].name == 'celery.apply'
+            else:
+                assert 1 == len(traces)
+                assert traces[0][0].name == 'celery.apply'
+
 
     def test_shared_task(self):
         # Ensure Django Shared Task are supported
