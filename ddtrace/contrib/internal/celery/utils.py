@@ -134,6 +134,3 @@ def retrieve_task_id(context):
     elif body:
         # Protocol Version 1
         return body.get("id")
-    else:
-        # Do not run body.get("id") if the body is None, instead, return a None value
-        return None

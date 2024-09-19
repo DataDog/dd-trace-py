@@ -457,12 +457,8 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             t.get(timeout=self.ASYNC_GET_TIMEOUT)
         except ValueError:
             traces = self.pop_traces()
-            if self.ASYNC_USE_CELERY_FIXTURES:
-                assert 1 == len(traces)
-                assert traces[0][0].name == 'celery.apply'
-            else:
-                assert 1 == len(traces)
-                assert traces[0][0].name == 'celery.apply'
+            assert 1 == len(traces)
+            assert traces[0][0].name == 'celery.apply'
 
 
     def test_shared_task(self):
