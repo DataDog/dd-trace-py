@@ -102,7 +102,7 @@ __all__ = [
 ]
 
 
-def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> _io.StringIO:
     if orig_function is not None:
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -112,7 +112,7 @@ def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
             args = args[flag_added_args:]
         result = _io.StringIO(*args, **kwargs)
 
-    if args and is_pyobject_tainted(args[0]):
+    if args and is_pyobject_tainted(args[0]) and isinstance(result, _io.StringIO):
         try:
             copy_and_shift_ranges_from_strings(args[0], result, 0)
         except Exception as e:
@@ -120,7 +120,7 @@ def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
     return result
 
 
-def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> _io.BytesIO:
     if orig_function is not None:
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -130,7 +130,7 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
             args = args[flag_added_args:]
         result = _io.BytesIO(*args, **kwargs)
 
-    if args and is_pyobject_tainted(args[0]):
+    if args and is_pyobject_tainted(args[0]) and isinstance(result, _io.BytesIO):
         try:
             copy_and_shift_ranges_from_strings(args[0], result, 0)
         except Exception as e:
@@ -138,7 +138,9 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
     return result
 
 
-def read_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+def read_aspect(
+    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
+) -> Union[str, bytes]:
     if orig_function is not None:
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -146,7 +148,7 @@ def read_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
     else:
         result = args[0].read(*args[1:], **kwargs)
 
-    if args and is_pyobject_tainted(args[0]):
+    if args and is_pyobject_tainted(args[0]) and isinstance(args[0], _io._IOBase):
         try:
             copy_and_shift_ranges_from_strings(args[0], result, 0)
         except Exception as e:
