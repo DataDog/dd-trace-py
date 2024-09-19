@@ -182,7 +182,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         ("DD_APPSEC_SCA_ENABLED", "0", "false"),
     ],
 )
-@pytest.mark.skip(reason="FIXME: This test needs to be updated.")
 def test_app_started_event_configuration_override(
     test_agent_session, run_python_code_in_subprocess, tmpdir, env_var, value, expected_value
 ):
@@ -196,6 +195,12 @@ import logging
 logging.basicConfig()
 
 import ddtrace.auto
+
+# By default telemetry collection is enabled after 10 seconds, so we either need to
+# to sleep for 10 seconds or manually call _app_started() to generate the app started event.
+# This delay allows us to collect start up erorrs and dynamic configurations
+import ddtrace
+ddtrace.internal.telemetry.telemetry_writer._app_started()
     """
 
     env = os.environ.copy()
@@ -253,10 +258,8 @@ import ddtrace.auto
     env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
-
     assert status == 0, stderr
 
     app_started_events = test_agent_session.get_events("app-started")
@@ -380,19 +383,19 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
             assert event["request_type"] != "app-dependencies-loaded"
 
 
-@pytest.mark.skip(reason="FIXME: This test does not generate a dependencies event")
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
     # Fetch modules to reset the state of seen modules
     modules.get_newly_imported_modules()
+    telemetry_writer.reset_queues()
+    assert telemetry_writer._imported_dependencies == {}
+    del sys.modules["httpretty"]
+    import httpretty  # noqa F401
 
-    import string
-
-    new_deps = [string.__name__]
-    telemetry_writer._app_dependencies_loaded_event(new_deps)
     # force a flush
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) == 1
+    assert events[0]["payload"]["dependencies"] == [{"name": "httpretty", "version": "1.0.5"}]
 
 
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
