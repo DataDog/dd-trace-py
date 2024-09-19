@@ -2,6 +2,7 @@
 import multiprocessing
 import os
 import sys
+import time
 
 import pytest
 
@@ -116,7 +117,24 @@ def test_memalloc_no_init_error_on_fork():
     pid = os.fork()
     if not pid:
         exit(0)
-    os.waitpid(pid, 0)
+
+    start_time = time.time()
+    max_end_time = start_time + 5
+    while time.time() < max_end_time:
+        try:
+            tpid, status = os.waitpid(pid, os.WNOHANG)
+            if tpid == pid:
+                break
+        except ChildProcessError:
+            # If there are no children, then we're done
+            break
+
+        # Check to see that the target PID is even alive
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            # Process already terminated
+            break
 
 
 @pytest.mark.subprocess(
