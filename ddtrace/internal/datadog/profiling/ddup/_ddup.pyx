@@ -11,7 +11,6 @@ from .._types import StringType
 from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 
@@ -170,11 +169,12 @@ def start() -> None:
     ddup_start()
 
 
-def upload(processsor: EndpointCallCounterProcessor) -> None:
+def upload() -> None:
+    processor = ddtrace.tracer._endpoint_call_counter_span_processor
     runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
 
-    endpoint_counts, endpoint_to_span_ids = processsor.reset()
+    endpoint_counts, endpoint_to_span_ids = processor.reset()
     for endpoint, span_ids in endpoint_to_span_ids.items():
         endpoint_bytes = ensure_binary_or_empty(endpoint)
         for span_id in span_ids:

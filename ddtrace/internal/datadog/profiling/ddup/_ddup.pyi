@@ -3,7 +3,6 @@ from typing import Optional
 from typing import Union
 from .._types import StringType
 from ddtrace._trace.span import Span
-from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 
 def config(
     env: StringType,
@@ -17,7 +16,7 @@ def config(
     sample_pool_capacity: Optional[int],
 ) -> None: ...
 def start() -> None: ...
-def upload(processor: EndpointCallCounterProcessor) -> None: ...
+def upload() -> None: ...
 
 class SampleHandle:
     def push_cputime(self, value: int, count: int) -> None: ...

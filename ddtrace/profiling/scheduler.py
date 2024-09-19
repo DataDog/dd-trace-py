@@ -54,7 +54,7 @@ class Scheduler(periodic.PeriodicService):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
         if self._export_libdd_enabled:
-            ddup.upload(tracer._endpoint_call_counter_span_processor)
+            ddup.upload()
 
             # These are only used by the Python uploader, but set them here to keep logs/etc
             # consistent for now
