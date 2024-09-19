@@ -295,9 +295,6 @@ class Tracer(object):
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
-        config._subscribe(["_trace_span_origin_enabled"], self._on_global_config_update)
-        config._subscribe(["_trace_span_origin_enriched"], self._on_global_config_update)
-
     def _maybe_opt_out(self):
         self._apm_opt_out = self._asm_enabled and self._appsec_standalone_enabled
         if self._apm_opt_out:

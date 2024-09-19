@@ -390,12 +390,6 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "_trace_sampling_rules":
             name = "trace_sampling_rules"
             value = str(item.value())
-        elif cfg_name == "_trace_span_origin_enabled":
-            name = "trace_span_origin_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_trace_span_origin_enriched":
-            name = "trace_span_origin_enriched"
-            value = "true" if item.value() else "false"
         elif cfg_name == "logs_injection":
             name = "logs_injection_enabled"
             value = "true" if item.value() else "false"

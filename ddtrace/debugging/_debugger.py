@@ -341,12 +341,6 @@ class Debugger(Service):
 
         log.debug("%s disabled", cls.__name__)
 
-    @classmethod
-    def get_collector(cls) -> SignalCollector:
-        if cls._instance is None:
-            raise DebuggerError("Debugger is not enabled")
-        return cls._instance._collector
-
     def __init__(self, tracer: Optional[Tracer] = None) -> None:
         super().__init__()
 

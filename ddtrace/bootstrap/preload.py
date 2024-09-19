@@ -16,6 +16,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.settings.code_origin import config as co_config  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
@@ -71,10 +72,10 @@ if di_config.enabled:  # Dynamic Instrumentation
 
     DynamicInstrumentation.enable()
 
-if config._trace_span_origin_enabled:
-    from ddtrace.debugging._origin.span import SpanOriginProcessor
+if co_config.span.enabled:
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
 
-    SpanOriginProcessor.enable()
+    SpanCodeOriginProcessor.enable()
 
 if er_config.enabled:  # Exception Replay
     from ddtrace.debugging._exception.replay import SpanExceptionHandler
