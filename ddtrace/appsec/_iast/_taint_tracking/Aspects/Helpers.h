@@ -1,11 +1,11 @@
 #pragma once
 
+#include "Initializer/Initializer.h"
+#include "TaintTracking/TaintRange.h"
+#include <iostream>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <regex>
-
-#include "Initializer/Initializer.h"
-#include "TaintTracking/TaintRange.h"
 
 using namespace pybind11::literals;
 namespace py = pybind11;

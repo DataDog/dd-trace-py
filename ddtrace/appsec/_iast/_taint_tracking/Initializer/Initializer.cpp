@@ -25,41 +25,51 @@ Initializer::Initializer()
     }
 }
 
-Initializer::~Initializer() {}
-
 py::object
 Initializer::get_imported_symbol(const char* module_name, const char* symbol_name)
 {
-    string str_module_name(module_name);
-    string str_symbol_name(symbol_name);
-    string final_name;
-
-    if (!str_symbol_name.empty()) {
-        final_name = string(module_name) + "." + string(symbol_name);
-    } else {
-        final_name = str_module_name;
+    if (module_name == nullptr) {
+        return py::none();
     }
 
-    py::object ret;
+    const string final_name =
+      symbol_name == nullptr ? string(module_name) : string(module_name) + "." + string(symbol_name);
 
     const auto obj = imported_cache.find(final_name);
     if (obj == imported_cache.end()) {
-        lock_guard lock(imported_cache_mutex);
         // The module or symbol was not in the cache: import both
-        auto mod = py::module_::import(module_name);
+
+        // First check if there is any error and store it to restore later and clear it because
+        // otherwise we can't import anything
+        PyObject *ptype, *pvalue, *ptraceback;
+        PyErr_Fetch(&ptype, &pvalue, &ptraceback); // Fetch and clear the current exception
+        const bool had_exception = (ptype != nullptr || pvalue != nullptr || ptraceback != nullptr);
+
+        py::object ret;
+        lock_guard lock(imported_cache_mutex);
+        const auto mod = py::module_::import(module_name);
         imported_cache[module_name] = mod;
 
-        if (!str_symbol_name.empty()) {
+        if (symbol_name != nullptr) {
             auto attr = mod.attr(symbol_name);
             imported_cache[final_name] = attr;
             ret = attr;
         } else {
             ret = mod;
         }
+
+        if (had_exception) {
+            PyErr_Restore(ptype, pvalue, ptraceback);
+        } else {
+            Py_XDECREF(ptype);
+            Py_XDECREF(pvalue);
+            Py_XDECREF(ptraceback);
+        }
+
         return ret;
     }
 
-    // Found on the cache
+    // Found on the cache, just return it
     return obj->second;
 }
 

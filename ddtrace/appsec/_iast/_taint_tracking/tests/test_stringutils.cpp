@@ -1,19 +1,5 @@
-#include <Python.h>
-#include <gtest/gtest.h>
-#include <pybind11/embed.h>
-#include <pybind11/pybind11.h>
-
 #include <Utils/StringUtils.h>
-
-namespace py = pybind11;
-
-class PyEnvCheck : public ::testing::Test
-{
-  protected:
-    void SetUp() override { py::initialize_interpreter(); }
-
-    void TearDown() override { py::finalize_interpreter(); }
-};
+#include <tests/test_common.hpp>
 
 using GetUniqueId = PyEnvCheck;
 
@@ -30,28 +16,38 @@ TEST_F(GetUniqueId, TestGetUniqueId)
     Py_DECREF(py_str);
 }
 
-using PyReMatchCheck = PyEnvCheck;
+using PyReMatchCheck = PyEnvWithContext;
 
 TEST_F(PyReMatchCheck, TestPyReMatchValidMatchObject)
 {
+    cerr << "1 \n";
     py::object re_module = py::module_::import("re");
+    cerr << "2 \n";
     py::object match_obj = re_module.attr("match")("a", "a");
+    cerr << "3 \n";
 
     ASSERT_TRUE(PyReMatch_Check(match_obj.ptr()));
+    cerr << "4 \n";
 }
 
-TEST_F(PyReMatchCheck, TEstPyReMatchInvalidNonMatchObject)
+TEST_F(PyReMatchCheck, TestPyReMatchInvalidNonMatchObject)
 {
+    cerr << "5 \n";
     py::object non_match_obj = py::int_(42); // Not a `re.Match` object
+    cerr << "6 \n";
 
     ASSERT_FALSE(PyReMatch_Check(non_match_obj.ptr()));
+    cerr << "7 \n";
 }
 
 TEST_F(PyReMatchCheck, TEstPyReMatchNullObject)
 {
+    cerr << "8 \n";
     PyObject* null_obj = Py_None;
+    cerr << "9 \n";
 
     ASSERT_FALSE(PyReMatch_Check(null_obj));
+    cerr << "10 \n";
 }
 
 using IsFastTaintedCheck = PyEnvCheck;
@@ -187,7 +183,7 @@ TEST_F(IsTextCheck, NonTextReturnsFalse)
     Py_DECREF(non_text_obj);
 }
 
-using IsTainteableCheck = PyEnvCheck;
+using IsTainteableCheck = PyEnvWithContext;
 
 TEST_F(IsTainteableCheck, NullptrReturnsFalse)
 {

@@ -32,7 +32,6 @@ class Initializer
      * Constructor for the Initializer class.
      */
     Initializer();
-    ~Initializer();
 
     /**
      * Creates a new taint range map.
@@ -41,7 +40,7 @@ class Initializer
      */
     TaintRangeMapTypePtr create_tainting_map();
 
-    py::object get_imported_symbol(const char*, const char*);
+    py::object get_imported_symbol(const char* module_name, const char* symbol_name = nullptr);
 
     /**
      * Clears a taint range map.
