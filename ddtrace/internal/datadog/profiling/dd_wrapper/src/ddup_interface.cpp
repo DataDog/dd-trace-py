@@ -312,37 +312,33 @@ void
 ddup_profile_set_endpoint(uint64_t local_root_span_id,
                           std::string_view trace_endpoint) // cppcheck-suppress unusedFunction
 {
-    ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
 
+    ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     auto res = ddog_prof_Profile_set_endpoint(&profile, local_root_span_id, trace_endpoint_slice);
+    Datadog::Sample::profile_release();
+
     if (!res.ok) {
         auto err = res.err;
         const std::string errmsg = Datadog::err_to_msg(&err, "Error setting endpoint");
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
-        Datadog::Sample::profile_release();
-        return;
     }
-    Datadog::Sample::profile_release();
-    return;
 }
 
 void
 ddup_profile_add_endpoint_count(std::string_view trace_endpoint, int64_t count)
 {
-    ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
 
+    ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     auto res = ddog_prof_Profile_add_endpoint_count(&profile, trace_endpoint_slice, count);
+    Datadog::Sample::profile_release();
+
     if (!res.ok) {
         auto err = res.err;
         const std::string errmsg = Datadog::err_to_msg(&err, "Error adding endpoint count");
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
-        Datadog::Sample::profile_release();
-        return;
     }
-    Datadog::Sample::profile_release();
-    return;
 }

@@ -183,7 +183,7 @@ def upload() -> None:
                 # TODO(taegyunkim): Pass the mapping directly to the native
                 # code to avoid the need to iterate over the mapping and call
                 # the native function multiple times which leads to frequent
-                # lock acquire and release.
+                # lock acquire and release inside the native code.
                 ddup_profile_set_endpoint(
                     clamp_to_uint64_unsigned(span_id),
                     string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
