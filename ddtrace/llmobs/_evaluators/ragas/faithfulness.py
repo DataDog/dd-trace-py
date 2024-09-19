@@ -5,7 +5,7 @@ from ddtrace import config
 
 
 class RagasFaithfulnessEvaluator:
-    name = "ragas_faithfulness"
+    label = "ragas_faithfulness"
     metric_type = "score"
 
     @classmethod
@@ -17,5 +17,5 @@ class RagasFaithfulnessEvaluator:
             "ml_app": config._llmobs_ml_app,
             "timestamp_ms": math.floor(time.time() * 1000),
             "metric_type": cls.metric_type,
-            "label": cls.name,
+            "label": cls.label,
         }
