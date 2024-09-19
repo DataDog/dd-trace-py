@@ -321,13 +321,8 @@ Example calling:
     });
 */
 
-// The get_imported_symbol_calls are because we need to ensure these are imported before there is any error.
-// iast_taint_log_error uses them.
-
 #define TRY_CATCH_ASPECT(NAME, RETURNRESULT, CLEANUP, ...)                                                             \
     try {                                                                                                              \
-        auto s = initializer->get_imported_symbol("inspect", "stack");                                                 \
-        auto m = initializer->get_imported_symbol("ddtrace.appsec._iast._metrics", "_set_iast_error_metric");          \
         __VA_ARGS__;                                                                                                   \
     } catch (py::error_already_set & e) {                                                                              \
         e.restore();                                                                                                   \

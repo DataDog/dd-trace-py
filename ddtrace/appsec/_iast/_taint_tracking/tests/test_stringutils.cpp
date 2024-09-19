@@ -20,34 +20,24 @@ using PyReMatchCheck = PyEnvWithContext;
 
 TEST_F(PyReMatchCheck, TestPyReMatchValidMatchObject)
 {
-    cerr << "1 \n";
     py::object re_module = py::module_::import("re");
-    cerr << "2 \n";
     py::object match_obj = re_module.attr("match")("a", "a");
-    cerr << "3 \n";
 
     ASSERT_TRUE(PyReMatch_Check(match_obj.ptr()));
-    cerr << "4 \n";
 }
 
 TEST_F(PyReMatchCheck, TestPyReMatchInvalidNonMatchObject)
 {
-    cerr << "5 \n";
     py::object non_match_obj = py::int_(42); // Not a `re.Match` object
-    cerr << "6 \n";
 
     ASSERT_FALSE(PyReMatch_Check(non_match_obj.ptr()));
-    cerr << "7 \n";
 }
 
 TEST_F(PyReMatchCheck, TEstPyReMatchNullObject)
 {
-    cerr << "8 \n";
     PyObject* null_obj = Py_None;
-    cerr << "9 \n";
 
     ASSERT_FALSE(PyReMatch_Check(null_obj));
-    cerr << "10 \n";
 }
 
 using IsFastTaintedCheck = PyEnvCheck;

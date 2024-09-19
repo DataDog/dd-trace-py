@@ -263,6 +263,8 @@ Initializer::reset_context()
 {
     clear_tainting_maps();
     ThreadContextCache.tx_map = nullptr;
+
+    // This is needed to avoid a segfault after exit
     lock_guard lock(imported_cache_mutex);
     imported_cache.clear();
 }

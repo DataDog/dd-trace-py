@@ -40,9 +40,11 @@ iast_taint_log_error(const std::string& msg)
             return;
         }
         std::string frame_info;
-        // If we don't clear the error, stack() and other functions won't work, so we save it first
+        // If we don't clear the error, stack() and other functions won't work, so we save it first for restoring
+        // it later if needed
         PyObject *ptype, *pvalue, *ptraceback;
         PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+        const bool had_exception = (ptype != nullptr || pvalue != nullptr || ptraceback != nullptr);
         PyErr_Clear();
 
         try {
@@ -67,8 +69,14 @@ iast_taint_log_error(const std::string& msg)
         initializer->get_imported_symbol("ddtrace.appsec._iast._metrics",
                                          "_set_iast_error_metric")("IAST propagation error. " + msg);
 
-        // Restore the original exception state
-        PyErr_Restore(ptype, pvalue, ptraceback);
+        // Restore the original exception state if needed
+        if (had_exception) {
+            PyErr_Restore(ptype, pvalue, ptraceback);
+        } else {
+            Py_XDECREF(ptype);
+            Py_XDECREF(pvalue);
+            Py_XDECREF(ptraceback);
+        }
 
     } catch (const py::error_already_set& e) {
         if (!e.trace().is_none()) {

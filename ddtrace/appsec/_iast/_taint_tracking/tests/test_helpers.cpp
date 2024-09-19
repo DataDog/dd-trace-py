@@ -1,10 +1,4 @@
-#include <Python.h>
-#include <gtest/gtest.h>
-#include <pybind11/embed.h>
-#include <pybind11/pybind11.h>
-
 #include <Aspects/Helpers.h>
-#include <Initializer/Initializer.h>
 #include <TaintTracking/Source.h>
 #include <tests/test_common.hpp>
 
