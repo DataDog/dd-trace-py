@@ -119,7 +119,7 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
 
                 prerun_span = core.get_item("prerun_span")
                 if prerun_span:
-                    log.debug("The task_postrun signal was not calle, so manually closing span: %s", prerun_span._pprint())
+                    log.debug("The task_postrun signal was not called, so manually closing span: %s", prerun_span._pprint())
                     prerun_span.finish()
 
     return _traced_apply_async_inner
