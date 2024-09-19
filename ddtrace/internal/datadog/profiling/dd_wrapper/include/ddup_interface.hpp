@@ -63,8 +63,8 @@ extern "C"
     void ddup_drop_sample(Datadog::Sample* sample);
 
     // Proxy function to next Profile
-    void ddup_push_trace_endpoint(uint64_t local_root_span_id, std::string_view trace_endpoint);
-    void ddup_push_endpoint_count(std::string_view trace_endpoint, int64_t count);
+    void ddup_profile_set_endpoint(uint64_t local_root_span_id, std::string_view trace_endpoint);
+    void ddup_profile_add_endpoint_count(std::string_view trace_endpoint, int64_t count);
 #ifdef __cplusplus
 } // extern "C"
 #endif
