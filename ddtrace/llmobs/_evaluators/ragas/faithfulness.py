@@ -5,7 +5,7 @@ from ddtrace import config
 
 
 class RagasFaithfulnessEvaluator:
-    name = "ragas_faithfulness"
+    label = "ragas_faithfulness"
     metric_type = "score"
 
     @classmethod
