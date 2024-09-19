@@ -98,7 +98,6 @@ __all__ = [
     "ospathsplitroot_aspect",
     "bytesio_aspect",
     "stringio_aspect",
-    "read_aspect",
 ]
 
 
@@ -135,24 +134,6 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
             copy_and_shift_ranges_from_strings(args[0], result, 0)
         except Exception as e:
             iast_taint_log_error("IAST propagation error. bytesio_aspect. {}".format(e))
-    return result
-
-
-def read_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[str, bytes]:
-    if orig_function is not None:
-        if flag_added_args > 0:
-            args = args[flag_added_args:]
-        result = orig_function(*args, **kwargs)
-    else:
-        result = args[0].read(*args[1:], **kwargs)
-
-    if args and is_pyobject_tainted(args[0]) and isinstance(args[0], _io._IOBase):
-        try:
-            copy_and_shift_ranges_from_strings(args[0], result, 0)
-        except Exception as e:
-            iast_taint_log_error("IAST propagation error. read_aspect. {}".format(e))
     return result
 
 

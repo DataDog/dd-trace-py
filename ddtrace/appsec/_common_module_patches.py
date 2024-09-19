@@ -30,6 +30,8 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
+    try_wrap_function_wrapper("_io", "StringIO.read", wrapped_read_F3E51D71B4EC16EF)
     try_wrap_function_wrapper("os", "system", wrapped_system_5542593D237084A7)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
@@ -39,6 +41,22 @@ def patch_common_modules():
 def unpatch_common_modules():
     try_unwrap("builtins", "open")
     try_unwrap("urllib.request", "OpenerDirector.open")
+    try_unwrap("_io", "BytesIO.read")
+    try_unwrap("_io", "StringIO.read")
+
+
+def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs):
+    """
+    wrapper for _io.BytesIO and _io.StringIO read function
+    """
+    result = original_read_callable(*args, **kwargs)
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._taint_tracking import copy_and_shift_ranges_from_strings
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        if is_pyobject_tainted(instance):
+            copy_and_shift_ranges_from_strings(instance, result, 0)
+    return result
 
 
 def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs):

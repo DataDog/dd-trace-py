@@ -42,7 +42,6 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
     "functions": {
         "StringIO": "ddtrace_aspects.stringio_aspect",
         "BytesIO": "ddtrace_aspects.bytesio_aspect",
-        "read": "ddtrace_aspects.read_aspect",
         "str": "ddtrace_aspects.str_aspect",
         "bytes": "ddtrace_aspects.bytes_aspect",
         "bytearray": "ddtrace_aspects.bytearray_aspect",
@@ -51,7 +50,6 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
     "stringalike_methods": {
         "StringIO": "ddtrace_aspects.stringio_aspect",
         "BytesIO": "ddtrace_aspects.bytesio_aspect",
-        "read": "ddtrace_aspects.read_aspect",
         "decode": "ddtrace_aspects.decode_aspect",
         "join": "ddtrace_aspects.join_aspect",
         "encode": "ddtrace_aspects.encode_aspect",
