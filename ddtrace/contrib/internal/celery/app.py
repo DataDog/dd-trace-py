@@ -1,4 +1,5 @@
 import celery
+import sys
 from celery import signals
 
 from ddtrace import Pin
@@ -16,8 +17,10 @@ from ddtrace.contrib.internal.celery.signals import trace_retry
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.pin import _DD_PIN_NAME
 
+log = get_logger(__name__)
 
 def patch_app(app, pin=None):
     """Attach the Pin class to the application and connect
@@ -43,7 +46,7 @@ def patch_app(app, pin=None):
     pin.onto(celery.beat.Scheduler)
 
     # Patch apply_async
-    # trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
+    trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
 
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)
@@ -69,7 +72,7 @@ def unpatch_app(app):
 
     trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
     trace_utils.unwrap(celery.beat.Scheduler, "tick")
-    # trace_utils.unwrap(celery.app.task.Task, "apply_async")
+    trace_utils.unwrap(celery.app.task.Task, "apply_async")
 
     signals.task_prerun.disconnect(trace_prerun)
     signals.task_postrun.disconnect(trace_postrun)
@@ -103,21 +106,21 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
     return _traced_beat_inner
 
 
-# def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
-#     def _traced_apply_async_inner(func, instance, args, kwargs):
+def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
+    def _traced_apply_async_inner(func, instance, args, kwargs):
 
-#         with core.context_with_data("task_context"):
-#             try:
-#                 return func(*args, **kwargs)
-#             finally:
-#                 task_span = core.get_item("task_span")
-#                 if task_span:
-#                     print("Post Task Publish signal was not called")
-#                     task_span.finish()
+        with core.context_with_data("task_context"):
+            try:
+                return func(*args, **kwargs)
+            finally:
+                task_span = core.get_item("task_span")
+                if task_span:
+                    log.debug("The after_task_publish signal was not called, so manually closing span: %s", task_span._pprint())
+                    task_span.finish()
 
-#                 prerun_span = core.get_item("prerun_span")
-#                 if prerun_span:
-#                     print("Post Run signal was not called")
-#                     prerun_span.finish()
+                prerun_span = core.get_item("prerun_span")
+                if prerun_span:
+                    log.debug("The task_postrun signal was not calle, so manually closing span: %s", prerun_span._pprint())
+                    prerun_span.finish()
 
-#     return _traced_apply_async_inner
+    return _traced_apply_async_inner
