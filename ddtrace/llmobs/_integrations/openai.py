@@ -137,18 +137,16 @@ class OpenAIIntegration(BaseLLMIntegration):
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
             self.metric(span, "dist", "tokens.%s" % token_type, num_tokens, tags=tags)
 
-    def llmobs_set_tags(
+    def _llmobs_set_tags(
         self,
-        operation: str,  # oneof "completion", "chat", "embedding"
-        resp: Any,
         span: Span,
-        kwargs: Dict[str, Any],
-        streamed_completions: Optional[Any] = None,
-        err: Optional[Any] = None,
+        args: Optional[List[Any]] = None,
+        kwargs: Optional[Dict[str, Any]] = None,
+        response: Optional[Any] = None,
+        streamed_response: Optional[Any] = None,
+        operation: Optional[str] = None,  # oneof "completion", "chat", "embedding"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
-        if not self.llmobs_enabled:
-            return
         span_kind = "embedding" if operation == "embedding" else "llm"
         span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
@@ -156,18 +154,16 @@ class OpenAIIntegration(BaseLLMIntegration):
         model_provider = "azure_openai" if self._is_azure_openai(span) else "openai"
         span.set_tag_str(MODEL_PROVIDER, model_provider)
         if operation == "completion":
-            self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_completions, span)
+            self._llmobs_set_meta_tags_from_completion(span, kwargs, response, streamed_response)
         elif operation == "chat":
-            self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_completions, span)
+            self._llmobs_set_meta_tags_from_chat(span, kwargs, response, streamed_response)
         elif operation == "embedding":
-            self._llmobs_set_meta_tags_from_embedding(resp, err, kwargs, span)
-        span.set_tag_str(
-            METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None))
-        )
+            self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
+        span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics_tags(span, response, streamed_response)))
 
     @staticmethod
     def _llmobs_set_meta_tags_from_completion(
-        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_completions: Optional[Any], span: Span
+        span: Span, kwargs: Dict[str, Any], resp: Any, streamed_completions: Optional[Any]
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
         prompt = kwargs.get("prompt", "")
@@ -178,7 +174,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt")}
         span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
 
-        if err is not None:
+        if span.error:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
         if streamed_completions:
@@ -190,7 +186,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _llmobs_set_meta_tags_from_chat(
-        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_messages: Optional[Any], span: Span
+        span: Span, kwargs: Dict[str, Any], resp: Any, streamed_messages: Optional[Any]
     ) -> None:
         """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
         input_messages = []
@@ -204,7 +200,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
         span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
 
-        if err is not None:
+        if span.error:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
         if streamed_messages:
@@ -256,7 +252,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
-    def _llmobs_set_meta_tags_from_embedding(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span) -> None:
+    def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: Dict[str, Any], resp: Any) -> None:
         """Extract prompt tags from an embedding and set them as temporary "_ml_obs.meta.*" tags."""
         encoding_format = kwargs.get("encoding_format") or "float"
         metadata = {"encoding_format": encoding_format}
@@ -272,7 +268,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             input_documents.append(Document(text=str(doc)))
         span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents))
 
-        if err is not None:
+        if span.error:
             return
         if encoding_format == "float":
             embedding_dim = len(resp.data[0].embedding)
@@ -283,10 +279,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
-    def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed: bool = False) -> Dict[str, Any]:
+    def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed_response: Optional[Any] = None) -> Dict[str, Any]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         metrics = {}
-        if streamed:
+        if streamed_response:
             prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
             completion_tokens = span.get_metric("openai.response.usage.completion_tokens") or 0
             metrics.update(

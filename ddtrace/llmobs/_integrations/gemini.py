@@ -33,12 +33,14 @@ class GeminiIntegration(BaseLLMIntegration):
         if model is not None:
             span.set_tag_str("google_generativeai.request.model", str(model))
 
-    def llmobs_set_tags(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], instance: Any, generations: Any = None
+    def _llmobs_set_tags(
+        self,
+        span: Span,
+        args: Optional[List[Any]] = None,
+        kwargs: Optional[Dict[str, Any]] = None,
+        response: Optional[Any] = None,
+        instance: Optional[Any] = None,
     ) -> None:
-        if not self.llmobs_enabled:
-            return
-
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("google_generativeai.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("google_generativeai.request.provider") or "")
@@ -51,10 +53,10 @@ class GeminiIntegration(BaseLLMIntegration):
         input_messages = self._extract_input_message(input_contents, system_instruction)
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages, default=_unserializable_default_repr))
 
-        if span.error or generations is None:
+        if span.error or response is None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         else:
-            output_messages = self._extract_output_message(generations)
+            output_messages = self._extract_output_message(response)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages, default=_unserializable_default_repr))
 
         usage = self._get_llmobs_metrics_tags(span)

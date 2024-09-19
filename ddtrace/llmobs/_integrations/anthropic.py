@@ -48,18 +48,10 @@ class AnthropicIntegration(BaseLLMIntegration):
             else:
                 span.set_tag_str(API_KEY, api_key)
 
-    def llmobs_set_tags(
-        self,
-        resp: Any,
-        span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
-        err: Optional[Any] = None,
+    def _llmobs_set_tags(
+        self, span: Span, kwargs: Optional[Dict[str, Any]] = None, response: Optional[Any] = None
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
-        if not self.llmobs_enabled:
-            return
-
         parameters = {}
         if kwargs.get("temperature"):
             parameters["temperature"] = kwargs.get("temperature")
@@ -74,10 +66,10 @@ class AnthropicIntegration(BaseLLMIntegration):
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
         span.set_tag_str(METADATA, json.dumps(parameters))
         span.set_tag_str(MODEL_PROVIDER, "anthropic")
-        if err or resp is None:
+        if span.error or response is None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         else:
-            output_messages = self._extract_output_message(resp)
+            output_messages = self._extract_output_message(response)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
         usage = self._get_llmobs_metrics_tags(span)

@@ -675,11 +675,10 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx[ctx["call_key"]]
     span.set_exc_info(*exc_info)
-    prompt = ctx["prompt"]
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
-    if integration.is_pc_sampled_llmobs(span) and "embed" not in model_name:
-        integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
+    if "embed" not in model_name:
+        integration.llmobs_set_tags(span, prompt=ctx["prompt"])
     span.finish()
 
 
@@ -721,8 +720,7 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    if integration.is_pc_sampled_llmobs(span):
-        integration.llmobs_set_tags(span, formatted_response=formatted_response, prompt=ctx["prompt"])
+    integration.llmobs_set_tags(span, prompt=ctx["prompt"], response=formatted_response)
     span.finish()
 
 

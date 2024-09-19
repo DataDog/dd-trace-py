@@ -60,8 +60,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span, args, kwargs, instance, generations)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations, instance=instance)
             span.finish()
     return generations
 
@@ -90,8 +89,7 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span, args, kwargs, instance, generations)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations, instance=instance)
             span.finish()
     return generations
 
