@@ -7,13 +7,13 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 
-from .ragas.faithfulness import dummy_run
+from .ragas.faithfulness import RagasFaithfulnessEvaluator
 
 
 logger = get_logger(__name__)
 
 SUPPORTED_EVALUATORS = {
-    "ragas_faithfulness": dummy_run,
+    "ragas_faithfulness": RagasFaithfulnessEvaluator,
 }
 
 
@@ -46,11 +46,6 @@ class EvaluatorRunner(PeriodicService):
     def on_shutdown(self):
         self.executor.shutdown()
 
-    def recreate(self):
-        return self.__class__(
-            interval=self._interval, writer=self._llmobs_eval_metric_writer, llmobs_instance=self.llmobs_instance
-        )
-
     def enqueue(self, span_event: Dict) -> None:
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
@@ -79,7 +74,7 @@ class EvaluatorRunner(PeriodicService):
         batches_of_results = []
 
         for evaluator in self.evaluators:
-            batches_of_results.append(self.executor.map(evaluator, spans))
+            batches_of_results.append(self.executor.map(evaluator.evaluate, spans))
 
         results = []
         for batch in batches_of_results:
