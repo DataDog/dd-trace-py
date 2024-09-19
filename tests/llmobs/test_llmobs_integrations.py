@@ -6,7 +6,7 @@ from tests.utils import DummyTracer
 
 
 @pytest.fixture(scope="function")
-def mock_integration_config():
+def mock_integration_config(ddtrace_global_config):
     mock_config = mock.Mock()
     mock_config.metrics_enabled = True
     mock_config.span_char_limit = 10
