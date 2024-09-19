@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    LLM Observability: LLM Observability: Introduces the prompt template argument to `LLMObs.annotate(prompt={...})` for LLM span kinds.
-    For more information on prompt annotations, see https://docs-staging.datadoghq.com/alai97/llm-obs-docs-nav-update/llm_observability/setup/sdk/#annotating-a-span.
+    LLM Observability: Introduces prompt template annotation, which can be passed as an argument to `LLMObs.annotate(prompt={...})` for LLM span kinds.
+    For more information on prompt annotations, see https://docs.datadoghq.com/llm_observability/setup/sdk/#annotating-a-span.
