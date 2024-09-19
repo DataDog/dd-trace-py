@@ -67,7 +67,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             if not span_event:
                 return
             if self._evaluator_runner:
-                self._evaluator_runner.enqueue((span_event, span._trace_id_64bits))
+                self._evaluator_runner.enqueue(span_event, span)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""

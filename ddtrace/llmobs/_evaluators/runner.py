@@ -5,6 +5,7 @@ import os
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace import Span
 from ddtrace.internal import forksafe
@@ -20,8 +21,6 @@ logger = get_logger(__name__)
 SUPPORTED_EVALUATORS = {
     "ragas_faithfulness": RagasFaithfulnessEvaluator,
 }
-
-DEFAULT_EVALUATOR_SAMPLING_RATE = 0.25
 
 
 class EvaluatorSamplingRule(SamplingRule):
@@ -47,28 +46,20 @@ class EvaluatorSamplingRule(SamplingRule):
         )
 
 
-class EvaluatorRunner(PeriodicService):
-    """Base class for evaluating LLM Observability span events"""
-
-    def __init__(self, interval: float, _evaluation_metric_writer=None):
-        super(EvaluatorRunner, self).__init__(interval=interval)
-        self._lock = forksafe.RLock()
-        self._buffer = []  # type: list[Dict]
-        self._buffer_limit = 1000
-
-        self._evaluation_metric_writer = _evaluation_metric_writer
-
-        self.executor = futures.ThreadPoolExecutor()
-        self.evaluators = []
+class EvaluatorSampler:
+    def __init__(self):
         self.sampling_rules = []
+        self.sampling_rules = self.parse_rules()
+        self.default_sampling_rule = SamplingRule(float(os.getenv("_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE", 1)))
 
-        evaluator_str = os.getenv("_DD_LLMOBS_EVALUATORS")
-        if evaluator_str is not None:
-            evaluators = evaluator_str.split(",")
-            for evaluator in evaluators:
-                if evaluator in SUPPORTED_EVALUATORS:
-                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator])
+    def sample(self, evaluator_label, span):
+        for rule in self.sampling_rules:
+            if rule.matches(span, span.get("name")):
+                return rule.sample(evaluator_label, span)
+        result = self.default_sampling_rule.sample(span)
+        return result
 
+    def parse_rules(self) -> List[SamplingRule]:
         sampling_rules_str = os.getenv("_DD_LLMOBS_EVALUATOR_SAMPLING_RULES")
         if sampling_rules_str is not None:
             try:
@@ -83,13 +74,41 @@ class EvaluatorRunner(PeriodicService):
                         raise TypeError("Sampling rules must have a sample rate")
 
                     evaluator = rule.get("evaluator")
-                    span_name = rule.get("name")
-                    self.sampling_rules.append(EvaluatorSamplingRule(sample_rate, evaluator, span_name))
+                    if rule.get("evaluator") is not None and not isinstance(evaluator, str):
+                        raise TypeError("'evaluator' key in sampling rule must have string value")
 
+                    span_name = rule.get("name")
+                    if span_name is not None and not isinstance(span_name, str):
+                        raise TypeError("'name' key in sampling rule must have string value")
+
+                    self.sampling_rules.append(EvaluatorSamplingRule(sample_rate, evaluator, span_name))
             except TypeError:
                 logger.error("Failed to parse sampling rules with error: ", exc_info=True)
+        return []
 
-        self.default_sampling_rule = SamplingRule(DEFAULT_EVALUATOR_SAMPLING_RATE)
+
+class EvaluatorRunner(PeriodicService):
+    """Base class for evaluating LLM Observability span events"""
+
+    def __init__(self, interval: float, _evaluation_metric_writer=None):
+        super(EvaluatorRunner, self).__init__(interval=interval)
+        self._lock = forksafe.RLock()
+        self._buffer = []  # type: List[Tuple[Dict, Span]]
+        self._buffer_limit = 1000
+
+        self._evaluation_metric_writer = _evaluation_metric_writer
+
+        self.executor = futures.ThreadPoolExecutor()
+        self.evaluators = []
+
+        evaluator_str = os.getenv("_DD_LLMOBS_EVALUATORS")
+        if evaluator_str is not None:
+            evaluators = evaluator_str.split(",")
+            for evaluator in evaluators:
+                if evaluator in SUPPORTED_EVALUATORS:
+                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator])
+
+        self.sampler = EvaluatorSampler()
 
     def start(self, *args, **kwargs):
         super(EvaluatorRunner, self).start()
@@ -112,7 +131,7 @@ class EvaluatorRunner(PeriodicService):
         with self._lock:
             if not self._buffer:
                 return
-            span_batch = self._buffer  # type: List[(Dict, Span)]
+            span_batch = self._buffer  # type: List[Tuple[Dict, Span]]
             self._buffer = []
 
         try:
@@ -123,19 +142,14 @@ class EvaluatorRunner(PeriodicService):
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)
 
-    def sample(self, evaluator_label, span):
-        for rule in self.sampling_rules:
-            if rule.matches(span, span.get("name")):
-                return rule.sample(evaluator_label, span)
-        return self.default_sampling_rule(span)
-
-    def run(self, span_batch: List[(dict, Span)]):
+    def run(self, span_batch: List[Tuple[Dict, Span]]) -> List[Dict]:
         batches_of_results = []
 
         for evaluator in self.evaluators:
             batches_of_results.append(
                 self.executor.map(
-                    evaluator, [span_event for span_event, span in span_batch if self.sample(evaluator.label, span)]
+                    evaluator.evaluate,
+                    [span_event for span_event, span in span_batch if self.sampler.sample(evaluator.label, span)],
                 )
             )
 

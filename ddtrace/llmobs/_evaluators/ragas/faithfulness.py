@@ -17,5 +17,5 @@ class RagasFaithfulnessEvaluator:
             "ml_app": config._llmobs_ml_app,
             "timestamp_ms": math.floor(time.time() * 1000),
             "metric_type": cls.metric_type,
-            "label": cls.name,
+            "label": cls.label,
         }

@@ -5,7 +5,7 @@ import mock
 import pytest
 
 from ddtrace import Span
-from ddtrace.llmobs._evaluators.ragas.faithfulness import dummy_run
+from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 
@@ -67,9 +67,10 @@ def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
     )
 
 
-def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_evaluator_runner_periodic_enqueues_eval_metric(monkeypatch, LLMObs, mock_llmobs_eval_metric_writer):
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE", 1.0)
     evaluator_runner = EvaluatorRunner(interval=0.01, _evaluation_metric_writer=mock_llmobs_eval_metric_writer)
-    evaluator_runner.evaluators.append(dummy_run)
+    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator)
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
     evaluator_runner.periodic()
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
@@ -78,9 +79,10 @@ def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval
 
 
 @pytest.mark.vcr_logs
-def test_ragas_faithfulness_evaluator_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_ragas_faithfulness_evaluator_timed_enqueues_eval_metric(monkeypatch, LLMObs, mock_llmobs_eval_metric_writer):
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE", 1.0)
     evaluator_runner = EvaluatorRunner(interval=0.01, _evaluation_metric_writer=mock_llmobs_eval_metric_writer)
-    evaluator_runner.evaluators.append(dummy_run)
+    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator)
     evaluator_runner.start()
 
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
@@ -98,11 +100,13 @@ def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subproces
 import os
 import time
 import mock
-
+from ddtrace import Span
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
-from ddtrace.llmobs._evaluators.ragas.faithfulness import dummy_run
+from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+
+os.environ["_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE"] = "1.0"
 
 with mock.patch(
     "ddtrace.internal.writer.HTTPWriter._send_payload",
@@ -118,9 +122,9 @@ with mock.patch(
     evaluator_runner = EvaluatorRunner(
         interval=0.01, _evaluation_metric_writer=llmobs_eval_metric_writer
     )
-    evaluator_runner.evaluators.append(dummy_run)
+    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator)
     evaluator_runner.start()
-    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
+    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, Span("dummy_span"))
 """,
     )
     assert status == 0, err
