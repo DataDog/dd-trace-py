@@ -45,7 +45,7 @@ from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
-from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
@@ -550,10 +550,7 @@ class LLMObs(Service):
         if not isinstance(params, dict):
             log.warning("parameters must be a dictionary of key-value pairs.")
             return
-        try:
-            span.set_tag_str(INPUT_PARAMETERS, json.dumps(params, skipkeys=True, default=_unserializable_default_repr))
-        except Exception:
-            log.warning("Failed to parse input parameters. Parameters must be JSON serializable.")
+        span.set_tag_str(INPUT_PARAMETERS, safe_json(params))
 
     @classmethod
     def _tag_llm_io(cls, span, input_messages=None, output_messages=None):
@@ -565,10 +562,9 @@ class LLMObs(Service):
                 if not isinstance(input_messages, Messages):
                     input_messages = Messages(input_messages)
                 if input_messages.messages:
-                    messages = json.dumps(input_messages.messages, skipkeys=True, default=_unserializable_default_repr)
-                    span.set_tag_str(INPUT_MESSAGES, messages)
-            except Exception:
-                log.warning("Failed to parse input messages. input_messages must be JSON serializable.", exc_info=True)
+                    span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages.messages))
+            except TypeError:
+                log.warning("Failed to parse input messages.", exc_info=True)
         if output_messages is None:
             return
         try:
@@ -576,10 +572,9 @@ class LLMObs(Service):
                 output_messages = Messages(output_messages)
             if not output_messages.messages:
                 return
-            messages = json.dumps(output_messages.messages, skipkeys=True, default=_unserializable_default_repr)
-            span.set_tag_str(OUTPUT_MESSAGES, messages)
-        except Exception:
-            log.warning("Failed to parse output messages. output_messages must be JSON serializable.", exc_info=True)
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages.messages))
+        except TypeError:
+            log.warning("Failed to parse output messages.", exc_info=True)
 
     @classmethod
     def _tag_embedding_io(cls, span, input_documents=None, output_text=None):
@@ -591,33 +586,20 @@ class LLMObs(Service):
                 if not isinstance(input_documents, Documents):
                     input_documents = Documents(input_documents)
                 if input_documents.documents:
-                    documents = json.dumps(
-                        input_documents.documents, skipkeys=True, default=_unserializable_default_repr
-                    )
-                    span.set_tag_str(INPUT_DOCUMENTS, documents)
-            except Exception:
-                log.warning(
-                    "Failed to parse input documents. input_documents must be JSON serializable.", exc_info=True
-                )
+                    span.set_tag_str(INPUT_DOCUMENTS, safe_json(input_documents.documents))
+            except TypeError:
+                log.warning("Failed to parse input documents.", exc_info=True)
         if output_text is None:
             return
-        elif isinstance(output_text, str):
-            span.set_tag_str(OUTPUT_VALUE, output_text)
-            return
-        try:
-            span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text, skipkeys=True, default=_unserializable_default_repr))
-        except Exception:
-            log.warning("Failed to parse output text. output_text must be JSON serializable.", exc_info=True)
+        span.set_tag_str(OUTPUT_VALUE, safe_json(output_text))
 
     @classmethod
     def _tag_retrieval_io(cls, span, input_text=None, output_documents=None):
         """Tags input text and output documents for retrieval-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
-        if input_text and isinstance(input_text, str):
-            span.set_tag_str(INPUT_VALUE, input_text)
-        elif input_text:
-            span.set_tag_str(INPUT_VALUE, json.dumps(input_text, skipkeys=True, default=_unserializable_default_repr))
+        if input_text is not None:
+            span.set_tag_str(INPUT_VALUE, safe_json(input_text))
         if output_documents is None:
             return
         try:
@@ -625,36 +607,19 @@ class LLMObs(Service):
                 output_documents = Documents(output_documents)
             if not output_documents.documents:
                 return
-            documents = json.dumps(output_documents.documents, skipkeys=True, default=_unserializable_default_repr)
-            span.set_tag_str(OUTPUT_DOCUMENTS, documents)
-        except Exception:
-            log.warning("Failed to parse output documents. output_documents must be JSON serializable.", exc_info=True)
+            span.set_tag_str(OUTPUT_DOCUMENTS, safe_json(output_documents.documents))
+        except TypeError:
+            log.warning("Failed to parse output documents.", exc_info=True)
 
     @classmethod
     def _tag_text_io(cls, span, input_value=None, output_value=None):
         """Tags input/output values for non-LLM kind spans.
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
-        if input_value and isinstance(input_value, str):
-            span.set_tag_str(INPUT_VALUE, input_value)
-        elif input_value:
-            try:
-                span.set_tag_str(
-                    INPUT_VALUE, json.dumps(input_value, skipkeys=True, default=_unserializable_default_repr)
-                )
-            except Exception:
-                log.warning("Failed to parse input value. input_value must be JSON serializable.", exc_info=True)
-        if output_value is None:
-            return
-        elif isinstance(output_value, str):
-            span.set_tag_str(OUTPUT_VALUE, output_value)
-            return
-        try:
-            span.set_tag_str(
-                OUTPUT_VALUE, json.dumps(output_value, skipkeys=True, default=_unserializable_default_repr)
-            )
-        except Exception:
-            log.warning("Failed to parse output value. output_value must be JSON serializable.", exc_info=True)
+        if input_value:
+            span.set_tag_str(INPUT_VALUE, safe_json(input_value))
+        if output_value:
+            span.set_tag_str(OUTPUT_VALUE, safe_json(output_value))
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
@@ -670,9 +635,9 @@ class LLMObs(Service):
             current_tags = span.get_tag(TAGS)
             if current_tags:
                 span_tags.update(json.loads(current_tags))
-            span.set_tag_str(TAGS, json.dumps(span_tags, skipkeys=True, default=_unserializable_default_repr))
+            span.set_tag_str(TAGS, safe_json(span_tags))
         except Exception:
-            log.warning("Failed to parse tags. span_tags must be JSON serializable.", exc_info=True)
+            log.warning("Failed to parse tags.", exc_info=True)
 
     @staticmethod
     def _tag_metadata(span: Span, metadata: Dict[str, Any]) -> None:
@@ -682,10 +647,7 @@ class LLMObs(Service):
         if not isinstance(metadata, dict):
             log.warning("metadata must be a dictionary of string key-value pairs.")
             return
-        try:
-            span.set_tag_str(METADATA, json.dumps(metadata, skipkeys=True, default=_unserializable_default_repr))
-        except Exception:
-            log.warning("Failed to parse metadata. metadata must be JSON serializable.", exc_info=True)
+        span.set_tag_str(METADATA, safe_json(metadata))
 
     @staticmethod
     def _tag_metrics(span: Span, metrics: Dict[str, Any]) -> None:
@@ -695,10 +657,7 @@ class LLMObs(Service):
         if not isinstance(metrics, dict):
             log.warning("metrics must be a dictionary of string key - numeric value pairs.")
             return
-        try:
-            span.set_tag_str(METRICS, json.dumps(metrics, skipkeys=True, default=_unserializable_default_repr))
-        except Exception:
-            log.warning("Failed to parse metrics. metrics must be JSON serializable.", exc_info=True)
+        span.set_tag_str(METRICS, safe_json(metrics))
 
     @classmethod
     def submit_evaluation(

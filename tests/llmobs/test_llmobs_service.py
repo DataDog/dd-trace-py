@@ -511,22 +511,16 @@ def test_annotate_input_llm_message_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data=[{"content": object()}])
         assert span.get_tag(INPUT_MESSAGES) is None
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse input messages. input_messages must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
 
 
 def test_llmobs_annotate_incorrect_message_content_type_raises_warning(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data={"role": "user", "content": {"nested": "yes"}})
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse input messages. input_messages must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
         mock_logs.reset_mock()
         LLMObs.annotate(span=span, output_data={"role": "user", "content": {"nested": "yes"}})
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse output messages. output_messages must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
 def test_annotate_document_str(LLMObs):
@@ -591,35 +585,23 @@ def test_annotate_document_list(LLMObs):
 def test_annotate_incorrect_document_type_raises_warning(LLMObs, mock_logs):
     with LLMObs.embedding(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data={"text": 123})
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse input documents. input_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
         mock_logs.reset_mock()
         LLMObs.annotate(span=span, input_data=123)
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse input documents. input_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
         mock_logs.reset_mock()
         LLMObs.annotate(span=span, input_data=object())
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse input documents. input_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
         mock_logs.reset_mock()
     with LLMObs.retrieval() as span:
         LLMObs.annotate(span=span, output_data=[{"score": 0.9, "id": "id", "name": "name"}])
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse output documents. output_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
         mock_logs.reset_mock()
         LLMObs.annotate(span=span, output_data=123)
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse output documents. output_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
         mock_logs.reset_mock()
         LLMObs.annotate(span=span, output_data=object())
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse output documents. output_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
 
 
 def test_annotate_output_embedding_non_serializable_marks_with_placeholder_value(LLMObs):
@@ -649,45 +631,33 @@ def test_annotate_input_retrieval_non_serializable_marks_with_placeholder_value(
 def test_annotate_document_no_text_raises_warning(LLMObs, mock_logs):
     with LLMObs.embedding(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data=[{"score": 0.9, "id": "id", "name": "name"}])
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse input documents. input_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
     mock_logs.reset_mock()
     with LLMObs.retrieval() as span:
         LLMObs.annotate(span=span, output_data=[{"score": 0.9, "id": "id", "name": "name"}])
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse output documents. output_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
 
 
 def test_annotate_incorrect_document_field_type_raises_warning(LLMObs, mock_logs):
     with LLMObs.embedding(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data=[{"text": "test_document_text", "score": "0.9"}])
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse input documents. input_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
     mock_logs.reset_mock()
     with LLMObs.embedding(model_name="test_model") as span:
         LLMObs.annotate(
             span=span, input_data=[{"text": "text", "id": 123, "score": "0.9", "name": ["h", "e", "l", "l", "o"]}]
         )
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse input documents. input_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
     mock_logs.reset_mock()
     with LLMObs.retrieval() as span:
         LLMObs.annotate(span=span, output_data=[{"text": "test_document_text", "score": "0.9"}])
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse output documents. output_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
     mock_logs.reset_mock()
     with LLMObs.retrieval() as span:
         LLMObs.annotate(
             span=span, output_data=[{"text": "text", "id": 123, "score": "0.9", "name": ["h", "e", "l", "l", "o"]}]
         )
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse output documents. output_documents must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
 
 
 def test_annotate_output_string(LLMObs):
@@ -751,9 +721,7 @@ def test_annotate_output_llm_message_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, output_data=[{"content": object()}])
         assert llm_span.get_tag(OUTPUT_MESSAGES) is None
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse output messages. output_messages must be JSON serializable.", exc_info=True
-        )
+        mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
 def test_annotate_metrics(LLMObs):

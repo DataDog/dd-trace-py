@@ -1,4 +1,3 @@
-import json
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -19,7 +18,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
-from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._utils import safe_json
 
 
 log = get_logger(__name__)
@@ -51,19 +50,15 @@ class BedrockIntegration(BaseLLMIntegration):
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("bedrock.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("bedrock.request.model_provider") or "")
-        span.set_tag_str(
-            INPUT_MESSAGES, json.dumps(input_messages, skipkeys=True, default=_unserializable_default_repr)
-        )
-        span.set_tag_str(METADATA, json.dumps(parameters, skipkeys=True, default=_unserializable_default_repr))
+        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
+        span.set_tag_str(METADATA, safe_json(parameters))
         if err or formatted_response is None:
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
         else:
             output_messages = self._extract_output_message(formatted_response)
-            span.set_tag_str(
-                OUTPUT_MESSAGES, json.dumps(output_messages, skipkeys=True, default=_unserializable_default_repr)
-            )
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
         metrics = self._llmobs_metrics(span, formatted_response)
-        span.set_tag_str(METRICS, json.dumps(metrics, skipkeys=True, default=_unserializable_default_repr))
+        span.set_tag_str(METRICS, safe_json(metrics))
 
     @staticmethod
     def _llmobs_metrics(span: Span, formatted_response: Optional[Dict[str, Any]]) -> Dict[str, Any]:
