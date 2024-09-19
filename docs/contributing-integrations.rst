@@ -114,7 +114,7 @@ Many of the tests are based on "snapshots": saved copies of actual traces sent t
 
 1. Update the library and test code to generate new traces.
 2. Delete the snapshot file corresponding to your test at ``tests/snapshots/<snapshot_file>`` (if applicable).
-3. Use `docker-compose up -d testagent` to start the APM test agent, and then re-run the test. Use `--pass-env` as described
+3. Use `docker compose up -d testagent` to start the APM test agent, and then re-run the test. Use `--pass-env` as described
    `here <https://github.com/datadog/dd-apm-test-agent?tab=readme-ov-file#running-the-tests>`_ to ensure that your test run can talk to the test agent.
 
 Once the run finishes, the snapshot file will have been regenerated.
@@ -173,7 +173,7 @@ are not yet any expected spans stored for it, so we need to create some.
 
 .. code-block:: bash
 
-   $ docker-compose up -d testagent <container>
+   $ docker compose up -d testagent <container>
    $ scripts/ddtest
    > DD_AGENT_PORT=9126 riot -v run --pass-env <test_suite_name>
 
