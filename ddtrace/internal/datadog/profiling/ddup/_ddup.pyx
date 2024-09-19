@@ -72,7 +72,6 @@ cdef extern from "ddup_interface.hpp":
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
 
-
 # Create wrappers for cython
 cdef call_ddup_config_service(bytes service):
     ddup_config_service(string_view(<const char*>service, len(service)))
@@ -175,29 +174,27 @@ def upload() -> None:
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
 
     processor = ddtrace.tracer._endpoint_call_counter_span_processor
-    # Processor is enabled only when endpoint collection is enabled
-    if processor._enabled:
-        endpoint_counts, endpoint_to_span_ids = processor.reset()
-        for endpoint, span_ids in endpoint_to_span_ids.items():
-            endpoint_bytes = ensure_binary_or_empty(endpoint)
-            for span_id in span_ids:
-                # TODO(taegyunkim): Pass the mapping directly to the native
-                # code to avoid the need to iterate over the mapping and call
-                # the native function multiple times which leads to frequent
-                # lock acquire and release inside the native code.
-                ddup_profile_set_endpoint(
-                    clamp_to_uint64_unsigned(span_id),
-                    string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
-                )
-        for endpoint, cnt in endpoint_counts.items():
-            endpoint_bytes = ensure_binary_or_empty(endpoint)
-            # Same comment as above applies here, avoid frequent lock
-            # acquire and release by passing the mapping directly to the
-            # native code.
-            ddup_profile_add_endpoint_count(
+    endpoint_counts, endpoint_to_span_ids = processor.reset()
+    for endpoint, span_ids in endpoint_to_span_ids.items():
+        endpoint_bytes = ensure_binary_or_empty(endpoint)
+        for span_id in span_ids:
+            # TODO(taegyunkim): Pass the mapping directly to the native
+            # code to avoid the need to iterate over the mapping and call
+            # the native function multiple times which leads to frequent
+            # lock acquire and release inside the native code.
+            ddup_profile_set_endpoint(
+                clamp_to_uint64_unsigned(span_id),
                 string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
-                clamp_to_int64_unsigned(cnt)
             )
+    for endpoint, cnt in endpoint_counts.items():
+        endpoint_bytes = ensure_binary_or_empty(endpoint)
+        # Same comment as above applies here, avoid frequent lock
+        # acquire and release by passing the mapping directly to the
+        # native code.
+        ddup_profile_add_endpoint_count(
+            string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
+            clamp_to_int64_unsigned(cnt)
+        )
 
     with nogil:
         ddup_upload()
