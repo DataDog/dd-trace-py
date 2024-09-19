@@ -1,7 +1,7 @@
 #pragma once
 #include <Initializer/Initializer.h>
-#include <iostream>
 #include <gtest/gtest.h>
+#include <iostream>
 #include <pybind11/embed.h>
 #include <pybind11/pybind11.h>
 
@@ -10,15 +10,9 @@ namespace py = pybind11;
 class PyEnvCheck : public ::testing::Test
 {
   protected:
-    void SetUp() override
-    {
-        py::initialize_interpreter();
-    }
+    void SetUp() override { py::initialize_interpreter(); }
 
-    void TearDown() override
-    {
-        py::finalize_interpreter();
-    }
+    void TearDown() override { py::finalize_interpreter(); }
 };
 
 class PyEnvWithContext : public ::testing::Test
@@ -37,4 +31,3 @@ class PyEnvWithContext : public ::testing::Test
         py::finalize_interpreter();
     }
 };
-
