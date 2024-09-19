@@ -32,3 +32,6 @@ is_some_number(PyObject* obj)
 {
     return PyLong_Check(obj) || PyFloat_Check(obj) || PyComplex_Check(obj);
 }
+
+py::object
+safe_import(const char* module, const char* symbol);

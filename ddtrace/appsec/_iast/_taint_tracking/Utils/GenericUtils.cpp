@@ -48,7 +48,7 @@ iast_taint_log_error(const std::string& msg)
         PyErr_Clear();
 
         try {
-            const py::list stack = initializer->get_imported_symbol("inspect", "stack")();
+            const py::list stack = safe_import("inspect", "stack")();
 
             for (size_t i = 0; i < std::min(stack.size(), static_cast<size_t>(7)); ++i) {
                 py::object frame = stack[i];
@@ -66,7 +66,7 @@ iast_taint_log_error(const std::string& msg)
         const auto log = get_python_logger();
         log.attr("debug")(msg + ": " + frame_info);
 
-        initializer->get_imported_symbol("ddtrace.appsec._iast._metrics",
+        safe_import("ddtrace.appsec._iast._metrics",
                                          "_set_iast_error_metric")("IAST propagation error. " + msg);
 
         // Restore the original exception state if needed
@@ -103,5 +103,42 @@ iast_taint_log_error(const std::string& msg)
 inline py::object
 get_python_logger()
 {
-    return initializer->get_imported_symbol("ddtrace.internal.logger", "get_logger")("native");
+    return safe_import("ddtrace.internal.logger", "get_logger")("native");
+}
+
+py::object
+safe_import(const char* module_name, const char* symbol_name)
+{
+    if (module_name == nullptr) {
+        return py::none();
+    }
+
+    const string final_name =
+      symbol_name == nullptr ? string(module_name) : string(module_name) + "." + string(symbol_name);
+
+    // First check if there is any error and store it to restore later and clear it because
+    // otherwise we can't import anything
+    PyObject *ptype, *pvalue, *ptraceback;
+    PyErr_Fetch(&ptype, &pvalue, &ptraceback); // Fetch and clear the current exception
+    const bool had_exception = (ptype != nullptr || pvalue != nullptr || ptraceback != nullptr);
+
+    py::object ret;
+    const auto mod = py::module_::import(module_name);
+
+    if (symbol_name != nullptr) {
+        auto attr = mod.attr(symbol_name);
+        ret = attr;
+    } else {
+        ret = mod;
+    }
+
+    if (had_exception) {
+        PyErr_Restore(ptype, pvalue, ptraceback);
+    } else {
+        Py_XDECREF(ptype);
+        Py_XDECREF(pvalue);
+        Py_XDECREF(ptraceback);
+    }
+
+    return ret;
 }

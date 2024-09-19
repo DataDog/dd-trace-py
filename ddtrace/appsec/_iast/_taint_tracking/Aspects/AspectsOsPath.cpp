@@ -15,7 +15,7 @@ template<class StrType>
 StrType
 api_ospathjoin_aspect(StrType& first_part, const py::args& args)
 {
-    auto join = initializer->get_imported_symbol("os.path", "join");
+    auto join = safe_import("os.path", "join");
     auto result_o = join(first_part, *args);
 
     const auto tx_map = Initializer::get_tainting_map();
@@ -24,7 +24,7 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
     }
 
     TRY_CATCH_ASPECT("ospathjoin_aspect", return result_o, , {
-        const auto separator = initializer->get_imported_symbol("os.path", "sep").cast<std::string>();
+        const auto separator = safe_import("os.path", "sep").cast<std::string>();
         const auto sepsize = separator.size();
 
         // Find the initial iteration point. This will be the first argument that has the separator ("/foo")
@@ -101,7 +101,7 @@ template<class StrType>
 StrType
 api_ospathbasename_aspect(const StrType& path)
 {
-    auto basename = initializer->get_imported_symbol("os.path", "basename");
+    auto basename = safe_import("os.path", "basename");
     auto result_o = basename(path);
 
     TRY_CATCH_ASPECT("ospathbasename_aspect", return result_o, , {
@@ -133,7 +133,7 @@ template<class StrType>
 StrType
 api_ospathdirname_aspect(const StrType& path)
 {
-    auto dirname = initializer->get_imported_symbol("os.path", "dirname");
+    auto dirname = safe_import("os.path", "dirname");
     auto result_o = dirname(path);
 
     TRY_CATCH_ASPECT("ospathdirname_aspect", return result_o, , {
@@ -165,7 +165,7 @@ template<class StrType>
 static py::tuple
 forward_to_set_ranges_on_splitted(const char* function_name, const StrType& path, bool includeseparator = false)
 {
-    auto function = initializer->get_imported_symbol("os.path", function_name);
+    auto function = safe_import("os.path", function_name);
     auto result_o = function(path);
 
     TRY_CATCH_ASPECT("forward_to_set_ranges_on_splitted", return result_o, , {
@@ -216,7 +216,7 @@ template<class StrType>
 StrType
 api_ospathnormcase_aspect(const StrType& path)
 {
-    auto normcase = initializer->get_imported_symbol("os.path", "normcase");
+    auto normcase = safe_import("os.path", "normcase");
     auto result_o = normcase(path);
 
     TRY_CATCH_ASPECT("ospathnormcase_aspect", return result_o, , {

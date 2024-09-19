@@ -24,8 +24,6 @@ class Initializer
     // This is a map instead of a set so we can change the contents on iteration; otherwise
     // keys and values are the same pointer.
     unordered_map<TaintRangeMapType*, TaintRangeMapTypePtr> active_map_addreses;
-    unordered_map<string, py::object> imported_cache;
-    mutex imported_cache_mutex;
 
   public:
     /**
@@ -39,8 +37,6 @@ class Initializer
      * @return A pointer to the created taint range map.
      */
     TaintRangeMapTypePtr create_tainting_map();
-
-    py::object get_imported_symbol(const char* module_name, const char* symbol_name = nullptr);
 
     /**
      * Clears a taint range map.

@@ -147,5 +147,5 @@ get_pyobject_size(PyObject* obj)
 bool
 PyReMatch_Check(const PyObject* obj)
 {
-    return py::isinstance((PyObject*)obj, initializer->get_imported_symbol("re", "Match"));
+    return py::isinstance((PyObject*)obj, safe_import("re", "Match"));
 }

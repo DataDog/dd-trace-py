@@ -6,29 +6,20 @@ using HasPyErrCheck = PyEnvCheck;
 
 TEST_F(HasPyErrCheck, NoErrorReturnsFalse)
 {
-    cerr << "JJJ 1\n";
     EXPECT_FALSE(has_pyerr());
-    cerr << "JJJ 2\n";
     EXPECT_STREQ(has_pyerr_as_string().c_str(), "");
-    cerr << "JJJ 3\n";
 }
 
 TEST_F(HasPyErrCheck, ErrorReturnsTrue)
 {
-    cerr << "JJJ 4\n";
     PyErr_SetString(PyExc_RuntimeError, "Test error");
-    cerr << "JJJ 5\n";
     EXPECT_TRUE(has_pyerr());
-    cerr << "JJJ 6\n";
     EXPECT_STREQ(has_pyerr_as_string().c_str(), "Test error");
-    cerr << "JJJ 7\n";
     PyErr_Clear();
-    cerr << "JJJ 8\n";
 }
 
 TEST_F(HasPyErrCheck, ClearError)
 {
-    cerr << "JJJ 4\n";
     PyErr_SetString(PyExc_RuntimeError, "Test error");
     EXPECT_TRUE(has_pyerr());
     EXPECT_STREQ(has_pyerr_as_string().c_str(), "Test error");
@@ -43,7 +34,6 @@ using GetTagCheck = ::testing::Test;
 
 TEST_F(GetTagCheck, HandlesEmptyString)
 {
-    cerr << "JJJ 4\n";
     std::string input = "";
     std::string expected_output = EVIDENCE_MARKS::BLANK;
     EXPECT_STREQ(get_tag(input).c_str(), expected_output.c_str());
@@ -51,7 +41,6 @@ TEST_F(GetTagCheck, HandlesEmptyString)
 
 TEST_F(GetTagCheck, HandlesNonEmptyString)
 {
-    cerr << "JJJ 4\n";
     std::string input = "example";
     std::string expected_output = std::string(EVIDENCE_MARKS::LESS) + "example" + std::string(EVIDENCE_MARKS::GREATER);
     EXPECT_STREQ(get_tag(input).c_str(), expected_output.c_str());
@@ -59,7 +48,6 @@ TEST_F(GetTagCheck, HandlesNonEmptyString)
 
 TEST_F(GetTagCheck, HandlesSpecialCharacters)
 {
-    cerr << "JJJ 4\n";
     std::string input = "special!@#";
     std::string expected_output =
       std::string(EVIDENCE_MARKS::LESS) + "special!@#" + std::string(EVIDENCE_MARKS::GREATER);
@@ -69,7 +57,6 @@ using GetDefaultContentCheck = ::testing::Test;
 
 TEST_F(GetDefaultContentCheck, HandlesEmptySourceName)
 {
-    cerr << "JJJ 4\n";
     TaintRangePtr taint_range = std::make_shared<TaintRange>();
     taint_range->source.name = "";
     std::string expected_output = "";
@@ -78,7 +65,6 @@ TEST_F(GetDefaultContentCheck, HandlesEmptySourceName)
 
 TEST_F(GetDefaultContentCheck, HandlesNonEmptySourceName)
 {
-    cerr << "JJJ 4\n";
     TaintRangePtr taint_range = std::make_shared<TaintRange>();
     taint_range->source.name = "example";
     std::string expected_output = "example";
@@ -87,7 +73,6 @@ TEST_F(GetDefaultContentCheck, HandlesNonEmptySourceName)
 
 TEST_F(GetDefaultContentCheck, HandlesSpecialCharactersInSourceName)
 {
-    cerr << "JJJ 4\n";
     TaintRangePtr taint_range = std::make_shared<TaintRange>();
     taint_range->source.name = "special!@#";
     std::string expected_output = "special!@#";
@@ -98,21 +83,18 @@ using MapperReplaceCheck = PyEnvCheck;
 
 TEST_F(MapperReplaceCheck, HandlesNullTaintRange)
 {
-    cerr << "JJJ 4\n";
     optional<const py::dict> new_ranges = py::dict();
     EXPECT_STREQ(mapper_replace(nullptr, new_ranges).c_str(), "");
 }
 
 TEST_F(MapperReplaceCheck, HandlesNullNewRanges)
 {
-    cerr << "JJJ 4\n";
     TaintRangePtr taint_range = std::make_shared<TaintRange>();
     EXPECT_STREQ(mapper_replace(taint_range, nullopt).c_str(), "");
 }
 
 TEST_F(MapperReplaceCheck, HandlesNonExistingRange)
 {
-    cerr << "JJJ 4\n";
     TaintRangePtr taint_range = std::make_shared<TaintRange>();
     optional<const py::dict> new_ranges = py::dict();
     EXPECT_STREQ(mapper_replace(taint_range, new_ranges).c_str(), "");
@@ -121,7 +103,6 @@ TEST_F(MapperReplaceCheck, HandlesNonExistingRange)
 // FIXME: not working, check with Alberto
 TEST_F(MapperReplaceCheck, DISABLED_HandlesExistingRange)
 {
-    cerr << "JJJ 4\n";
     TaintRangePtr taint_range = std::make_shared<TaintRange>();
     taint_range->start = 0;
     taint_range->length = 5;
@@ -142,7 +123,6 @@ using GetNumTest = PyEnvCheck;
 
 TEST_F(GetNumTest, ValidNumber)
 {
-    cerr << "JJJ 4\n";
     std::string valid_str = "12345";
     unsigned long int result = getNum(valid_str);
     EXPECT_EQ(result, 12345);
@@ -150,7 +130,6 @@ TEST_F(GetNumTest, ValidNumber)
 
 TEST_F(GetNumTest, EmptyString)
 {
-    cerr << "JJJ 4\n";
     std::string empty_str = "";
     unsigned long int result = getNum(empty_str);
     EXPECT_EQ(result, static_cast<unsigned long int>(-1));
@@ -158,7 +137,6 @@ TEST_F(GetNumTest, EmptyString)
 
 TEST_F(GetNumTest, InvalidString)
 {
-    cerr << "JJJ 4\n";
     std::string invalid_str = "abc";
     unsigned long int result = getNum(invalid_str);
     EXPECT_EQ(result, static_cast<unsigned long int>(-1));
@@ -166,7 +144,6 @@ TEST_F(GetNumTest, InvalidString)
 
 TEST_F(GetNumTest, OutOfRangeNumber)
 {
-    cerr << "JJJ 4\n";
     std::string out_of_range_str = "999999999999999999999999";
     unsigned long int result = getNum(out_of_range_str);
     EXPECT_EQ(result, static_cast<unsigned long int>(-1)); // Should return -1 due to exception
@@ -174,7 +151,6 @@ TEST_F(GetNumTest, OutOfRangeNumber)
 
 TEST_F(GetNumTest, MaxUnsignedLong)
 {
-    cerr << "JJJ 4\n";
     std::string max_ulong_str = std::to_string(ULONG_MAX);
     unsigned long int result = getNum(max_ulong_str);
     EXPECT_EQ(result, ULONG_MAX);
@@ -185,7 +161,6 @@ using AsFormattedEvidenceCheckNoContext = PyEnvCheck;
 
 TEST_F(AsFormattedEvidenceCheckNoContext, NoTaintMapSameString)
 {
-    cerr << "JJJ 4\n";
     const py::str text("This is a test string.");
     Source source("source1", "sample_value", OriginType::BODY);
     TaintRangeRefs taint_ranges = { std::make_shared<TaintRange>(5, 4, source) };
