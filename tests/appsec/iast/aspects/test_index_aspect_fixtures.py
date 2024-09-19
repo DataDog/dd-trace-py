@@ -10,7 +10,6 @@ from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-from tests.utils import flaky
 from tests.utils import override_env
 
 
@@ -85,8 +84,6 @@ def test_dictionary_index():
     assert len(tainted_ranges) == 1
 
 
-# JJJ fix this
-@flaky(1758199072)
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_index_error_with_tainted_gives_one_log_metric(telemetry_writer):
     string_input = taint_pyobject(
