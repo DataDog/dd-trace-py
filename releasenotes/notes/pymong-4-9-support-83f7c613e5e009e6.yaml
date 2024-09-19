@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    pymongo: Adds support for pymongo>=4.9.0
