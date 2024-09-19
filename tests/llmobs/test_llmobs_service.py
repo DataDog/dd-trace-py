@@ -37,15 +37,6 @@ from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
-class Unserializable:
-    pass
-
-
-class ReallyUnserializable:
-    def __repr__(self):
-        return Unserializable()
-
-
 @pytest.fixture
 def mock_logs():
     with mock.patch("ddtrace.llmobs._llmobs.log") as mock_logs:
@@ -425,22 +416,13 @@ def test_annotate_metadata_wrong_type_raises_warning(LLMObs, mock_logs):
 def test_annotate_metadata_non_serializable_marks_with_placeholder_value(LLMObs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, metadata={"unserializable": Unserializable()})
+            LLMObs.annotate(span=span, metadata={"unserializable": object()})
             metadata = json.loads(span.get_tag(METADATA))
             assert metadata is not None
-            assert "[Unserializable object:" in metadata["unserializable"]
+            assert "[Unserializable object: <object object" in metadata["unserializable"]
             mock_logs.warning.assert_called_once_with(
                 "I/O object is not JSON serializable. Defaulting to placeholder value instead."
             )
-
-
-def test_annotate_metadata_non_serializable_no_repr_raises_warning(LLMObs, mock_logs):
-    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        LLMObs.annotate(span=span, metadata={"unserializable": ReallyUnserializable()})
-        assert span.get_tag(METADATA) is None
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse span metadata. Metadata key-value pairs must be JSON serializable."
-        )
 
 
 def test_annotate_tag(LLMObs):
@@ -461,22 +443,13 @@ def test_annotate_tag_wrong_type(LLMObs, mock_logs):
 def test_annotate_tag_non_serializable_marks_with_placeholder_value(LLMObs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, tags={"unserializable": Unserializable()})
+            LLMObs.annotate(span=span, tags={"unserializable": object()})
             tags = json.loads(span.get_tag(TAGS))
             assert tags is not None
             assert "[Unserializable object:" in tags["unserializable"]
             mock_logs.warning.assert_called_once_with(
                 "I/O object is not JSON serializable. Defaulting to placeholder value instead."
             )
-
-
-def test_annotate_tag_non_serializable_no_repr_raises_warning(LLMObs, mock_logs):
-    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        LLMObs.annotate(span=span, tags={"unserializable": ReallyUnserializable()})
-        assert span.get_tag(TAGS) is None
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse span tags. Tag key-value pairs must be JSON serializable."
-        )
 
 
 def test_annotate_input_string(LLMObs):
@@ -521,20 +494,13 @@ def test_annotate_input_serializable_value(LLMObs):
 def test_annotate_input_value_non_serializable_marks_with_placeholder_value(LLMObs):
     with LLMObs.workflow() as span:
         with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, input_data=Unserializable())
+            LLMObs.annotate(span=span, input_data=object())
             input_value = span.get_tag(INPUT_VALUE)
             assert input_value is not None
             assert "[Unserializable object:" in input_value
             mock_logs.warning.assert_called_once_with(
                 "I/O object is not JSON serializable. Defaulting to placeholder value instead."
             )
-
-
-def test_annotate_input_value_non_serializable_no_repr_raises_warning(LLMObs, mock_logs):
-    with LLMObs.workflow() as span:
-        LLMObs.annotate(span=span, input_data=ReallyUnserializable())
-        assert span.get_tag(TAGS) is None
-        mock_logs.warning.assert_called_once_with("Failed to parse input value. Input value must be JSON serializable.")
 
 
 def test_annotate_input_llm_message(LLMObs):
@@ -545,7 +511,7 @@ def test_annotate_input_llm_message(LLMObs):
 
 def test_annotate_input_llm_message_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as span:
-        LLMObs.annotate(span=span, input_data=[{"content": Unserializable()}])
+        LLMObs.annotate(span=span, input_data=[{"content": object()}])
         assert span.get_tag(INPUT_MESSAGES) is None
         mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
 
@@ -626,7 +592,7 @@ def test_annotate_incorrect_document_type_raises_warning(LLMObs, mock_logs):
         LLMObs.annotate(span=span, input_data=123)
         mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
         mock_logs.reset_mock()
-        LLMObs.annotate(span=span, input_data=Unserializable())
+        LLMObs.annotate(span=span, input_data=object())
         mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
         mock_logs.reset_mock()
     with LLMObs.retrieval() as span:
@@ -636,14 +602,14 @@ def test_annotate_incorrect_document_type_raises_warning(LLMObs, mock_logs):
         LLMObs.annotate(span=span, output_data=123)
         mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
         mock_logs.reset_mock()
-        LLMObs.annotate(span=span, output_data=Unserializable())
+        LLMObs.annotate(span=span, output_data=object())
         mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
 
 
 def test_annotate_output_embedding_non_serializable_marks_with_placeholder_value(LLMObs):
     with LLMObs.embedding(model_name="test_model") as span:
         with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, output_data=Unserializable())
+            LLMObs.annotate(span=span, output_data=object())
             output_value = json.loads(span.get_tag(OUTPUT_VALUE))
             assert output_value is not None
             assert "[Unserializable object:" in output_value
@@ -655,7 +621,7 @@ def test_annotate_output_embedding_non_serializable_marks_with_placeholder_value
 def test_annotate_input_retrieval_non_serializable_marks_with_placeholder_value(LLMObs):
     with LLMObs.retrieval() as span:
         with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, input_data=Unserializable())
+            LLMObs.annotate(span=span, input_data=object())
             input_value = json.loads(span.get_tag(INPUT_VALUE))
             assert input_value is not None
             assert "[Unserializable object:" in input_value
@@ -738,22 +704,13 @@ def test_annotate_output_serializable_value(LLMObs):
 def test_annotate_output_value_non_serializable_marks_with_placeholder_value(LLMObs):
     with LLMObs.workflow() as span:
         with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, output_data=Unserializable())
+            LLMObs.annotate(span=span, output_data=object())
             output_value = json.loads(span.get_tag(OUTPUT_VALUE))
             assert output_value is not None
             assert "[Unserializable object:" in output_value
             mock_logs.warning.assert_called_once_with(
                 "I/O object is not JSON serializable. Defaulting to placeholder value instead."
             )
-
-
-def test_annotate_output_value_non_serializable_no_repr_raises_warning(LLMObs, mock_logs):
-    with LLMObs.workflow() as llm_span:
-        LLMObs.annotate(span=llm_span, output_data=ReallyUnserializable())
-        assert llm_span.get_tag(OUTPUT_VALUE) is None
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse output value. Output value must be JSON serializable."
-        )
 
 
 def test_annotate_output_llm_message(LLMObs):
@@ -764,7 +721,7 @@ def test_annotate_output_llm_message(LLMObs):
 
 def test_annotate_output_llm_message_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as llm_span:
-        LLMObs.annotate(span=llm_span, output_data=[{"content": Unserializable()}])
+        LLMObs.annotate(span=llm_span, output_data=[{"content": object()}])
         assert llm_span.get_tag(OUTPUT_MESSAGES) is None
         mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
@@ -782,11 +739,13 @@ def test_annotate_metrics_wrong_type(LLMObs, mock_logs):
         mock_logs.warning.assert_called_once_with("metrics must be a dictionary of string key - numeric value pairs.")
         mock_logs.reset_mock()
 
-        LLMObs.annotate(span=llm_span, metrics={"content": Unserializable()})
-        assert llm_span.get_tag(METRICS) is None
-        mock_logs.warning.assert_called_once_with(
-            "Failed to parse span metrics. Metric key-value pairs must be JSON serializable."
-        )
+
+def test_annotate_metrics_unserializable_uses_placeholder(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model") as llm_span:
+        LLMObs.annotate(span=llm_span, metrics={"content": object()})
+        metrics = json.loads(llm_span.get_tag(METRICS))
+        assert metrics is not None
+        assert "[Unserializable object: <object object at" in metrics["content"]
 
 
 def test_annotate_prompt_dict(LLMObs):
