@@ -181,4 +181,6 @@ def propagation_memory_check(origin_string1, tainted_string_2):
         _ = m.read()
     except Exception:
         pass
-    return string23
+    import _io
+
+    return _io.StringIO(string23).read()
