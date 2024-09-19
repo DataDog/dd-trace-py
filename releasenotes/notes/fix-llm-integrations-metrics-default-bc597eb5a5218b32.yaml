@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the OpenAI and LangChain integrations would still submit integration metrics even in agentless mode. 
+    Integration metrics are now disabled if using agentless mode via ``LLMObs.enable(agentless_enabled=True)`` or setting ``DD_LLMOBS_AGENTLESS_ENABLED=1``.
