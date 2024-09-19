@@ -403,6 +403,7 @@ class TestThreadingLockCollector:
         )
 
     def test_resource_not_collected(self):
+        tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
         with collector_threading.ThreadingLockCollector(
