@@ -1,5 +1,4 @@
 import celery
-import sys
 from celery import signals
 
 from ddtrace import Pin
