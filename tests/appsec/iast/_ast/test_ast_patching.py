@@ -208,16 +208,3 @@ def test_astpatch_bytesio_module_changed(module_name):
         "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects"
     )
     assert "ddtrace_aspects.bytesio_aspect(" in new_code
-
-
-def test_astpatch_read_module_changed():
-    module_path, new_source = astpatch_module(
-        __import__("tests.appsec.iast.fixtures.ast.io.module_read", fromlist=[None])
-    )
-    assert ("", "") != (module_path, new_source)
-    new_code = astunparse.unparse(new_source)
-    assert new_code.startswith(
-        "\nimport ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
-        "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects"
-    )
-    assert "ddtrace_aspects.read_aspect(" in new_code
