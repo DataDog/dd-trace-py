@@ -174,23 +174,19 @@ def upload(processsor: EndpointCallCounterProcessor) -> None:
     runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
 
-    counts, span_ids = processsor.reset()
-
-    for span_id, resource in span_ids.items():
-        resource_bytes = ensure_binary_or_empty(resource)
-        span_id = clamp_to_uint64_unsigned(span_id)
-        ddup_profile_set_endpoint(
-            span_id,
-            string_view(<const char*>resource_bytes, len(resource_bytes)),
-        )
-
-    for resource, cnt in counts.items():
-        resource_bytes = ensure_binary_or_empty(resource)
-        cnt = clamp_to_int64_unsigned(cnt)
-        print("ddup_profile_add_endpoint_count", resource_bytes, cnt)
+    endpoint_counts, endpoint_to_span_ids = processsor.reset()
+    for endpoint, span_ids in endpoint_to_span_ids.items():
+        endpoint_bytes = ensure_binary_or_empty(endpoint)
+        for span_id in span_ids:
+            ddup_profile_set_endpoint(
+                clamp_to_uint64_unsigned(span_id),
+                string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
+            )
+    for endpoint, cnt in endpoint_counts.items():
+        endpoint_bytes = ensure_binary_or_empty(endpoint)
         ddup_profile_add_endpoint_count(
-            string_view(<const char*>resource_bytes, len(resource_bytes)),
-            cnt
+            string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
+            clamp_to_int64_unsigned(cnt)
         )
 
     with nogil:
