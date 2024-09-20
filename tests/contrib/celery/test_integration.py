@@ -445,7 +445,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
     @mock.patch("kombu.messaging.Producer.publish", mock.Mock(side_effect=ValueError))
     def test_fn_task_apply_async_soft_exception(self):
         # If the underlying library runs into an exception that doesn't crash the app,
-        # we should still close the span even if the after_task_publish signal didn't get
+        # we should still close the span even if the closing signals didn't get
         # called
 
         @self.app.task
@@ -459,6 +459,10 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             traces = self.pop_traces()
             assert 1 == len(traces)
             assert traces[0][0].name == "celery.apply"
+            assert traces[0][0].resource == "tests.contrib.celery.test_integration.fn_task_parameters"
+            assert traces[0][0].get_tag("celery.action") == "apply_async"
+            assert span.get_tag("component") == "celery"
+            assert span.get_tag("span.kind") == "producer"
 
     def test_shared_task(self):
         # Ensure Django Shared Task are supported
