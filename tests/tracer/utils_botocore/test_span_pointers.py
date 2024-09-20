@@ -185,6 +185,29 @@ class TestBotocoreSpanPointers:
                 ],
                 expected_warning_regex=None,
             ),
+            PointersCase(
+                name="s3.CopyObject",
+                endpoint_name="s3",
+                operation_name="CopyObject",
+                request_parameters={
+                    "Bucket": "some-bucket",
+                    "Key": "some-key.data",
+                },
+                response={
+                    "CopyObjectResult": {
+                        "ETag": "ab12ef34",
+                    },
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.s3.object",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="e721375466d4116ab551213fdea08413",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
         ],
         ids=lambda case: case.name,
     )

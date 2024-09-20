@@ -38,6 +38,14 @@ def _extract_span_pointers_for_s3_response(
             response,
         )
 
+    if operation_name == "CopyObject":
+        return _extract_span_pointers_for_s3_response_with_helper(
+            operation_name,
+            _AWSS3ObjectHashingProperties.for_copy_object,
+            request_parameters,
+            response,
+        )
+
     return []
 
 
@@ -52,6 +60,16 @@ class _AWSS3ObjectHashingProperties(NamedTuple):
             bucket=request_parameters["Bucket"],
             key=request_parameters["Key"],
             etag=response["ETag"],
+        )
+
+    @staticmethod
+    def for_copy_object(
+        request_parameters: Dict[str, Any], response: Dict[str, Any]
+    ) -> "_AWSS3ObjectHashingProperties":
+        return _AWSS3ObjectHashingProperties(
+            bucket=request_parameters["Bucket"],
+            key=request_parameters["Key"],
+            etag=response["CopyObjectResult"]["ETag"],
         )
 
 
