@@ -340,34 +340,35 @@ def test_span_creation_metrics():
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
-    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
-        for _ in range(300):
+    with override_global_config(dict(_telemetry_enabled=True)):
+        with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+            for _ in range(300):
+                span = Span("span", on_finish=[aggr.on_span_finish])
+                aggr.on_span_start(span)
+                span.finish()
+
             span = Span("span", on_finish=[aggr.on_span_finish])
             aggr.on_span_start(span)
             span.finish()
 
-        span = Span("span", on_finish=[aggr.on_span_finish])
-        aggr.on_span_start(span)
-        span.finish()
-
-        mock_tm.assert_has_calls(
-            [
-                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-            ]
-        )
-        mock_tm.reset_mock()
-        aggr.shutdown(None)
-        mock_tm.assert_has_calls(
-            [
-                mock.call("tracers", "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
-            ]
-        )
+            mock_tm.assert_has_calls(
+                [
+                    mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                    mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                    mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                    mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                    mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                    mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                ]
+            )
+            mock_tm.reset_mock()
+            aggr.shutdown(None)
+            mock_tm.assert_has_calls(
+                [
+                    mock.call("tracers", "spans_created", 1, tags=(("integration_name", "datadog"),)),
+                    mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
+                ]
+            )
 
 
 def test_span_creation_metrics_disabled_telemetry():

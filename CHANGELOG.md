@@ -6,7 +6,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ## 2.11.6
 
-
 ### Bug Fixes
 
 - library injection: Resolves an issue where the version of `attrs` installed by default on some Ubuntu installations was treated as incompatible with library injection
@@ -15,8 +14,15 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
-## 2.10.7
+## 2.11.5
 
+### Bug Fixes
+
+- SSI: This fix ensures injection denylist is included in published OCI package.
+
+---
+
+## 2.10.7
 
 ### Bug Fixes
 
@@ -24,7 +30,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
 - openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
 - profiling: Fixes endpoing profiling for stack v2 when `DD_PROFILING_STACK_V2_ENABLED` is set.
-
 
 ---
 
