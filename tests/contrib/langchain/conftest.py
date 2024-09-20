@@ -166,7 +166,6 @@ def langchain_pinecone(ddtrace_config_langchain, mock_logs, mock_metrics, langch
 
 @pytest.fixture
 def streamed_response_responder():
-    # TODO (sam.brenner): clean this up a bit, make it more generic
     try:
         import importlib
         import os
@@ -205,7 +204,6 @@ def streamed_response_responder():
 
 @pytest.fixture
 def async_streamed_response_responder():
-    # TODO (sam.brenner): clean this up a bit, make it more generic
     try:
         import importlib
         import os

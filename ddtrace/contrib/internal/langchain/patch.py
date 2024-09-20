@@ -1096,23 +1096,25 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
 
     def _on_span_start(span: Span):
+        if not integration.is_pc_sampled_span(span):
+            return
         inp = get_argument_value(args, kwargs, 0, "input")
         if not isinstance(inp, list):
             inp = [inp]
-        if integration.is_pc_sampled_span(span):
-            for idx, prompt in enumerate(inp):
-                span.set_tag_str("langchain.request.prompts.%d" % idx, integration.trunc(str(prompt)))
+        for idx, prompt in enumerate(inp):
+            span.set_tag_str("langchain.request.prompts.%d" % idx, integration.trunc(str(prompt)))
         for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
+            if not isinstance(val, dict):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+                return
+            for k, v in val.items():
+                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
 
     def _on_span_finished(span: Span, streamed_chunks):
-        if not span.error and integration.is_pc_sampled_span(span):
-            content = "".join([str(chunk) for chunk in streamed_chunks])
-            span.set_tag_str("langchain.response.content", integration.trunc(content))
+        if span.error or not integration.is_pc_sampled_span(span):
+            return
+        content = "".join([str(chunk) for chunk in streamed_chunks])
+        span.set_tag_str("langchain.response.content", integration.trunc(content))
 
     return shared_stream(
         integration=integration,
