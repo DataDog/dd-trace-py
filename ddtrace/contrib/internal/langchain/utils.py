@@ -77,3 +77,27 @@ def shared_stream(
         integration.metric(span, "incr", "request.error", 1)
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         raise
+
+
+def tag_general_message_input(span, inputs, integration, langchain_core):
+    if langchain_core and isinstance(inputs, langchain_core.prompt_values.PromptValue):
+        inputs = inputs.to_messages()
+    elif not isinstance(inputs, list):
+        inputs = [inputs]
+    for input_idx, inp in enumerate(inputs):
+        if isinstance(inp, dict):
+            span.set_tag_str(
+                "langchain.request.messages.%d.content" % (input_idx),
+                integration.trunc(str(inp.get("content", ""))),
+            )
+            span.set_tag_str(
+                "langchain.request.messages.%d.role" % (input_idx),
+                str(inp.get("role", "")),
+            )
+        elif langchain_core and isinstance(inp, langchain_core.messages.BaseMessage):
+            content = inp.content
+            role = inp.__class__.__name__
+            span.set_tag_str("langchain.request.messages.%d.content" % (input_idx), integration.trunc(str(content)))
+            span.set_tag_str("langchain.request.messages.%d.role" % (input_idx), str(role))
+        else:
+            span.set_tag_str("langchain.request.messages.%d.content" % (input_idx), integration.trunc(str(inp)))

@@ -51,6 +51,7 @@ from ddtrace.contrib.internal.langchain.constants import agent_output_parser_cla
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.utils import shared_stream
+from ddtrace.contrib.internal.langchain.utils import tag_general_message_input
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -1030,31 +1031,7 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         if not integration.is_pc_sampled_span(span):
             return
         chat_messages = get_argument_value(args, kwargs, 0, "input")
-        if langchain_core and isinstance(chat_messages, langchain_core.prompt_values.PromptValue):
-            chat_messages = chat_messages.to_messages()
-        elif not isinstance(chat_messages, list):
-            chat_messages = [chat_messages]
-        for message_idx, message in enumerate(chat_messages):
-            if isinstance(message, dict):
-                span.set_tag_str(
-                    "langchain.request.messages.%d.content" % (message_idx),
-                    integration.trunc(str(message.get("content", ""))),
-                )
-                span.set_tag_str(
-                    "langchain.request.messages.%d.role" % (message_idx),
-                    str(message.get("role", "")),
-                )
-            elif langchain_core and isinstance(message, langchain_core.messages.BaseMessage):
-                content = message.content
-                role = message.__class__.__name__
-                span.set_tag_str(
-                    "langchain.request.messages.%d.content" % (message_idx), integration.trunc(str(content))
-                )
-                span.set_tag_str("langchain.request.messages.%d.role" % (message_idx), str(role))
-            else:
-                span.set_tag_str(
-                    "langchain.request.messages.%d.content" % (message_idx), integration.trunc(str(message))
-                )
+        tag_general_message_input(span, chat_messages, integration, langchain_core)
 
         for param, val in getattr(instance, "_identifying_params", {}).items():
             if not isinstance(val, dict):
@@ -1099,10 +1076,7 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
         if not integration.is_pc_sampled_span(span):
             return
         inp = get_argument_value(args, kwargs, 0, "input")
-        if not isinstance(inp, list):
-            inp = [inp]
-        for idx, prompt in enumerate(inp):
-            span.set_tag_str("langchain.request.prompts.%d" % idx, integration.trunc(str(prompt)))
+        tag_general_message_input(span, inp, integration, langchain_core)
         for param, val in getattr(instance, "_identifying_params", {}).items():
             if not isinstance(val, dict):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
@@ -1361,8 +1335,6 @@ def patch():
         from langchain.chains.base import Chain  # noqa:F401
         from langchain_core import messages  # noqa: F401
         from langchain_core import output_parsers  # noqa: F401
-        from langchain_core import prompt_values  # noqa: F401
-        from langchain_core.tools import BaseTool  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
