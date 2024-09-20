@@ -2,7 +2,8 @@
  * IAST Native Module
  * This C++ module contains IAST propagation features:
  * - Taint tracking: propagation of a tainted variable.
- * - Aspects: common string operations are replaced by functions that propagate the taint variables.
+ * - Aspects: common string operations are replaced by functions that propagate
+ * the taint variables.
  * - Taint ranges: Information related to tainted values.
  */
 #include <memory>
@@ -19,39 +20,41 @@
 #include "TaintTracking/_taint_tracking.h"
 #include "TaintedOps/TaintedOps.h"
 
-#define PY_MODULE_NAME_ASPECTS                                                                                         \
-    PY_MODULE_NAME "."                                                                                                 \
-                   "aspects"
+#define PY_MODULE_NAME_ASPECTS                                                 \
+  PY_MODULE_NAME "."                                                           \
+                 "aspects"
 
 using namespace pybind11::literals;
 namespace py = pybind11;
 
 static PyMethodDef AspectsMethods[] = {
-    { "add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add" },
-    { "extend_aspect", ((PyCFunction)api_extend_aspect), METH_FASTCALL, "aspect extend" },
-    { "index_aspect", ((PyCFunction)api_index_aspect), METH_FASTCALL, "aspect index" },
-    { "join_aspect", ((PyCFunction)api_join_aspect), METH_FASTCALL, "aspect join" },
-    { "slice_aspect", ((PyCFunction)api_slice_aspect), METH_FASTCALL, "aspect slice" },
-    { nullptr, nullptr, 0, nullptr }
-};
+    {"add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add"},
+    {"extend_aspect", ((PyCFunction)api_extend_aspect), METH_FASTCALL,
+     "aspect extend"},
+    {"index_aspect", ((PyCFunction)api_index_aspect), METH_FASTCALL,
+     "aspect index"},
+    {"join_aspect", ((PyCFunction)api_join_aspect), METH_FASTCALL,
+     "aspect join"},
+    {"slice_aspect", ((PyCFunction)api_slice_aspect), METH_FASTCALL,
+     "aspect slice"},
+    {nullptr, nullptr, 0, nullptr}};
 
-static struct PyModuleDef aspects = { PyModuleDef_HEAD_INIT,
-                                      .m_name = PY_MODULE_NAME_ASPECTS,
-                                      .m_doc = "Taint tracking Aspects",
-                                      .m_size = -1,
-                                      .m_methods = AspectsMethods };
+static struct PyModuleDef aspects = {PyModuleDef_HEAD_INIT,
+                                     .m_name = PY_MODULE_NAME_ASPECTS,
+                                     .m_doc = "Taint tracking Aspects",
+                                     .m_size = -1, .m_methods = AspectsMethods};
 
 static PyMethodDef OpsMethods[] = {
-    { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL, "new pyobject id" },
-    { "set_ranges_from_values", ((PyCFunction)api_set_ranges_from_values), METH_FASTCALL, "set_ranges_from_values" },
-    { nullptr, nullptr, 0, nullptr }
-};
+    {"new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL,
+     "new pyobject id"},
+    {"set_ranges_from_values", ((PyCFunction)api_set_ranges_from_values),
+     METH_FASTCALL, "set_ranges_from_values"},
+    {nullptr, nullptr, 0, nullptr}};
 
-static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
-                                  .m_name = PY_MODULE_NAME_ASPECTS,
-                                  .m_doc = "Taint tracking operations",
-                                  .m_size = -1,
-                                  .m_methods = OpsMethods };
+static struct PyModuleDef ops = {PyModuleDef_HEAD_INIT,
+                                 .m_name = PY_MODULE_NAME_ASPECTS,
+                                 .m_doc = "Taint tracking operations",
+                                 .m_size = -1, .m_methods = OpsMethods};
 
 /**
  * This function initializes the native module.
@@ -71,8 +74,15 @@ PYBIND11_MODULE(_native, m)
         }
     }
 
-    initializer = make_unique<Initializer>();
-    initializer->create_context();
+  initializer = make_unique<Initializer>();
+  // Create an atexit callback to clean up the Initializer before the
+  // interpreter finishes
+  auto atexit_register = py::module_::import("atexit").attr("register");
+  atexit_register(py::cpp_function([]() {
+    initializer->reset_context();
+    initializer.reset();
+  }));
+  initializer->create_context();
 
     m.doc() = "Native Python module";
 
