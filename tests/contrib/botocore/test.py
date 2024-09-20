@@ -403,7 +403,7 @@ class BotocoreTest(TracerTestCase):
                 # We have more detailed tests for the hashing behavior
                 # elsewhere. Here we just want to make sure that the pointer is
                 # correctly attached to the span.
-                pointer_hash="0baa59add96c451c6e77641698d115a4",
+                pointer_hash="def44fdefcd83bc907515567dc742be1",
             ),
         ]
 
@@ -426,7 +426,7 @@ class BotocoreTest(TracerTestCase):
                     # We have more detailed tests for the hashing behavior
                     # elsewhere. Here we just want to make sure that the pointer is
                     # correctly attached to the span.
-                    pointer_hash="0baa59add96c451c6e77641698d115a4",
+                    pointer_hash="def44fdefcd83bc907515567dc742be1",
                 ),
             ]
 
