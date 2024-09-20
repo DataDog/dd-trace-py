@@ -75,9 +75,6 @@ args_are_text_and_same_type(PyObject* first, PyObject* second, Args... args)
     return args_are_text_and_same_type(second, args...);
 }
 
-string
-PyObjectToString(PyObject* obj);
-
 PyTextType
 get_pytext_type(PyObject* obj);
 
