@@ -1106,7 +1106,7 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
         for param, val in getattr(instance, "_identifying_params", {}).items():
             if not isinstance(val, dict):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-                return
+                continue
             for k, v in val.items():
                 span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
 
