@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing(celery): Fixes an issue where `celery.apply` spans didn't close if the after_task_publish or task_postrun signals didn't get called. 
