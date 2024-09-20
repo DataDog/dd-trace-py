@@ -197,12 +197,19 @@ class BaseLLMIntegration:
             text = text[: self.integration_config.span_char_limit] + "..."
         return text
 
-    def llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], **extra_kwargs) -> None:
+    def llmobs_set_tags(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         """Extract input/output information from the request and response to be submitted to LLMObs."""
         if not self.llmobs_enabled:
             return
         try:
-            self._llmobs_set_tags(span, args, kwargs, **extra_kwargs)
+            self._llmobs_set_tags(span, args, kwargs, response, operation)
         except Exception:
             log.error("Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True)
 
@@ -215,4 +222,4 @@ class BaseLLMIntegration:
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        pass
+        raise NotImplementedError()
