@@ -1045,7 +1045,7 @@ def re_sub_aspect(
         # which we don't need to check for tainted ranges
         args = args[1:]
 
-    if len(args) >= 2:
+    if len(args) >= 2 and len(result):
         repl = args[0]
         string = args[1]
         if is_pyobject_tainted(string):
