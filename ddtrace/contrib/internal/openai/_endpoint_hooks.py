@@ -212,7 +212,7 @@ class _CompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
-        integration.llmobs_set_tags(span, kwargs=kwargs, response=resp, operation="completion")
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="completion")
         if not resp:
             return
         for choice in resp.choices:
@@ -273,7 +273,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
-        integration.llmobs_set_tags(span, kwargs=kwargs, response=resp, operation="chat")
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
         if not resp:
             return
         for choice in resp.choices:
@@ -317,7 +317,7 @@ class _EmbeddingHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        integration.llmobs_set_tags(span, kwargs=kwargs, response=resp, operation="embedding")
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="embedding")
         if not resp:
             return
         span.set_metric("openai.response.embeddings_count", len(resp.data))

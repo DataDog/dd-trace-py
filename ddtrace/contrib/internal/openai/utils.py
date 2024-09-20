@@ -209,7 +209,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
             _tag_streamed_response(integration, span, formatted_completions)
         _set_token_metrics(span, integration, formatted_completions, prompts, request_messages, kwargs)
         operation = "completion" if is_completion else "chat"
-        integration.llmobs_set_tags(span, kwargs=kwargs, streamed_response=formatted_completions, operation=operation)
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
 

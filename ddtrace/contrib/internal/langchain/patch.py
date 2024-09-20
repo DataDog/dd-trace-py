@@ -682,7 +682,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        integration.llmobs_set_tags(span, response=final_outputs, inputs=inputs, operation="chain")
+        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_outputs, operation="chain")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -738,7 +738,7 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        integration.llmobs_set_tags(span, response=final_outputs, inputs=inputs, operation="chain")
+        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_outputs, operation="chain")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -810,7 +810,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        integration.llmobs_set_tags(span, response=final_output, inputs=inputs, operation="chain")
+        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_output, operation="chain")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
@@ -856,7 +856,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        integration.llmobs_set_tags(span, response=final_output, inputs=inputs, operation="chain")
+        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_output, operation="chain")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
@@ -979,7 +979,7 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         raise
     finally:
         tool_inputs = {"input": tool_input, "config": config or {}, "info": tool_info or {}}
-        integration.llmobs_set_tags(span, response=tool_output, inputs=tool_inputs, operation="tool")
+        integration.llmobs_set_tags(span, args=[], kwargs=tool_inputs, response=tool_output, operation="tool")
         span.finish()
     return tool_output
 
@@ -1029,11 +1029,8 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        integration.llmobs_set_tags(
-            span,
-            response=tool_output,
-            inputs={"input": tool_input, "config": config or {}, "info": tool_info or {}},
-        )
+        tool_inputs = {"input": tool_input, "config": config or {}, "info": tool_info or {}}
+        integration.llmobs_set_tags(span, args=[], kwargs=tool_inputs, response=tool_output, operation="tool")
         span.finish()
     return tool_output
 

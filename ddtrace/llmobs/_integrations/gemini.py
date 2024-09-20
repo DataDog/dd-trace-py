@@ -35,15 +35,16 @@ class GeminiIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: Optional[List[Any]] = None,
-        kwargs: Optional[Dict[str, Any]] = None,
+        args: List[Any],
+        kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        instance: Optional[Any] = None,
+        operation: str = "",
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("google_generativeai.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("google_generativeai.request.provider") or "")
 
+        instance = kwargs.get("instance", None)
         metadata = self._llmobs_set_metadata(kwargs, instance)
         span.set_tag_str(METADATA, safe_json(metadata))
 
@@ -65,7 +66,7 @@ class GeminiIntegration(BaseLLMIntegration):
     @staticmethod
     def _llmobs_set_metadata(kwargs, instance):
         metadata = {}
-        model_config = instance._generation_config or {}
+        model_config = _get_attr(instance, "_generation_config", {})
         request_config = kwargs.get("generation_config", {})
         parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
         for param in parameters:

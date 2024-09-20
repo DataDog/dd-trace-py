@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -27,7 +28,9 @@ log = get_logger(__name__)
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
-    def _llmobs_set_tags(self, span: Span, response: Optional[Any] = None, prompt: Optional[Any] = None) -> None:
+    def _llmobs_set_tags(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None, operation: str = ""
+    ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
             parent_id = _get_llmobs_parent_id(span) or "undefined"
@@ -37,6 +40,8 @@ class BedrockIntegration(BaseLLMIntegration):
             parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
         if span.get_tag("bedrock.request.max_tokens"):
             parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens") or 0)
+
+        prompt = kwargs.get("prompt", "")
         input_messages = self._extract_input_message(prompt)
 
         span.set_tag_str(SPAN_KIND, "llm")

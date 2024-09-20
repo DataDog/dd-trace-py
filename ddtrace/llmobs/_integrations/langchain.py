@@ -56,11 +56,10 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: Optional[List[Any]] = None,
-        kwargs: Optional[Dict[str, Any]] = None,
+        args: List[Any],
+        kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: Optional[str] = None,  # oneof "llm","chat","chain","embedding","retrieval","tool"
-        inputs: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -90,13 +89,13 @@ class LangChainIntegration(BaseLLMIntegration):
         elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chain":
-            self._llmobs_set_meta_tags_from_chain(span, response, inputs=inputs)
+            self._llmobs_set_meta_tags_from_chain(span, inputs=kwargs, outputs=response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "retrieval":
             self._llmobs_set_meta_tags_from_similarity_search(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "tool":
-            self._llmobs_set_meta_tags_from_tool(span, tool_inputs=inputs, tool_output=response)
+            self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
 
         span.set_tag_str(METRICS, safe_json({}))
 
@@ -132,7 +131,7 @@ class LangChainIntegration(BaseLLMIntegration):
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
 
         prompts = get_argument_value(args, kwargs, 0, "prompts")
-        if isinstance(prompts, str):
+        if isinstance(prompts, str) or not isinstance(prompts, list):
             prompts = [prompts]
 
         span.set_tag_str(input_tag_key, safe_json([{"content": str(prompt)} for prompt in prompts]))
@@ -158,16 +157,12 @@ class LangChainIntegration(BaseLLMIntegration):
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
 
         input_messages = []
-        chat_messages = get_argument_value(args, kwargs, 0, "messages")
+        chat_messages = get_argument_value(args, kwargs, 0, "messages", optional=True) or []
         for message_set in chat_messages:
             for message in message_set:
                 content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
-                input_messages.append(
-                    {
-                        "content": str(content),
-                        "role": getattr(message, "role", ROLE_MAPPING.get(message.type, "")),
-                    }
-                )
+                role = getattr(message, "role", ROLE_MAPPING.get(message.type, ""))
+                input_messages.append({"content": str(content), "role": str(role)})
         span.set_tag_str(input_tag_key, safe_json(input_messages))
 
         if span.error:

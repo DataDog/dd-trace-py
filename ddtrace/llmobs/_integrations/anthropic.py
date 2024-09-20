@@ -2,6 +2,7 @@ import json
 from typing import Any
 from typing import Dict
 from typing import Iterable
+from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -48,7 +49,12 @@ class AnthropicIntegration(BaseLLMIntegration):
                 span.set_tag_str(API_KEY, api_key)
 
     def _llmobs_set_tags(
-        self, span: Span, kwargs: Optional[Dict[str, Any]] = None, response: Optional[Any] = None
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         parameters = {}

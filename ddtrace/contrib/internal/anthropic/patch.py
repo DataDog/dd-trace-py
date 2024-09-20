@@ -105,7 +105,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     finally:
         # we don't want to finish the span if it is a stream as it will get finished once the iterator is exhausted
         if span.error or not stream:
-            integration.llmobs_set_tags(span, kwargs=kwargs, response=chat_completions)
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=chat_completions)
             span.finish()
     return chat_completions
 
@@ -177,7 +177,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     finally:
         # we don't want to finish the span if it is a stream as it will get finished once the iterator is exhausted
         if span.error or not stream:
-            integration.llmobs_set_tags(span, kwargs=kwargs, response=chat_completions)
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=chat_completions)
             span.finish()
     return chat_completions
 

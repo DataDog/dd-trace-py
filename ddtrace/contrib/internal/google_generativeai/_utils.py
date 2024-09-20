@@ -30,12 +30,12 @@ class TracedGenerateContentResponse(BaseTracedGenerateContentResponse):
         else:
             tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
         finally:
+            self._kwargs["instance"] = self._model_instance
             self._dd_integration.llmobs_set_tags(
                 self._dd_span,
                 args=self._args,
                 kwargs=self._kwargs,
                 response=self.__wrapped__,
-                instance=self._model_instance,
             )
             self._dd_span.finish()
 
@@ -51,12 +51,12 @@ class TracedAsyncGenerateContentResponse(BaseTracedGenerateContentResponse):
         else:
             tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
         finally:
+            self._kwargs["instance"] = self._model_instance
             self._dd_integration.llmobs_set_tags(
                 self._dd_span,
                 args=self._args,
                 kwargs=self._kwargs,
                 response=self.__wrapped__,
-                instance=self._model_instance,
             )
             self._dd_span.finish()
 
