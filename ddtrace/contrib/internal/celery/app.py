@@ -19,6 +19,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import _DD_PIN_NAME
 
+
 log = get_logger(__name__)
 
 
@@ -108,7 +109,6 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
 
 def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
     def _traced_apply_async_inner(func, instance, args, kwargs):
-
         with core.context_with_data("task_context"):
             try:
                 return func(*args, **kwargs)

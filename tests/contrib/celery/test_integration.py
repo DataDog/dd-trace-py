@@ -1,12 +1,12 @@
 from collections import Counter
 import os
-import mock
 import socket
 import subprocess
 from time import sleep
 
 import celery
 from celery.exceptions import Retry
+import mock
 import pytest
 
 from ddtrace import Pin
