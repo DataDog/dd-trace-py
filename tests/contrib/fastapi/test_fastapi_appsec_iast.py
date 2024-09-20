@@ -301,7 +301,7 @@ def test_path_source(fastapi_application, client, tracer, test_spans):
 
 
 @pytest.mark.usefixtures("setup_core_ok_after_test")
-def test_path_body_source(fastapi_application, client, tracer, test_spans):
+def test_path_body_receive_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/index.html")
     async def test_route(request: Request):
         from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
@@ -314,6 +314,46 @@ def test_path_body_source(fastapi_application, client, tracer, test_spans):
         return JSONResponse(
             {
                 "result": str(result, encoding="utf-8"),
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    # test if asgi middleware is ok without any callback registered
+    # core.reset_listeners(event_id="asgi.request.parse.body")
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post(
+            "/index.html",
+            data='{"name": "yqrweytqwreasldhkuqwgervflnmlnli"}',
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == '{"name": "yqrweytqwreasldhkuqwgervflnmlnli"}'
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 44
+        assert result["ranges_origin"] == "http.request.body"
+
+
+@pytest.mark.usefixtures("setup_core_ok_after_test")
+def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/index.html")
+    async def test_route(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        body = await request.body()
+        ranges_result = get_tainted_ranges(body)
+
+        return JSONResponse(
+            {
+                "result": str(body, encoding="utf-8"),
                 "is_tainted": len(ranges_result),
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
