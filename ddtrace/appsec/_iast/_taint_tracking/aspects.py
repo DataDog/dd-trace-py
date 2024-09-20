@@ -172,15 +172,13 @@ def join_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
     joiner = args[0]
     args = args[flag_added_args:]
 
-    result = joiner.join(*args, **kwargs)
-
     if not isinstance(joiner, IAST.TEXT_TYPES):
-        return result
+        return joiner.join(*args, **kwargs)
     try:
         return _join_aspect(joiner, *args, **kwargs)
     except Exception as e:
         iast_taint_log_error("join_aspect. {}".format(e))
-    return result
+    return joiner.join(*args, **kwargs)
 
 
 def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
@@ -513,8 +511,8 @@ def decode_aspect(
             codec = args[0] if args else "utf-8"
             inc_dec = codecs.getincrementaldecoder(codec)(**kwargs)
             return incremental_translation(self, inc_dec, inc_dec.decode, "")
-        except Exception as e:
-            iast_taint_log_error("decode_aspect. {}".format(e))
+        except Exception:
+            pass
     return self.decode(*args, **kwargs)
 
 
@@ -529,17 +527,14 @@ def encode_aspect(
     self = args[0]
     args = args[(flag_added_args or 1) :]
 
-    result = self.encode(*args, **kwargs)
-
     if is_pyobject_tainted(self) and isinstance(self, str):
         try:
             codec = args[0] if args else "utf-8"
             inc_enc = codecs.getincrementalencoder(codec)(**kwargs)
             return incremental_translation(self, inc_enc, inc_enc.encode, b"")
-        except Exception as e:
-            iast_taint_log_error("encode_aspect. {}".format(e))
-
-    return result
+        except Exception:
+            pass
+    return self.encode(*args, **kwargs)
 
 
 def upper_aspect(
