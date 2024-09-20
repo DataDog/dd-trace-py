@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+
 # from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.sampling_rule import SamplingRule
 
@@ -39,29 +40,32 @@ class EvaluatorSamplingRule(SamplingRule):
 
 
 class EvaluatorSampler:
-    def __init__(self):
-        self.sampling_rules = []
-        self.sampling_rules = self.parse_rules()
-        # self.limiter = RateLimiter(rate_limit)
+    DEFAULT_SAMPLING_RATE = 1.0
+    SAMPLING_RULES_ENV_VAR = "_DD_LLMOBS_EVALUATOR_SAMPLING_RULES"
 
-        self.default_sampling_rule = SamplingRule(float(os.getenv("_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE", 1)))
+    def __init__(self):
+        self.rules = self.parse_rules()
+        self.default_sampling_rule = SamplingRule(
+            float(os.getenv("_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE", self.DEFAULT_SAMPLING_RATE))
+        )
 
     def sample(self, evaluator_label, span):
-        for rule in self.sampling_rules:
+        for rule in self.rules:
             if rule.matches(span, span.get("name")):
                 return rule.sample(evaluator_label, span)
         result = self.default_sampling_rule.sample(span)
         return result
 
-    def parse_rules(self) -> List[SamplingRule]:
-        sampling_rules_str = os.getenv("_DD_LLMOBS_EVALUATOR_SAMPLING_RULES")
+    def parse_rules(self) -> List[EvaluatorSamplingRule]:
+        rules = []
+        sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR)
         if not sampling_rules_str:
             return []
         try:
             json_rules = json.loads(sampling_rules_str)
         except JSONDecodeError:
             if config._raise:
-                raise ValueError("Unable to parse _DD_LLMOBS_EVALUATOR_SAMPLING_RULES")
+                raise ValueError("Unable to parse {}".format(self.SAMPLING_RULES_ENV_VAR))
             logger.warning("Failed to parse evaluator sampling rules with error: ", exc_info=True)
             return []
         if not isinstance(json_rules, list):
@@ -74,7 +78,7 @@ class EvaluatorSampler:
                     raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
                 continue
             sample_rate = float(rule["sample_rate"])
-            name = rule.get("name", SamplingRule.NO_RULE)
+            name = rule.get("span_name", SamplingRule.NO_RULE)
             evaluator_label = rule.get("evaluator_label", SamplingRule.NO_RULE)
-            self.sampling_rules.append(EvaluatorSamplingRule(sample_rate, evaluator_label, name))
-        return []
+            rules.append(EvaluatorSamplingRule(sample_rate, evaluator_label, name))
+        return rules

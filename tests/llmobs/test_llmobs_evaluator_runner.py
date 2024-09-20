@@ -1,3 +1,4 @@
+import json
 import os
 import time
 
@@ -7,6 +8,8 @@ import pytest
 from ddtrace import Span
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._evaluators.sampler import EvaluatorSampler
+from ddtrace.llmobs._evaluators.sampler import EvaluatorSamplingRule
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 
 
@@ -38,6 +41,39 @@ def _score_metric_event():
         "ml_app": "dummy-ml-app",
         "timestamp_ms": round(time.time() * 1000),
     }
+
+
+def _ragas_faithfulness_valid_sampling_rule():
+    return json.dumps([{"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"}])
+
+
+def _sampling_rule_no_label_or_name():
+    return json.dumps([{"sample_rate": 0.5}])
+
+
+def _ragas_faithfulness_multiple_valid_sampling_rules():
+    return json.dumps(
+        [
+            {"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"},
+            {"sample_rate": 0.2, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span_2"},
+        ]
+    )
+
+
+def _sampling_rule_not_a_list():
+    return json.dumps({"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"})
+
+
+def _sampling_rule_invalid_sample_rate():
+    return json.dumps([{"sample_rate": "invalid"}])
+
+
+def _sampling_rule_invalid_json():
+    return "invalid_json"
+
+
+def _sampling_rule_missing_sampling_rate():
+    return json.dumps([{"evaluator_label": "ragas_faithfulness"}])
 
 
 def _dummy_ragas_eval_metric_event(span_id, trace_id):
@@ -132,22 +168,87 @@ with mock.patch(
     assert err == b""
 
 
-def test_evaluator_runner_sampler_init():
-    # sampler = EvaluatorSampler()
-    # assert sampler.rules == []
-    # assert (
-    #     sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    # ), "EvaluatorSampler initialized with no arguments should hold a RateLimiter with the default limit"
-    pass
+def test_evaluator_runner_sampler_init(monkeypatch):
+    sampler = EvaluatorSampler()
+    assert sampler.rules == []
+    assert sampler.default_sampling_rule.sample_rate == EvaluatorSampler.DEFAULT_SAMPLING_RATE
 
 
-def test_evaluator_runner_sampler_parse_rules_from_env():
-    pass
+def test_evaluator_runner_sampler_single_rule(monkeypatch):
+    monkeypatch.setenv(
+        EvaluatorSampler.SAMPLING_RULES_ENV_VAR,
+        json.dumps([{"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"}]),
+    )
+    sampling_rules = EvaluatorSampler().rules
+    assert len(sampling_rules) == 1
+    assert sampling_rules[0].sample_rate == 0.5
+    assert sampling_rules[0].evaluator_label == "ragas_faithfulness"
+    assert sampling_rules[0].span_name == "dummy_span"
 
 
-def test_evaluator_runner_sampler_no_rules():
-    pass
+def test_evaluator_runner_sampler_multiple_rules(monkeypatch):
+    monkeypatch.setenv(
+        EvaluatorSampler.SAMPLING_RULES_ENV_VAR,
+        json.dumps(
+            [
+                {"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"},
+                {"sample_rate": 0.2, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span_2"},
+            ]
+        ),
+    )
+    sampling_rules = EvaluatorSampler().rules
+    assert len(sampling_rules) == 2
+    assert sampling_rules[0].sample_rate == 0.5
+    assert sampling_rules[0].evaluator_label == "ragas_faithfulness"
+    assert sampling_rules[0].span_name == "dummy_span"
+
+    assert sampling_rules[1].sample_rate == 0.2
+    assert sampling_rules[1].evaluator_label == "ragas_faithfulness"
+    assert sampling_rules[1].span_name == "dummy_span_2"
 
 
-def test_evaluator_sampling_rule_matches():
-    pass
+def test_evaluator_runner_sampler_no_rule_label_or_name(monkeypatch):
+    monkeypatch.setenv(
+        EvaluatorSampler.SAMPLING_RULES_ENV_VAR,
+        json.dumps([{"sample_rate": 0.5}]),
+    )
+    sampling_rules = EvaluatorSampler().rules
+    assert len(sampling_rules) == 1
+    assert sampling_rules[0].sample_rate == 0.5
+    assert sampling_rules[0].evaluator_label == EvaluatorSamplingRule.NO_RULE
+    assert sampling_rules[0].span_name == EvaluatorSamplingRule.NO_RULE
+
+
+def test_evaluator_runner_sampler_invalid_rule_not_a_list(monkeypatch):
+    monkeypatch.setenv(
+        EvaluatorSampler.SAMPLING_RULES_ENV_VAR,
+        json.dumps({"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"}),
+    )
+
+
+def test_evaluator_runner_sampler_invalid_rule_sample_rate(monkeypatch):
+    monkeypatch.setenv(
+        EvaluatorSampler.SAMPLING_RULES_ENV_VAR,
+        json.dumps([{"sample_rate": "invalid"}]),
+    )
+
+
+def test_evaluator_runner_sampler_invalid_json(monkeypatch):
+    monkeypatch.setenv(
+        EvaluatorSampler.SAMPLING_RULES_ENV_VAR,
+        "invalid_json",
+    )
+
+
+def test_evaluator_runner_sampler_invalid_missing_sample_rate(monkeypatch):
+    monkeypatch.setenv(EvaluatorSampler.SAMPLING_RULES_ENV_VAR, json.dumps([{"evaluator_label": "ragas_faithfulness"}]))
+
+
+def test_evaluator_runner_sampler_no_rules(monkeypatch):
+    monkeypatch.setenv(
+        EvaluatorSampler.SAMPLING_RULES_ENV_VAR,
+    )
+
+
+def test_evaluator_sampling_rule_matches(monkeypatch):
+    monkeypatch.setenv(EvaluatorSampler.SAMPLING_RULES_ENV_VAR, _sampling_rule_missing_sampling_rate())
