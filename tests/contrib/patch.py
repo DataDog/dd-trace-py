@@ -65,10 +65,8 @@ class PatchMixin(unittest.TestCase):
         """
         self.assert_wrapped(obj)
 
-        if isinstance(obj, wrapt.ObjectProxy):
-            wrapped = obj.__wrapped__
-        else:
-            wrapped = obj.__dd_wrapped__
+        wrapped = obj.__wrapped__ if isinstance(obj, wrapt.ObjectProxy) else obj.__dd_wrapped__
+
         self.assert_not_wrapped(wrapped)
 
 
