@@ -108,6 +108,18 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
 
 
 def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
+    """
+    When apply_async is called, it calls various Celery signals in order, which gets used
+    to start and close the span.
+    Example: before_task_publish starts the span while after_task_publish closes the span.
+    If an exception occurs anywhere inside Celery or its dependencies, this can interrupt the
+    closing signals.
+    The purpse of _traced_apply_async_function is to close the spans even if one of the closing
+    signals don't get called over the course of the apply_task lifecycle.
+    This is done by fetching the stored span and closing it if it hasn't already been closed by a
+    closing signal.
+    """
+
     def _traced_apply_async_inner(func, instance, args, kwargs):
         with core.context_with_data("task_context"):
             try:
