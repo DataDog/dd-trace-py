@@ -14,7 +14,6 @@
 PyObject*
 index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const TaintRangeMapTypePtr& tx_taint_map)
 {
-    const auto idx_long = PyLong_AsLong(idx);
     TaintRangeRefs ranges_to_set;
     auto [ranges, ranges_error] = get_ranges(candidate_text, tx_taint_map);
     if (ranges_error) {
@@ -72,7 +71,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     const auto result_o = PyObject_GetItem(candidate_text, idx);
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
         if (const auto error = has_pyerr_as_string(); !error.empty()) {
-            set_metrics_error(error, "");
+            iast_taint_log_error(error);
             return nullptr;
         }
 
