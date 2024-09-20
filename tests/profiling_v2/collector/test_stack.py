@@ -5,7 +5,7 @@ import pytest
 # similar to test_user_threads_have_native_id in test_threading.py. For some
 # reason, when the Span is created, it's not linked to the MainThread, and the
 # profiler can't find the corresponding Span for the MainThread.
-@pytest.mark.subprocess(env=dict(DD_PROFILING_TIMELINE_ENABLED="true"))
+@pytest.mark.subprocess()
 def test_push_span():
     import os
     import time
@@ -62,10 +62,7 @@ def test_push_span():
                 trace_endpoint=resource,
             ),
         )
-
-    timestamped_samples = pprof_utils.get_samples_with_label_key(profile, "end_timestamp_ns")
-    assert len(timestamped_samples) > 0
-    for sample in timestamped_samples:
+        # every sample has a timestamp as timeline is enabled.
         end_timestamp_ns_label = pprof_utils.get_label_with_key(profile.string_table, sample, "end_timestamp_ns")
         end_timestamp_ns = end_timestamp_ns_label.num
         assert end_timestamp_ns <= span_end_time, "{} > {}, diff: {}ms".format(
