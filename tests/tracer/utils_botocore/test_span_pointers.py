@@ -211,8 +211,8 @@ class TestBotocoreSpanPointers:
 
                 (args, kwargs) = mock_logger.call_args
                 assert not kwargs
-                fmt, other_args = args
+                fmt, *other_args = args
                 assert re.match(
                     pointers_case.expected_warning_regex,
-                    fmt % other_args,
+                    fmt % tuple(other_args),
                 )
