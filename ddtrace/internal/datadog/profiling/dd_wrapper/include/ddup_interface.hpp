@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <stddef.h>
 #include <stdint.h>
 #include <string_view>
@@ -31,8 +32,8 @@ extern "C"
     bool ddup_is_initialized();
     void ddup_start();
     void ddup_set_runtime_id(std::string_view runtime_id);
-    void ddup_profile_set_endpoint(uint64_t local_root_span_id, std::string_view trace_endpoint);
-    void ddup_profile_add_endpoint_count(std::string_view trace_endpoint, int64_t count);
+    void ddup_profile_set_endpoints(std::map<int64_t, std::string_view> span_ids_to_endpoints);
+    void ddup_profile_add_endpoint_counts(std::map<std::string_view, int64_t> trace_endpoints_to_counts);
     bool ddup_upload();
 
     // Proxy functions to the underlying sample
