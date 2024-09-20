@@ -66,7 +66,7 @@ iast_taint_log_error(const std::string& msg)
         const auto log = get_python_logger();
         log.attr("debug")(msg + ": " + frame_info);
 
-        safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("IAST propagation error. " + msg);
+        safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")(msg);
 
         // Restore the original exception state if needed
         if (had_exception) {
