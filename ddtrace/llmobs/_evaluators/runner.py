@@ -20,7 +20,7 @@ SUPPORTED_EVALUATORS = {
 class EvaluatorRunner(PeriodicService):
     """Base class for evaluating LLM Observability span events"""
 
-    def __init__(self, interval: float, _evaluation_metric_writer=None):
+    def __init__(self, interval: float, _evaluation_metric_writer=None, _llmobs_service=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: list[Dict]
@@ -36,7 +36,7 @@ class EvaluatorRunner(PeriodicService):
             evaluators = evaluator_str.split(",")
             for evaluator in evaluators:
                 if evaluator in SUPPORTED_EVALUATORS:
-                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator])
+                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator](llmobs_service=_llmobs_service))
 
     def start(self, *args, **kwargs):
         super(EvaluatorRunner, self).start()
