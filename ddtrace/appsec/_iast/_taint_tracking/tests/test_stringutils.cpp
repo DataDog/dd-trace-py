@@ -1,19 +1,5 @@
-#include <Python.h>
-#include <gtest/gtest.h>
-#include <pybind11/embed.h>
-#include <pybind11/pybind11.h>
-
 #include <Utils/StringUtils.h>
-
-namespace py = pybind11;
-
-class PyEnvCheck : public ::testing::Test
-{
-  protected:
-    void SetUp() override { py::initialize_interpreter(); }
-
-    void TearDown() override { py::finalize_interpreter(); }
-};
+#include <tests/test_common.hpp>
 
 using GetUniqueId = PyEnvCheck;
 
@@ -30,7 +16,7 @@ TEST_F(GetUniqueId, TestGetUniqueId)
     Py_DECREF(py_str);
 }
 
-using PyReMatchCheck = PyEnvCheck;
+using PyReMatchCheck = PyEnvWithContext;
 
 TEST_F(PyReMatchCheck, TestPyReMatchValidMatchObject)
 {
@@ -40,7 +26,7 @@ TEST_F(PyReMatchCheck, TestPyReMatchValidMatchObject)
     ASSERT_TRUE(PyReMatch_Check(match_obj.ptr()));
 }
 
-TEST_F(PyReMatchCheck, TEstPyReMatchInvalidNonMatchObject)
+TEST_F(PyReMatchCheck, TestPyReMatchInvalidNonMatchObject)
 {
     py::object non_match_obj = py::int_(42); // Not a `re.Match` object
 
@@ -187,7 +173,7 @@ TEST_F(IsTextCheck, NonTextReturnsFalse)
     Py_DECREF(non_text_obj);
 }
 
-using IsTainteableCheck = PyEnvCheck;
+using IsTainteableCheck = PyEnvWithContext;
 
 TEST_F(IsTainteableCheck, NullptrReturnsFalse)
 {

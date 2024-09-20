@@ -5,6 +5,7 @@
 // Needed for conversions from Vector to Tuple in get_ranges, dont remove even
 // if CLion tells it's not used!
 #include "StringUtils.h"
+#include "Initializer/Initializer.h"
 
 using namespace pybind11::literals;
 
@@ -141,4 +142,10 @@ get_pyobject_size(PyObject* obj)
         len_candidate_text = PyByteArray_Size(obj);
     }
     return len_candidate_text;
+}
+
+bool
+PyReMatch_Check(const PyObject* obj)
+{
+    return py::isinstance((PyObject*)obj, safe_import("re", "Match"));
 }

@@ -1,5 +1,6 @@
 #include "AspectIndex.h"
 #include "Helpers.h"
+#include <iostream>
 
 /**
  * @brief Index aspect
@@ -41,8 +42,8 @@ PyObject*
 api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2) {
-        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         iast_taint_log_error(MSG_ERROR_N_PARAMS);
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
     }
 
