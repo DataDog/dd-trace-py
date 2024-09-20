@@ -74,8 +74,7 @@ def test_doit():
     re_match = re.compile(r"(\w+)", re.IGNORECASE)
     re_match_result = re_match.match(string21)  # 1 propagation: 'HIROOT
 
-    string22 = re_match_result.group(0)  # 1 propagation: '_HIROOT
-    # string22 = re_match_result.groups()[0]
+    string22 = re_match_result[0]  # 1 propagation: '_HIROOT
     tmp_str = "DDDD"
     string23 = tmp_str + string22  # 1 propagation: 'DDDD_HIROOT
 
