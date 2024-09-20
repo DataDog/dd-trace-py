@@ -290,7 +290,7 @@ def zfill_aspect(
 def format_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
-    if not orig_function:
+    if orig_function is None:
         orig_function = args[0].format
 
     if not isinstance(orig_function, BuiltinFunctionType):
@@ -322,12 +322,13 @@ def format_aspect(
 def format_map_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
-    if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function is None:
+        orig_function = args[0].format_map
+
+    if not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
-        return orig_function(*args, **kwargs)
 
-    if orig_function is not None and not args:
         return orig_function(*args, **kwargs)
 
     candidate_text: Text = args[0]
@@ -360,6 +361,8 @@ def format_map_aspect(
                     )
                     for key, value in mapping.items()
                 }
+                if isinstance(mapping, dict)
+                else tuple(mapping)
             ),
             ranges_orig=ranges_orig,
         )
