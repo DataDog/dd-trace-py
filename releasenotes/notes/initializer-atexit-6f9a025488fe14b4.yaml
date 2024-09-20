@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: ensure the ``Initializer`` object is always reset and freed before the Python runtime.
