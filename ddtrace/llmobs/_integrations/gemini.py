@@ -1,4 +1,3 @@
-import json
 from typing import Any
 from typing import Dict
 from typing import Iterable
@@ -19,7 +18,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._utils import safe_json
 
 
 class GeminiIntegration(BaseLLMIntegration):
@@ -44,22 +43,22 @@ class GeminiIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("google_generativeai.request.provider") or "")
 
         metadata = self._llmobs_set_metadata(kwargs, instance)
-        span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
+        span.set_tag_str(METADATA, safe_json(metadata))
 
         system_instruction = _get_attr(instance, "_system_instruction", None)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, system_instruction)
-        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages, default=_unserializable_default_repr))
+        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
 
         if span.error or generations is None:
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
         else:
             output_messages = self._extract_output_message(generations)
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages, default=_unserializable_default_repr))
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
         usage = self._get_llmobs_metrics_tags(span)
         if usage:
-            span.set_tag_str(METRICS, json.dumps(usage, default=_unserializable_default_repr))
+            span.set_tag_str(METRICS, safe_json(usage))
 
     @staticmethod
     def _llmobs_set_metadata(kwargs, instance):
