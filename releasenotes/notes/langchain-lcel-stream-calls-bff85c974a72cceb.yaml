@@ -2,3 +2,4 @@
 features:
   - |
     langchain: Adds support for tracing ``stream`` calls on LCEL chains, chat completion models, or completion models.
+    Due to an upstream issue with the ``langchain`` library itself, streamed responses are not tagged correctly when the `n` parameter on the model is set to greater than 1.
