@@ -22,7 +22,9 @@ def test_push_span():
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(
+        env="test", service=test_name, version="my_version", output_filename=pprof_prefix, timeline_enabled=True
+    )
     ddup.start()
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -36,11 +38,14 @@ def test_push_span():
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
     ):
-        with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
-            span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
-            for _ in range(5):
-                time.sleep(0.01)
+        span = tracer.start_span("foobar", resource=resource, span_type=span_type, activate=True)
+        for _ in range(10):
+            time.sleep(0.01)
+        span.finish()
+    span_id = span.span_id
+    local_root_span_id = span._local_root.span_id
+    span_end_time = span.start_ns + span.duration_ns
+
     ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
@@ -56,6 +61,12 @@ def test_push_span():
                 trace_type=span_type,
                 trace_endpoint=resource,
             ),
+        )
+        # every sample has a timestamp as timeline is enabled.
+        end_timestamp_ns_label = pprof_utils.get_label_with_key(profile.string_table, sample, "end_timestamp_ns")
+        end_timestamp_ns = end_timestamp_ns_label.num
+        assert end_timestamp_ns <= span_end_time, "{} > {}, diff: {}ms".format(
+            end_timestamp_ns, span_end_time, (end_timestamp_ns - span_end_time) / 1e6
         )
 
 
