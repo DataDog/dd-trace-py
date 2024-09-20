@@ -303,6 +303,8 @@ cdef class SampleHandle:
             return
         if not span:
             return
+        if span.finished:
+            return
         if span.span_id:
             ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span.span_id))
         if not span._local_root:
