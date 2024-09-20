@@ -330,8 +330,24 @@ bytearray_hash(PyObject* bytearray)
 Py_hash_t
 get_internal_hash(PyObject* obj)
 {
+    // Shortcut check to avoid the slower checks for bytearray and re.match objects
+    if (PyUnicode_Check(obj) || PyBytes_Check(obj)) {
+        return PyObject_Hash(obj);
+    }
+
     if (PyByteArray_Check(obj)) {
         return bytearray_hash(obj);
+    }
+
+    if (PyReMatch_Check(obj)) {
+        // Use the match.string for hashing
+        PyObject* string_obj = PyObject_GetAttrString(obj, "string");
+        if (string_obj == nullptr) {
+            return PyObject_Hash(obj);
+        }
+        const auto hash = PyObject_Hash(string_obj);
+        Py_DECREF(string_obj);
+        return hash;
     }
 
     return PyObject_Hash(obj);
