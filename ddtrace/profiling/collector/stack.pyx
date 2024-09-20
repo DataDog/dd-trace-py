@@ -578,7 +578,7 @@ class StackCollector(collector.PeriodicCollector):
                 wall_time,
                 self._thread_span_links,
                 self.endpoint_collection_enabled,
-                now_ns=compat.now_ns()
+                now_ns=compat.time_ns()
             )
 
         used_wall_time_ns = compat.monotonic_ns() - now
