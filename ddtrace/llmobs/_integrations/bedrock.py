@@ -51,7 +51,7 @@ class BedrockIntegration(BaseLLMIntegration):
         else:
             output_messages = self._extract_output_message(response)
             span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
-        metrics = self._llmobs_metrics(span, formatted_response)
+        metrics = self._llmobs_metrics(span, response)
         span.set_tag_str(METRICS, safe_json(metrics))
 
     @staticmethod

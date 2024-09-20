@@ -136,11 +136,10 @@ class LangChainIntegration(BaseLLMIntegration):
             prompts = [prompts]
 
         span.set_tag_str(input_tag_key, safe_json([{"content": str(prompt)} for prompt in prompts]))
-
-        message_content = [{"content": ""}]
-        if not span.error:
-            message_content = [{"content": completion[0].text} for completion in completions.generations]
+        if span.error:
+            span.set_tag_str(output_tag_key, safe_json([{"content": ""}]))
             return
+        message_content = [{"content": completion[0].text} for completion in completions.generations]
         span.set_tag_str(output_tag_key, safe_json(message_content))
 
     def _llmobs_set_meta_tags_from_chat_model(
@@ -211,8 +210,8 @@ class LangChainIntegration(BaseLLMIntegration):
         if span.error or outputs is None:
             span.set_tag_str(OUTPUT_VALUE, "")
             return
-       formatted_outputs = self.format_io(outputs)
-       span.set_tag_str(OUTPUT_VALUE, safe_json(formatted_outputs))
+        formatted_outputs = self.format_io(outputs)
+        span.set_tag_str(OUTPUT_VALUE, safe_json(formatted_outputs))
 
     def _llmobs_set_meta_tags_from_embedding(
         self,

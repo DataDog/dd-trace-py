@@ -160,7 +160,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_chat(span, kwargs, response, streamed_response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
-        metrics = self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None)
+        metrics = self._set_llmobs_metrics_tags(span, response, streamed_response)
         span.set_tag_str(METRICS, safe_json(metrics))
 
     @staticmethod
