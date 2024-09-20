@@ -193,7 +193,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
     optional<TaintRangeRefs> optional_ranges_orig = ranges_orig;
 
     vector<tuple<string, int>> context_stack;
-    int length, end = 0;
+    int length = 0;
+    int end = 0;
     TaintRangeRefs ranges;
 
     int latest_end = -1;
@@ -370,10 +371,7 @@ has_pyerr_as_string()
         PyErr_NormalizeException(&extype, &value, &traceback);
         const auto exception_msg_as_pystr = py::str(PyObject_Str(value));
         const auto exception_msg_as_string = std::string(PyUnicode_AsUTF8(exception_msg_as_pystr.ptr()));
-        py::set_error(extype, exception_msg_as_pystr);
-        Py_DecRef(extype);
-        Py_DecRef(value);
-        Py_DecRef(traceback);
+        PyErr_Restore(extype, value, traceback);
         return exception_msg_as_string;
     }
 
