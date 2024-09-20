@@ -43,7 +43,7 @@ class PatchMixin(unittest.TestCase):
         assert not self.module_imported(modname), "{} module is imported".format(modname)
 
     def is_wrapped(self, obj):
-        return isinstance(obj, wrapt.ObjectProxy)
+        return isinstance(obj, wrapt.ObjectProxy) or hasattr(obj, "__dd_wrapped__")
 
     def assert_wrapped(self, obj):
         """
@@ -64,7 +64,12 @@ class PatchMixin(unittest.TestCase):
         This is useful for asserting idempotence.
         """
         self.assert_wrapped(obj)
-        self.assert_not_wrapped(obj.__wrapped__)
+
+        if isinstance(obj, wrapt.ObjectProxy):
+            wrapped = obj.__wrapped__
+        else:
+            wrapped = obj.__dd_wrapped__
+        self.assert_not_wrapped(wrapped)
 
 
 def raise_if_no_attrs(f):

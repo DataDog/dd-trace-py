@@ -2,12 +2,12 @@
 # script. If you want to make changes to it, you should make sure that you have
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
+from ddtrace.contrib.internal.pymongo.patch import patch
 from ddtrace.contrib.pymongo import get_version
-from ddtrace.contrib.pymongo.patch import patch
-
+from ddtrace.contrib.internal.pymongo.patch import _VERSION
 
 try:
-    from ddtrace.contrib.pymongo.patch import unpatch
+    from ddtrace.contrib.internal.pymongo.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase
@@ -21,12 +21,11 @@ class TestPymongoPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def _get_imports(self, pymongo):
-        version = pymongo.version_tuple
-        if version >= (4, 9):
+        if _VERSION >= (4, 9):
             from pymongo.synchronous.pool import Connection
             from pymongo.synchronous.server import Server
             from pymongo.synchronous.topology import Topology
-        elif version >= (4, 5):
+        elif _VERSION >= (4, 5):
             from pymongo.pool import Connection
             from pymongo.server import Server
             from pymongo.topology import Topology
@@ -39,15 +38,17 @@ class TestPymongoPatch(PatchTestCase.Base):
     def assert_module_patched(self, pymongo):
         Connection, Server, Topology = self._get_imports(pymongo)
 
+        self.assert_wrapped(pymongo.MongoClient.__init__)
         self.assert_wrapped(Topology.select_server)
-        if pymongo.version_tuple >= (3, 12):
+
+        if _VERSION >= (3, 12):
             self.assert_wrapped(Server.run_operation)
-        elif pymongo.version_tuple >= (3, 9):
+        elif _VERSION >= (3, 9):
             self.assert_wrapped(Server.run_operation_with_response)
         else:
             self.assert_wrapped(Server.send_message_with_response)
 
-        if pymongo.version_tuple >= (4, 5):
+        if _VERSION >= (4, 5):
             self.assert_wrapped(Server.checkout)
         else:
             self.assert_wrapped(Server.get_socket)
@@ -59,14 +60,14 @@ class TestPymongoPatch(PatchTestCase.Base):
 
         self.assert_not_wrapped(pymongo.MongoClient.__init__)
         self.assert_not_wrapped(Topology.select_server)
-        if pymongo.version_tuple >= (3, 12):
+        if _VERSION >= (3, 12):
             self.assert_not_wrapped(Server.run_operation)
-        elif pymongo.version_tuple >= (3, 9):
+        elif _VERSION >= (3, 9):
             self.assert_not_wrapped(Server.run_operation_with_response)
         else:
             self.assert_not_wrapped(Server.send_message_with_response)
 
-        if pymongo.version_tuple >= (4, 5):
+        if _VERSION >= (4, 5):
             self.assert_not_wrapped(Server.checkout)
         else:
             self.assert_not_wrapped(Server.get_socket)
@@ -81,14 +82,14 @@ class TestPymongoPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(Connection.command)
         self.assert_not_double_wrapped(Connection.write_command)
 
-        if pymongo.version_tuple >= (3, 12):
+        if _VERSION >= (3, 12):
             self.assert_not_double_wrapped(Server.run_operation)
-        elif pymongo.version_tuple >= (3, 9):
+        elif _VERSION >= (3, 9):
             self.assert_not_double_wrapped(Server.run_operation_with_response)
         else:
             self.assert_not_double_wrapped(Server.send_message_with_response)
 
-        if pymongo.version_tuple >= (4, 5):
+        if _VERSION >= (4, 5):
             self.assert_not_double_wrapped(Server.checkout)
         else:
             self.assert_not_double_wrapped(Server.get_socket)
