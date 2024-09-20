@@ -1,7 +1,5 @@
 #include "Initializer.h"
 
-#include <iostream>
-#include <map>
 #include <thread>
 
 using namespace std;
