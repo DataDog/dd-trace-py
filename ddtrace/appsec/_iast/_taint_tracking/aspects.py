@@ -171,13 +171,16 @@ def join_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
 
     joiner = args[0]
     args = args[flag_added_args:]
+
+    result = joiner.join(*args, **kwargs)
+
     if not isinstance(joiner, IAST.TEXT_TYPES):
-        return joiner.join(*args, **kwargs)
+        return result
     try:
         return _join_aspect(joiner, *args, **kwargs)
     except Exception as e:
         iast_taint_log_error("join_aspect. {}".format(e))
-        return joiner.join(*args, **kwargs)
+    return result
 
 
 def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
@@ -526,6 +529,8 @@ def encode_aspect(
     self = args[0]
     args = args[(flag_added_args or 1) :]
 
+    result = self.encode(*args, **kwargs)
+
     if is_pyobject_tainted(self) and isinstance(self, str):
         try:
             codec = args[0] if args else "utf-8"
@@ -533,7 +538,7 @@ def encode_aspect(
             return incremental_translation(self, inc_enc, inc_enc.encode, b"")
         except Exception as e:
             iast_taint_log_error("encode_aspect. {}".format(e))
-    result = self.encode(*args, **kwargs)
+
     return result
 
 

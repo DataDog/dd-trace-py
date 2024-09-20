@@ -142,9 +142,7 @@ def test_encode_error_with_tainted_gives_one_log_metric(telemetry_writer):
         mod.do_encode(string_input, "encoding-not-exists")
 
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 1
-    assert "message" in list_metrics_logs[0]
-    assert "IAST propagation error. encode_aspect. " in list_metrics_logs[0]["message"]
+    assert len(list_metrics_logs) == 0
 
 
 def test_encode_error_with_not_tainted_gives_no_log_metric(telemetry_writer):
@@ -169,7 +167,7 @@ def test_dencode_error_with_tainted_gives_one_log_metric(telemetry_writer):
     list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 1
     assert "message" in list_metrics_logs[0]
-    assert "IAST propagation error. decode_aspect. " in list_metrics_logs[0]["message"]
+    assert "[IAST] Propagation error. decode_aspect. " in list_metrics_logs[0]["message"]
 
 
 def test_dencode_error_with_not_tainted_gives_no_log_metric(telemetry_writer):
