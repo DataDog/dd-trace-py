@@ -35,9 +35,8 @@ asbool(const char* value)
 void
 iast_taint_log_error(const std::string& msg)
 {
+    safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("[IAST] Propagation error. " + msg);
     try {
-        safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("[IAST] Propagation error. " + msg);
-
         if (!is_iast_debug_enabled()) {
             return;
         }
