@@ -5,7 +5,7 @@ import pytest
 # similar to test_user_threads_have_native_id in test_threading.py. For some
 # reason, when the Span is created, it's not linked to the MainThread, and the
 # profiler can't find the corresponding Span for the MainThread.
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env=dict(DD_PROFILING_TIMELINE_ENABLED="true"))
 def test_push_span():
     import os
     import time
@@ -22,7 +22,9 @@ def test_push_span():
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(
+        env="test", service=test_name, version="my_version", output_filename=pprof_prefix, timeline_enabled=True
+    )
     ddup.start()
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -36,14 +38,20 @@ def test_push_span():
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
     ):
-        with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
-            span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
-            for _ in range(5):
-                time.sleep(0.01)
+        span = tracer.start_span("foobar", resource=resource, span_type=span_type, activate=True)
+        span_id = span.span_id
+        local_root_span_id = span._local_root.span_id
+        for _ in range(5):
+            time.sleep(0.01)
+        span.finish()
+        span_end_time = span.start_ns + span.duration_ns
+
+    print(span_end_time)
+
     ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
+    print(profile)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
     assert len(samples) > 0
     for sample in samples:
@@ -57,6 +65,14 @@ def test_push_span():
                 trace_endpoint=resource,
             ),
         )
+
+    timestamped_samples = pprof_utils.get_samples_with_label_key(profile, "end_timestamp_ns")
+    assert len(timestamped_samples) > 0
+    for sample in timestamped_samples:
+        end_timestamp_ns_label = pprof_utils.get_label_with_key(profile.string_table, sample, "end_timestamp_ns")
+        end_timestamp_ns = end_timestamp_ns_label.num
+        print(end_timestamp_ns, span_end_time)
+        assert end_timestamp_ns <= span_end_time, "{} > {}".format(end_timestamp_ns, span_end_time)
 
 
 @pytest.mark.subprocess()
