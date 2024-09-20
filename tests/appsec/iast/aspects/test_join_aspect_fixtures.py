@@ -69,10 +69,11 @@ class TestOperatorJoinReplacement(object):
         # order it's not constant
         assert result in (
             "a-joiner-c-joiner-b",
-            "b-joiner-c-joiner-a",
-            "c-joiner-a-joiner-b",
             "a-joiner-b-joiner-c",
+            "b-joiner-c-joiner-a",
             "b-joiner-a-joiner-c",
+            "c-joiner-a-joiner-b",
+            "c-joiner-b-joiner-a",
         )
         ranges = get_tainted_ranges(result)
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
@@ -89,10 +90,11 @@ class TestOperatorJoinReplacement(object):
         # order it's not constant
         assert result in (
             "a-joiner-c-joiner-b",
-            "b-joiner-c-joiner-a",
-            "c-joiner-a-joiner-b",
             "a-joiner-b-joiner-c",
+            "b-joiner-c-joiner-a",
             "b-joiner-a-joiner-c",
+            "c-joiner-a-joiner-b",
+            "c-joiner-b-joiner-a",
         )
         ranges = get_tainted_ranges(result)
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
