@@ -39,19 +39,16 @@ def test_push_span():
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
     ):
         span = tracer.start_span("foobar", resource=resource, span_type=span_type, activate=True)
-        span_id = span.span_id
-        local_root_span_id = span._local_root.span_id
-        for _ in range(5):
+        for _ in range(10):
             time.sleep(0.01)
         span.finish()
-        span_end_time = span.start_ns + span.duration_ns
-
-    print(span_end_time)
+    span_id = span.span_id
+    local_root_span_id = span._local_root.span_id
+    span_end_time = span.start_ns + span.duration_ns
 
     ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
-    print(profile)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
     assert len(samples) > 0
     for sample in samples:
@@ -71,7 +68,6 @@ def test_push_span():
     for sample in timestamped_samples:
         end_timestamp_ns_label = pprof_utils.get_label_with_key(profile.string_table, sample, "end_timestamp_ns")
         end_timestamp_ns = end_timestamp_ns_label.num
-        print(end_timestamp_ns, span_end_time)
         assert end_timestamp_ns <= span_end_time, "{} > {}".format(end_timestamp_ns, span_end_time)
 
 
