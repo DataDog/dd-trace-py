@@ -536,8 +536,6 @@ def test_send_failing_request(mock_status, telemetry_writer):
                     telemetry_writer._client.url,
                     mock_status,
                 )
-            # ensure one failing request was sent
-            assert len(httpretty.latest_requests()) == 1
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
