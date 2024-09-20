@@ -96,7 +96,7 @@ class _TracedIterable(wrapt.ObjectProxy):
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, str]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
-        parameter_value = ctx.get_item(parameter_name, traverse=False)
+        parameter_value = ctx.get_local_item(parameter_name)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
     return span_kwargs
@@ -111,7 +111,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         trace_utils.activate_distributed_headers(
             tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
         )
-    distributed_context = ctx.get_item("distributed_context", traverse=True)
+    distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
     span_kwargs.update(kwargs)
@@ -335,9 +335,11 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     # start flask.response span. This span will be finished after iter(result) is closed.
     # start_span(child_of=...) is used to ensure correct parenting.
     resp_span = middleware.tracer.start_span(
-        middleware._response_call_name
-        if hasattr(middleware, "_response_call_name")
-        else middleware._response_span_name,
+        (
+            middleware._response_call_name
+            if hasattr(middleware, "_response_call_name")
+            else middleware._response_span_name
+        ),
         child_of=req_span,
         activate=True,
     )

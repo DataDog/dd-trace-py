@@ -224,16 +224,16 @@ class ExecutionContext:
         finally:
             new_context.end()
 
-    def get_item(self, data_key: str, default: Optional[Any] = None, traverse: bool = True) -> Any:
+    def get_item(current, data_key: str, default: Optional[Any] = None) -> Any:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
-        current = self
         while current is not None:
             if data_key in current._data:
                 return current._data.get(data_key)
-            if not traverse:
-                break
             current = current.parent
         return default
+
+    def get_local_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+        return self._data.get(data_key, default)
 
     def __getitem__(self, key: str):
         value = self.get_item(key)
@@ -256,16 +256,16 @@ class ExecutionContext:
         for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
 
-    def discard_item(self, data_key: str, traverse: bool = True) -> None:
+    def discard_item(current, data_key: str) -> None:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
-        current = self
         while current is not None:
             if data_key in current._data:
                 del current._data[data_key]
                 return
-            if not traverse:
-                return
             current = current.parent
+
+    def discard_local_item(self, data_key: str) -> None:
+        self._data.pop(data_key, None)
 
     def root(self):
         if self.identifier == ROOT_CONTEXT_ID:
@@ -300,14 +300,16 @@ def get_root() -> ExecutionContext:
     return _CURRENT_CONTEXT.get().root()
 
 
-def get_item(
-    data_key: str, span: Optional[Span] = None, *, default: Optional[Any] = None, traverse: bool = True
-) -> Any:
+def get_item(data_key: str, span: Optional[Span] = None) -> Any:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
     else:
-        return _CURRENT_CONTEXT.get().get_item(data_key, default=default, traverse=traverse)
+        return _CURRENT_CONTEXT.get().get_item(data_key)
+
+
+def get_local_item(data_key: str, span: Optional[Span] = None) -> Any:
+    return _CURRENT_CONTEXT.get().get_local_item(data_key)
 
 
 def get_items(data_keys: List[str], span: Optional[Span] = None) -> List[Optional[Any]]:
@@ -339,5 +341,9 @@ def set_items(keys_values: Dict[str, Optional[Any]], span: Optional[Span] = None
         _CURRENT_CONTEXT.get().set_items(keys_values)
 
 
-def discard_item(data_key: str, traverse: bool = True) -> None:
-    _CURRENT_CONTEXT.get().discard_item(data_key, traverse=traverse)
+def discard_item(data_key: str) -> None:
+    _CURRENT_CONTEXT.get().discard_item(data_key)
+
+
+def discard_local_item(data_key: str) -> None:
+    _CURRENT_CONTEXT.get().discard_local_item(data_key)

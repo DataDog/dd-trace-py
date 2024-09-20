@@ -456,12 +456,12 @@ def test_core_in_threads(nb_threads):
                 await asyncio.sleep(random.random())
                 assert core.get_item("key") == v
                 core.discard_item("key")
-                assert core.get_item("key", default=witness, traverse=False) is witness
+                assert core.get_local_item("key") is None
                 assert core.get_item("key") == value
                 core.get_item("global_counter")["value"] += 1
             assert core.get_item("key") == value
             core.discard_item("key")
-            assert core.get_item("key", default=witness) is witness
+            assert core.get_item("key") is None
             return witness
 
     async def create_tasks_func():
