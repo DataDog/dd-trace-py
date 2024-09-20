@@ -1284,7 +1284,7 @@ def test_streamed_chain(langchain_core, langchain_openai, streamed_response_resp
         module="openai",
         client_class_key="OpenAI",
         http_client_key="http_client",
-        client_path=["chat", "completions"],
+        endpoint_path=["chat", "completions"],
         file="lcel_openai_chat_streamed_response.txt",
     )
 
@@ -1305,7 +1305,7 @@ def test_streamed_chat(langchain_openai, streamed_response_responder):
         module="openai",
         client_class_key="OpenAI",
         http_client_key="http_client",
-        client_path=["chat", "completions"],
+        endpoint_path=["chat", "completions"],
         file="lcel_openai_chat_streamed_response.txt",
     )
     model = langchain_openai.ChatOpenAI(client=client)
@@ -1320,7 +1320,7 @@ def test_streamed_llm(langchain_openai, streamed_response_responder):
         module="openai",
         client_class_key="OpenAI",
         http_client_key="http_client",
-        client_path=["completions"],
+        endpoint_path=["completions"],
         file="lcel_openai_llm_streamed_response.txt",
     )
 
@@ -1339,7 +1339,7 @@ async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_
         module="openai",
         client_class_key="AsyncOpenAI",
         http_client_key="http_client",
-        client_path=["chat", "completions"],
+        endpoint_path=["chat", "completions"],
         file="lcel_openai_chat_streamed_response.txt",
     )
 
@@ -1363,7 +1363,7 @@ async def test_astreamed_chat(langchain_openai, async_streamed_response_responde
         module="openai",
         client_class_key="AsyncOpenAI",
         http_client_key="http_client",
-        client_path=["chat", "completions"],
+        endpoint_path=["chat", "completions"],
         file="lcel_openai_chat_streamed_response.txt",
     )
 
@@ -1382,7 +1382,7 @@ async def test_astreamed_llm(langchain_openai, async_streamed_response_responder
         module="openai",
         client_class_key="AsyncOpenAI",
         http_client_key="http_client",
-        client_path=["completions"],
+        endpoint_path=["completions"],
         file="lcel_openai_llm_streamed_response.txt",
     )
 
@@ -1398,7 +1398,7 @@ def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai
         module="openai",
         client_class_key="OpenAI",
         http_client_key="http_client",
-        client_path=["chat", "completions"],
+        endpoint_path=["chat", "completions"],
         file="lcel_openai_chat_streamed_response_json_output_parser.txt",
     )
 

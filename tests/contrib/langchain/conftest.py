@@ -186,12 +186,14 @@ def streamed_response_responder():
                     content = f.read()
                     return httpx.Response(200, request=request, content=content)
 
-        def responder(module, client_class_key, http_client_key, client_path: list[str], file: str):
+        def responder(module, client_class_key, http_client_key, endpoint_path: list[str], file: str):
+            # endpoint_path specified the specific endpoint to retrieve as a client off of the general client
+            # ie, ["chat", "completions"] would represent openai.chat.completions
             clientModule = importlib.import_module(module)  # openai, anthropic, etc.
             client_class = getattr(clientModule, client_class_key)
             client = client_class(**{http_client_key: httpx.Client(transport=CustomTransport(file=file))})
 
-            for prop in client_path:
+            for prop in endpoint_path:
                 client = getattr(client, prop)
 
             return client
@@ -224,12 +226,14 @@ def async_streamed_response_responder():
                     content = f.read()
                     return httpx.Response(200, request=request, content=content)
 
-        def responder(module, client_class_key, http_client_key, client_path: list[str], file: str):
+        def responder(module, client_class_key, http_client_key, endpoint_path: list[str], file: str):
+            # endpoint_path specified the specific endpoint to retrieve as a client off of the general client
+            # ie, ["chat", "completions"] would represent openai.chat.completions
             clientModule = importlib.import_module(module)  # openai, anthropic, etc.
             client_class = getattr(clientModule, client_class_key)
             client = client_class(**{http_client_key: httpx.AsyncClient(transport=CustomTransport(file=file))})
 
-            for prop in client_path:
+            for prop in endpoint_path:
                 client = getattr(client, prop)
 
             return client
