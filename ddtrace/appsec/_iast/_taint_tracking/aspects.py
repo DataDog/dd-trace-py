@@ -220,25 +220,26 @@ def ljust_aspect(
     candidate_text = args[0]
     args = args[flag_added_args:]
 
+    result = candidate_text.ljust(*args, **kwargs)
+
     if isinstance(candidate_text, IAST.TEXT_TYPES):
         try:
             ranges_new = get_ranges(candidate_text)
             fillchar = parse_params(1, "fillchar", " ", *args, **kwargs)
             fillchar_ranges = get_ranges(fillchar)
             if ranges_new is None or (not ranges_new and not fillchar_ranges):
-                return candidate_text.ljust(*args, **kwargs)
+                return result
 
             if fillchar_ranges:
                 # Can only be one char, so we create one range to cover from the start to the end
                 ranges_new = ranges_new + [shift_taint_range(fillchar_ranges[0], len(candidate_text))]
 
-            result = candidate_text.ljust(parse_params(0, "width", None, *args, **kwargs), fillchar)
             taint_pyobject_with_ranges(result, ranges_new)
             return result
         except Exception as e:
             iast_taint_log_error("ljust_aspect. {}".format(e))
 
-    return candidate_text.ljust(*args, **kwargs)
+    return result
 
 
 def zfill_aspect(
@@ -330,8 +331,11 @@ def format_map_aspect(
 
     candidate_text: Text = args[0]
     args = args[flag_added_args:]
+
+    result = candidate_text.format_map(*args, **kwargs)
+
     if not isinstance(candidate_text, IAST.TEXT_TYPES):
-        return candidate_text.format_map(*args, **kwargs)
+        return result
 
     try:
         mapping = parse_params(0, "mapping", None, *args, **kwargs)
@@ -341,7 +345,7 @@ def format_map_aspect(
             args + mapping_tuple,
         )
         if not ranges_orig:
-            return candidate_text.format_map(*args, **kwargs)
+            return result
 
         return _convert_escaped_text_to_tainted_text(
             as_formatted_evidence(
@@ -360,7 +364,8 @@ def format_map_aspect(
         )
     except Exception as e:
         iast_taint_log_error("format_map_aspect. {}".format(e))
-        return candidate_text.format_map(*args, **kwargs)
+
+    return result
 
 
 def repr_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
