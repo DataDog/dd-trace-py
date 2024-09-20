@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 from typing import Any
@@ -60,6 +59,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.pin import Pin
 
 
@@ -969,7 +969,7 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         if tool_input and integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
         if config:
-            span.set_tag_str("langchain.request.config", json.dumps(config))
+            span.set_tag_str("langchain.request.config", safe_json(config))
 
         tool_output = func(*args, **kwargs)
         if tool_output and integration.is_pc_sampled_span(span):
@@ -1020,7 +1020,7 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         if tool_input and integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
         if config:
-            span.set_tag_str("langchain.request.config", json.dumps(config))
+            span.set_tag_str("langchain.request.config", safe_json(config))
 
         tool_output = await func(*args, **kwargs)
         if tool_output and integration.is_pc_sampled_span(span):
