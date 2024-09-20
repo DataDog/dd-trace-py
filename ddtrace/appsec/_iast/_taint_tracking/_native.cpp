@@ -72,6 +72,14 @@ PYBIND11_MODULE(_native, m)
     }
 
     initializer = make_unique<Initializer>();
+    initializer = make_unique<Initializer>();
+    // Create an atexit callback to clean up the Initializer before the
+    // interpreter finishes
+    auto atexit_register = py::module_::import("atexit").attr("register");
+    atexit_register(py::cpp_function([]() {
+        initializer->reset_context();
+        initializer.reset();
+    }));
     initializer->create_context();
 
     m.doc() = "Native Python module";
