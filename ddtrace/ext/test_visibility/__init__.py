@@ -5,6 +5,7 @@ NOTE: BETA - this API is currently in development and is subject to change.
 import os
 
 from ddtrace import config
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -13,7 +14,10 @@ config._add(
     "test_visibility",
     dict(
         _default_service="default_test_visibility_service",
-        itr_skipping_level="suite" if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE")) else "test",
+        itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE
+        if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE"))
+        else ITR_SKIPPING_LEVEL.TEST,
+        _itr_skipping_ignore_parameters=False,
     ),
 )
 

@@ -6,10 +6,11 @@ from unittest import mock
 
 import ddtrace
 import ddtrace.ext.test_visibility  # noqa: F401
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import override_env
 
@@ -22,7 +23,7 @@ def _patch_dummy_writer():
     ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
-def _get_default_civisibility_ddconfig(itr_skipping_level: str = "test"):
+def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST):
     new_ddconfig = ddtrace.settings.Config()
     new_ddconfig._add(
         "test_visibility",
@@ -94,10 +95,12 @@ def set_up_mock_civisibility(
 
     with override_env(env_overrides), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig",
-        _get_default_civisibility_ddconfig("suite" if suite_skipping_mode else "test"),
+        _get_default_civisibility_ddconfig(
+            ITR_SKIPPING_LEVEL.SUITE if suite_skipping_mode else ITR_SKIPPING_LEVEL.TEST
+        ),
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-        return_value=_CIVisibilitySettings(
+        return_value=TestVisibilityAPISettings(
             coverage_enabled=coverage_enabled,
             skipping_enabled=skipping_enabled,
             require_git=require_git,

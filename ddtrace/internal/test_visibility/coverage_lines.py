@@ -73,3 +73,9 @@ class CoverageLines:
         for line in lines:
             coverage.add(line)
         return coverage
+
+    @classmethod
+    def from_bytearray(cls, lines: bytearray) -> "CoverageLines":
+        coverage = cls()
+        coverage._lines = lines
+        return coverage

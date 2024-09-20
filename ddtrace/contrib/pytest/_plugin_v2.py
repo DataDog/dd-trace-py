@@ -31,6 +31,7 @@ from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
@@ -134,7 +135,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
-        dd_config.test_visibility.itr_skipping_level = "suite"
+        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()
