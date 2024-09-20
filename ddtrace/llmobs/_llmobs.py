@@ -566,7 +566,6 @@ class LLMObs(Service):
             validated_prompt = validate_prompt(prompt)
             span.set_tag_str(INPUT_PROMPT, safe_json(validated_prompt))
         except TypeError:
-            print("IN HERE")
             log.warning("Failed to validate prompt with error: ", exc_info=True)
             return
 
