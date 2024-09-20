@@ -29,16 +29,13 @@ is_iast_debug_enabled()
 }
 
 inline py::object
-get_python_logger()
-{
-    py::object logger_module = py::module::import("ddtrace.internal.logger");
-    py::object get_logger = logger_module.attr("get_logger");
-    py::object native_logger = get_logger("native");
-    return native_logger;
-}
+get_python_logger();
 
 inline bool
 is_some_number(PyObject* obj)
 {
     return PyLong_Check(obj) || PyFloat_Check(obj) || PyComplex_Check(obj);
 }
+
+py::object
+safe_import(const char* module, const char* symbol);

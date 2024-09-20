@@ -148,8 +148,7 @@ bool
 PyReMatch_Check(const PyObject* obj)
 {
     try {
-        const auto result = py::isinstance(const_cast<PyObject*>(obj), py::module_::import("re").attr("Match"));
-        return result;
+        return py::isinstance((PyObject*)obj, safe_import("re", "Match"));
     } catch (py::error_already_set& err) {
         PyErr_Clear();
         return false;
