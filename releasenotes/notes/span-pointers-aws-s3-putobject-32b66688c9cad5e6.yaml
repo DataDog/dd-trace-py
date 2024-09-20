@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Adds span pointers to successful AWS S3 PutObject spans.
