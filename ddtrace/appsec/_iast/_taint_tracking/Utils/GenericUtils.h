@@ -11,6 +11,7 @@ bool
 asbool(const py::object&);
 bool
 asbool(const char*);
+
 void
 iast_taint_log_error(const std::string&);
 
