@@ -198,7 +198,7 @@ import ddtrace.auto
 
 # By default telemetry collection is enabled after 10 seconds, so we either need to
 # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
-# This delay allows us to collect start up erorrs and dynamic configurations
+# This delay allows us to collect start up errors and dynamic configurations
 import ddtrace
 ddtrace.internal.telemetry.telemetry_writer._app_started()
     """
