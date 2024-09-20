@@ -127,6 +127,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "ml_app": ml_app,
             "session_id": session_id,
             "ddtrace.version": ddtrace.__version__,
+            "language": "python",
             "error": span.error,
         }
         err_type = span.get_tag(ERROR_TYPE)
