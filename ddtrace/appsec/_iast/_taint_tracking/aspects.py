@@ -172,13 +172,7 @@ def join_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
     joiner = args[0]
     args = args[flag_added_args:]
 
-    if not isinstance(joiner, IAST.TEXT_TYPES):
-        return joiner.join(*args, **kwargs)
-    try:
-        return _join_aspect(joiner, *args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("join_aspect. {}".format(e))
-    return joiner.join(*args, **kwargs)
+    return _join_aspect(joiner, *args, **kwargs)
 
 
 def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:

@@ -18,7 +18,7 @@ mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
 class TestOperatorJoinReplacement(object):
-    def test_string_join_tainted_joiner(self):  # type: () -> None
+    def test_string_join_tainted_joiner_list(self):  # type: () -> None
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
             pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
@@ -27,6 +27,45 @@ class TestOperatorJoinReplacement(object):
 
         result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
+        ranges = get_tainted_ranges(result)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "-joiner-"
+
+    def test_string_join_tainted_joiner_tuple(self):  # type: () -> None
+        # taint "joi" from "-joiner-"
+        string_input = taint_pyobject(
+            pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        it = ("a", "b", "c")
+
+        result = mod.do_join(string_input, it)
+        assert result == "a-joiner-b-joiner-c"
+        ranges = get_tainted_ranges(result)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "-joiner-"
+
+    def test_string_join_tainted_joiner_set(self):  # type: () -> None
+        # taint "joi" from "-joiner-"
+        string_input = taint_pyobject(
+            pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        it = {"a", "b", "c"}
+
+        result = mod.do_join(string_input, it)
+        assert result == "b-joiner-c-joiner-a"
+        ranges = get_tainted_ranges(result)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "-joiner-"
+
+    def test_string_join_tainted_joiner_generator(self):  # type: () -> None
+        # taint "joi" from "-joiner-"
+        string_input = taint_pyobject(
+            pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        it = (i for i in {"a", "b", "c"})
+
+        result = mod.do_join(string_input, it)
+        assert result == "b-joiner-c-joiner-a"
         ranges = get_tainted_ranges(result)
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "-joiner-"
