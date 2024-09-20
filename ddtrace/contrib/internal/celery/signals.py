@@ -1,5 +1,7 @@
+from urllib.parse import urlparse
+
+from celery import current_app
 from celery import registry
-from celery.utils import nodenames
 
 from ddtrace import Pin
 from ddtrace import config
@@ -160,10 +162,10 @@ def trace_after_publish(*args, **kwargs):
     if span is None:
         return
     else:
-        nodename = span.get_tag("celery.hostname")
-        if nodename is not None:
-            _, host = nodenames.nodesplit(nodename)
-            span.set_tag_str(net.TARGET_HOST, host)
+        broker_url = current_app.conf.broker_url
+        parsed_url = urlparse(broker_url)
+        host = parsed_url.hostname
+        span.set_tag_str(net.TARGET_HOST, host)
 
         span.finish()
         detach_span(task, task_id, is_publish=True)
