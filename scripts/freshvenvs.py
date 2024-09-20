@@ -9,12 +9,16 @@ import pathlib
 import sys
 import typing
 from typing import Optional
+
 from packaging.version import Version
 from pip import _internal
+
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
 import riotfile
+
+
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib")
 LATEST = ""
 
