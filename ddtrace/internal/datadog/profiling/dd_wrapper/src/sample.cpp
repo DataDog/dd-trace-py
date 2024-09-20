@@ -313,24 +313,24 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
     // Monotonic times have their epoch at the system start, so they need an
     // adjustment to the standard epoch
     // Just set a static for now and use a lambda to compute the offset once
-    const static auto offset = []() {
-        // Get the current epoch time
-        using namespace std::chrono;
-        auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
+    // const static auto offset = []() {
+    //     // Get the current epoch time
+    //     using namespace std::chrono;
+    //     auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
-        // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
-        // which clock is actually used in std::chrono
-        timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
+    //     // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
+    //     // which clock is actually used in std::chrono
+    //     timespec ts;
+    //     clock_gettime(CLOCK_MONOTONIC, &ts);
+    //     auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
 
-        // Compute the difference.  We're after 1970, so epoch_ns will be larger
-        return epoch_ns - monotonic_ns;
-    }();
+    //     // Compute the difference.  We're after 1970, so epoch_ns will be larger
+    //     return epoch_ns - monotonic_ns;
+    // }();
 
     // If timeline is not enabled, then this is a no-op
     if (is_timeline_enabled()) {
-        endtime_ns = _monotonic_ns + offset;
+        endtime_ns = _monotonic_ns;
     }
 
     return true;
