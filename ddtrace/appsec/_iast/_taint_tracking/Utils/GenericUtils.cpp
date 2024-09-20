@@ -36,46 +36,49 @@ void
 iast_taint_log_error(const std::string& msg)
 {
     try {
-        if (is_iast_debug_enabled()) {
-            std::string frame_info;
-            // If we don't clear the error, stack() and other functions won't work, so we save it first for restoring
-            // it later if needed
-            PyObject *ptype, *pvalue, *ptraceback;
-            PyErr_Fetch(&ptype, &pvalue, &ptraceback);
-            const bool had_exception = (ptype != nullptr || pvalue != nullptr || ptraceback != nullptr);
-            PyErr_Clear();
-
-            try {
-                const py::list stack = safe_import("inspect", "stack")();
-
-                for (size_t i = 0; i < std::min(stack.size(), static_cast<size_t>(7)); ++i) {
-                    py::object frame = stack[i];
-                    py::object frame_info_obj = frame.attr("frame");
-                    std::string filename = py::str(frame_info_obj.attr("f_code").attr("co_filename"));
-                    const int lineno = py::int_(frame_info_obj.attr("f_lineno"));
-                    frame_info += filename + ", " + std::to_string(lineno) + "\n";
-                }
-            } catch (const py::error_already_set& e) {
-                cerr << "ddtrace: error in iast_taint_log_error trying to retrieve file and line: " << e.what() << "\n";
-                PyErr_Clear(); // Clear the error state
-                frame_info = "(unkown file)";
-            }
-            const auto log = get_python_logger();
-            log.attr("debug")("[IAST] Propagation error. " + msg + ": " + frame_info);
-            // Restore the original exception state if needed
-            if (had_exception) {
-                PyErr_Restore(ptype, pvalue, ptraceback);
-            } else {
-                Py_XDECREF(ptype);
-                Py_XDECREF(pvalue);
-                Py_XDECREF(ptraceback);
-            }
-        }
         safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("[IAST] Propagation error. " + msg);
+
+        if (!is_iast_debug_enabled()) {
+            return;
+        }
+        std::string frame_info;
+        // If we don't clear the error, stack() and other functions won't work, so we save it first for restoring
+        // it later if needed
+        PyObject *ptype, *pvalue, *ptraceback;
+        PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+        const bool had_exception = (ptype != nullptr || pvalue != nullptr || ptraceback != nullptr);
+        PyErr_Clear();
+
+        try {
+            const py::list stack = safe_import("inspect", "stack")();
+
+            for (size_t i = 0; i < std::min(stack.size(), static_cast<size_t>(7)); ++i) {
+                py::object frame = stack[i];
+                py::object frame_info_obj = frame.attr("frame");
+                std::string filename = py::str(frame_info_obj.attr("f_code").attr("co_filename"));
+                const int lineno = py::int_(frame_info_obj.attr("f_lineno"));
+                frame_info += filename + ", " + std::to_string(lineno) + "\n";
+            }
+        } catch (const py::error_already_set& e) {
+            cerr << "ddtrace: error in iast_taint_log_error trying to retrieve file and line: " << e.what() << "\n";
+            PyErr_Clear(); // Clear the error state
+            frame_info = "(unkown file)";
+        }
+
+        const auto log = get_python_logger();
+        log.attr("debug")("[IAST] Propagation error. " + msg + ": " + frame_info);
+
+        // Restore the original exception state if needed
+        if (had_exception) {
+            PyErr_Restore(ptype, pvalue, ptraceback);
+        } else {
+            Py_XDECREF(ptype);
+            Py_XDECREF(pvalue);
+            Py_XDECREF(ptraceback);
+        }
 
     } catch (const py::error_already_set& e) {
         if (!e.trace().is_none()) {
-
             PyObject *type, *value, *tb;
             PyErr_Fetch(&type, &value, &tb);
             PyErr_NormalizeException(&type, &value, &tb);
