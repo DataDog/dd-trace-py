@@ -6,13 +6,11 @@
 from ddtrace.contrib.pymongo import get_version
 from ddtrace.contrib.pymongo.patch import patch
 
-
 try:
     from ddtrace.contrib.pymongo.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase
-
 
 class TestPymongoPatch(PatchTestCase.Base):
     __integration_name__ = "pymongo"
@@ -21,11 +19,80 @@ class TestPymongoPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
+
+    def _get_imports(self, pymongo):
+        version = pymongo.version_tuple
+        if version >= (4, 9):
+            from pymongo.synchronous.pool import Connection
+            from pymongo.synchronous.server import Server
+            from pymongo.synchronous.topology import Topology
+        elif version >= (4, 5):
+            from pymongo.pool import Connection
+            from pymongo.server import Server
+            from pymongo.topology import Topology
+        else:
+            from pymongo.pool import SocketInfo as Connection
+            from pymongo.server import Server
+            from pymongo.topology import Topology
+        return Connection, Server, Topology
+    
     def assert_module_patched(self, pymongo):
-        pass
+        Connection, Server, Topology = self._get_imports(pymongo)
+
+        self.assert_wrapped(Topology.select_server)
+        if pymongo.version_tuple >= (3, 12):
+            self.assert_wrapped(Server.run_operation)
+        elif pymongo.version_tuple >= (3, 9):
+            self.assert_wrapped(Server.run_operation_with_response)
+        else:
+            self.assert_wrapped(Server.send_message_with_response)
+        
+        if pymongo.version_tuple >= (4, 5):
+            self.assert_wrapped(Server.checkout)
+        else:
+            self.assert_wrapped(Server.get_socket)
+        self.assert_wrapped(Connection.command)
+        self.assert_wrapped(Connection.write_command)
 
     def assert_not_module_patched(self, pymongo):
-        pass
+        Connection, Server, Topology = self._get_imports(pymongo)
 
+        self.assert_not_wrapped(pymongo.MongoClient.__init__)
+        self.assert_not_wrapped(Topology.select_server)
+        if pymongo.version_tuple >= (3, 12):
+            self.assert_not_wrapped(Server.run_operation)
+        elif pymongo.version_tuple >= (3, 9):
+            self.assert_not_wrapped(Server.run_operation_with_response)
+        else:
+            self.assert_not_wrapped(Server.send_message_with_response)
+        
+        if pymongo.version_tuple >= (4, 5):
+            self.assert_not_wrapped(Server.checkout)
+        else:
+            self.assert_not_wrapped(Server.get_socket)
+        
+        self.assert_not_wrapped(Connection.command)
+        self.assert_not_wrapped(Connection.write_command)
+
+        
     def assert_not_module_double_patched(self, pymongo):
-        pass
+        Connection, Server, Topology = self._get_imports(pymongo)
+
+        self.assert_not_double_wrapped(Topology.select_server)
+        self.assert_not_double_wrapped(Connection.command)
+        self.assert_not_double_wrapped(Connection.write_command)
+
+        if pymongo.version_tuple >= (3, 12):
+            self.assert_not_double_wrapped(Server.run_operation)
+        elif pymongo.version_tuple >= (3, 9):
+            self.assert_not_double_wrapped(Server.run_operation_with_response)
+        else:
+            self.assert_not_double_wrapped(Server.send_message_with_response)
+        
+        if pymongo.version_tuple >= (4, 5):
+            self.assert_not_double_wrapped(Server.checkout)
+        else:
+            self.assert_not_double_wrapped(Server.get_socket)
+
+
+
