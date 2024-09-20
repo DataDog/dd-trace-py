@@ -505,15 +505,16 @@ def decode_aspect(
     self = args[0]
     args = args[(flag_added_args or 1) :]
     # Assume we call decode method of the first argument
+    result = self.decode(*args, **kwargs)
 
     if is_pyobject_tainted(self) and isinstance(self, bytes):
         try:
             codec = args[0] if args else "utf-8"
             inc_dec = codecs.getincrementaldecoder(codec)(**kwargs)
             return incremental_translation(self, inc_dec, inc_dec.decode, "")
-        except Exception:
-            pass
-    return self.decode(*args, **kwargs)
+        except Exception as e:
+            iast_taint_log_error("decode_aspect. {}".format(e))
+    return result
 
 
 def encode_aspect(
@@ -527,14 +528,17 @@ def encode_aspect(
     self = args[0]
     args = args[(flag_added_args or 1) :]
 
+    result = self.encode(*args, **kwargs)
+
     if is_pyobject_tainted(self) and isinstance(self, str):
         try:
             codec = args[0] if args else "utf-8"
             inc_enc = codecs.getincrementalencoder(codec)(**kwargs)
             return incremental_translation(self, inc_enc, inc_enc.encode, b"")
-        except Exception:
-            pass
-    return self.encode(*args, **kwargs)
+        except Exception as e:
+            iast_taint_log_error("encode_aspect. {}".format(e))
+
+    return result
 
 
 def upper_aspect(
