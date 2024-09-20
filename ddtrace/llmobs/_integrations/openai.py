@@ -22,7 +22,8 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Document
 from ddtrace.pin import Pin
 
@@ -153,16 +154,16 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
         span.set_tag_str(MODEL_NAME, model_name or "")
-        span.set_tag_str(MODEL_PROVIDER, "openai")
+        model_provider = "azure_openai" if self._is_azure_openai(span) else "openai"
+        span.set_tag_str(MODEL_PROVIDER, model_provider)
         if operation == "completion":
             self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_completions, span)
         elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_completions, span)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(resp, err, kwargs, span)
-        span.set_tag_str(
-            METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None))
-        )
+        metrics = self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None)
+        span.set_tag_str(METRICS, safe_json(metrics))
 
     @staticmethod
     def _llmobs_set_meta_tags_from_completion(
@@ -172,20 +173,19 @@ class OpenAIIntegration(BaseLLMIntegration):
         prompt = kwargs.get("prompt", "")
         if isinstance(prompt, str):
             prompt = [prompt]
-        span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
+        span.set_tag_str(INPUT_MESSAGES, safe_json([{"content": str(p)} for p in prompt]))
 
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt")}
-        span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
+        span.set_tag_str(METADATA, safe_json(parameters))
 
         if err is not None:
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
             return
         if streamed_completions:
-            span.set_tag_str(
-                OUTPUT_MESSAGES, json.dumps([{"content": choice["text"]} for choice in streamed_completions])
-            )
-            return
-        span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
+            messages = [{"content": _get_attr(choice, "text", "")} for choice in streamed_completions]
+        else:
+            messages = [{"content": _get_attr(choice, "text", "")} for choice in resp.choices]
+        span.set_tag_str(OUTPUT_MESSAGES, safe_json(messages))
 
     @staticmethod
     def _llmobs_set_meta_tags_from_chat(
@@ -194,17 +194,14 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
         input_messages = []
         for m in kwargs.get("messages", []):
-            if isinstance(m, dict):
-                input_messages.append({"content": str(m.get("content", "")), "role": str(m.get("role", ""))})
-                continue
-            input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
-        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
+            input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
+        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
 
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
-        span.set_tag_str(METADATA, json.dumps(parameters, default=_unserializable_default_repr))
+        span.set_tag_str(METADATA, safe_json(parameters))
 
         if err is not None:
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
             return
         if streamed_messages:
             messages = []
@@ -222,7 +219,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                         for tool_call in tool_calls
                     ]
                 messages.append(message)
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(messages))
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json(messages))
             return
         output_messages = []
         for idx, choice in enumerate(resp.choices):
@@ -252,7 +249,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                 output_messages.append({"content": content, "role": choice.message.role, "tool_calls": tool_calls_info})
             else:
                 output_messages.append({"content": content, "role": choice.message.role})
-        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+        span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
     @staticmethod
     def _llmobs_set_meta_tags_from_embedding(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span) -> None:
@@ -261,7 +258,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         metadata = {"encoding_format": encoding_format}
         if kwargs.get("dimensions"):
             metadata["dimensions"] = kwargs.get("dimensions")
-        span.set_tag_str(METADATA, json.dumps(metadata))
+        span.set_tag_str(METADATA, safe_json(metadata))
 
         embedding_inputs = kwargs.get("input", "")
         if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
@@ -269,7 +266,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         input_documents = []
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
-        span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents))
+        span.set_tag_str(INPUT_DOCUMENTS, safe_json(input_documents))
 
         if err is not None:
             return

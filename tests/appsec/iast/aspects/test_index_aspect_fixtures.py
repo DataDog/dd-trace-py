@@ -10,7 +10,8 @@ from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-from tests.utils import override_env, flaky
+from tests.utils import override_env
+
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
