@@ -40,7 +40,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
     "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
     "alias_module": "ddtrace_aspects",
     "functions": {
-        "StringIO": "ddtrace_aspects.stringio_aspect",
+        # "StringIO": "ddtrace_aspects.stringio_aspect",
         # "BytesIO": "ddtrace_aspects.bytesio_aspect",
         "str": "ddtrace_aspects.str_aspect",
         "bytes": "ddtrace_aspects.bytes_aspect",
@@ -48,7 +48,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "ddtrace_iast_flask_patch": "ddtrace_aspects.empty_func",  # To avoid recursion
     },
     "stringalike_methods": {
-        "StringIO": "ddtrace_aspects.stringio_aspect",
+        # "StringIO": "ddtrace_aspects.stringio_aspect",
         # "BytesIO": "ddtrace_aspects.bytesio_aspect",
         "decode": "ddtrace_aspects.decode_aspect",
         "join": "ddtrace_aspects.join_aspect",
