@@ -976,38 +976,37 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     return documents
 
 
-# TODO refactor some of these on_span_started/on_span_finished functions
-# that are used in other patched methods in this file into the utils module
 @with_traced_module
 def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
 
     def _on_span_started(span: Span):
         inputs = get_argument_value(args, kwargs, 0, "input")
-        if integration.is_pc_sampled_span(span):
-            if not isinstance(inputs, list):
-                inputs = [inputs]
-            for idx, inp in enumerate(inputs):
-                if not isinstance(inp, dict):
-                    span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
-                else:
-                    for k, v in inp.items():
-                        span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), integration.trunc(str(v)))
+        if not integration.is_pc_sampled_span(span):
+            return
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+        for idx, inp in enumerate(inputs):
+            if not isinstance(inp, dict):
+                span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
+                continue
+            for k, v in inp.items():
+                span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), integration.trunc(str(v)))
 
-    def _on_span_finished(span: Span, streamed_chunks, error: Optional[bool] = None):
-        if not error and integration.is_pc_sampled_span(span):
-            if langchain_core and isinstance(instance.steps[-1], langchain_core.output_parsers.JsonOutputParser):
-                # it's possible that the chain has a json output parser
-                # this will have already concatenated the chunks into a json object
+    def _on_span_finished(span: Span, streamed_chunks):
+        if span.error or not integration.is_pc_sampled_span(span):
+            return
+        if langchain_core and isinstance(instance.steps[-1], langchain_core.output_parsers.JsonOutputParser):
+            # it's possible that the chain has a json output parser
+            # this will have already concatenated the chunks into a json object
 
-                # it's also possible the json output parser isn't the last step,
-                # but one of the last steps, in which case we won't act on it here
-                # TODO (sam.brenner) make this more robust
-                content = json.dumps(streamed_chunks[-1])
-            else:
-                # best effort to join chunks together
-                content = "".join([str(chunk) for chunk in streamed_chunks])
-            span.set_tag_str("langchain.response.content", integration.trunc(content))
+            # it's also possible the json output parser isn't the last step,
+            # but one of the last steps, in which case we won't act on it here
+            content = json.dumps(streamed_chunks[-1])
+        else:
+            # best effort to join chunks together
+            content = "".join([str(chunk) for chunk in streamed_chunks])
+        span.set_tag_str("langchain.response.content", integration.trunc(content))
 
     return shared_stream(
         integration=integration,
@@ -1028,58 +1027,53 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
 
     def _on_span_started(span: Span):
+        if not integration.is_pc_sampled_span(span):
+            return
         chat_messages = get_argument_value(args, kwargs, 0, "input")
-        if not isinstance(chat_messages, list):
+        if langchain_core and isinstance(chat_messages, langchain_core.prompt_values.PromptValue):
+            chat_messages = chat_messages.to_messages()
+        elif not isinstance(chat_messages, list):
             chat_messages = [chat_messages]
         for message_idx, message in enumerate(chat_messages):
-            if integration.is_pc_sampled_span(span):
-                if isinstance(message, dict):
-                    span.set_tag_str(
-                        "langchain.request.messages.%d.content" % (message_idx),
-                        integration.trunc(str(message.get("content", ""))),
-                    )
-                    span.set_tag_str(
-                        "langchain.request.messages.%d.role" % (message_idx),
-                        str(message.get("role", "")),
-                    )
-                elif isinstance(message, langchain_core.prompt_values.PromptValue):
-                    for langchain_message_idx, langchain_message in enumerate(message.messages):
-                        span.set_tag_str(
-                            "langchain.request.messages.%d.%d.content" % (message_idx, langchain_message_idx),
-                            integration.trunc(str(langchain_message.content)),
-                        )
-                        span.set_tag_str(
-                            "langchain.request.messages.%d.%d.role" % (message_idx, langchain_message_idx),
-                            str(langchain_message.__class__.__name__),
-                        )
-                elif isinstance(message, langchain_core.messages.BaseMessage):
-                    span.set_tag_str(
-                        "langchain.request.messages.%d.content" % (message_idx), integration.trunc(str(message.content))
-                    )
-                    span.set_tag_str(
-                        "langchain.request.messages.%d.role" % (message_idx), str(message.__class__.__name__)
-                    )
-                else:
-                    span.set_tag_str(
-                        "langchain.request.messages.%d.content" % (message_idx), integration.trunc(message)
-                    )
+            if isinstance(message, dict):
+                span.set_tag_str(
+                    "langchain.request.messages.%d.content" % (message_idx),
+                    integration.trunc(str(message.get("content", ""))),
+                )
+                span.set_tag_str(
+                    "langchain.request.messages.%d.role" % (message_idx),
+                    str(message.get("role", "")),
+                )
+            elif langchain_core and isinstance(message, langchain_core.messages.BaseMessage):
+                content = message.content
+                role = message.__class__.__name__
+                span.set_tag_str(
+                    "langchain.request.messages.%d.content" % (message_idx), integration.trunc(str(content))
+                )
+                span.set_tag_str("langchain.request.messages.%d.role" % (message_idx), str(role))
+            else:
+                span.set_tag_str(
+                    "langchain.request.messages.%d.content" % (message_idx), integration.trunc(str(message))
+                )
 
         for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
+            if not isinstance(val, dict):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+                continue
+            for k, v in val.items():
+                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
 
-    def _on_span_finished(span: Span, streamed_chunks, error: Optional[bool] = None):
-        if not error and integration.is_pc_sampled_span(span):
-            content = "".join([str(chunk.content) for chunk in streamed_chunks])
-            span.set_tag_str("langchain.response.content", integration.trunc(content))
+    def _on_span_finished(span: Span, streamed_chunks):
+        if span.error or not integration.is_pc_sampled_span(span):
+            return
+        content = "".join([str(chunk.content) for chunk in streamed_chunks])
+        span.set_tag_str("langchain.response.content", integration.trunc(content))
 
-            usage = getattr(streamed_chunks[-1], "usage_metadata", None)
-            if usage:
-                for k, v in usage.items():
-                    span.set_tag_str("langchain.response.usage_metadata.%s" % k, str(v))
+        usage = getattr(streamed_chunks[-1], "usage_metadata", None)
+        if not usage:
+            return
+        for k, v in usage.items():
+            span.set_tag_str("langchain.response.usage_metadata.%s" % k, str(v))
 
     return shared_stream(
         integration=integration,
@@ -1115,8 +1109,8 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
             else:
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
-    def _on_span_finished(span: Span, streamed_chunks, error: Optional[bool] = None):
-        if not error and integration.is_pc_sampled_span(span):
+    def _on_span_finished(span: Span, streamed_chunks):
+        if not span.error and integration.is_pc_sampled_span(span):
             content = "".join([str(chunk) for chunk in streamed_chunks])
             span.set_tag_str("langchain.response.content", integration.trunc(content))
 
@@ -1388,8 +1382,6 @@ def patch():
         )
         wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
         wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
-
-        # streaming
         wrap("langchain_core", "runnables.base.RunnableSequence.stream", traced_chain_stream(langchain))
         wrap("langchain_core", "runnables.base.RunnableSequence.astream", traced_chain_stream(langchain))
         wrap(

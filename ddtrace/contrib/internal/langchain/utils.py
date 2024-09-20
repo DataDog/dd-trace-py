@@ -22,7 +22,7 @@ class TracedLangchainStreamResponse(BaseTracedLangChainStreamResponse):
             self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
             raise
         finally:
-            self._on_span_finish(self._dd_span, self._chunks, error=bool(self._dd_span.error))
+            self._on_span_finish(self._dd_span, self._chunks)
             self._dd_span.finish()
 
 
@@ -37,7 +37,7 @@ class TracedLangchainAsyncStreamResponse(BaseTracedLangChainStreamResponse):
             self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
             raise
         finally:
-            self._on_span_finish(self._dd_span, self._chunks, error=bool(self._dd_span.error))
+            self._on_span_finish(self._dd_span, self._chunks)
             self._dd_span.finish()
 
 
