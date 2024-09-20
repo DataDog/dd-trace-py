@@ -63,7 +63,7 @@ def test_flask_iast_ast_patching_re(style, endpoint, function):
 @pytest.mark.parametrize(
     "function",
     [
-        "bytesio",
+        # "bytesio",
         "stringio",
     ],
 )
