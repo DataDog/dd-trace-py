@@ -68,7 +68,9 @@ def test_push_span():
     for sample in timestamped_samples:
         end_timestamp_ns_label = pprof_utils.get_label_with_key(profile.string_table, sample, "end_timestamp_ns")
         end_timestamp_ns = end_timestamp_ns_label.num
-        assert end_timestamp_ns <= span_end_time, "{} > {}".format(end_timestamp_ns, span_end_time)
+        assert end_timestamp_ns <= span_end_time, "{} > {}, diff: {}ms".format(
+            end_timestamp_ns, span_end_time, (end_timestamp_ns - span_end_time) / 1e6
+        )
 
 
 @pytest.mark.subprocess()
