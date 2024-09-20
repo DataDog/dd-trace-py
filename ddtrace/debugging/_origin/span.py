@@ -210,7 +210,6 @@ class SpanCodeOriginProcessor(SpanProcessor):
             frame_origin = Path(code.co_filename)
 
             if is_user_code(frame_origin):
-                print(frame_origin, "is user code")
                 n = next(seq)
                 span.set_tag_str(f"_dd.ld.code_origin.frames.{n}.file", str(frame_origin.resolve()))
                 span.set_tag_str(f"_dd.ld.code_origin.frames.{n}.line", str(code.co_firstlineno))
