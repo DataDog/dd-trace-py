@@ -160,17 +160,13 @@ def test_anthropic_llm_error(anthropic, request_vcr):
 @pytest.mark.snapshot(ignores=["meta.error.stack", "resource", "meta.anthropic.request.parameters"])
 def test_anthropic_llm_unserializable_arg(anthropic, request_vcr):
     """Assert that unserializable arguments will not break integration tagging."""
-
-    class Unserializable:
-        pass
-
     llm = anthropic.Anthropic()
     with pytest.raises(TypeError):
         llm.messages.create(
             model="claude-3-opus-20240229",
             max_tokens=15,
             messages=[{"content": "Valid content but unserializable metadata param", "role": "user"}],
-            metadata=Unserializable(),
+            metadata=object(),
         )
 
 
