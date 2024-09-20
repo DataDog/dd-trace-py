@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Code Security: ensure the ``Initializer`` object is always reset and freed before the Python runtime.
+other:
+  - |
+    For any change which does not fall into any of the above categories. Since changes falling into this category are 
+    likely rare and not very similar to each other, no specific format other than a required scope is provided. 
+    The author is requested to use their best judgment to ensure a quality release note.
+    Format: <scope>: <add_release_note_here>.
