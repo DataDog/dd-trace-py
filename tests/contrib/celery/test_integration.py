@@ -461,8 +461,8 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert traces[0][0].name == "celery.apply"
             assert traces[0][0].resource == "tests.contrib.celery.test_integration.fn_task_parameters"
             assert traces[0][0].get_tag("celery.action") == "apply_async"
-            assert span.get_tag("component") == "celery"
-            assert span.get_tag("span.kind") == "producer"
+            assert traces[0][0].get_tag("component") == "celery"
+            assert traces[0][0].get_tag("span.kind") == "producer"
 
     def test_shared_task(self):
         # Ensure Django Shared Task are supported
