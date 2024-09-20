@@ -5,6 +5,9 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
+from libcpp.map cimport map
+from libcpp.utility cimport pair
+
 import ddtrace
 import platform
 from .._types import StringType
@@ -47,8 +50,8 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
-    void ddup_profile_set_endpoint(uint64_t local_root_span_id, string_view trace_endpoint)
-    void ddup_profile_add_endpoint_count(string_view trace_endpoint, int64_t count)
+    void ddup_profile_set_endpoints(map[int64_t, string_view] span_ids_to_endpoints)
+    void ddup_profile_add_endpoint_counts(map[string_view, int64_t] trace_endpoints_to_counts)
     bint ddup_upload() nogil
 
     Sample *ddup_start_sample()
@@ -175,26 +178,27 @@ def upload() -> None:
 
     processor = ddtrace.tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
+
+    cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
     for endpoint, span_ids in endpoint_to_span_ids.items():
         endpoint_bytes = ensure_binary_or_empty(endpoint)
         for span_id in span_ids:
-            # TODO(taegyunkim): Pass the mapping directly to the native
-            # code to avoid the need to iterate over the mapping and call
-            # the native function multiple times which leads to frequent
-            # lock acquire and release inside the native code.
-            ddup_profile_set_endpoint(
-                clamp_to_uint64_unsigned(span_id),
-                string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
+            span_ids_to_endpoints.insert(
+                pair[int64_t, string_view](
+                    clamp_to_uint64_unsigned(span_id),
+                    string_view(<const char*>endpoint_bytes, len(endpoint_bytes))
+                )
             )
+    ddup_profile_set_endpoints(span_ids_to_endpoints)
+
+    cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
     for endpoint, cnt in endpoint_counts.items():
         endpoint_bytes = ensure_binary_or_empty(endpoint)
-        # Same comment as above applies here, avoid frequent lock
-        # acquire and release by passing the mapping directly to the
-        # native code.
-        ddup_profile_add_endpoint_count(
+        trace_endpoints_to_counts.insert(pair[string_view, int64_t](
             string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
             clamp_to_int64_unsigned(cnt)
-        )
+        ))
+    ddup_profile_add_endpoint_counts(trace_endpoints_to_counts)
 
     with nogil:
         ddup_upload()
