@@ -13,9 +13,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 
 
 class TestCheckEnabledFeatures:
-    """Test whether CIVisibility._check_enabled_features properly
-    - properly calls _do_request (eg: payloads are correct)
-    - waits for git metadata upload as necessary
+    """Test whether CIVisibility._check_enabled_features properly waits for git metadata upload as necessary
 
     Across a "matrix" of:
     - whether the settings API returns {... "require_git": true ...}

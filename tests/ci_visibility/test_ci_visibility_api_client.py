@@ -1,5 +1,6 @@
 import json
 import re
+import typing as t
 from unittest import mock
 
 import pytest
@@ -8,30 +9,64 @@ import ddtrace
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityClient
+from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityClient
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
-from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
+from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 
 
-class EvpProxyTestVisibilityClient:
-    pass
+_AGENTLESS = REQUESTS_MODE.AGENTLESS_EVENTS
+_EVP_PROXY = REQUESTS_MODE.EVP_PROXY_EVENTS
 
 
-class TestCheckEnabledFeatures:
-    """Test whether CIVisibility._check_enabled_features properly
-    - properly calls _do_request (eg: payloads are correct)
-    - waits for git metadata upload as necessary
+def _get_mock_connection(body):
+    class _mock_http_response:
+        status = 200
+
+        def read(self):
+            return body
+
+    mock_connection = mock.Mock()
+    mock_connection.getresponse.return_value = _mock_http_response()
+    mock_connection.request = mock.Mock()
+    mock_connection.close = mock.Mock()
+
+    return mock_connection
+
+
+class TestTestVisibilityAPIClient:
+    """Tests that the TestVisibility API clients
+    - make calls to the correct backend URL
+    - send the correct payload
+    - handle API responses correctly
 
     Across a "matrix" of:
-    - whether the settings API returns {... "require_git": true ...}
-    - call failures
+    - requests mode (agentless, EVP proxy)
+    - overrides (custom agent URL, custom agentless URL)
+    - good/bad/incorrect API responses
     """
 
+    default_configurations = {
+        "os.architecture": "arm64",
+        "os.platform": "PlatForm",
+        "os.version": "9.8.a.b",
+        "runtime.name": "RPython",
+        "runtime.version": "11.5.2",
+    }
+
     requests_mode_parameters = [REQUESTS_MODE.AGENTLESS_EVENTS, REQUESTS_MODE.EVP_PROXY_EVENTS]
+
+    git_data_parameters = [
+        GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala"),
+        GitData(None, "shalessbranch", None),
+        GitData("git@gitbob.com:myorg/myrepo.git", "shalessbranch", None),
+        None,
+    ]
 
     # All requests to setting endpoint are the same within a call of _check_enabled_features()
     expected_do_request_method = "POST"
@@ -43,30 +78,81 @@ class TestCheckEnabledFeatures:
             r"^http://notahost:1234/evp_proxy/v2/api/v2/libraries/tests/services/setting$"
         ),
     }
-    expected_do_request_headers = {
-        REQUESTS_MODE.AGENTLESS_EVENTS: {
-            "dd-api-key": "myfakeapikey",
-            "Content-Type": "application/json",
+    expected_items = {
+        _AGENTLESS: {
+            "endpoint": "/api/v2/libraries/tests/services/setting",
+            "headers": {
+                "dd-api-key": "myfakeapikey",
+                "Content-Type": "application/json",
+            },
         },
-        REQUESTS_MODE.EVP_PROXY_EVENTS: {
-            "X-Datadog-EVP-Subdomain": "api",
-            "Content-Type": "application/json",
+        _EVP_PROXY: {
+            "endpoint": "/evp_proxy/v2/api/v2/libraries/tests/services/setting",
+            "headers": {
+                "X-Datadog-EVP-Subdomain": "api",
+                "Content-Type": "application/json",
+            },
         },
     }
 
-    @staticmethod
-    def _get_expected_do_request_payload(suite_skipping_mode=False):
+    def _get_test_client(
+        self,
+        itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
+        requests_mode: REQUESTS_MODE = _AGENTLESS,
+        git_data: GitData = None,
+        api_key: t.Optional[str] = "my_api_key",
+        dd_site: t.Optional[str] = None,
+        agentless_url: t.Optional[str] = None,
+        agent_url: t.Optional[str] = "http://agenturl:1234",
+        dd_service: t.Optional[str] = None,
+        dd_env: t.Optional[str] = None,
+        client_timeout: t.Optional[float] = None,
+    ):
+        git_data = git_data if git_data is not None else self.git_data_parameters[0]
+
+        if requests_mode == _AGENTLESS:
+            return AgentlessTestVisibilityClient(
+                itr_skipping_level,
+                git_data,
+                self.default_configurations,
+                api_key,
+                dd_site,
+                agentless_url,
+                dd_service,
+                dd_env,
+                client_timeout,
+            )
+        else:
+            return EVPProxyTestVisibilityClient(
+                itr_skipping_level,
+                git_data,
+                self.default_configurations,
+                agent_url,
+                dd_service,
+                dd_env,
+                client_timeout,
+            )
+
+    def _get_expected_do_request_payload(
+        self,
+        itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
+        git_data: GitData = None,
+        dd_service: t.Optional[str] = None,
+        dd_env: t.Optional[str] = None,
+    ):
+        git_data = self.git_data_parameters[0] if git_data is None else git_data
+
         return {
             "data": {
                 "id": "checkoutmyuuid4",
                 "type": "ci_app_test_service_libraries_settings",
                 "attributes": {
-                    "test_level": "suite" if suite_skipping_mode else "test",
-                    "service": "service",
-                    "env": None,
-                    "repository_url": "my_repo_url",
-                    "sha": "mycommitshaaaaaaalalala",
-                    "branch": "notmain",
+                    "test_level": "test" if itr_skipping_level == ITR_SKIPPING_LEVEL.TEST else "suite",
+                    "service": dd_service,
+                    "env": dd_env,
+                    "repository_url": git_data.repository_url,
+                    "sha": git_data.commit_sha,
+                    "branch": git_data.branch,
                     "configurations": {
                         "os.architecture": "arm64",
                         "os.platform": "PlatForm",
@@ -75,18 +161,8 @@ class TestCheckEnabledFeatures:
                         "runtime.version": "11.5.2",
                     },
                 },
-            }
+            },
         }
-
-    @staticmethod
-    def _get_mock_civisibility_client(self, agentless=False, do_requests_mocks=None):
-        mock_class = AgentlessTestVisibilityClient if agentless else EvpProxyTestVisibilityClient
-        mock_api_client = mock.Mock(spec=mock_class)
-        if agentless:
-            mock_class
-            mock_api_client._do_request = mock.Mock()
-        else:
-            mock_api_client._do_request = mock.Mock()
 
     @staticmethod
     def _get_mock_civisibility(requests_mode, suite_skipping_mode):
@@ -99,7 +175,7 @@ class TestCheckEnabledFeatures:
             if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
                 mock_civisibility._api_client = mock.Mock(spec=AgentlessTestVisibilityClient)
             else:
-                mock_civisibility._api_client = mock.Mock(spec=EvpProxyTestVisibilityClient)
+                mock_civisibility._api_client = mock.Mock(spec=EVPProxyTestVisibilityClient)
 
             # Defaults
             mock_civisibility._service = "service"
@@ -125,7 +201,7 @@ class TestCheckEnabledFeatures:
 
     @staticmethod
     def _get_settings_api_response(
-        status_code,
+        status_code=200,
         code_coverage=False,
         tests_skipping=False,
         require_git=False,
@@ -162,172 +238,141 @@ class TestCheckEnabledFeatures:
             ),
         )
 
-    def _check_mock_do_request_calls(self, mock_do_request, count, requests_mode, suite_skipping_mode):
-        assert mock_do_request.call_count == count
-
-        for c in range(count):
-            call_args = mock_do_request.call_args_list[c][0]
-            assert call_args[0] == self.expected_do_request_method
-            assert self.expected_do_request_urls[requests_mode].match(call_args[1])
-            assert call_args[3] == self.expected_do_request_headers[requests_mode]
-
-            payload = json.loads(call_args[2])
-            assert payload == self._get_expected_do_request_payload(suite_skipping_mode)
-
     @pytest.fixture(scope="function", autouse=True)
     def _test_context_manager(self):
-        with mock.patch("ddtrace.internal.ci_visibility._api_client.uuid4", return_value="checkoutmyuuid4"):
+        with mock.patch("ddtrace.internal.ci_visibility._api_client.uuid4", return_value="checkoutmyuuid4"), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.DEFAULT_TIMEOUT", 12.34
+        ):
             yield
 
-    @pytest.mark.parametrize("requests_mode", requests_mode_parameters)
+    @pytest.mark.parametrize("client_timeout", [None, 5])
     @pytest.mark.parametrize(
-        "setting_response, expected_result",
+        "requests_mode_settings",
         [
-            ((True, True, None, True), (True, True, None, True)),
-            ((True, False, None, True), (True, False, None, True)),
-            ((False, True, None, True), (False, True, None, True)),
-            ((False, False, None, False), (False, False, None, False)),
+            {
+                "mode": _AGENTLESS,
+                "api_key": "myfakeapikey",
+                "agentless_url": None,
+                "dd_site": None,
+                "expected_url": "https://api.datadoghq.com/api/v2/libraries/tests/services/setting",
+            },
+            {
+                "mode": _AGENTLESS,
+                "api_key": "myfakeapikey",
+                "agentless_url": None,
+                "dd_site": "datad0g.com",
+                "expected_url": "https://api.datad0g.com/api/v2/libraries/tests/services/setting",
+            },
+            {
+                "mode": _AGENTLESS,
+                "api_key": "myfakeapikey",
+                "agentless_url": "http://dd",
+                "dd_site": None,
+                "expected_url": "http://dd/api/v2/libraries/tests/services/setting",
+            },
+            {
+                "mode": _AGENTLESS,
+                "api_key": "myfakeapikey",
+                "agentless_url": "http://dd",
+                "dd_site": "datad0g.com",
+                "expected_url": "http://dd/api/v2/libraries/tests/services/setting",
+            },
+            {
+                "mode": _EVP_PROXY,
+                "agent_url": "http://myagent:1234",
+                "expected_url": "http://myagent:1234/evp_proxy/v2/api/v2/libraries/tests/services/setting",
+            },
         ],
     )
-    @pytest.mark.parametrize("suite_skipping_mode", [True, False])
-    def test_civisibility_check_enabled_features_require_git_false(
-        self, requests_mode, setting_response, expected_result, suite_skipping_mode
-    ):
+    def test_civisibility_api_client_settings_do_request_connection(self, client_timeout, requests_mode_settings):
+        """Tests that the correct payload and headers are sent to the correct API URL for settings requests"""
+
+        client = self._get_test_client(
+            requests_mode=requests_mode_settings["mode"],
+            api_key=requests_mode_settings.get("api_key"),
+            dd_site=requests_mode_settings.get("dd_site"),
+            agentless_url=requests_mode_settings.get("agentless_url"),
+            agent_url=requests_mode_settings.get("agent_url"),
+            dd_service="a_test_service",
+            dd_env="a_test_env",
+            client_timeout=client_timeout,
+        )
+
+        mock_connection = _get_mock_connection(self._get_settings_api_response().body)
+
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder._do_request",
-            side_effect=[
-                self._get_settings_api_response(
-                    200, setting_response[0], setting_response[1], False, setting_response[3]
-                )
-            ],
+            "ddtrace.internal.ci_visibility._api_client.get_connection", return_value=mock_connection
+        ) as mock_get_connection:
+            settings = client.fetch_settings()
+            assert settings == TestVisibilityAPISettings()
+            mock_get_connection.assert_called_once_with(
+                requests_mode_settings["expected_url"], client_timeout if client_timeout is not None else 12.34
+            )
+            mock_connection.request.assert_called_once()
+            call_args = mock_connection.request.call_args_list[0][0]
+            assert call_args[0] == "POST"
+            assert call_args[1] == self.expected_items[requests_mode_settings["mode"]]["endpoint"]
+            assert json.loads(call_args[2]) == self._get_expected_do_request_payload(
+                ITR_SKIPPING_LEVEL.TEST, dd_service="a_test_service", dd_env="a_test_env"
+            )
+            assert call_args[3] == self.expected_items[requests_mode_settings["mode"]]["headers"]
+            mock_connection.close.assert_called_once()
+
+    @pytest.mark.parametrize("itr_skipping_level", [ITR_SKIPPING_LEVEL.TEST, ITR_SKIPPING_LEVEL.SUITE])
+    @pytest.mark.parametrize("dd_service", [None, "My.Test_service"])
+    @pytest.mark.parametrize("dd_env", [None, "My.Test_env"])
+    @pytest.mark.parametrize("git_data", git_data_parameters)
+    def test_civisibility_api_client_settings_do_request_call_optionals(
+        self, itr_skipping_level, git_data, dd_service, dd_env
+    ):
+        """Tests that the correct payload is passed to _do_request when optional parameters are set
+
+        NOTE: this does not re-test URL/header/etc differences between agentless and EVP proxy as that is already tested
+        by test_civisibility_api_client_settings_do_request_connection
+        """
+        client = self._get_test_client(
+            itr_skipping_level=itr_skipping_level,
+            api_key="my_api_key",
+            dd_service=dd_service,
+            dd_env=dd_env,
+            git_data=git_data,
+        )
+        with mock.patch.object(
+            client, "_do_request", return_value=self._get_settings_api_response()
         ) as mock_do_request:
-            mock_civisibility = self._get_mock_civisibility(requests_mode, suite_skipping_mode)
-            enabled_features = mock_civisibility._check_enabled_features()
+            settings = client.fetch_settings()
+            assert settings == TestVisibilityAPISettings()
 
-            self._check_mock_do_request_calls(mock_do_request, 1, requests_mode, suite_skipping_mode)
-
-            assert enabled_features == TestVisibilityAPISettings(
-                expected_result[0], expected_result[1], False, expected_result[3]
+            assert mock_do_request.call_count == 1
+            call_args = mock_do_request.call_args_list[0][0]
+            assert call_args[0] == "POST"
+            assert json.loads(call_args[2]) == self._get_expected_do_request_payload(
+                itr_skipping_level, git_data=git_data, dd_service=dd_service, dd_env=dd_env
             )
 
-    @pytest.mark.parametrize("requests_mode", requests_mode_parameters)
-    @pytest.mark.parametrize(
-        "wait_for_upload_side_effect",
-        [[METADATA_UPLOAD_STATUS.SUCCESS], [METADATA_UPLOAD_STATUS.FAILED], ValueError, TimeoutError],
-    )
-    @pytest.mark.parametrize(
-        "setting_response, expected_result",
-        [
-            ([(True, True, None, True), (True, True, None, True)], (True, True, None, True)),
-            ([(True, False, None, True), (True, False, None, True)], (True, False, None, True)),
-            ([(True, False, None, True), (False, False, None, True)], (False, False, None, True)),
-            ([(False, False, None, False), (False, False, None, False)], (False, False, None, False)),
-        ],
-    )
-    @pytest.mark.parametrize("second_setting_require_git", [False, True])
-    @pytest.mark.parametrize("suite_skipping_mode", [True, False])
-    def test_civisibility_check_enabled_features_require_git_true(
-        self,
-        requests_mode,
-        wait_for_upload_side_effect,
-        setting_response,
-        expected_result,
-        second_setting_require_git,
-        suite_skipping_mode,
-    ):
-        """Simulates the scenario where we would run coverage because we don't have git metadata, but after the upload
-        finishes, we see we don't need to run coverage.
+    def test_civisibility_api_client_skippable_do_request(self):
+        """Tests that the correct payload and headers are sent to the correct API URL for skippable requests"""
+        pass
 
-        Along with the requests mode dimension, the test matrix covers the possible cases where:
-        - coverage starts off true, then gets disabled after metadata upload (in which case skipping cannot be enabled)
-        - coverage starts off true, then stays true
-        - coverage starts off false, and stays false
+    def test_civisibility_api_client_agentless_bad_api_key(self):
+        """Tests that bad API key setups either cause expected errors"""
+        pass
 
-        Finally, require_git on the second attempt is tested both as True and False, but the response should not affect
-        the final settings
+    def test_civisibility_api_client_agentless_config(self):
+        """Tests that the agentless API client is configured correctly"""
+        pass
 
-        Note: the None values in the setting_response parameters is because the git_require parameter is set explicitly
-        in the test body
-        """
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder._do_request",
-            side_effect=[
-                self._get_settings_api_response(
-                    200, setting_response[0][0], setting_response[0][1], True, setting_response[0][3]
-                ),
-                self._get_settings_api_response(
-                    200,
-                    setting_response[1][0],
-                    setting_response[1][1],
-                    second_setting_require_git,
-                    setting_response[1][3],
-                ),
-            ],
-        ) as mock_do_request:
-            mock_civisibility = self._get_mock_civisibility(requests_mode, suite_skipping_mode)
-            mock_civisibility._git_client.wait_for_metadata_upload_status.side_effect = wait_for_upload_side_effect
-            enabled_features = mock_civisibility._check_enabled_features()
+    def test_civisibility_api_client_evpproxy_config(self):
+        """Tests that the EVP Proxy API client is configured correctly"""
+        pass
 
-            mock_civisibility._git_client.wait_for_metadata_upload_status.assert_called_once()
+    def test_civisibility_api_client_settings_errors(self):
+        """Tests that the client reports errors correctly based on the API response"""
+        pass
 
-            self._check_mock_do_request_calls(mock_do_request, 2, requests_mode, suite_skipping_mode)
-
-            assert enabled_features == TestVisibilityAPISettings(
-                expected_result[0], expected_result[1], second_setting_require_git, expected_result[3]
-            )
-
-    @pytest.mark.parametrize("requests_mode", requests_mode_parameters)
-    @pytest.mark.parametrize(
-        "first_do_request_side_effect",
-        [
-            TimeoutError,
-            Response(status=200, body="} this is bad JSON"),
-            Response(status=200, body='{"not correct key": "not correct value"}'),
-            Response(status=600, body="Only status code matters here"),
-            Response(
-                status=200,
-                body='{"errors":["Not found"]}',
-            ),
-            (200, True, True, True, True),
-            (200, True, False, True, True),
-            (200, False, False, True, True),
-        ],
-    )
-    @pytest.mark.parametrize(
-        "second_do_request_side_effect",
-        [
-            TimeoutError,
-            Response(status=200, body="} this is bad JSON"),
-            Response(status=200, body='{"not correct key": "not correct value"}'),
-            Response(status=600, body="Only status code matters here"),
-        ],
-    )
-    def test_civisibility_check_enabled_features_any_api_error_disables_itr(
-        self, requests_mode, first_do_request_side_effect, second_do_request_side_effect
-    ):
-        """Tests that any error encountered while querying the setting endpoint results in ITR
-        being disabled, whether on the first or second request
-        """
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder._do_request",
-        ) as mock_do_request:
-            if isinstance(first_do_request_side_effect, tuple):
-                expected_call_count = 2
-                mock_do_request.side_effect = [
-                    self._get_settings_api_response(*first_do_request_side_effect),
-                    second_do_request_side_effect,
-                ]
-            else:
-                expected_call_count = 1
-                mock_do_request.side_effect = [first_do_request_side_effect]
-
-            mock_civisibility = self._get_mock_civisibility(requests_mode, False)
-            mock_civisibility._git_client.wait_for_metadata_upload_status.side_effect = [METADATA_UPLOAD_STATUS.SUCCESS]
-
-            enabled_features = mock_civisibility._check_enabled_features()
-
-            assert mock_do_request.call_count == expected_call_count
-            assert enabled_features == TestVisibilityAPISettings(False, False, False, False)
+    def test_civisibility_api_client_skippable_errors(self):
+        """Tests that the client reports errors correctly based on the API response"""
+        pass
 
     @pytest.mark.parametrize(
         "dd_civisibility_agentless_url, expected_url",

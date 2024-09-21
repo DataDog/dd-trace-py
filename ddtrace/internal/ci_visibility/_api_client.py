@@ -10,7 +10,6 @@ from uuid import uuid4
 
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
-from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -58,6 +57,7 @@ _BASE_HEADERS: t.Dict[str, str] = {
 }
 
 _SKIPPABLE_ITEM_ID_TYPE = t.Union[InternalTestId, TestSuiteId]
+_CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
 
 
 class TestVisibilitySettingsError(Exception):
@@ -186,20 +186,20 @@ class _TestVisibilityAPIClientBase(abc.ABC):
     def __init__(
         self,
         base_url: str,
-        test_skipping_level: ITR_SKIPPING_LEVEL,
+        itr_skipping_level: ITR_SKIPPING_LEVEL,
         git_data: GitData,
         configurations: t.Dict[str, t.Any],
-        service: t.Optional[str] = None,
+        dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
-        timeout: float = DEFAULT_TIMEOUT,
+        timeout: t.Optional[float] = None,
     ):
         self._base_url: str = base_url
-        self._test_skipping_level: ITR_SKIPPING_LEVEL = test_skipping_level
+        self._itr_skipping_level: ITR_SKIPPING_LEVEL = itr_skipping_level
         self._git_data: GitData = git_data
-        self._configurations: t.Dict[str, t.Any] = configurations
-        self._service: t.Optional[str] = service
+        self._configurations: _CONFIGURATIONS_TYPE = configurations
+        self._service: t.Optional[str] = dd_service
         self._dd_env: t.Optional[str] = dd_env
-        self._timeout: float = timeout
+        self._timeout: float = timeout if timeout is not None else DEFAULT_TIMEOUT
 
     @abc.abstractmethod
     def _redact_headers(self) -> t.Dict[str, str]:
@@ -224,7 +224,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         try:
             parsed_url = verify_url(url)
             url_path = parsed_url.path
-            conn = get_connection(url, timeout=timeout)
+            conn = get_connection(url, timeout)
 
             log.debug(
                 "Sending %s request: %s %s %s %s",
@@ -236,7 +236,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             )
 
             conn.request("POST", url_path, payload, headers)
-            resp = compat.get_connection_response(conn)
+            resp = conn.getresponse()
             log.debug("Response status: %s", resp.status)
             response = Response.from_http_response(resp)
             return response
@@ -254,7 +254,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 "id": str(uuid4()),
                 "type": "ci_app_test_service_libraries_settings",
                 "attributes": {
-                    "test_level": TEST if self._test_skipping_level == ITR_SKIPPING_LEVEL.TEST else SUITE,
+                    "test_level": TEST if self._itr_skipping_level == ITR_SKIPPING_LEVEL.TEST else SUITE,
                     "service": self._service,
                     "env": self._dd_env,
                     "repository_url": self._git_data.repository_url,
@@ -268,7 +268,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         sw = StopWatch()
         sw.start()
         try:
-            response = self._do_request("POST", SETTING_ENDPOINT, json.dumps(payload))
+            response = self._do_request("POST", SETTING_ENDPOINT, json.dumps(payload), timeout=self._timeout)
         except TimeoutError:
             record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.TIMEOUT)
             raise
@@ -333,7 +333,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                     "repository_url": self._git_data.repository_url,
                     "sha": self._git_data.commit_sha,
                     "configurations": self._configurations,
-                    "test_level": TEST if self._test_skipping_level == ITR_SKIPPING_LEVEL.TEST else SUITE,
+                    "test_level": TEST if self._itr_skipping_level == ITR_SKIPPING_LEVEL.TEST else SUITE,
                 },
             }
         }
@@ -379,7 +379,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             record_itr_skippable_request(
                 sw.elapsed() * 1000,
                 response_bytes,
-                TEST if self._test_skipping_level == ITR_SKIPPING_LEVEL.TEST else SUITE,
+                TEST if self._itr_skipping_level == ITR_SKIPPING_LEVEL.TEST else SUITE,
                 error=error_type,
             )
 
@@ -432,7 +432,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 error_type = ERROR_TYPES.BAD_JSON
                 return None
 
-            if self._test_skipping_level == ITR_SKIPPING_LEVEL.TEST:
+            if self._itr_skipping_level == ITR_SKIPPING_LEVEL.TEST:
                 items_to_skip = _parse_skippable_tests(items_to_skip_data, ignore_test_parameters)
             else:
                 items_to_skip = _parse_skippable_suites(items_to_skip_data)
@@ -451,20 +451,20 @@ class AgentlessTestVisibilityClient(_TestVisibilityAPIClientBase):
 
     def __init__(
         self,
-        test_skipping_level: ITR_SKIPPING_LEVEL,
+        itr_skipping_level: ITR_SKIPPING_LEVEL,
         git_data: GitData,
-        configurations: t.Dict[str, str],
+        configurations: _CONFIGURATIONS_TYPE,
         api_key: str,
         dd_site: t.Optional[str] = None,
         agentless_url: t.Optional[str] = None,
-        service: t.Optional[str] = None,
+        dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
         timeout: float = DEFAULT_TIMEOUT,
     ):
         _dd_site = dd_site if dd_site is not None else AGENTLESS_DEFAULT_SITE
         base_url = agentless_url if agentless_url is not None else "https://api." + _dd_site
 
-        super().__init__(base_url, test_skipping_level, git_data, configurations, service, dd_env, timeout)
+        super().__init__(base_url, itr_skipping_level, git_data, configurations, dd_service, dd_env, timeout)
         self._api_key = api_key
 
     def _get_headers(self):
@@ -482,16 +482,16 @@ class EVPProxyTestVisibilityClient(_TestVisibilityAPIClientBase):
 
     def __init__(
         self,
-        test_skipping_level: ITR_SKIPPING_LEVEL,
+        itr_skipping_level: ITR_SKIPPING_LEVEL,
         git_data: GitData,
-        configurations: t.Dict[str, str],
+        configurations: _CONFIGURATIONS_TYPE,
         agent_url: str,
-        service: t.Optional[str] = None,
+        dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
         timeout: float = DEFAULT_TIMEOUT,
     ):
         base_url = combine_url_path(agent_url, EVP_PROXY_AGENT_BASE_PATH)
-        super().__init__(base_url, test_skipping_level, git_data, configurations, service, dd_env, timeout)
+        super().__init__(base_url, itr_skipping_level, git_data, configurations, dd_service, dd_env, timeout)
 
     def _get_headers(self):
         return {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
