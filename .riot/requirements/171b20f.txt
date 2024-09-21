@@ -7,7 +7,7 @@
 aiofiles==24.1.0
 anyio==3.7.1
 attrs==24.2.0
-certifi==2024.7.4
+certifi==2024.8.30
 charset-normalizer==3.3.2
 coverage[toml]==7.6.1
 fastapi==0.86.0
@@ -22,7 +22,7 @@ opentracing==2.4.0
 packaging==24.1
 pluggy==1.5.0
 pydantic==1.10.18
-pytest==8.3.2
+pytest==8.3.3
 pytest-asyncio==0.21.1
 pytest-cov==5.0.0
 pytest-mock==3.14.0
