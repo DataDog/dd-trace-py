@@ -36,7 +36,7 @@ from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityClient
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityClient
-from ddtrace.internal.ci_visibility._api_client import SkippableItems
+from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
@@ -190,14 +190,13 @@ class CIVisibility(Service):
             )
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
-        breakpoint()
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
         self._root_dir = None
         self._should_upload_git_metadata = True
         self._itr_meta = {}  # type: Dict[str, Any]
-        self._skippable_items: Optional[SkippableItems] = None
+        self._itr_data: Optional[ITRData] = None
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -419,9 +418,11 @@ class CIVisibility(Service):
             log.debug("Timed out waiting for git metadata upload, some tests may not be skipped")
 
         try:
-            self._skippable_items = self._api_client.fetch_skippable_items(
+            self._itr_data = self._api_client.fetch_skippable_items(
                 ignore_test_parameters=self._itr_skipping_ignore_parameters
             )
+            if self._itr_data.correlation_id is not None:
+                self._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = self._itr_data.correlation_id
         except Exception:  # noqa: E722
             log.debug("Error fetching skippable items", exc_info=True)
 
@@ -434,7 +435,7 @@ class CIVisibility(Service):
 
         Note that in this legacy mode, test parameters are ignored.
         """
-        if self._skippable_items is None:
+        if self._itr_data is None:
             return False
         if test_skipping_mode is None:
             _test_skipping_mode = SUITE if self._suite_skipping_mode else TEST
@@ -447,7 +448,7 @@ class CIVisibility(Service):
 
         item_id = suite_id if _test_skipping_mode == SUITE else InternalTestId(suite_id, name)
 
-        return item_id in self._skippable_items.skippable_items
+        return item_id in self._itr_data.skippable_items
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
@@ -514,11 +515,12 @@ class CIVisibility(Service):
 
         if self.test_skipping_enabled():
             self._fetch_tests_to_skip()
-            if self._skippable_items is None:
+            if self._itr_data is None:
                 log.warning("Failed to fetch skippable items, no tests will be skipped.")
                 return
             log.info("Intelligent Test Runner skipping level: %s", "suite" if self._suite_skipping_mode else "test")
-            log.info("Skippable items fetched: %s", len(self._skippable_items.skippable_items))
+            log.info("Skippable items fetched: %s", len(self._itr_data.skippable_items))
+            log.info("ITR correlation ID: %s", self._itr_data.correlation_id)
 
     def _stop_service(self):
         # type: () -> None
@@ -694,7 +696,7 @@ class CIVisibility(Service):
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
         instance = cls.get_instance()
-        if instance is None or instance._skippable_items is None:
+        if instance is None or instance._itr_data is None:
             return False
 
         if isinstance(item_id, TestSuiteId) and not instance._suite_skipping_mode:
@@ -705,7 +707,7 @@ class CIVisibility(Service):
             log.debug("Skipping mode is test, but item is not a test: %s", item_id)
             return False
 
-        return item_id in instance._skippable_items.skippable_items
+        return item_id in instance._itr_data.skippable_items
 
     @classmethod
     def is_suite_itr_skippable(cls, item_id: TestSuiteId) -> bool:

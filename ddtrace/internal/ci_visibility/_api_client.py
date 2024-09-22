@@ -59,6 +59,8 @@ _BASE_HEADERS: t.Dict[str, str] = {
 _SKIPPABLE_ITEM_ID_TYPE = t.Union[InternalTestId, TestSuiteId]
 _CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
 
+_NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
+
 
 class TestVisibilitySettingsError(Exception):
     __test__ = False
@@ -73,11 +75,11 @@ class TestVisibilitySkippableItemsError(Exception):
 @dataclasses.dataclass(frozen=True)
 class EarlyFlakeDetectionSettings:
     enabled: bool = False
-    faulty_session_threshold: int = 30
     slow_test_retries_5s: int = 10
     slow_test_retries_10s: int = 5
     slow_test_retries_30s: int = 3
     slow_test_retries_5m: int = 2
+    faulty_session_threshold: float = 30.0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -92,9 +94,9 @@ class TestVisibilityAPISettings:
 
 
 @dataclasses.dataclass(frozen=True)
-class SkippableItems:
-    itr_correlation_id: str = ""
-    covered_files: t.Optional[t.Dict[str, CoverageLines]] = dataclasses.field(default_factory=dict[str, CoverageLines])
+class ITRData:
+    correlation_id: t.Optional[str] = None
+    covered_files: t.Optional[t.Dict[str, CoverageLines]] = None
     skippable_items: t.Set[t.Union[InternalTestId, TestSuiteId]] = dataclasses.field(default_factory=set)
 
 
@@ -120,7 +122,12 @@ class _SkippableResponse(TypedDict):
     meta: _SkippableResponseMeta
 
 
-def _get_test_id_from_skippable_test(skippable_test: _SkippableResponseDataItem, ignore_parameters) -> InternalTestId:
+def _get_test_id_from_skippable_test(
+    skippable_test: _SkippableResponseDataItem, ignore_parameters: bool
+) -> InternalTestId:
+    test_type = skippable_test["type"]
+    if test_type != TEST:
+        raise ValueError(f"Test type {test_type} is not expected test type {TEST}")
     module_id = TestModuleId(skippable_test["attributes"]["configurations"]["test.bundle"])
     suite_id = TestSuiteId(module_id, skippable_test["attributes"]["suite"])
     test_name = skippable_test["attributes"]["name"]
@@ -129,8 +136,51 @@ def _get_test_id_from_skippable_test(skippable_test: _SkippableResponseDataItem,
 
 
 def _get_suite_id_from_skippable_suite(skippable_suite: _SkippableResponseDataItem) -> TestSuiteId:
+    suite_type = skippable_suite["type"]
+    if suite_type != SUITE:
+        raise ValueError(f"Test type {suite_type} is not expected test type {SUITE}")
+
     module_id = TestModuleId(skippable_suite["attributes"]["configurations"]["test.bundle"])
     return TestSuiteId(module_id, skippable_suite["attributes"]["suite"])
+
+
+def _parse_covered_files(covered_files_data: t.Dict[str, str]) -> t.Optional[t.Dict[str, CoverageLines]]:
+    covered_files = {}
+    parse_errors = 0
+    for covered_file, covered_lines_bytes in covered_files_data.items():
+        try:
+            covered_lines = CoverageLines.from_bytearray(bytearray(b64decode(covered_lines_bytes)))
+            covered_files[covered_file] = covered_lines
+        except:  # noqa: E722
+            log.debug("Failed to parse coverage data for file %s", covered_file)
+            parse_errors += 1
+            continue
+
+    if parse_errors > 0:
+        log.warning("Failed to parse %d coverage files", parse_errors)
+
+    return covered_files
+
+
+def _parse_skippable_suites(
+    skippable_suites_data: t.List[_SkippableResponseDataItem],
+) -> t.Set[_SKIPPABLE_ITEM_ID_TYPE]:
+    suites_to_skip: t.Set[_SKIPPABLE_ITEM_ID_TYPE] = set()
+    count_unparsed_suites = 0
+    for skippable_suite in skippable_suites_data:
+        try:
+            suite_id = _get_suite_id_from_skippable_suite(skippable_suite)
+            suites_to_skip.add(suite_id)
+        except Exception:  # noqa: E722
+            count_unparsed_suites += 1
+            log.debug("Failed to parse skippable suite: %s", skippable_suite, exc_info=True)
+
+    if count_unparsed_suites:
+        log.warning("Failed to parse %d skippable suites", count_unparsed_suites)
+
+    record_skippable_count(len(suites_to_skip), SUITE)
+
+    return suites_to_skip
 
 
 def _parse_skippable_tests(
@@ -152,26 +202,6 @@ def _parse_skippable_tests(
     record_skippable_count(len(tests_to_skip), TEST)
 
     return tests_to_skip
-
-
-def _parse_skippable_suites(
-    skippable_suites_data: t.List[_SkippableResponseDataItem],
-) -> t.Set[_SKIPPABLE_ITEM_ID_TYPE]:
-    suites_to_skip: t.Set[_SKIPPABLE_ITEM_ID_TYPE] = set()
-    count_unparsed_suites = 0
-    for skippable_suite in skippable_suites_data:
-        try:
-            suite_id = _get_suite_id_from_skippable_suite(skippable_suite)
-            suites_to_skip.add(suite_id)
-        except Exception:  # noqa: E722
-            count_unparsed_suites += 1
-
-    if count_unparsed_suites:
-        log.debug("Failed to parse %d skippable suites", count_unparsed_suites)
-
-    record_skippable_count(len(suites_to_skip), SUITE)
-
-    return suites_to_skip
 
 
 class _TestVisibilityAPIClientBase(abc.ABC):
@@ -269,7 +299,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         sw.start()
         try:
             response = self._do_request("POST", SETTING_ENDPOINT, json.dumps(payload), timeout=self._timeout)
-        except TimeoutError:
+        except _NETWORK_ERRORS:
             record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.TIMEOUT)
             raise
         if response.status >= 400:
@@ -287,7 +317,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.BAD_JSON)
             raise
 
-        if "errors" in parsed and parsed["errors"][0] == "Not found":
+        if "errors" in parsed:
             record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.UNKNOWN)
             raise ValueError("Settings response contained an error, disabling Intelligent Test Runner")
 
@@ -347,7 +377,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 sw.start()
                 response = self._do_request("POST", SKIPPABLE_ENDPOINT, json.dumps(payload), timeout)
                 sw.stop()
-            except (TimeoutError, socket.timeout, RemoteDisconnected) as e:
+            except _NETWORK_ERRORS as e:
                 sw.stop()
                 log.warning("Error while fetching skippable tests: ", exc_info=True)
                 error_type = ERROR_TYPES.NETWORK if isinstance(e, RemoteDisconnected) else ERROR_TYPES.TIMEOUT
@@ -383,20 +413,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 error=error_type,
             )
 
-    def _parse_covered_files(self, covered_files_data: t.Dict[str, str]) -> t.Optional[t.Dict[str, CoverageLines]]:
-        covered_files = {}
-        for covered_file, covered_lines_bytes in covered_files_data.items():
-            try:
-                covered_lines = CoverageLines.from_bytearray(bytearray(b64decode(covered_lines_bytes)))
-                covered_files[covered_file] = covered_lines
-            except:  # noqa: E722
-                log.warning("Failed to parse coverage data for file %s", covered_file)
-                continue
-        return covered_files
-
     def fetch_skippable_items(
         self, timeout: t.Optional[float] = None, ignore_test_parameters: bool = False
-    ) -> t.Optional[SkippableItems]:
+    ) -> t.Optional[ITRData]:
         if timeout is None:
             timeout = DEFAULT_ITR_SKIPPABLE_TIMEOUT
 
@@ -411,20 +430,21 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             return None
 
         try:
-            if "meta" not in skippable_response:
+            meta = skippable_response.get("meta")
+            if meta is None:
                 log.debug("SKippable tests response did not contain metadata field, no tests will be skipped")
                 error_type = ERROR_TYPES.BAD_JSON
                 return None
 
-            itr_correlation_id = skippable_response.get("meta", {}).get("correlation_id", "")
-            if itr_correlation_id:
-                log.debug("Skippable tests response correlation_id: %s", itr_correlation_id)
-            else:
+            correlation_id = meta.get("correlation_id")
+            if correlation_id is None:
                 log.debug("Skippable tests response missing correlation_id")
+            else:
+                log.debug("Skippable tests response correlation_id: %s", correlation_id)
 
             covered_files_data = skippable_response["meta"].get("coverage")
             if covered_files_data is not None:
-                covered_files = self._parse_covered_files(covered_files_data)
+                covered_files = _parse_covered_files(covered_files_data)
 
             items_to_skip_data = skippable_response.get("data")
             if items_to_skip_data is None:
@@ -436,8 +456,8 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 items_to_skip = _parse_skippable_tests(items_to_skip_data, ignore_test_parameters)
             else:
                 items_to_skip = _parse_skippable_suites(items_to_skip_data)
-            return SkippableItems(
-                itr_correlation_id=itr_correlation_id,
+            return ITRData(
+                correlation_id=correlation_id,
                 covered_files=covered_files,
                 skippable_items=items_to_skip,
             )

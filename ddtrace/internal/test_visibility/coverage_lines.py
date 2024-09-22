@@ -16,6 +16,11 @@ class CoverageLines:
         # Initial size of 32 chosen based on p50 length of files in code base being 240 at time of writing
         self._lines = bytearray(initial_size)
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, CoverageLines):
+            return NotImplemented
+        return self._lines == other._lines
+
     def __len__(self):
         return self._num_lines()
 
@@ -79,3 +84,7 @@ class CoverageLines:
         coverage = cls()
         coverage._lines = lines
         return coverage
+
+    @classmethod
+    def from_b64_string(cls, b64_string: str) -> "CoverageLines":
+        return cls.from_bytearray(bytearray(b64_string, "utf-8"))
