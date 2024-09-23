@@ -385,7 +385,8 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
 
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
     # Fetch modules to reset the state of seen modules
-    modules.get_newly_imported_modules()
+    modules.uninstall_import_hook()
+    modules.install_import_hook()
     telemetry_writer.reset_queues()
     assert telemetry_writer._imported_dependencies == {}
     del sys.modules["httpretty"]
@@ -394,7 +395,7 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     # force a flush
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-dependencies-loaded")
-    deps = [dep["name"] for event in events for dep in event["payload"]["dependencies"]]]
+    deps = [dep["name"] for event in events for dep in event["payload"].get("dependencies", [])]
     assert "httpretty" in deps
 
 
