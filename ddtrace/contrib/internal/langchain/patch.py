@@ -466,9 +466,11 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                     "messages": [
                         [
                             {
-                                "content": message.get("content", "")
-                                if isinstance(message, dict)
-                                else str(getattr(message, "content", "")),
+                                "content": (
+                                    message.get("content", "")
+                                    if isinstance(message, dict)
+                                    else str(getattr(message, "content", ""))
+                                ),
                                 "message_type": message.__class__.__name__,
                             }
                             for message in messages
@@ -596,9 +598,11 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                     "messages": [
                         [
                             {
-                                "content": message.get("content", "")
-                                if isinstance(message, dict)
-                                else str(getattr(message, "content", "")),
+                                "content": (
+                                    message.get("content", "")
+                                    if isinstance(message, dict)
+                                    else str(getattr(message, "content", ""))
+                                ),
                                 "message_type": message.__class__.__name__,
                             }
                             for message in messages
