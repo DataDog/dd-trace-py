@@ -93,8 +93,7 @@ def _get_updatable_packages_implementing(modules: typing.Set[str]) -> typing.Set
         package = v.name
         if package not in modules:
             continue
-        has_latest = _venv_sets_latest_for_package(v, package)
-        if not has_latest:
+        if not _venv_sets_latest_for_package(v, package):
             version_constrained_modules.add(package)
 
     packages = {m for m in modules if "." not in m and m not in version_constrained_modules}
