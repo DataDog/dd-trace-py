@@ -1,6 +1,7 @@
 include:
   - local: .gitlab/services.yml
   - local: .gitlab/tests.yml
+  - local: .gitlab/package.yml
 
 .testrunner:
   image: $TESTRUNNER_IMAGE
