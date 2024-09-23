@@ -462,14 +462,6 @@ The following environment variables for the tracer are supported:
      default: True
      description: Send query strings in http.url tag in http server integrations.
 
-   DD_TRACE_SPAN_AGGREGATOR_RLOCK:
-     type: Boolean
-     default: True
-     description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
-     version_added:
-       v1.16.2: added with default of False
-       v1.19.0: default changed to True
-
    DD_TRACE_METHODS:
      type: String
      default: ""
