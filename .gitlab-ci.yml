@@ -41,7 +41,19 @@ generate-contrib-pipeline:
     - python scripts/generate_contrib_pipeline.py
   artifacts:
     paths:
-      - contrib-pipeline.yml
+      - .gitlab/config.gen.yml
+
+trigger-contrib-pipeline:
+  stage: tests
+  needs: ["generate-contrib-pipeline"]
+  trigger:
+    include:
+      - artifact: .gitlab/config.gen.yml
+        job: generate-contrib-pipeline
+  rules:
+    - exists:
+        - .gitlab/config.gen.yml
+
 
 trigger-contrib-pipeline:
   stage: tests
