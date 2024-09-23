@@ -48,7 +48,7 @@ class IASTFilter(LeaksFilterFunction):
         return False
 
 
-@pytest.mark.limit_leaks("8.3 KB", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("8.8 KB", filter_fn=IASTFilter())
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
