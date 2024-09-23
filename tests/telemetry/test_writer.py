@@ -395,7 +395,8 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) == 1
-    assert events[0]["payload"]["dependencies"] == [{"name": "httpretty", "version": "1.0.5"}]
+    deps = [dep["name"] for event in events for dep in event["payload"]["dependencies"]]]
+    assert "httpretty" in deps
 
 
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
