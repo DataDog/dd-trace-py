@@ -56,7 +56,6 @@ def _gunicorn_settings_factory(
     debug_mode=False,  # type: bool
     dd_service=None,  # type: Optional[str]
     schema_version=None,  # type: Optional[str]
-    rlock=True,  # type: bool
 ):
     # type: (...) -> GunicornServerSettings
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
@@ -75,8 +74,6 @@ def _gunicorn_settings_factory(
         env["DD_SERVICE"] = dd_service
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    if rlock is not None:
-        env["DD_TRACE_SPAN_AGGREGATOR_RLOCK"] = "true"
     return GunicornServerSettings(
         env=env,
         directory=directory,
@@ -168,12 +165,6 @@ SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
     debug_mode=True,
     enable_module_cloning=True,
 )
-SETTINGS_GEVENT_SPANAGGREGATOR_NO_RLOCK = _gunicorn_settings_factory(
-    worker_class="gevent",
-    use_ddtracerun=False,
-    import_auto_in_app=True,
-    rlock=False,
-)
 
 
 @flaky(until=1706677200)
@@ -185,7 +176,6 @@ def test_no_known_errors_occur(tmp_path):
         SETTINGS_GEVENT_DDTRACERUN,
         SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
         SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE,
-        SETTINGS_GEVENT_SPANAGGREGATOR_NO_RLOCK,
     ]:
         with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
             _, client = context
