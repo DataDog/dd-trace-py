@@ -52,6 +52,20 @@ TEST_F(PythonErrorGuardCheck, Error)
     PyErr_Clear();
 }
 
+TEST_F(PythonErrorGuardCheck, ErrorIsClearedThenNoErrorInGuard)
+{
+    PyErr_SetString(PyExc_RuntimeError, "Test error");
+    {
+        PythonErrorGuard guard;
+        EXPECT_TRUE(guard.has_error());
+        EXPECT_STREQ(guard.error_as_stdstring().c_str(), "Test error");
+        EXPECT_STREQ(guard.error_as_pystr().cast<std::string>().c_str(), "Test error");
+    }
+    PyErr_Clear();
+    PythonErrorGuard guard;
+    EXPECT_FALSE(guard.has_error());
+}
+
 void set_python_exception_with_traceback() {
     py::gil_scoped_acquire acquire;
 
