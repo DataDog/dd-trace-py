@@ -47,8 +47,6 @@ generate-contrib-pipeline:
 trigger-contrib-pipeline:
   stage: tests
   needs: ["generate-contrib-pipeline"]
-  image: registry.ddbuild.io/images/mirror/python:3.12.0
-  tags: [ "arch:amd64" ]
   trigger:
     include:
       - artifact: .gitlab/config.gen.yml
