@@ -692,8 +692,7 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
 
 
 def _propagate_context(ctx, headers):
-    config = ctx.get_item("integration_config")
-    distributed_tracing_enabled = config.distributed_tracing_enabled
+    distributed_tracing_enabled = ctx["integration_config"].distributed_tracing_enabled
     call_key = ctx.get_item("call_key")
     if call_key is None:
         log.warning("call_key not found in ctx")
@@ -708,16 +707,16 @@ def _after_job_execution(ctx, job_failed, span_tags):
     call_key = ctx.get_item("call_key")
     if call_key:
         span = ctx[ctx["call_key"]]
-    if job_failed and span:
-        span.error = 1
-    if span_tags:
+    if span:
+        if job_failed:
+            span.error = 1
         for k in span_tags.keys():
             span.set_tag_str(k, span_tags[k])
 
 
 def _on_end_of_traced_method_in_fork(ctx):
     """Force flush to agent since the process `os.exit()`s
-    immediately after this method returnsf
+    immediately after this method returns
     """
     ctx["pin"].tracer.flush()
 
