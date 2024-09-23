@@ -228,9 +228,10 @@ class DatadogSampler(RateByServiceSampler):
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
         self.default_sample_rate = default_sample_rate
+        effective_sample_rate = default_sample_rate 
         if default_sample_rate is None:
             if ddconfig._get_source("_trace_sample_rate") != "default":
-                default_sample_rate = float(ddconfig._trace_sample_rate)
+                effective_sample_rate = float(ddconfig._trace_sample_rate)
 
         if rate_limit is None:
             rate_limit = int(ddconfig._trace_rate_limit)
@@ -251,9 +252,9 @@ class DatadogSampler(RateByServiceSampler):
                 elif config._raise:
                     raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
 
-        # DEV: Default sampling rule must come last
-        if default_sample_rate is not None:
-            self.rules.append(SamplingRule(sample_rate=default_sample_rate))
+        # DEV: sampling rule must come last
+        if effective_sample_rate is not None:
+            self.rules.append(SamplingRule(sample_rate=effective_sample_rate))
 
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
@@ -315,17 +316,18 @@ class DatadogSampler(RateByServiceSampler):
         sampler = self._default_sampler  # type: BaseSampler
         sample_rate = self.sample_rate
         if matched_rule:
+            # Client based sampling
             sampled = matched_rule.sample(span)
             sample_rate = matched_rule.sample_rate
+            # Apply tracer rate limit ONLY if sampling rule is defined
+            if sampled:
+                sampled = self.limiter.is_allowed()
+                span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         else:
+            # Agent based sampling
             sampled, sampler = super(DatadogSampler, self)._make_sampling_decision(span)
             if isinstance(sampler, RateSampler):
                 sample_rate = sampler.sample_rate
-        # Apply rate limit
-        if sampled:
-            sampled = self.limiter.is_allowed()
-        if self.limiter._has_been_configured:
-            span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
         _set_sampling_tags(
             span,
@@ -346,9 +348,4 @@ class DatadogSampler(RateByServiceSampler):
                 return _PRIORITY_CATEGORY.RULE_DYNAMIC
             return _PRIORITY_CATEGORY.RULE_DEF
 
-        if self.limiter._has_been_configured:
-            # If the default rate limiter is NOT used to sample traces
-            # the sampling priority must be set to manual keep/drop.
-            # This will disable agent based sample rates.
-            return _PRIORITY_CATEGORY.USER
         return super(DatadogSampler, self)._choose_priority_category(sampler)
