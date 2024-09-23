@@ -198,9 +198,6 @@ def instrument_all_lines_nonrecursive(
         new_linetable.append(line_delta & 0xFF)
 
     for old_offset in range(0, len(old_code), 2):
-        previous_previous_arg = previous_arg
-        previous_arg = arg
-
         opcode = old_code[old_offset]
         arg = old_code[old_offset + 1] | extended_arg
 
@@ -294,6 +291,9 @@ def instrument_all_lines_nonrecursive(
                     new_consts[-1][1],
                     (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
                 )
+
+        previous_previous_arg = previous_arg
+        previous_arg = arg
 
     # Update line table for the last line we've seen.
     update_linetable(len(new_code) - previous_line_new_offset, previous_line - previous_previous_line)
