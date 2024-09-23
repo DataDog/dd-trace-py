@@ -21,6 +21,8 @@ from typing import Text
 from typing import Tuple
 import urllib.parse
 
+import _io
+
 
 def methodcaller(*args, **kwargs):
     return "im methodcaller"
@@ -1245,3 +1247,13 @@ def urlib_urlsplit(text):
 def do_re_match_index(text, regexp, index):
     match = re.search(regexp, text)
     return match[index]
+
+
+def do_io_stringio_read(string_input):
+    xxx = _io.StringIO(string_input)
+    return xxx.read()
+
+
+def do_io_bytesio_read(string_input):
+    xxx = _io.BytesIO(string_input.encode("utf-8"))
+    return xxx.read()
