@@ -47,16 +47,10 @@ public:
 
 
 private:
-    PyObject* ptype;       ///< Exception type
-    PyObject* pvalue;      ///< Exception value
-    PyObject* ptraceback;  ///< Exception traceback
-    bool had_exception;    ///< Flag indicating if an exception was present
+    PyObject* ptype;
+    PyObject* pvalue;
+    PyObject* ptraceback;
+    bool had_exception;
 
-    /**
-     * @brief Helper function to restore or decrement references.
-     *
-     * Restores the Python error if one was fetched; otherwise, decrements
-     * the reference counts of the fetched error objects.
-     */
     void restore_or_decref();
 };
