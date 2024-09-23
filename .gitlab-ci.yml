@@ -51,9 +51,9 @@ trigger-contrib-pipeline:
     include:
       - artifact: .gitlab/config.gen.yml
         job: generate-contrib-pipeline
-  rules:
-    - exists:
-        - .gitlab/config.gen.yml
+  # rules:
+  #   - exists:
+  #       - .gitlab/config.gen.yml
 
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
