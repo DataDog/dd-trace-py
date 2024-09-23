@@ -169,8 +169,7 @@ def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
 
     if venv.venvs:
         for child_venv in venv.venvs:
-            includes_latest = _venv_sets_latest_for_package(child_venv, package)
-            if includes_latest:
+            if _venv_sets_latest_for_package(child_venv, package):
                 return True
 
     return False
