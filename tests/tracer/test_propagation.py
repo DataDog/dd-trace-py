@@ -649,9 +649,9 @@ def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
         tracer.context_provider.activate(context)
 
         with tracer.trace("local_root_span") as span:
-            assert span._get_baggage_item("key1") == "value1"
+            assert span.context._get_baggage_item("key1") == "value1"
             with tracer.trace("child_span") as child_span:
-                assert child_span._get_baggage_item("key1") == "value1"
+                assert child_span.context._get_baggage_item("key1") == "value1"
 
 
 @pytest.mark.subprocess(

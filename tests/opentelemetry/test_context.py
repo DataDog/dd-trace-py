@@ -3,6 +3,8 @@ import threading
 import time
 
 import opentelemetry
+
+# from opentelemetry.baggage.propagation import W3CBaggagePropagator
 import pytest
 
 import ddtrace
@@ -131,3 +133,7 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(2)
         await coro(3)
         await coro(4)
+
+
+# def test_otel_baggage_inject(oteltracer):
+#     with oteltracer.start_as_current_span("otel-baggage-inject") as span:
