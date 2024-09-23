@@ -14,30 +14,6 @@ DD_SITE = "datad0g.com"
 dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
 
-def _categorical_metric_event():
-    return {
-        "span_id": "12345678901",
-        "trace_id": "98765432101",
-        "metric_type": "categorical",
-        "categorical_value": "very",
-        "label": "toxicity",
-        "ml_app": "dummy-ml-app",
-        "timestamp_ms": round(time.time() * 1000),
-    }
-
-
-def _score_metric_event():
-    return {
-        "span_id": "12345678902",
-        "trace_id": "98765432102",
-        "metric_type": "score",
-        "label": "sentiment",
-        "score_value": 0.9,
-        "ml_app": "dummy-ml-app",
-        "timestamp_ms": round(time.time() * 1000),
-    }
-
-
 def _dummy_ragas_eval_metric_event(span_id, trace_id):
     return LLMObsEvaluationMetricEvent(
         span_id=span_id,
@@ -77,9 +53,9 @@ def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval
 
 
 @pytest.mark.vcr_logs
-def test_ragas_faithfulness_evaluator_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
-    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator)
+    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator(llmobs_service=LLMObs))
     evaluator_runner.start()
 
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
