@@ -69,6 +69,7 @@ class TestPymongoPatch(PatchTestCase.Base):
         self.assert_not_wrapped(Connection.write_command)
 
     def assert_not_module_double_patched(self, pymongo):
+        self.assert_not_double_wrapped(pymongo.MongoClient.__init__)
         self.assert_not_double_wrapped(Topology.select_server)
         self.assert_not_double_wrapped(Connection.command)
         self.assert_not_double_wrapped(Connection.write_command)
