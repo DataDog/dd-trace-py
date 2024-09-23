@@ -126,7 +126,7 @@ class RagasFaithfulnessEvaluator:
                             "trace_id": span.get("trace_id"),
                             "span_id": span.get("span_id"),
                         },
-                        score=score,
+                        value=score,
                         metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
                         label=RagasFaithfulnessEvaluator.LABEL,
                     )
