@@ -1,5 +1,4 @@
 ---
 features:
   - |
-    For new features such as a new integration or component. Use present tense with the following format:
-    LLM Observability: Introduces `prompt` and `name` arguments to LLMObs.annotation_context to support setting the `name` and `prompt` of integration generated spans.
+    LLM Observability: Introduces `prompt` and `name` arguments to ``LLMObs.annotation_context`` to support setting an integration generated span's name and `prompt` field.
