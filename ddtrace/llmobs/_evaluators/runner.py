@@ -20,14 +20,13 @@ SUPPORTED_EVALUATORS = {
 class EvaluatorRunner(PeriodicService):
     """Base class for evaluating LLM Observability span events"""
 
-    def __init__(self, interval: float, _evaluation_metric_writer=None, _llmobs_service=None):
+    def __init__(self, interval: float, llmobs_service=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: list[Dict]
         self._buffer_limit = 1000
 
-        self._evaluation_metric_writer = _evaluation_metric_writer
-
+        self.llmobs_service = llmobs_service
         self.executor = futures.ThreadPoolExecutor()
         self.evaluators = []
 
@@ -36,7 +35,7 @@ class EvaluatorRunner(PeriodicService):
             evaluators = evaluator_str.split(",")
             for evaluator in evaluators:
                 if evaluator in SUPPORTED_EVALUATORS:
-                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator](llmobs_service=_llmobs_service))
+                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator](llmobs_service=llmobs_service))
 
     def start(self, *args, **kwargs):
         super(EvaluatorRunner, self).start()
@@ -63,10 +62,7 @@ class EvaluatorRunner(PeriodicService):
             self._buffer = []
 
         try:
-            evaluation_metrics = self.run(events)
-            for metric in evaluation_metrics:
-                if metric is not None:
-                    self._evaluation_metric_writer.enqueue(metric)
+            self.run(events)
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)
 
@@ -74,7 +70,7 @@ class EvaluatorRunner(PeriodicService):
         batches_of_results = []
 
         for evaluator in self.evaluators:
-            batches_of_results.append(self.executor.map(evaluator.evaluate, spans))
+            batches_of_results.append(self.executor.map(lambda span: evaluator.evaluate(span), spans))
 
         results = []
         for batch in batches_of_results:
