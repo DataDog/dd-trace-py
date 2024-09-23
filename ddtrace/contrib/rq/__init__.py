@@ -157,7 +157,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
             JOB_ID: job.get_id(),
             JOB_FUNC_NAME: job.func_name,
         },
-    ) as ctx, ctx[ctx["call_key"]] as _:
+    ) as ctx, ctx[ctx["call_key"]]:
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async:
             core.dispatch("rq.queue.enqueue_job", [ctx, job.meta])
@@ -176,7 +176,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
         service=trace_utils.int_service(pin, config.rq),
         call_key="traced_queue_fetch_job",
         tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
-    ) as ctx, ctx[ctx["call_key"]] as _:
+    ) as ctx, ctx[ctx["call_key"]]:
         return func(*args, **kwargs)
 
 
@@ -198,7 +198,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             distributed_headers_config=config.rq_worker,
             distributed_headers=job.meta,
             tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
-        ) as ctx, ctx[ctx["call_key"]] as _:
+        ) as ctx, ctx[ctx["call_key"]]:
             try:
                 return func(*args, **kwargs)
             finally:
@@ -229,7 +229,7 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
         call_key="job.perform",
         pin=pin,
         tags={COMPONENT: config.rq.integration_name, JOB_ID: job.get_id()},
-    ) as ctx, ctx[ctx["call_key"]] as _:
+    ) as ctx, ctx[ctx["call_key"]]:
         return func(*args, **kwargs)
 
 
@@ -246,7 +246,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
         call_key="job.fetch_many",
         pin=pin,
         tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
-    ) as ctx, ctx[ctx["call_key"]] as _:
+    ) as ctx, ctx[ctx["call_key"]]:
         return func(*args, **kwargs)
 
 
