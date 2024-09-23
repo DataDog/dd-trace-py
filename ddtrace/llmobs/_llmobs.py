@@ -92,7 +92,7 @@ class LLMObs(Service):
 
         self._evaluator_runner = EvaluatorRunner(
             interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
-            _evaluation_metric_writer=self._llmobs_eval_metric_writer,
+            llmobs_service=self,
         )
 
         self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluator_runner)

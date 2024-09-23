@@ -1,21 +1,22 @@
 import math
 import time
 
-from ddtrace import config
-
 
 class RagasFaithfulnessEvaluator:
-    label = "ragas_faithfulness"
-    metric_type = "score"
+    LABEL = "ragas_faithfulness"
+    METRIC_TYPE = "score"
 
-    @classmethod
-    def evaluate(cls, span):
-        return {
-            "span_id": span.get("span_id"),
-            "trace_id": span.get("trace_id"),
-            "score_value": 1,
-            "ml_app": config._llmobs_ml_app,
-            "timestamp_ms": math.floor(time.time() * 1000),
-            "metric_type": cls.metric_type,
-            "label": cls.label,
-        }
+    def __init__(self, llmobs_service):
+        self.llmobs_service = llmobs_service
+
+    def evaluate(self, span):
+        self.llmobs_service.submit_evaluation(
+            span_context={
+                "span_id": span.get("span_id"),
+                "trace_id": span.get("trace_id"),
+            },
+            label=RagasFaithfulnessEvaluator.LABEL,
+            metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
+            value=1,
+            timestamp_ms=math.floor(time.time() * 1000),
+        )
