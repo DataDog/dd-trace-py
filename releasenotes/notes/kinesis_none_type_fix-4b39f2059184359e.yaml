@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    kinesis: This fix resolves an issue where unparsable data in a Kinesis record would cause a NoneType error.
