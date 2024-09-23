@@ -39,6 +39,7 @@ generate-contrib-pipeline:
   script:
     - pip install ruamel.yaml==0.18.6
     - python scripts/generate_contrib_pipeline.py
+    - ls -l .gitlab 
   artifacts:
     paths:
       - .gitlab/config.gen.yml
