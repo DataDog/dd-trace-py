@@ -1,3 +1,6 @@
+include:
+  - local: .gitlab/tests.yml
+
 algoliasearch:
   extends: .test_base_riot_snapshot
   variables:
