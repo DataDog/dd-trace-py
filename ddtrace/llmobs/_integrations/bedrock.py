@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
@@ -12,12 +13,9 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
-from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import safe_json
 
 
@@ -37,9 +35,7 @@ class BedrockIntegration(BaseLLMIntegration):
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if not self.llmobs_enabled:
             return
-        if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
-            parent_id = _get_llmobs_parent_id(span) or "undefined"
-            span.set_tag(PARENT_ID_KEY, parent_id)
+        LLMObs._instance._activate_llmobs_span(span)
         parameters = {}
         if span.get_tag("bedrock.request.temperature"):
             parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)

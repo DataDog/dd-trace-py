@@ -27,10 +27,10 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
@@ -100,7 +100,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
 
-        parent_id = str(_get_llmobs_parent_id(span) or "undefined")
+        parent_id = span.get_tag(PARENT_ID_KEY) or ROOT_PARENT_ID
         span._meta.pop(PARENT_ID_KEY, None)
 
         llmobs_span_event = {

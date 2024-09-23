@@ -17,10 +17,11 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
-from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_session_id
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
@@ -83,35 +84,25 @@ def test_processor_only_creates_llmobs_span_event():
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
             root_span.set_tag_str(SPAN_KIND, "llm")
             with dummy_tracer.trace("child_span") as child_span:
-                with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
-                    grandchild_span.set_tag_str(SPAN_KIND, "llm")
-        trace = [root_span, child_span, grandchild_span]
-        expected_grandchild_llmobs_span = _expected_llmobs_llm_span_event(grandchild_span, "llm")
-        expected_grandchild_llmobs_span["parent_id"] = str(root_span.span_id)
-        trace_filter.process_trace(trace)
-    assert mock_llmobs_span_writer.enqueue.call_count == 2
-    mock_llmobs_span_writer.assert_has_calls(
-        [
-            mock.call.enqueue(_expected_llmobs_llm_span_event(root_span, "llm")),
-            mock.call.enqueue(expected_grandchild_llmobs_span),
-        ]
-    )
-
-
-def test_set_correct_parent_id():
-    """Test that the parent_id is set as the span_id of the nearest LLMObs span in the span's ancestor tree."""
-    dummy_tracer = DummyTracer()
-    with dummy_tracer.trace("root"):
-        with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
-            pass
-    assert _get_llmobs_parent_id(llm_span) is None
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
-        with dummy_tracer.trace("child_span") as child_span:
-            with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
                 pass
-    assert _get_llmobs_parent_id(root_span) is None
-    assert _get_llmobs_parent_id(child_span) == str(root_span.span_id)
-    assert _get_llmobs_parent_id(grandchild_span) == str(root_span.span_id)
+        trace = [root_span, child_span]
+        trace_filter.process_trace(trace)
+    assert mock_llmobs_span_writer.enqueue.call_count == 1
+    mock_llmobs_span_writer.assert_has_calls([mock.call.enqueue(_expected_llmobs_llm_span_event(root_span, "llm"))])
+
+
+def test_set_correct_parent_id(LLMObs):
+    """Test that the parent_id is set as the span_id of the nearest LLMObs span in the span's ancestor tree."""
+    with LLMObs._instance.tracer.trace("root"):
+        with LLMObs.workflow("llmobs span") as llm_span:
+            pass
+    assert llm_span.get_tag(PARENT_ID_KEY) is None
+    with LLMObs.workflow("root llmobs span") as root_span:
+        assert root_span.get_tag(PARENT_ID_KEY) == ROOT_PARENT_ID
+        with LLMObs._instance.tracer.trace("child_span") as child_span:
+            assert child_span.get_tag(PARENT_ID_KEY) is None
+            with LLMObs.task("llmobs span") as grandchild_span:
+                assert grandchild_span.get_tag(PARENT_ID_KEY) == str(root_span.span_id)
 
 
 def test_propagate_session_id_from_ancestors():

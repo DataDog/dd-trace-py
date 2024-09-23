@@ -23,7 +23,9 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -981,7 +983,7 @@ def test_export_span_no_specified_span_no_active_span_raises_warning(LLMObs, moc
 def test_export_span_active_span_not_llmobs_span_raises_warning(LLMObs, mock_logs):
     with LLMObs._instance.tracer.trace("non_llmobs_span"):
         LLMObs.export_span()
-    mock_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
+    mock_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
 
 
 def test_export_span_no_specified_span_returns_exported_active_span(LLMObs):
@@ -1358,15 +1360,15 @@ def test_inject_distributed_headers_span_calls_httppropagator_inject(LLMObs, moc
     with mock.patch("ddtrace.propagation.http.HTTPPropagator.inject") as mock_inject:
         LLMObs.inject_distributed_headers({}, span=span)
         assert mock_inject.call_count == 1
-        mock_inject.assert_called_once_with(span.context, {})
+        mock_inject.assert_called_once_with(span.context, {PARENT_ID_KEY: ROOT_PARENT_ID})
 
 
 def test_inject_distributed_headers_current_active_span_injected(LLMObs, mock_logs):
-    span = LLMObs._instance.tracer.trace("test_span")
+    _ = LLMObs._instance.tracer.trace("test_span")
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.inject") as mock_inject:
         LLMObs.inject_distributed_headers({}, span=None)
-        assert mock_inject.call_count == 1
-        mock_inject.assert_called_once_with(span.context, {})
+        assert mock_inject.call_count == 0
+        mock_logs.warning.assert_called_once_with("No span provided and no currently active span found.")
 
 
 def test_activate_distributed_headers_llmobs_disabled_does_nothing(LLMObs, mock_logs):
@@ -1387,23 +1389,23 @@ def test_activate_distributed_headers_calls_httppropagator_extract(LLMObs, mock_
 
 def test_activate_distributed_headers_no_trace_id_does_nothing(LLMObs, mock_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        mock_extract.return_value = Context(span_id="123", meta={PROPAGATED_PARENT_ID_KEY: "123"})
+        mock_extract.return_value = Context(span_id=123, meta={PROPAGATED_PARENT_ID_KEY: "123"})
         LLMObs.activate_distributed_headers({})
         assert mock_extract.call_count == 1
-        mock_logs.warning.assert_called_once_with("Failed to extract trace ID or span ID from request headers.")
+        mock_logs.warning.assert_called_once_with("Failed to extract trace/span ID from request headers.")
 
 
 def test_activate_distributed_headers_no_span_id_does_nothing(LLMObs, mock_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        mock_extract.return_value = Context(trace_id="123", meta={PROPAGATED_PARENT_ID_KEY: "123"})
+        mock_extract.return_value = Context(trace_id=123, meta={PROPAGATED_PARENT_ID_KEY: "123"})
         LLMObs.activate_distributed_headers({})
         assert mock_extract.call_count == 1
-        mock_logs.warning.assert_called_once_with("Failed to extract trace ID or span ID from request headers.")
+        mock_logs.warning.assert_called_once_with("Failed to extract trace/span ID from request headers.")
 
 
 def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(LLMObs, mock_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        dummy_context = Context(trace_id="123", span_id="456")
+        dummy_context = Context(trace_id=123, span_id=456)
         mock_extract.return_value = dummy_context
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             LLMObs.activate_distributed_headers({})
@@ -1414,7 +1416,7 @@ def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(LLMObs, m
 
 def test_activate_distributed_headers_activates_context(LLMObs, mock_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        dummy_context = Context(trace_id="123", span_id="456", meta={PROPAGATED_PARENT_ID_KEY: "789"})
+        dummy_context = Context(trace_id=123, span_id=456, meta={PROPAGATED_PARENT_ID_KEY: "789"})
         mock_extract.return_value = dummy_context
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             LLMObs.activate_distributed_headers({})

@@ -10,6 +10,7 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
+from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
@@ -35,17 +36,16 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import AnnotationContext
-from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
-from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
@@ -75,6 +75,7 @@ class LLMObs(Service):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_span_writer = None
+        self._llmobs_context_provider = LLMObsContextProvider()
 
         self._llmobs_span_writer = LLMObsSpanWriter(
             is_agentless=config._llmobs_agentless_enabled,
@@ -266,23 +267,46 @@ class LLMObs(Service):
         """Returns a simple representation of a span to export its span and trace IDs.
         If no span is provided, the current active LLMObs-type span will be used.
         """
-        if span:
-            try:
-                if span.span_type != SpanTypes.LLM:
-                    log.warning("Span must be an LLMObs-generated span.")
-                    return None
-                return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
-            except (TypeError, AttributeError):
-                log.warning("Failed to export span. Span must be a valid Span object.")
-                return None
-        span = cls._instance.tracer.current_span()
         if span is None:
-            log.warning("No span provided and no active LLMObs-generated span found.")
+            span = cls._instance.current_span()
+            if span is None:
+                log.warning("No span provided and no active LLMObs-generated span found.")
+                return None
+            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+        try:
+            if span.span_type != SpanTypes.LLM:
+                log.warning("Span must be an LLMObs-generated span.")
+                return None
+            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+        except (TypeError, AttributeError):
+            log.warning("Failed to export span. Span must be a valid Span object.")
             return None
-        if span.span_type != SpanTypes.LLM:
-            log.warning("Span must be an LLMObs-generated span.")
-            return None
-        return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+
+    def current_span(self) -> Optional[Span]:
+        """Returns the currently active LLMObs-generated span.
+        Note that there may be an active span represented by a context object
+        (i.e. a distributed trace) which will not be returned by this method.
+        """
+        active = self._llmobs_context_provider.active()
+        return active if isinstance(active, Span) else None
+
+    def current_trace_context(self) -> Optional[Context]:
+        """Returns the context for the current LLMObs trace."""
+        active = self._llmobs_context_provider.active()
+        if isinstance(active, Context):
+            return active
+        elif isinstance(active, Span):
+            return active.context
+        return None
+
+    def _activate_llmobs_span(self, span: Span) -> None:
+        """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
+        llmobs_parent = self._llmobs_context_provider.active()
+        if llmobs_parent:
+            span.set_tag_str(PARENT_ID_KEY, str(llmobs_parent.span_id))
+        else:
+            span.set_tag_str(PARENT_ID_KEY, ROOT_PARENT_ID)
+        self._llmobs_context_provider.activate(span)
 
     def _start_span(
         self,
@@ -296,6 +320,7 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
+        self._activate_llmobs_span(span)
         span.set_tag_str(SPAN_KIND, operation_kind)
         if model_name is not None:
             span.set_tag_str(MODEL_NAME, model_name)
@@ -307,12 +332,6 @@ class LLMObs(Service):
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
-        if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
-            # For non-distributed traces or spans in the first service of a distributed trace,
-            # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
-            # in these cases to avoid conflicting with the later propagated tags.
-            parent_id = _get_llmobs_parent_id(span) or "undefined"
-            span.set_tag_str(PARENT_ID_KEY, str(parent_id))
         return span
 
     @classmethod
@@ -514,7 +533,7 @@ class LLMObs(Service):
                         such as `{prompt,completion,total}_tokens`.
         """
         if span is None:
-            span = cls._instance.tracer.current_span()
+            span = cls._instance.current_span()
             if span is None:
                 log.warning("No span provided and no active LLMObs-generated span found.")
                 return
@@ -793,6 +812,16 @@ class LLMObs(Service):
         )
 
     @classmethod
+    def _inject_llmobs_context(cls, request_headers: Dict[str, str]) -> Dict[str, str]:
+        active_ctx = cls._instance.current_trace_context()
+        if active_ctx is None:
+            parent_id = ROOT_PARENT_ID
+        else:
+            parent_id = str(active_ctx.span_id)
+        request_headers[PARENT_ID_KEY] = parent_id
+        return request_headers
+
+    @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
         """Injects the span's distributed context into the given request headers."""
         if cls.enabled is False:
@@ -805,13 +834,37 @@ class LLMObs(Service):
             log.warning("request_headers must be a dictionary of string key-value pairs.")
             return request_headers
         if span is None:
-            span = cls._instance.tracer.current_span()
+            span = cls._instance.current_span()
         if span is None:
             log.warning("No span provided and no currently active span found.")
             return request_headers
-        _inject_llmobs_parent_id(span.context)
+        if not isinstance(span, Span):
+            log.warning("span must be a valid Span object. Distributed context will not be injected.")
+            return request_headers
+        cls._inject_llmobs_context(request_headers)
         HTTPPropagator.inject(span.context, request_headers)
         return request_headers
+
+    @classmethod
+    def _activate_llmobs_distributed_headers(
+        cls, request_headers: Dict[str, str], context: Optional[Context] = None
+    ) -> None:
+        if not context:
+            context = HTTPPropagator.extract(request_headers)
+        if not context.trace_id or not context.span_id:
+            log.warning("Failed to extract trace/span ID from request headers.")
+            return
+        if PARENT_ID_KEY not in request_headers:
+            log.warning("Failed to extract LLMObs parent ID from request headers.")
+        parent_id = request_headers.get(PARENT_ID_KEY)
+        if parent_id is None:
+            return
+        try:
+            parent_id = int(parent_id)
+        except ValueError:
+            return
+        llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
+        cls._instance._llmobs_context_provider.activate(llmobs_context)
 
     @classmethod
     def activate_distributed_headers(cls, request_headers: Dict[str, str]) -> None:
@@ -827,12 +880,8 @@ class LLMObs(Service):
             )
             return
         context = HTTPPropagator.extract(request_headers)
-        if context.trace_id is None or context.span_id is None:
-            log.warning("Failed to extract trace ID or span ID from request headers.")
-            return
-        if PROPAGATED_PARENT_ID_KEY not in context._meta:
-            log.warning("Failed to extract LLMObs parent ID from request headers.")
         cls._instance.tracer.context_provider.activate(context)
+        cls._instance._activate_llmobs_distributed_headers(request_headers, context)
 
 
 # initialize the default llmobs instance
