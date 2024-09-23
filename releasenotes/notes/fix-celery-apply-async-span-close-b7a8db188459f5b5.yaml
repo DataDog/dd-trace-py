@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    tracing(celery): Fixes an issue where `celery.apply` spans didn't close if the after_task_publish or task_postrun signals didn't get called when using `apply_async`, which can happen if there is an internal exception during the handling of the task.
+    tracing(celery): Fixes an issue where ``celery.apply`` spans didn't close if the ``after_task_publish`` or ``task_postrun`` signals didn't get sent when using ``apply_async``, which can happen if there is an internal exception during the handling of the task.
