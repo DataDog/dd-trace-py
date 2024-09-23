@@ -45,4 +45,4 @@ AGENTLESS_ENDPOINT = "api/v2/llmobs"
 DROPPED_IO_COLLECTION_ERROR = "dropped_io"
 DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 1MB size limit.]"
 
-IS_EVALUATION_SPAN_TAG = "_dd.llmobs.is_evaluation"
+IS_EVALUATION_SPAN_TAG = "_dd.llmobs.is_evaluation_span"

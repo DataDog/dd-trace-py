@@ -61,13 +61,14 @@ class LLMObsTraceProcessor(TraceProcessor):
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
         is_evaluation_span = _is_evaluations_span(span)
+        is_llm_span = span.get_tag(SPAN_KIND) == "llm"
         try:
             span_event = self._llmobs_span_event(span)
             self._span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
         finally:
-            if not span_event or is_evaluation_span:
+            if not span_event or is_evaluation_span or not is_llm_span:
                 return
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event)

@@ -15,6 +15,7 @@ try:
     from ragas.llms.output_parser import RagasoutputParser
     from ragas.llms.output_parser import get_json_format_instructions
     from ragas.metrics import faithfulness
+    from ragas.metrics.base import ensembler
     from ragas.metrics.base import get_segmenter
 
     from .utils import StatementFaithfulnessAnswers
@@ -42,21 +43,19 @@ class RagasFaithfulnessEvaluator:
             self.faithfulness.llm = llm_factory()
 
         self.statements_output_instructions = get_json_format_instructions(StatementsAnswers)
-        self.statements_output_parser = RagasoutputParser(pydantic_object=StatementFaithfulnessAnswers)
+        self.statements_output_parser = RagasoutputParser(pydantic_object=StatementsAnswers)
         self.faithfulness_output_instructions = get_json_format_instructions(StatementFaithfulnessAnswers)
         self.faithfulness_output_parser = RagasoutputParser(pydantic_object=StatementFaithfulnessAnswers)
-
         self.sentence_segmenter = get_segmenter(language=self.faithfulness.nli_statements_message.language, clean=False)
 
     def evaluate(self, span):
         if not self.enabled:
             return
-
         llmobs_metadata = {}
         score = math.nan
         LLMObs = self.llmobs
 
-        question, answer, context_str = None, None, None
+        question, answer, context = None, None, None
 
         with LLMObs.annotation_context(tags={IS_EVALUATION_SPAN_TAG: "true"}):
             with LLMObs.workflow("ragas_faithfulness") as workflow:
@@ -70,13 +69,13 @@ class RagasFaithfulnessEvaluator:
                         )
                         return
 
-                    question, answer, context_str = (
+                    question, answer, context = (
                         faithfulness_inputs["question"],
                         faithfulness_inputs["answer"],
                         faithfulness_inputs["context"],
                     )
 
-                    statements_prompt = self._create_statements_prompt(question, answer)
+                    statements_prompt = self._create_statements_prompt(answer=answer, question=question)
 
                     statements = self.faithfulness.llm.generate_text(statements_prompt)
 
@@ -91,7 +90,7 @@ class RagasFaithfulnessEvaluator:
 
                     assert isinstance(statements, t.List), "statements must be a list"
 
-                    p_value = self._create_nli_prompt(statements, context_str)
+                    p_value = self._create_nli_prompt(statements, context)
 
                     nli_result = self.faithfulness.llm.generate_text(p_value)
 
@@ -105,15 +104,19 @@ class RagasFaithfulnessEvaluator:
                     llmobs_metadata["faithfulness_list"] = faithfulness_list
 
                     if faithfulness_list:
-                        faithfulness_list = self.ensembler.from_discrete(
+                        faithfulness_list = ensembler.from_discrete(
                             faithfulness_list,
                             "verdict",
                         )
-                        faithfulness_list = StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
+                        try:
+                            faithfulness_list = StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
+                        except Exception as e:
+                            logger.debug("Failed to parse faithfulness_list", exc_info=e)
+                            return
                     else:
                         return
 
-                    score = self.compute_score(faithfulness_list)
+                    score = self._compute_score(faithfulness_list)
 
                     if math.isnan(score):
                         return
@@ -145,7 +148,8 @@ class RagasFaithfulnessEvaluator:
 
             meta_input = meta_io.get("input")
             meta_output = meta_io.get("output")
-            if meta_input or meta_output is None:
+
+            if not (meta_input and meta_output):
                 return None
 
             prompt = meta_input.get("prompt")
