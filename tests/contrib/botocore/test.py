@@ -21,6 +21,8 @@ from moto import mock_sqs
 from moto import mock_stepfunctions
 import pytest
 
+from ddtrace._trace._span_pointer import _SpanPointer
+from ddtrace._trace._span_pointer import _SpanPointerDirection
 from tests.utils import get_128_bit_trace_id_from_headers
 
 
@@ -284,6 +286,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.s3"
         assert span.resource == "s3.listbuckets"
 
+        assert not span._links, "no links, i.e. no span pointers"
+
         # testing for span error
         self.reset()
         try:
@@ -392,6 +396,17 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.s3.bucket_name") == "mybucket"
         assert span.get_tag("bucketname") == "mybucket"
 
+        assert span._links == [
+            _SpanPointer(
+                pointer_kind="aws.s3.object",
+                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                # We have more detailed tests for the hashing behavior
+                # elsewhere. Here we just want to make sure that the pointer is
+                # correctly attached to the span.
+                pointer_hash="def44fdefcd83bc907515567dc742be1",
+            ),
+        ]
+
     @mock_s3
     def test_s3_put_no_params(self):
         with self.override_config("botocore", dict(tag_no_params=True)):
@@ -402,6 +417,18 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.Bucket") is None
             assert span.get_tag("params.Body") is None
             assert span.get_tag("component") == "botocore"
+
+            # We still create the link since we're hashing the parameter data.
+            assert span._links == [
+                _SpanPointer(
+                    pointer_kind="aws.s3.object",
+                    pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                    # We have more detailed tests for the hashing behavior
+                    # elsewhere. Here we just want to make sure that the pointer is
+                    # correctly attached to the span.
+                    pointer_hash="def44fdefcd83bc907515567dc742be1",
+                ),
+            ]
 
     @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_SERVICE="botocore"))
@@ -2846,7 +2873,9 @@ class BotocoreTest(TracerTestCase):
 
         return decoded_record_data
 
-    def _test_kinesis_put_records_trace_injection(self, test_name, data, client=None, enable_stream_arn=False):
+    def _test_kinesis_put_records_trace_injection(
+        self, test_name, data, client=None, enable_stream_arn=False, verify=True
+    ):
         if not client:
             client = self.session.create_client("kinesis", region_name="us-east-1")
 
@@ -2858,7 +2887,8 @@ class BotocoreTest(TracerTestCase):
             client.put_records(StreamName=stream_name, Records=data, StreamARN=stream_arn)
         else:
             client.put_records(StreamName=stream_name, Records=data)
-
+        if not verify:
+            return None
         # assert commons for span
         span = self._kinesis_assert_spans()
 
@@ -3248,6 +3278,12 @@ class BotocoreTest(TracerTestCase):
         decoded_record_data = self._test_kinesis_put_records_trace_injection("json_string", records)
 
         assert decoded_record_data.endswith("\n")
+
+    @mock_kinesis
+    def test_kinesis_put_records_unparsable_data_object_avoid_nonetype_error(self):
+        # If the data is unparsable we should not error in tracer code
+        records = [{"Data": b"", "PartitionKey": "1234"}]
+        self._test_kinesis_put_records_trace_injection("unparsable_data_obj", records, verify=False)
 
     @mock_kinesis
     def test_kinesis_put_records_newline_bytes_trace_injection(self):
