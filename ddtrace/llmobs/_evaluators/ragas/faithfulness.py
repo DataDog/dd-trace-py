@@ -1,12 +1,7 @@
 import json
-import math
-import time
 import typing as t
 
-import ragas.faithfulness
 
-import ddtrace
-from ddtrace import config
 from ddtrace.internal.logger import get_logger
 
 
@@ -21,6 +16,8 @@ try:
 
     from .utils import FaithfulnessInputs
     from .utils import StatementFaithfulnessAnswers
+
+    RAGAS_DEPENDENCIES_PRESENT = True
 except ImportError:
     logger.warning("RagasFaithfulnessEvaluator is disabled because Ragas requirements are not installed")
     RAGAS_DEPENDENCIES_PRESENT = False
@@ -31,12 +28,12 @@ class RagasFaithfulnessEvaluator:
     METRIC_TYPE = "score"
 
     def __init__(self, llmobs_service):
+        self.enabled = True
         if not RAGAS_DEPENDENCIES_PRESENT:
             self.enabled = False
             return
-
         self.llmobs = llmobs_service
-        self.faithfulness = ragas.faithfulness
+        self.faithfulness = ragas.metrics.faithfulness
         self.faithfulness.llm = ragas.llms.llm_factory()
         self.statement_prompt = self.faithfulness.statement_prompt
         self.statements_output_instructions = ragas.get_json_format_instructions(ragas.StatementsAnswers)
@@ -47,10 +44,9 @@ class RagasFaithfulnessEvaluator:
             language=self.faithfulness.nli_statements_message.language, clean=False
         )
 
-    @classmethod
-    def evaluate(self, span) -> t.Optional[dict]:
+    def evaluate(self, span):
         if not self.enabled:
-            return None
+            return
 
         llmobs_metadata = {}
         score = np.nan
@@ -64,7 +60,7 @@ class RagasFaithfulnessEvaluator:
                     logger.debug(
                         "Failed to extract question and context from span sampled for ragas_faithfulness evaluation"
                     )
-                    return None
+                    return
 
                 question, answer, context_str = (
                     faithfulness_inputs.question,
@@ -79,7 +75,7 @@ class RagasFaithfulnessEvaluator:
                 statements = self.statements_output_parser.parse(statements.generations[0][0].text)
 
                 if statements is None:
-                    return None
+                    return
                 statements = [item["simpler_statements"] for item in statements.dicts()]
                 statements = [item for sublist in statements for item in sublist]
 
@@ -105,24 +101,22 @@ class RagasFaithfulnessEvaluator:
                     )
                     faithfulness_list = StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
                 else:
-                    return None
+                    return
 
                 score = self.compute_score(faithfulness_list)
 
                 if np.isnan(score):
-                    return None
+                    return
 
-                exported_ragas_span = LLMObs.export_span()
-                return {
-                    "span_id": span.get("span_id"),
-                    "trace_id": span.get("trace_id"),
-                    "score_value": score,
-                    "ml_app": config._llmobs_ml_app,
-                    "timestamp_ms": math.floor(time.time() * 1000),
-                    "metric_type": RagasFaithfulnessEvaluator.METRIC_TYPE,
-                    "label": RagasFaithfulnessEvaluator.LABEL,
-                    "metadata": llmobs_metadata,
-                }
+                self.llmobs.submit_evaluation(
+                    span_context={
+                        "trace_id": span.get("trace_id"),
+                        "span_id": span.get("span_id"),
+                    },
+                    score=score,
+                    metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
+                    label=RagasFaithfulnessEvaluator.LABEL,
+                )
             finally:
                 LLMObs.annotate(
                     input_data={
@@ -134,7 +128,7 @@ class RagasFaithfulnessEvaluator:
                     metadata=llmobs_metadata,
                 )
 
-    def _extract_faithfulness_inputs(self, span: dict) -> t.Optional[FaithfulnessInputs]:
+    def _extract_faithfulness_inputs(self, span: dict) -> t.Optional["FaithfulnessInputs"]:
         with self.llmobs.workflow("ragas.extract_faithfulness_inputs"):
             self.llmobs.annotate(input_data=span)
             question, answer, context = None, None, None

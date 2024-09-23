@@ -1,8 +1,12 @@
 import os
 
 import mock
+import ddtrace.llmobs
+import ddtrace.llmobs._evaluators
+import ddtrace.llmobs._evaluators.ragas
 import pytest
 
+import ddtrace
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import logs_vcr
@@ -161,3 +165,11 @@ def RagasFaithfulnessEvaluator(LLMObs):
     yield RagasFaithfulnessEvaluator(
         llmobs_service=LLMObs,
     )
+
+
+@pytest.fixture
+def mock_ragas_dependencies_not_pressent():
+    previous = ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT
+    ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT = False
+    yield
+    ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT = previous
