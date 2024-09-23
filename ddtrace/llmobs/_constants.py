@@ -3,7 +3,6 @@ SESSION_ID = "_ml_obs.session_id"
 METADATA = "_ml_obs.meta.metadata"
 METRICS = "_ml_obs.metrics"
 ML_APP = "_ml_obs.meta.ml_app"
-PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
 TAGS = "_ml_obs.tags"
 
