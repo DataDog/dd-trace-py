@@ -25,12 +25,12 @@ variables:
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
-  # - local: ".gitlab/benchmarks.yml"
-  # - local: ".gitlab/package.yml"
-  # - local: ".gitlab/tests.yml"
-  # - local: ".gitlab/macrobenchmarks.yml"
-  # - local: ".gitlab/dogfood.yml"
-  # - local: ".gitlab/release.yml"
+  - local: ".gitlab/benchmarks.yml"
+  - local: ".gitlab/package.yml"
+  - local: ".gitlab/tests.yml"
+  - local: ".gitlab/macrobenchmarks.yml"
+  - local: ".gitlab/dogfood.yml"
+  - local: ".gitlab/release.yml"
 
 generate-contrib-pipeline:
   stage: setup
