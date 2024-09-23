@@ -32,6 +32,8 @@ get_unique_id(const PyObject* str)
     return reinterpret_cast<uintptr_t>(str);
 }
 
+bool
+PyIOBase_Check(const PyObject* obj);
 
 bool
 PyReMatch_Check(const PyObject* obj);

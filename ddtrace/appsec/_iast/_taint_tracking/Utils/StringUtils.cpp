@@ -145,6 +145,17 @@ get_pyobject_size(PyObject* obj)
 }
 
 bool
+PyIOBase_Check(const PyObject* obj)
+{
+    try {
+        return py::isinstance((PyObject*)obj, safe_import("_io", "_IOBase"));
+    } catch (py::error_already_set& err) {
+        PyErr_Clear();
+        return false;
+    }
+}
+
+bool
 PyReMatch_Check(const PyObject* obj)
 {
     try {
