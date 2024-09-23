@@ -52,6 +52,7 @@ class EvaluatorRunner(PeriodicService):
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
                 return
+
             self._buffer.append(span_event)
 
     def periodic(self) -> None:

@@ -4,12 +4,6 @@ from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.pydantic_v1 import Field
 
 
-class FaithfulnessInputs(BaseModel):
-    question: str = Field(..., description="the question to be answered")
-    context: str = Field(..., description="the context to be used to answer the question")
-    answer: str = Field(..., description="the answer to the question")
-
-
 class StatementFaithfulnessAnswer(BaseModel):
     statement: str = Field(..., description="the original statement, word-by-word")
     reason: str = Field(..., description="the reason of the verdict")

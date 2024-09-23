@@ -3,7 +3,8 @@ import ragas
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 
 
-def test_ragas_evaluator_init(LLMObs):
+def test_ragas_evaluator_init(monkeypatch, LLMObs):
+    monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
     assert rf_evaluator.enabled
     assert rf_evaluator.llmobs == LLMObs
@@ -11,10 +12,7 @@ def test_ragas_evaluator_init(LLMObs):
     assert rf_evaluator.faithfulness.llm == ragas.llms.llm_factory()
 
 
-def test_ragas_faithfulness_disabled_if_dependencies_not_present(LLMObs):
-    import ddtrace
-
-    ddtrace.ragas._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT = False
+def test_ragas_faithfulness_disabled_if_dependencies_not_present(LLMObs, mock_ragas_dependencies_not_present):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
     assert not rf_evaluator.enabled
     assert rf_evaluator.evaluate({}) is None

@@ -1,14 +1,14 @@
 import os
 
 import mock
-import ddtrace.llmobs
-import ddtrace.llmobs._evaluators
-import ddtrace.llmobs._evaluators.ragas
 import pytest
 
 import ddtrace
 from ddtrace.internal.utils.http import Response
+import ddtrace.llmobs
 from ddtrace.llmobs import LLMObs as llmobs_service
+import ddtrace.llmobs._evaluators
+import ddtrace.llmobs._evaluators.ragas
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
@@ -161,14 +161,14 @@ def LLMObsWithRagas(monkeypatch, mock_llmobs_span_writer, mock_llmobs_eval_metri
 
 
 @pytest.fixture
-def RagasFaithfulnessEvaluator(LLMObs):
+def RagasFaithfulnessEvaluator(monkeypatch, LLMObs):
     yield RagasFaithfulnessEvaluator(
         llmobs_service=LLMObs,
     )
 
 
 @pytest.fixture
-def mock_ragas_dependencies_not_pressent():
+def mock_ragas_dependencies_not_present():
     previous = ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT
     ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT = False
     yield
