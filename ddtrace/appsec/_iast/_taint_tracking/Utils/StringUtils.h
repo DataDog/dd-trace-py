@@ -32,17 +32,9 @@ get_unique_id(const PyObject* str)
     return reinterpret_cast<uintptr_t>(str);
 }
 
-static bool
-PyIOBase_Check(const PyObject* obj)
-{
-    return py::isinstance((PyObject*)obj, py::module_::import("_io").attr("_IOBase"));
-}
 
-static bool
-PyReMatch_Check(const PyObject* obj)
-{
-    return py::isinstance((PyObject*)obj, py::module_::import("re").attr("Match"));
-}
+bool
+PyReMatch_Check(const PyObject* obj);
 
 bool
 is_notinterned_notfasttainted_unicode(const PyObject* objptr);
@@ -83,9 +75,6 @@ args_are_text_and_same_type(PyObject* first, PyObject* second, Args... args)
     // Recursively check the rest of the arguments
     return args_are_text_and_same_type(second, args...);
 }
-
-string
-PyObjectToString(PyObject* obj);
 
 PyTextType
 get_pytext_type(PyObject* obj);

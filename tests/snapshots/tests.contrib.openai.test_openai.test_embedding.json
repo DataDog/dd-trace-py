@@ -17,6 +17,7 @@
       "openai.api_type": "open_ai",
       "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
+      "openai.request.client": "OpenAI",
       "openai.request.endpoint": "/v1/embeddings",
       "openai.request.input.0": "hello world",
       "openai.request.method": "POST",
