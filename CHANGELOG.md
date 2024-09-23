@@ -31,15 +31,15 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - botocore: Resolves a regression where trace context was not being injected into the input of Stepfunction `start_execution` commands. This re-enables distributed tracing when a Python service invokes a properly instrumented Step Function.
 - LLM Observability: Resolves an issue where custom trace filters were being overwritten in forked processes.
 - LLM Observability: Resolves an issue where LLM Observability spans were not being submitted in forked processes, such as when using `celery` or `gunicorn` workers. The LLM Observability writer thread now automatically restarts when a forked process is detected.
-- Fixes a side-effect issue with module import callbacks that could cause a runtime exception.
-- Fixes an issue with some module imports with native specs that don't support attribute assignments, resulting in a `TypeError` exception at runtime.
+- tracing: Fixes a side-effect issue with module import callbacks that could cause a runtime exception.
+- tracing: Fixes an issue with some module imports with native specs that don't support attribute assignments, resulting in a `TypeError` exception at runtime.
 - tracing: Improves the accuracy of `X-Datadog-Trace-Count` payload header.
-- Resolves an issue where `ddtrace` package files were published with incorrect file attributes.
-- tracer: Resolves an issue where django db instrumentation could fail.
+- tracing: Resolves an issue where `ddtrace` package files were published with incorrect file attributes.
+- tracing: Resolves an issue where django db instrumentation could fail.
 - LLM Observability: Resolves an issue where `session_id` was being defaulted to `trace_id`, which was causing unexpected UI behavior.
 - openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
 - profiling: Propagates tags in `DD_PROFILING_TAGS` and `DD_TAGS` to the libdatadog exporter, a new exporter codepath which is enabled when either one of the following is set, `DD_PROFILING_STACK_V2_ENABLED`, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED` or dd-trace-py is running in an injected environment.
-- Fixes a memory leak on the native slice aspect.
+- ASM: Fixes a memory leak on the native slice aspect.
 
 ### Other Changes
 - tracing: Removes the `DD_PRIORITY_SAMPLING` configuration option. This option is not used in any `ddtrace>=2.0` releases.
