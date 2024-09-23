@@ -154,3 +154,10 @@ def LLMObsWithRagas(monkeypatch, mock_llmobs_span_writer, mock_llmobs_eval_metri
         llmobs_service.enable(_tracer=dummy_tracer)
         yield llmobs_service
         llmobs_service.disable()
+
+
+@pytest.fixture
+def RagasFaithfulnessEvaluator(LLMObs):
+    yield RagasFaithfulnessEvaluator(
+        llmobs_service=LLMObs,
+    )
