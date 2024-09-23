@@ -567,6 +567,14 @@ class Config(object):
         self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
+        if self._span_aggregator_rlock is False:
+            deprecate(
+                "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
+                message="Soon the ddtrace library will only support using threading.Rlock to "
+                "aggregate and encode span data. If you need to disable the re-entrant lock and "
+                "revert to using threading.Lock, please contact Datadog support.",
+                removal_version="3.0.0",
+            )
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
