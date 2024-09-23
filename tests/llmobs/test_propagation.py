@@ -3,10 +3,10 @@ import os
 
 import pytest
 
-from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 
 
 def test_inject_llmobs_parent_id_no_llmobs_span(LLMObs):
@@ -71,7 +71,7 @@ with LLMObs.workflow("LLMObs span") as root_span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1"})
+    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -105,7 +105,7 @@ with LLMObs.workflow("LLMObs span") as root_span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1"})
+    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -140,7 +140,7 @@ with tracer.trace("Non-LLMObs span") as span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1"})
+    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
 
@@ -202,7 +202,7 @@ with LLMObs.workflow("LLMObs span") as root_span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1"})
+    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -235,7 +235,7 @@ with LLMObs.workflow("LLMObs span") as root_span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1"})
+    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -270,7 +270,7 @@ with tracer.trace("Non-LLMObs span") as root_span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1"})
+    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)

@@ -546,38 +546,39 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
     """
     if override is False:
         return None
+    if not override and not (int_config and distributed_tracing_enabled(int_config)):
+        return None
 
-    if override or (int_config and distributed_tracing_enabled(int_config)):
-        context = HTTPPropagator.extract(request_headers)
+    context = HTTPPropagator.extract(request_headers)
 
-        # Only need to activate the new context if something was propagated
-        if not context.trace_id:
-            return None
+    # Only need to activate the new context if something was propagated
+    if not context.trace_id:
+        return None
 
-        # Do not reactivate a context with the same trace id
-        # DEV: An example could be nested web frameworks, when one layer already
-        #      parsed request headers and activated them.
-        #
-        # Example::
-        #
-        #     app = Flask(__name__)  # Traced via Flask instrumentation
-        #     app = DDWSGIMiddleware(app)  # Extra layer on top for WSGI
-        current_context = tracer.current_trace_context()
-        if current_context and current_context.trace_id == context.trace_id:
-            log.debug(
-                "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
-                context.trace_id,
-                context.span_id,
-            )
-            return None
+    # Do not reactivate a context with the same trace id
+    # DEV: An example could be nested web frameworks, when one layer already
+    #      parsed request headers and activated them.
+    #
+    # Example::
+    #
+    #     app = Flask(__name__)  # Traced via Flask instrumentation
+    #     app = DDWSGIMiddleware(app)  # Extra layer on top for WSGI
+    current_context = tracer.current_trace_context()
+    if current_context and current_context.trace_id == context.trace_id:
+        log.debug(
+            "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
+            context.trace_id,
+            context.span_id,
+        )
+        return None
 
-        # We have parsed a trace id from headers, and we do not already
-        # have a context with the same trace id active
-        tracer.context_provider.activate(context)
-        if config._llmobs_enabled:
-            from ddtrace.llmobs import LLMObs
+    # We have parsed a trace id from headers, and we do not already
+    # have a context with the same trace id active
+    tracer.context_provider.activate(context)
+    if config._llmobs_enabled:
+        from ddtrace.llmobs import LLMObs
 
-            LLMObs._activate_distributed_headers(request_headers, context)
+        LLMObs._activate_llmobs_distributed_headers(request_headers, context)
 
 
 def _flatten(
