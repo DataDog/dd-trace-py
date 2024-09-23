@@ -34,7 +34,8 @@ include:
 
 generate-contrib-pipeline:
   stage: setup
-  image: registry.ddbuild.io/images/mirror/python:3.12
+  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  tags: [ "arch:amd64" ]
   script:
     - pip install pyyaml
     - python scripts/generate_contrib_pipeline.py
