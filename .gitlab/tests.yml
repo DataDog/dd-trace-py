@@ -3,7 +3,7 @@ variables:
 
 .test_base_hatch:
   extends: .testrunner
-  stage: test
+  stage: tests
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
   needs: []
   parallel: 4
@@ -34,7 +34,7 @@ variables:
 
 .test_base_riot:
   extends: .testrunner
-  stage: test
+  stage: tests
   needs: [ build_base_venvs ]
   parallel: 4
   services:

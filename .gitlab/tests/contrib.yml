@@ -3,6 +3,10 @@ include:
   - local: .gitlab/tests.yml
   - local: .gitlab/package.yml
 
+stages:
+  - package
+  - tests
+
 .testrunner:
   image: $TESTRUNNER_IMAGE
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
