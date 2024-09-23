@@ -2846,7 +2846,9 @@ class BotocoreTest(TracerTestCase):
 
         return decoded_record_data
 
-    def _test_kinesis_put_records_trace_injection(self, test_name, data, client=None, enable_stream_arn=False):
+    def _test_kinesis_put_records_trace_injection(
+        self, test_name, data, client=None, enable_stream_arn=False, verify=True
+    ):
         if not client:
             client = self.session.create_client("kinesis", region_name="us-east-1")
 
@@ -2858,7 +2860,8 @@ class BotocoreTest(TracerTestCase):
             client.put_records(StreamName=stream_name, Records=data, StreamARN=stream_arn)
         else:
             client.put_records(StreamName=stream_name, Records=data)
-
+        if not verify:
+            return None
         # assert commons for span
         span = self._kinesis_assert_spans()
 
@@ -3248,6 +3251,12 @@ class BotocoreTest(TracerTestCase):
         decoded_record_data = self._test_kinesis_put_records_trace_injection("json_string", records)
 
         assert decoded_record_data.endswith("\n")
+
+    @mock_kinesis
+    def test_kinesis_put_records_unparsable_data_object_avoid_nonetype_error(self):
+        # If the data is unparsable we should not error in tracer code
+        records = [{"Data": b"", "PartitionKey": "1234"}]
+        self._test_kinesis_put_records_trace_injection("unparsable_data_obj", records, verify=False)
 
     @mock_kinesis
     def test_kinesis_put_records_newline_bytes_trace_injection(self):
