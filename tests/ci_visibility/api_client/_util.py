@@ -9,8 +9,8 @@ from ddtrace.ext import ci
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility import CIVisibility
-from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityClient
-from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityClient
+from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
+from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
@@ -24,14 +24,14 @@ _EVP_PROXY = REQUESTS_MODE.EVP_PROXY_EVENTS
 
 
 def _get_mock_connection(body):
-    class _mock_http_response:
+    class MockHttpResponse:
         status = 200
 
         def read(self):
             return body
 
     mock_connection = mock.Mock()
-    mock_connection.getresponse.return_value = _mock_http_response()
+    mock_connection.getresponse.return_value = MockHttpResponse()
     mock_connection.request = mock.Mock()
     mock_connection.close = mock.Mock()
 
@@ -85,7 +85,7 @@ def _make_fqdn_internal_test_id(module_name: str, suite_name: str, test_name: st
     return InternalTestId(TestSuiteId(TestModuleId(module_name), suite_name), test_name, parameters)
 
 
-def _make_fqdn_test_ids(test_descs: t.List[t.Tuple[str, str, str]]):
+def _make_fqdn_test_ids(test_descs: t.List[t.Union[t.Tuple[str, str, str], t.Tuple[str, str, str, str]]]):
     """An easy way to make multiple test ids"""
     return {
         _make_fqdn_internal_test_id(
@@ -141,7 +141,7 @@ class TestTestVisibilityAPIClientBase:
         git_data = git_data if git_data is not None else self.default_git_data
 
         if requests_mode == _AGENTLESS:
-            return AgentlessTestVisibilityClient(
+            return AgentlessTestVisibilityAPIClient(
                 itr_skipping_level,
                 git_data,
                 self.default_configurations,
@@ -152,8 +152,9 @@ class TestTestVisibilityAPIClientBase:
                 dd_env,
                 client_timeout,
             )
+        # no-dd-sa:python-best-practices/if-return-no-else
         else:
-            return EVPProxyTestVisibilityClient(
+            return EVPProxyTestVisibilityAPIClient(
                 itr_skipping_level,
                 git_data,
                 self.default_configurations,
@@ -203,9 +204,9 @@ class TestTestVisibilityAPIClientBase:
             mock_civisibility._requests_mode = requests_mode
             mock_civisibility._suite_skipping_mode = suite_skipping_mode
             if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
-                mock_civisibility._api_client = mock.Mock(spec=AgentlessTestVisibilityClient)
+                mock_civisibility._api_client = mock.Mock(spec=AgentlessTestVisibilityAPIClient)
             else:
-                mock_civisibility._api_client = mock.Mock(spec=EVPProxyTestVisibilityClient)
+                mock_civisibility._api_client = mock.Mock(spec=EVPProxyTestVisibilityAPIClient)
 
             # Defaults
             mock_civisibility._service = "service"

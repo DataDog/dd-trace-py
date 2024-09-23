@@ -1,20 +1,58 @@
+from contextlib import contextmanager
 import json
 import re
 from unittest import mock
 
 import pytest
 
+from ddtrace.ext.test_visibility import _get_default_test_visibility_contrib_config
+from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
+from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
+from ddtrace.settings import Config
 from tests.ci_visibility.api_client._util import _AGENTLESS
 from tests.ci_visibility.api_client._util import _EVP_PROXY
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
 from tests.ci_visibility.api_client._util import _get_mock_connection
 from tests.ci_visibility.api_client._util import _get_setting_api_response
+from tests.ci_visibility.test_ci_visibility import _dummy_noop_git_client
 from tests.ci_visibility.util import _ci_override_env
-from tests.ci_visibility.util import _get_default_civisibility_ddconfig
+
+
+@contextmanager
+def _patch_env_for_testing():
+    """Patches a bunch of things to make the environment more predictable for testing"""
+    with _dummy_noop_git_client(), mock.patch(
+        "ddtrace.ext.ci._get_runtime_and_os_metadata",
+        return_value={
+            "os.architecture": "testarch64",
+            "os.platform": "Not Actually Linux",
+            "os.version": "1.2.3-test",
+            "runtime.name": "CPythonTest",
+            "runtime.version": "1.2.3",
+        },
+    ), mock.patch(
+        "ddtrace.ext.ci.tags",
+        return_value={
+            "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
+            "git.commit.sha": "mytestcommitsha1234",
+            "git.branch": "notmainbranch",
+        },
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+        return_value=TestVisibilityAPISettings(),
+    ), mock.patch(
+        "ddtrace.config._ci_visibility_agentless_enabled", True
+    ):
+        # Rebuild the config (yes, this is horrible)
+        new_ddconfig = Config()
+        new_ddconfig._add("test_visibility", _get_default_test_visibility_contrib_config())
+        with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", new_ddconfig):
+            yield
 
 
 class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
@@ -202,38 +240,134 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             assert call_args[3] == self.expected_items[requests_mode_settings["mode"]]["headers"]
             mock_connection.close.assert_called_once()
 
-    def test_civisibility_api_client_agentless_config(self):
-        """Tests that the agentless API client is configured correctly"""
-        assert False
-
-    def test_civisibility_api_client_evpproxy_config(self):
-        """Tests that the EVP Proxy API client is configured correctly"""
-        assert False
-
     @pytest.mark.parametrize(
-        "dd_civisibility_agentless_url, expected_url",
+        "env_vars,expected_config",
         [
-            ("", "https://api.datad0g.com/api/v2/libraries/tests/services/setting"),
-            ("https://bar.foo:1234", "https://bar.foo:1234/api/v2/libraries/tests/services/setting"),
+            ({}, {}),
+            # DD_TRACE_AGENT_URL is ignored in agentless mode
+            (
+                {"DD_TRACE_AGENT_URL": "http://myagenturl:2468", "DD_SERVICE": "my_test_service1"},
+                {"dd_service": "my_test_service1"},
+            ),
+            (
+                {
+                    "DD_CIVISIBILITY_AGENTLESS_URL": "https://secureagentless:8080",
+                    "DD_SERVICE": "my_test_service2",
+                    "DD_ENV": "my_env",
+                },
+                {"agentless_url": "https://secureagentless:8080", "dd_service": "my_test_service2", "dd_env": "my_env"},
+            ),
+            ({"DD_ENV": "env_only"}, {"dd_env": "env_only"}),
+            ({"DD_SITE": "us5.datad0g.com"}, {"dd_site": "us5.datad0g.com"}),
+            (
+                {"DD_TAGS": "test.configuration.disk:slow,test.configuration.memory:low"},
+                {"custom_configurations": {"disk": "slow", "memory": "low"}},
+            ),
         ],
     )
-    def test_civisibility_check_enabled_feature_respects_civisibility_agentless_url(
-        self, dd_civisibility_agentless_url, expected_url
-    ):
-        """Tests that DD_CIVISIBILITY_AGENTLESS_URL is respected when set"""
-        with _ci_override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_CIVISIBILITY_AGENTLESS_URL=dd_civisibility_agentless_url,
-                DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            )
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder._do_request",
-            side_effect=[_get_setting_api_response(200, False, False, False, False)],
-        ) as mock_do_request:
-            mock_civisibility = self._get_mock_civisibility(REQUESTS_MODE.AGENTLESS_EVENTS, False)
-            _ = mock_civisibility._check_enabled_features()
+    @pytest.mark.parametrize("itr_skipping_level", [ITR_SKIPPING_LEVEL.TEST, ITR_SKIPPING_LEVEL.SUITE])
+    def test_civisibility_api_client_agentless_env_config_success(self, env_vars, expected_config, itr_skipping_level):
+        """Tests that the agentless API client is configured correctly based on environment
 
-            assert mock_do_request.call_args_list[0][0][1] == expected_url
+        Whether the client behaves properly based on these configuration items (eg: proper use of base url, etc.) is
+        tested in other methods.
+        """
+        env_vars.update({"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "api_key_for_testing"})
+        if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
+            env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
+        configurations = {
+            "os.architecture": "testarch64",
+            "os.platform": "Not Actually Linux",
+            "os.version": "1.2.3-test",
+            "runtime.name": "CPythonTest",
+            "runtime.version": "1.2.3",
+        }
+        if "custom_configurations" in expected_config:
+            # NOTE: we have to copy the config because we pop something from it and it will break the other parametrized
+            # tests the next time around if we don't
+            expected_config = expected_config.copy()
+            configurations["custom"] = expected_config.pop("custom_configurations")
+        if "dd_service" not in expected_config:
+            expected_config["dd_service"] = "dd-test-py"
+
+        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
+        with _ci_override_env(env_vars, full_clear=True), _patch_env_for_testing():
+            try:
+                expected_client = AgentlessTestVisibilityAPIClient(
+                    itr_skipping_level=itr_skipping_level,
+                    configurations=configurations,
+                    git_data=git_data,
+                    api_key="api_key_for_testing",
+                    **expected_config,
+                )
+                CIVisibility.enable()
+                assert CIVisibility.enabled is True
+                assert CIVisibility._instance is not None
+                assert CIVisibility._instance._api_client is not None
+
+                assert CIVisibility._instance._api_client.__dict__ == expected_client.__dict__
+            finally:
+                CIVisibility.disable()
+
+    @pytest.mark.parametrize(
+        "env_vars,expected_config",
+        [
+            # Default env should result in default config with EVP client
+            ({}, {}),
+            # DD_API_KEY should be ignored if not agentless
+            ({"DD_API_KEY": "api_key_for_testing"}, {}),
+            (
+                {"DD_TAGS": "test.configuration.disk:slow,test.configuration.memory:low", "DD_SERVICE": "not_ddtestpy"},
+                {
+                    "custom_configurations": {"disk": "slow", "memory": "low"},
+                    "dd_service": "not_ddtestpy",
+                },
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("itr_skipping_level", [ITR_SKIPPING_LEVEL.TEST, ITR_SKIPPING_LEVEL.SUITE])
+    def test_civisibility_api_client_evp_proxy_config_success(self, env_vars, expected_config, itr_skipping_level):
+        """Tests that the EVP Proxy API client is configured correctly based on environment
+
+        Whether the client behaves properly based on these configuration items (eg: proper use of base url, etc.) is
+        tested in other methods.
+        """
+        if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
+            env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
+        configurations = {
+            "os.architecture": "testarch64",
+            "os.platform": "Not Actually Linux",
+            "os.version": "1.2.3-test",
+            "runtime.name": "CPythonTest",
+            "runtime.version": "1.2.3",
+        }
+        if "custom_configurations" in expected_config:
+            # NOTE: we have to copy the config because we pop something from it and it will break the other parametrized
+            # tests the next time around if we don't
+            expected_config = expected_config.copy()
+            configurations["custom"] = expected_config.pop("custom_configurations")
+        if "dd_service" not in expected_config:
+            expected_config["dd_service"] = "dd-test-py"
+
+        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
+        with _ci_override_env(env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+        ), mock.patch("ddtrace.internal.agent.get_trace_url", return_value="http://shouldntbeused:6218"), mock.patch(
+            "ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
+        ):
+            try:
+                expected_client = EVPProxyTestVisibilityAPIClient(
+                    itr_skipping_level=itr_skipping_level,
+                    configurations=configurations,
+                    git_data=git_data,
+                    agent_url="http://patchedagenturl:6218",
+                    **expected_config,
+                )
+                CIVisibility.enable()
+                assert CIVisibility.enabled is True
+                assert CIVisibility._instance is not None
+                assert CIVisibility._instance._api_client is not None
+
+                assert CIVisibility._instance._api_client.__dict__ == expected_client.__dict__
+            finally:
+                CIVisibility.disable()

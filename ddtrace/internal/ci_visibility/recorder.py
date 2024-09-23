@@ -34,8 +34,8 @@ from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
-from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityClient
-from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityClient
+from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
+from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
@@ -185,7 +185,8 @@ class CIVisibility(Service):
         if not isinstance(ddconfig.test_visibility.itr_skipping_level, ITR_SKIPPING_LEVEL):
             log.warning(
                 "itr_skipping_level should be of type %s but is of type %s, defaulting to %s",
-                ddconfig.test_visibility.itr_skipping_level,
+                ITR_SKIPPING_LEVEL,
+                type(ddconfig.test_visibility.itr_skipping_level),
                 ITR_SKIPPING_LEVEL.TEST.name,
             )
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
@@ -225,7 +226,7 @@ class CIVisibility(Service):
                 )
             requests_mode_str = "agentless"
             self._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
-            self._api_client = AgentlessTestVisibilityClient(
+            self._api_client = AgentlessTestVisibilityAPIClient(
                 self._itr_skipping_level,
                 self._git_data,
                 self._configurations,
@@ -238,7 +239,7 @@ class CIVisibility(Service):
         elif self._agent_evp_proxy_is_available():
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
             requests_mode_str = "EVP Proxy"
-            self._api_client = EVPProxyTestVisibilityClient(
+            self._api_client = EVPProxyTestVisibilityAPIClient(
                 self._itr_skipping_level,
                 self._git_data,
                 self._configurations,

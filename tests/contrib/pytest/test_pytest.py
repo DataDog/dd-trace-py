@@ -17,10 +17,10 @@ from ddtrace.ext import ci
 from ddtrace.ext import git
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
@@ -79,7 +79,7 @@ class PytestTestCase(TracerTestCase):
         """
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             yield
 
@@ -1546,7 +1546,7 @@ class PytestTestCase(TracerTestCase):
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, False, False, True),
+            return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
@@ -1613,7 +1613,7 @@ class PytestTestCase(TracerTestCase):
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, True, False, True),
+            return_value=TestVisibilityAPISettings(True, True, False, True),
         ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_tests_to_skip",
@@ -1700,7 +1700,7 @@ class PytestTestCase(TracerTestCase):
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, False, False, True),
+            return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
@@ -1776,7 +1776,7 @@ class PytestTestCase(TracerTestCase):
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, False, False, True),
+            return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()

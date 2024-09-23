@@ -84,7 +84,3 @@ class CoverageLines:
         coverage = cls()
         coverage._lines = lines
         return coverage
-
-    @classmethod
-    def from_b64_string(cls, b64_string: str) -> "CoverageLines":
-        return cls.from_bytearray(bytearray(b64_string, "utf-8"))

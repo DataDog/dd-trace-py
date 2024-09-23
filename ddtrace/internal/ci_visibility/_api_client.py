@@ -466,7 +466,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 record_itr_skippable_request_error(error_type)
 
 
-class AgentlessTestVisibilityClient(_TestVisibilityAPIClientBase):
+class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
     _requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
 
     def __init__(
@@ -481,6 +481,9 @@ class AgentlessTestVisibilityClient(_TestVisibilityAPIClientBase):
         dd_env: t.Optional[str] = None,
         timeout: float = DEFAULT_TIMEOUT,
     ):
+        if not api_key:
+            raise ValueError("API key is required for AgentlessTestVisibilityAPIClient")
+
         _dd_site = dd_site if dd_site is not None else AGENTLESS_DEFAULT_SITE
         base_url = agentless_url if agentless_url is not None else "https://api." + _dd_site
 
@@ -497,7 +500,7 @@ class AgentlessTestVisibilityClient(_TestVisibilityAPIClientBase):
         return headers
 
 
-class EVPProxyTestVisibilityClient(_TestVisibilityAPIClientBase):
+class EVPProxyTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
     _requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
 
     def __init__(

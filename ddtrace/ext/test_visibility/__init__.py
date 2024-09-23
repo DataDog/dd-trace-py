@@ -9,16 +9,20 @@ from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.utils.formats import asbool
 
 
-# Default test visibility settings
-config._add(
-    "test_visibility",
-    dict(
+def _get_default_test_visibility_contrib_config():
+    return dict(
         _default_service="default_test_visibility_service",
         itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE
         if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE"))
         else ITR_SKIPPING_LEVEL.TEST,
         _itr_skipping_ignore_parameters=False,
-    ),
+    )
+
+
+# Default test visibility settings
+config._add(
+    "test_visibility",
+    _get_default_test_visibility_contrib_config(),
 )
 
 

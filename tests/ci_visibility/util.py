@@ -1,4 +1,3 @@
-from collections import defaultdict
 from contextlib import contextmanager
 import os
 import typing as t
@@ -6,6 +5,7 @@ from unittest import mock
 
 import ddtrace
 import ddtrace.ext.test_visibility  # noqa: F401
+from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
@@ -30,6 +30,7 @@ def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = 
         {
             "_default_service": "default_test_visibility_service",
             "itr_skipping_level": itr_skipping_level,
+            "_itr_skipping_ignore_parameters": False,
         },
     )
     return new_ddconfig
@@ -70,15 +71,9 @@ def set_up_mock_civisibility(
 
     def _fake_fetch_tests_to_skip(*args, **kwargs):
         if skippable_items is None:
-            if suite_skipping_mode:
-                CIVisibility._instance._test_suites_to_skip = []
-            else:
-                CIVisibility._instance._tests_to_skip = defaultdict(list)
+            CIVisibility._instance._itr_data = ITRData()
         else:
-            if suite_skipping_mode:
-                CIVisibility._instance._test_suites_to_skip = skippable_items
-            else:
-                CIVisibility._instance._tests_to_skip = skippable_items
+            CIVisibility._instance._itr_data = ITRData(skippable_items=skippable_items)
 
     def _mock_upload_git_metadata(obj, **kwargs):
         obj._metadata_upload_status = METADATA_UPLOAD_STATUS.SUCCESS
@@ -164,8 +159,13 @@ def _get_default_os_env_vars():
     return {key: os.environ[key] for key in os_env_keys if key in os.environ}
 
 
-def _get_default_ci_env_vars(new_vars: t.Optional[t.Dict[str, str]] = None, mock_ci_env=None) -> t.Dict[str, str]:
-    _env = _get_default_os_env_vars()
+def _get_default_ci_env_vars(
+    new_vars: t.Optional[t.Dict[str, str]] = None, mock_ci_env=None, full_clear=False
+) -> t.Dict[str, str]:
+    _env = {}
+
+    if not full_clear:
+        _env.update(_get_default_os_env_vars())
 
     if mock_ci_env:
         _env.update(_PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS)
@@ -183,7 +183,9 @@ def _get_default_ci_env_vars(new_vars: t.Optional[t.Dict[str, str]] = None, mock
 
 
 @contextmanager
-def _ci_override_env(new_vars: t.Optional[t.Dict[str, str]] = None, mock_ci_env=False, replace_os_env=True):
-    env_vars = _get_default_ci_env_vars(new_vars, mock_ci_env)
+def _ci_override_env(
+    new_vars: t.Optional[t.Dict[str, str]] = None, mock_ci_env=False, replace_os_env=True, full_clear=False
+):
+    env_vars = _get_default_ci_env_vars(new_vars, mock_ci_env, full_clear)
     with override_env(env_vars, replace_os_env=replace_os_env), mock.patch("ddtrace.tracer", ddtrace.Tracer()):
         yield

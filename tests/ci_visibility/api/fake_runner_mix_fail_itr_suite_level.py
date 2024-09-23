@@ -24,6 +24,7 @@ from unittest import mock
 
 import ddtrace
 from ddtrace.ext.test_visibility import api as ext_api
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.test_visibility import api
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
@@ -36,7 +37,7 @@ def _make_excinfo():
 
 
 def main():
-    ddtrace.config.test_visibility.itr_skipping_level = "suite"
+    ddtrace.config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
 
     ext_api.enable_test_visibility()
 
