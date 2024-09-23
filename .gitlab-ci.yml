@@ -1,7 +1,5 @@
 stages:
   - setup
-  - package
-  - tests
   - shared-pipeline
   - benchmarks
   - macrobenchmarks
@@ -45,15 +43,14 @@ generate-contrib-pipeline:
       - .gitlab/config.gen.yml
 
 trigger-contrib-pipeline:
-  stage: tests
+  stage: setup
   needs: ["generate-contrib-pipeline"]
   trigger:
     include:
       - artifact: .gitlab/config.gen.yml
         job: generate-contrib-pipeline
-  # rules:
-  #   - exists:
-  #       - .gitlab/config.gen.yml
+  rules:
+    - if: $CI_EXTERNAL_PULL_REQUEST_IID
 
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
