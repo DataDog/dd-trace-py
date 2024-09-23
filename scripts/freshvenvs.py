@@ -15,8 +15,7 @@ from pip import _internal
 
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
-
-import riotfile
+import riotfile  # noqa: E402
 
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib")
@@ -87,14 +86,13 @@ def _get_riot_envs_including_any(modules: typing.Set[str]) -> typing.Set[str]:
 def _get_updatable_packages_implementing(modules: typing.Set[str]) -> typing.Set[str]:
     """Return all packages that can be updated and have contribs implemented for them"""
     all_venvs = riotfile.venv.venvs
-    version_constrained_modules = set() # set of modules with pinned versions or a version range
 
     for v in all_venvs:
         package = v.name
         if package not in modules:
             continue
         if not _venv_sets_latest_for_package(v, package):
-            modules -= package
+            modules.remove(package)
 
     packages = {m for m in modules if "." not in m}
     return packages
