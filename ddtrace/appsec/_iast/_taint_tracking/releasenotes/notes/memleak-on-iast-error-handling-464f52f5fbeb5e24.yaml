@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Core Security: fix potential memory leak on IAST exception handling.
