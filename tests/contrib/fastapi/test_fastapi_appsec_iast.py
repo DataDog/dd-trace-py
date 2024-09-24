@@ -287,7 +287,6 @@ def test_path_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.path"
 
 
-@pytest.mark.usefixtures("setup_core_ok_after_test")
 def test_path_body_receive_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/index.html")
     async def test_route(request: Request):
@@ -362,9 +361,43 @@ def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
-def test_path_body_body_source_no_json(fastapi_application, client, tracer, test_spans):
+@pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Default is mandatory on 94 or lower")
+def test_path_body_body_source_formdata_latest(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/index.html")
-    async def test_route(path: Annotated[str, Form(default="")]):
+    async def test_route(path: Annotated[str, Form()]):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        ranges_result = get_tainted_ranges(path)
+
+        return JSONResponse(
+            {
+                "result": path,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post("/index.html", data={"path": "/var/log"})
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "/var/log"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 8
+        assert result["ranges_origin"] == "http.request.body"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
+@pytest.mark.skipif(fastapi_version >= (0, 95, 0), reason="Default doesn't work on fastapi 95 or upper")
+def test_path_body_body_source_formdata_90(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/index.html")
+    async def test_route(path: str = Form(...)):
         from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
