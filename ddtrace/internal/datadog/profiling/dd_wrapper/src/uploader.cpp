@@ -1,5 +1,6 @@
 #include "uploader.hpp"
 
+#include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
 
 #include <errno.h>  // errno
@@ -7,6 +8,7 @@
 #include <sstream>  // ostringstream
 #include <string.h> // strerror
 #include <unistd.h> // getpid
+#include <vector>
 
 using namespace Datadog;
 
@@ -69,7 +71,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         return ret;
     }
 
-    std::vec<const ddog_prof_Exporter_file> files_to_send = { {
+    std::vector<ddog_prof_Exporter_File> files_to_send = { {
       .name = to_slice("auto.pprof"),
       .file = ddog_Vec_U8_as_slice(&encoded->buffer),
     } };
@@ -88,15 +90,17 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         });
     }
 
-    auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
-                                                      encoded->start,
-                                                      encoded->end,
-                                                      ddog_prof_Exporter_Slice_File_empty(),
-                                                      { .ptr = &files_to_send, .len = files_to_send.size() },
-                                                      nullptr,
-                                                      encoded->endpoints_stats,
-                                                      nullptr,
-                                                      nullptr);
+    auto build_res =
+      ddog_prof_Exporter_Request_build(ddog_exporter.get(),
+                                       encoded->start,
+                                       encoded->end,
+                                       ddog_prof_Exporter_Slice_File_empty(),
+                                       { .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(&files_to_send),
+                                         .len = static_cast<uintptr_t>(files_to_send.size()) },
+                                       nullptr,
+                                       encoded->endpoints_stats,
+                                       nullptr,
+                                       nullptr);
     ddog_prof_EncodedProfile_drop(encoded);
 
     if (build_res.tag ==

@@ -36,7 +36,7 @@ class CodeProvenance
     void postfork_child();
 
     void set_enabled(bool enable);
-    bool enabled() const;
+    bool is_enabled();
     void add_filename(std::string_view filename);
     std::string serialize_to_json_str();
 

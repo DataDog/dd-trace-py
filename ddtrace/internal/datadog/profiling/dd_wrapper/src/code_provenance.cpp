@@ -26,7 +26,7 @@ Datadog::CodeProvenance::set_enabled(bool enable)
 }
 
 bool
-Datadog::CodeProvenance::enabled() const
+Datadog::CodeProvenance::is_enabled()
 {
     std::lock_guard<std::mutex> lock(mtx);
     return enabled;

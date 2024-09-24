@@ -23,6 +23,7 @@ ddup_postfork_child()
 {
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
+    Datadog::CodeProvenance::get_instance().postfork_child();
 }
 
 void
