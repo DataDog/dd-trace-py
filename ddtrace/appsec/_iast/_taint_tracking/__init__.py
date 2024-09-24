@@ -1,3 +1,5 @@
+from io import BytesIO
+from io import StringIO
 from typing import Any
 from typing import Tuple
 
@@ -215,9 +217,9 @@ if _is_iast_debug_enabled():
             if frame in TAINTED_FRAMES:
                 TAINTED_FRAMES.remove(frame)
                 log.debug("Return from %s on line %d of %s, return value: %s", func_name, line_no, filename, arg)
-                if isinstance(arg, (str, bytes, bytearray, list, tuple, dict)):
+                if isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO, list, tuple, dict)):
                     if (
-                        (isinstance(arg, (str, bytes, bytearray)) and is_pyobject_tainted(arg))
+                        (isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO)) and is_pyobject_tainted(arg))
                         or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
                         or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
                     ):

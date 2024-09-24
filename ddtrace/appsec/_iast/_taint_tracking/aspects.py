@@ -16,6 +16,8 @@ from typing import Text
 from typing import Tuple
 from typing import Union
 
+import _io
+
 from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
@@ -94,7 +96,45 @@ __all__ = [
     "ospathsplitext_aspect",
     "ospathsplitdrive_aspect",
     "ospathsplitroot_aspect",
+    "bytesio_aspect",
+    "stringio_aspect",
 ]
+
+
+def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> _io.StringIO:
+    if orig_function is not None:
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
+        result = orig_function(*args, **kwargs)
+    else:
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
+        result = _io.StringIO(*args, **kwargs)
+
+    if args and is_pyobject_tainted(args[0]) and isinstance(result, _io.StringIO):
+        try:
+            copy_and_shift_ranges_from_strings(args[0], result, 0)
+        except Exception as e:
+            iast_taint_log_error("IAST propagation error. stringio_aspect. {}".format(e))
+    return result
+
+
+def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> _io.BytesIO:
+    if orig_function is not None:
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
+        result = orig_function(*args, **kwargs)
+    else:
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
+        result = _io.BytesIO(*args, **kwargs)
+
+    if args and is_pyobject_tainted(args[0]) and isinstance(result, _io.BytesIO):
+        try:
+            copy_and_shift_ranges_from_strings(args[0], result, 0)
+        except Exception as e:
+            iast_taint_log_error("IAST propagation error. bytesio_aspect. {}".format(e))
+    return result
 
 
 def str_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
