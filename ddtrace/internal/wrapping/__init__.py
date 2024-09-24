@@ -215,16 +215,6 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     Note that this changes the behavior of the original function with the
     wrapper function, instead of creating a new function object.
     """
-    # if len(args) == 3:
-    #     module, name, wrapper = args[0], args[1], args[2]
-    #     if isinstance(module, str):
-    #         module = importlib.import_module(module)
-
-    #     assert isinstance(module, types.ModuleType), f"{module} is not of type Module"
-
-    #     f = getattr(module, name)
-    # else:
-    #     f, wrapper = args[0], args[1]
 
     wrapped = FunctionType(
         f.__code__,
