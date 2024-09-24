@@ -30,10 +30,10 @@ def _extract_span_pointers_for_s3_response(
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
-    if operation_name == "PutObject":
+    if operation_name in ("PutObject", "CompleteMultipartUpload"):
         return _extract_span_pointers_for_s3_response_with_helper(
             operation_name,
-            _AWSS3ObjectHashingProperties.for_put_object,
+            _AWSS3ObjectHashingProperties.for_put_object_or_complete_multipart_upload,
             request_parameters,
             response,
         )
@@ -55,7 +55,12 @@ class _AWSS3ObjectHashingProperties(NamedTuple):
     etag: str
 
     @staticmethod
-    def for_put_object(request_parameters: Dict[str, Any], response: Dict[str, Any]) -> "_AWSS3ObjectHashingProperties":
+    def for_put_object_or_complete_multipart_upload(
+        request_parameters: Dict[str, Any], response: Dict[str, Any]
+    ) -> "_AWSS3ObjectHashingProperties":
+        # Endpoint References:
+        # https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
+        # https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html
         return _AWSS3ObjectHashingProperties(
             bucket=request_parameters["Bucket"],
             key=request_parameters["Key"],
@@ -66,6 +71,8 @@ class _AWSS3ObjectHashingProperties(NamedTuple):
     def for_copy_object(
         request_parameters: Dict[str, Any], response: Dict[str, Any]
     ) -> "_AWSS3ObjectHashingProperties":
+        # Endpoint References:
+        # https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html
         return _AWSS3ObjectHashingProperties(
             bucket=request_parameters["Bucket"],
             key=request_parameters["Key"],
@@ -79,16 +86,13 @@ def _extract_span_pointers_for_s3_response_with_helper(
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
-    # Endpoint Reference:
-    # https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
-
     try:
         hashing_properties = extractor(request_parameters, response)
         bucket = hashing_properties.bucket
         key = hashing_properties.key
         etag = hashing_properties.etag
 
-        # The ETag is surrounded by double quotes for some reason.
+        # The ETag is surrounded by double quotes for some reason sometimes.
         if etag.startswith('"') and etag.endswith('"'):
             etag = etag[1:-1]
 
