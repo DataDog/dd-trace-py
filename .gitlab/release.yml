@@ -33,15 +33,15 @@ variables:
       - pywheels/*.whl
       - pywheels/*.tar.gz
 
-release_pypi_test:
+# Can be used to validate uploading of artifacts
+# release_pypi_test:
+#   extends: .release_pypi
+#   dependencies: [ "download_ddtrace_artifacts" ]
+#   variables:
+#     PYPI_REPOSITORY: testpypi
+
+release_pypi_prod:
   extends: .release_pypi
   dependencies: [ "download_ddtrace_artifacts" ]
   variables:
-    PYPI_REPOSITORY: testpypi
-
-# TODO: Replace GitHub Action PyPI upload with this job
-# release_pypi_prod:
-#   extends: .release_pypi
-#   needs: [ "release_pypi_test" ]
-#   variables:
-#     PYPI_REPOSITORY: pypi
+    PYPI_REPOSITORY: pypi
