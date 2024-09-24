@@ -3,6 +3,7 @@ import sys
 import typing
 
 from fastapi import Cookie
+from fastapi import Form
 from fastapi import Header
 from fastapi import Request
 from fastapi import __version__ as _fastapi_version
@@ -10,13 +11,11 @@ from fastapi.responses import JSONResponse
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._handlers import _on_asgi_request_parse_body
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
-from ddtrace.internal import core
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -44,17 +43,7 @@ def get_response_body(response):
     return response.text
 
 
-def get_root_span(spans):
-    return spans.pop_traces()[0][0]
 
-
-@pytest.fixture
-def setup_core_ok_after_test():
-    yield
-    core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
-
-
-@pytest.mark.usefixtures("setup_core_ok_after_test")
 def test_query_param_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
@@ -93,7 +82,7 @@ def test_query_param_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.parameter"
 
 
-@pytest.mark.usefixtures("setup_core_ok_after_test")
+
 def test_header_value_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
@@ -132,7 +121,6 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.header"
 
 
-@pytest.mark.usefixtures("setup_core_ok_after_test")
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
 @pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Header annotation doesn't work on fastapi 94 or lower")
 def test_header_value_source_typing_param(fastapi_application, client, tracer, test_spans):
@@ -172,7 +160,6 @@ def test_header_value_source_typing_param(fastapi_application, client, tracer, t
         assert result["ranges_origin"] == "http.request.header"
 
 
-@pytest.mark.usefixtures("setup_core_ok_after_test")
 def test_cookies_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
@@ -210,7 +197,6 @@ def test_cookies_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.cookie.value"
 
 
-@pytest.mark.usefixtures("setup_core_ok_after_test")
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
 @pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Cookie annotation doesn't work on fastapi 94 or lower")
 def test_cookies_source_typing_param(fastapi_application, client, tracer, test_spans):
@@ -250,7 +236,6 @@ def test_cookies_source_typing_param(fastapi_application, client, tracer, test_s
         assert result["ranges_origin"] == "http.request.cookie.value"
 
 
-@pytest.mark.usefixtures("setup_core_ok_after_test")
 def test_path_param_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html/{item_id}")
     async def test_route(item_id):
@@ -306,9 +291,6 @@ def test_path_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
-
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
@@ -322,6 +304,185 @@ def test_path_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 13
         assert result["ranges_origin"] == "http.request.path"
+
+
+def test_path_body_receive_source(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/index.html")
+    async def test_route(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        body = await request.receive()
+        result = body["body"]
+        ranges_result = get_tainted_ranges(result)
+
+        return JSONResponse(
+            {
+                "result": str(result, encoding="utf-8"),
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post(
+            "/index.html",
+            data='{"name": "yqrweytqwreasldhkuqwgervflnmlnli"}',
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == '{"name": "yqrweytqwreasldhkuqwgervflnmlnli"}'
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 44
+        assert result["ranges_origin"] == "http.request.body"
+
+
+def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/index.html")
+    async def test_route(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        body = await request.body()
+        ranges_result = get_tainted_ranges(body)
+
+        return JSONResponse(
+            {
+                "result": str(body, encoding="utf-8"),
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post(
+            "/index.html",
+            data='{"name": "yqrweytqwreasldhkuqwgervflnmlnli"}',
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == '{"name": "yqrweytqwreasldhkuqwgervflnmlnli"}'
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 44
+        assert result["ranges_origin"] == "http.request.body"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
+@pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Default is mandatory on 94 or lower")
+def test_path_body_body_source_formdata_latest(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/index.html")
+    async def test_route(path: typing.Annotated[str, Form()]):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        ranges_result = get_tainted_ranges(path)
+
+        return JSONResponse(
+            {
+                "result": path,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post("/index.html", data={"path": "/var/log"})
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "/var/log"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 8
+        assert result["ranges_origin"] == "http.request.body"
+
+
+def test_path_body_body_source_formdata_90(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/index.html")
+    async def test_route(path: str = Form(...)):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        ranges_result = get_tainted_ranges(path)
+
+        return JSONResponse(
+            {
+                "result": path,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post("/index.html", data={"path": "/var/log"})
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "/var/log"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 8
+        assert result["ranges_origin"] == "http.request.body"
+
+
+@pytest.mark.skip(reason="Pydantic not supported yet APPSEC-52941")
+def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spans):
+    from pydantic import BaseModel
+
+    class Item(BaseModel):
+        name: str
+        description: str | None = None
+        price: float | None = None
+        tax: float | None = None
+
+    @fastapi_application.post("/index")
+    async def test_route(item: Item):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        ranges_result = get_tainted_ranges(item.name)
+
+        return JSONResponse(
+            {
+                "result": item.name,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post(
+            "/index", data='{"name": "yqrweytqwreasldhkuqwgervflnmlnli"}', headers={"Content-Type": "application/json"}
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "test1234"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 8
+        assert result["ranges_origin"] == "http.request.body"
 
 
 def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans):
@@ -375,3 +536,4 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
         assert vulnerability["hash"] == hash_value
+
