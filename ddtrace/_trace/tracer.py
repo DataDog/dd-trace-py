@@ -234,9 +234,18 @@ class Tracer(object):
         self._user_sampler: Optional[BaseSampler] = DatadogSampler()
         self._asm_enabled = asm_config._asm_enabled
         self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled
-        self._sampler: BaseSampler = DatadogSampler()
-        self._maybe_opt_out()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self._apm_opt_out = self._asm_enabled and self._appsec_standalone_enabled
+        if self._apm_opt_out:
+            self.enabled = False
+            # Disable compute stats (neither agent or tracer should compute them)
+            config._trace_compute_stats = False
+            # If ASM is enabled but tracing is disabled,
+            # we need to set the rate limiting to 1 trace per minute
+            # for the backend to consider the service as alive.
+            self._sampler: BaseSampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+        else:
+            self._sampler: BaseSampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
         verify_url(self._agent_url)
@@ -294,19 +303,6 @@ class Tracer(object):
         config._subscribe(["logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
-
-    def _maybe_opt_out(self):
-        self._apm_opt_out = self._asm_enabled and self._appsec_standalone_enabled
-        if self._apm_opt_out:
-            # If ASM is enabled but tracing is disabled,
-            # we need to set the rate limiting to 1 trace per minute
-            # for the backend to consider the service as alive.
-            from ddtrace.internal.rate_limiter import RateLimiter
-
-            self._sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)  # 1 trace per minute
-            # Disable compute stats (neither agent or tracer should compute them)
-            config._trace_compute_stats = False
-            self.enabled = False
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -502,11 +498,22 @@ class Tracer(object):
         if appsec_standalone_enabled is not None:
             self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled = appsec_standalone_enabled
 
+        if self._appsec_standalone_enabled or self._asm_enabled:
+            self._apm_opt_out = True
+            self.enabled = False
+            # Disable compute stats (neither agent or tracer should compute them)
+            config._trace_compute_stats = False
+            # Update the rate limiter to 1 trace per minute when tracing is disabled
+            if sampler is None:
+                sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            else:
+                sampler._rate_limit_always_on = True
+                sampler.limiter.rate_limit = 1
+                sampler.limiter.time_window = 60e9
+
         if sampler is not None:
             self._sampler = sampler
             self._user_sampler = self._sampler
-
-        self._maybe_opt_out()
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 

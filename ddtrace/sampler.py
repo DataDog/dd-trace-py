@@ -203,7 +203,7 @@ class DatadogSampler(RateByServiceSampler):
     per second.
     """
 
-    __slots__ = ("limiter", "rules", "default_sample_rate")
+    __slots__ = ("limiter", "rules", "default_sample_rate", "_rate_limit_always_on")
 
     NO_RATE_LIMIT = -1
     # deprecate and remove the DEFAULT_RATE_LIMIT field from DatadogSampler
@@ -214,6 +214,8 @@ class DatadogSampler(RateByServiceSampler):
         rules=None,  # type: Optional[List[SamplingRule]]
         default_sample_rate=None,  # type: Optional[float]
         rate_limit=None,  # type: Optional[int]
+        rate_limit_window=1e9,  # type: float
+        rate_limit_always_on=False,  # type: bool
     ):
         # type: (...) -> None
         """
@@ -228,13 +230,15 @@ class DatadogSampler(RateByServiceSampler):
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
         self.default_sample_rate = default_sample_rate
-        effective_sample_rate = default_sample_rate 
+        effective_sample_rate = default_sample_rate
         if default_sample_rate is None:
             if ddconfig._get_source("_trace_sample_rate") != "default":
                 effective_sample_rate = float(ddconfig._trace_sample_rate)
 
         if rate_limit is None:
             rate_limit = int(ddconfig._trace_rate_limit)
+
+        self._rate_limit_always_on = rate_limit_always_on
 
         if rules is None:
             env_sampling_rules = ddconfig._trace_sampling_rules
@@ -257,7 +261,7 @@ class DatadogSampler(RateByServiceSampler):
             self.rules.append(SamplingRule(sample_rate=effective_sample_rate))
 
         # Configure rate limiter
-        self.limiter = RateLimiter(rate_limit)
+        self.limiter = RateLimiter(rate_limit, rate_limit_window)
 
         log.debug("initialized %r", self)
 
@@ -319,16 +323,19 @@ class DatadogSampler(RateByServiceSampler):
             # Client based sampling
             sampled = matched_rule.sample(span)
             sample_rate = matched_rule.sample_rate
-            # Apply tracer rate limit ONLY if sampling rule is defined
-            if sampled:
-                sampled = self.limiter.is_allowed()
-                span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         else:
             # Agent based sampling
             sampled, sampler = super(DatadogSampler, self)._make_sampling_decision(span)
             if isinstance(sampler, RateSampler):
                 sample_rate = sampler.sample_rate
 
+        if matched_rule or self._rate_limit_always_on:
+            # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
+            # by users. In this scenario tracing should default to agent based sampling. ASM
+            # uses DatadogSampler._rate_limit_always_on to override this functionality.
+            if sampled:
+                sampled = self.limiter.is_allowed()
+                span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         _set_sampling_tags(
             span,
             sampled,
@@ -347,5 +354,8 @@ class DatadogSampler(RateByServiceSampler):
             if provenance == "dynamic":
                 return _PRIORITY_CATEGORY.RULE_DYNAMIC
             return _PRIORITY_CATEGORY.RULE_DEF
-
+        elif self._rate_limit_always_on:
+            # backwards compaitbiility for ASM, when the rate limit is always on (ASM standalone mode)
+            # we want spans to be set to a MANUAL priority to avoid agent based sampling
+            return _PRIORITY_CATEGORY.USER
         return super(DatadogSampler, self)._choose_priority_category(sampler)
