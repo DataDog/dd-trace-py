@@ -112,7 +112,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..utils.deprecations import DDTraceDeprecationWarning
@@ -125,6 +124,9 @@ from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
 
+
+if TYPE_CHECKING:
+    from ddtrace._trace.span import Span  # noqa:F401
 
 try:
     import contextvars
@@ -296,7 +298,7 @@ def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
-def get_item(data_key: str, span: Optional[Span] = None) -> Any:
+def get_item(data_key: str, span: Optional["Span"] = None) -> Any:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
@@ -304,11 +306,11 @@ def get_item(data_key: str, span: Optional[Span] = None) -> Any:
         return _CURRENT_CONTEXT.get().get_item(data_key)
 
 
-def get_local_item(data_key: str, span: Optional[Span] = None) -> Any:
+def get_local_item(data_key: str, span: Optional["Span"] = None) -> Any:
     return _CURRENT_CONTEXT.get().get_local_item(data_key)
 
 
-def get_items(data_keys: List[str], span: Optional[Span] = None) -> List[Optional[Any]]:
+def get_items(data_keys: List[str], span: Optional["Span"] = None) -> List[Optional[Any]]:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return [span._local_root._get_ctx_item(key) for key in data_keys]
@@ -321,7 +323,7 @@ def set_safe(data_key: str, data_value: Optional[Any]) -> None:
 
 
 # NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
-def set_item(data_key: str, data_value: Optional[Any], span: Optional[Span] = None) -> None:
+def set_item(data_key: str, data_value: Optional[Any], span: Optional["Span"] = None) -> None:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_item(data_key, data_value)
@@ -329,7 +331,7 @@ def set_item(data_key: str, data_value: Optional[Any], span: Optional[Span] = No
         _CURRENT_CONTEXT.get().set_item(data_key, data_value)
 
 
-def set_items(keys_values: Dict[str, Optional[Any]], span: Optional[Span] = None) -> None:
+def set_items(keys_values: Dict[str, Optional[Any]], span: Optional["Span"] = None) -> None:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_items(keys_values)
