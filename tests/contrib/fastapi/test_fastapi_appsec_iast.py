@@ -364,7 +364,7 @@ def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
 def test_path_body_body_source_no_json(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/index.html")
-    async def test_route(path: Annotated[str, Form()]):
+    async def test_route(path: Annotated[str, Form(default="")]):
         from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
