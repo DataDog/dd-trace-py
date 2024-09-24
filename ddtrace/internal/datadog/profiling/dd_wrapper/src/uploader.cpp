@@ -79,7 +79,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                                       ddog_prof_Exporter_Slice_File_empty(),
                                                       { .ptr = &file, .len = 1 },
                                                       nullptr,
-                                                      nullptr,
+                                                      encoded->endpoints_stats,
                                                       nullptr,
                                                       nullptr);
     ddog_prof_EncodedProfile_drop(encoded);

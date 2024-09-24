@@ -15,11 +15,15 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._log_writer import V2LogWriter
 from ddtrace.sampler import RateSampler
 from ddtrace.settings import IntegrationConfig
+
+
+log = get_logger(__name__)
 
 
 class BaseLLMIntegration:
@@ -78,17 +82,14 @@ class BaseLLMIntegration:
         return LLMObs.enabled
 
     def is_pc_sampled_span(self, span: Span) -> bool:
-        if span.context.sampling_priority is not None:
-            if span.context.sampling_priority <= 0:
-                return False
+        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
+            return False
         return self._span_pc_sampler.sample(span)
 
     def is_pc_sampled_log(self, span: Span) -> bool:
-        if span.context.sampling_priority is not None:
-            if span.context.sampling_priority <= 0:
-                return False
-
         if not self.logs_enabled:
+            return False
+        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             return False
         return self._log_pc_sampler.sample(span)
 
@@ -187,3 +188,30 @@ class BaseLLMIntegration:
         if len(text) > self.integration_config.span_char_limit:
             text = text[: self.integration_config.span_char_limit] + "..."
         return text
+
+    def llmobs_set_tags(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        """Extract input/output information from the request and response to be submitted to LLMObs."""
+        if not self.llmobs_enabled:
+            return
+        try:
+            self._llmobs_set_tags(span, args, kwargs, response, operation)
+        except Exception:
+            log.error("Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True)
+
+    @abc.abstractmethod
+    def _llmobs_set_tags(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        raise NotImplementedError()

@@ -33,6 +33,9 @@ get_unique_id(const PyObject* str)
 }
 
 bool
+PyIOBase_Check(const PyObject* obj);
+
+bool
 PyReMatch_Check(const PyObject* obj);
 
 bool
@@ -50,7 +53,7 @@ is_text(const PyObject* pyptr)
 inline bool
 is_tainteable(const PyObject* pyptr)
 {
-    return pyptr != nullptr and (is_text(pyptr) or PyReMatch_Check(pyptr));
+    return pyptr != nullptr and (is_text(pyptr) or PyReMatch_Check(pyptr) or PyIOBase_Check(pyptr));
 }
 
 // Base function for the variadic template

@@ -7,6 +7,8 @@ import uuid
 import mock
 import pytest
 
+from ddtrace import ext
+from ddtrace import tracer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import threading as collector_threading
 from tests.profiling.collector import pprof_utils
@@ -275,9 +277,10 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_events_tracer(self, tracer):
+    def test_lock_events_tracer(self):
+        tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
-        span_type = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
         with collector_threading.ThreadingLockCollector(
             None,
             tracer=tracer,
@@ -314,7 +317,7 @@ class TestThreadingLockCollector:
                     linenos=linenos2,
                     lock_name="lock2",
                     span_id=span_id,
-                    trace_resource=resource,
+                    trace_endpoint=resource,
                     trace_type=span_type,
                 ),
             ],
@@ -325,7 +328,7 @@ class TestThreadingLockCollector:
                     linenos=linenos1,
                     lock_name="lock1",
                     span_id=span_id,
-                    trace_resource=resource,
+                    trace_endpoint=resource,
                     trace_type=span_type,
                 ),
                 pprof_utils.LockReleaseEvent(
@@ -337,9 +340,54 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_events_tracer_late_finish(self, tracer):
+    def test_lock_events_tracer_non_web(self):
+        tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
-        span_type = str(uuid.uuid4())
+        span_type = ext.SpanTypes.SQL
+        with collector_threading.ThreadingLockCollector(
+            None,
+            tracer=tracer,
+            capture_pct=100,
+            export_libdd_enabled=True,
+        ):
+            with tracer.trace("test", resource=resource, span_type=span_type) as t:
+                lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_non_web
+                lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_non_web
+                span_id = t.span_id
+
+            lock2.release()  # !RELEASE! test_lock_events_tracer_non_web
+        ddup.upload()
+
+        linenos2 = get_lock_linenos("test_lock_events_tracer_non_web")
+
+        profile = pprof_utils.parse_profile(self.output_filename)
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos2,
+                    lock_name="lock2",
+                    span_id=span_id,
+                    # no trace endpoint for non-web spans
+                    trace_type=span_type,
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos2,
+                    lock_name="lock2",
+                ),
+            ],
+        )
+
+    def test_lock_events_tracer_late_finish(self):
+        tracer._endpoint_call_counter_span_processor.enable()
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
         with collector_threading.ThreadingLockCollector(
             None,
             tracer=tracer,
@@ -393,9 +441,10 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_resource_not_collected(self, tracer):
+    def test_resource_not_collected(self):
+        tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
-        span_type = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
         with collector_threading.ThreadingLockCollector(
             None,
             tracer=tracer,
@@ -432,7 +481,7 @@ class TestThreadingLockCollector:
                     linenos=linenos2,
                     lock_name="lock2",
                     span_id=span_id,
-                    trace_resource=None,
+                    trace_endpoint=None,
                     trace_type=span_type,
                 ),
             ],
@@ -443,7 +492,7 @@ class TestThreadingLockCollector:
                     linenos=linenos1,
                     lock_name="lock1",
                     span_id=span_id,
-                    trace_resource=None,
+                    trace_endpoint=None,
                     trace_type=span_type,
                 ),
                 pprof_utils.LockReleaseEvent(
