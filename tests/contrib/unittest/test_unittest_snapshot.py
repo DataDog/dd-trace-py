@@ -427,7 +427,6 @@ class UnittestSnapshotTestCase(TracerTestCase):
         )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        print(f"DIR IS {self.testdir}")
         subprocess.run(
             ["ddtrace-run", "python", "-m", "unittest"],
             env=_get_default_ci_env_vars(
