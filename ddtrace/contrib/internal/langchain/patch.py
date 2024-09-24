@@ -997,7 +997,11 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
     def _on_span_finished(span: Span, streamed_chunks):
         if span.error or not integration.is_pc_sampled_span(span):
             return
-        if langchain_core and isinstance(instance.steps[-1], langchain_core.output_parsers.JsonOutputParser):
+        if (
+            streamed_chunks
+            and langchain_core
+            and isinstance(instance.steps[-1], langchain_core.output_parsers.JsonOutputParser)
+        ):
             # it's possible that the chain has a json output parser
             # this will have already concatenated the chunks into a json object
 
@@ -1046,7 +1050,7 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         content = "".join([str(chunk.content) for chunk in streamed_chunks])
         span.set_tag_str("langchain.response.content", integration.trunc(content))
 
-        usage = getattr(streamed_chunks[-1], "usage_metadata", None)
+        usage = streamed_chunks and getattr(streamed_chunks[-1], "usage_metadata", None)
         if not usage:
             return
         for k, v in usage.items():
