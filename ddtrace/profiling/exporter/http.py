@@ -220,7 +220,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         }  # type: Dict[str, Any]
 
         if self.endpoint_call_counter_span_processor is not None:
-            event["endpoint_counts"] = self.endpoint_call_counter_span_processor.reset()
+            event["endpoint_counts"] = self.endpoint_call_counter_span_processor.reset()[0]
 
         content_type, body = self._encode_multipart_formdata(
             event=json.dumps(event).encode("utf-8"),
