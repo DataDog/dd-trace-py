@@ -82,9 +82,8 @@ jobs:
           platforms: all
 
       - name: Build wheels arm64
-        if: matrix.os == 'arm-4core-linux'
+        if: always() && matrix.os == 'arm-4core-linux'
         run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --only ${{ matrix.only }}
-        continue-on-error: true
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
@@ -117,11 +116,10 @@ jobs:
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
       - name: Build wheels
-        if: matrix.os != 'arm-4core-linux'
+        if: always() && matrix.os != 'arm-4core-linux'
         uses: pypa/cibuildwheel@v2.16.5
         with:
           only: ${{ matrix.only }}
-        continue-on-error: true
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
