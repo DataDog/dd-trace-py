@@ -106,8 +106,7 @@ else:
 FIRSTLINENO_OFFSET = int(PY >= (3, 11))
 
 
-def wrap_bytecode(wrapper, wrapped):
-    # type: (Wrapper, FunctionType) -> bc.Bytecode
+def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     """Wrap a function with a wrapper function.
 
     The wrapper function expects the wrapped function as the first argument,
@@ -207,8 +206,7 @@ def wrap_bytecode(wrapper, wrapped):
     return bc.Bytecode(instrs)
 
 
-def wrap(f, wrapper):
-    # type: (FunctionType, Wrapper) -> WrappedFunction
+def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     """Wrap a function with a wrapper.
 
     The wrapper expects the function as first argument, followed by the tuple
@@ -217,6 +215,17 @@ def wrap(f, wrapper):
     Note that this changes the behavior of the original function with the
     wrapper function, instead of creating a new function object.
     """
+    # if len(args) == 3:
+    #     module, name, wrapper = args[0], args[1], args[2]
+    #     if isinstance(module, str):
+    #         module = importlib.import_module(module)
+
+    #     assert isinstance(module, types.ModuleType), f"{module} is not of type Module"
+
+    #     f = getattr(module, name)
+    # else:
+    #     f, wrapper = args[0], args[1]
+
     wrapped = FunctionType(
         f.__code__,
         f.__globals__,
@@ -264,8 +273,7 @@ def wrap(f, wrapper):
     return wf
 
 
-def unwrap(wf, wrapper):
-    # type: (WrappedFunction, Wrapper) -> FunctionType
+def unwrap(wf: WrappedFunction, wrapper: Wrapper) -> FunctionType:
     """Unwrap a wrapped function.
 
     This is the reverse of :func:`wrap`. In case of multiple wrapping layers,

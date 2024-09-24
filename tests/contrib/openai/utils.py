@@ -53,6 +53,7 @@ tool_call_expected_output["tool_calls"][0]["type"] = "function"
 
 
 def iswrapped(obj):
+    # TODO: remove / replace, this is redefined from internal.utils.wrappers
     return hasattr(obj, "__dd_wrapped__")
 
 
