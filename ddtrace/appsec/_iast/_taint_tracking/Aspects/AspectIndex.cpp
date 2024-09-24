@@ -48,11 +48,21 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
-    auto result_o = PyObject_GetItem(candidate_text, idx);
-    if (!is_text(candidate_text) or !is_some_number(idx)) {
-        return result_o;
+
+    const auto result_o = PyObject_GetItem(candidate_text, idx);
+    if (result_o == nullptr) {
+        return nullptr;
     }
-    TRY_CATCH_ASPECT("index_aspect", , {
+    TRY_CATCH_ASPECT("index_aspect", return result_o, , {
+        if (const auto error = has_pyerr_as_string(); !error.empty()) {
+            iast_taint_log_error(error);
+            return nullptr;
+        }
+
+        if ((!is_text(candidate_text) or !is_some_number(idx)) and !PyReMatch_Check(candidate_text)) {
+            return result_o;
+        }
+
         const auto ctx_map = Initializer::get_tainting_map();
         if (not ctx_map or ctx_map->empty()) {
             return result_o;
