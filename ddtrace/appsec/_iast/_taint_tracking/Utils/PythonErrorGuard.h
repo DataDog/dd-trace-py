@@ -16,7 +16,7 @@ namespace py = pybind11;
  */
 class PythonErrorGuard
 {
-public:
+  public:
     /**
      * @brief Constructs the PythonErrorGuard.
      *
@@ -45,8 +45,7 @@ public:
     [[nodiscard]] py::str traceback_as_pystr() const;
     [[nodiscard]] std::string traceback_as_stdstring() const;
 
-
-private:
+  private:
     PyObject* ptype;
     PyObject* pvalue;
     PyObject* ptraceback;

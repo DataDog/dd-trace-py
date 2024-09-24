@@ -1,7 +1,7 @@
 #include <Aspects/Helpers.h>
 #include <TaintTracking/Source.h>
-#include <tests/test_common.hpp>
 #include <Utils/PythonErrorGuard.h>
+#include <tests/test_common.hpp>
 
 using HasPyErrCheck = PyEnvCheck;
 
@@ -66,7 +66,9 @@ TEST_F(PythonErrorGuardCheck, ErrorIsClearedThenNoErrorInGuard)
     EXPECT_FALSE(guard.has_error());
 }
 
-void set_python_exception_with_traceback() {
+void
+set_python_exception_with_traceback()
+{
     py::gil_scoped_acquire acquire;
 
     PyObject* exc_type = PyExc_ZeroDivisionError;
@@ -93,8 +95,8 @@ except ZeroDivisionError:
     }
 
     // Retrieve the traceback object from the main module
-    PyObject* main_module = PyImport_AddModule("__main__"); // Borrowed reference
-    PyObject* main_dict = PyModule_GetDict(main_module);    // Borrowed reference
+    PyObject* main_module = PyImport_AddModule("__main__");       // Borrowed reference
+    PyObject* main_dict = PyModule_GetDict(main_module);          // Borrowed reference
     PyObject* exc_tb = PyDict_GetItemString(main_dict, "exc_tb"); // Borrowed reference
 
     // Increment references as PyErr_Restore steals references
@@ -123,7 +125,8 @@ TEST_F(PythonErrorGuardCheck, ErrorWithTraceback)
 
         EXPECT_FALSE(tb_str.empty()) << "Traceback is empty.";
         EXPECT_NE(tb_str.find("faulty_function"), std::string::npos) << "Traceback does not contain 'faulty_function'.";
-        EXPECT_NE(tb_str.find("ZeroDivisionError"), std::string::npos) << "Traceback does not contain 'ZeroDivisionError'.";
+        EXPECT_NE(tb_str.find("ZeroDivisionError"), std::string::npos)
+          << "Traceback does not contain 'ZeroDivisionError'.";
 
         // Retrieve the traceback as py::str
         const py::str tb_pystr = guard.traceback_as_pystr();
@@ -131,12 +134,13 @@ TEST_F(PythonErrorGuardCheck, ErrorWithTraceback)
 
         const auto tb_pystr_str = tb_pystr.cast<std::string>();
         EXPECT_FALSE(tb_pystr_str.empty()) << "Traceback py::str is empty after cast.";
-        EXPECT_NE(tb_pystr_str.find("faulty_function"), std::string::npos) << "Traceback py::str does not contain 'faulty_function'.";
-        EXPECT_NE(tb_pystr_str.find("ZeroDivisionError"), std::string::npos) << "Traceback py::str does not contain 'ZeroDivisionError'.";
+        EXPECT_NE(tb_pystr_str.find("faulty_function"), std::string::npos)
+          << "Traceback py::str does not contain 'faulty_function'.";
+        EXPECT_NE(tb_pystr_str.find("ZeroDivisionError"), std::string::npos)
+          << "Traceback py::str does not contain 'ZeroDivisionError'.";
     }
     PyErr_Clear();
 }
-
 
 using GetTagCheck = ::testing::Test;
 
