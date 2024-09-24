@@ -3022,21 +3022,18 @@ print(json.dumps(headers))
 def test_llmobs_enabled_injects_llmobs_parent_id():
     with override_global_config(dict(_llmobs_enabled=True)):
         with mock.patch("ddtrace.llmobs.LLMObs") as mock_llmobs:
-            context = Context(trace_id=1, span_id=2)
-            HTTPPropagator.inject(context, {})
-            mock_llmobs._inject_llmobs_context.assert_called_once_with({})
+            HTTPPropagator.inject(Context(trace_id=1, span_id=2), {})
+            mock_llmobs._inject_llmobs_context.assert_called_once()
 
 
 def test_llmobs_disabled_does_not_inject_parent_id():
     with override_global_config(dict(_llmobs_enabled=False)):
         with mock.patch("ddtrace.llmobs.LLMObs") as mock_llmobs:
-            context = Context(trace_id=1, span_id=2)
-            HTTPPropagator.inject(context, {})
+            HTTPPropagator.inject(Context(trace_id=1, span_id=2), {})
             mock_llmobs._inject_llmobs_context.assert_not_called()
 
 
 def test_llmobs_parent_id_not_injected_by_default():
     with mock.patch("ddtrace.llmobs.LLMObs") as mock_llmobs:
-        context = Context(trace_id=1, span_id=2)
-        HTTPPropagator.inject(context, {})
+        HTTPPropagator.inject(Context(trace_id=1, span_id=2), {})
         mock_llmobs._inject_llmobs_context.assert_not_called()
