@@ -40,7 +40,7 @@ gdb --args python -m pytest tests/appsec/iast/test_command_injection.py
 
 From the `ddtrace/appsec/_iast/_taint_tracking` dir run:
 ```
-./generate_html_coverage.sh
+./generate_coverage.sh
 ```
 
 This will generate a text mode coverage report. If you add `--html` it will generate nice HTML
