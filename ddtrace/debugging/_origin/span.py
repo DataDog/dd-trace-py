@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import partial as λ
 from itertools import count
 from pathlib import Path
 import sys
@@ -35,14 +34,20 @@ from ddtrace.settings.code_origin import config as co_config
 from ddtrace.span import Span
 
 
-def frame_stack(frame: FrameType, max_frames: t.Optional[int] = None) -> t.Iterator[FrameType]:
+def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
     _frame: t.Optional[FrameType] = frame
-    _max = max_frames if max_frames is not None else float("inf")
-    c = 0
-    while _frame is not None and c < _max:
+    while _frame is not None:
         yield _frame
         _frame = _frame.f_back
-        c += 1
+
+
+def wrap_entrypoint(f: t.Callable) -> None:
+    if not _isinstance(f, FunctionType):
+        return
+
+    _f = t.cast(FunctionType, f)
+    if not EntrySpanWrappingContext.is_wrapped(_f):
+        EntrySpanWrappingContext(_f).wrap()
 
 
 @dataclass
@@ -205,12 +210,15 @@ class SpanCodeOriginProcessor(SpanProcessor):
         # Add call stack information to the exit span. Report only the part of
         # the stack that belongs to user code.
         seq = count(0)
-        for frame in frame_stack(sys._getframe(1), co_config.max_frame_depth):
+        for frame in frame_stack(sys._getframe(1)):
             code = frame.f_code
             frame_origin = Path(code.co_filename)
 
             if is_user_code(frame_origin):
                 n = next(seq)
+                if n >= co_config.max_frame_depth:
+                    break
+
                 span.set_tag_str(f"_dd.ld.code_origin.frames.{n}.file", str(frame_origin.resolve()))
                 span.set_tag_str(f"_dd.ld.code_origin.frames.{n}.line", str(code.co_firstlineno))
                 # DEV: Without a function object we cannot infer the function
@@ -243,14 +251,7 @@ class SpanCodeOriginProcessor(SpanProcessor):
         if cls._instance is not None:
             return
 
-        @λ(core.on, "service_entrypoint.patch")
-        def _(f: t.Callable) -> None:
-            if not _isinstance(f, FunctionType):
-                return
-
-            _f = t.cast(FunctionType, f)
-            if not EntrySpanWrappingContext.is_wrapped(_f):
-                EntrySpanWrappingContext(_f).wrap()
+        core.on("service_entrypoint.patch", wrap_entrypoint)
 
         instance = cls._instance = cls()
         instance.register()
@@ -263,5 +264,4 @@ class SpanCodeOriginProcessor(SpanProcessor):
         cls._instance.unregister()
         cls._instance = None
 
-        # TODO: The core event hook is still registered. Currently there is no
-        # way to unregister it.
+        core.reset_listeners("service_entrypoint.patch", wrap_entrypoint)
