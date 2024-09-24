@@ -210,7 +210,6 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
-        core.context_with_data("rq.worker.after.perform.job")
         core.dispatch("rq.worker.after.perform.job", [ctx])
 
 
