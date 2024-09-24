@@ -1,5 +1,4 @@
 #include "AspectJoin.h"
-
 #include "Helpers.h"
 
 PyObject*
@@ -185,7 +184,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         }
         return nullptr;
     }
-    TRY_CATCH_ASPECT("join_aspect", return result, , {
+    TRY_CATCH_ASPECT("join_aspect", , {
         const auto ctx_map = Initializer::get_tainting_map();
         if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
             // Empty result cannot have taint ranges

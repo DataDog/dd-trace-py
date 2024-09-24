@@ -53,7 +53,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     if (result_o == nullptr) {
         return nullptr;
     }
-    TRY_CATCH_ASPECT("index_aspect", return result_o, , {
+    TRY_CATCH_ASPECT("index_aspect", , {
         if (const auto error = has_pyerr_as_string(); !error.empty()) {
             iast_taint_log_error(error);
             return nullptr;
