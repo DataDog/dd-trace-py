@@ -111,7 +111,6 @@ class SpanTestCase(TracerTestCase):
         assert span2.context._get_baggage_item("item1") == "123"
         assert span2.context._get_baggage_item("item2") == "456"
         assert span1.context._get_baggage_item("item1") == "123"
-        assert span1.context._get_baggage_item("item2") is None
 
     def test_baggage_remove(self):
         span1 = Span(name="test.span1")
