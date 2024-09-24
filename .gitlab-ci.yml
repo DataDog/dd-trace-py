@@ -23,7 +23,7 @@ variables:
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
 
 include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include-wip/landerson/enable-lib-injection-tests/one-pipeline.yml
+  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
