@@ -11,7 +11,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Datastreams Monitoring (DSM): Adds support for schema tracking.
 - Exception Replay will capture any exceptions that are manually attached to a span with a call to `set_exc_info`.
 - LLM Observability: The LangChain integration now submits vectorstore `similarity_search` spans to LLM Observability as retrieval spans.
-- langchain : Adds support for tracing tool invocations.
+- langchain: Adds support for tracing tool invocations.
 - LLM Observability: Adds support for capturing tool calls returned from LangChain chat completions.
 - LLM Observability: Introduces the ability to set `ml_app` and `timestamp_ms` fields in `LLMObs.submit_evaluation`
 - openai: Introduces `model` tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as `openai.request.model`.
