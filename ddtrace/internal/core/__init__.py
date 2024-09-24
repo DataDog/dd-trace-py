@@ -149,8 +149,8 @@ DEPRECATION_MEMO = set()
 
 def _deprecate_span_kwarg(span):
     if (
-        id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO
-        and span is not None
+        span is not None
+        and id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO
         # https://github.com/tiangolo/fastapi/pull/10876
         and "fastapi" not in sys.modules
         and "fastapi.applications" not in sys.modules
@@ -167,8 +167,7 @@ class ExecutionContext:
     __slots__ = ["identifier", "_data", "_parents", "_span", "_token"]
 
     def __init__(self, identifier, parent=None, span=None, **kwargs):
-        if span is not None:
-            _deprecate_span_kwarg(span)
+        _deprecate_span_kwarg(span)
         self.identifier = identifier
         self._data = {}
         self._parents = []
