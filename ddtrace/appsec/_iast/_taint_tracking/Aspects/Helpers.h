@@ -332,7 +332,7 @@ Example calling:
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
     } catch (const std::exception& e) {                                                                                \
-        const std::string error_message = "IAST propagation error in " NAME ". " + std::string(e.what());              \
+        const std::string error_message = NAME ". " + std::string(e.what());                                           \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
