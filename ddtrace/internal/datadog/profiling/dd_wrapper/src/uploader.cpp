@@ -49,7 +49,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                                       { .ptr = &file, .len = 1 },
                                                       &tags,
                                                       nullptr,
-                                                      nullptr,
+                                                      encoded->endpoints_stats,
                                                       nullptr,
                                                       max_timeout_ms);
     ddog_prof_EncodedProfile_drop(encoded);
