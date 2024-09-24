@@ -35,3 +35,13 @@ python ddtrace/appsec/_iast/_taint_tracking/bench_overload.py --log-file="valgri
 # Debug with gdb
 
 gdb --args python -m pytest tests/appsec/iast/test_command_injection.py
+
+## Generate HTML coverage reports
+
+From the `ddtrace/appsec/_iast/_taint_tracking` dir run:
+```
+./generate_html_coverage.sh
+```
+
+The files will be generated at `ddtrace/appsec/_iast/_taint_tracking/coverage_html` dir. 
+Switch to it and open the `index.html` with your browser.
