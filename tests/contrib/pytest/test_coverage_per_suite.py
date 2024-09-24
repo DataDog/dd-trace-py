@@ -8,14 +8,18 @@ import ddtrace
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _mock_ddconfig_test_visibility
 from tests.ci_visibility.util import _patch_dummy_writer
+from tests.contrib.pytest.test_pytest import _fetch_test_to_skip_side_effect
 from tests.utils import TracerTestCase
 
 
@@ -147,7 +151,7 @@ class PytestTestCase(TracerTestCase):
         with _ci_override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
-        ), _mock_ddconfig_test_visibility(itr_skipping_level="suite"):
+        ), _mock_ddconfig_test_visibility(itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE):
             self.inline_run(
                 "-p",
                 "no:randomly",
@@ -247,6 +251,14 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_suite_ids(
+                [
+                    ("", "test_cov_second.py"),
+                ]
+            )
+        )
+
         with _ci_override_env(
             {
                 "DD_API_KEY": "foobar.baz",
@@ -258,15 +270,10 @@ class PytestTestCase(TracerTestCase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, True, False, True),
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_test_suites_to_skip",
-            [
-                "test_cov_second.py",
-            ],
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
         ), _mock_ddconfig_test_visibility(
-            itr_skipping_level="suite"
+            itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE
         ):
             self.inline_run(
                 "-p",

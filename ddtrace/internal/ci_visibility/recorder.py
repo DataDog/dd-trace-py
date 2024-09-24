@@ -1,4 +1,3 @@
-from collections import defaultdict
 import json
 import os
 from pathlib import Path
@@ -141,8 +140,6 @@ def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
-    _test_suites_to_skip = None  # type: Optional[List[str]]
-    _tests_to_skip = defaultdict(list)  # type: DefaultDict[str, List[str]]
 
     def __init__(self, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
@@ -709,27 +706,6 @@ class CIVisibility(Service):
             return False
 
         return item_id in instance._itr_data.skippable_items
-
-    @classmethod
-    def is_suite_itr_skippable(cls, item_id: TestSuiteId) -> bool:
-        instance = cls.get_instance()
-        if instance is None:
-            return False
-        item_module_path = item_id.parent_id.name.replace(".", "/")
-        item_path = "/".join((item_module_path, item_id.name)) if item_module_path else item_id.name
-        return instance._test_suites_to_skip is not None and item_path in instance._test_suites_to_skip
-
-    @classmethod
-    def is_test_itr_skippable(cls, item_id: TestId) -> bool:
-        instance = cls.get_instance()
-        if instance is None:
-            return False
-
-        item_module_path = item_id.parent_id.parent_id.name.replace(".", "/")
-        item_suite = item_id.parent_id.name
-        item_path = "/".join((item_module_path, item_suite)) if item_module_path else item_suite
-
-        return item_id.name in instance._tests_to_skip.get(item_path, [])
 
     @classmethod
     def is_unknown_ci(cls) -> bool:

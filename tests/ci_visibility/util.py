@@ -24,6 +24,8 @@ def _patch_dummy_writer():
 
 
 def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST):
+    if not isinstance(itr_skipping_level, ITR_SKIPPING_LEVEL):
+        raise ValueError(f"Invalid ITR_SKIPPING_LEVEL: {itr_skipping_level}")
     new_ddconfig = ddtrace.settings.Config()
     new_ddconfig._add(
         "test_visibility",
