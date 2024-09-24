@@ -296,10 +296,6 @@ def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
-def get_root() -> ExecutionContext:
-    return _CURRENT_CONTEXT.get().root()
-
-
 def get_item(data_key: str, span: Optional[Span] = None) -> Any:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
