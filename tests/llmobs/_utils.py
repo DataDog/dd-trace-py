@@ -28,7 +28,6 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
         "session_id:{}".format(session_id or "{:x}".format(span.trace_id)),
         "ddtrace.version:{}".format(ddtrace.__version__),
-        "language:python",
     ]
     if error:
         expected_tags.append("error:1")
