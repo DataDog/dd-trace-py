@@ -51,10 +51,9 @@ tool_call_expected_output = function_call_expected_output.copy()
 tool_call_expected_output["tool_calls"][0]["tool_id"] = "call_FJStsEjxdODw9tBmQRRkm6vY"
 tool_call_expected_output["tool_calls"][0]["type"] = "function"
 
-
-def iswrapped(obj):
-    # TODO: remove / replace, this is redefined from internal.utils.wrappers
-    return hasattr(obj, "__dd_wrapped__")
+# TODO: remove / replace, this is redefined from internal.utils.wrappers
+# def iswrapped(obj):
+#     return hasattr(obj, "__dd_wrapped__")
 
 
 # VCR is used to capture and store network requests made to OpenAI.
