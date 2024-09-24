@@ -3,10 +3,15 @@ import os
 import mock
 import pytest
 
+import ddtrace
 from ddtrace.internal.utils.http import Response
+import ddtrace.llmobs
 from ddtrace.llmobs import LLMObs as llmobs_service
+import ddtrace.llmobs._evaluators
+import ddtrace.llmobs._evaluators.ragas
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
+from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import request_token
 
@@ -59,11 +64,11 @@ def mock_llmobs_eval_metric_writer():
 
 
 @pytest.fixture
-def mock_llmobs_ragas_evaluator():
-    patcher = mock.patch("ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator.run")
-    RagasEvaluator = patcher.start()
+def mock_llmobs_submit_evaluation():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObs.submit_evaluation")
+    LLMObsMock = patcher.start()
     m = mock.MagicMock()
-    RagasEvaluator.return_value = m
+    LLMObsMock.return_value = m
     yield m
     patcher.stop()
 
@@ -144,13 +149,40 @@ def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_w
 
 
 @pytest.fixture
+def mock_llmobs_evaluator_runner():
+    patcher = mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.enqueue")
+    LLMObsMockEvaluatorRunner = patcher.start()
+    m = mock.MagicMock()
+    LLMObsMockEvaluatorRunner.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
 def LLMObsWithRagas(monkeypatch, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     monkeypatch.setenv("_DD_LLMOBS_EVALUATORS", "ragas_faithfulness")
-    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_INTERVAL", "0.1")
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_INTERVAL", "0.01")
     with override_global_config(global_config):
         dummy_tracer = DummyTracer()
         llmobs_service.enable(_tracer=dummy_tracer)
         yield llmobs_service
         llmobs_service.disable()
+
+
+@pytest.fixture
+def mock_ragas_dependencies_not_present():
+    previous = ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT
+    ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT = False
+    yield
+    ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT = previous
+
+
+@pytest.fixture
+def ragas(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
+        import ragas
+
+        with override_env(dict(OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"))):
+            yield ragas

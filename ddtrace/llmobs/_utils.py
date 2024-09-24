@@ -14,7 +14,9 @@ from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import TAGS
 
 
 log = get_logger(__name__)
@@ -94,6 +96,14 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
     if nearest_llmobs_ancestor:
         return str(nearest_llmobs_ancestor.span_id)
     return span.get_tag(PROPAGATED_PARENT_ID_KEY)
+
+
+def _is_evaluations_span(span: Span) -> bool:
+    tag_str = span.get_tag(TAGS)
+    if tag_str is not None:
+        tags = json.loads(tag_str)
+        return RUNNER_IS_INTEGRATION_SPAN_TAG in tags
+    return False
 
 
 def _get_span_name(span: Span) -> str:

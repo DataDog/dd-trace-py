@@ -34,6 +34,7 @@ from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._utils import _is_evaluations_span
 
 
 log = get_logger(__name__)
@@ -59,13 +60,15 @@ class LLMObsTraceProcessor(TraceProcessor):
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
+        is_evaluation_span = _is_evaluations_span(span)
+        is_llm_span = span.get_tag(SPAN_KIND) == "llm"
         try:
             span_event = self._llmobs_span_event(span)
             self._span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
         finally:
-            if not span_event:
+            if not span_event or is_evaluation_span or not is_llm_span:
                 return
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event)

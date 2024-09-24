@@ -8,6 +8,8 @@ from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvalu
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 
+from ._utils import _llm_span_with_expected_ragas_inputs
+
 
 INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric"
 DD_SITE = "datad0g.com"
@@ -18,7 +20,7 @@ def _dummy_ragas_eval_metric_event(span_id, trace_id):
     return LLMObsEvaluationMetricEvent(
         span_id=span_id,
         trace_id=trace_id,
-        score_value=1,
+        score_value=1.0,
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,
         metric_type="score",
@@ -42,28 +44,33 @@ def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
     )
 
 
-def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
+@pytest.mark.vcr_logs
+def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer, ragas):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
     evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator(llmobs_service=LLMObs))
-    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
+
+    span = _llm_span_with_expected_ragas_inputs()
+    evaluator_runner.enqueue(span)
     evaluator_runner.periodic()
+
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
-        _dummy_ragas_eval_metric_event(span_id="123", trace_id="1234")
+        _dummy_ragas_eval_metric_event(span_id=span["span_id"], trace_id=span["trace_id"])
     )
 
 
 @pytest.mark.vcr_logs
-def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer, ragas):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
     evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator(llmobs_service=LLMObs))
     evaluator_runner.start()
 
-    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
+    span = _llm_span_with_expected_ragas_inputs()
+    evaluator_runner.enqueue(span)
 
     time.sleep(0.1)
 
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
-        _dummy_ragas_eval_metric_event(span_id="123", trace_id="1234")
+        _dummy_ragas_eval_metric_event(span_id=span["span_id"], trace_id=span["trace_id"])
     )
 
 
