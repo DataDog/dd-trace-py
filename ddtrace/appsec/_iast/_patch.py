@@ -159,8 +159,6 @@ def _on_iast_fastapi_patch():
         "Headers.get",
         functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
     )
-    try_wrap_function_wrapper("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
-
     try_wrap_function_wrapper(
         "fastapi",
         "Header",
@@ -187,7 +185,6 @@ def _on_iast_fastapi_patch():
     )
     _set_metric_iast_instrumented_source(OriginType.BODY)
 
-
     # Instrumented on _iast_starlette_scope_taint
     _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
 
@@ -208,7 +205,22 @@ def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
     instance.__class__.path = property(path)
     wrapped(*args, **kwargs)
 
-    _set_metric_iast_instrumented_source(OriginType.PATH)
+
+def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+
+    def receive(self):
+        """This pattern comes from a Request._receive property, which returns a callable"""
+
+        async def wrapped_property_call():
+            body = await self._receive()
+            return taint_structure(body, OriginType.BODY, OriginType.BODY, override_pyobject_tainted=True)
+
+        return wrapped_property_call
+
+    # `self._receive` is set in `__init__`, so we wait for the constructor to finish before setting the new property
+    wrapped(*args, **kwargs)
+    instance.__class__.receive = property(receive)
 
 
 async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwargs):

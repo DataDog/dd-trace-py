@@ -14,7 +14,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
+from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_env
@@ -30,8 +30,8 @@ fastapi_version = tuple([int(v) for v in _fastapi_version.split(".")])
 
 def _aux_appsec_prepare_tracer(tracer):
     _on_iast_fastapi_patch()
+    patch_fastapi()
     patch_sqlite_sqli()
-    patch_header_injection()
     oce.reconfigure()
 
     tracer._iast_enabled = True
@@ -41,7 +41,6 @@ def _aux_appsec_prepare_tracer(tracer):
 
 def get_response_body(response):
     return response.text
-
 
 
 def test_query_param_source(fastapi_application, client, tracer, test_spans):
@@ -63,9 +62,6 @@ def test_query_param_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
-
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
@@ -80,7 +76,6 @@ def test_query_param_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 8
         assert result["ranges_origin"] == "http.request.parameter"
-
 
 
 def test_header_value_source(fastapi_application, client, tracer, test_spans):
@@ -101,9 +96,6 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
-
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
 
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
@@ -141,9 +133,6 @@ def test_header_value_source_typing_param(fastapi_application, client, tracer, t
             }
         )
 
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
-
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         _aux_appsec_prepare_tracer(tracer)
 
@@ -177,9 +166,6 @@ def test_cookies_source(fastapi_application, client, tracer, test_spans):
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
-
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
 
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
@@ -217,9 +203,6 @@ def test_cookies_source_typing_param(fastapi_application, client, tracer, test_s
             }
         )
 
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
-
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
@@ -253,9 +236,6 @@ def test_path_param_source(fastapi_application, client, tracer, test_spans):
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
-
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
 
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
@@ -500,9 +480,6 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         # label test_fastapi_sqli_path_parameter
         cur.execute(add_aspect("SELECT 1 FROM ", param_str))
 
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
-
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
@@ -536,4 +513,3 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
         assert vulnerability["hash"] == hash_value
-
