@@ -364,4 +364,5 @@ void
 Datadog::Sample::postfork_child()
 {
     profile_state.postfork_child();
+    code_provenance_state.postfork_child();
 }

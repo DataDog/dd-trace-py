@@ -1,5 +1,6 @@
 #pragma once
 
+#include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "types.hpp"
@@ -21,6 +22,7 @@ class Sample
 {
   private:
     static inline Profile profile_state{}; // TODO pointer to global state?
+
     unsigned int max_nframes;
     SampleType type_mask;
     std::string errmsg;
@@ -91,6 +93,8 @@ class Sample
     static void profile_clear_state();
     static void postfork_child();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
+
+    static inline CodeProvenance code_provenance_state{};
 
     // friend class SampleManager;
     friend class SampleManager;

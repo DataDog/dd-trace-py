@@ -19,6 +19,7 @@ from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder  # noqa:F401
+from ddtrace.profiling.exporter import code_provenance
 from ddtrace.profiling.exporter import pprof
 from ddtrace.settings.profiling import config
 
@@ -68,9 +69,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         self.max_retry_delay: typing.Optional[float] = max_retry_delay
         self._container_info: typing.Optional[container.CGroupInfo] = container.get_container_info()
         self.endpoint_path: str = endpoint_path
-        self.endpoint_call_counter_span_processor: typing.Optional[
-            EndpointCallCounterProcessor
-        ] = endpoint_call_counter_span_processor
+        self.endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = (
+            endpoint_call_counter_span_processor
+        )
 
         self.__post_init__()
 
@@ -192,21 +193,13 @@ class PprofHTTPExporter(pprof.PprofExporter):
         ]
 
         if self.enable_code_provenance:
-            code_provenance = io.BytesIO()
-            with gzip.GzipFile(fileobj=code_provenance, mode="wb") as gz:
-                gz.write(
-                    json.dumps(
-                        {
-                            "v1": libs,
-                        }
-                    ).encode("utf-8")
-                )
+            code_provenance_data = code_provenance.serialize_to_compressed_bytes(libs)
             data.append(
                 {
                     "name": b"code-provenance",
                     "filename": b"code-provenance.json",
                     "content-type": b"application/octet-stream",
-                    "data": code_provenance.getvalue(),
+                    "data": code_provenance_data,
                 }
             )
 

@@ -31,6 +31,7 @@ add_library(dd_wrapper SHARED
     src/crashtracker_interface.cpp
     src/receiver_interface.cpp
     src/synchronized_sample_pool.cpp
+    src/code_provenance.cpp
 )
 
 # Add common configuration flags
@@ -52,13 +53,13 @@ set_target_properties(dd_wrapper PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # will handle the extension artifacts themselves, supplementary files like this one will be left uncopied.
 # One way around this is to propagate the original source dir of the extension, which can be used to deduce the
 # ideal install directory.
-if (INPLACE_LIB_INSTALL_DIR)
+if(INPLACE_LIB_INSTALL_DIR)
     set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
 endif()
 
 # If LIB_INSTALL_DIR is set, install the library.
 # Install one directory up--ddup, crashtracker, and stackv2 are set to the same relative level.
-if (LIB_INSTALL_DIR)
+if(LIB_INSTALL_DIR)
     install(TARGETS dd_wrapper
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}/..
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}/..
@@ -70,7 +71,7 @@ endif()
 add_cppcheck_target(dd_wrapper
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include
-            ${Datadog_INCLUDE_DIRS}
+    ${Datadog_INCLUDE_DIRS}
     SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
@@ -79,7 +80,7 @@ add_infer_target(dd_wrapper)
 add_clangtidy_target(dd_wrapper)
 
 # Add the tests
-if (BUILD_TESTING)
+if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
 endif()

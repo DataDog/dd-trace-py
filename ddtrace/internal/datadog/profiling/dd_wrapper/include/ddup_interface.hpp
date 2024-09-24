@@ -64,6 +64,9 @@ extern "C"
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
+
+    void ddup_code_provenance_add_filename(std::string_view filename);
+    std::string ddup_code_provenance_serialize_to_str();
 #ifdef __cplusplus
 } // extern "C"
 #endif

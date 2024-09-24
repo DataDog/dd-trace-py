@@ -73,6 +73,11 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         .name = to_slice("auto.pprof"),
         .file = ddog_Vec_U8_as_slice(&encoded->buffer),
     };
+
+    // const ddog_prof_Exporter_File code_provenance_file = {
+    //     .name = to_slice("code-provenance.json"),
+    //     .file =
+    // }
     auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
                                                       encoded->start,
                                                       encoded->end,
