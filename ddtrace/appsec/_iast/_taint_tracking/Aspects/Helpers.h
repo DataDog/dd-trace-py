@@ -89,6 +89,9 @@ has_pyerr();
 std::string
 has_pyerr_as_string();
 
+py::str
+has_pyerr_as_pystr();
+
 struct EVIDENCE_MARKS
 {
     static constexpr const char* BLANK = "";
