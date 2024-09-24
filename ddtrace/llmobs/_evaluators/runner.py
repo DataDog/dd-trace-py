@@ -60,6 +60,7 @@ class EvaluatorRunner(PeriodicService):
                 return
             events = self._buffer
             self._buffer = []
+
         try:
             self.run(events)
         except RuntimeError as e:

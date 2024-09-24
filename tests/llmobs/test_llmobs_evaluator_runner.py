@@ -1,4 +1,3 @@
-import os
 import time
 
 import mock
@@ -9,11 +8,6 @@ from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 
 from ._utils import _llm_span_with_expected_ragas_inputs
-
-
-INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric"
-DD_SITE = "datad0g.com"
-dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
 
 def _dummy_ragas_eval_metric_event(span_id, trace_id):

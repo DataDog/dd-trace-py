@@ -162,13 +162,12 @@ def mock_llmobs_evaluator_runner():
 def LLMObsWithRagas(monkeypatch, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
-    monkeypatch.setenv("_DD_LLMOBS_EVALUATORS", "ragas_faithfulness")
-    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_INTERVAL", "0.01")
-    with override_global_config(global_config):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
-        yield llmobs_service
-        llmobs_service.disable()
+    with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness", _DD_LLMOBS_EVALUATOR_INTERVAL=0.01)):
+        with override_global_config(global_config):
+            dummy_tracer = DummyTracer()
+            llmobs_service.enable(_tracer=dummy_tracer)
+            yield llmobs_service
+            llmobs_service.disable()
 
 
 @pytest.fixture
