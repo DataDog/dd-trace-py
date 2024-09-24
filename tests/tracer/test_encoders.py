@@ -30,7 +30,7 @@ from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
-from ddtrace.internal.encoding import MsgpackEncoderV03
+from ddtrace.internal.encoding import MsgpackEncoderV04
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from tests.utils import DummyTracer
@@ -108,9 +108,9 @@ class RefMsgpackEncoder(_EncoderBase):
         return msgpack.unpackb(data, raw=True, strict_map_key=False)
 
 
-class RefMsgpackEncoderV03(RefMsgpackEncoder):
+class RefMsgpackEncoderV04(RefMsgpackEncoder):
     def normalize(self, span):
-        d = RefMsgpackEncoderV03._span_to_dict(span)
+        d = RefMsgpackEncoderV04._span_to_dict(span)
         if not d["error"]:
             del d["error"]
         if not d["parent_id"]:
@@ -148,8 +148,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
 
 
 REF_MSGPACK_ENCODERS = {
-    "v0.3": RefMsgpackEncoderV03,
-    "v0.4": RefMsgpackEncoderV03,
+    "v0.4": RefMsgpackEncoderV04,
     "v0.5": RefMsgpackEncoderV05,
 }
 
@@ -224,47 +223,10 @@ class TestEncoders(TestCase):
                 assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
-    def test_encode_traces_msgpack_v03(self):
-        # test encoding for MsgPack format
-        encoder = MsgpackEncoderV03(2 << 10, 2 << 10)
-        encoder.put(
-            [
-                Span(name="client.testing"),
-                Span(name="client.testing"),
-            ]
-        )
-        encoder.put(
-            [
-                Span(name="client.testing"),
-                Span(name="client.testing"),
-            ]
-        )
-        encoder.put(
-            [
-                Span(name=b"client.testing"),
-                Span(name=b"client.testing"),
-            ]
-        )
 
-        spans, _ = encoder.encode()
-        items = encoder._decode(spans)
-
-        # test the encoded output that should be a string
-        # and the output must be flatten
-        assert isinstance(spans, bytes)
-        assert len(items) == 3
-        assert len(items[0]) == 2
-        assert len(items[1]) == 2
-        assert len(items[2]) == 2
-        for i in range(3):
-            for j in range(2):
-                assert b"client.testing" == items[i][j][b"name"]
-
-
-@pytest.mark.parametrize("version", ["v0.3", "v0.4"])
-def test_encode_meta_struct(version):
+def test_encode_meta_struct():
     # test encoding for MsgPack format
-    encoder = MSGPACK_ENCODERS[version](2 << 10, 2 << 10)
+    encoder = MSGPACK_ENCODERS["v0.4"](2 << 10, 2 << 10)
     super_span = Span(name="client.testing", trace_id=1)
     payload = {"tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]}, "zzzz": b"\x93\x01\x02\x03", "ZZZZ": [1, 2, 3]}
 
@@ -544,7 +506,7 @@ def test_span_link_v04_encoding():
     ]
 
 
-@pytest.mark.parametrize("version", ["v0.3", "v0.4", "v0.5"])
+@pytest.mark.parametrize("version", ["v0.4", "v0.5"])
 def test_span_event_encoding_msgpack(version):
     span = Span("s1")
     span._add_event("Something went so wrong", {"type": "error"}, 1)
@@ -641,7 +603,7 @@ def test_span_link_v05_encoding():
 @pytest.mark.parametrize(
     "Encoder,item",
     [
-        (MsgpackEncoderV03, b"meta"),
+        (MsgpackEncoderV04, b"meta"),
         (MsgpackEncoderV05, 9),
     ],
 )
@@ -691,24 +653,6 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
     assert encoder.size == len(encoder.encode()[0])
 
 
-def test_encoder_buffer_size_limit_v03():
-    buffer_size = 1 << 10
-    encoder = MsgpackEncoderV03(buffer_size, buffer_size)
-
-    trace = [Span(name="test")]
-    encoder.put(trace)
-    trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
-
-    for _ in range(1, int(buffer_size / trace_size)):
-        encoder.put(trace)
-
-    with pytest.raises(BufferFull):
-        encoder.put(trace)
-
-    with pytest.raises(BufferFull):
-        encoder.put(trace)
-
-
 def test_encoder_buffer_size_limit_v05():
     buffer_size = 1 << 10
     encoder = MsgpackEncoderV05(buffer_size, buffer_size)
@@ -728,19 +672,6 @@ def test_encoder_buffer_size_limit_v05():
 
     with pytest.raises(BufferFull):
         encoder.put(trace)
-
-
-def test_encoder_buffer_item_size_limit_v03():
-    max_item_size = 1 << 10
-    encoder = MsgpackEncoderV03(max_item_size << 1, max_item_size)
-
-    span = Span(name="test")
-    trace = [span]
-    encoder.put(trace)
-    trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
-
-    with pytest.raises(BufferItemTooLarge):
-        encoder.put([span] * (int(max_item_size / trace_size) + 1))
 
 
 def test_encoder_buffer_item_size_limit_v05():
@@ -855,7 +786,7 @@ def _value():
     ],
 )
 def test_encoding_invalid_data(data):
-    encoder = MsgpackEncoderV03(1 << 20, 1 << 20)
+    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
     span = Span(name="test")
     for key, value in data.items():
@@ -936,3 +867,19 @@ def test_json_encoder_traces_bytes():
     assert "\\x80span.a" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.3"})
+def test_v03_trace_api_deprecation():
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("always")
+        from ddtrace import tracer
+
+        assert tracer._writer._api_version == "v0.4"
+        assert len(warns) == 1, warns
+        assert (
+            warns[0].message.args[0] == "DD_TRACE_API_VERSION=v0.3 is deprecated and will be "
+            "removed in version '3.0.0': Traces will be submitted to the v0.4/traces agent endpoint instead."
+        ), warns[0].message

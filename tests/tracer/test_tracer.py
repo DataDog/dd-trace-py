@@ -31,7 +31,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
-from ddtrace.internal._encoding import MsgpackEncoderV03
+from ddtrace.internal._encoding import MsgpackEncoderV04
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -1931,11 +1931,8 @@ def test_tracer_api_version():
     t = Tracer()
     assert isinstance(t._writer._encoder, MsgpackEncoderV05)
 
-    t.configure(api_version="v0.3")
-    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
-
     t.configure(api_version="v0.4")
-    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
+    assert isinstance(t._writer._encoder, MsgpackEncoderV04)
 
 
 @pytest.mark.parametrize("enabled", [True, False])

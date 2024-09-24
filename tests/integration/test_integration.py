@@ -583,17 +583,16 @@ def test_trace_with_failing_encoder_generates_error_log():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings(err=None)
+@pytest.mark.subprocess(err=None)
 def test_api_version_downgrade_generates_no_warning_logs():
-    import os
-
     import mock
 
     from ddtrace import tracer as t
+    from ddtrace.internal.utils.http import Response
 
-    encoding = os.environ["DD_TRACE_API_VERSION"] or "v0.5"
-    t._writer._downgrade(None, None, t._writer._clients[0])
-    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding]
+    t._writer.api_version = "v0.5"
+    t._writer._downgrade(Response(status=404), t._writer._clients[0])
+    assert t._writer._endpoint == "v0.4/traces"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("operation", service="my-svc").finish()
         t.shutdown()
@@ -626,15 +625,13 @@ def test_writer_flush_queue_generates_debug_log():
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         writer.write([])
         writer.flush_queue(raise_exc=True)
-        # for latest agent, default to v0.3 since no priority sampler is set
-        expected_encoding = encoding or "v0.3"
         calls = [
             mock.call(
                 logging.DEBUG,
                 "sent %s in %.5fs to %s",
                 AnyStr(),
                 AnyFloat(),
-                "{}/{}/traces".format(writer.agent_url, expected_encoding),
+                "{}/{}/traces".format(writer.agent_url, encoding),
             )
         ]
         log.log.assert_has_calls(calls)
