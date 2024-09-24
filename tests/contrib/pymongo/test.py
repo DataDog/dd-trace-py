@@ -7,8 +7,8 @@ import pymongo
 from ddtrace import Pin
 from ddtrace.contrib.internal.pymongo.client import normalize_filter
 from ddtrace.contrib.internal.pymongo.patch import _CHECKOUT_FN_NAME
-from ddtrace.contrib.pymongo.patch import patch
-from ddtrace.contrib.pymongo.patch import unpatch
+from ddtrace.contrib.internal.pymongo.patch import patch
+from ddtrace.contrib.internal.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
