@@ -36,6 +36,7 @@ asbool(const char* value)
 void
 iast_taint_log_error(const std::string& msg)
 {
+    safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("[IAST] Propagation error. " + msg);
     try {
         if (!is_iast_debug_enabled()) {
             return;
@@ -62,9 +63,7 @@ iast_taint_log_error(const std::string& msg)
         }
 
         const auto log = get_python_logger();
-        log.attr("debug")(msg + ": " + frame_info);
-
-        safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("IAST propagation error. " + msg);
+        log.attr("debug")("[IAST] Propagation error. " + msg + ": " + frame_info);
 
     } catch (const py::error_already_set& e) {
         if (!e.trace().is_none()) {
