@@ -1,8 +1,10 @@
 import json
 import sys
 import typing
+from typing import Annotated
 
 from fastapi import Cookie
+from fastapi import Form
 from fastapi import Header
 from fastapi import Request
 from fastapi import __version__ as _fastapi_version
@@ -10,13 +12,11 @@ from fastapi.responses import JSONResponse
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._handlers import _on_asgi_request_parse_body
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
-from ddtrace.internal import core
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -42,16 +42,6 @@ def _aux_appsec_prepare_tracer(tracer):
 
 def get_response_body(response):
     return response.text
-
-
-def get_root_span(spans):
-    return spans.pop_traces()[0][0]
-
-
-@pytest.fixture
-def setup_core_ok_after_test():
-    yield
-    core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
 
 
 def test_query_param_source(fastapi_application, client, tracer, test_spans):
@@ -282,9 +272,6 @@ def test_path_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
-
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
@@ -321,9 +308,6 @@ def test_path_body_receive_source(fastapi_application, client, tracer, test_span
             }
         )
 
-    # test if asgi middleware is ok without any callback registered
-    # core.reset_listeners(event_id="asgi.request.parse.body")
-
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
@@ -341,7 +325,6 @@ def test_path_body_receive_source(fastapi_application, client, tracer, test_span
         assert result["ranges_origin"] == "http.request.body"
 
 
-@pytest.mark.usefixtures("setup_core_ok_after_test")
 def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/index.html")
     async def test_route(request: Request):
@@ -361,9 +344,6 @@ def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    # test if asgi middleware is ok without any callback registered
-    # core.reset_listeners(event_id="asgi.request.parse.body")
-
     with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
@@ -378,6 +358,38 @@ def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
         assert result["is_tainted"] == 1
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 44
+        assert result["ranges_origin"] == "http.request.body"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
+def test_path_body_body_source_no_json(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/index.html")
+    async def test_route(path: Annotated[str, Form()]):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        ranges_result = get_tainted_ranges(path)
+
+        return JSONResponse(
+            {
+                "result": path,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post("/index.html", data={"path": "/var/log"})
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "/var/log"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 8
         assert result["ranges_origin"] == "http.request.body"
 
 

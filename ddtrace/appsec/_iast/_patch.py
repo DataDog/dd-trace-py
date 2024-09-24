@@ -173,6 +173,16 @@ def _on_iast_fastapi_patch():
     # Body source
     try_wrap_function_wrapper("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
     try_wrap_function_wrapper("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "FormData.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+    )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "FormData.get",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+    )
     _set_metric_iast_instrumented_source(OriginType.BODY)
 
     # Instrumented on _iast_starlette_scope_taint
