@@ -12,33 +12,55 @@ class BaseTracedLangChainStreamResponse:
 
 
 class TracedLangchainStreamResponse(BaseTracedLangChainStreamResponse):
+    def __enter__(self):
+        self._generator.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._generator.__exit__(exc_type, exc_val, exc_tb)
+
     def __iter__(self):
+        return self
+
+    def __next__(self):
         try:
-            for chunk in self._generator.__iter__():
-                self._chunks.append(chunk)
-                yield chunk
+            chunk = self._generator.__next__()
+            self._chunks.append(chunk)
+            return chunk
+        except StopIteration:
+            self._on_span_finish(self._dd_span, self._chunks)
+            self._dd_span.finish()
+            raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
             raise
-        finally:
-            self._on_span_finish(self._dd_span, self._chunks)
-            self._dd_span.finish()
 
 
 class TracedLangchainAsyncStreamResponse(BaseTracedLangChainStreamResponse):
-    async def __aiter__(self):
+    async def __aenter__(self):
+        await self._generator.__enter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._generator.__exit__(exc_type, exc_val, exc_tb)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
         try:
-            async for chunk in self._generator.__aiter__():
-                self._chunks.append(chunk)
-                yield chunk
+            chunk = await self._generator.__anext__()
+            self._chunks.append(chunk)
+            return chunk
+        except StopAsyncIteration:
+            self._on_span_finish(self._dd_span, self._chunks)
+            self._dd_span.finish()
+            raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
             raise
-        finally:
-            self._on_span_finish(self._dd_span, self._chunks)
-            self._dd_span.finish()
 
 
 def shared_stream(

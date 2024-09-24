@@ -1421,6 +1421,26 @@ def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai
         pass
 
 
+# until we fully support `astream_events`, we do not need a snapshot here
+# this is just a regression test to make sure we don't throw
+async def test_astreamed_events_does_not_throw(langchain_openai, langchain_core, async_streamed_response_responder):
+    client = async_streamed_response_responder(
+        module="openai",
+        client_class_key="AsyncOpenAI",
+        http_client_key="http_client",
+        endpoint_path=["chat", "completions"],
+        file="lcel_openai_chat_streamed_response.txt",
+    )
+
+    model = langchain_openai.ChatOpenAI(async_client=client)
+    parser = langchain_core.output_parsers.StrOutputParser()
+
+    chain = model | parser
+
+    async for _ in chain.astream_events(input="some input", version="v1"):
+        pass
+
+
 @pytest.mark.snapshot(
     # tool description is generated differently is some langchain_core versions
     ignores=["meta.langchain.request.tool.description"],
