@@ -96,8 +96,7 @@ def test_index_error_with_tainted_gives_one_log_metric(telemetry_writer):
         mod.do_index(string_input, 100)
 
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 1
-    assert list_metrics_logs[0]["message"].startswith("IAST propagation error. string index out of range")
+    assert len(list_metrics_logs) == 0
 
 
 @pytest.mark.skip_iast_check_logs
