@@ -1047,11 +1047,11 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
     def _on_span_finished(span: Span, streamed_chunks):
         if span.error or not integration.is_pc_sampled_span(span):
             return
-        content = "".join([str(chunk.content) for chunk in streamed_chunks])
+        content = "".join([str(getattr(chunk, "content", chunk)) for chunk in streamed_chunks])
         span.set_tag_str("langchain.response.content", integration.trunc(content))
 
         usage = streamed_chunks and getattr(streamed_chunks[-1], "usage_metadata", None)
-        if not usage:
+        if not usage or not isinstance(usage, dict):
             return
         for k, v in usage.items():
             span.set_tag_str("langchain.response.usage_metadata.%s" % k, str(v))
@@ -1337,8 +1337,7 @@ def patch():
         wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
     else:
         from langchain.chains.base import Chain  # noqa:F401
-        from langchain_core import messages  # noqa: F401
-        from langchain_core import output_parsers  # noqa: F401
+        from langchain_core.tools import BaseTool  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
