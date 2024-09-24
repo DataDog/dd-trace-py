@@ -388,6 +388,14 @@ class Config(object):
             )
         )
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        if self._trace_api == "v0.3":
+            deprecate(
+                "DD_TRACE_API_VERSION=v0.3 is deprecated",
+                message="Traces will be submitted to the v0.4/traces agent endpoint instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._trace_api = "v0.4"
         self._trace_writer_buffer_size = int(
             os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
         )
@@ -567,6 +575,14 @@ class Config(object):
         self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
+        if self._span_aggregator_rlock is False:
+            deprecate(
+                "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
+                message="Soon the ddtrace library will only support using threading.Rlock to "
+                "aggregate and encode span data. If you need to disable the re-entrant lock and "
+                "revert to using threading.Lock, please contact Datadog support.",
+                removal_version="3.0.0",
+            )
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 

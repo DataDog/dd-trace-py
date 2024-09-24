@@ -1,6 +1,8 @@
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
+from typing import NamedTuple
 
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
@@ -29,12 +31,51 @@ def _extract_span_pointers_for_s3_response(
     response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
     if operation_name == "PutObject":
-        return _extract_span_pointers_for_s3_put_object_response(request_parameters, response)
+        return _extract_span_pointers_for_s3_response_with_helper(
+            operation_name,
+            _AWSS3ObjectHashingProperties.for_put_object,
+            request_parameters,
+            response,
+        )
+
+    if operation_name == "CopyObject":
+        return _extract_span_pointers_for_s3_response_with_helper(
+            operation_name,
+            _AWSS3ObjectHashingProperties.for_copy_object,
+            request_parameters,
+            response,
+        )
 
     return []
 
 
-def _extract_span_pointers_for_s3_put_object_response(
+class _AWSS3ObjectHashingProperties(NamedTuple):
+    bucket: str
+    key: str
+    etag: str
+
+    @staticmethod
+    def for_put_object(request_parameters: Dict[str, Any], response: Dict[str, Any]) -> "_AWSS3ObjectHashingProperties":
+        return _AWSS3ObjectHashingProperties(
+            bucket=request_parameters["Bucket"],
+            key=request_parameters["Key"],
+            etag=response["ETag"],
+        )
+
+    @staticmethod
+    def for_copy_object(
+        request_parameters: Dict[str, Any], response: Dict[str, Any]
+    ) -> "_AWSS3ObjectHashingProperties":
+        return _AWSS3ObjectHashingProperties(
+            bucket=request_parameters["Bucket"],
+            key=request_parameters["Key"],
+            etag=response["CopyObjectResult"]["ETag"],
+        )
+
+
+def _extract_span_pointers_for_s3_response_with_helper(
+    operation_name: str,
+    extractor: Callable[[Dict[str, Any], Dict[str, Any]], _AWSS3ObjectHashingProperties],
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
@@ -42,9 +83,10 @@ def _extract_span_pointers_for_s3_put_object_response(
     # https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
 
     try:
-        bucket = request_parameters["Bucket"]
-        key = request_parameters["Key"]
-        etag = response["ETag"]
+        hashing_properties = extractor(request_parameters, response)
+        bucket = hashing_properties.bucket
+        key = hashing_properties.key
+        etag = hashing_properties.etag
 
         # The ETag is surrounded by double quotes for some reason.
         if etag.startswith('"') and etag.endswith('"'):
@@ -52,7 +94,8 @@ def _extract_span_pointers_for_s3_put_object_response(
 
     except KeyError as e:
         log.warning(
-            "missing a parameter or response field required to make span pointer for S3.PutObject: %s",
+            "missing a parameter or response field required to make span pointer for S3.%s: %s",
+            operation_name,
             str(e),
         )
         return []
@@ -68,7 +111,8 @@ def _extract_span_pointers_for_s3_put_object_response(
         ]
     except Exception as e:
         log.warning(
-            "failed to generate S3.PutObject span pointer: %s",
+            "failed to generate S3.%s span pointer: %s",
+            operation_name,
             str(e),
         )
         return []
