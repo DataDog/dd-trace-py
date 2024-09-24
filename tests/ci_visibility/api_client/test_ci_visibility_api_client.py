@@ -272,6 +272,10 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         Whether the client behaves properly based on these configuration items (eg: proper use of base url, etc.) is
         tested in other methods.
         """
+        # NOTE: we copy the fixtures so that we don't mutate the originals
+        env_vars = env_vars.copy()
+        expected_config = expected_config.copy()
+
         env_vars.update({"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "api_key_for_testing"})
         if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
             env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
@@ -283,9 +287,6 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "runtime.version": "1.2.3",
         }
         if "custom_configurations" in expected_config:
-            # NOTE: we have to copy the config because we pop something from it and it will break the other parametrized
-            # tests the next time around if we don't
-            expected_config = expected_config.copy()
             configurations["custom"] = expected_config.pop("custom_configurations")
         if "dd_service" not in expected_config:
             expected_config["dd_service"] = "dd-test-py"
@@ -304,6 +305,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                 assert CIVisibility.enabled is True
                 assert CIVisibility._instance is not None
                 assert CIVisibility._instance._api_client is not None
+                if CIVisibility._instance._api_client.__dict__ != expected_client.__dict__:
+                    breakpoint()
 
                 assert CIVisibility._instance._api_client.__dict__ == expected_client.__dict__
             finally:
@@ -332,6 +335,10 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         Whether the client behaves properly based on these configuration items (eg: proper use of base url, etc.) is
         tested in other methods.
         """
+        # NOTE: we copy the fixtures so that we don't mutate the originals
+        env_vars = env_vars.copy()
+        expected_config = expected_config.copy()
+
         if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
             env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
         configurations = {
@@ -342,9 +349,6 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "runtime.version": "1.2.3",
         }
         if "custom_configurations" in expected_config:
-            # NOTE: we have to copy the config because we pop something from it and it will break the other parametrized
-            # tests the next time around if we don't
-            expected_config = expected_config.copy()
             configurations["custom"] = expected_config.pop("custom_configurations")
         if "dd_service" not in expected_config:
             expected_config["dd_service"] = "dd-test-py"
