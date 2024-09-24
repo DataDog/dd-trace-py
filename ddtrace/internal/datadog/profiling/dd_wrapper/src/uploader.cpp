@@ -95,7 +95,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                        encoded->start,
                                        encoded->end,
                                        ddog_prof_Exporter_Slice_File_empty(),
-                                       { .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(&files_to_send),
+                                       { .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(files_to_send.data()),
                                          .len = static_cast<uintptr_t>(files_to_send.size()) },
                                        nullptr,
                                        encoded->endpoints_stats,

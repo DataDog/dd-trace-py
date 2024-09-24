@@ -48,7 +48,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
 
-    void ddup_config_code_provenance(bool enable_code_provenance)
+    void ddup_config_code_provenance(bint enable_code_provenance)
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
