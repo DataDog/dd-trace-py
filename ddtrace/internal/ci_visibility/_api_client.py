@@ -151,7 +151,7 @@ def _parse_covered_files(covered_files_data: t.Dict[str, str]) -> t.Optional[t.D
         try:
             covered_lines = CoverageLines.from_bytearray(bytearray(b64decode(covered_lines_bytes)))
             covered_files[covered_file] = covered_lines
-        except:  # noqa: E722
+        except Exception:  # noqa: E722
             log.debug("Failed to parse coverage data for file %s", covered_file)
             parse_errors += 1
             continue

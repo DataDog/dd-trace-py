@@ -39,7 +39,7 @@ def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = 
 
 
 @contextmanager
-def _mock_ddconfig_test_visibility(itr_skipping_level: str = "tests"):
+def _mock_ddconfig_test_visibility(itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST):
     mock_test_visibility_config = mock.Mock()
     mock_test_visibility_config._default_service = "default_test_visibility_service"
     mock_test_visibility_config.itr_skipping_level = itr_skipping_level

@@ -68,7 +68,7 @@ class TestPytest(TracerTestCase):
 
     def test_and_emit_get_version(self):
         version = get_version()
-        assert type(version) is str
+        assert isinstance(version, str)
         assert version != ""
 
         emit_integration_and_version_to_test_agent("pytest-bdd", version)

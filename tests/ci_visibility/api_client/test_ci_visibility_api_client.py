@@ -273,12 +273,12 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         tested in other methods.
         """
         # NOTE: we copy the fixtures so that we don't mutate the originals
-        env_vars = env_vars.copy()
-        expected_config = expected_config.copy()
+        _env_vars = env_vars.copy()
+        _expected_config = expected_config.copy()
 
-        env_vars.update({"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "api_key_for_testing"})
+        _env_vars.update({"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "api_key_for_testing"})
         if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
-            env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
+            _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
         configurations = {
             "os.architecture": "testarch64",
             "os.platform": "Not Actually Linux",
@@ -286,28 +286,25 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "runtime.name": "CPythonTest",
             "runtime.version": "1.2.3",
         }
-        if "custom_configurations" in expected_config:
-            configurations["custom"] = expected_config.pop("custom_configurations")
-        if "dd_service" not in expected_config:
-            expected_config["dd_service"] = "dd-test-py"
+        if "custom_configurations" in _expected_config:
+            configurations["custom"] = _expected_config.pop("custom_configurations")
+        if "dd_service" not in _expected_config:
+            _expected_config["dd_service"] = "dd-test-py"
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
-        with _ci_override_env(env_vars, full_clear=True), _patch_env_for_testing():
+        with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing():
             try:
                 expected_client = AgentlessTestVisibilityAPIClient(
                     itr_skipping_level=itr_skipping_level,
                     configurations=configurations,
                     git_data=git_data,
                     api_key="api_key_for_testing",
-                    **expected_config,
+                    **_expected_config,
                 )
                 CIVisibility.enable()
                 assert CIVisibility.enabled is True
                 assert CIVisibility._instance is not None
                 assert CIVisibility._instance._api_client is not None
-                if CIVisibility._instance._api_client.__dict__ != expected_client.__dict__:
-                    breakpoint()
-
                 assert CIVisibility._instance._api_client.__dict__ == expected_client.__dict__
             finally:
                 CIVisibility.disable()
@@ -336,11 +333,11 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         tested in other methods.
         """
         # NOTE: we copy the fixtures so that we don't mutate the originals
-        env_vars = env_vars.copy()
-        expected_config = expected_config.copy()
+        _env_vars = env_vars.copy()
+        _expected_config = expected_config.copy()
 
         if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
-            env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
+            _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
         configurations = {
             "os.architecture": "testarch64",
             "os.platform": "Not Actually Linux",
@@ -348,13 +345,13 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "runtime.name": "CPythonTest",
             "runtime.version": "1.2.3",
         }
-        if "custom_configurations" in expected_config:
-            configurations["custom"] = expected_config.pop("custom_configurations")
-        if "dd_service" not in expected_config:
-            expected_config["dd_service"] = "dd-test-py"
+        if "custom_configurations" in _expected_config:
+            configurations["custom"] = _expected_config.pop("custom_configurations")
+        if "dd_service" not in _expected_config:
+            _expected_config["dd_service"] = "dd-test-py"
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
-        with _ci_override_env(env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
+        with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
         ), mock.patch("ddtrace.internal.agent.get_trace_url", return_value="http://shouldntbeused:6218"), mock.patch(
             "ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
@@ -365,7 +362,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                     configurations=configurations,
                     git_data=git_data,
                     agent_url="http://patchedagenturl:6218",
-                    **expected_config,
+                    **_expected_config,
                 )
                 CIVisibility.enable()
                 assert CIVisibility.enabled is True
