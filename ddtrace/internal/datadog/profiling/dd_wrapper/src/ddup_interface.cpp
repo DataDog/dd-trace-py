@@ -1,4 +1,6 @@
 #include "ddup_interface.hpp"
+
+#include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "sample.hpp"
@@ -344,13 +346,7 @@ ddup_profile_add_endpoint_counts(std::map<std::string_view, int64_t> trace_endpo
 }
 
 void
-ddup_code_provenance_add_filename(std::string_view filename)
+ddup_config_code_provenance(bool enable) // cppcheck-suppress unusedFunction
 {
-    Datadog::Sample::code_provenance_state.insert_filename(filename);
-}
-
-std::string
-ddup_code_provenance_serialize_to_str()
-{
-    return Datadog::Sample::code_provenance_state.serialize_to_str();
+    Datadog::CodeProvenance::get_instance().set_enabled(enable);
 }

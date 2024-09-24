@@ -1,4 +1,5 @@
 #include "profile.hpp"
+
 #include "libdatadog_helpers.hpp"
 
 #include <functional>

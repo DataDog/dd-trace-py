@@ -1,4 +1,5 @@
 #include "uploader.hpp"
+
 #include "libdatadog_helpers.hpp"
 
 #include <errno.h>  // errno
@@ -68,21 +69,30 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         return ret;
     }
 
-    // Build the request object
-    const ddog_prof_Exporter_File file = {
-        .name = to_slice("auto.pprof"),
-        .file = ddog_Vec_U8_as_slice(&encoded->buffer),
-    };
+    std::vec<const ddog_prof_Exporter_file> files_to_send = { {
+      .name = to_slice("auto.pprof"),
+      .file = ddog_Vec_U8_as_slice(&encoded->buffer),
+    } };
 
-    // const ddog_prof_Exporter_File code_provenance_file = {
-    //     .name = to_slice("code-provenance.json"),
-    //     .file =
-    // }
+    std::string json_str;
+
+    // DEV: re-consider this is ok to do so, as calling is_enabled/serialize will acquire
+    // a lock on the CodeProvenance instance
+    if (CodeProvenance::get_instance().is_enabled()) {
+        json_str = CodeProvenance::get_instance().serialize_to_json_str();
+    }
+    if (!json_str.empty()) {
+        files_to_send.push_back({
+          .name = to_slice("code-provenance.json"),
+          .file = to_byte_slice(json_str),
+        });
+    }
+
     auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
                                                       encoded->start,
                                                       encoded->end,
                                                       ddog_prof_Exporter_Slice_File_empty(),
-                                                      { .ptr = &file, .len = 1 },
+                                                      { .ptr = &files_to_send, .len = files_to_send.size() },
                                                       nullptr,
                                                       encoded->endpoints_stats,
                                                       nullptr,

@@ -1,10 +1,13 @@
 import collections
 import itertools
 import operator
+import platform
+import sysconfig
 import typing
 
 
 from ddtrace import ext
+from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.datadog.profiling.util import sanitize_string
@@ -17,10 +20,72 @@ from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
-from ddtrace.profiling.exporter import code_provenance
 
 
 log = get_logger(__name__)
+
+
+if hasattr(typing, "TypedDict"):
+    Package = typing.TypedDict(
+        "Package",
+        {
+            "name": str,
+            "version": str,
+            "kind": typing.Literal["standard library", "library"],
+            "paths": typing.List[str],
+        },
+    )
+else:
+    Package = dict  # type: ignore
+
+
+stdlib_path = sysconfig.get_path("stdlib")
+platstdlib_path = sysconfig.get_path("platstdlib")
+purelib_path = sysconfig.get_path("purelib")
+platlib_path = sysconfig.get_path("platlib")
+
+
+STDLIB = []  # type: typing.List[Package]
+
+
+if stdlib_path is not None:
+    STDLIB.append(
+        Package(
+            {
+                "name": "stdlib",
+                "kind": "standard library",
+                "version": platform.python_version(),
+                "paths": [stdlib_path],
+            }
+        )
+    )
+
+if purelib_path is not None:
+    # No library should end up here, include it just in case
+    STDLIB.append(
+        Package(
+            {
+                "name": "<unknown>",
+                "kind": "library",
+                "version": "<unknown>",
+                "paths": [purelib_path]
+                + ([] if platlib_path is None or purelib_path == platlib_path else [platlib_path]),
+            }
+        )
+    )
+
+
+if platstdlib_path is not None and platstdlib_path != stdlib_path:
+    STDLIB.append(
+        Package(
+            {
+                "name": "platstdlib",
+                "kind": "standard library",
+                "version": platform.python_version(),
+                "paths": [platstdlib_path],
+            }
+        )
+    )
 
 
 def _protobuf_version():
@@ -373,6 +438,28 @@ class _PprofConverter(object):
         )
 
         self._location_values[location_key]["exception-samples"] = len(events)
+
+    def _build_libraries(self) -> typing.List[Package]:
+        return [
+            Package(
+                {
+                    "name": lib.name,
+                    "kind": "library",
+                    "version": lib.version,
+                    "paths": [lib_and_filename[1] for lib_and_filename in libs_and_filenames],
+                }
+            )
+            for lib, libs_and_filenames in groupby(
+                {
+                    _
+                    for _ in (
+                        (packages.filename_to_package(filename), filename)
+                        for filename, lineno, funcname in self._locations
+                    )
+                    if _[0] is not None
+                }, _ITEMGETTER_ZERO
+            )
+        ] + STDLIB
 
     def _build_profile(
         self,
@@ -743,11 +830,7 @@ class PprofExporter(exporter.Exporter):
 
         # Build profile first to get location filled out
         if self.enable_code_provenance:
-            libs = code_provenance.build_libraries(
-                [
-                    filename for filename, _, _ in self._locations
-                ]
-            )
+            libs = converter._build_libraries()
         else:
             libs = []
 

@@ -29,6 +29,8 @@ extern "C"
     void ddup_config_user_tag(std::string_view key, std::string_view val);
     void ddup_config_sample_type(unsigned int type);
 
+    void ddup_config_code_provenance(bool enable);
+
     bool ddup_is_initialized();
     void ddup_start();
     void ddup_set_runtime_id(std::string_view runtime_id);
@@ -64,9 +66,6 @@ extern "C"
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
-
-    void ddup_code_provenance_add_filename(std::string_view filename);
-    std::string ddup_code_provenance_serialize_to_str();
 #ifdef __cplusplus
 } // extern "C"
 #endif

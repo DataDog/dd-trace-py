@@ -1,5 +1,7 @@
 #include "sample.hpp"
 
+#include "code_provenance.hpp"
+
 #include <chrono>
 #include <thread>
 
@@ -27,6 +29,8 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
     static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
     name = profile_state.insert_or_get(name);
     filename = profile_state.insert_or_get(filename);
+
+    CodeProvenance::get_instance().add_filename(filename);
 
     const ddog_prof_Location loc = {
         .mapping = null_mapping, // No support for mappings in Python
@@ -364,5 +368,4 @@ void
 Datadog::Sample::postfork_child()
 {
     profile_state.postfork_child();
-    code_provenance_state.postfork_child();
 }

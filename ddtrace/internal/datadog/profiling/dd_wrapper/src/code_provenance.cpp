@@ -12,14 +12,96 @@
 namespace Datadog {
 
 void
-one_time_init(bool enable)
+Datadog::CodeProvenance::postfork_child()
 {
-    if (!fist_time.load()) {
+    mtx.unlock();
+    reset();
+}
+
+void
+Datadog::CodeProvenance::set_enabled(bool enable)
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    enabled = enable;
+}
+
+bool
+Datadog::CodeProvenance::enabled() const
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    return enabled;
+}
+
+void
+CodeProvenance::add_filename(std::string_view filename)
+{
+    std::lock_guard<std::mutex> lock(mtx);
+
+    if (!enabled) {
         return;
     }
 
-    enabled = enable;
-    fist_time.store(false);
+    std::string package_name = get_package_name(filename);
+    if (package_name == STDLIB) {
+        return;
+    }
+
+    auto it = packages.find(package_name);
+    const Package* package = nullptr;
+
+    if (it == packages.end()) {
+        // Create a new package
+        std::string package_version = get_package_version(filename, package_name);
+        package = add_new_package(package_name, package_version);
+    } else {
+        package = it->second.get();
+    }
+
+    if (package) {
+        if (packages_to_files.find(package) == packages_to_files.end()) {
+            packages_to_files[package] = std::vector<std::string>();
+        }
+        packages_to_files[package].push_back(std::string(filename));
+    }
+}
+
+std::string
+CodeProvenance::serialize_to_json_str()
+{
+    std::lock_guard<std::mutex> lock(mtx);
+
+    if (!enabled) {
+        return "";
+    }
+
+    std::ostringstream out;
+
+    // TODO(taegyunkim): Use a JSON library to serialize this
+    out << "{\"v1\":[";
+    for (const auto& [package, paths] : packages_to_files) {
+        out << "{";
+        out << "\"name\": \"" << package->name << "\",";
+        out << "\"kind\": \"" << package->kind << "\",";
+        out << "\"version\": \"" << package->version << "\",";
+        out << "\"paths\":[";
+        for (const auto& path : paths) {
+            out << "\"" << path << "\""
+                << ",";
+        }
+        out << "]";
+        out << "},";
+    }
+    out << "]}";
+    packages_to_files.clear();
+    return out.str();
+}
+
+void
+CodeProvenance::reset()
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    packages.clear(); // Maybe this is unnecessary?
+    packages_to_files.clear();
 }
 
 std::string
@@ -99,81 +181,6 @@ CodeProvenance::add_new_package(std::string package_name, std::string version)
     packages[package_name] = std::move(package);
 
     return ret_val;
-}
-
-void
-CodeProvenance::insert_filename(std::string_view filename)
-{
-    if (!enabled) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> lock(mtx);
-
-    std::string package_name = get_package_name(filename);
-    if (package_name == STDLIB) {
-        return;
-    }
-
-    auto it = packages.find(package_name);
-    const Package* package = nullptr;
-
-    if (it == packages.end()) {
-        // Create a new package
-        std::string package_version = get_package_version(filename, package_name);
-        package = add_new_package(package_name, package_version);
-    } else {
-        package = it->second.get();
-    }
-
-    if (package) {
-        if (packages_to_files.find(package) == packages_to_files.end()) {
-            packages_to_files[package] = std::vector<std::string>();
-        }
-        packages_to_files[package].push_back(std::string(filename));
-    }
-}
-
-std::string
-CodeProvenance::serialize_to_str()
-{
-    if (!enabled) {
-        return "";
-    }
-
-    std::lock_guard<std::mutex> lock(mtx);
-
-    std::ostringstream out;
-
-    out << "{\"v1\":[";
-    for (const auto& [package, paths] : packages_to_files) {
-        out << "{";
-        out << "\"name\": \"" << package->name << "\",";
-        out << "\"kind\": \"" << package->kind << "\",";
-        out << "\"version\": \"" << package->version << "\",";
-        out << "\"paths\":[";
-        for (const auto& path : paths) {
-            out << "\"" << path << "\""
-                << ",";
-        }
-        out << "]";
-        out << "},";
-    }
-    out << "]}";
-
-    packages_to_files.clear();
-
-    return out.str();
-}
-
-void
-Datadog::CodeProvenance::postfork_child()
-{
-    mtx.unlock();
-
-    const std::lock_guard<std::mutex> lock(mtx);
-    packages.clear();
-    packages_to_files.clear();
 }
 
 }
