@@ -3,13 +3,16 @@ import threading
 import time
 
 import opentelemetry
-
-# from opentelemetry.baggage.propagation import W3CBaggagePropagator
+from opentelemetry.baggage import get_baggage
+from opentelemetry.baggage import set_baggage
+from opentelemetry.baggage.propagation import W3CBaggagePropagator
 import pytest
 
 import ddtrace
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+
+# from ddtrace.contrib.pytest.plugin import ddspan
 from tests.utils import flaky
 
 
@@ -135,5 +138,25 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(4)
 
 
-# def test_otel_baggage_inject(oteltracer):
-#     with oteltracer.start_as_current_span("otel-baggage-inject") as span:
+def test_otel_baggage_inject(oteltracer):
+    with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
+        from ddtrace import tracer
+
+        tracer.current_span().context._set_baggage_item("ddkey1", "ddvalue1")
+        headers = {}
+        context = set_baggage("key1", "value1")
+        context = set_baggage("key2", "value2", context)
+        W3CBaggagePropagator().inject(headers, context)
+        assert "key1=value1" in headers["baggage"]
+        assert "key2=value2" in headers["baggage"]
+        assert get_baggage("key1", context) == "value1"
+        assert get_baggage("key2", context) == "value2"
+        assert get_baggage("ddkey1", context) == "ddvalue1"
+
+
+def test_otel_baggage_extract(oteltracer):
+    with oteltracer.start_as_current_span("otel-baggage-extract") as span:  # noqa: F841
+        headers = {"baggage": "key1=value1,key2=value2"}
+        context = W3CBaggagePropagator().extract(headers)
+        assert get_baggage("key1", context) == "value1"
+        assert get_baggage("key2", context) == "value2"

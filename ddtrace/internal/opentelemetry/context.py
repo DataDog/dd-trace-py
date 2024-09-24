@@ -21,12 +21,13 @@ class DDRuntimeContext:
         Datadog representation in the Global DDtrace Trace Context Provider.
         """
         # Inline opentelemetry imports to avoid circular imports.
-        from opentelemetry.baggage import get_baggage
+        from opentelemetry.baggage import get_all as get_all_baggage
         from opentelemetry.trace import Span as OtelSpan
         from opentelemetry.trace import get_current_span
 
         from .span import Span
 
+        ddcontext = None
         otel_span = get_current_span(otel_context)
         if otel_span:
             if isinstance(otel_span, Span):
@@ -45,13 +46,16 @@ class DDRuntimeContext:
                     type(otel_span),
                 )
 
-            # get current open telemetry baggage and store it on the datadog context object
-            otel_baggage = get_baggage(otel_context)
-            if ddcontext and otel_baggage:
-                for key, value in otel_baggage.items():
-                    # value is from opentelemetry and can be any object.
-                    # make sure this object is compatible w/ datadog internals
-                    ddcontext._baggage[key] = value  # potentially convert to json
+        # get current open telemetry baggage and store it on the datadog context object
+        # otel_baggage = get_all_baggage(otel_context)
+        # if otel_baggage:
+        #     if not ddcontext:
+        #         ddcontext = DDContext()
+        #         self._ddcontext_provider.activate(ddcontext)
+        #     for key, value in otel_baggage.items(): #type: ignore
+        #         # value is from opentelemetry and can be any object.
+        #         # make sure this object is compatible w/ datadog internals
+        #         ddcontext._baggage[key] = value  # potentially convert to json
 
         # A return value with the type `object` is required by the otel api to remove/deactivate spans.
         # Since manually deactivating spans is not supported by ddtrace this object will never be used.
@@ -95,7 +99,7 @@ class DDRuntimeContext:
 
         # getting current active baggage
         for key, value in dd_baggage.items():
-            set_baggage(key, value, context)
+            context = set_baggage(key, value, context)
 
         return context
 
