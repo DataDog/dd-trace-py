@@ -1,6 +1,7 @@
 #include <Aspects/Helpers.h>
 #include <TaintTracking/Source.h>
 #include <tests/test_common.hpp>
+#include <Utils/PythonErrorGuard.h>
 
 using HasPyErrCheck = PyEnvCheck;
 
@@ -29,6 +30,113 @@ TEST_F(HasPyErrCheck, ClearError)
     EXPECT_FALSE(has_pyerr());
     EXPECT_STREQ(has_pyerr_as_string().c_str(), "");
 }
+
+using PythonErrorGuardCheck = PyEnvCheck;
+
+TEST_F(PythonErrorGuardCheck, NoError)
+{
+    PythonErrorGuard guard;
+    EXPECT_FALSE(guard.has_error());
+    EXPECT_STREQ(guard.error_as_stdstring().c_str(), "");
+}
+
+TEST_F(PythonErrorGuardCheck, Error)
+{
+    PyErr_SetString(PyExc_RuntimeError, "Test error");
+    {
+        PythonErrorGuard guard;
+        EXPECT_TRUE(guard.has_error());
+        EXPECT_STREQ(guard.error_as_stdstring().c_str(), "Test error");
+        EXPECT_STREQ(guard.error_as_pystr().cast<std::string>().c_str(), "Test error");
+    }
+    PyErr_Clear();
+}
+
+TEST_F(PythonErrorGuardCheck, ErrorIsClearedThenNoErrorInGuard)
+{
+    PyErr_SetString(PyExc_RuntimeError, "Test error");
+    {
+        PythonErrorGuard guard;
+        EXPECT_TRUE(guard.has_error());
+        EXPECT_STREQ(guard.error_as_stdstring().c_str(), "Test error");
+        EXPECT_STREQ(guard.error_as_pystr().cast<std::string>().c_str(), "Test error");
+    }
+    PyErr_Clear();
+    PythonErrorGuard guard;
+    EXPECT_FALSE(guard.has_error());
+}
+
+void set_python_exception_with_traceback() {
+    py::gil_scoped_acquire acquire;
+
+    PyObject* exc_type = PyExc_ZeroDivisionError;
+    PyObject* exc_value = PyUnicode_FromString("division by zero");
+
+    // Define Python code that raises an exception
+    const char* code = R"(
+def faulty_function():
+    return 1 / 0  # This will raise ZeroDivisionError
+
+try:
+    faulty_function()
+except ZeroDivisionError:
+    import sys
+    import traceback
+    exc_type, exc_value, exc_tb = sys.exc_info()
+)";
+
+    // Execute the code
+    int result = PyRun_SimpleString(code);
+    if (result != 0) {
+        // If execution failed, exit the function
+        return;
+    }
+
+    // Retrieve the traceback object from the main module
+    PyObject* main_module = PyImport_AddModule("__main__"); // Borrowed reference
+    PyObject* main_dict = PyModule_GetDict(main_module);    // Borrowed reference
+    PyObject* exc_tb = PyDict_GetItemString(main_dict, "exc_tb"); // Borrowed reference
+
+    // Increment references as PyErr_Restore steals references
+    Py_XINCREF(exc_type);
+    Py_XINCREF(exc_value);
+    Py_XINCREF(exc_tb);
+
+    // Restore the exception with traceback
+    PyErr_Restore(exc_type, exc_value, exc_tb);
+}
+
+TEST_F(PythonErrorGuardCheck, ErrorWithTraceback)
+{
+    {
+        // Set the Python exception with traceback manually
+        set_python_exception_with_traceback();
+
+        // Instantiate PythonErrorGuard to capture the current Python error
+        PythonErrorGuard guard;
+
+        // Verify that an error was captured
+        EXPECT_TRUE(guard.has_error()) << "PythonErrorGuard did not capture the error.";
+
+        // Retrieve the traceback as std::string
+        const auto tb_str = guard.traceback_as_stdstring();
+
+        EXPECT_FALSE(tb_str.empty()) << "Traceback is empty.";
+        EXPECT_NE(tb_str.find("faulty_function"), std::string::npos) << "Traceback does not contain 'faulty_function'.";
+        EXPECT_NE(tb_str.find("ZeroDivisionError"), std::string::npos) << "Traceback does not contain 'ZeroDivisionError'.";
+
+        // Retrieve the traceback as py::str
+        const py::str tb_pystr = guard.traceback_as_pystr();
+        EXPECT_FALSE(tb_pystr.is_none()) << "Traceback py::str is empty.";
+
+        const auto tb_pystr_str = tb_pystr.cast<std::string>();
+        EXPECT_FALSE(tb_pystr_str.empty()) << "Traceback py::str is empty after cast.";
+        EXPECT_NE(tb_pystr_str.find("faulty_function"), std::string::npos) << "Traceback py::str does not contain 'faulty_function'.";
+        EXPECT_NE(tb_pystr_str.find("ZeroDivisionError"), std::string::npos) << "Traceback py::str does not contain 'ZeroDivisionError'.";
+    }
+    PyErr_Clear();
+}
+
 
 using GetTagCheck = ::testing::Test;
 
