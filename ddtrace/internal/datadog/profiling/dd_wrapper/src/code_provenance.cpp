@@ -135,9 +135,11 @@ CodeProvenance::serialize_to_json_str()
         out << "\"kind\": \"library\",";
         out << "\"version\": \"" << package->version << "\",";
         out << "\"paths\":["; // Start of paths array
-        for (const auto& path : paths) {
-            out << "\"" << path << "\""
-                << ",";
+        for (auto it = paths.begin(); it != paths.end(); ++it) {
+            out << "\"" << *it << "\"";
+            if (std::next(it) != paths.end()) {
+                out << ",";
+            }
         }
         out << "]";  // End of paths array
         out << "},"; // End of the JSON object
