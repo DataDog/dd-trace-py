@@ -26,6 +26,16 @@ try:
 except ImportError:
     langchain_pinecone = None
 
+try:
+    import langchain_qdrant
+except ImportError:
+    langchain_qdrant = None
+
+try:
+    import langchain_milvus
+except ImportError:
+    langchain_qdrant = None
+
 from ddtrace.appsec._iast import _is_iast_enabled
 
 
@@ -49,6 +59,7 @@ from ddtrace.contrib.internal.langchain.constants import TOTAL_COST
 from ddtrace.contrib.internal.langchain.constants import agent_output_parser_classes
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
+from ddtrace.contrib.internal.langchain.constants import langchain_third_party_vectorstore_classes
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -985,10 +996,13 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwargs):
     """
-    Traces similarity_search_by_vector, similarity_search_by_vector_with_score
+    Traces similarity_search_by_vector, similarity_search_by_vector_with_score, and similarity_search_with_score_by_vector
     """
     integration = langchain._datadog_integration
-    vector = get_argument_value(args, kwargs, 0, "vector")
+    vector = get_argument_value(args, kwargs, 0, "embedding")
+    if vector is None:
+        # if named vector instead of embedding
+        vector = get_argument_value(args, kwargs, 0, "vector")
     k = kwargs.get("k", args[1] if len(args) >= 2 else None)
     provider = instance.__class__.__name__.lower()
     span = integration.trace(
@@ -1065,32 +1079,17 @@ def _patch_embeddings_and_vectorstores():
             safe_wrap(embedding_module, "embed_documents", traced_embedding, langchain)
 
     for vectorstore in vectorstore_classes:
+        # wraps langchain-community internal vectorstore classes.
         if hasattr(base_langchain_module.vectorstores, vectorstore):
             vectorstore_module = getattr(base_langchain_module.vectorstores, vectorstore)
-            safe_wrap(
-                vectorstore_module,
-                "similarity_search",
-                traced_similarity_search,
-                langchain,
-            )
-            safe_wrap(
-                vectorstore_module,
-                "similarity_search_with_score",
-                traced_similarity_search,
-                langchain,
-            )
-            safe_wrap(
-                vectorstore_module,
-                "similarity_search_by_vector_with_score",
-                traced_similarity_search_by_vector,
-                langchain,
-            )
-            safe_wrap(
-                vectorstore_module,
-                "similarity_search_by_vector",
-                traced_similarity_search_by_vector,
-                langchain,
-            )
+            wrap_vector_retrieval(vectorstore_module, langchain)
+
+    for langchain_third_party_vectorstore, vectorstores_attribute in langchain_third_party_vectorstore_classes.items():
+        # wraps third party vectorstore classes that are not part of the langchain module.
+        third_party_module = get_module_from_name(langchain_third_party_vectorstore)
+        if third_party_module:
+            vectorstore_module = deep_getattr(third_party_module, vectorstores_attribute)
+            wrap_vector_retrieval(vectorstore_module, langchain)
 
 
 def _unpatch_embeddings_and_vectorstores():
@@ -1110,10 +1109,7 @@ def _unpatch_embeddings_and_vectorstores():
     for vectorstore in vectorstore_classes:
         if hasattr(base_langchain_module.vectorstores, vectorstore):
             vectorstore_module = getattr(base_langchain_module.vectorstores, vectorstore)
-            safe_unwrap(vectorstore_module, "similarity_search")
-            safe_unwrap(vectorstore_module, "similarity_search_with_score")
-            safe_unwrap(vectorstore_module, "similarity_search_by_vector")
-            safe_unwrap(vectorstore_module, "similarity_search_by_vector_with_score")
+            unwrap_vector_retrieval(vectorstore_module)
 
 
 def patch():
@@ -1167,19 +1163,8 @@ def patch():
         wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
         wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
         if langchain_openai:
-            wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
-        if langchain_pinecone:
-            wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
-            wrap(
-                "langchain_pinecone",
-                "PineconeVectorStore.similarity_search_by_vector_with_score",
-                traced_similarity_search_by_vector(langchain),
-            )
-            wrap(
-                "langchain_pinecone",
-                "PineconeVectorStore.similarity_search_by_vector",
-                traced_similarity_search_by_vector(langchain),
-            )
+            safe_wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding, langchain)
+            safe_wrap("langchain_openai", "OpenAIEmbeddings.embed_query", traced_embedding, langchain)
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _patch_embeddings_and_vectorstores()
@@ -1225,11 +1210,8 @@ def unpatch():
         unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
         unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
         if langchain_openai:
-            unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
-        if langchain_pinecone:
-            unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
-            unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search_by_vector_with_score")
-            unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search_by_vector")
+            safe_unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
+            safe_unwrap(langchain_openai.OpenAIEmbeddings, "embed_query")
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _unpatch_embeddings_and_vectorstores()
@@ -1303,13 +1285,27 @@ def with_agent_output_parser(f):
                     queue.append((getattr(module, name), value))
 
 
-def safe_wrap(module_object, func_name, traced_func, fixture):
-    # Ensure that method is implemented and not double patched.
-    attr = deep_getattr(module_object, func_name, None)
-    if attr and not isinstance(attr, wrapt.ObjectProxy):
-        wrap(module_object, func_name, traced_func(fixture))
-    elif attr is None:
-        log.debug("Method %s not found in %s", func_name, module_object.__module__)
+def safe_wrap(module_object, func_name, traced_func, fixture, path_to_func=None):
+    """
+    Safely wraps a function in a module with a traced function,
+    ensuring that the method is implemented and not already double-patched.
+        module_object (Union[str, ModuleType]): The module object or the name of the module containing the function to be wrapped.
+        func_name (str): The name of the function to be wrapped.
+        traced_func (Callable): The traced function to wrap around the target function.
+        fixture (Any): The fixture to be passed to the traced function.
+        path_to_func (Optional[str]): The path to the function within the module, if nested.
+    """
+    if isinstance(module_object, str):
+        module_object = get_module_from_name(module_object)
+    if module_object is not None:
+        # Ensure that method is implemented and not double patched.
+        if path_to_func:
+            attr = deep_getattr(module_object, "%s.%s" % (path_to_func, func_name), None)
+        attr = deep_getattr(module_object, func_name, None)
+        if module_object and attr and not isinstance(attr, wrapt.ObjectProxy):
+            wrap(module_object, func_name, traced_func(fixture))
+        elif module_object and attr is None:
+            log.debug("Method %s not found in %s", func_name, module_object.__module__)
 
 
 def safe_unwrap(module_object, func_name):
@@ -1319,3 +1315,60 @@ def safe_unwrap(module_object, func_name):
         unwrap(module_object, func_name)
     elif attr is None:
         log.debug("Method %s not found in %s", func_name, module_object.__module__)
+
+
+def get_module_from_name(module_name: str):
+    try:
+        return __import__(module_name)
+    except ImportError as e:
+        print(f"Error importing module {module_name}: {e}")
+        return None
+
+
+def wrap_vector_retrieval(vectorstore_module, fixture):
+    # Wrap all similarity search methods in vectorstore module
+    safe_wrap(
+        vectorstore_module,
+        "similarity_search",
+        traced_similarity_search,
+        fixture,
+    )
+    safe_wrap(
+        vectorstore_module,
+        "similarity_search_with_score",
+        traced_similarity_search,
+        fixture,
+    )
+    safe_wrap(
+        vectorstore_module,
+        "similarity_search_with_score_by_vector",
+        traced_similarity_search_by_vector,
+        fixture,
+    )
+    safe_wrap(
+        vectorstore_module,
+        "similarity_search_by_vector_with_score",
+        traced_similarity_search_by_vector,
+        fixture,
+    )
+    safe_wrap(
+        vectorstore_module,
+        "similarity_search_with_score_by_vector",
+        traced_similarity_search_by_vector,
+        fixture,
+    )
+    safe_wrap(
+        vectorstore_module,
+        "similarity_search_by_vector",
+        traced_similarity_search_by_vector,
+        fixture,
+    )
+
+
+def unwrap_vector_retrieval(vectorstore_module):
+    # Unwrap all similarity search methods in vectorstore module
+    safe_unwrap(vectorstore_module, "similarity_search")
+    safe_unwrap(vectorstore_module, "similarity_search_with_score")
+    safe_unwrap(vectorstore_module, "similarity_search_by_vector")
+    safe_unwrap(vectorstore_module, "similarity_search_with_score_by_vector")
+    safe_unwrap(vectorstore_module, "similarity_search_by_vector_with_score")
