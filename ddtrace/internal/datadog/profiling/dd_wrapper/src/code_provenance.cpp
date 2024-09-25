@@ -146,7 +146,9 @@ CodeProvenance::serialize_to_json_str()
     out << "\"name\": \"stdlib\",";
     out << "\"kind\": \"standard library\",";
     out << "\"version\": \"" << runtime_version << "\",";
-
+    out << "\"paths\":[";
+    out << "\"" << stdlib_path << "\"";
+    out << "]";
     out << "]}";
     packages_to_files.clear();
     return out.str();

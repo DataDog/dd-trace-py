@@ -51,8 +51,6 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
 
-    void ddup_code_provenance_enable(bint enable_code_provenance)
-
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
     void ddup_profile_set_endpoints(map[int64_t, string_view] span_ids_to_endpoints)
