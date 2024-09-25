@@ -35,6 +35,7 @@ asbool(const char* value)
 void
 iast_taint_log_error(const std::string& msg)
 {
+    safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("[IAST] Propagation error. " + msg);
     try {
         if (!is_iast_debug_enabled()) {
             return;
@@ -64,9 +65,7 @@ iast_taint_log_error(const std::string& msg)
         }
 
         const auto log = get_python_logger();
-        log.attr("debug")(msg + ": " + frame_info);
-
-        safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("IAST propagation error. " + msg);
+        log.attr("debug")("[IAST] Propagation error. " + msg + ": " + frame_info);
 
         // Restore the original exception state if needed
         if (had_exception) {
@@ -89,6 +88,9 @@ iast_taint_log_error(const std::string& msg)
             if (tb) {
                 std::cerr << "Traceback:\n" << py::str(tb).cast<std::string>() << "\n";
             }
+            Py_XDECREF(type);
+            Py_XDECREF(value);
+            Py_XDECREF(tb);
         }
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
         PyErr_Clear(); // Clear the error state

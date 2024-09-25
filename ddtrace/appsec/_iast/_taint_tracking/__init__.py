@@ -1,14 +1,13 @@
-import os
 from typing import Any
 from typing import Tuple
 
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 
 from ..._constants import IAST
 from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
+from .._utils import _is_iast_debug_enabled
 from .._utils import _is_python_version_supported
 
 
@@ -112,18 +111,14 @@ __all__ = [
 ]
 
 
-def _is_iast_debug_enabled():
-    return asbool(os.environ.get(IAST.ENV_DEBUG, "false"))
-
-
 def iast_taint_log_error(msg):
     if _is_iast_debug_enabled():
         import inspect
 
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
-        log.debug("%s:\n%s", msg, frame_info)
-        _set_iast_error_metric("IAST propagation error. %s" % msg)
+        log.debug("[IAST] Propagation error. %s:\n%s", msg, frame_info)
+    _set_iast_error_metric("[IAST] Propagation error. %s" % msg)
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
