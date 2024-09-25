@@ -605,6 +605,8 @@ class Span(object):
     def _local_root(self, value: "Span") -> None:
         if value is not self:
             self._local_root_value = value
+        else:
+            self._local_root_value = None
 
     @_local_root.deleter
     def _local_root(self) -> None:
