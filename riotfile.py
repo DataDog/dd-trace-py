@@ -1561,6 +1561,7 @@ venv = Venv(
             pkgs={
                 "httpx": latest,
                 "pytest-asyncio": "==0.21.1",
+                "python-multipart": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
                 "aiofiles": latest,
