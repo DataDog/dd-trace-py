@@ -8,6 +8,7 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import Dict
+from typing import Mapping
 from typing import Optional
 from typing import cast
 
@@ -104,7 +105,7 @@ class Snapshot(LogSignal):
     _message: Optional[str] = field(default=None)
     duration: Optional[int] = field(default=None)  # nanoseconds
 
-    def _eval_segment(self, segment: TemplateSegment, _locals: Dict[str, Any]) -> str:
+    def _eval_segment(self, segment: TemplateSegment, _locals: Mapping[str, Any]) -> str:
         probe = cast(LogProbeMixin, self.probe)
         capture = probe.limits
         try:
@@ -121,7 +122,7 @@ class Snapshot(LogSignal):
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
             return REDACTED_PLACEHOLDER if isinstance(e.__cause__, DDRedactedExpressionError) else "ERROR"
 
-    def _eval_message(self, _locals: Dict[str, Any]) -> None:
+    def _eval_message(self, _locals: Mapping[str, Any]) -> None:
         probe = cast(LogProbeMixin, self.probe)
         self._message = "".join([self._eval_segment(s, _locals) for s in probe.segments])
 
