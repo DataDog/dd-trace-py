@@ -29,12 +29,10 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skippable_re
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skippable_request_error
 from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
-from ddtrace.internal.http import HTTPConnection
-from ddtrace.internal.http import HTTPSConnection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
-from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
@@ -250,7 +248,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         headers = self._get_final_headers()
         url = combine_url_path(self._base_url, endpoint)
 
-        conn: t.Optional[t.Union[HTTPSConnection | HTTPConnection | UDSHTTPConnection]] = None
+        conn: t.Optional[ConnectionType] = None
         try:
             parsed_url = verify_url(url)
             url_path = parsed_url.path
