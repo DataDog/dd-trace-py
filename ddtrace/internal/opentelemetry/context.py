@@ -21,7 +21,6 @@ class DDRuntimeContext:
         Datadog representation in the Global DDtrace Trace Context Provider.
         """
         # Inline opentelemetry imports to avoid circular imports.
-        from opentelemetry.baggage import get_all as get_all_baggage
         from opentelemetry.trace import Span as OtelSpan
         from opentelemetry.trace import get_current_span
 
