@@ -507,9 +507,12 @@ class Tracer(object):
             if sampler is None:
                 sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
             else:
-                sampler._rate_limit_always_on = True
-                sampler.limiter.rate_limit = 1
-                sampler.limiter.time_window = 60e9
+                if hasattr(sampler, "limiter"):
+                    sampler._rate_limit_always_on = True
+                    sampler.limiter.rate_limit = 1
+                    sampler.limiter.time_window = 60e9
+                else:
+                    log.warning("ASM Standalone is enabled and sampler without a rate limiter is not being used")
 
         if sampler is not None:
             self._sampler = sampler
