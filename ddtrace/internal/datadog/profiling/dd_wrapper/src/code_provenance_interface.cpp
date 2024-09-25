@@ -2,6 +2,7 @@
 
 #include "code_provenance.hpp"
 
+#include <string_view>
 #include <unordered_map>
 
 void
