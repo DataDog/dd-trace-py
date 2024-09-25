@@ -15,6 +15,9 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.pin import Pin
+from ddtrace.internal import core
+from requests import Session
 
 
 log = get_logger(__name__)
@@ -56,11 +59,15 @@ def _wrap_send(func, instance, args, kwargs):
     # and is ddtrace.tracer; it's used only inside our tests and can
     # be easily changed by providing a TracingTestCase that sets common
     # tracing functionalities.
-    tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
+    # tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
+
+    # pin = Pin(instance)
+    pin = Pin.get_from(Session)
 
     # skip if tracing is not enabled
-    if not tracer.enabled and not tracer._apm_opt_out:
+    if not pin.tracer.enabled and not pin.tracer._apm_opt_out:
         return func(*args, **kwargs)
+
 
     request = get_argument_value(args, kwargs, 0, "request")
     if not request:
@@ -85,11 +92,28 @@ def _wrap_send(func, instance, args, kwargs):
         service = trace_utils.ext_service(None, config.requests)
 
     operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
-    with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
-        span.set_tag_str(COMPONENT, config.requests.integration_name)
+    
+    # import pdb 
+    # pdb.set_trace()
+    
+    # with pin.tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
+    with core.context_with_data(
+        "trace.session.span",
+        pin=pin,
+        service=service,
+        span_name=operation_name,
+        integration_config=config.get_from(instance),
+        distributed_headers_config=config.get_from(instance),
+        distributed_headers=request.headers,
+        resource=f"{method} {path}",
+        span_type=SpanTypes.HTTP,
+        call_key="trace.session.span",
+        tags={COMPONENT:config.requests.integration_name, SPAN_KIND:SpanKind.CLIENT},
+    ) as ctx, ctx[ctx["call_key"]] as span:
+        # span.set_tag_str(COMPONENT, config.requests.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        # span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
@@ -101,8 +125,10 @@ def _wrap_send(func, instance, args, kwargs):
             span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))
 
         # propagate distributed tracing headers
+
         if cfg.get("distributed_tracing"):
-            HTTPPropagator.inject(span.context, request.headers)
+            # HTTPPropagator.inject(span.context, request.headers)
+            core.dispatch("requests.session.span_propagate", [ctx, request.headers])
 
         response = response_headers = None
         try:
@@ -118,16 +144,27 @@ def _wrap_send(func, instance, args, kwargs):
                     # requests custom structure, that we convert to a dict
                     response_headers = dict(getattr(response, "headers", {}))
 
-                trace_utils.set_http_meta(
-                    span,
+                core.dispatch("request.session.span_set_http_meta",[
+                    ctx,
                     config.requests,
-                    request_headers=request.headers,
-                    response_headers=response_headers,
-                    method=method,
-                    url=request.url,
-                    target_host=host_without_port,
-                    status_code=status,
-                    query=_extract_query_string(url),
-                )
+                    request.headers,
+                    response_headers,
+                    method,
+                    request.url,
+                    host_without_port,
+                    status,
+                    _extract_query_string(url)                
+                ])
+                # trace_utils.set_http_meta(
+                #     span,
+                #     config.requests,
+                #     request_headers=request.headers,
+                #     response_headers=response_headers,
+                #     method=method,
+                #     url=request.url,
+                #     target_host=host_without_port,
+                #     status_code=status,
+                #     query=_extract_query_string(url),
+                # )
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)

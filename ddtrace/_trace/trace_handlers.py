@@ -794,6 +794,41 @@ def _set_span_pointer(span: Span, span_pointer_description: _SpanPointerDescript
         extra_attributes=span_pointer_description.extra_attributes,
     )
 
+def _propagate_context(ctx, headers):
+    for key, value in ctx["integration_config"].items():
+        if key.startswith("distributed_tracing"):
+            distributed_tracing_enabled = value
+    call_key = ctx.get_item("call_key")
+    if call_key is None:
+        log.warning("call_key not found in ctx")
+    if distributed_tracing_enabled and call_key:
+        span = ctx[ctx["call_key"]]
+        HTTPPropagator.inject(span.context, headers)
+
+def _set_http_metadata(
+    ctx,
+    config,
+    request_headers,
+    response_headers,
+    method,
+    url,
+    target_port,
+    status,
+    query  
+):
+    trace_utils.set_http_meta(
+                ctx[ctx["call_key"]],
+                config,
+                request_headers=request_headers,
+                response_headers=response_headers,
+                method=method,
+                url=url,
+                target_host=target_port,
+                status_code=status,
+                query=query,
+            )
+
+
 
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
@@ -847,6 +882,8 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("requests.session.span_propagate", _propagate_context)
+    core.on("request.session.span_set_http_meta", _set_http_metadata)
 
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
@@ -869,6 +906,7 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "trace.session.span",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
