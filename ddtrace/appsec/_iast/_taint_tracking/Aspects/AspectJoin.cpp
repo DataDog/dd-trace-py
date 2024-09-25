@@ -1,5 +1,4 @@
 #include "AspectJoin.h"
-
 #include "Helpers.h"
 
 PyObject*
@@ -164,19 +163,19 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
             decref_arg0 = true;
         }
     }
-    PyObject* result = nullptr;
+    PyObject* result_o = nullptr;
     if (PyUnicode_Check(sep)) {
-        result = PyUnicode_Join(sep, arg0);
+        result_o = PyUnicode_Join(sep, arg0);
     } else if (PyBytes_Check(sep)) {
         py::bytes result_ptr =
           py::reinterpret_borrow<py::bytes>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-        result = result_ptr.ptr();
-        Py_INCREF(result);
+        result_o = result_ptr.ptr();
+        Py_INCREF(result_o);
     } else if (PyByteArray_Check(sep)) {
         py::bytearray result_ptr =
           py::reinterpret_borrow<py::bytearray>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-        result = result_ptr.ptr();
-        Py_INCREF(result);
+        result_o = result_ptr.ptr();
+        Py_INCREF(result_o);
     }
 
     if (has_pyerr()) {
@@ -185,18 +184,19 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         }
         return nullptr;
     }
-
-    const auto ctx_map = Initializer::get_tainting_map();
-    if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
-        // Empty result cannot have taint ranges
+    TRY_CATCH_ASPECT("join_aspect", , {
+        const auto ctx_map = Initializer::get_tainting_map();
+        if (not ctx_map or ctx_map->empty() or get_pyobject_size(result_o) == 0) {
+            // Empty result cannot have taint ranges
+            if (decref_arg0) {
+                Py_DecRef(arg0);
+            }
+            return result_o;
+        }
+        auto res = aspect_join(sep, result_o, arg0, ctx_map);
         if (decref_arg0) {
             Py_DecRef(arg0);
         }
-        return result;
-    }
-    auto res = aspect_join(sep, result, arg0, ctx_map);
-    if (decref_arg0) {
-        Py_DecRef(arg0);
-    }
-    return res;
+        return res;
+    });
 }
