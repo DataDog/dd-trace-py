@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: fix potential memory leak on IAST exception handling.
