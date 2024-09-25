@@ -9,10 +9,12 @@ from typing import Optional
 
 import wrapt
 
+from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
 from ddtrace._trace.utils import set_botocore_response_metadata_tags
+from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -96,7 +98,7 @@ class _TracedIterable(wrapt.ObjectProxy):
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, str]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
-        parameter_value = ctx.get_item(parameter_name, traverse=False)
+        parameter_value = ctx.get_local_item(parameter_name)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
     return span_kwargs
@@ -111,7 +113,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         trace_utils.activate_distributed_headers(
             tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
         )
-    distributed_context = ctx.get_item("distributed_context", traverse=True)
+    distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
     span_kwargs.update(kwargs)
@@ -335,9 +337,11 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     # start flask.response span. This span will be finished after iter(result) is closed.
     # start_span(child_of=...) is used to ensure correct parenting.
     resp_span = middleware.tracer.start_span(
-        middleware._response_call_name
-        if hasattr(middleware, "_response_call_name")
-        else middleware._response_span_name,
+        (
+            middleware._response_call_name
+            if hasattr(middleware, "_response_call_name")
+            else middleware._response_span_name
+        ),
         child_of=req_span,
         activate=True,
     )
@@ -620,7 +624,17 @@ def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_er
 
 
 def _on_botocore_patched_api_call_success(ctx, response):
-    set_botocore_response_metadata_tags(ctx.get_item(ctx.get_item("call_key")), response)
+    span = ctx.get_item(ctx.get_item("call_key"))
+
+    set_botocore_response_metadata_tags(span, response)
+
+    for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
+        endpoint_name=ctx.get_item("endpoint_name"),
+        operation_name=ctx.get_item("operation"),
+        request_parameters=ctx.get_item("params"),
+        response=response,
+    ):
+        _set_span_pointer(span, span_pointer_description)
 
 
 def _on_botocore_trace_context_injection_prepared(
@@ -675,11 +689,10 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx[ctx["call_key"]]
     span.set_exc_info(*exc_info)
-    prompt = ctx["prompt"]
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
-    if integration.is_pc_sampled_llmobs(span) and "embed" not in model_name:
-        integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
+    if "embed" not in model_name:
+        integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]})
     span.finish()
 
 
@@ -721,8 +734,7 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    if integration.is_pc_sampled_llmobs(span):
-        integration.llmobs_set_tags(span, formatted_response=formatted_response, prompt=ctx["prompt"])
+    integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]}, response=formatted_response)
     span.finish()
 
 
@@ -772,6 +784,15 @@ def _on_test_visibility_is_enabled() -> bool:
     from ddtrace.internal.ci_visibility import CIVisibility
 
     return CIVisibility.enabled
+
+
+def _set_span_pointer(span: Span, span_pointer_description: _SpanPointerDescription) -> None:
+    span._add_span_pointer(
+        pointer_kind=span_pointer_description.pointer_kind,
+        pointer_direction=span_pointer_description.pointer_direction,
+        pointer_hash=span_pointer_description.pointer_hash,
+        extra_attributes=span_pointer_description.extra_attributes,
+    )
 
 
 def listen():
