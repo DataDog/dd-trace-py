@@ -19,6 +19,7 @@
 #include "Initializer/_initializer.h"
 #include "TaintTracking/_taint_tracking.h"
 #include "TaintedOps/TaintedOps.h"
+#include "Utils/GenericUtils.h"
 
 #define PY_MODULE_NAME_ASPECTS                                                                                         \
     PY_MODULE_NAME "."                                                                                                 \
@@ -75,6 +76,14 @@ PYBIND11_MODULE(_native, m)
     }
 
     initializer = make_unique<Initializer>();
+
+    // Create a atexit callback to cleanup the Initializer before the interpreter finishes
+    auto atexit_register = safe_import("atexit", "register");
+    atexit_register(py::cpp_function([]() {
+        initializer->reset_context();
+        initializer.reset();
+    }));
+
     initializer->create_context();
 
     m.doc() = "Native Python module";

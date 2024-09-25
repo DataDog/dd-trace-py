@@ -21,6 +21,8 @@ from typing import Text
 from typing import Tuple
 import urllib.parse
 
+import _io
+
 
 def methodcaller(*args, **kwargs):
     return "im methodcaller"
@@ -1064,6 +1066,10 @@ def do_index(c: str, i: int) -> Text:
     return c[i]
 
 
+def do_index_on_dict(d: dict, k):
+    return d[k]
+
+
 def do_methodcaller(s, func, *args):
     func_method = operator.methodcaller(func, *args)
     return func_method(s)
@@ -1236,3 +1242,18 @@ def index_lower_add(url):
 def urlib_urlsplit(text):
     results = urllib.parse.urlsplit(text)
     return results
+
+
+def do_re_match_index(text, regexp, index):
+    match = re.search(regexp, text)
+    return match[index]
+
+
+def do_io_stringio_read(string_input):
+    xxx = _io.StringIO(string_input)
+    return xxx.read()
+
+
+def do_io_bytesio_read(string_input):
+    xxx = _io.BytesIO(string_input.encode("utf-8"))
+    return xxx.read()
