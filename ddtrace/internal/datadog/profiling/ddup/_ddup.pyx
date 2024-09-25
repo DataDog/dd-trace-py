@@ -177,10 +177,8 @@ def config(
     if sample_pool_capacity:
         ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
-
     # cdef not allowed in if block, so we have to do this here
     cdef unordered_map[string_view, string_view] names_and_versions = unordered_map[string_view, string_view]()
-
     if enable_code_provenance:
         code_provenance_enable(enable_code_provenance)
         version_bytes = ensure_binary_or_empty(platform.python_version())

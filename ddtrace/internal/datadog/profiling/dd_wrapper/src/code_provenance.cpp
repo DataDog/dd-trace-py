@@ -138,7 +138,7 @@ CodeProvenance::serialize_to_json_str()
             out << "\"" << path << "\""
                 << ",";
         }
-        out << "]"; // End of paths array
+        out << "]";  // End of paths array
         out << "},"; // End of the JSON object
     }
     // Add python runtime information
