@@ -5,6 +5,9 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
+from libcpp.map cimport map
+from libcpp.utility cimport pair
+
 import ddtrace
 import platform
 from ..types import StringType
@@ -44,6 +47,10 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_sample_type(unsigned int type)
 
     void ddup_start()
+    void ddup_set_runtime_id(string_view _id)
+    void ddup_profile_set_endpoints(map[int64_t, string_view] span_ids_to_endpoints)
+    void ddup_profile_add_endpoint_counts(map[string_view, int64_t] trace_endpoints_to_counts)
+    bint ddup_upload() nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -59,15 +66,12 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_span_id(Sample *sample, uint64_t span_id)
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
-    void ddup_push_trace_resource_container(Sample *sample, string_view trace_resource_container)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
-    void ddup_set_runtime_id(string_view _id)
-    bint ddup_upload() nogil
 
 # Create wrappers for cython
 cdef call_ddup_config_service(bytes service):
@@ -160,6 +164,31 @@ def start() -> None:
 def upload() -> None:
     runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
+
+    processor = ddtrace.tracer._endpoint_call_counter_span_processor
+    endpoint_counts, endpoint_to_span_ids = processor.reset()
+
+    cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
+    for endpoint, span_ids in endpoint_to_span_ids.items():
+        endpoint_bytes = ensure_binary_or_empty(endpoint)
+        for span_id in span_ids:
+            span_ids_to_endpoints.insert(
+                pair[int64_t, string_view](
+                    clamp_to_uint64_unsigned(span_id),
+                    string_view(<const char*>endpoint_bytes, len(endpoint_bytes))
+                )
+            )
+    ddup_profile_set_endpoints(span_ids_to_endpoints)
+
+    cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
+    for endpoint, cnt in endpoint_counts.items():
+        endpoint_bytes = ensure_binary_or_empty(endpoint)
+        trace_endpoints_to_counts.insert(pair[string_view, int64_t](
+            string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
+            clamp_to_int64_unsigned(cnt)
+        ))
+    ddup_profile_add_endpoint_counts(trace_endpoints_to_counts)
+
     with nogil:
         ddup_upload()
 
@@ -258,7 +287,7 @@ cdef class SampleHandle:
             class_name_bytes = ensure_binary_or_empty(class_name)
             ddup_push_class_name(self.ptr, string_view(<const char*>class_name_bytes, len(class_name_bytes)))
 
-    def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool) -> None:
+    def push_span(self, span: Optional[Span]) -> None:
         if self.ptr is NULL:
             return
         if not span:
@@ -272,12 +301,6 @@ cdef class SampleHandle:
         if span._local_root.span_type:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
-        if endpoint_collection_enabled:
-            root_resource_bytes = ensure_binary_or_empty(span._local_root.resource)
-            ddup_push_trace_resource_container(
-                    self.ptr,
-                    string_view(<const char*>root_resource_bytes, len(root_resource_bytes))
-            )
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
