@@ -907,7 +907,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     provider = instance.__class__.__name__.lower()
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
         submit_to_llmobs=True,
         interface_type="similarity_search",
         provider=provider,
@@ -945,6 +945,8 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             span.set_tag_str(
                 "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document[0].page_content))
             )
+            if document[1] is not None:
+                span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(document[1])))
             for kwarg_key, v in document[0].metadata.items():
                 span.set_tag_str(
                     "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
@@ -991,15 +993,16 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
     provider = instance.__class__.__name__.lower()
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        interface_type="retrieval",
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        submit_to_llmobs=True,
+        interface_type="similarity_search",
         provider=provider,
         api_key=_extract_api_key(instance),
     )
     documents = []
     try:
         if integration.is_pc_sampled_span(span):
-            span.set_tag_str("langchain.request.vector", integration.trunc(str(vector)))
+            span.set_tag_str("langchain.request.embedding", integration.trunc(str(vector)))
         if k is not None:
             span.set_tag_str("langchain.request.k", str(k))
         for kwarg_key, v in kwargs.items():
@@ -1028,6 +1031,8 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
             span.set_tag_str(
                 "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document[0].page_content))
             )
+            if document[1] is not None:
+                span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(document[1])))
             for kwarg_key, v in document[0].metadata.items():
                 span.set_tag_str(
                     "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
