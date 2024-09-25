@@ -498,7 +498,7 @@ class Tracer(object):
         if appsec_standalone_enabled is not None:
             self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled = appsec_standalone_enabled
 
-        if self._appsec_standalone_enabled or self._asm_enabled:
+        if self._appsec_standalone_enabled and self._asm_enabled:
             self._apm_opt_out = True
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
