@@ -247,7 +247,10 @@ class _ProfilerInstance(service.Service):
 
                 return []
             except Exception as e:
-                LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
+                try:
+                    LOG.error("Failed to initialize libdd collector (%s) (%s), falling back to the legacy collector", e, ddup.failure_msg)
+                except Exception as ee:
+                    LOG.error("Failed to initialize libdd collector (%s) (%s), falling back to the legacy collector", e, ee)
                 self._export_libdd_enabled = False
                 profiling_config.export.libdd_enabled = False
 
