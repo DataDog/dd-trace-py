@@ -209,7 +209,7 @@ def otel_flask_app_env(flask_wsgi_application):
             "8011",
             ["opentelemetry-instrument", "flask", "run", "-h", "0.0.0.0", "-p", "8011"],
             marks=pytest.mark.skipif(
-                OTEL_VERSION < (1, 12),
+                OTEL_VERSION < (1, 16),
                 reason="otel flask instrumentation is in beta and is unstable with earlier versions of the api",
             ),
         ),
