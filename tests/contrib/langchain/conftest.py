@@ -162,3 +162,34 @@ def langchain_pinecone(ddtrace_config_langchain, mock_logs, mock_metrics, langch
             yield langchain_pinecone
         except ImportError:
             yield
+
+
+@pytest.fixture
+def langchain_qdrant(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+    with override_env(
+        dict(
+            QDRANT_API_KEY=os.getenv("QDRANT_API_KEY", "<not-a-real-key>"),
+            QDRANT_URL=os.getenv("QDRANT_URL", "<not-a-real-url>"),
+        )
+    ):
+        try:
+            import langchain_qdrant
+
+            yield langchain_qdrant
+        except ImportError:
+            yield
+
+
+@pytest.fixture
+def langchain_milvus(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+    with override_env(
+        dict(
+            MILVUS_URI=os.getenv("MILVUS_URI", "http://localhost:19530"),
+        )
+    ):
+        try:
+            import langchain_milvus
+
+            yield langchain_milvus
+        except ImportError:
+            yield
