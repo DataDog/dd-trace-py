@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes endpoint profiling when using libdatadog exporter, either with
+    ``DD_PROFILING_EXPORT_LIBDD_ENABLED`` or ``DD_PROFILING_TIMELINE_ENABLED``.
+
