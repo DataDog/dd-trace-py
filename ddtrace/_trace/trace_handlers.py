@@ -794,6 +794,7 @@ def _set_span_pointer(span: Span, span_pointer_description: _SpanPointerDescript
         extra_attributes=span_pointer_description.extra_attributes,
     )
 
+
 def _propagate_context(ctx, headers):
     for key, value in ctx["integration_config"].items():
         if key.startswith("distributed_tracing"):
@@ -805,29 +806,19 @@ def _propagate_context(ctx, headers):
         span = ctx[ctx["call_key"]]
         HTTPPropagator.inject(span.context, headers)
 
-def _set_http_metadata(
-    ctx,
-    config,
-    request_headers,
-    response_headers,
-    method,
-    url,
-    target_port,
-    status,
-    query  
-):
-    trace_utils.set_http_meta(
-                ctx[ctx["call_key"]],
-                config,
-                request_headers=request_headers,
-                response_headers=response_headers,
-                method=method,
-                url=url,
-                target_host=target_port,
-                status_code=status,
-                query=query,
-            )
 
+def _set_http_metadata(ctx, config, request_headers, response_headers, method, url, target_port, status, query):
+    trace_utils.set_http_meta(
+        ctx[ctx["call_key"]],
+        config,
+        request_headers=request_headers,
+        response_headers=response_headers,
+        method=method,
+        url=url,
+        target_host=target_port,
+        status_code=status,
+        query=query,
+    )
 
 
 def listen():
