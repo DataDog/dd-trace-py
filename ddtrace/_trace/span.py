@@ -599,8 +599,7 @@ class Span(object):
     def _local_root(self) -> "Span":
         if self._local_root_value is None:
             return self
-        else:
-            return self._local_root_value
+        return self._local_root_value
 
     @_local_root.setter
     def _local_root(self, value: "Span") -> None:
