@@ -304,7 +304,7 @@ The following environment variables for the tracer are supported:
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
-         Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
+         Currently, the supported versions are: ``v0.4`` and ``v0.5``.
      version_added:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.
@@ -452,7 +452,7 @@ The following environment variables for the tracer are supported:
          Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and
          each item can take `fnmatch` style wildcards, for example: ``*ssn*,*personalid*,*idcard*,*creditcard*``.
 
-   DD_HTTP_CLIENT_TAG_QUERY_STRING:
+   DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http client integrations.
@@ -461,14 +461,6 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http server integrations.
-
-   DD_TRACE_SPAN_AGGREGATOR_RLOCK:
-     type: Boolean
-     default: True
-     description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
-     version_added:
-       v1.16.2: added with default of False
-       v1.19.0: default changed to True
 
    DD_TRACE_METHODS:
      type: String

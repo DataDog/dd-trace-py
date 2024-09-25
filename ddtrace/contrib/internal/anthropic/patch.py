@@ -62,13 +62,10 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
             if isinstance(message.get("content", None), str):
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
-                        "anthropic.request.messages.%d.content.0.text" % (message_idx),
-                        integration.trunc(message.get("content", "")),
+                        "anthropic.request.messages.%d.content.0.text" % message_idx,
+                        integration.trunc(str(message.get("content", ""))),
                     )
-                span.set_tag_str(
-                    "anthropic.request.messages.%d.content.0.type" % (message_idx),
-                    "text",
-                )
+                span.set_tag_str("anthropic.request.messages.%d.content.0.type" % message_idx, "text")
             elif isinstance(message.get("content", None), list):
                 for block_idx, block in enumerate(message.get("content", [])):
                     if integration.is_pc_sampled_span(span):
@@ -90,12 +87,9 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
-                        _get_attr(block, "type", "text"),
+                        str(_get_attr(block, "type", "text")),
                     )
-            span.set_tag_str(
-                "anthropic.request.messages.%d.role" % (message_idx),
-                message.get("role", ""),
-            )
+            span.set_tag_str("anthropic.request.messages.%d.role" % message_idx, str(message.get("role", "")))
         tag_params_on_span(span, kwargs, integration)
 
         chat_completions = func(*args, **kwargs)
@@ -111,8 +105,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     finally:
         # we don't want to finish the span if it is a stream as it will get finished once the iterator is exhausted
         if span.error or not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span=span, resp=chat_completions, args=args, kwargs=kwargs)
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=chat_completions)
             span.finish()
     return chat_completions
 
@@ -141,13 +134,10 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
             if isinstance(message.get("content", None), str):
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
-                        "anthropic.request.messages.%d.content.0.text" % (message_idx),
-                        integration.trunc(message.get("content", "")),
+                        "anthropic.request.messages.%d.content.0.text" % message_idx,
+                        integration.trunc(str(message.get("content", ""))),
                     )
-                span.set_tag_str(
-                    "anthropic.request.messages.%d.content.0.type" % (message_idx),
-                    "text",
-                )
+                span.set_tag_str("anthropic.request.messages.%d.content.0.type" % message_idx, "text")
             elif isinstance(message.get("content", None), list):
                 for block_idx, block in enumerate(message.get("content", [])):
                     if integration.is_pc_sampled_span(span):
@@ -169,12 +159,9 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
-                        _get_attr(block, "type", "text"),
+                        str(_get_attr(block, "type", "text")),
                     )
-            span.set_tag_str(
-                "anthropic.request.messages.%d.role" % (message_idx),
-                message.get("role", ""),
-            )
+            span.set_tag_str("anthropic.request.messages.%d.role" % message_idx, str(message.get("role", "")))
         tag_params_on_span(span, kwargs, integration)
 
         chat_completions = await func(*args, **kwargs)
@@ -190,8 +177,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     finally:
         # we don't want to finish the span if it is a stream as it will get finished once the iterator is exhausted
         if span.error or not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span=span, resp=chat_completions, args=args, kwargs=kwargs)
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=chat_completions)
             span.finish()
     return chat_completions
 

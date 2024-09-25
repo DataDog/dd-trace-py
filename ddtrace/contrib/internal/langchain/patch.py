@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 from typing import Any
@@ -62,6 +61,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.pin import Pin
 
 
@@ -246,14 +246,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "llm",
-                span,
-                prompts,
-                completions,
-                error=bool(span.error),
-            )
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -324,14 +317,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "llm",
-                span,
-                prompts,
-                completions,
-                error=bool(span.error),
-            )
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -440,14 +426,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "chat",
-                span,
-                chat_messages,
-                chat_completions,
-                error=bool(span.error),
-            )
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -469,9 +448,11 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                     "messages": [
                         [
                             {
-                                "content": message.get("content", "")
-                                if isinstance(message, dict)
-                                else str(getattr(message, "content", "")),
+                                "content": (
+                                    message.get("content", "")
+                                    if isinstance(message, dict)
+                                    else str(getattr(message, "content", ""))
+                                ),
                                 "message_type": message.__class__.__name__,
                             }
                             for message in messages
@@ -570,14 +551,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "chat",
-                span,
-                chat_messages,
-                chat_completions,
-                error=bool(span.error),
-            )
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -599,9 +573,11 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                     "messages": [
                         [
                             {
-                                "content": message.get("content", "")
-                                if isinstance(message, dict)
-                                else str(getattr(message, "content", "")),
+                                "content": (
+                                    message.get("content", "")
+                                    if isinstance(message, dict)
+                                    else str(getattr(message, "content", ""))
+                                ),
                                 "message_type": message.__class__.__name__,
                             }
                             for message in messages
@@ -660,14 +636,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "embedding",
-                span,
-                input_texts,
-                embeddings,
-                error=bool(span.error),
-            )
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=embeddings, operation="embedding")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -715,8 +684,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("chain", span, inputs, final_outputs, error=bool(span.error))
+        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_outputs, operation="chain")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -772,8 +740,7 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("chain", span, inputs, final_outputs, error=bool(span.error))
+        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_outputs, operation="chain")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -845,8 +812,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("chain", span, inputs, final_output, error=bool(span.error))
+        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_output, operation="chain")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
@@ -892,8 +858,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("chain", span, inputs, final_output, error=bool(span.error))
+        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_output, operation="chain")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
@@ -951,14 +916,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "retrieval",
-                span,
-                query,
-                documents,
-                error=bool(span.error),
-            )
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=documents, operation="retrieval")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -1150,7 +1108,7 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         if tool_input and integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
         if config:
-            span.set_tag_str("langchain.request.config", json.dumps(config))
+            span.set_tag_str("langchain.request.config", safe_json(config))
 
         tool_output = func(*args, **kwargs)
         if tool_output and integration.is_pc_sampled_span(span):
@@ -1159,18 +1117,8 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "tool",
-                span,
-                {
-                    "input": tool_input,
-                    "config": config if config else {},
-                    "info": tool_info if tool_info else {},
-                },
-                tool_output,
-                error=bool(span.error),
-            )
+        tool_inputs = {"input": tool_input, "config": config or {}, "info": tool_info or {}}
+        integration.llmobs_set_tags(span, args=[], kwargs=tool_inputs, response=tool_output, operation="tool")
         span.finish()
     return tool_output
 
@@ -1211,7 +1159,7 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         if tool_input and integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
         if config:
-            span.set_tag_str("langchain.request.config", json.dumps(config))
+            span.set_tag_str("langchain.request.config", safe_json(config))
 
         tool_output = await func(*args, **kwargs)
         if tool_output and integration.is_pc_sampled_span(span):
@@ -1220,18 +1168,8 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                "tool",
-                span,
-                {
-                    "input": tool_input,
-                    "config": config if config else {},
-                    "info": tool_info if tool_info else {},
-                },
-                tool_output,
-                error=bool(span.error),
-            )
+        tool_inputs = {"input": tool_input, "config": config or {}, "info": tool_info or {}}
+        integration.llmobs_set_tags(span, args=[], kwargs=tool_inputs, response=tool_output, operation="tool")
         span.finish()
     return tool_output
 
