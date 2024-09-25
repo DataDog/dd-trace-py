@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -109,9 +110,9 @@ CodeProvenance::add_filename(std::string_view filename)
     const Package* package = it->second.get();
     if (package) {
         if (packages_to_files.find(package) == packages_to_files.end()) {
-            packages_to_files[package] = std::vector<std::string>();
+            packages_to_files[package] = std::set<std::string>();
         }
-        packages_to_files[package].push_back(std::string(filename));
+        packages_to_files[package].insert(std::string(filename));
     }
 }
 
