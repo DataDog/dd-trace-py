@@ -88,6 +88,9 @@ iast_taint_log_error(const std::string& msg)
             if (tb) {
                 std::cerr << "Traceback:\n" << py::str(tb).cast<std::string>() << "\n";
             }
+            Py_XDECREF(type);
+            Py_XDECREF(value);
+            Py_XDECREF(tb);
         }
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
         PyErr_Clear(); // Clear the error state
