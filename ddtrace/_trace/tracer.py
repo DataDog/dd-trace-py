@@ -504,15 +504,18 @@ class Tracer(object):
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             # Update the rate limiter to 1 trace per minute when tracing is disabled
-            if sampler is None:
-                sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            if isinstance(sampler, DatadogSampler):
+                sampler._rate_limit_always_on = True
+                sampler.limiter.rate_limit = 1
+                sampler.limiter.time_window = 60e9
             else:
-                if hasattr(sampler, "limiter"):
-                    sampler._rate_limit_always_on = True
-                    sampler.limiter.rate_limit = 1
-                    sampler.limiter.time_window = 60e9
-                else:
-                    log.warning(".....")
+                if sampler is not None:
+                    log.warning(
+                        "Overriding sampler {}, a DatadogSampler must be used in ASM Standalone mode",
+                        sampler,
+                    )
+                sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
 
         if sampler is not None:
             self._sampler = sampler
