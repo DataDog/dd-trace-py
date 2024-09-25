@@ -39,6 +39,16 @@ add_ddup_config(dd_wrapper)
 
 target_compile_features(dd_wrapper PUBLIC cxx_std_17)
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    execute_process(COMMAND ${CMAKE_CXX_COMPILER} -dumpversion OUTPUT_VARIABLE GCC_VERSION)
+    string(REGEX MATCH "^([0-9]+)" GCC_MAJOR_VERSION "${GCC_VERSION}")
+
+    # Link stdc++fs for GCC 7 and 8 (filesystem requires linking this library)
+    if (GCC_MAJOR_VERSION VERSION_GREATER_EQUAL 7 AND GCC_MAJOR_VERSION VERSION_LESS 9)
+        target_link_libraries(dd_wrapper PRIVATE stdc++fs)
+    endif()
+endif()
+
 target_include_directories(dd_wrapper PRIVATE
     include
     ${Datadog_INCLUDE_DIRS}
