@@ -21,7 +21,6 @@ class Sample
 {
   private:
     static inline Profile profile_state{}; // TODO pointer to global state?
-
     unsigned int max_nframes;
     SampleType type_mask;
     std::string errmsg;
