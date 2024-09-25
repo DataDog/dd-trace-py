@@ -53,7 +53,14 @@ class TestOperatorJoinReplacement(object):
 
         result = mod.do_join(string_input, it)
         # order it's not constant
-        assert result in ("b-joiner-c-joiner-a", "c-joiner-a-joiner-b", "a-joiner-b-joiner-c", "b-joiner-a-joiner-c")
+        assert result in (
+            "a-joiner-c-joiner-b",
+            "a-joiner-b-joiner-c",
+            "b-joiner-c-joiner-a",
+            "b-joiner-a-joiner-c",
+            "c-joiner-a-joiner-b",
+            "c-joiner-b-joiner-a",
+        )
         ranges = get_tainted_ranges(result)
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "-joiner-"

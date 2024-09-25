@@ -20,7 +20,7 @@ from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
 from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
-from ddtrace.internal.compat import BUILTIN_MAPPNG_TYPES
+from ddtrace.internal.compat import BUILTIN_MAPPING_TYPES
 from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
 from ddtrace.internal.compat import CALLABLE_TYPES
 from ddtrace.internal.compat import Collection
@@ -233,7 +233,7 @@ def capture_value(
             }
 
         collection: Optional[List[Any]] = None
-        if _type in BUILTIN_MAPPNG_TYPES:
+        if _type in BUILTIN_MAPPING_TYPES:
             # Mapping
             collection = [
                 (
