@@ -347,9 +347,3 @@ ddup_profile_add_endpoint_counts(std::map<std::string_view, int64_t> trace_endpo
     }
     Datadog::Sample::profile_release();
 }
-
-void
-ddup_config_code_provenance(bool enable) // cppcheck-suppress unusedFunction
-{
-    Datadog::CodeProvenance::get_instance().set_enabled(enable);
-}

@@ -1,3 +1,4 @@
+#include "code_provenance_interface.hpp"
 #include "ddup_interface.hpp"
 
 #include <array>
@@ -26,7 +27,7 @@ configure(const char* service,
     ddup_config_runtime_version(runtime_version);
     ddup_config_profiler_version(profiler_version);
     ddup_config_max_nframes(max_nframes);
-    ddup_config_code_provenance(true);
+    code_provenance_enable(true);
     ddup_start();
 }
 

@@ -29,8 +29,6 @@ extern "C"
     void ddup_config_user_tag(std::string_view key, std::string_view val);
     void ddup_config_sample_type(unsigned int type);
 
-    void ddup_config_code_provenance(bool enable);
-
     bool ddup_is_initialized();
     void ddup_start();
     void ddup_set_runtime_id(std::string_view runtime_id);

@@ -1,11 +1,13 @@
 # distutils: language = c++
 # cython: language_level=3
 
+import sysconfig
 from typing import Dict
 from typing import Optional
 from typing import Union
 
 from libcpp.map cimport map
+from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
 import ddtrace
@@ -14,6 +16,7 @@ from .._types import StringType
 from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 
@@ -48,7 +51,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
 
-    void ddup_config_code_provenance(bint enable_code_provenance)
+    void ddup_code_provenance_enable(bint enable_code_provenance)
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
@@ -76,6 +79,12 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
+
+cdef extern from "code_provenance_interface.hpp":
+    void code_provenance_enable(bint enable)
+    void code_provenance_set_runtime_version(string_view runtime_version)
+    void code_provenance_set_stdlib_path(string_view stdlib_path)
+    void code_provenance_add_packages(unordered_map[string_view, string_view] packages)
 
 # Create wrappers for cython
 cdef call_ddup_config_service(bytes service):
@@ -169,8 +178,30 @@ def config(
         ddup_config_timeline(True)
     if sample_pool_capacity:
         ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
+
+
+    # cdef not allowed in if block, so we have to do this here
+    cdef unordered_map[string_view, string_view] names_and_versions = unordered_map[string_view, string_view]()
+
     if enable_code_provenance:
-        ddup_config_code_provenance(enable_code_provenance)
+        code_provenance_enable(enable_code_provenance)
+        version_bytes = ensure_binary_or_empty(platform.python_version())
+        code_provenance_set_runtime_version(
+            string_view(<const char*>version_bytes, len(version_bytes))
+        )
+        # DEV: Do we also have to pass platsdlib_path, purelib_path, platlib_path?
+        stdlib_path_bytes = ensure_binary_or_empty(sysconfig.get_path("stdlib"))
+        code_provenance_set_stdlib_path(
+            string_view(<const char*>stdlib_path_bytes, len(stdlib_path_bytes))
+        )
+        distributions = get_distributions()
+        for dist in distributions:
+            dist_name = ensure_binary_or_empty(dist.name)
+            dist_version = ensure_binary_or_empty(dist.version)
+            names_and_versions.insert(
+                pair[string_view, string_view](string_view(<const char*>dist_name, len(dist_name)),
+                                               string_view(<const char*>dist_version, len(dist_version))))
+        code_provenance_add_packages(names_and_versions)
 
 
 def start() -> None:

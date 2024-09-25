@@ -13,7 +13,6 @@ namespace Datadog {
 struct Package
 {
     std::string name;
-    std::string kind;
     std::string version;
 };
 
@@ -42,6 +41,9 @@ class CodeProvenance
 
     void set_enabled(bool enable);
     bool is_enabled();
+    void set_runtime_version(std::string_view runtime_version);
+    void set_stdlib_path(std::string_view stdlib_path);
+    void add_packages(std::unordered_map<std::string_view, std::string_view> packages);
     void add_filename(std::string_view filename);
     std::string serialize_to_json_str();
 
@@ -50,8 +52,10 @@ class CodeProvenance
     std::mutex mtx;
     // Whether this is enabled, set only when DD_PROFILING_ENABLE_CODE_PROVENANCE is set
     bool enabled = false;
+    std::string runtime_version;
+    std::string stdlib_path;
     // Mapping from package name to Package object
-    std::unordered_map<std::string, std::unique_ptr<Package>> packages;
+    std::unordered_map<std::string_view, std::unique_ptr<Package>> packages;
     // Mapping from Package object to list of filenames that are associated with the package
     std::unordered_map<const Package*, std::vector<std::string>> packages_to_files;
 
@@ -60,10 +64,7 @@ class CodeProvenance
     ~CodeProvenance() = default;
 
     void reset();
-    std::string get_package_name(std::string_view filename);
-    std::string get_site_packages_path(std::string_view filename);
-    std::string get_package_version(std::string_view filename, std::string_view package_name);
-    const Package* get_package(std::string_view filename);
-    const Package* add_new_package(std::string package_name, std::string version);
+    std::string_view get_package_name(std::string_view filename);
+    const Package* add_new_package(std::string_view package_name, std::string_view version);
 };
 }
