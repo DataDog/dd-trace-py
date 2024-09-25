@@ -1011,7 +1011,7 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
         else:
             # best effort to join chunks together
             content = "".join([str(chunk) for chunk in streamed_chunks])
-        span.set_tag_str("langchain.response.content", integration.trunc(content))
+        span.set_tag_str("langchain.response.outputs", integration.trunc(content))
 
     return shared_stream(
         integration=integration,
@@ -1048,7 +1048,10 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         if span.error or not integration.is_pc_sampled_span(span):
             return
         content = "".join([str(getattr(chunk, "content", chunk)) for chunk in streamed_chunks])
+        role = streamed_chunks[0].__class__.__name__.replace("Chunk", "") if streamed_chunks else None # AIMessageChunk --> AIeMessage
         span.set_tag_str("langchain.response.content", integration.trunc(content))
+        if role:
+            span.set_tag_str("langchain.response.message_type", role)
 
         usage = streamed_chunks and getattr(streamed_chunks[-1], "usage_metadata", None)
         if not usage or not isinstance(usage, dict):

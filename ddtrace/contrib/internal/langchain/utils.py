@@ -115,13 +115,13 @@ def tag_general_message_input(span, inputs, integration, langchain_core):
             role = inp.get("role")
             if role is not None:
                 span.set_tag_str(
-                    "langchain.request.messages.%d.role" % (input_idx),
+                    "langchain.request.messages.%d.message_type" % (input_idx),
                     str(inp.get("role", "")),
                 )
         elif langchain_core and isinstance(inp, langchain_core.messages.BaseMessage):
             content = inp.content
             role = inp.__class__.__name__
             span.set_tag_str("langchain.request.messages.%d.content" % (input_idx), integration.trunc(str(content)))
-            span.set_tag_str("langchain.request.messages.%d.role" % (input_idx), str(role))
+            span.set_tag_str("langchain.request.messages.%d.message_type" % (input_idx), str(role))
         else:
             span.set_tag_str("langchain.request.messages.%d.content" % (input_idx), integration.trunc(str(inp)))
