@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import logging
 
 import pytest
 
@@ -30,6 +31,19 @@ def reset_context():
         yield
         reset_context()
         _ = create_context()
+
+
+@pytest.fixture(autouse=True)
+def check_native_code_exception_in_each_python_aspect_test(request, caplog):
+    if "skip_iast_check_logs" in request.keywords:
+        yield
+    else:
+        caplog.set_level(logging.DEBUG)
+        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+            yield
+
+        log_messages = [record.message for record in caplog.get_records("call")]
+        assert not any("[IAST] " in message for message in log_messages), log_messages
 
 
 def _aux_appsec_get_root_span(
