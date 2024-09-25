@@ -16,8 +16,8 @@ from typing import cast
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
-from ddtrace._trace._span_link import _SpanPointer
-from ddtrace._trace._span_link import _SpanPointerDirection
+from ddtrace._trace._span_pointer import _SpanPointer
+from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
@@ -419,7 +419,7 @@ class Span(object):
     def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct
-        Currently it will only be exported with V3/V4 encoding
+        Currently it will only be exported with V4 encoding
         """
         self._meta_struct[key] = value
 
