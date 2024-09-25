@@ -127,29 +127,31 @@ CodeProvenance::serialize_to_json_str()
     std::ostringstream out;
 
     // TODO(taegyunkim): Use a JSON library to serialize this
-    out << "{\"v1\":[";
+    out << "{\"v1\":["; // Start of the JSON array
     for (const auto& [package, paths] : packages_to_files) {
-        out << "{";
+        out << "{"; // Start of the JSON object
         out << "\"name\": \"" << package->name << "\",";
         out << "\"kind\": \"library\",";
         out << "\"version\": \"" << package->version << "\",";
-        out << "\"paths\":[";
+        out << "\"paths\":["; // Start of paths array
         for (const auto& path : paths) {
             out << "\"" << path << "\""
                 << ",";
         }
-        out << "]";
-        out << "},";
+        out << "]"; // End of paths array
+        out << "},"; // End of the JSON object
     }
     // Add python runtime information
-    out << "{";
+    out << "{"; // Start of stdlib JSON object
     out << "\"name\": \"stdlib\",";
     out << "\"kind\": \"standard library\",";
     out << "\"version\": \"" << runtime_version << "\",";
     out << "\"paths\":[";
     out << "\"" << stdlib_path << "\"";
     out << "]";
-    out << "]}";
+    out << "}"; // End of stdlib JSON object
+
+    out << "]}"; // End of the JSON array
     packages_to_files.clear();
     return out.str();
 }
