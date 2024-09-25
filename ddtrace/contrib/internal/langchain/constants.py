@@ -61,6 +61,14 @@ vectorstore_classes = (
     "AwaDB",
 )
 
+
+langchain_third_party_vectorstore_classes = {
+    "langchain_pinecone": "vectorstores.PineconeVectorStore",
+    "langchain_qdrant": "qdrant.QdrantVectorStore",
+    "langchain_milvus": "vectorstores.Milvus",
+}
+
+
 agent_output_parser_classes = {
     "chat": {"output_parser": "ChatOutputParser"},
     "conversational": {"output_parser": "ConvoOutputParser"},
