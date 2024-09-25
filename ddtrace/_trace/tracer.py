@@ -512,7 +512,7 @@ class Tracer(object):
                     sampler.limiter.rate_limit = 1
                     sampler.limiter.time_window = 60e9
                 else:
-                    log.warning("ASM Standalone is enabled and sampler without a rate limiter is not being used")
+                    log.warning(".....")
 
         if sampler is not None:
             self._sampler = sampler
