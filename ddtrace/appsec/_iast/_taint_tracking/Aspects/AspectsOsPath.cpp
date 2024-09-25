@@ -2,6 +2,7 @@
 #include <string>
 
 #include "Helpers.h"
+#include "Initializer/Initializer.h"
 
 static bool
 starts_with_separator(const py::handle& arg, const std::string& separator)
@@ -14,8 +15,7 @@ template<class StrType>
 StrType
 api_ospathjoin_aspect(StrType& first_part, const py::args& args)
 {
-    const auto ospath = py::module_::import("os.path");
-    auto join = ospath.attr("join");
+    auto join = safe_import("os.path", "join");
     auto result_o = join(first_part, *args);
 
     const auto tx_map = Initializer::get_tainting_map();
@@ -23,8 +23,8 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
         return result_o;
     }
 
-    TRY_CATCH_ASPECT("ospathjoin_aspect", , {
-        const auto separator = ospath.attr("sep").cast<std::string>();
+    TRY_CATCH_ASPECT("ospathjoin_aspect", return result_o, , {
+        const auto separator = safe_import("os.path", "sep").cast<std::string>();
         const auto sepsize = separator.size();
 
         // Find the initial iteration point. This will be the first argument that has the separator ("/foo")
@@ -101,11 +101,10 @@ template<class StrType>
 StrType
 api_ospathbasename_aspect(const StrType& path)
 {
-    const auto ospath = py::module_::import("os.path");
-    auto basename = ospath.attr("basename");
+    auto basename = safe_import("os.path", "basename");
     auto result_o = basename(path);
 
-    TRY_CATCH_ASPECT("ospathbasename_aspect", , {
+    TRY_CATCH_ASPECT("ospathbasename_aspect", return result_o, , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty() or py::len(result_o) == 0) {
             return result_o;
@@ -125,7 +124,7 @@ api_ospathbasename_aspect(const StrType& path)
         apply_list.append(filler_str);
         apply_list.append(result_o);
 
-        set_ranges_on_splitted(path, ranges, apply_list, tx_map, false);
+        set_ranges_on_splitted(path, ranges, apply_list, tx_map, true);
         return apply_list[1];
     });
 }
@@ -134,11 +133,10 @@ template<class StrType>
 StrType
 api_ospathdirname_aspect(const StrType& path)
 {
-    const auto ospath = py::module_::import("os.path");
-    auto dirname = ospath.attr("dirname");
+    auto dirname = safe_import("os.path", "dirname");
     auto result_o = dirname(path);
 
-    TRY_CATCH_ASPECT("ospathdirname_aspect", , {
+    TRY_CATCH_ASPECT("ospathdirname_aspect", return result_o, , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty() or py::len(result_o) == 0) {
             return result_o;
@@ -167,11 +165,10 @@ template<class StrType>
 static py::tuple
 forward_to_set_ranges_on_splitted(const char* function_name, const StrType& path, bool includeseparator = false)
 {
-    const auto ospath = py::module_::import("os.path");
-    auto function = ospath.attr(function_name);
+    auto function = safe_import("os.path", function_name);
     auto result_o = function(path);
 
-    TRY_CATCH_ASPECT("forward_to_set_ranges_on_splitted", , {
+    TRY_CATCH_ASPECT("forward_to_set_ranges_on_splitted", return result_o, , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty() or py::len(result_o) == 0) {
             return result_o;
@@ -219,11 +216,10 @@ template<class StrType>
 StrType
 api_ospathnormcase_aspect(const StrType& path)
 {
-    const auto ospath = py::module_::import("os.path");
-    auto normcase = ospath.attr("normcase");
+    auto normcase = safe_import("os.path", "normcase");
     auto result_o = normcase(path);
 
-    TRY_CATCH_ASPECT("ospathnormcase_aspect", , {
+    TRY_CATCH_ASPECT("ospathnormcase_aspect", return result_o, , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return result_o;

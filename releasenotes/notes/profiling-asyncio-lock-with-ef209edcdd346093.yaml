@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    profiling: captures ``asyncio.Lock`` usages with ``with`` context managers
+

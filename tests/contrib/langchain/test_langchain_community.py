@@ -1444,3 +1444,99 @@ def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, requ
             retriever = faiss.as_retriever()
         with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
             retriever.invoke("What was the message of the last test query?")
+
+
+@pytest.mark.snapshot(
+    # tool description is generated differently is some langchain_core versions
+    ignores=["meta.langchain.request.tool.description"],
+    token="tests.contrib.langchain.test_langchain_community.test_base_tool_invoke",
+)
+def test_base_tool_invoke(langchain_core, request_vcr):
+    """
+    Test that invoking a tool with langchain will
+    result in a 1-span trace with a tool span.
+    """
+    if langchain_core is None:
+        pytest.skip("langchain-core not installed which is required for this test.")
+
+    from math import pi
+
+    from langchain_core.tools import StructuredTool
+
+    def circumference_tool(radius: float) -> float:
+        return float(radius) * 2.0 * pi
+
+    calculator = StructuredTool.from_function(
+        func=circumference_tool,
+        name="Circumference calculator",
+        description="Use this tool when you need to calculate a circumference using the radius of a circle",
+        return_direct=True,
+        response_format="content",
+    )
+
+    calculator.invoke("2")
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(
+    # tool description is generated differently is some langchain_core versions
+    ignores=["meta.langchain.request.tool.description"],
+    token="tests.contrib.langchain.test_langchain_community.test_base_tool_invoke",
+)
+async def test_base_tool_ainvoke(langchain_core, request_vcr):
+    """
+    Test that invoking a tool with langchain will
+    result in a 1-span trace with a tool span. Async mode
+    """
+
+    if langchain_core is None:
+        pytest.skip("langchain-core not installed which is required for this test.")
+
+    from math import pi
+
+    from langchain_core.tools import StructuredTool
+
+    def circumference_tool(radius: float) -> float:
+        return float(radius) * 2.0 * pi
+
+    calculator = StructuredTool.from_function(
+        func=circumference_tool,
+        name="Circumference calculator",
+        description="Use this tool when you need to calculate a circumference using the radius of a circle",
+        return_direct=True,
+        response_format="content",
+    )
+
+    await calculator.ainvoke("2")
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(
+    # tool description is generated differently is some langchain_core versions
+    ignores=["meta.langchain.request.tool.description", "meta.langchain.request.config"],
+)
+def test_base_tool_invoke_non_json_serializable_config(langchain_core, request_vcr):
+    """
+    Test that invoking a tool with langchain will
+    result in a 1-span trace with a tool span. Async mode
+    """
+
+    if langchain_core is None:
+        pytest.skip("langchain-core not installed which is required for this test.")
+
+    from math import pi
+
+    from langchain_core.tools import StructuredTool
+
+    def circumference_tool(radius: float) -> float:
+        return float(radius) * 2.0 * pi
+
+    calculator = StructuredTool.from_function(
+        func=circumference_tool,
+        name="Circumference calculator",
+        description="Use this tool when you need to calculate a circumference using the radius of a circle",
+        return_direct=True,
+        response_format="content",
+    )
+
+    calculator.invoke("2", config={"unserializable": object()})

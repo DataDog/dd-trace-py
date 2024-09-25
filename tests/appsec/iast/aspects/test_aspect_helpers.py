@@ -168,10 +168,10 @@ def test_set_ranges_on_splitted_ospathsplit():
 
 def test_set_ranges_on_splitted_ospathsplitext():
     s = "abc/efgh/jkl.txt"
-    range1 = _build_sample_range(0, 3, s[0:2])
-    range2 = _build_sample_range(4, 4, s[4:8])
-    range3 = _build_sample_range(9, 3, s[9:12])
-    range4 = _build_sample_range(13, 4, s[13:17])
+    range1 = _build_sample_range(0, 3, s[0:2])  # abc
+    range2 = _build_sample_range(4, 4, s[4:8])  # efgh
+    range3 = _build_sample_range(9, 3, s[9:12])  # jkl
+    range4 = _build_sample_range(13, 4, s[13:17])  # txt
     set_ranges(s, (range1, range2, range3, range4))
     ranges = get_ranges(s)
     assert ranges
@@ -185,7 +185,7 @@ def test_set_ranges_on_splitted_ospathsplitext():
         TaintRange(9, 3, Source("jkl", "sample_value", OriginType.PARAMETER)),
     ]
     assert get_ranges(parts[1]) == [
-        TaintRange(1, 4, Source("txt", "sample_value", OriginType.PARAMETER)),
+        TaintRange(1, 3, Source("txt", "sample_value", OriginType.PARAMETER)),
     ]
 
 
@@ -426,7 +426,7 @@ def test_set_ranges_on_splitted_bytearray() -> None:
     assert get_ranges(parts[0]) == [TaintRange(0, 2, Source("ab", "sample_value", OriginType.PARAMETER))]
     assert get_ranges(parts[1]) == [
         TaintRange(1, 1, Source("f", "sample_value", OriginType.PARAMETER)),
-        TaintRange(1, 4, Source("second", "sample_value", OriginType.PARAMETER)),
+        TaintRange(1, 3, Source("second", "sample_value", OriginType.PARAMETER)),
     ]
     assert get_ranges(parts[2]) == [TaintRange(0, 2, Source("third", "sample_value", OriginType.PARAMETER))]
 
@@ -443,4 +443,4 @@ def test_set_ranges_on_splitted_wrong_args():
     parts = ["123", 45]
     set_ranges_on_splitted(s, ranges, parts)
     ranges = get_ranges(parts[0])
-    assert ranges == [TaintRange(1, 3, Source("123", "sample_value", OriginType.PARAMETER))]
+    assert ranges == [TaintRange(1, 2, Source("123", "sample_value", OriginType.PARAMETER))]

@@ -16,6 +16,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
+      "openai.request.client": "OpenAI",
       "openai.request.endpoint": "/v1/audio/translations",
       "openai.request.filename": "french_audio.mp3",
       "openai.request.method": "POST",

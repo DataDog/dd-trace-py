@@ -135,6 +135,7 @@
             "ddtrace/ext/__init__.py",
             "ddtrace/ext/http.py",
             "ddtrace/ext/net.py",
+            "ddtrace/ext/schema.py",
             "ddtrace/ext/sql.py",
             "ddtrace/ext/test.py",
             "ddtrace/ext/user.py",
@@ -158,6 +159,14 @@
             "ddtrace/contrib/trace_utils_redis.py",
             "ddtrace/ext/redis.py"
         ],
+        "avro": [
+            "ddtrace/contrib/avro/*",
+            "ddtrace/contrib/internal/avro/*"
+        ],
+        "protobuf": [
+            "ddtrace/contrib/protobuf/*",
+            "ddtrace/contrib/internal/protobuf/*"
+        ],
         "mongo": [
             "ddtrace/contrib/pymongo/*",
             "ddtrace/contrib/internal/pymongo/*",
@@ -175,7 +184,8 @@
         ],
         "datastreams": [
             "ddtrace/internal/datastreams/*",
-            "ddtrace/data_streams.py"
+            "ddtrace/data_streams.py",
+            "ddtrace/ext/schema.py"
         ],
         "debugging": [
             "ddtrace/debugging/*",
@@ -187,7 +197,7 @@
         ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
-            "ddtrace/ext/ci_visibility/*",
+            "ddtrace/ext/test_visibility/*",
             "ddtrace/ext/test.py"
         ],
         "coverage": [
@@ -282,6 +292,10 @@
         "anthropic": [
             "ddtrace/contrib/anthropic/*",
             "ddtrace/contrib/internal/anthropic/*"
+        ],
+        "google_generativeai": [
+            "ddtrace/contrib/google_generativeai/*",
+            "ddtrace/contrib/internal/google_generativeai/*"
         ],
         "subprocess": [
             "ddtrace/contrib/subprocess/*",
@@ -441,7 +455,7 @@
         ],
         "openai": [
             "ddtrace/contrib/openai/*",
-            "ddtrace/contrib/internal/openai/*" 
+            "ddtrace/contrib/internal/openai/*"
         ],
         "falcon": [
             "ddtrace/contrib/falcon/*",
@@ -619,6 +633,14 @@
             "@remoteconfig",
             "tests/appsec/iast/*"
         ],
+        "appsec_iast_native": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "@remoteconfig"
+        ],
         "appsec_iast_memcheck": [
             "@bootstrap",
             "@core",
@@ -777,6 +799,12 @@
             "@core",
             "@profiling",
             "tests/profiling/*"
+        ],
+        "profile-v2": [
+            "@bootstrap",
+            "@core",
+            "@profiling",
+            "tests/profiling_v2/*"
         ],
         "vendor": [
             "@vendor",
@@ -1356,6 +1384,22 @@
             "tests/contrib/aredis/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ],
+        "avro": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@avro",
+            "tests/contrib/avro/*"
+        ],
+        "protobuf": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@protobuf",
+            "tests/contrib/protobuf/*"
+        ],
         "yaaredis": [
             "@core",
             "@bootstrap",
@@ -1499,6 +1543,16 @@
             "@llmobs",
             "tests/contrib/anthropic/*",
             "tests/snapshots/tests.contrib.anthropic.*"
+        ],
+        "google_generativeai": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@google_generativeai",
+            "@llmobs",
+            "tests/contrib/google_generativeai/*",
+            "tests/snapshots/tests.contrib.google_generativeai.*"
         ],
         "runtime": [
             "@core",

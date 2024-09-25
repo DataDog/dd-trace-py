@@ -1,0 +1,5 @@
+debugger:
+  extends: .test_base_riot
+  variables:
+    SUITE_NAME: "debugger"
+

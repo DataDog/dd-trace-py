@@ -4,7 +4,7 @@ import sys
 import confluent_kafka
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -191,7 +191,7 @@ def traced_produce(func, instance, args, kwargs):
             span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
         # inject headers with Datadog tags if trace propagation is enabled
         if config.kafka.distributed_tracing_enabled:
@@ -249,7 +249,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
 
         for message in messages:
             if message is not None and first_message is not None:
-                core.set_item("kafka_topic", first_message.topic())
+                core.set_item("kafka_topic", str(first_message.topic()))
                 core.dispatch("kafka.consume.start", (instance, first_message, span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
@@ -260,7 +260,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         if first_message is not None:
             message_key = first_message.key() or ""
             message_offset = first_message.offset() or -1
-            span.set_tag_str(kafkax.TOPIC, first_message.topic())
+            span.set_tag_str(kafkax.TOPIC, str(first_message.topic()))
 
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
@@ -281,7 +281,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         span.set_tag(SPAN_MEASURED_KEY)
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
         if err is not None:
             span.set_exc_info(*sys.exc_info())

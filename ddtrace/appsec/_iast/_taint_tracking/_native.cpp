@@ -11,6 +11,7 @@
 #include "Aspects/AspectExtend.h"
 #include "Aspects/AspectIndex.h"
 #include "Aspects/AspectJoin.h"
+#include "Aspects/AspectModulo.h"
 #include "Aspects/AspectOperatorAdd.h"
 #include "Aspects/AspectSlice.h"
 #include "Aspects/_aspects_exports.h"
@@ -18,6 +19,7 @@
 #include "Initializer/_initializer.h"
 #include "TaintTracking/_taint_tracking.h"
 #include "TaintedOps/TaintedOps.h"
+#include "Utils/GenericUtils.h"
 
 #define PY_MODULE_NAME_ASPECTS                                                                                         \
     PY_MODULE_NAME "."                                                                                                 \
@@ -33,6 +35,7 @@ static PyMethodDef AspectsMethods[] = {
     { "index_aspect", ((PyCFunction)api_index_aspect), METH_FASTCALL, "aspect index" },
     { "join_aspect", ((PyCFunction)api_join_aspect), METH_FASTCALL, "aspect join" },
     { "slice_aspect", ((PyCFunction)api_slice_aspect), METH_FASTCALL, "aspect slice" },
+    { "modulo_aspect", ((PyCFunction)api_modulo_aspect), METH_FASTCALL, "aspect modulo" },
     { nullptr, nullptr, 0, nullptr }
 };
 
@@ -73,6 +76,14 @@ PYBIND11_MODULE(_native, m)
     }
 
     initializer = make_unique<Initializer>();
+
+    // Create a atexit callback to cleanup the Initializer before the interpreter finishes
+    auto atexit_register = safe_import("atexit", "register");
+    atexit_register(py::cpp_function([]() {
+        initializer->reset_context();
+        initializer.reset();
+    }));
+
     initializer->create_context();
 
     m.doc() = "Native Python module";

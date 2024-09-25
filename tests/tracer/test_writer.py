@@ -440,7 +440,7 @@ class CIVisibilityWriterTests(AgentWriterTests):
         writer = CIVisibilityWriter("http://localhost:9126")
         for client in writer._clients:
             client.encoder.put([Span("foobar")])
-            payload = client.encoder.encode()
+            payload = client.encoder.encode()[0]
             try:
                 unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
             except KeyError:
@@ -723,7 +723,6 @@ def test_bad_encoding(monkeypatch, writer_class):
     "init_api_version,api_version,endpoint,encoder_cls",
     [
         (None, "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
-        ("v0.3", "v0.3", "v0.3/traces", MSGPACK_ENCODERS["v0.3"]),
         ("v0.4", "v0.4", "v0.4/traces", MSGPACK_ENCODERS["v0.4"]),
         ("v0.5", "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
     ],
@@ -757,12 +756,6 @@ def test_writer_recreate_keeps_headers():
         # -- win32
         # Defaults on windows
         ("win32", None, None, False, "v0.4"),
-        # Default with priority sampler
-        ("win32", None, None, False, "v0.4"),
-        # Explicitly passed in API version is always used
-        ("win32", "v0.3", None, False, "v0.3"),
-        ("win32", "v0.3", "v0.4", False, "v0.3"),
-        ("win32", "v0.3", "v0.4", False, "v0.3"),
         # Env variable is used if explicit value is not given
         ("win32", None, "v0.4", False, "v0.4"),
         ("win32", None, "v0.4", False, "v0.4"),
@@ -776,10 +769,6 @@ def test_writer_recreate_keeps_headers():
         ("cygwin", None, None, False, "v0.4"),
         # Default with priority sampler
         ("cygwin", None, None, False, "v0.4"),
-        # Explicitly passed in API version is always used
-        ("cygwin", "v0.3", None, False, "v0.3"),
-        ("cygwin", "v0.3", "v0.4", False, "v0.3"),
-        ("cygwin", "v0.3", "v0.4", False, "v0.3"),
         # Env variable is used if explicit value is not given
         ("cygwin", None, "v0.4", False, "v0.4"),
         ("cygwin", None, "v0.4", False, "v0.4"),
