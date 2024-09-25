@@ -179,6 +179,9 @@ def config(
 
     # cdef not allowed in if block, so we have to do this here
     cdef unordered_map[string_view, string_view] names_and_versions = unordered_map[string_view, string_view]()
+    # Keep these here to prevent GC from collecting them
+    dist_names = []
+    dist_versions = []
     if enable_code_provenance:
         code_provenance_enable(enable_code_provenance)
         version_bytes = ensure_binary_or_empty(platform.python_version())
@@ -194,6 +197,8 @@ def config(
         for dist in distributions:
             dist_name = ensure_binary_or_empty(dist.name)
             dist_version = ensure_binary_or_empty(dist.version)
+            dist_names.append(dist_name)
+            dist_versions.append(dist_version)
             names_and_versions.insert(
                 pair[string_view, string_view](string_view(<const char*>dist_name, len(dist_name)),
                                                string_view(<const char*>dist_version, len(dist_version))))
