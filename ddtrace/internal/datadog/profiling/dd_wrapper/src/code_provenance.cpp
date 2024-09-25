@@ -12,35 +12,11 @@
 namespace Datadog {
 
 void
-Datadog::CodeProvenance::lock()
-{
-    mtx.lock();
-}
-
-void
-Datadog::CodeProvenance::unlock()
-{
-    mtx.unlock();
-}
-
-void
 Datadog::CodeProvenance::postfork_child()
 {
     get_instance().mtx.~mutex();            // Destroy the mutex
     new (&get_instance().mtx) std::mutex(); // Recreate the mutex
     get_instance().reset();                 // Reset the state
-}
-
-void
-Datadog::CodeProvenance::prefork()
-{
-    get_instance().lock();
-}
-
-void
-Datadog::CodeProvenance::postfork_parent()
-{
-    get_instance().unlock();
 }
 
 void

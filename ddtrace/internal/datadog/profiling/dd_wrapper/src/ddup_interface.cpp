@@ -29,7 +29,6 @@ ddup_postfork_child()
 void
 ddup_postfork_parent()
 {
-    Datadog::CodeProvenance::postfork_parent();
     Datadog::Uploader::postfork_parent();
 }
 
@@ -41,7 +40,6 @@ void
 ddup_prefork()
 {
     Datadog::Uploader::prefork();
-    Datadog::CodeProvenance::prefork();
 }
 
 // Configuration

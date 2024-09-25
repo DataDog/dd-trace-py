@@ -33,12 +33,7 @@ class CodeProvenance
     CodeProvenance(CodeProvenance const&) = delete;
     CodeProvenance& operator=(CodeProvenance const&) = delete;
 
-    void lock();
-    void unlock();
-
-    static void prefork();
     static void postfork_child();
-    static void postfork_parent();
 
     void set_enabled(bool enable);
     bool is_enabled();
