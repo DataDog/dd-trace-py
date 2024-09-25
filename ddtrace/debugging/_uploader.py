@@ -61,7 +61,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
             self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
         self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
 
-        # Make it retryable
+        # Make it retry-able
         self._write_with_backoff = fibonacci_backoff_with_jitter(
             initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
             attempts=self.RETRY_ATTEMPTS,
