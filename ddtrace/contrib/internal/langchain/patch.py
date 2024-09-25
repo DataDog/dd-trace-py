@@ -1048,7 +1048,9 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         if span.error or not integration.is_pc_sampled_span(span):
             return
         content = "".join([str(getattr(chunk, "content", chunk)) for chunk in streamed_chunks])
-        role = streamed_chunks[0].__class__.__name__.replace("Chunk", "") if streamed_chunks else None # AIMessageChunk --> AIeMessage
+        role = (
+            streamed_chunks[0].__class__.__name__.replace("Chunk", "") if streamed_chunks else None
+        )  # AIMessageChunk --> AIeMessage
         span.set_tag_str("langchain.response.content", integration.trunc(content))
         if role:
             span.set_tag_str("langchain.response.message_type", role)
