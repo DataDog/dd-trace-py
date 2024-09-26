@@ -1,24 +1,17 @@
-import os
 import time
 
 import mock
 import pytest
 
-from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
-
-
-INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric"
-DD_SITE = "datad0g.com"
-dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
 
 def _dummy_ragas_eval_metric_event(span_id, trace_id):
     return LLMObsEvaluationMetricEvent(
         span_id=span_id,
         trace_id=trace_id,
-        score_value=1,
+        score_value=1.0,
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,
         metric_type="score",
@@ -27,8 +20,9 @@ def _dummy_ragas_eval_metric_event(span_id, trace_id):
     )
 
 
-def test_evaluator_runner_start(mock_evaluator_logs):
+def test_evaluator_runner_start(mock_evaluator_logs, mock_ragas_evaluator):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
+    evaluator_runner.evaluators.append(mock_ragas_evaluator)
     evaluator_runner.start()
     mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r to %r", "EvaluatorRunner")])
 
@@ -42,9 +36,9 @@ def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
     )
 
 
-def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer, mock_ragas_evaluator):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
-    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator(llmobs_service=LLMObs))
+    evaluator_runner.evaluators.append(mock_ragas_evaluator(llmobs_service=LLMObs))
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
     evaluator_runner.periodic()
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
@@ -53,9 +47,9 @@ def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval
 
 
 @pytest.mark.vcr_logs
-def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer, mock_ragas_evaluator):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
-    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator(llmobs_service=LLMObs))
+    evaluator_runner.evaluators.append(mock_ragas_evaluator(llmobs_service=LLMObs))
     evaluator_runner.start()
 
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
@@ -94,7 +88,7 @@ with mock.patch(
     evaluator_runner = EvaluatorRunner(
         interval=0.01, llmobs_service=LLMObs
     )
-    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator)
+    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator(llmobs_service=LLMObs))
     evaluator_runner.start()
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
 """,

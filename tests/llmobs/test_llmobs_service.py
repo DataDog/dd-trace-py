@@ -1,6 +1,5 @@
 import json
 import os
-import time
 
 import mock
 import pytest
@@ -35,6 +34,7 @@ from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import DummyTracer
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -123,7 +123,6 @@ def test_service_enable_deprecated_ml_app_name(monkeypatch, mock_logs):
         assert llmobs_service.enabled is True
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        assert llmobs_service._instance._evaluator_runner.status.value == "running"
         mock_logs.warning.assert_called_once_with("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
         llmobs_service.disable()
 
@@ -1530,13 +1529,6 @@ def test_llmobs_fork_custom_filter(monkeypatch):
         llmobs_service.disable()
 
 
-def test_llm_span_ragas_evaluator(LLMObsWithRagas):
-    with LLMObsWithRagas.llm(model_name="test_model"):
-        pass
-    time.sleep(0.1)
-    LLMObsWithRagas._instance._llmobs_eval_metric_writer.enqueue.call_count = 1
-
-
 def test_annotation_context_modifies_span_tags(LLMObs):
     with LLMObs.annotation_context(tags={"foo": "bar"}):
         with LLMObs.agent(name="test_agent") as span:
@@ -1575,3 +1567,29 @@ async def test_annotation_context_async_nested(LLMObs):
         async with LLMObs.annotation_context(tags={"car": "car"}):
             with LLMObs.agent(name="test_agent") as span:
                 assert json.loads(span.get_tag(TAGS)) == {"foo": "bar", "boo": "bar", "car": "car"}
+
+
+def test_service_enable_starts_evaluator_runner_when_evaluators_exist():
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
+            dummy_tracer = DummyTracer()
+            llmobs_service.enable(_tracer=dummy_tracer)
+            llmobs_instance = llmobs_service._instance
+            assert llmobs_instance is not None
+            assert llmobs_service.enabled
+            assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+            assert llmobs_service._instance._evaluator_runner.status.value == "running"
+            llmobs_service.disable()
+
+
+def test_service_enable_does_not_start_evaluator_runner():
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
+        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+        llmobs_service.disable()
