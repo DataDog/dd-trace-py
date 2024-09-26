@@ -187,7 +187,7 @@ def ragas(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
 
 
 @pytest.fixture
-def mock_ragas_evaluator(mock_llmobs_eval_metric_writer):
+def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
     with mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate") as m:
         m.return_value = 1.0
         yield RagasFaithfulnessEvaluator
