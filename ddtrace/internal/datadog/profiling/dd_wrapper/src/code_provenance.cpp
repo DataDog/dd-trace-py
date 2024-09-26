@@ -70,12 +70,12 @@ CodeProvenance::add_filename(std::string_view filename)
         return;
     }
 
-    std::lock_guard<std::mutex> lock(mtx);
-
     std::string_view package_name = get_package_name(filename);
     if (package_name.empty() or package_name == STDLIB) {
         return;
     }
+
+    std::lock_guard<std::mutex> lock(mtx);
 
     auto it = packages.find(package_name);
     if (it == packages.end()) {
