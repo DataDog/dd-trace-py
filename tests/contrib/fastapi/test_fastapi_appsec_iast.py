@@ -1,4 +1,5 @@
 import json
+import logging
 import sys
 import typing
 
@@ -10,7 +11,6 @@ from fastapi.responses import JSONResponse
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._handlers import _on_asgi_request_parse_body
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
@@ -44,17 +44,23 @@ def get_response_body(response):
     return response.text
 
 
-def get_root_span(spans):
-    return spans.pop_traces()[0][0]
+@pytest.fixture(autouse=True)
+def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_writer):
+    if "skip_iast_check_logs" in request.keywords:
+        yield
+    else:
+        caplog.set_level(logging.DEBUG)
+        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+            yield
+
+        log_messages = [record.msg for record in caplog.get_records("call")]
+        for message in log_messages:
+            if "[IAST] " in message:
+                pytest.fail(message)
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
 
-@pytest.fixture
-def setup_core_ok_after_test():
-    yield
-    core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
-
-
-@pytest.mark.usefixtures("setup_core_ok_after_test")
 def test_query_param_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):

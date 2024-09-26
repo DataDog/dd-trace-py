@@ -7,6 +7,7 @@ from typing import Text
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -61,16 +62,18 @@ def metric_verbosity(lvl):
 def _set_iast_error_metric(msg: Text) -> None:
     # Due to format_exc and format_exception returns the error and the last frame
     try:
-        exception_type, exception_instance, _traceback_list = sys.exc_info()
-        res = []
-        # first 10 frames are this function, the exception in aspects and the error line
-        res.extend(traceback.format_stack(limit=10))
+        stack_trace = ""
+        if _is_iast_debug_enabled():
+            exception_type, exception_instance, _traceback_list = sys.exc_info()
+            res = []
+            # first 10 frames are this function, the exception in aspects and the error line
+            res.extend(traceback.format_stack(limit=20))
 
-        # get the frame with the error and the error message
-        result = traceback.format_exception(exception_type, exception_instance, _traceback_list)
-        res.extend(result[1:])
+            # get the frame with the error and the error message
+            result = traceback.format_exception(exception_type, exception_instance, _traceback_list)
+            res.extend(result[1:])
+            stack_trace = "".join(res)
 
-        stack_trace = "".join(res)
         tags = {
             "lib_language": "python",
         }
