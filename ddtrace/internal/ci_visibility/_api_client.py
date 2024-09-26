@@ -440,7 +440,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             else:
                 log.debug("Skippable tests response correlation_id: %s", correlation_id)
 
-            covered_files_data = skippable_response["meta"].get("coverage")
+            covered_files_data = meta.get("coverage")
             if covered_files_data is not None:
                 covered_files = _parse_covered_files(covered_files_data)
 

@@ -3,13 +3,14 @@ NOTE: BETA - this API is currently in development and is subject to change.
 """
 
 import os
+import typing as t
 
 from ddtrace import config
 from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.utils.formats import asbool
 
 
-def _get_default_test_visibility_contrib_config():
+def _get_default_test_visibility_contrib_config() -> t.Dict[str, t.Any]:
     return dict(
         _default_service="default_test_visibility_service",
         itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE
