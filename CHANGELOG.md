@@ -8,8 +8,8 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Deprecation Notes
 - Tracing
-  - Deprecates the `DD_TRACE_SPAN_AGGREGATOR_RLOCK` environment variable. It will be removed in 3.0.0.
-  - Deprecates support for [APM Legacy App Analytics](https://docs.datadoghq.com/tracing/legacy_app_analytics/). This feature and its associated configuration options are deprecated and will be removed in a future release.
+  - Deprecates the `DD_TRACE_SPAN_AGGREGATOR_RLOCK` environment variable. It will be removed in v3.0.0.
+  - Deprecates support for [APM Legacy App Analytics](https://docs.datadoghq.com/tracing/legacy_app_analytics/). This feature and its associated configuration options are deprecated and will be removed in v3.0.0.
   - `DD_HTTP_CLIENT_TAG_QUERY_STRING` configuration is deprecated and will be removed in v3.0.0. Use `DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING` instead.
 
 ### New Features
@@ -36,7 +36,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Other
   - botocore: Adds span pointers to some successful AWS botocore spans. Currently only supports S3 PutObject.
   - pymongo: Adds support for pymongo>=4.9.0
-
 
 
 ### Bug Fixes
