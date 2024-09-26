@@ -20,5 +20,4 @@ def iswrapped(obj, attr=None):
 def unwrap(obj, attr):
     # type: (Any, str) -> None
     f = getattr(obj, attr)
-    assert isinstance(f, wrapt.ObjectProxy), "Object is not of type ObjectProxy"
     setattr(obj, attr, f.__wrapped__)
