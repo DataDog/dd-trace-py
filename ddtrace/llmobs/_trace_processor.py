@@ -123,7 +123,6 @@ class LLMObsTraceProcessor(TraceProcessor):
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
-            "ml_app": ml_app,
         }
         session_id = _get_session_id(span)
         if session_id is not None:

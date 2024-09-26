@@ -1,5 +1,6 @@
 import json
 import math
+import time
 import typing as t
 
 from ddtrace.internal.logger import get_logger
@@ -47,6 +48,19 @@ class RagasFaithfulnessEvaluator:
         self.faithfulness_output_instructions = get_json_format_instructions(StatementFaithfulnessAnswers)
         self.faithfulness_output_parser = RagasoutputParser(pydantic_object=StatementFaithfulnessAnswers)
         self.sentence_segmenter = get_segmenter(language=self.faithfulness.nli_statements_message.language, clean=False)
+
+    def run_and_submit_evaluation(self, span):
+        if not span:
+            return
+        score_result = self.evaluate(span)
+        if score_result:
+            self.llmobs_service.submit_evaluation(
+                span_context=span,
+                label=RagasFaithfulnessEvaluator.LABEL,
+                metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
+                value=score_result,
+                timestamp_ms=math.floor(time.time() * 1000),
+            )
 
     def evaluate(self, span):
         if not self.enabled:
@@ -119,17 +133,9 @@ class RagasFaithfulnessEvaluator:
                     score = self._compute_score(faithfulness_list)
 
                     if math.isnan(score):
-                        return
+                        return None
 
-                    self.llmobs.submit_evaluation(
-                        span_context={
-                            "trace_id": span.get("trace_id"),
-                            "span_id": span.get("span_id"),
-                        },
-                        value=score,
-                        metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
-                        label=RagasFaithfulnessEvaluator.LABEL,
-                    )
+                    return score
                 finally:
                     LLMObs.annotate(
                         input_data=span,

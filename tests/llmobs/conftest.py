@@ -7,8 +7,7 @@ import ddtrace
 from ddtrace.internal.utils.http import Response
 import ddtrace.llmobs
 from ddtrace.llmobs import LLMObs as llmobs_service
-import ddtrace.llmobs._evaluators
-import ddtrace.llmobs._evaluators.ragas
+from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -185,3 +184,10 @@ def ragas(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
 
         with override_env(dict(OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"))):
             yield ragas
+
+
+@pytest.fixture
+def mock_ragas_evaluator(mock_llmobs_eval_metric_writer):
+    with mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate") as m:
+        m.return_value = 1.0
+        yield RagasFaithfulnessEvaluator

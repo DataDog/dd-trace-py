@@ -173,6 +173,7 @@ class LLMObs(Service):
 
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
+            return
 
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
