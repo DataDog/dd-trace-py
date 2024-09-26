@@ -376,7 +376,18 @@ class Config(object):
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
 
-        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+        rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
+        if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
+            # This warning will be logged when DD_TRACE_SAMPLE_RATE is set. This is intentional.
+            # Even though DD_TRACE_SAMPLE_RATE is treated as a global trace sampling rule, this configuration
+            # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
+            log.warning(
+                "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
+                "Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+                "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
+                rate_limit,
+            )
+        self._trace_rate_limit = int(rate_limit or DEFAULT_SAMPLING_RATE_LIMIT)
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
 
