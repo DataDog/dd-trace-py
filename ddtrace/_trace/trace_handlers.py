@@ -704,6 +704,36 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
 
 
+def _propagate_context(ctx, headers):
+    distributed_tracing_enabled = ctx["integration_config"].distributed_tracing_enabled
+    call_key = ctx.get_item("call_key")
+    if call_key is None:
+        log.warning("call_key not found in ctx")
+    if distributed_tracing_enabled and call_key:
+        span = ctx[ctx["call_key"]]
+        HTTPPropagator.inject(span.context, headers)
+
+
+def _after_job_execution(ctx, job_failed, span_tags):
+    """sets job.status and job.origin span tags after job is performed"""
+    # get_status() returns None when ttl=0
+    call_key = ctx.get_item("call_key")
+    if call_key:
+        span = ctx[ctx["call_key"]]
+    if span:
+        if job_failed:
+            span.error = 1
+        for k in span_tags.keys():
+            span.set_tag_str(k, span_tags[k])
+
+
+def _on_end_of_traced_method_in_fork(ctx):
+    """Force flush to agent since the process `os.exit()`s
+    immediately after this method returns
+    """
+    ctx["pin"].tracer.flush()
+
+
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: Dict[str, Any],
@@ -851,6 +881,9 @@ def listen():
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
     core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
+    core.on("rq.worker.perform_job", _after_job_execution)
+    core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
+    core.on("rq.queue.enqueue_job", _propagate_context)
 
     for context_name in (
         "flask.call",
@@ -869,6 +902,11 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "rq.queue.enqueue_job",
+        "rq.traced_queue_fetch_job",
+        "rq.worker.perform_job",
+        "rq.job.perform",
+        "rq.job.fetch_many",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
