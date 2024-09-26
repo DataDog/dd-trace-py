@@ -383,19 +383,18 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
             assert event["request_type"] != "app-dependencies-loaded"
 
 
-def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
-    # Fetch modules to reset the state of seen modules
-    modules.uninstall_import_hook()
-    modules.install_import_hook()
-    telemetry_writer.reset_queues()
-    assert telemetry_writer._imported_dependencies == {}
-    del sys.modules["httpretty"]
-    import httpretty  # noqa F401
+def test_update_dependencies_event_not_stdlib(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    # force a flush
-    telemetry_writer.periodic(force_flush=True)
+    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import ddtrace; import httpretty", env=env)
+    assert status == 0, stderr
     events = test_agent_session.get_events("app-dependencies-loaded")
-    deps = [dep["name"] for event in events for dep in event["payload"].get("dependencies", [])]
+    assert len(events) >= 1
+    deps = [dep["name"] for event in events for dep in event["payload"]["dependencies"]]
     assert "httpretty" in deps
 
 
