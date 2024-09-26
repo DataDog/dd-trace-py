@@ -79,7 +79,7 @@ def _set_iast_error_metric(msg: Text) -> None:
         }
         telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace, tags=tags)
     except Exception:
-        log.warning("Error reporting ASM WAF logs metrics", exc_info=True)
+        log.warning("Error reporting ASM logs metrics", exc_info=True)
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
