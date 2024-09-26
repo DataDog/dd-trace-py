@@ -182,3 +182,6 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
 
         log_messages = [record.message for record in caplog.get_records("call")]
         assert not any("[IAST] " in message for message in log_messages), log_messages
+        # TODO(avara1986): iast tests throw a timeout in gitlab
+        #   list_metrics_logs = list(telemetry_writer._logs)
+        #   assert len(list_metrics_logs) == 0
