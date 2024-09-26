@@ -159,7 +159,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
         _set_metric_iast_executed_source(source_origin)
         return pyobject_newid
     except ValueError as e:
-        iast_taint_log_error("Tainting object error (pyobject type %s): %s" % (type(pyobject), e))
+        log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e)
     return pyobject
 
 
