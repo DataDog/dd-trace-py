@@ -339,7 +339,7 @@ class CMakeBuild(build_ext):
 
         # Get development paths
         python_include = sysconfig.get_paths()["include"]
-        python_lib = os.path.join(sysconfig.get_config_var("LIBDIR"), sysconfig.get_config_var("INSTSONAME"))
+        python_lib = sysconfig.get_config_var("LIBDIR")
 
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
@@ -531,9 +531,7 @@ if not IS_PYSTON:
 
         ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
 
-    if (
-        platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
-    ) and is_64_bit_python():
+    if platform.system() == "Linux" and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
