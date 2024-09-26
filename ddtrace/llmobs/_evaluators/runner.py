@@ -56,8 +56,7 @@ class EvaluatorRunner(PeriodicService):
         atexit.register(self.on_shutdown)
 
     def stop(self, *args, **kwargs):
-        if not self.evaluators and self.status == service.ServiceStatus.STOPPED:
-            logger.debug("no evaluators configured, not starting %r", self.__class__.__name__)
+        if self.status == service.ServiceStatus.STOPPED:
             return
         super(EvaluatorRunner, self).stop()
 
