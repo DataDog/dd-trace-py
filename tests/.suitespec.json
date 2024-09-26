@@ -23,17 +23,7 @@
             "tests/subprocesstest.py",
             "tests/wait-for-services.py",
             "tests/webclient.py",
-            "tests/test_module/*",
-            "tests/lib-injection/dd-lib-python-init-test-django/*",
-            "tests/lib-injection/dd-lib-python-init-test-django-gunicorn/*",
-            "tests/lib-injection/dd-lib-python-init-test-django-gunicorn-alpine/*",
-            "tests/lib-injection/dd-lib-python-init-test-django-no-perms/*",
-            "tests/lib-injection/dd-lib-python-init-test-django-pre-installed/*",
-            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-python/*",
-            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package/*",
-            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package-force/*",
-            "tests/lib-injection/dd-lib-python-init-test-django-uvicorn/*",
-            "tests/lib-injection/dd-lib-python-init-test-protobuf-old/*"
+            "tests/test_module/*"
         ],
         "core": [
             "ddtrace/internal/__init__.py",
