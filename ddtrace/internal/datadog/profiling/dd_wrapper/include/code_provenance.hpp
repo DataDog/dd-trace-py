@@ -47,7 +47,7 @@ class CodeProvenance
     // Mutex to protect the state
     std::mutex mtx;
     // Whether this is enabled, set only when DD_PROFILING_ENABLE_CODE_PROVENANCE is set
-    bool enabled = false;
+    std::atomic_bool enabled{ false };
     std::string runtime_version;
     std::string stdlib_path;
     // Mapping from package name to Package object

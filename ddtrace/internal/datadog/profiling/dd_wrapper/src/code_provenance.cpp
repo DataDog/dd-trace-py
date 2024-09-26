@@ -22,15 +22,13 @@ Datadog::CodeProvenance::postfork_child()
 void
 Datadog::CodeProvenance::set_enabled(bool enable)
 {
-    std::lock_guard<std::mutex> lock(mtx);
-    enabled = enable;
+    this->enabled.store(enable);
 }
 
 bool
 Datadog::CodeProvenance::is_enabled()
 {
-    std::lock_guard<std::mutex> lock(mtx);
-    return enabled;
+    return enabled.load();
 }
 
 void
@@ -50,11 +48,12 @@ Datadog::CodeProvenance::set_stdlib_path(std::string_view _stdlib_path)
 void
 CodeProvenance::add_packages(std::unordered_map<std::string_view, std::string_view> distributions)
 {
-    std::lock_guard<std::mutex> lock(mtx);
 
-    if (!enabled) {
+    if (!is_enabled()) {
         return;
     }
+
+    std::lock_guard<std::mutex> lock(mtx);
 
     for (const auto& [package_name, version] : distributions) {
         auto it = packages.find(package_name);
@@ -67,11 +66,11 @@ CodeProvenance::add_packages(std::unordered_map<std::string_view, std::string_vi
 void
 CodeProvenance::add_filename(std::string_view filename)
 {
-    std::lock_guard<std::mutex> lock(mtx);
-
-    if (!enabled) {
+    if (!is_enabled()) {
         return;
     }
+
+    std::lock_guard<std::mutex> lock(mtx);
 
     std::string_view package_name = get_package_name(filename);
     if (package_name.empty() or package_name == STDLIB) {
@@ -95,11 +94,11 @@ CodeProvenance::add_filename(std::string_view filename)
 std::string
 CodeProvenance::serialize_to_json_str()
 {
-    std::lock_guard<std::mutex> lock(mtx);
-
-    if (!enabled) {
+    if (!is_enabled()) {
         return "";
     }
+
+    std::lock_guard<std::mutex> lock(mtx);
 
     std::ostringstream out;
 
