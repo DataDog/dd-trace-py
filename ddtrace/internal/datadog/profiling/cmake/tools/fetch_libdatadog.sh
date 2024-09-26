@@ -19,6 +19,7 @@ fi
 SCRIPTPATH=$(readlink -f "$0")
 SCRIPTDIR=$(dirname "$SCRIPTPATH")
 
+OS_NAME=$(uname -s)
 MARCH=$(uname -m)
 
 TAG_LIBDATADOG=$1
@@ -26,13 +27,30 @@ TARGET_EXTRACT=$2
 
 CHECKSUM_FILE=${SCRIPTDIR}/libdatadog_checksums.txt
 
-# Test for musl
-MUSL_LIBC=$(ldd /bin/ls | grep 'musl' | head -1 | cut -d ' ' -f1 || true)
-if [[ -n ${MUSL_LIBC-""} ]]; then
-    DISTRIBUTION="alpine-linux-musl"
+# if os is darwin, set distribution to apple-darwin and march to aarch64
+if [[ "$OS_NAME" == "Darwin" ]]; then
+    DISTRIBUTION="apple-darwin"
+    # if march is arm64 set it to aarch64
+    if [[ "$MARCH" == "arm64" ]]; then
+        MARCH="aarch64"
+    else
+        echo "Unsupported architecture $MARCH for $OS_NAME"
+        exit 1
+    fi
+elif [[ "$OS_NAME" == "Linux" ]]; then
+    # Test for musl
+    MUSL_LIBC=$(ldd /bin/ls | grep 'musl' | head -1 | cut -d ' ' -f1 || true)
+    if [[ -n ${MUSL_LIBC-""} ]]; then
+        DISTRIBUTION="alpine-linux-musl"
+    else
+        DISTRIBUTION="unknown-linux-gnu"
+    fi
 else
-    DISTRIBUTION="unknown-linux-gnu"
+    echo "Unsupported OS $OS_NAME"
+    exit 1
 fi
+
+# if os is linux, check for musl libc
 
 # https://github.com/DataDog/libdatadog/releases/download/v0.7.0-rc.1/libdatadog-aarch64-alpine-linux-musl.tar.gz
 TAR_LIBDATADOG=libdatadog-${MARCH}-${DISTRIBUTION}.tar.gz
