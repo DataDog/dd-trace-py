@@ -8,8 +8,11 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
+from ddtrace.internal.ci_visibility.constants import SUITE
+from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
@@ -64,7 +67,10 @@ class TestVisibilityModule(
 
         self.set_tag(test.ITR_TEST_SKIPPING_ENABLED, self._session_settings.itr_test_skipping_enabled)
         if itr_enabled:
-            self.set_tag(test.ITR_TEST_SKIPPING_TYPE, self._session_settings.itr_test_skipping_level)
+            self.set_tag(
+                test.ITR_TEST_SKIPPING_TYPE,
+                TEST if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST else SUITE,
+            )
             self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)
 
     def _telemetry_record_event_created(self):
