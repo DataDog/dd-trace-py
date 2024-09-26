@@ -19,6 +19,7 @@ ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 *.so
+*.dylib
 *.a
 
 # Cython annotate HTML files

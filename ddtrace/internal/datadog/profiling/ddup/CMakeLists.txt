@@ -51,10 +51,19 @@ add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
 
 # We can't add common Profiling configuration because cython generates messy code, so we just setup some basic flags and
 # features
-target_compile_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Debug>:-Og;-ggdb3>" "$<$<CONFIG:Release>:-Os>"
-                                                 -ffunction-sections -fno-semantic-interposition)
-target_link_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Release>:-s>" -Wl,--as-needed -Wl,-Bsymbolic-functions
-                    -Wl,--gc-sections)
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    # macOS-specific options
+    target_compile_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Debug>:-Og;-g>" "$<$<CONFIG:Release>:-Os>"
+        -ffunction-sections)
+    target_link_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Release>:-Wl,-dead_strip>")
+else()
+    # Linux/ELF-based options
+    target_compile_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Debug>:-Og;-ggdb3>" "$<$<CONFIG:Release>:-Os>"
+        -ffunction-sections -fno-semantic-interposition)
+    target_link_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Release>:-s>" -Wl,--as-needed -Wl,-Bsymbolic-functions
+        -Wl,--gc-sections)
+endif()
+
 set_property(TARGET ${EXTENSION_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
@@ -68,9 +77,13 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
-                                                     ${Python3_INCLUDE_DIRS})
+    ${Python3_INCLUDE_DIRS})
 
-target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+if (Python3_LIBRARIES)
+    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
+else()
+    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+endif()
 
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)

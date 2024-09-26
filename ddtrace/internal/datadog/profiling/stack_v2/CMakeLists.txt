@@ -29,13 +29,14 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "b2f2d49f2f5d5c4dd78d1d9b83280db8ac2949c0"
+    "9d5bcc5867d7aefff73c837adcba4ef46eecebc6"
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
-    GIT_REPOSITORY "https://github.com/sanchda/echion.git"
+    GIT_REPOSITORY "https://github.com/taegyunkim/echion.git"
     GIT_TAG ${ECHION_COMMIT})
 FetchContent_GetProperties(echion)
+
 if(NOT echion_POPULATED)
     FetchContent_Populate(echion)
 endif()
@@ -69,9 +70,9 @@ target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 # warning(push, 0 then pop for the same effect.
 target_include_directories(
     ${EXTENSION_NAME} PRIVATE .. # include dd_wrapper from the root in order to make its paths transparent in the code
-                              include)
+    include)
 target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE ${echion_SOURCE_DIR} ${Python3_INCLUDE_DIRS}
-                                                            include/vendored include/util)
+    include/vendored include/util)
 
 # Echion sources need to be given the current platform
 if(WIN32)
@@ -90,7 +91,13 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
 # typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
-target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+
+if (Python3_LIBRARIES)
+    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
+else()
+    # for manylinux builds
+    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+endif()
 
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)

@@ -1,32 +1,57 @@
 include(CheckIPOSupported)
 
 function(add_ddup_config target)
-    target_compile_options(
-        ${target}
-        PRIVATE "$<$<CONFIG:Debug>:-Og;-ggdb3>"
-                "$<$<CONFIG:RelWithDebInfo>:-Os;-ggdb3>"
-                "$<$<CONFIG:Release>:-Os>"
-                -ffunction-sections
-                -fno-semantic-interposition
-                -Wall
-                -Werror
-                -Wextra
-                -Wshadow
-                -Wnon-virtual-dtor
-                -Wold-style-cast)
-    target_link_options(
-        ${target}
-        PRIVATE
-        "$<$<CONFIG:Release>:-s>"
-        "$<$<CONFIG:RelWithDebInfo>:>"
-        -Wl,--as-needed
-        -Wl,-Bsymbolic-functions
-        -Wl,--gc-sections
-        -Wl,-z,nodelete
-        -Wl,--exclude-libs,ALL)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        # macOS-specific options
+        target_compile_options(
+            ${target}
+            PRIVATE "$<$<CONFIG:Debug>:-Og;-g>"
+                    "$<$<CONFIG:RelWithDebInfo>:-Os;-g>"
+                    "$<$<CONFIG:Release>:-Os>"
+                    -ffunction-sections
+                    -Wall
+                    -Werror
+                    -Wextra
+                    -Wshadow
+                    -Wnon-virtual-dtor
+                    -Wold-style-cast)
+    else()
+        # Non-macOS (e.g., Linux) options
+        target_compile_options(
+            ${target}
+            PRIVATE "$<$<CONFIG:Debug>:-Og;-ggdb3>"
+                    "$<$<CONFIG:RelWithDebInfo>:-Os;-ggdb3>"
+                    "$<$<CONFIG:Release>:-Os>"
+                    -ffunction-sections
+                    -fno-semantic-interposition
+                    -Wall
+                    -Werror
+                    -Wextra
+                    -Wshadow
+                    -Wnon-virtual-dtor
+                    -Wold-style-cast)
+    endif()
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        # macOS-specific linker options
+        target_link_options(${target} PRIVATE "$<$<CONFIG:Release>:-Wl,-dead_strip>" "$<$<CONFIG:RelWithDebInfo>:>")
+    else()
+        # Linux/ELF-based linker options
+        target_link_options(
+            ${target}
+            PRIVATE
+            "$<$<CONFIG:Release>:-s>"
+            "$<$<CONFIG:RelWithDebInfo>:>"
+            -Wl,--as-needed
+            -Wl,-Bsymbolic-functions
+            -Wl,--gc-sections
+            -Wl,-z,nodelete
+            -Wl,--exclude-libs,ALL)
+    endif()
 
     # If we can IPO, then do so
     check_ipo_supported(RESULT result)
+
     if(result)
         set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
     endif()

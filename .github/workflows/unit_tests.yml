@@ -33,5 +33,9 @@ jobs:
         with:
           version: "1.12.0"
 
+      - name: Install core utils for mac
+        if: matrix.os == 'macos-latest'
+        run: brew install coreutils
+
       - name: Run tests
         run: hatch run +py=${{ matrix.python-version }} ddtrace_unit_tests:test
