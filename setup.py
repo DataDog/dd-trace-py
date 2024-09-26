@@ -367,7 +367,7 @@ class CMakeBuild(build_ext):
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
-        # by setuptools/distutils, such libdd_wrapper.so
+        # by setuptools/distutils
         if IS_EDITABLE:
             # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
             cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(ext.source_dir))
@@ -580,7 +580,7 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
+        "ddtrace.internal.datadog.profiling": ["libdd_wrapper*.*"],
         "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe"],
     },
     zip_safe=False,
