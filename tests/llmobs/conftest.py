@@ -60,16 +60,6 @@ def mock_llmobs_eval_metric_writer():
 
 
 @pytest.fixture
-def mock_llmobs_ragas_evaluator():
-    patcher = mock.patch("ddtrace.llmobs._evaluations.ragas.faithfulness.evaluator.run")
-    RagasEvaluator = patcher.start()
-    m = mock.MagicMock()
-    RagasEvaluator.return_value = m
-    yield m
-    patcher.stop()
-
-
-@pytest.fixture
 def mock_http_writer_send_payload_response():
     with mock.patch(
         "ddtrace.internal.writer.HTTPWriter._send_payload",
