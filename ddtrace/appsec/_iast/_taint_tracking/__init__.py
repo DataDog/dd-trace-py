@@ -203,16 +203,18 @@ if _is_iast_debug_enabled():
             return
         if event == "call":
             f_locals = frame.f_locals
-            if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
-                TAINTED_FRAMES.append(frame)
-                log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
-                log.debug("Tainted arguments:")
-                for arg in f_locals:
-                    if is_pyobject_tainted(f_locals[arg]):
-                        log.debug("\t%s: %s", arg, f_locals[arg])
-                log.debug("-----")
-
-            return trace_calls_and_returns
+            try:
+                if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
+                    TAINTED_FRAMES.append(frame)
+                    log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
+                    log.debug("Tainted arguments:")
+                    for arg in f_locals:
+                        if is_pyobject_tainted(f_locals[arg]):
+                            log.debug("\t%s: %s", arg, f_locals[arg])
+                    log.debug("-----")
+                return trace_calls_and_returns
+            except Exception:
+                pass
         elif event == "return":
             if frame in TAINTED_FRAMES:
                 TAINTED_FRAMES.remove(frame)
