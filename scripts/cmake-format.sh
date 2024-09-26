@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eu
+set -e
 
 # Navigate to the root of the repository, which is one level up from the directory containing this script.
 SCRIPT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
@@ -17,13 +17,10 @@ fi
 if [[ -n "${CMAKE_FORMAT_CHECK_ALL:-}" ]]; then
   FILES=$(find . -name '*.cmake' -o -name 'CMakeLists.txt' | grep -vE '^./build/' | grep -vE '_vendor/')
 else
-  FILES=$(git diff --name-only HEAD | grep -E '\.cmake$|CMakeLists.txt' | grep -vE '^build/' | grep -vE '_vendor/')
+  FILES=$(git diff --name-only HEAD | grep -E '\.cmake$|CMakeLists.txt' | grep -vE '^build/' | grep -vE '_vendor/' || true)
 fi
 
 # Run cmake-format on all files
 for file in $FILES; do
-  if [[ -n "${CMAKE_FORMAT_VERBOSE:-}" ]]; then
-    echo "Running cmake-format on $file"
-  fi
   cmake-format -c "scripts/.cmake-format" $CMD_OPT "$file"
 done
