@@ -16,8 +16,8 @@ include(FindLibdatadog)
 add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
 
 # Make sure we have necessary Python variables
-if(NOT Python3_INCLUDE_DIRS)
-    message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
+if (NOT Python3_INCLUDE_DIRS)
+  message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
 endif()
 
 # This sets some parameters for the target build, which can only be defined by setup.py
@@ -26,13 +26,13 @@ set(ENV{PY_MINOR_VERSION} ${PY_MINOR_VERSION})
 set(ENV{PY_MICRO_VERSION} ${PY_MICRO_VERSION})
 
 # if PYTHON_EXECUTABLE is unset or empty, but Python3_EXECUTABLE is set, use that
-if(NOT PYTHON_EXECUTABLE AND Python3_EXECUTABLE)
-    set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
+if (NOT PYTHON_EXECUTABLE AND Python3_EXECUTABLE)
+  set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 endif()
 
 # If we still don't have a Python executable, we can't continue
-if(NOT PYTHON_EXECUTABLE)
-    message(FATAL_ERROR "Python executable not found")
+if (NOT PYTHON_EXECUTABLE)
+  message(FATAL_ERROR "Python executable not found")
 endif()
 
 # Cythonize the .pyx file
@@ -50,29 +50,15 @@ add_library(${EXTENSION_NAME} SHARED
 
 # We can't add common Profiling configuration because cython generates messy code, so we just setup some
 # basic flags and features
-if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    # macOS-specific options
-    target_compile_options(${EXTENSION_NAME} PRIVATE
-        "$<$<CONFIG:Debug>:-Og;-g>"
-        "$<$<CONFIG:Release>:-Os>"
-        -ffunction-sections
-    )
-    target_link_options(${EXTENSION_NAME} PRIVATE
-      "$<$<CONFIG:Release>:-Wl,-dead_strip>"
-    )
-else()
-    # Linux/ELF-based options
-    target_compile_options(${EXTENSION_NAME} PRIVATE
-        "$<$<CONFIG:Debug>:-Og;-ggdb3>"
-        "$<$<CONFIG:Release>:-Os>"
-        -ffunction-sections -fno-semantic-interposition
-    )
-    target_link_options(${EXTENSION_NAME} PRIVATE
-        "$<$<CONFIG:Release>:-s>"
-        -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,--gc-sections
-    )
-endif()
-
+target_compile_options(${EXTENSION_NAME} PRIVATE
+  "$<$<CONFIG:Debug>:-Og;-ggdb3>"
+  "$<$<CONFIG:Release>:-Os>"
+  -ffunction-sections -fno-semantic-interposition
+)
+target_link_options(${EXTENSION_NAME} PRIVATE
+  "$<$<CONFIG:Release>:-s>"
+  -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,--gc-sections
+)
 set_property(TARGET ${EXTENSION_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
@@ -93,14 +79,14 @@ target_include_directories(${EXTENSION_NAME} PRIVATE
 )
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE
-    dd_wrapper ${Python3_LIBRARIES}
+    dd_wrapper
 )
 
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Set the output directory for the built library
-if(LIB_INSTALL_DIR)
+if (LIB_INSTALL_DIR)
     install(TARGETS ${EXTENSION_NAME}
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
@@ -118,15 +104,15 @@ target_include_directories(crashtracker_exe PRIVATE
 )
 set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_link_libraries(crashtracker_exe PRIVATE
-    dd_wrapper ${Python3_LIBRARIES}
+    dd_wrapper
 )
 
 # See the dd_wrapper CMakeLists.txt for a more detailed explanation of why we do what we do.
-if(INPLACE_LIB_INSTALL_DIR)
+if (INPLACE_LIB_INSTALL_DIR)
     set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
 endif()
 
-if(LIB_INSTALL_DIR)
+if (LIB_INSTALL_DIR)
     install(TARGETS crashtracker_exe
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
