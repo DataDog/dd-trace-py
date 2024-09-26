@@ -2615,6 +2615,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    name="langchain_v0_langchain_community_v0",
                     pkgs={
                         "vcrpy": "==6.0.1",
                         "langchain": "==0.0.192",
@@ -2626,6 +2627,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
+                    name="langchain_v1_langchain_community_v0",
                     pkgs={
                         "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
@@ -2649,6 +2651,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
+                    name="langchain_v2_langchain_community_v2",
                     pkgs={
                         "vcrpy": "==5.1.0",
                         "langchain": "==0.2.0",
@@ -2673,6 +2676,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.9"),
                 ),
                 Venv(
+                    name="langchain_latest",
                     pkgs={
                         "vcrpy": "==5.1.0",
                         "langchain": latest,

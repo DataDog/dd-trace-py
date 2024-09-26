@@ -635,7 +635,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         # langchain currently does not support token tracking for OpenAI embeddings:
         #  https://github.com/hwchase17/langchain/issues/945
         embeddings = func(*args, **kwargs)
-        if isinstance(embeddings, list) and embeddings and isinstance(embeddings[0], list):
+        if embeddings and isinstance(embeddings, list) and isinstance(embeddings[0], list):
             for idx, embedding in enumerate(embeddings):
                 span.set_metric("langchain.response.outputs.%d.embedding_length" % idx, len(embedding))
         else:
@@ -933,6 +933,8 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        # force the similarity search to be a workflow
+        kwargs["is_workflow"] = True
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=documents, operation="retrieval")
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
@@ -949,6 +951,73 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                     ],
                 },
             )
+    return documents
+
+
+@with_traced_module
+def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwargs):
+    """
+    Traces similarity_search_by_vector, similarity_search_by_vector_with_score, and similarity_search_with_score_by_vector
+    """
+    integration = langchain._datadog_integration
+    vector = get_argument_value(args, kwargs, 0, "embedding")
+    if vector is None:
+        # if named vector instead of embedding
+        vector = get_argument_value(args, kwargs, 0, "vector")
+    k = kwargs.get("k", args[1] if len(args) >= 2 else None)
+    provider = instance.__class__.__name__.lower()
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        submit_to_llmobs=True,
+        interface_type="similarity_search",
+        provider=provider,
+        api_key=_extract_api_key(instance),
+    )
+    documents = []
+    try:
+        if integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.embedding", integration.trunc(str(vector)))
+        if k is not None:
+            span.set_tag_str("langchain.request.k", str(k))
+        for kwarg_key, v in kwargs.items():
+            span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
+        if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
+            span.set_tag_str(
+                "langchain.request.pinecone.environment",
+                instance._index.configuration.server_variables.get("environment", ""),
+            )
+            span.set_tag_str(
+                "langchain.request.pinecone.index_name",
+                instance._index.configuration.server_variables.get("index_name", ""),
+            )
+            span.set_tag_str(
+                "langchain.request.pinecone.project_name",
+                instance._index.configuration.server_variables.get("project_name", ""),
+            )
+            api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
+            span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
+        documents = func(*args, **kwargs)
+        span.set_metric("langchain.response.document_count", len(documents))
+        for idx, document in enumerate(documents):
+            if not isinstance(document, tuple):
+                # if not with score add None to tuple
+                document = (document, None)
+            span.set_tag_str(
+                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document[0].page_content))
+            )
+            if document[1] is not None:
+                span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(document[1])))
+            for kwarg_key, v in document[0].metadata.items():
+                span.set_tag_str(
+                    "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
+                )
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=documents, operation="retrieval")
+        span.finish()
     return documents
 
 
@@ -1052,72 +1121,6 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         integration.llmobs_set_tags(span, args=[], kwargs=tool_inputs, response=tool_output, operation="tool")
         span.finish()
     return tool_output
-
-
-@with_traced_module
-def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwargs):
-    """
-    Traces similarity_search_by_vector, similarity_search_by_vector_with_score, and similarity_search_with_score_by_vector
-    """
-    integration = langchain._datadog_integration
-    vector = get_argument_value(args, kwargs, 0, "embedding")
-    if vector is None:
-        # if named vector instead of embedding
-        vector = get_argument_value(args, kwargs, 0, "vector")
-    k = kwargs.get("k", args[1] if len(args) >= 2 else None)
-    provider = instance.__class__.__name__.lower()
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        submit_to_llmobs=True,
-        interface_type="similarity_search",
-        provider=provider,
-        api_key=_extract_api_key(instance),
-    )
-    documents = []
-    try:
-        if integration.is_pc_sampled_span(span):
-            span.set_tag_str("langchain.request.embedding", integration.trunc(str(vector)))
-        if k is not None:
-            span.set_tag_str("langchain.request.k", str(k))
-        for kwarg_key, v in kwargs.items():
-            span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
-        if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
-            span.set_tag_str(
-                "langchain.request.pinecone.environment",
-                instance._index.configuration.server_variables.get("environment", ""),
-            )
-            span.set_tag_str(
-                "langchain.request.pinecone.index_name",
-                instance._index.configuration.server_variables.get("index_name", ""),
-            )
-            span.set_tag_str(
-                "langchain.request.pinecone.project_name",
-                instance._index.configuration.server_variables.get("project_name", ""),
-            )
-            api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
-            span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
-        documents = func(*args, **kwargs)
-        span.set_metric("langchain.response.document_count", len(documents))
-        for idx, document in enumerate(documents):
-            if not isinstance(document, tuple):
-                # if not with score add None to tuple
-                document = (document, None)
-            span.set_tag_str(
-                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document[0].page_content))
-            )
-            if document[1] is not None:
-                span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(document[1])))
-            for kwarg_key, v in document[0].metadata.items():
-                span.set_tag_str(
-                    "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
-                )
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        span.finish()
-    return documents
 
 
 def _patch_embeddings_and_vectorstores():
@@ -1370,8 +1373,6 @@ def safe_wrap(module_object, func_name, traced_func, fixture, path_to_func=None)
         attr = deep_getattr(module_object, func_name, None)
         if module_object and attr and not isinstance(attr, wrapt.ObjectProxy):
             wrap(module_object, func_name, traced_func(fixture))
-        elif module_object and attr is None:
-            log.debug("Method %s not found in %s", func_name, module_object.__module__)
 
 
 def safe_unwrap(module_object, func_name):
@@ -1414,12 +1415,6 @@ def wrap_vector_retrieval(vectorstore_module, fixture):
     safe_wrap(
         vectorstore_module,
         "similarity_search_by_vector_with_score",
-        traced_similarity_search_by_vector,
-        fixture,
-    )
-    safe_wrap(
-        vectorstore_module,
-        "similarity_search_with_score_by_vector",
         traced_similarity_search_by_vector,
         fixture,
     )

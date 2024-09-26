@@ -178,6 +178,31 @@ class BaseTestLLMObsLangchain:
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
+    @classmethod
+    def _similarity_search_by_vector_with_score(
+        cls, pinecone, pinecone_vector_store, embedding_model, vector, k, mock_tracer, cassette_name
+    ):
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
+        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+            if PINECONE_VERSION <= (2, 2, 4):
+                pinecone.init(
+                    api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                    environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+                )
+                index = pinecone.Index(index_name="langchain-retrieval")
+            else:
+                # Pinecone 2.2.5+ moved init and other methods to a Pinecone class instance
+                pc = pinecone.Pinecone(
+                    api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                )
+                index = pc.Index(name="langchain-retrieval")
+
+            vector_db = pinecone_vector_store(index, embedding_model, "text")
+            vector_db.similarity_search_by_vector_with_score(vector, k)
+
+        LLMObs.disable()
+        return mock_tracer.pop_traces()[0]
+
 
 @pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1), reason="These tests are for langchain < 0.1.0")
 class TestLLMObsLangchain(BaseTestLLMObsLangchain):
@@ -676,14 +701,14 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 tags={"ml_app": "langchain_test"},
             )
         )
-
+    # TODO : update test
     def test_llmobs_similarity_search(self, langchain_openai, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
         import pinecone
 
         if langchain_pinecone is None:
             pytest.skip("langchain_pinecone not installed which is required for this test.")
         embedding_model = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-        cassette_name = "openai_pinecone_similarity_search_community.yaml"
+        cassette_name = "langchain_pinecone_similarity_search.yaml"
         with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
             trace = self._similarity_search(
                 pinecone=pinecone,
@@ -694,7 +719,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 mock_tracer=mock_tracer,
                 cassette_name=cassette_name,
             )
-        assert mock_llmobs_span_writer.enqueue.call_count == 2
+        assert mock_llmobs_span_writer.enqueue.call_count == 5
         expected_span = _expected_llmobs_non_llm_span_event(
             trace[0],
             "retrieval",
