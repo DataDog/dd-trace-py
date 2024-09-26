@@ -42,6 +42,8 @@ from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -125,7 +127,7 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
-def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
+def _attach_otel_baggage_to_context(headers: Dict[str, str], context: Context):
     if context is not None:
         for key, value in headers.items():
             if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
@@ -907,9 +909,16 @@ class _BaggageHeader:
         if not baggage_items:
             return
 
+        if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
+            return
+
         header_value = ",".join(
             f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}" for key, value in baggage_items
         )
+
+        buf = bytes(header_value, "utf-8")
+        if len(buf) > DD_TRACE_BAGGAGE_MAX_BYTES:
+            return
 
         headers["baggage"] = header_value
 
@@ -919,8 +928,14 @@ class _BaggageHeader:
         if not header_value:
             return None
 
+        buf = bytes(header_value, "utf-8")
+        if len(buf) > DD_TRACE_BAGGAGE_MAX_BYTES:
+            return None
+
         baggage = {}
         baggages = header_value.split(",")
+        if len(baggages) > DD_TRACE_BAGGAGE_MAX_ITEMS:
+            return None
         for key_value in baggages:
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
@@ -966,7 +981,6 @@ class HTTPPropagator(object):
             style_w_ctx = styles_w_ctx[contexts.index(context)]
 
             # special case where baggage is first in propagation styles
-            # why would you do that? I don't know, but it's possible
             if style_w_ctx[0] == _PROPAGATION_STYLE_BAGGAGE:
                 baggage_context = contexts[0]
                 contexts.append(baggage_context)
@@ -1123,7 +1137,7 @@ class HTTPPropagator(object):
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)  # type: ignore
                     if config.propagation_http_baggage_enabled is True:
-                        _attach_baggage_to_context(normalized_headers, context)
+                        _attach_otel_baggage_to_context(normalized_headers, context)
                     return context
             # loop through all extract propagation styles
             else:
@@ -1132,7 +1146,7 @@ class HTTPPropagator(object):
                 if contexts:
                     context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
                     if config.propagation_http_baggage_enabled is True:
-                        _attach_baggage_to_context(normalized_headers, context)
+                        _attach_otel_baggage_to_context(normalized_headers, context)
                     return context
 
         except Exception:

@@ -3102,6 +3102,10 @@ def test_llmobs_parent_id_not_injected_by_default():
         (Context(baggage={"serverNode": "DF 28"}), {"baggage": "serverNode=DF%2028"}),
         (Context(baggage={"userId": "Amélie"}), {"baggage": "userId=Am%C3%A9lie"}),
         (Context(baggage={"user!d(me)": "false"}), {"baggage": "user!d%28me%29=false"}),
+        (
+            Context(baggage={'",;\\()/:<=>?@[]{}': '",;\\'}),
+            {"baggage": "%22%2C%3B%5C%28%29%2F%3A%3C%3D%3E%3F%40%5B%5D%7B%7D=%22%2C%3B%5C"},
+        ),
     ],
     ids=[
         "single_key_value",
@@ -3109,6 +3113,7 @@ def test_llmobs_parent_id_not_injected_by_default():
         "space_in_value",
         "special_characters_in_value",
         "special_characters_in_key",
+        "special_characters_in_key_and_value",
     ],
 )
 def test_baggageheader_inject(span_context, expected_headers):
@@ -3117,6 +3122,30 @@ def test_baggageheader_inject(span_context, expected_headers):
     headers = {}
     _BaggageHeader._inject(span_context, headers)
     assert headers == expected_headers
+
+
+def test_baggageheader_maxitems_inject():
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace.propagation.http import _BaggageHeader
+
+    headers = {}
+    baggage_items = {}
+    for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 1):
+        baggage_items[f"key{i}"] = f"val{i}"
+    span_context = Context(baggage=baggage_items)
+    _BaggageHeader._inject(span_context, headers)
+    assert "baggage" not in headers
+
+
+def test_baggageheader_maxbytes_inject():
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.propagation.http import _BaggageHeader
+
+    headers = {}
+    baggage_items = {"foo": ("a" * DD_TRACE_BAGGAGE_MAX_BYTES)}
+    span_context = Context(baggage=baggage_items)
+    _BaggageHeader._inject(span_context, headers)
+    assert "baggage" not in headers
 
 
 @pytest.mark.parametrize(
