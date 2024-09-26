@@ -1457,7 +1457,7 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
 
 
 def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
-    """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
+    """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
         original_pid = llmobs_service._instance.tracer._pid
@@ -1471,6 +1471,38 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
             assert llmobs_service._instance.tracer._pid != original_pid
             assert llmobs_service._instance._llmobs_eval_metric_writer != original_eval_metric_writer
             assert llmobs_service._instance._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
+
+
+def test_llmobs_fork_recreates_and_restarts_evaluator_runner():
+    """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
+    with mock.patch("ddtrace.llmobs._evaluator.runner.EvaluatorRunner.periodic"):
+        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
+        original_pid = llmobs_service._instance.tracer._pid
+        original_evaluator_runner = llmobs_service._instance._evaluator_runner
+        pid = os.fork()
+        if pid:  # parent
+            assert llmobs_service._instance.tracer._pid == original_pid
+            assert llmobs_service._instance._evaluator_runner == original_evaluator_runner
+            assert (
+                llmobs_service._instance._trace_processor._evaluator_runner
+                == llmobs_service._instance._evaluator_runner
+            )
+            assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
+        else:  # child
+            assert llmobs_service._instance.tracer._pid != original_pid
+            assert llmobs_service._instance._evaluator_runner != original_evaluator_runner
+            assert (
+                llmobs_service._instance._trace_processor._evaluator_runner
+                == llmobs_service._instance._evaluator_runner
+            )
+            assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
             llmobs_service.disable()
             os._exit(12)
 
@@ -1526,6 +1558,27 @@ def test_llmobs_fork_submit_evaluation(monkeypatch):
                 value="high",
             )
             assert len(llmobs_service._instance._llmobs_eval_metric_writer._buffer) == 1
+            llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
+
+
+def test_llmobs_fork_evaluator_runner_run(monkeypatch):
+    """Test that forking a process correctly encodes new spans created in each process."""
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 5.0)
+    with mock.patch("ddtrace.llmobs._evaluator.runner.EvaluatorRunner.periodic"):
+        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", api_key="test_api_key")
+        pid = os.fork()
+        if pid:  # parent
+            llmobs_service._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "456"})
+            assert len(llmobs_service._instance._evaluator_runner._buffer) == 1
+        else:  # child
+            llmobs_service._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "456"})
+            assert len(llmobs_service._instance._evaluator_runner._buffer) == 1
             llmobs_service.disable()
             os._exit(12)
 

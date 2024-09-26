@@ -54,6 +54,12 @@ class EvaluatorRunner(PeriodicService):
             return
         super(EvaluatorRunner, self).stop()
 
+    def recreate(self) -> "EvaluatorRunner":
+        return self.__class__(
+            interval=self._interval,
+            llmobs_service=self.llmobs_service,
+        )
+
     def on_shutdown(self):
         self.executor.shutdown()
 
