@@ -56,15 +56,28 @@ add_library(${EXTENSION_NAME} SHARED
 
 # We can't add common Profiling configuration because cython generates messy code, so we just setup some
 # basic flags and features
-target_compile_options(${EXTENSION_NAME} PRIVATE
-  "$<$<CONFIG:Debug>:-Og;-ggdb3>"
-  "$<$<CONFIG:Release>:-Os>"
-  -ffunction-sections -fno-semantic-interposition
-)
-target_link_options(${EXTENSION_NAME} PRIVATE
-  "$<$<CONFIG:Release>:-s>"
-  -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,--gc-sections
-)
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    # macOS-specific options
+    target_compile_options(${EXTENSION_NAME} PRIVATE
+        "$<$<CONFIG:Debug>:-Og;-g>"
+        "$<$<CONFIG:Release>:-Os>"
+        -ffunction-sections
+    )
+    target_link_options(${EXTENSION_NAME} PRIVATE
+      "$<$<CONFIG:Release>:-Wl,-dead_strip>"
+    )
+else()
+    # Linux/ELF-based options
+    target_compile_options(${EXTENSION_NAME} PRIVATE
+        "$<$<CONFIG:Debug>:-Og;-ggdb3>"
+        "$<$<CONFIG:Release>:-Os>"
+        -ffunction-sections -fno-semantic-interposition
+    )
+    target_link_options(${EXTENSION_NAME} PRIVATE
+        "$<$<CONFIG:Release>:-s>"
+        -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,--gc-sections
+    )
+endif()
 set_property(TARGET ${EXTENSION_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
@@ -85,7 +98,7 @@ target_include_directories(${EXTENSION_NAME} PRIVATE
 )
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE
-    dd_wrapper
+    dd_wrapper ${Python3_LIBRARIES}
 )
 
 # Extensions are built as dynamic libraries, so PIC is required.

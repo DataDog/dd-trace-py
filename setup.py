@@ -339,7 +339,7 @@ class CMakeBuild(build_ext):
 
         # Get development paths
         python_include = sysconfig.get_paths()["include"]
-        python_lib = sysconfig.get_config_var("LIBDIR")
+        python_lib = os.path.join(sysconfig.get_config_var("LIBDIR"), sysconfig.get_config_var("INSTSONAME"))
 
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []

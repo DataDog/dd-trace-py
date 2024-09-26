@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 ### Useful globals
@@ -75,7 +75,7 @@ cmake_args=(
   -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
   -DPython3_INCLUDE_DIRS=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
   -DPython3_EXECUTABLE=$(which python3)
-  -DPython3_LIBRARY=$(python3 -c "import distutils.sysconfig as sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
+  -DPython3_LIBRARIES=$(python3 -c "import sysconfig, os; print(os.path.join(sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('INSTSONAME')))")
 )
 
 # Initial build targets; no matter what, dd_wrapper is the base dependency, so it's always built

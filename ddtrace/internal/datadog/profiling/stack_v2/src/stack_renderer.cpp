@@ -123,7 +123,7 @@ StackRenderer::render_native_frame(std::string_view name, std::string_view file,
 }
 
 void
-StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
+StackRenderer::render_cpu_time(uint64_t cpu_time_us)
 {
     if (sample == nullptr) {
         std::cerr << "Received a CPU time without sample storage.  Some profiling data has been lost." << std::endl;
