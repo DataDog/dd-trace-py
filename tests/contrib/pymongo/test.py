@@ -20,6 +20,8 @@ from ..config import MONGO_CONFIG
 
 if pymongo.version_tuple >= (4, 9):
     from pymongo.synchronous.server import Server
+elif pymongo.version_tuple >= (4, 5):
+    from pymongo.server import Server
 else:
     from pymongo.server import Server
 
