@@ -3,6 +3,7 @@ import pytest
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._handlers import _on_django_patch
 from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
@@ -191,6 +192,38 @@ def test_log_metric(telemetry_writer):
     assert len(list_metrics_logs) == 1
     assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
     assert str(list_metrics_logs[0]["stack_trace"]).startswith('  File "/')
+
+
+def test_log_metric_debug_disabled(telemetry_writer):
+    with override_env({IAST.ENV_DEBUG: "false"}):
+        _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 1
+        assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
+        assert "stack_trace" not in list_metrics_logs[0].keys()
+
+
+def test_log_metric_debug_disabled_deduplication(telemetry_writer):
+    with override_env({IAST.ENV_DEBUG: "false"}):
+        for i in range(10):
+            _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 1
+        assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
+        assert "stack_trace" not in list_metrics_logs[0].keys()
+
+
+def test_log_metric_debug_disabled_deduplication_different_messages(telemetry_writer):
+    with override_env({IAST.ENV_DEBUG: "false"}):
+        for i in range(10):
+            _set_iast_error_metric(f"test_format_key_error_and_no_log_metric raises {i}")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 10
+        assert list_metrics_logs[0]["message"].startswith("test_format_key_error_and_no_log_metric raises")
+        assert "stack_trace" not in list_metrics_logs[0].keys()
 
 
 def test_django_instrumented_metrics(telemetry_writer):
