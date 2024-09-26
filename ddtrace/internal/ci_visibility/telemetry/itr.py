@@ -56,6 +56,20 @@ def record_itr_forced_run(event_type: EVENT_TYPES):
     telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.FORCED_RUN, 1, (("event_type", event_type.value),))
 
 
+def record_skippable_count(skippable_count: int, skipping_level: str):
+    skippable_count_metric = (
+        SKIPPABLE_TESTS_TELEMETRY.RESPONSE_SUITES
+        if skipping_level == SUITE
+        else SKIPPABLE_TESTS_TELEMETRY.RESPONSE_TESTS
+    )
+    telemetry_writer.add_count_metric(_NAMESPACE, skippable_count_metric, skippable_count)
+
+
+def record_itr_skippable_request_error(error: ERROR_TYPES):
+    log.debug("Recording itr skippable request error telemetry")
+    telemetry_writer.add_count_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.REQUEST_ERRORS, 1, (("error_type", error),))
+
+
 def record_itr_skippable_request(
     duration: float,
     response_bytes: int,
@@ -77,16 +91,9 @@ def record_itr_skippable_request(
     telemetry_writer.add_distribution_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.RESPONSE_BYTES, response_bytes)
 
     if error is not None:
-        telemetry_writer.add_count_metric(
-            _NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.REQUEST_ERRORS, 1, (("error_type", error),)
-        )
+        record_itr_skippable_request_error(error)
         # If there was an error, assume no skippable items can be counted
         return
 
     if skippable_count is not None:
-        skippable_count_metric = (
-            SKIPPABLE_TESTS_TELEMETRY.RESPONSE_SUITES
-            if skipping_level == SUITE
-            else SKIPPABLE_TESTS_TELEMETRY.RESPONSE_TESTS
-        )
-        telemetry_writer.add_count_metric(_NAMESPACE, skippable_count_metric, skippable_count)
+        record_skippable_count(skippable_count, skipping_level)
