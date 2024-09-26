@@ -172,7 +172,7 @@ def iast_context():
 
 
 @pytest.fixture(autouse=True)
-def check_native_code_exception_in_each_python_aspect_test(request, caplog):
+def check_native_code_exception_in_each_python_aspect_test(request, caplog, telemetry_writer):
     if "skip_iast_check_logs" in request.keywords:
         yield
     else:
@@ -182,3 +182,5 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
 
         log_messages = [record.message for record in caplog.get_records("call")]
         assert not any("[IAST] " in message for message in log_messages), log_messages
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
