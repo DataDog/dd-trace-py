@@ -581,7 +581,7 @@ setup(
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": ["libdd_wrapper*.*"],
-        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe"],
+        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
