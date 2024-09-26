@@ -119,7 +119,7 @@ ddup_config_output_filename(std::string_view output_filename) // cppcheck-suppre
 }
 
 void
-ddup_config_sample_pool_capacity(uint64_t capacity) // cppcheck-suppress unusedFunction
+ddup_config_sample_pool_capacity(size_t capacity) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::set_sample_pool_capacity(capacity);
 }
