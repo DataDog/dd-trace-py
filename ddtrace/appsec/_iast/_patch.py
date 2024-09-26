@@ -172,6 +172,17 @@ def _on_iast_fastapi_patch():
 
     # Body source
     try_wrap_function_wrapper("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
+    try_wrap_function_wrapper("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "FormData.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+    )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "FormData.get",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+    )
     _set_metric_iast_instrumented_source(OriginType.BODY)
 
     # Instrumented on _iast_starlette_scope_taint
@@ -210,6 +221,18 @@ def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
     # `self._receive` is set in `__init__`, so we wait for the constructor to finish before setting the new property
     wrapped(*args, **kwargs)
     instance.__class__.receive = property(receive)
+
+
+async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwargs):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import origin_to_str
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    result = await wrapped(*args, **kwargs)
+
+    return taint_pyobject(
+        result, source_name=origin_to_str(OriginType.PATH), source_value=result, source_origin=OriginType.BODY
+    )
 
 
 def _iast_instrument_starlette_scope(scope):

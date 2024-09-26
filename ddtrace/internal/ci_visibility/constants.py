@@ -77,3 +77,8 @@ CIVISIBILITY_LOG_FILTER_RE = re.compile(
 
 
 CIVISIBILITY_SPAN_TYPE = "ci_visibility"
+
+
+class ITR_SKIPPING_LEVEL(IntEnum):
+    TEST = 0
+    SUITE = 1
