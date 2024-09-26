@@ -213,7 +213,7 @@ if _is_iast_debug_enabled():
                             log.debug("\t%s: %s", arg, f_locals[arg])
                     log.debug("-----")
                 return trace_calls_and_returns
-            except Exception:
+            except AttributeError:
                 pass
         elif event == "return":
             if frame in TAINTED_FRAMES:
