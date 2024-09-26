@@ -3,8 +3,9 @@
 #include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
 
-#include <errno.h>  // errno
-#include <fstream>  // ofstream
+#include <errno.h> // errno
+#include <fstream> // ofstream
+#include <optional>
 #include <sstream>  // ostringstream
 #include <string.h> // strerror
 #include <unistd.h> // getpid
@@ -76,17 +77,13 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
       .file = ddog_Vec_U8_as_slice(&encoded->buffer),
     } };
 
-    std::string json_str;
-
-    // DEV: re-consider this is ok to do so, as calling is_enabled/serialize will acquire
-    // a lock on the CodeProvenance instance
-    if (CodeProvenance::get_instance().is_enabled()) {
-        json_str = CodeProvenance::get_instance().serialize_to_json_str();
-    }
-    if (!json_str.empty()) {
+    // DEV: This function is called with the profile_lock held, and the following
+    // function call acquires lock on CodeProvenance.
+    std::optional<std::string> json_str_opt = CodeProvenance::get_instance().try_serialize_to_json_str();
+    if (json_str_opt.has_value() and !json_str_opt.value().empty()) {
         files_to_send.push_back({
           .name = to_slice("code-provenance.json"),
-          .file = to_byte_slice(json_str),
+          .file = to_byte_slice(json_str_opt.value()),
         });
     }
 

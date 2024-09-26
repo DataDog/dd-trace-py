@@ -3,6 +3,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -41,7 +42,7 @@ class CodeProvenance
     void set_stdlib_path(std::string_view stdlib_path);
     void add_packages(std::unordered_map<std::string_view, std::string_view> packages);
     void add_filename(std::string_view filename);
-    std::string serialize_to_json_str();
+    std::optional<std::string> try_serialize_to_json_str();
 
   private:
     // Mutex to protect the state

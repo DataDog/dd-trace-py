@@ -91,18 +91,17 @@ CodeProvenance::add_filename(std::string_view filename)
     }
 }
 
-std::string
-CodeProvenance::serialize_to_json_str()
+std::optional<std::string>
+CodeProvenance::try_serialize_to_json_str()
 {
     if (!is_enabled()) {
-        return "";
+        return std::nullopt;
     }
 
     std::lock_guard<std::mutex> lock(mtx);
 
     std::ostringstream out;
-
-    // TODO(taegyunkim): Use a JSON library to serialize this
+    // DEV: Simple JSON serialization, consider using a JSON library.
     out << "{\"v1\":["; // Start of the JSON array
     for (const auto& [package, paths] : packages_to_files) {
         out << "{"; // Start of the JSON object
@@ -128,8 +127,9 @@ CodeProvenance::serialize_to_json_str()
     out << "\"" << stdlib_path << "\"";
     out << "]";
     out << "}"; // End of stdlib JSON object
-
     out << "]}"; // End of the JSON array
+
+    // Clear the state
     packages_to_files.clear();
     return out.str();
 }
