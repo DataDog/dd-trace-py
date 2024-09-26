@@ -10,7 +10,7 @@ class RagasFaithfulnessEvaluator:
     def __init__(self, llmobs_service):
         self.llmobs_service = llmobs_service
 
-    def run(self, span: dict) -> None:
+    def run_and_submit_evaluation(self, span: dict) -> None:
         if not span:
             return
         score_result = self.evaluate(span)

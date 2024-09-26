@@ -80,4 +80,4 @@ class EvaluatorRunner(PeriodicService):
 
     def run(self, spans):
         for evaluator in self.evaluators:
-            self.executor.map(lambda span: evaluator.run(span), spans)
+            self.executor.map(lambda span: evaluator.run_and_submit_evaluation(span), spans)
