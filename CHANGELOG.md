@@ -13,9 +13,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
   - `DD_HTTP_CLIENT_TAG_QUERY_STRING` configuration is deprecated and will be removed in v3.0.0. Use `DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING` instead.
 
 ### New Features
-- Code Security (IAST)
-  - Always report a telemetry log error when an IAST propagation error is raised, regardless of whether the `_DD_IAST_DEBUG` environment variable is enabled or not
-
 - DSM
   - Introduces new tracing and datastreams monitoring functionality for Avro Schemas.
   - Introduces new tracing and datastreams monitoring functionality for Google Protobuf.
@@ -44,7 +41,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 - Code Security (ASM)
-  - Fixes potential memory leak on IAST exception handling.
   - Fixes a bug in the IAST patching process where `AttributeError` exceptions were being caught, interfering with the proper application cycle.
   - Resolves an issue where exploit prevention was not properly blocking requests with custom redirection actions.
 
@@ -54,9 +50,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
   - Resolves an issue where attempting to tag non-JSON serializable request/response parameters resulted in a `TypeError` in the OpenAI, LangChain, Bedrock, and Anthropic integrations.
   - anthropic: Resolves an issue where attempting to tag non-JSON serializable request arguments caused a `TypeError`. The Anthropic integration now safely tags non-JSON serializable arguments with a default placeholder text.
   - langchain: Resolves an issue where attempting to tag non-JSON serializable tool config arguments resulted in a `TypeError`. The LangChain integration now safely tags non-JSON serializable arguments with a default placeholder text.
-
-- Profiling
-  - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.- library injection: Resolves an issue where the version of `attrs` installed by default on some Ubuntu installations was treated as incompatible with library injection
 
 - Other
   - SSI: This fix ensures injection denylist is included in published OCI package.
