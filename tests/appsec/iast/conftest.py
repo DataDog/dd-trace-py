@@ -172,7 +172,7 @@ def iast_context():
 
 
 @pytest.fixture(autouse=True)
-def check_native_code_exception_in_each_python_aspect_test(request, caplog, telemetry_writer):
+def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
         yield
     else:
