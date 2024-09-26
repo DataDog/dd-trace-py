@@ -4,6 +4,11 @@ from typing import Optional
 
 
 class RagasFaithfulnessEvaluator:
+    """A class used by EvaluatorRunner to conduct ragas faithfulness evaluations
+    on LLM Observability span events. The job of an Evaluator is to take a span and
+    submit evaluation metrics based on the span's attributes.
+    """
+
     LABEL = "ragas_faithfulness"
     METRIC_TYPE = "score"
 
@@ -24,6 +29,7 @@ class RagasFaithfulnessEvaluator:
             )
 
     def evaluate(self, span: dict) -> Optional[float]:
+        """placeholder function"""
         span_id, trace_id = span.get("span_id"), span.get("trace_id")
         if not span_id or not trace_id:
             return None

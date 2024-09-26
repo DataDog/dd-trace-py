@@ -19,7 +19,11 @@ SUPPORTED_EVALUATORS = {
 
 
 class EvaluatorRunner(PeriodicService):
-    """Base class for evaluating LLM Observability span events"""
+    """Base class for evaluating LLM Observability span events
+    This class
+    1. parses active evaluators from the environment and initializes these evaluators
+    2. triggers evaluator runs over buffered finished spans on each `periodic` call
+    """
 
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
