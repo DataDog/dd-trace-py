@@ -511,8 +511,8 @@ class Tracer(object):
             else:
                 if sampler is not None:
                     log.warning(
-                        "Overriding sampler {}, a DatadogSampler must be used in ASM Standalone mode",
-                        sampler,
+                        "Overriding sampler: %s, a DatadogSampler must be used in ASM Standalone mode",
+                        sampler.__class__,
                     )
                 sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
             log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
