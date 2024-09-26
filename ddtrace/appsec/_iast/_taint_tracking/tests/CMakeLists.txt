@@ -28,3 +28,8 @@ target_link_libraries(native_tests ${NATIVE_TEST_LIBRARIES})
 # Discover tests
 include(GoogleTest)
 gtest_discover_tests(native_tests)
+
+add_custom_target(test_valgrind
+        COMMAND valgrind --leak-check=full --show-reachable=yes ${CMAKE_BINARY_DIR}/tests/native_tests --gtest_filter=-TestTimer.*
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests)
+add_dependencies(test_valgrind native_tests)
