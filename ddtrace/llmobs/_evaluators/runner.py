@@ -19,9 +19,13 @@ SUPPORTED_EVALUATORS = {
 
 
 class EvaluatorRunner(PeriodicService):
-    """Base class for evaluating LLM Observability span events"""
+    """Base class for evaluating LLM Observability span events
+    This class
+    1. parses active evaluators from the environment and initializes these evaluators
+    2. triggers evaluator runs over buffered finished spans on each `periodic` call
+    """
 
-    def __init__(self, interval: float, llmobs_service=None):
+    def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: list[Dict]
@@ -29,7 +33,10 @@ class EvaluatorRunner(PeriodicService):
 
         self.llmobs_service = llmobs_service
         self.executor = futures.ThreadPoolExecutor()
-        self.evaluators = []
+        self.evaluators = [] if evaluators is None else evaluators
+
+        if len(self.evaluators) > 0:
+            return
 
         evaluator_str = os.getenv("_DD_LLMOBS_EVALUATORS")
         if evaluator_str is None:
@@ -53,6 +60,13 @@ class EvaluatorRunner(PeriodicService):
             logger.debug("no evaluators configured, not starting %r", self.__class__.__name__)
             return
         super(EvaluatorRunner, self).stop()
+
+    def recreate(self) -> "EvaluatorRunner":
+        return self.__class__(
+            interval=self._interval,
+            llmobs_service=self.llmobs_service,
+            evaluators=self.evaluators,
+        )
 
     def on_shutdown(self):
         self.executor.shutdown()

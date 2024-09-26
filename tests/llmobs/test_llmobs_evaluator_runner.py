@@ -3,6 +3,7 @@ import time
 import mock
 import pytest
 
+import ddtrace
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 
@@ -16,7 +17,7 @@ def _dummy_ragas_eval_metric_event(span_id, trace_id):
         timestamp_ms=mock.ANY,
         metric_type="score",
         label="ragas_faithfulness",
-        tags=["ddtrace.version:2.14.0.dev78+g929ae6186", "ml_app:unnamed-ml-app"],
+        tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
     )
 
 

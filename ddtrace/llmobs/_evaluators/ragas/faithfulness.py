@@ -29,6 +29,11 @@ except ImportError as e:
 
 
 class RagasFaithfulnessEvaluator:
+    """A class used by EvaluatorRunner to conduct ragas faithfulness evaluations
+    on LLM Observability span events. The job of an Evaluator is to take a span and
+    submit evaluation metrics based on the span's attributes.
+    """
+
     LABEL = "ragas_faithfulness"
     METRIC_TYPE = "score"
 
@@ -62,9 +67,9 @@ class RagasFaithfulnessEvaluator:
                 timestamp_ms=math.floor(time.time() * 1000),
             )
 
-    def evaluate(self, span):
+    def evaluate(self, span) -> t.Optional[float]:
         if not self.enabled:
-            return
+            return None
         llmobs_metadata = {}
         score = math.nan
         LLMObs = self.llmobs
@@ -81,7 +86,7 @@ class RagasFaithfulnessEvaluator:
                         logger.debug(
                             "Failed to extract question and context from span sampled for ragas_faithfulness evaluation"
                         )
-                        return
+                        return None
 
                     question, answer, context = (
                         faithfulness_inputs["question"],
@@ -96,7 +101,7 @@ class RagasFaithfulnessEvaluator:
                     statements = self.statements_output_parser.parse(statements.generations[0][0].text)
 
                     if statements is None:
-                        return
+                        return None
                     statements = [item["simpler_statements"] for item in statements.dicts()]
                     statements = [item for sublist in statements for item in sublist]
 
@@ -126,9 +131,9 @@ class RagasFaithfulnessEvaluator:
                             faithfulness_list = StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
                         except Exception as e:
                             logger.debug("Failed to parse faithfulness_list", exc_info=e)
-                            return
+                            return None
                     else:
-                        return
+                        return None
 
                     score = self._compute_score(faithfulness_list)
 

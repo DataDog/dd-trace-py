@@ -71,7 +71,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         span.set_metric(IAST.ENABLED, 1.0)
 
-        report_data: IastSpanReporter = core.get_item(IAST.CONTEXT_KEY, span=span)  # type: ignore
+        report_data: IastSpanReporter = core.get_item(IAST.CONTEXT_KEY, span=span)
 
         if report_data:
             report_data.build_and_scrub_value_parts()

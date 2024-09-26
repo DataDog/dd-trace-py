@@ -6,7 +6,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
+from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.tracer import Tracer
 from tests.integration.utils import parametrize_with_all_encodings

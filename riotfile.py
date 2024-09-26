@@ -1434,7 +1434,8 @@ venv = Venv(
             name="mongoengine",
             command="pytest {cmdargs} tests/contrib/mongoengine",
             pkgs={
-                "pymongo": latest,
+                # pymongo v4.9.0 introduced breaking changes that are not yet supported by mongoengine
+                "pymongo": "<4.9.0",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -1560,6 +1561,7 @@ venv = Venv(
             pkgs={
                 "httpx": latest,
                 "pytest-asyncio": "==0.21.1",
+                "python-multipart": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
                 "aiofiles": latest,
