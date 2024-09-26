@@ -613,9 +613,9 @@ def test_endpoint_call_counter_processor():
     processor.on_span_finish(spanNonWeb)
     processor.on_span_finish(spanNonLocalRoot)
 
-    assert processor.reset() == {"a": 2, "b": 1}
+    assert processor.reset()[0] == {"a": 2, "b": 1}
     # Make sure data has been cleared
-    assert processor.reset() == {}
+    assert processor.reset()[0] == {}
 
 
 def test_endpoint_call_counter_processor_disabled():
@@ -627,7 +627,7 @@ def test_endpoint_call_counter_processor_disabled():
 
     processor.on_span_finish(spanA)
 
-    assert processor.reset() == {}
+    assert processor.reset()[0] == {}
 
 
 def test_endpoint_call_counter_processor_real_tracer():
@@ -651,7 +651,7 @@ def test_endpoint_call_counter_processor_real_tracer():
     with tracer.trace("parent", service="top_level_test_service", resource="ignored", span_type=SpanTypes.HTTP):
         pass
 
-    assert tracer._endpoint_call_counter_span_processor.reset() == {"a": 2, "b": 1}
+    assert tracer._endpoint_call_counter_span_processor.reset()[0] == {"a": 2, "b": 1}
 
 
 def test_trace_tag_processor_adds_chunk_root_tags():
