@@ -701,6 +701,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 tags={"ml_app": "langchain_test"},
             )
         )
+
     # TODO : update test
     def test_llmobs_similarity_search(self, langchain_openai, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
         import pinecone
