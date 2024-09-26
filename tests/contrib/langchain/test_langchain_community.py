@@ -382,7 +382,7 @@ def test_chat_model_logs(
 
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain_openai, request_vcr):
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
         embeddings = langchain_openai.OpenAIEmbeddings()
         with request_vcr.use_cassette("openai_embedding_query.yaml"):
             embeddings.embed_query("this is a test query.")
@@ -405,7 +405,7 @@ def test_fake_embedding_document(langchain_community):
 
 
 def test_openai_embedding_metrics(langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
         embeddings = langchain_openai.OpenAIEmbeddings()
         with request_vcr.use_cassette("openai_embedding_query.yaml"):
             embeddings.embed_query("this is a test query.")
@@ -431,7 +431,7 @@ def test_openai_embedding_metrics(langchain_openai, request_vcr, mock_metrics, m
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
 def test_embedding_logs(langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
         embeddings = langchain_openai.OpenAIEmbeddings()
         with request_vcr.use_cassette("openai_embedding_query.yaml"):
             embeddings.embed_query("this is a test query.")
