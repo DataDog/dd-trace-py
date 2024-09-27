@@ -162,6 +162,7 @@ def test_task_id_from_protocol_v1_no_headers():
     task_id = retrieve_task_id(context)
     assert task_id == "dffcaec1-dd92-4a1a-b3ab-d6512f4beeb7"
 
+
 def test_task_id_from_protocol_v1_with_headers():
     # ensures a `task_id` is properly returned when Protocol v1 is used with headers.
     # `context` is an example of an emitted Signal with Protocol v1
@@ -187,14 +188,15 @@ def test_task_id_from_protocol_v1_with_headers():
         "routing_key": "celery",
         "retry_policy": None,
         "headers": {
-            "header1": 'value',
-            "header2": 'value',
+            "header1": "value",
+            "header2": "value",
         },
         "properties": {},
     }
 
     task_id = retrieve_task_id(context)
     assert task_id == "dffcaec1-dd92-4a1a-b3ab-d6512f4beeb7"
+
 
 def test_task_id_from_protocol_v2_no_body():
     # ensures a `task_id` is properly returned when Protocol v2 is used.
@@ -230,6 +232,7 @@ def test_task_id_from_protocol_v2_no_body():
 
     task_id = retrieve_task_id(context)
     assert task_id == "7e917b83-4018-431d-9832-73a28e1fb6c0"
+
 
 def test_task_id_from_protocol_v2_with_body():
     # ensures a `task_id` is properly returned when Protocol v2 is used.
@@ -269,6 +272,7 @@ def test_task_id_from_protocol_v2_with_body():
 
     task_id = retrieve_task_id(context)
     assert task_id == "7e917b83-4018-431d-9832-73a28e1fb6c0"
+
 
 def test_task_id_from_blank_context():
     # if there is no context (thus missing headers and body),
