@@ -272,20 +272,23 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
     assert_base_event(profile, sample, expected_event)
 
 
-def assert_stack_event(profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
-    if expected_event.locations:
-        for location_id, expected_location in zip(sample.location_id, expected_event.locations):
+# helper function to check whether the expected stack event is present in the samples
+def has_sample_with_locations(
+    profile, samples: typing.List[pprof_pb2.Sample], expected_locations: typing.List[StackLocation]
+) -> bool:
+    for sample in samples:
+        for location_id, expected_location in zip(sample.location_id, expected_locations):
             location = get_location_with_id(profile, location_id)
             function = get_function_with_id(profile, location.line[0].function_id)
-            assert (
-                profile.string_table[function.name] == expected_location.function_name
-            ), "Expected function {} got {}".format(
-                expected_location.function_name, profile.string_table[function.name]
-            )
-            assert profile.string_table[function.filename].endswith(
-                expected_location.filename
-            ), "Expected filepath to end with {}, got {}".format(
-                expected_location.filename, profile.string_table[function.filename]
-            )
+            if profile.string_table[function.name] != expected_location.function_name:
+                continue
+            if not profile.string_table[function.filename].endswith(expected_location.filename):
+                continue
 
+            return True
+
+    return False
+
+
+def assert_stack_event(profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
     assert_base_event(profile, sample, expected_event)

@@ -36,32 +36,24 @@ def test_stack_v2_locations():
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
-    locations_asserted = False
-    for sample in samples:
-        if len(sample.location_id) > 0:
-            pprof_utils.assert_stack_event(
-                profile,
-                sample,
-                expected_event=pprof_utils.StackEvent(
-                    locations=[
-                        pprof_utils.StackLocation(
-                            function_name="baz",
-                            filename="test_stack.py",
-                        ),
-                        pprof_utils.StackLocation(
-                            function_name="bar",
-                            filename="test_stack.py",
-                        ),
-                        pprof_utils.StackLocation(
-                            function_name="foo",
-                            filename="test_stack.py",
-                        ),
-                    ]
-                ),
-            )
-            locations_asserted = True
+    expected_locations = [
+        pprof_utils.StackLocation(
+            function_name="baz",
+            filename="test_stack.py",
+        ),
+        pprof_utils.StackLocation(
+            function_name="bar",
+            filename="test_stack.py",
+        ),
+        pprof_utils.StackLocation(
+            function_name="foo",
+            filename="test_stack.py",
+        ),
+    ]
 
-    assert locations_asserted
+    assert pprof_utils.has_sample_with_locations(
+        profile, samples, expected_locations
+    ), "Sample with expected locations not found"
 
 
 # Tests here are marked as subprocess as they are flaky when not marked as such,
