@@ -4,6 +4,7 @@
 
 #include "Aspects/Helpers.h"
 #include "Initializer/Initializer.h"
+#include "PythonErrorGuard.h"
 
 bool
 asbool(const py::object& value)
@@ -35,6 +36,7 @@ asbool(const char* value)
 void
 iast_taint_log_error(const std::string& msg)
 {
+    safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("[IAST] Propagation error. " + msg);
     try {
         if (!is_iast_debug_enabled()) {
             return;
@@ -42,10 +44,7 @@ iast_taint_log_error(const std::string& msg)
         std::string frame_info;
         // If we don't clear the error, stack() and other functions won't work, so we save it first for restoring
         // it later if needed
-        PyObject *ptype, *pvalue, *ptraceback;
-        PyErr_Fetch(&ptype, &pvalue, &ptraceback);
-        const bool had_exception = (ptype != nullptr || pvalue != nullptr || ptraceback != nullptr);
-        PyErr_Clear();
+        PythonErrorGuard error_guard;
 
         try {
             const py::list stack = safe_import("inspect", "stack")();
@@ -64,34 +63,16 @@ iast_taint_log_error(const std::string& msg)
         }
 
         const auto log = get_python_logger();
-        log.attr("debug")(msg + ": " + frame_info);
-
-        safe_import("ddtrace.appsec._iast._metrics", "_set_iast_error_metric")("IAST propagation error. " + msg);
-
-        // Restore the original exception state if needed
-        if (had_exception) {
-            PyErr_Restore(ptype, pvalue, ptraceback);
-        } else {
-            Py_XDECREF(ptype);
-            Py_XDECREF(pvalue);
-            Py_XDECREF(ptraceback);
-        }
+        log.attr("debug")("[IAST] Propagation error. " + msg + ": " + frame_info);
 
     } catch (const py::error_already_set& e) {
         if (!e.trace().is_none()) {
-
-            PyObject *type, *value, *tb;
-            PyErr_Fetch(&type, &value, &tb);
-            PyErr_NormalizeException(&type, &value, &tb);
-            if (value) {
-                std::cerr << "Exception value: " << py::str(value).cast<std::string>() << "\n";
-            }
-            if (tb) {
-                std::cerr << "Traceback:\n" << py::str(tb).cast<std::string>() << "\n";
+            if (PythonErrorGuard error_guard; error_guard.has_error()) {
+                std::cerr << "Traceback: " << error_guard.error_as_stdstring() << "\n";
             }
         }
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
-        PyErr_Clear(); // Clear the error state
+        PyErr_Clear();
     } catch (const std::exception& e) {
         cerr << "ddtrace: error when trying to log an IAST native error: " << e.what() << "\n";
     } catch (...) {
@@ -115,11 +96,7 @@ safe_import(const char* module_name, const char* symbol_name)
     const string final_name =
       symbol_name == nullptr ? string(module_name) : string(module_name) + "." + string(symbol_name);
 
-    // First check if there is any error and store it to restore later and clear it because
-    // otherwise we can't import anything
-    PyObject *ptype, *pvalue, *ptraceback;
-    PyErr_Fetch(&ptype, &pvalue, &ptraceback); // Fetch and clear the current exception
-    const bool had_exception = (ptype != nullptr || pvalue != nullptr || ptraceback != nullptr);
+    PythonErrorGuard error_guard;
 
     py::object ret;
     const auto mod = py::module_::import(module_name);
@@ -129,14 +106,6 @@ safe_import(const char* module_name, const char* symbol_name)
         ret = attr;
     } else {
         ret = mod;
-    }
-
-    if (had_exception) {
-        PyErr_Restore(ptype, pvalue, ptraceback);
-    } else {
-        Py_XDECREF(ptype);
-        Py_XDECREF(pvalue);
-        Py_XDECREF(ptraceback);
     }
 
     return ret;

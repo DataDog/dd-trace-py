@@ -35,4 +35,4 @@ is_some_number(PyObject* obj)
 }
 
 py::object
-safe_import(const char* module, const char* symbol);
+safe_import(const char*, const char*);

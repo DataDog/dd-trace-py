@@ -4,7 +4,8 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from tests import utils
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
@@ -62,8 +63,8 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             ),
             replace_os_env=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
@@ -88,8 +89,8 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             replace_os_env=True,
         ):
             with mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-                return_value=_CIVisibilitySettings(False, False, False, False),
+                "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+                return_value=TestVisibilityAPISettings(False, False, False, False),
             ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
                 subprocess.run(["python", "fake_runner_all_fail.py"])
 
@@ -111,8 +112,8 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             ),
             replace_os_env=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
@@ -136,8 +137,8 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             ),
             replace_os_env=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
@@ -161,10 +162,11 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             ),
             replace_os_env=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE),
         ):
             subprocess.run(["python", "fake_runner_all_itr_skip_suite_level.py"])
 
@@ -186,8 +188,8 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             ),
             replace_os_env=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
@@ -211,8 +213,8 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             ),
             replace_os_env=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
@@ -237,8 +239,8 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             ),
             replace_os_env=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
@@ -263,8 +265,8 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             ),
             replace_os_env=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):

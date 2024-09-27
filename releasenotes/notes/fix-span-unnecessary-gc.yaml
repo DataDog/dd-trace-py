@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Removes a reference cycle that caused unnecessary garbage collection for top-level spans.

@@ -797,8 +797,6 @@ class Tracer(object):
                 span._parent = parent
                 span._local_root = parent._local_root
 
-            if span._local_root is None:
-                span._local_root = span
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
@@ -815,7 +813,6 @@ class Tracer(object):
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
             )
-            span._local_root = span
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
 

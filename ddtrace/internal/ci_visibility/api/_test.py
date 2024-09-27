@@ -13,6 +13,7 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
@@ -118,7 +119,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         When skipping at the suite level, the counting only happens when suites are finished as ITR-skipped.
         """
-        if self._session_settings.itr_test_skipping_level is TEST and self.parent is not None:
+        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST and self.parent is not None:
             self.parent.count_itr_skipped()
 
     def finish_itr_skipped(self) -> None:

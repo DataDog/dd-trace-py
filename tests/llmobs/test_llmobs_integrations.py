@@ -190,3 +190,24 @@ def test_integration_trace(mock_integration_config, mock_pin):
     assert span[0].resource == "dummy_operation_id"
     assert span[0].service == "dummy_service"
     mock_set_base_span_tags.assert_called_once()
+
+
+@mock.patch("ddtrace.llmobs._integrations.base.log")
+@mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
+def test_llmobs_set_tags(mock_llmobs, mock_log, mock_integration_config):
+    span = DummyTracer().trace("Dummy span", service="dummy_service")
+    integration = BaseLLMIntegration(mock_integration_config)
+    integration._llmobs_set_tags = mock.Mock()
+    integration.llmobs_set_tags(span, args=[], kwargs={}, response="response", operation="operation")
+    integration._llmobs_set_tags.assert_called_once_with(span, [], {}, "response", "operation")
+
+    integration._llmobs_set_tags = mock.Mock(side_effect=AttributeError("Mocked Exception during _llmobs_set_tags()"))
+    integration.llmobs_set_tags(
+        span, args=[1, 2, 3], kwargs={"a": 123}, response=[{"content": "hello"}], operation="operation"
+    )
+    integration._llmobs_set_tags.assert_called_once_with(
+        span, [1, 2, 3], {"a": 123}, [{"content": "hello"}], "operation"
+    )
+    mock_log.error.assert_called_once_with(
+        "Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True
+    )

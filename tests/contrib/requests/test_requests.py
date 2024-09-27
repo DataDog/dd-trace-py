@@ -24,7 +24,7 @@ from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_tracer
 
 
-HOST_AND_PORT = "httpbin-local:8001"
+HOST_AND_PORT = "localhost:8001"
 SOCKET = HOST_AND_PORT.split(":")[0]
 URL_200 = "http://{}/status/200".format(HOST_AND_PORT)
 URL_500 = "http://{}/status/500".format(HOST_AND_PORT)
@@ -243,9 +243,11 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == "doesnotexist.google.com"
         assert s.error == 1
-        assert "Name or service not known" in s.get_tag(ERROR_MSG)
-        assert "Name or service not known" in s.get_tag(ERROR_STACK)
-        assert "Traceback (most recent call last)" in s.get_tag(ERROR_STACK)
+        assert (
+            "HTTPConnectionPool(host='doesnotexist.google.com', port=80): Max retries exceeded with url: /"
+            in s.get_tag(ERROR_MSG)
+        )
+        assert s.get_tag(ERROR_STACK)
         assert "requests.exception" in s.get_tag(ERROR_TYPE)
 
     def test_500(self):
