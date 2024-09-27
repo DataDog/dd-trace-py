@@ -304,6 +304,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pydantic.",
     "pydantic_core.",
     "pydantic_settings.",
+    "tomli.",
 )
 
 
