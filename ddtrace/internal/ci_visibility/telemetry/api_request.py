@@ -14,7 +14,7 @@ log = get_logger(__name__)
 class APIRequestMetricNames:
     count: str
     duration: str
-    response_bytes: str
+    response_bytes: Optional[str]
     error: str
 
 
@@ -35,7 +35,10 @@ def record_api_request(
     telemetry_writer.add_count_metric(_NAMESPACE, f"{metric_names.count}", 1)
     telemetry_writer.add_distribution_metric(_NAMESPACE, f"{metric_names.duration}", duration)
     if response_bytes is not None:
-        telemetry_writer.add_distribution_metric(_NAMESPACE, f"{metric_names.response_bytes}", response_bytes)
+        if metric_names.response_bytes is not None:
+            # We don't always want to record response bytes (for settings requests), so assume that no metric name
+            # means we don't want to record it.
+            telemetry_writer.add_distribution_metric(_NAMESPACE, f"{metric_names.response_bytes}", response_bytes)
 
     if error is not None:
         record_api_request_error(metric_names.error, error)

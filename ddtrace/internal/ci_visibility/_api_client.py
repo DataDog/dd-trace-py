@@ -88,13 +88,6 @@ class EarlyFlakeDetectionSettings:
 
 
 @dataclasses.dataclass(frozen=True)
-class UniqueTestsData:
-    test_modules: t.Dict[str, TestModuleId]
-    test_suites: t.Dict[str, TestSuiteId]
-    test_cases: t.Dict[str, InternalTestId]
-
-
-@dataclasses.dataclass(frozen=True)
 class TestVisibilityAPISettings:
     __test__ = False
     coverage_enabled: bool = False
@@ -313,10 +306,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             try:
                 sw.stop()  # Stop the timer before parsing the response
                 response_bytes = len(response.body)
-                if isinstance(response.body, bytes):
-                    parsed = json.loads(response.body.decode())
-                else:
-                    parsed = json.loads(response.body)
+                parsed = json.loads(response.body)
                 return parsed
             except JSONDecodeError:
                 error_type = ERROR_TYPES.BAD_JSON
@@ -331,10 +321,10 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         """
 
         metric_names = APIRequestMetricNames(
-            GIT_TELEMETRY.SETTINGS_COUNT,
-            GIT_TELEMETRY.SETTINGS_MS,
-            GIT_TELEMETRY.SETTINGS_RESPONSE,
-            GIT_TELEMETRY.SETTINGS_ERRORS,
+            count=GIT_TELEMETRY.SETTINGS_COUNT,
+            duration=GIT_TELEMETRY.SETTINGS_MS,
+            response_bytes=None,
+            error=GIT_TELEMETRY.SETTINGS_ERRORS,
         )
 
         payload = {
@@ -412,10 +402,10 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             timeout = DEFAULT_ITR_SKIPPABLE_TIMEOUT
 
         metric_names = APIRequestMetricNames(
-            SKIPPABLE_TESTS_TELEMETRY.REQUEST,
-            SKIPPABLE_TESTS_TELEMETRY.REQUEST_MS,
-            SKIPPABLE_TESTS_TELEMETRY.RESPONSE_TESTS,
-            SKIPPABLE_TESTS_TELEMETRY.REQUEST_ERRORS,
+            count=SKIPPABLE_TESTS_TELEMETRY.REQUEST,
+            duration=SKIPPABLE_TESTS_TELEMETRY.REQUEST_MS,
+            response_bytes=SKIPPABLE_TESTS_TELEMETRY.RESPONSE_BYTES,
+            error=SKIPPABLE_TESTS_TELEMETRY.REQUEST_ERRORS,
         )
 
         payload = {
@@ -448,7 +438,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         meta = skippable_response.get("meta")
         if meta is None:
-            log.debug("SKippable tests response did not contain metadata field, no tests will be skipped")
+            log.debug("Skippable tests response did not contain metadata field, no tests will be skipped")
             record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
             return None
 
@@ -480,10 +470,10 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
     def fetch_unique_tests(self) -> t.Optional[t.Set[InternalTestId]]:
         metric_names = APIRequestMetricNames(
-            EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST,
-            EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS,
-            EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES,
-            EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS,
+            count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST,
+            duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS,
+            response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES,
+            error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS,
         )
 
         unique_test_ids: t.Set[InternalTestId] = set()
