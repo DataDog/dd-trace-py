@@ -77,21 +77,19 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     // Lambda to get the result of the modulo operation
     auto get_result = [&]() -> PyObject* {
-        PyObject* res = do_modulo(candidate_text, candidate_tuple);
-        if (res == nullptr) {
-            try {
-                py::object res_py = py_candidate_text.attr("__mod__")(py_candidate_tuple);
-                PyObject* res_pyo = res_py.ptr();
-                if (res_pyo != nullptr) {
-                    Py_INCREF(res_pyo);
-                }
-                return res_pyo;
-            } catch (py::error_already_set& e) {
-                e.restore();
-                return nullptr;
+        PyObject* res_pyo = nullptr;
+        try {
+            py::object res_py = py_candidate_text.attr("__mod__")(py_candidate_tuple);
+            res_pyo = res_py.ptr();
+            if (res_pyo != nullptr) {
+                Py_INCREF(res_pyo);
             }
+            return res_pyo;
+        } catch (py::error_already_set& e) {
+            Py_XDECREF(res_pyo);
+            e.restore();
+            return nullptr;
         }
-        return res;
     };
 
     TRY_CATCH_ASPECT("modulo_aspect", return get_result(), , {

@@ -29,7 +29,10 @@ def test_doit():
     string7 = string6.upper()  # 1 propagation range: HIROOT1234-HIROOT123
     string8 = "%s_notainted" % string7  # 1 propagation range: HIROOT1234-HIROOT123_notainted
     string9 = "notainted_{}".format(string8)  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
-    string10 = "nottainted\n" + string9  # 2 propagation ranges: notainted\nnotainted_HIROOT1234-HIROOT123_notainted
+    string9_2 = f"{string9}_notainted"  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted_notainted
+    string10 = (
+        "nottainted\n" + string9_2
+    )  # 2 propagation ranges: notainted\nnotainted_HIROOT1234-HIROOT123_notainted_notainted
     string11 = string10.splitlines()[1]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
     string12 = string11 + "_notainted"  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted_notainted
     string13 = string12.rsplit("_", 1)[0]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
