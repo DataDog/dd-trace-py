@@ -22,7 +22,7 @@ if pymongo.version_tuple >= (4, 9):  # noqa
     from pymongo.synchronous.database import Database
     from pymongo.synchronous.server import Server
 else:
-    from pymongo.database import Database  # noqa
+    from pymongo.database import Database
     from pymongo.server import Server
 
 
