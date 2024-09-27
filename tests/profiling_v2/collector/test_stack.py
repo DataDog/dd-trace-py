@@ -69,7 +69,7 @@ def test_stack_v2_locations():
 # reason, when the Span is created, it's not linked to the MainThread, and the
 # profiler can't find the corresponding Span for the MainThread.
 @pytest.mark.subprocess()
-def test_push_span(span_type):
+def test_push_span():
     import os
     import time
     import uuid
